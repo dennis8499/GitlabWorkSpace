@@ -53,7 +53,8 @@ test('stores the access token in SecretStorage only after the current-user check
     assert.equal(user.username, 'tester');
     assert.equal(secrets.values.get('gitlabWorkspace.accessToken'), 'unit-session-token-do-not-use');
     assert.equal(state.get('gitlabWorkspace.baseUrl'), running.baseUrl);
-    assert.deepEqual(running.tokens, ['unit-session-token-do-not-use']);
+    assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
+    assert.match(session.instanceWarnings.join(' '), /capabilities could not be verified/);
   } finally {
     await stop(running.server);
   }

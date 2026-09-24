@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "Browse GitLab groups, clone projects, and manage assigned issues from VS Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "engines": {
@@ -119,29 +119,40 @@
   },
   "scripts": {
     "compile": "tsc -p .",
+    "typecheck:webview": "tsc -p tsconfig.webview.json",
+    "build:webview": "npm run typecheck:webview && vite build",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
+    "test:behavior": "npm run build:webview && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature",
     "test:extension": "npm run compile && vscode-test",
     "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs",
-    "test": "npm run test:unit && npm run test:release && npm run test:extension",
+    "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
-    "package": "npm run compile && node scripts/package-extension.mjs && python scripts/verify-vsix.py",
+    "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && python scripts/verify-vsix.py",
     "verify:package": "python scripts/verify-vsix.py",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile && npm run build:webview"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^13.2.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.2",
     "@types/vscode": "^1.90.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
-    "typescript": "^7.0.2"
+    "jsdom": "^30.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.1"
   },
   "overrides": {
     "serialize-javascript": "^7.0.6",
     "@vscode/test-cli": {
       "diff": "^8.0.4"
     }
+  },
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "preact": "^10.29.8"
   }
 }

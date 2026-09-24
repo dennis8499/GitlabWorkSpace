@@ -1,6 +1,6 @@
 # GitLab Workspace for VS Code
 
-Browse GitLab groups, clone several repositories into a local workspace folder, and read or create issues without leaving VS Code.
+Browse GitLab groups, clone several repositories into a local workspace folder, and work with issues without leaving VS Code.
 
 ## Connect
 
@@ -19,7 +19,9 @@ Git must be installed and available on `PATH`. The extension uses the project’
 
 ## Issues
 
-The My Issues view lists open and closed issues assigned to the signed-in user within the selected group’s projects. Select an issue to open its read-only details. Use **Create Issue** to choose a project, enter a title and optional one-line description, then assign one project member or leave it unassigned.
+The My Issues view lists open and closed issues assigned to the signed-in user within the selected group’s projects. Select an issue to open its live details. **Create Issue** opens a form for the project, title, description template, Markdown, attachment, assignee, labels, milestone, start and due dates, and confidentiality. A newly created issue opens immediately even when it is not assigned to you.
+
+The detail view supports editing, state changes, discussions with Markdown preview and attachments, issue links, child tasks, reactions, notifications, to-dos, time reports and dated time entries, cloning, moving, and deletion when the signed-in account has permission. Move and clone targets can be searched across groups. GitLab quick actions remain available in descriptions and comments. API failures remain visible so you can retry after refreshing.
 
 ## Development and local package
 
@@ -29,14 +31,14 @@ npm.cmd test
 npm.cmd run package
 ```
 
-The VSIX is written to `dist/gitlab-workspace-<version>.vsix` (currently `dist/gitlab-workspace-0.1.0.vsix`). Install it from VS Code’s Extensions view using **Install from VSIX…**. The original `index.html` remains in the repository as a reference and is excluded from the package.
+`npm test` builds and checks the VSIX as part of the release behavior gate. The VSIX is written to `dist/gitlab-workspace-<version>.vsix` (currently `dist/gitlab-workspace-0.2.0.vsix`). Install it from VS Code’s Extensions view using **Install from VSIX…**. The original `index.html` remains in the repository as a reference and is excluded from the package.
 
 ## GitHub releases
 
 To release a new version:
 
-1. Update the version in `package.json` and `package-lock.json`, for example with `npm version 0.1.1 --no-git-tag-version`.
+1. Update the version in `package.json` and `package-lock.json`, for example with `npm version 0.2.1 --no-git-tag-version`.
 2. Commit and merge the version change to `main`.
-3. Create and push a matching version tag, for example `git tag v0.1.1` followed by `git push origin v0.1.1`.
+3. Create and push a matching version tag, for example `git tag v0.2.1` followed by `git push origin v0.2.1`.
 
 GitHub Actions checks the tag against both package files and the `main` branch, runs the tests, packages the VSIX, and creates a GitHub Release with generated notes and the VSIX attached. The initial `v0.1.0` release and tags with a semantic prerelease suffix such as `-beta.1` are marked as pre-releases; plain version tags are published as regular releases. Downloads are provided through GitHub Releases; the extension is not published to the VS Code Marketplace.

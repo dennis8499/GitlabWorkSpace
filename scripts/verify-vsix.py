@@ -22,8 +22,13 @@ try:
             raise SystemExit("VSIX package version does not match package.json")
         if packaged_manifest.get("name") != MANIFEST["name"]:
             raise SystemExit("VSIX package name does not match package.json")
+        for asset in ("extension/resources/issue-webview/issue.js", "extension/resources/issue-webview/issue.css"):
+            if asset not in members or not archive.read(asset):
+                raise SystemExit(f"VSIX is missing Issue webview asset: {asset}")
         if any(name.startswith(("extension/.github/", "extension/scripts/")) for name in members):
             raise SystemExit("VSIX contains release workflow or helper files")
+        if any(name.startswith("extension/.npm-cache/") for name in members):
+            raise SystemExit("VSIX contains npm cache files")
 except (OSError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError) as error:
     print(f"Invalid VSIX archive: {error}", file=sys.stderr)
     raise SystemExit(1) from error

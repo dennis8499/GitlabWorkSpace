@@ -1,0 +1,219 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { GitLabClient, type FetchLike } from '../../src/api/gitLabClient';
+
+const token = 'issue-api-test-token';
+const issue = { id: 401, iid: 7, project_id: 42, title: 'Before', state: 'opened', web_url: 'https://gitlab.example.test/g/p/-/issues/7', updated_at: '2026-09-24T00:00:00Z' };
+
+test('creates an issue with all CE creation fields and reads its live details', async () => {
+  const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+  const fetcher: FetchLike = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) as unknown : undefined });
+    return new Response(JSON.stringify(issue), { headers: { 'Content-Type': 'application/json' } });
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await client.createIssue(42, {
+    title: 'Before', description: 'Markdown\n\n- [ ] Task', assigneeId: 9,
+    labels: ['bug', 'urgent'], milestoneId: 3, dueDate: '2026-10-01', confidential: true
+  });
+  const detail = await client.getIssue(42, 7);
+  assert.equal(detail.id, 401);
+  assert.deepEqual(calls[0].body, {
+    title: 'Before', description: 'Markdown\n\n- [ ] Task', assignee_id: 9,
+    labels: 'bug,urgent', milestone_id: 3, due_date: '2026-10-01', confidential: true
+  });
+  assert.equal(calls[1].url, 'https://gitlab.example.test/api/v4/projects/42/issues/7');
+});
+
+test('updates an issue and rejects a stale local snapshot before writing', async () => {
+  const calls: string[] = [];
+  const fetcher: FetchLike = async (input, init) => {
+    calls.push(`${init?.method ?? 'GET'} ${String(input)}`);
+    return new Response(JSON.stringify({ ...issue, title: 'Changed elsewhere', updated_at: '2026-09-24T01:00:00Z' }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await assert.rejects(client.updateIssueIfUnchanged(42, 7, issue.updated_at, { title: 'Mine' }), /changed/i);
+  assert.deepEqual(calls, ['GET https://gitlab.example.test/api/v4/projects/42/issues/7']);
+});
+
+test('loads discussions and related issues with pagination', async () => {
+  const paths: string[] = [];
+  const fetcher: FetchLike = async (input) => {
+    const url = String(input);
+    paths.push(url);
+    const payload = url.includes('/discussions') ? [{ id: 'thread-1', notes: [{ id: 1, body: 'Hello' }] }] : [{ id: 2, iid: 8, project_id: 42, issue_link_id: 5, title: 'Related' }];
+    return new Response(JSON.stringify(payload));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  assert.equal((await client.listIssueDiscussions(42, 7)).length, 1);
+  assert.equal((await client.listIssueLinks(42, 7)).length, 1);
+  assert.ok(paths.every((path) => path.includes('/projects/42/issues/7/')));
+});
+
+test('handles a successful issue deletion with no JSON response', async () => {
+  const fetcher: FetchLike = async () => new Response(null, { status: 204 });
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await client.deleteIssue(42, 7);
+});
+
+test('loads inherited issue templates through the project template API', async () => {
+  const paths: string[] = [];
+  const fetcher: FetchLike = async (input) => {
+    const path = new URL(String(input)).pathname;
+    paths.push(path);
+    return new Response(JSON.stringify(path.endsWith('/templates/issues') ? [{ key: 'Bug', name: 'Bug' }] : { content: 'Steps to reproduce' }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  assert.deepEqual(await client.listProjectIssueTemplates(42), [{ name: 'Bug', content: 'Steps to reproduce' }]);
+  assert.deepEqual(paths, ['/api/v4/projects/42/templates/issues', '/api/v4/projects/42/templates/issues/Bug']);
+});
+
+test('includes ancestor milestones and checks the GitLab GraphQL issue capabilities', async () => {
+  const paths: string[] = [];
+  const names = (value: string) => ({ fields: value.split(' ').map((name) => ({ name })) });
+  const fetcher: FetchLike = async (input) => {
+    const url = new URL(String(input));
+    paths.push(url.pathname + url.search);
+    if (url.pathname.endsWith('/graphql')) return new Response(JSON.stringify({ data: { __schema: { types: [
+      { name: 'Namespace', ...names('workItem workItemTypes') },
+      { name: 'WorkItem', ...names('id iid userPermissions widgets') },
+      { name: 'WorkItemWidgetHierarchy', ...names('children') },
+      { name: 'WorkItemPermissions', ...names('updateWorkItem deleteWorkItem moveWorkItem cloneWorkItem createNote markNoteAsInternal adminWorkItemLink adminParentLink setWorkItemMetadata') },
+      { name: 'Mutation', ...names('workItemCreate workItemUpdate discussionToggleResolve timelogCreate timelogDelete') },
+      { name: 'Project', ...names('userPermissions') }, { name: 'ProjectPermissions', ...names('createIssue') },
+      { name: 'WorkItemUpdateInput', inputFields: [{ name: 'startAndDueDateWidget' }] },
+      { name: 'WorkItemWidgetStartAndDueDateUpdateInput', inputFields: [{ name: 'startDate' }] },
+      { name: 'WorkItemWidgetStartAndDueDate', ...names('startDate') },
+      { name: 'WorkItemWidgetTimeTracking', ...names('timelogs') },
+      { name: 'WorkItemTimelog', ...names('id timeSpent spentAt summary user userPermissions') }
+    ] } } }));
+    return new Response(JSON.stringify([{ id: 8, title: 'Parent group milestone' }]));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  assert.equal((await client.listProjectMilestones(42))[0].title, 'Parent group milestone');
+  assert.deepEqual(await client.getIssueCapabilities(), { hierarchy: true, childMutations: true, discussionResolve: true, startDate: true, timelogReport: true, timelogCreate: true, timelogDelete: true, createPermission: true });
+  assert.match(paths[0], /include_ancestors=true/);
+});
+
+test('updates one CE assignee and edits a note through its discussion', async () => {
+  const calls: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+  const fetcher: FetchLike = async (input, init) => {
+    calls.push({ method: init?.method ?? 'GET', path: new URL(String(input)).pathname, body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {} });
+    return new Response(JSON.stringify(issue));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await client.updateIssue(42, 7, { assigneeId: 9 });
+  await client.updateIssue(42, 7, { assigneeId: null });
+  await client.updateIssueNote(42, 7, 'thread-one', 88, 'Edited');
+  assert.deepEqual(calls[0].body.assignee_ids, [9]);
+  assert.deepEqual(calls[1].body.assignee_ids, []);
+  assert.equal(calls[2].path, '/api/v4/projects/42/issues/7/discussions/thread-one/notes/88');
+  assert.equal(calls[2].method, 'PUT');
+});
+
+test('checks per-project creation permission and manages a note reaction', async () => {
+  const calls: Array<{ path: string; method: string; body?: unknown }> = [];
+  const fetcher: FetchLike = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    const method = init?.method ?? 'GET';
+    const body = init?.body ? JSON.parse(String(init.body)) as unknown : undefined;
+    calls.push({ path, method, body });
+    if (path.endsWith('/graphql')) return new Response(JSON.stringify({ data: { project: { userPermissions: { createIssue: false } } } }));
+    if (method === 'DELETE') return new Response(null, { status: 204 });
+    return new Response(JSON.stringify(method === 'GET' ? [{ id: 6, name: 'thumbsup', user: { id: 9 } }] : { id: 7, name: 'eyes' }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  assert.equal(await client.canCreateIssue('group/project'), false);
+  assert.equal((await client.listIssueNoteReactions(42, 7, 88))[0].name, 'thumbsup');
+  await client.addIssueNoteReaction(42, 7, 88, 'eyes');
+  await client.removeIssueNoteReaction(42, 7, 88, 6);
+  assert.equal(calls[0].path, '/api/graphql');
+  assert.equal(calls[1].path, '/api/v4/projects/42/issues/7/notes/88/award_emoji');
+  assert.equal(calls[2].method, 'POST');
+  assert.deepEqual(calls[2].body, { name: 'eyes' });
+  assert.equal(calls[3].path, '/api/v4/projects/42/issues/7/notes/88/award_emoji/6');
+});
+
+test('GraphQL child task mutation keeps the token in the host and reports mutation errors', async () => {
+  const requests: Array<{ url: string; headers: HeadersInit | undefined; body: Record<string, unknown> }> = [];
+  const fetcher: FetchLike = async (input, init) => {
+    requests.push({ url: String(input), headers: init?.headers, body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+    return new Response(JSON.stringify({ data: { workItemCreate: { errors: ['No permission'] } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await assert.rejects(client.createChildTask('group/project', 'gid://gitlab/WorkItem/401', 'gid://gitlab/WorkItems::Type/5', 'Child'), /No permission/);
+  assert.equal(requests[0].url, 'https://gitlab.example.test/api/graphql');
+  assert.equal((requests[0].headers as Record<string, string>)['PRIVATE-TOKEN'], token);
+  assert.deepEqual(requests[0].body.variables, {
+    path: 'group/project', parent: 'gid://gitlab/WorkItem/401', type: 'gid://gitlab/WorkItems::Type/5', title: 'Child'
+  });
+  assert.doesNotMatch(JSON.stringify(requests[0].body), /issue-api-test-token/);
+});
+
+test('child task title and description use the work item description widget', async () => {
+  let body: { query: string; variables: Record<string, unknown> } | undefined;
+  const fetcher: FetchLike = async (_input, init) => {
+    body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    return new Response(JSON.stringify({ data: { workItemUpdate: { errors: [] } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await client.updateChildTask('gid://gitlab/WorkItem/99', 'Updated child', '**Details**');
+  assert.match(body?.query ?? '', /descriptionWidget:\s*\{ description: \$description \}/);
+  assert.deepEqual(body?.variables, { id: 'gid://gitlab/WorkItem/99', title: 'Updated child', description: '**Details**' });
+});
+
+test('start dates and individual time entries use the supported GraphQL contracts', async () => {
+  const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const fetcher: FetchLike = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    calls.push(body);
+    if (body.query.includes('SetIssueStartDate')) return new Response(JSON.stringify({ data: { workItemUpdate: { errors: [] } } }));
+    if (body.query.includes('IssueStartDate')) return new Response(JSON.stringify({ data: { namespace: { workItem: { widgets: [{ startDate: '2026-10-02' }] } } } }));
+    if (body.query.includes('IssueTimelogs')) return new Response(JSON.stringify({ data: { namespace: { workItem: { widgets: [{ timelogs: { nodes: [{ id: 'gid://gitlab/Timelog/1', timeSpent: 3600, spentAt: '2026-09-24T12:00:00Z', summary: 'Review', user: { id: 9, name: 'Tester', username: 'tester' }, userPermissions: { adminTimelog: true } }] } }] } } } }));
+    if (body.query.includes('AddIssueTimelog')) return new Response(JSON.stringify({ data: { timelogCreate: { errors: [] } } }));
+    return new Response(JSON.stringify({ data: { timelogDelete: { errors: [] } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  await client.setIssueStartDate('gid://gitlab/WorkItem/401', '2026-10-02');
+  assert.equal(await client.getIssueStartDate('group/project', 7), '2026-10-02');
+  assert.equal((await client.listIssueTimelogs('group/project', 7))[0].summary, 'Review');
+  await client.createIssueTimelog(401, '1h', 'Review', '2026-09-24T12:00:00Z');
+  await client.createIssueTimelog(401, '30m');
+  await client.deleteIssueTimelog('gid://gitlab/Timelog/1');
+  assert.deepEqual(calls[0].variables, { id: 'gid://gitlab/WorkItem/401', startDate: '2026-10-02' });
+  assert.deepEqual(calls[3].variables.input, { issuableId: 'gid://gitlab/Issue/401', timeSpent: '1h', summary: 'Review', spentAt: '2026-09-24T12:00:00Z' });
+  assert.deepEqual(calls[4].variables.input, { issuableId: 'gid://gitlab/Issue/401', timeSpent: '30m', summary: '' });
+  assert.deepEqual(calls[5].variables, { id: 'gid://gitlab/Timelog/1' });
+});
+
+test('time entries load every GraphQL cursor page', async () => {
+  const cursors: unknown[] = [];
+  const fetcher: FetchLike = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { variables: { after: string | null } };
+    cursors.push(body.variables.after);
+    const second = body.variables.after === 'next-time';
+    return new Response(JSON.stringify({ data: { namespace: { workItem: { widgets: [{ timelogs: { nodes: [{ id: second ? 'time-2' : 'time-1', timeSpent: 60, spentAt: '2026-09-24T12:00:00Z', user: { id: 9, name: 'Tester', username: 'tester' } }], pageInfo: { hasNextPage: !second, endCursor: second ? null : 'next-time' } } }] } } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  assert.deepEqual((await client.listIssueTimelogs('group/project', 7)).map((entry) => entry.id), ['time-1', 'time-2']);
+  assert.deepEqual(cursors, [null, 'next-time']);
+});
+
+test('attachment reads stay on the configured GitLab uploads path and keep authentication in the host', async () => {
+  const paths: string[] = [];
+  const fetcher: FetchLike = async (input, init) => {
+    paths.push(String(input));
+    assert.equal((init?.headers as Record<string, string>)['PRIVATE-TOKEN'], token);
+    return new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'Content-Type': 'image/png' } });
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  const result = await client.downloadUpload('https://gitlab.example.test/group/project/uploads/hash/image.png');
+  assert.deepEqual([...result.bytes], [137, 80, 78, 71]);
+  assert.equal(result.contentType, 'image/png');
+  await assert.rejects(client.downloadUpload('https://other.example.test/uploads/image.png'), /outside/);
+  await assert.rejects(client.downloadUpload('https://gitlab.example.test/api/v4/user'), /outside/);
+  assert.deepEqual(paths, ['https://gitlab.example.test/group/project/uploads/hash/image.png']);
+  const nested = new GitLabClient('https://gitlab.example.test/gitlab', token, fetcher);
+  await assert.rejects(nested.downloadUpload('https://gitlab.example.test/gitlab-evil/uploads/steal.png'), /outside/);
+});
