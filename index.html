@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitLab Workspace · VSCode Extension</title>
+    <meta name="description" content="GitLab Repo 下載與 Issue 管理的 VSCode Extension Webview 原型" />
+    <style>
+      /* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio. */
+      @layer od-layout {
+        :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+        .od-stack { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+        .od-row { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+        .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+        .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+        .od-fill { flex: 1 1 0; min-width: 0; }
+        .od-fixed { flex: none; }
+        .od-grid { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+        .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+        :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+        .od-tile { display: grid; grid-template-rows: auto 1fr; }
+        :where(.od-tile) > :where(*) { display: block; }
+        .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+        .od-media-cover { object-fit: cover; }
+        .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+        .od-clamp-2 { -webkit-line-clamp: 2; }
+        .od-clamp-3 { -webkit-line-clamp: 3; }
+        .od-lines-2 { min-height: calc(2 * 1.4em); }
+        .od-nowrap { white-space: nowrap; }
+        .od-keep { word-break: keep-all; overflow-wrap: anywhere; }
+        .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+        .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+        .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+        .od-rail::-webkit-scrollbar { display: none; }
+        :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+        :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+        .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+        .od-touch { min-width: 44px; min-height: 44px; }
+      }
+
+      :root {
+        --bg: #0b0b0b;
+        --surface: #171717;
+        --surface-warm: #23130f;
+        --fg: #fffaf0;
+        --fg-2: #e8dcc8;
+        --muted: #a89f91;
+        --meta: #ffd200;
+        --border: #342a24;
+        --border-soft: #241f1b;
+        --accent: #dc0000;
+        --accent-on: #ffffff;
+        --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+        --accent-active: color-mix(in oklab, var(--accent), black 14%);
+        --success: #0f9d58;
+        --warn: #ffd200;
+        --danger: #ff3b30;
+        --font-display: "Ferrari Sans", "Helvetica Neue", Arial, sans-serif;
+        --font-body: "Ferrari Sans", "Helvetica Neue", Arial, sans-serif;
+        --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+        --text-xs: 12px;
+        --text-sm: 14px;
+        --text-base: 16px;
+        --text-lg: 19px;
+        --text-xl: 26px;
+        --text-2xl: 40px;
+        --text-3xl: 62px;
+        --text-4xl: 88px;
+        --leading-body: 1.5;
+        --leading-tight: 0.98;
+        --tracking-display: -0.03em;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --space-8: 32px;
+        --space-12: 48px;
+        --space-20: 80px;
+        --section-y-desktop: 112px;
+        --section-y-tablet: 80px;
+        --section-y-phone: 56px;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 14px;
+        --radius-pill: 9999px;
+        --elev-flat: none;
+        --elev-ring: 0 0 0 1px var(--border);
+        --elev-raised: 0 26px 80px rgba(0, 0, 0, 0.48);
+        --focus-ring: 0 0 0 4px rgba(220, 0, 0, 0.30);
+        --motion-fast: 130ms;
+        --motion-base: 220ms;
+        --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+        --container-max: 1240px;
+        --container-gutter-desktop: 40px;
+        --container-gutter-tablet: 28px;
+        --container-gutter-phone: 18px;
+        --sidebar: var(--bg);
+        --sidebar-muted: var(--muted);
+        --sidebar-border: var(--border);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--text-base); line-height: var(--leading-body); -webkit-font-smoothing: antialiased; }
+      button, input, select, textarea { font: inherit; }
+      button { border: 0; }
+      button, a, select, input, textarea { outline: none; }
+      button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { box-shadow: var(--focus-ring); }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; text-underline-offset: 3px; }
+      h1, h2, h3, p { margin: 0; }
+      h1, h2, h3 { font-family: var(--font-display); line-height: var(--leading-tight); }
+      h1 { font-size: var(--text-2xl); font-weight: 600; letter-spacing: var(--tracking-display); }
+      h2 { font-size: var(--text-xl); font-weight: 600; letter-spacing: var(--tracking-display); }
+      h3 { font-size: var(--text-lg); font-weight: 600; }
+      .eyebrow { color: var(--meta); font-family: var(--font-mono); font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+      .body-sm { font-size: var(--text-sm); }
+      .body-muted { color: var(--muted); }
+
+      .app { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; background: var(--bg); }
+      .sidebar { display: flex; flex-direction: column; background: var(--sidebar); color: var(--fg); padding: 28px 18px 18px; border-right: 1px solid var(--border); }
+      .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 28px; }
+      .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 4px; background: var(--accent); color: var(--accent-on); font-family: var(--font-mono); font-size: 13px; font-weight: 700; }
+      .brand-name { font-weight: 600; letter-spacing: 0.01em; }
+      .brand-caption { color: var(--meta); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+      .nav-label { color: var(--meta); font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; margin: 0 8px 8px; text-transform: uppercase; }
+      .nav { display: grid; gap: 4px; }
+      .nav-button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 4px; background: transparent; color: var(--sidebar-muted); cursor: pointer; text-align: left; transition: color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+      .nav-button:hover { background: var(--surface); color: var(--fg); }
+      .nav-button[aria-current="page"] { background: var(--accent); color: var(--accent-on); }
+      .nav-button svg { flex: none; width: 18px; height: 18px; }
+      .nav-count { margin-left: auto; min-width: 24px; padding: 2px 6px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--surface), transparent 88%); color: var(--surface); font-size: 11px; text-align: center; }
+      .sidebar-spacer { flex: 1; }
+      .connection-card { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--sidebar-border); border-radius: 4px; background: var(--surface); }
+      .connection-card .body-sm { color: var(--sidebar-muted); }
+      .status-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+      .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+      .user-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 12px 8px 0; border-top: 1px solid var(--sidebar-border); }
+      .avatar { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #526277; color: var(--surface); font-size: 12px; font-weight: 600; }
+      .user-row strong { display: block; font-size: 13px; font-weight: 500; }
+      .user-row span { display: block; color: var(--sidebar-muted); font-size: 11px; }
+
+      .main { min-width: 0; background: var(--bg); }
+      .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 72px; padding: 16px 40px; border-bottom: 1px solid var(--border); background: var(--bg); }
+      .breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+      .breadcrumb strong { color: var(--fg); font-weight: 500; }
+      .topbar-actions { display: flex; align-items: center; gap: 12px; }
+      .sync-time { color: var(--muted); font-size: 12px; }
+      .icon-button { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
+      .icon-button:hover { border-color: var(--accent); color: var(--accent); }
+      .icon-button svg { width: 17px; height: 17px; }
+      .content { max-width: var(--container-max); margin: 0 auto; padding: 48px 40px 80px; }
+      .page { display: none; }
+      .page.is-active { display: block; animation: page-in var(--motion-base) var(--ease-standard); }
+      @keyframes page-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+      .page-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+      .page-header-copy { display: grid; gap: 8px; }
+      .page-header-copy p { max-width: 60ch; color: var(--fg-2); }
+      .page-actions { display: flex; align-items: center; gap: 12px; flex: none; }
+
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 12px 16px; border: 1px solid transparent; border-radius: var(--radius-sm); font-family: var(--font-body); font-size: var(--text-sm); font-weight: 700; letter-spacing: 0.04em; line-height: 1; cursor: pointer; transition: transform var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+      .btn:active { transform: translateY(1px); }
+      .btn:disabled { cursor: not-allowed; opacity: 0.48; }
+      .btn-primary { background: var(--accent); color: var(--accent-on); }
+      .btn-primary:hover { background: var(--accent-hover); }
+      .btn-primary:active { background: var(--accent-active); }
+      .btn-secondary { border-color: var(--fg-2); background: transparent; color: var(--fg); }
+      .btn-secondary:hover { border-color: var(--accent); background: var(--accent); color: var(--accent-on); }
+      .btn-quiet { background: transparent; color: var(--fg-2); }
+      .btn-quiet:hover { background: var(--surface); color: var(--fg); }
+      .btn-danger { border-color: color-mix(in oklab, var(--danger), transparent 65%); background: var(--surface); color: var(--danger); }
+      .btn svg { width: 16px; height: 16px; }
+
+      .card { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--elev-flat); }
+      .overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+      .stat-card { display: grid; gap: 8px; padding: 20px; }
+      .stat-card .stat-value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+      .stat-card .stat-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+      .trend-up { color: var(--success); font-weight: 600; }
+      .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr); gap: 16px; }
+      .panel { overflow: hidden; }
+      .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid var(--border-soft); }
+      .panel-header h2 { font-size: 16px; letter-spacing: 0; }
+      .panel-body { padding: 20px; }
+      .repo-preview { display: grid; gap: 0; }
+      .repo-row { display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 12px 20px; border-bottom: 1px solid var(--border-soft); }
+      .repo-row:last-child { border-bottom: 0; }
+      .repo-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 4px; background: var(--surface-warm); color: var(--meta); }
+      .repo-icon svg { width: 17px; height: 17px; }
+      .repo-name { display: block; font-weight: 600; }
+      .repo-detail { display: block; color: var(--muted); font-size: 12px; }
+      .repo-visibility { margin-left: auto; color: var(--muted); font-size: 12px; }
+      .activity-list { display: grid; gap: 18px; }
+      .activity-item { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 10px; }
+      .activity-bar { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--accent); }
+      .activity-item.success .activity-bar { background: var(--success); }
+      .activity-item p { font-size: 13px; }
+      .activity-item time { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+
+      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+      .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 10px; }
+      .select-wrap { position: relative; }
+      .select-wrap select, .field input, .field select, .field textarea { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); }
+      .select-wrap select, .field input, .field select { height: 42px; padding: 10px 36px 10px 12px; }
+      .select-wrap::after { position: absolute; top: 50%; right: 12px; width: 8px; height: 8px; border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted); content: ""; pointer-events: none; transform: translateY(-65%) rotate(45deg); }
+      .search { position: relative; width: 220px; }
+      .search input { width: 100%; height: 42px; padding: 10px 12px 10px 38px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); }
+      .search svg { position: absolute; top: 13px; left: 12px; width: 16px; height: 16px; color: var(--muted); }
+      .download-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+      .repo-table { overflow: hidden; }
+      .repo-table-head, .repo-table-row { display: grid; grid-template-columns: 44px minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.75fr) minmax(0, 0.6fr); align-items: center; gap: 12px; padding: 0 20px; }
+      .repo-table-head { min-height: 42px; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--meta); font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .repo-table-row { min-height: 76px; border-bottom: 1px solid var(--border); }
+      .repo-table-row:last-child { border-bottom: 0; }
+      .repo-table-row:hover { background: color-mix(in oklab, var(--accent), transparent 88%); }
+      .repo-table-row.is-selected { background: color-mix(in oklab, var(--accent), transparent 82%); }
+      .check { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+      .repo-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .repo-main .repo-icon { flex: none; }
+      .table-muted { color: var(--muted); font-size: 12px; }
+      .badge { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 3px 8px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 600; }
+      .badge-success { background: color-mix(in oklab, var(--success), transparent 90%); color: var(--success); }
+      .badge-muted { background: color-mix(in oklab, var(--muted), transparent 88%); color: var(--muted); }
+      .badge-warn { background: color-mix(in oklab, var(--warn), transparent 84%); color: color-mix(in oklab, var(--warn), black 34%); }
+      .download-card { display: grid; gap: 18px; padding: 20px; position: sticky; top: 20px; }
+      .download-card h2 { font-size: 16px; letter-spacing: 0; }
+      .selection-number { display: flex; align-items: baseline; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+      .selection-number strong { font-size: 36px; font-weight: 600; letter-spacing: -0.03em; }
+      .selection-number span { color: var(--muted); font-size: 13px; }
+      .destination { display: grid; gap: 8px; }
+      .destination label, .field label { font-size: 13px; font-weight: 600; }
+      .destination-path { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+      .destination-path svg { width: 15px; height: 15px; flex: none; }
+      .progress { display: none; gap: 8px; }
+      .progress.is-visible { display: grid; }
+      .progress-track { height: 6px; overflow: hidden; border-radius: 99px; background: var(--border); }
+      .progress-bar { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width 500ms var(--ease-standard); }
+      .progress-copy { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+      .info-note { display: flex; align-items: flex-start; gap: 8px; padding-top: 4px; color: var(--muted); font-size: 12px; }
+      .info-note svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+
+      .issue-layout { display: grid; grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+      .issue-list { overflow: hidden; }
+      .issue-filters { display: flex; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+      .filter-button { min-height: 32px; padding: 6px 10px; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+      .filter-button:hover, .filter-button.is-active { background: var(--accent); color: var(--accent-on); }
+      .issue-items { display: grid; }
+      .issue-item { display: grid; gap: 6px; padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--surface); cursor: pointer; text-align: left; }
+      .issue-item:hover { background: color-mix(in oklab, var(--accent), transparent 88%); }
+      .issue-item.is-active { border-left: 3px solid var(--accent); padding-left: 17px; background: color-mix(in oklab, var(--accent), transparent 82%); }
+      .issue-item.is-closed { opacity: 0.62; }
+      .issue-title { font-size: 14px; font-weight: 600; }
+      .issue-meta { color: var(--muted); font-size: 12px; }
+      .issue-labels { display: flex; flex-wrap: wrap; gap: 6px; }
+      .issue-detail { min-height: 460px; padding: 24px; }
+      .issue-detail-header { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+      .issue-detail-title { display: grid; gap: 8px; }
+      .issue-detail-title h2 { max-width: 32ch; font-size: 22px; }
+      .issue-number { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+      .issue-detail-actions { display: flex; gap: 8px; flex: none; }
+      .issue-description { padding: 24px 0; color: color-mix(in oklab, var(--fg), transparent 14%); line-height: 1.7; }
+      .issue-description p + p { margin-top: 14px; }
+      .issue-properties { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-top: 20px; border-top: 1px solid var(--border); }
+      .property { display: grid; gap: 4px; }
+      .property dt { color: var(--muted); font-size: 11px; }
+      .property dd { margin: 0; font-size: 13px; font-weight: 500; }
+      .new-issue { display: none; margin-top: 16px; padding: 20px; }
+      .new-issue.is-open { display: grid; gap: 16px; }
+      .form-grid { display: grid; gap: 14px; }
+      .field { display: grid; gap: 7px; }
+      .field input, .field select, .field textarea { padding: 10px 12px; font-size: 14px; }
+      .field textarea { min-height: 116px; resize: vertical; line-height: 1.5; }
+      .field-help { color: var(--muted); font-size: 12px; }
+      .form-actions { display: flex; justify-content: end; gap: 8px; }
+
+      .settings-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr); gap: 16px; align-items: start; }
+      .settings-card { padding: 24px; }
+      .settings-card .card-heading { display: grid; gap: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+      .settings-card .card-heading p { color: var(--muted); font-size: 13px; }
+      .token-field { margin-top: 22px; }
+      .token-control { position: relative; }
+      .token-control input { padding-right: 52px; font-family: var(--font-mono); }
+      .token-toggle { position: absolute; top: 2px; right: 2px; display: grid; width: 38px; height: 38px; place-items: center; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
+      .token-toggle:hover { color: var(--accent); }
+      .token-toggle svg { width: 16px; height: 16px; }
+      .security-list { display: grid; gap: 14px; margin-top: 20px; }
+      .security-item { display: flex; align-items: flex-start; gap: 10px; }
+      .security-item svg { width: 16px; height: 16px; margin-top: 2px; flex: none; color: var(--success); }
+      .security-item strong { display: block; font-size: 13px; }
+      .security-item p { margin-top: 2px; color: var(--muted); font-size: 12px; }
+      .connected-account { display: grid; gap: 16px; padding: 20px; }
+      .account-head { display: flex; align-items: center; gap: 12px; }
+      .account-head .avatar { width: 40px; height: 40px; background: color-mix(in oklab, var(--accent), transparent 82%); color: var(--accent); }
+      .account-head strong { display: block; font-size: 14px; }
+      .account-head span { color: var(--muted); font-size: 12px; }
+      .account-list { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border); }
+      .account-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+      .account-line span:first-child { color: var(--muted); }
+
+      .toast { position: fixed; right: 24px; bottom: 24px; z-index: 4; display: flex; align-items: center; gap: 10px; min-width: 280px; max-width: 380px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--elev-raised); opacity: 0; pointer-events: none; transform: translateY(12px); transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard); }
+      .toast.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+      .toast-icon { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: color-mix(in oklab, var(--success), transparent 88%); color: var(--success); }
+      .toast-icon svg { width: 13px; height: 13px; }
+      .toast p { font-size: 13px; }
+      .toast-close { margin-left: auto; background: transparent; color: var(--muted); cursor: pointer; }
+      .toast-close:hover { color: var(--fg); }
+      .empty-state { display: grid; gap: 8px; place-items: center; padding: 44px 20px; color: var(--muted); text-align: center; }
+      .empty-state svg { width: 26px; height: 26px; color: var(--accent); }
+
+      @media (max-width: 1023px) {
+        .app { grid-template-columns: 214px minmax(0, 1fr); }
+        .content { padding: 24px; }
+        .workspace-grid, .download-layout, .settings-grid { grid-template-columns: 1fr; }
+        .download-card { position: static; }
+        .issue-layout { grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr); }
+      }
+      @media (max-width: 760px) {
+        .app { display: block; }
+        .sidebar { min-height: 0; padding: 12px; }
+        .brand { padding: 4px 8px 12px; }
+        .nav-label, .sidebar-spacer, .connection-card, .user-row { display: none; }
+        .nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .nav-button { justify-content: center; min-height: 42px; padding: 8px; }
+        .nav-button span:not(.nav-count) { display: none; }
+        .nav-count { margin-left: 0; }
+        .topbar { min-height: 62px; padding: 12px 16px; }
+        .sync-time { display: none; }
+        .content { padding: 20px 16px 32px; }
+        .page-header { align-items: start; flex-direction: column; margin-bottom: 20px; }
+        .page-actions { width: 100%; }
+        .page-actions .btn { flex: 1; }
+        .overview-grid { grid-template-columns: 1fr; gap: 10px; }
+        .stat-card { padding: 16px; }
+        .toolbar { align-items: stretch; flex-direction: column; }
+        .toolbar-left, .toolbar-right { width: 100%; }
+        .toolbar-left .select-wrap, .toolbar-right .search { flex: 1; width: auto; }
+        .repo-table { overflow-x: auto; }
+        .repo-table-head, .repo-table-row { min-width: 680px; }
+        .issue-layout { grid-template-columns: 1fr; }
+        .issue-detail { min-height: auto; }
+        .issue-detail-header { flex-direction: column; }
+        .issue-detail-actions { width: 100%; }
+        .issue-detail-actions .btn { flex: 1; }
+        .issue-properties { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="主要導覽">
+        <div class="brand">
+          <div class="brand-mark">GL</div>
+          <div>
+            <div class="brand-name">GitLab Workspace</div>
+            <div class="brand-caption">VSCode Extension</div>
+          </div>
+        </div>
+        <div class="nav-label">工作區</div>
+        <nav class="nav" aria-label="工作區導覽">
+          <button class="nav-button" type="button" data-page="overview" aria-current="page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            <span>總覽</span>
+          </button>
+          <button class="nav-button" type="button" data-page="repos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15Z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20"/><path d="M8 7h7M8 11h5"/></svg>
+            <span>下載 Repo</span>
+          </button>
+          <button class="nav-button" type="button" data-page="issues">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 1 1 21 11.5Z"/><path d="M8 12h8M8 8h5"/></svg>
+            <span>我的 Issue</span>
+            <span class="nav-count">4</span>
+          </button>
+        </nav>
+        <div class="sidebar-spacer"></div>
+        <div class="connection-card" aria-label="GitLab 連線狀態">
+          <div class="status-line"><span class="status-dot" aria-hidden="true"></span><strong>GitLab 已連線</strong></div>
+          <div class="body-sm">gitlab.company.dev</div>
+          <button class="btn btn-quiet body-sm" type="button" data-page="settings">管理連線設定</button>
+        </div>
+        <div class="user-row">
+          <div class="avatar" aria-hidden="true">DC</div>
+          <div><strong>Dennis Chen</strong><span>@dennis.chen</span></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="breadcrumb"><span>GitLab Workspace</span><span aria-hidden="true">/</span><strong id="breadcrumb-title">總覽</strong></div>
+          <div class="topbar-actions"><span class="sync-time">最後同步於 2 分鐘前</span><button class="icon-button" type="button" id="sync-button" aria-label="同步 GitLab 資料"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-14.8-3L3 11"/><path d="M3 4v7h7"/><path d="M4 13a8.1 8.1 0 0 0 14.8 3L21 13"/><path d="M21 20v-7h-7"/></svg></button></div>
+        </header>
+
+        <div class="content">
+          <section class="page is-active" id="page-overview" data-page-content="overview">
+            <div class="page-header">
+              <div class="page-header-copy"><p class="eyebrow">Workspace overview</p><h1>早安，Dennis</h1><p>集中查看 Repo 下載與 Issue 工作進度，從 VSCode 直接完成 GitLab 日常任務。</p></div>
+              <div class="page-actions"><button class="btn btn-secondary" type="button" data-page="settings">設定 Token</button><button class="btn btn-primary" type="button" data-page="repos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>下載 Repo</button></div>
+            </div>
+            <div class="overview-grid">
+              <article class="card stat-card"><span class="eyebrow">可用 Repo</span><span class="stat-value">28</span><span class="stat-meta"><span class="trend-up">+3</span> 本週新增</span></article>
+              <article class="card stat-card"><span class="eyebrow">待處理 Issue</span><span class="stat-value">4</span><span class="stat-meta"><span class="trend-up">2</span> 個高優先項目</span></article>
+              <article class="card stat-card"><span class="eyebrow">本週已下載</span><span class="stat-value">12</span><span class="stat-meta">最近一次於 10:42 完成</span></article>
+            </div>
+            <div class="workspace-grid">
+              <section class="card panel"><div class="panel-header"><h2>最近使用的 Repo</h2><button class="btn btn-quiet body-sm" type="button" data-page="repos">查看全部</button></div><div class="repo-preview"><div class="repo-row"><div class="repo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/></svg></div><div class="od-fill"><span class="repo-name">design-system</span><span class="repo-detail">frontend-platform · 12 分鐘前</span></div><span class="badge badge-success">已同步</span></div><div class="repo-row"><div class="repo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/></svg></div><div class="od-fill"><span class="repo-name">checkout-service</span><span class="repo-detail">commerce · 昨天 16:20</span></div><span class="badge badge-muted">已存在</span></div><div class="repo-row"><div class="repo-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/></svg></div><div class="od-fill"><span class="repo-name">internal-tools</span><span class="repo-detail">developer-experience · 昨天 11:08</span></div><span class="badge badge-warn">有更新</span></div></div></section>
+              <section class="card panel"><div class="panel-header"><h2>最近活動</h2><span class="body-sm body-muted">今天</span></div><div class="panel-body"><div class="activity-list"><div class="activity-item success"><span class="activity-bar" aria-hidden="true"></span><div><p>完成下載 <strong>design-system</strong></p><time>10:42 · 148 MB</time></div></div><div class="activity-item"><span class="activity-bar" aria-hidden="true"></span><div><p>建立 Issue <strong>#482</strong></p><time>09:58 · checkout-service</time></div></div><div class="activity-item"><span class="activity-bar" aria-hidden="true"></span><div><p>Group <strong>frontend-platform</strong> 已同步</p><time>09:45 · 28 個 Repo</time></div></div></div></div></section>
+            </div>
+          </section>
+
+          <section class="page" id="page-repos" data-page-content="repos">
+            <div class="page-header"><div class="page-header-copy"><p class="eyebrow">Repository download</p><h1>下載 Repo</h1><p>選擇 GitLab Group 與需要帶回本機的 Repo，一次完成批次下載。</p></div><div class="page-actions"><button class="btn btn-secondary" type="button" id="refresh-repos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-14.8-3L3 11"/><path d="M3 4v7h7"/><path d="M4 13a8.1 8.1 0 0 0 14.8 3L21 13"/><path d="M21 20v-7h-7"/></svg>重新整理</button></div></div>
+            <div class="toolbar"><div class="toolbar-left"><div class="select-wrap"><select id="group-select" aria-label="選擇 GitLab Group"><option value="frontend">frontend-platform · 28 個 Repo</option><option value="commerce">commerce · 14 個 Repo</option><option value="developer">developer-experience · 9 個 Repo</option></select></div><span class="body-sm body-muted" id="repo-sync-status">資料已同步</span></div><div class="toolbar-right"><label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="repo-search" type="search" placeholder="搜尋 Repo" aria-label="搜尋 Repo" /></label></div></div>
+            <div class="download-layout"><section class="card repo-table" aria-label="Repo 清單"><div class="repo-table-head"><span><input class="check" type="checkbox" id="select-all" aria-label="全選 Repo" /></span><span>Repo 名稱</span><span>最近更新</span><span>狀態</span><span>分支</span></div><div id="repo-list"></div></section><aside class="card download-card"><div><h2>準備下載</h2><p class="body-sm body-muted" style="margin-top:6px">選取要放入本機工作區的 Repo</p></div><div class="selection-number"><strong id="selection-count">0</strong><span>個 Repo 已選取</span></div><div class="destination"><label for="destination-path">下載位置</label><div class="destination-path" id="destination-path"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h7l2 2h9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 2h3"/></svg><span class="od-truncate">~/Projects/gitlab</span></div></div><button class="btn btn-primary" type="button" id="download-button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>下載選取的 Repo</button><div class="progress" id="download-progress"><div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div><div class="progress-copy"><span id="progress-label">準備中</span><span id="progress-percent">0%</span></div></div><div class="info-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg><span>原型會模擬下載進度。正式版將透過 VSCode Extension Host 寫入本機資料夾。</span></div></aside></div>
+          </section>
+
+          <section class="page" id="page-issues" data-page-content="issues">
+            <div class="page-header"><div class="page-header-copy"><p class="eyebrow">Assigned issues</p><h1>我的 Issue</h1><p>集中處理指派給你的工作，快速更新狀態或建立新的 Issue。</p></div><div class="page-actions"><button class="btn btn-primary" type="button" id="open-new-issue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>建立 Issue</button></div></div>
+            <div class="issue-layout"><section class="card issue-list"><div class="panel-header"><h2>指派給我</h2><span class="badge badge-muted">4 個項目</span></div><div class="issue-filters"><button class="filter-button is-active" type="button" data-filter="all">全部</button><button class="filter-button" type="button" data-filter="opened">進行中</button><button class="filter-button" type="button" data-filter="closed">已結案</button></div><div class="issue-items" id="issue-items"></div></section><section class="card issue-detail" id="issue-detail"></section></div>
+            <section class="card new-issue" id="new-issue"><div class="panel-header" style="padding:0 0 16px"><div><h2>建立新的 Issue</h2><p class="body-sm body-muted" style="margin-top:5px">新增後會自動指派給 Dennis Chen。</p></div><button class="icon-button" type="button" id="close-new-issue" aria-label="關閉建立 Issue 表單"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><form class="form-grid" id="new-issue-form"><div class="field"><label for="issue-project">Project</label><select id="issue-project"><option>frontend-platform / design-system</option><option>commerce / checkout-service</option><option>developer-experience / internal-tools</option></select></div><div class="field"><label for="issue-title-input">標題</label><input id="issue-title-input" type="text" placeholder="例如：補上暗色模式的 Token 文件" required /><p class="field-help">用一句話描述需要處理的工作。</p></div><div class="field"><label for="issue-description-input">描述</label><textarea id="issue-description-input" placeholder="補充背景、重現步驟或完成條件"></textarea></div><div class="form-actions"><button class="btn btn-secondary" type="button" id="cancel-new-issue">取消</button><button class="btn btn-primary" type="submit">建立 Issue</button></div></form></section>
+          </section>
+
+          <section class="page" id="page-settings" data-page-content="settings">
+            <div class="page-header"><div class="page-header-copy"><p class="eyebrow">Connection settings</p><h1>連線設定</h1><p>管理 GitLab Server 與 Access Token。Token 僅會提供給 Extension 使用。</p></div></div>
+            <div class="settings-grid"><section class="card settings-card"><div class="card-heading"><h2>GitLab 連線</h2><p>使用 Personal Access Token 存取 Group、Repo 與 Issue 資料。</p></div><div class="form-grid"><div class="field" style="margin-top:20px"><label for="gitlab-url">GitLab Server</label><input id="gitlab-url" type="url" value="https://gitlab.company.dev" /><p class="field-help">支援 GitLab.com 或公司內部 GitLab Server。</p></div><div class="field token-field"><label for="access-token">Access Token</label><div class="token-control"><input id="access-token" type="password" value="glpat-demo-token-2026" autocomplete="off" /><button class="token-toggle" type="button" id="token-toggle" aria-label="顯示 Access Token"><svg id="token-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button></div><p class="field-help">需要 <code>api</code> 權限，正式版建議交由 VSCode SecretStorage 保存。</p></div><div class="form-actions" style="justify-content:start"><button class="btn btn-primary" type="button" id="save-token">儲存並測試連線</button><button class="btn btn-secondary" type="button" id="clear-token">清除 Token</button></div></div></section><aside class="card connected-account"><div class="account-head"><div class="avatar" aria-hidden="true">DC</div><div><strong>Dennis Chen</strong><span>目前連線帳號</span></div></div><span class="badge badge-success">連線正常</span><div class="account-list"><div class="account-line"><span>GitLab Server</span><strong>company.dev</strong></div><div class="account-line"><span>Token 狀態</span><strong>已設定</strong></div><div class="account-line"><span>最後驗證</span><strong>今天 09:45</strong></div></div><div class="security-list"><div class="security-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.8 8 10 4.6-1.2 8-5 8-10V6l-8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-4.8"/></svg><div><strong>安全儲存</strong><p>正式版會使用 VSCode SecretStorage。</p></div></div><div class="security-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div><strong>權限最小化</strong><p>只需要讀取 Repo 與 Issue 的 API scope。</p></div></div></div></aside></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"><span class="toast-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></span><p id="toast-message">操作完成</p><button class="toast-close" type="button" id="toast-close" aria-label="關閉提示">×</button></div>
+
+    <script>
+      const repoGroups = {
+        frontend: [
+          { name: "design-system", project: "frontend-platform", updated: "12 分鐘前", status: "可下載", statusClass: "badge-success", branch: "main", size: "148 MB" },
+          { name: "web-shell", project: "frontend-platform", updated: "昨天 18:04", status: "可下載", statusClass: "badge-success", branch: "main", size: "84 MB" },
+          { name: "component-lab", project: "frontend-platform", updated: "週一 14:22", status: "已存在", statusClass: "badge-muted", branch: "develop", size: "212 MB" },
+          { name: "accessibility-kit", project: "frontend-platform", updated: "週一 09:16", status: "有更新", statusClass: "badge-warn", branch: "main", size: "46 MB" },
+          { name: "storybook-config", project: "frontend-platform", updated: "06/18 17:30", status: "可下載", statusClass: "badge-success", branch: "main", size: "31 MB" }
+        ],
+        commerce: [
+          { name: "checkout-service", project: "commerce", updated: "昨天 16:20", status: "可下載", statusClass: "badge-success", branch: "main", size: "286 MB" },
+          { name: "payment-gateway", project: "commerce", updated: "週一 10:45", status: "有更新", statusClass: "badge-warn", branch: "main", size: "192 MB" },
+          { name: "order-console", project: "commerce", updated: "06/17 13:12", status: "已存在", statusClass: "badge-muted", branch: "develop", size: "124 MB" },
+          { name: "commerce-docs", project: "commerce", updated: "06/14 09:06", status: "可下載", statusClass: "badge-success", branch: "main", size: "18 MB" }
+        ],
+        developer: [
+          { name: "internal-tools", project: "developer-experience", updated: "昨天 11:08", status: "有更新", statusClass: "badge-warn", branch: "main", size: "64 MB" },
+          { name: "release-bot", project: "developer-experience", updated: "週一 18:50", status: "可下載", statusClass: "badge-success", branch: "main", size: "28 MB" },
+          { name: "dev-portal", project: "developer-experience", updated: "06/17 15:33", status: "可下載", statusClass: "badge-success", branch: "main", size: "102 MB" }
+        ]
+      };
+
+      let selectedRepos = new Set();
+      let currentGroup = "frontend";
+      let currentIssueId = 482;
+      let activeIssueFilter = "all";
+      let toastTimer;
+      const issueData = [
+        { id: 482, title: "補上暗色模式的 Token 文件", project: "design-system", status: "opened", priority: "高優先", labels: ["documentation", "design-system"], updated: "12 分鐘前", description: "目前 tokens.css 已有完整的 dark-mode slot，但使用方式尚未補進文件。請整理每個顏色 token 的用途，並補上元件替換範例。" },
+        { id: 479, title: "Checkout loading state 在窄視窗溢出", project: "checkout-service", status: "opened", priority: "一般", labels: ["bug", "responsive"], updated: "昨天", description: "在 375px 寬度下，付款按鈕和 loading label 會擠在同一行。需要調整 action row 的 reflow 行為。" },
+        { id: 471, title: "更新內部工具的 onboarding 說明", project: "internal-tools", status: "opened", priority: "一般", labels: ["documentation"], updated: "週一", description: "新增 Extension 安裝後的第一個同步流程，並補充 Token 權限的設定畫面截圖。" },
+        { id: 455, title: "清理 v2 API 的舊版錯誤訊息", project: "web-shell", status: "closed", priority: "低優先", labels: ["maintenance"], updated: "06/12", description: "已完成錯誤訊息整理，並統一前端顯示格式。" }
+      ];
+
+      const iconRepo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18H7z"/><path d="M10 7h4M10 11h4M10 15h2"/></svg>';
+      const iconCheck = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
+
+      function showToast(message) {
+        const toast = document.getElementById("toast");
+        document.getElementById("toast-message").textContent = message;
+        toast.classList.add("is-visible");
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 3600);
+      }
+
+      function goToPage(page) {
+        document.querySelectorAll("[data-page-content]").forEach((section) => section.classList.toggle("is-active", section.dataset.pageContent === page));
+        document.querySelectorAll(".nav-button").forEach((button) => button.setAttribute("aria-current", button.dataset.page === page ? "page" : "false"));
+        const names = { overview: "總覽", repos: "下載 Repo", issues: "我的 Issue", settings: "連線設定" };
+        document.getElementById("breadcrumb-title").textContent = names[page] || "總覽";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function renderRepos() {
+        const list = document.getElementById("repo-list");
+        const searchTerm = document.getElementById("repo-search").value.trim().toLowerCase();
+        const repos = repoGroups[currentGroup].filter((repo) => `${repo.name} ${repo.project}`.toLowerCase().includes(searchTerm));
+        list.innerHTML = repos.length ? repos.map((repo) => {
+          const key = `${currentGroup}:${repo.name}`;
+          const checked = selectedRepos.has(key);
+          return `<label class="repo-table-row ${checked ? "is-selected" : ""}"><span><input class="check repo-check" type="checkbox" data-repo-key="${key}" ${checked ? "checked" : ""} aria-label="選取 ${repo.name}" /></span><span class="repo-main"> <span class="repo-icon">${iconRepo}</span><span class="od-fill"><span class="repo-name od-truncate">${repo.name}</span><span class="repo-detail od-truncate">${repo.project} · ${repo.size}</span></span></span><span class="table-muted">${repo.updated}</span><span><span class="badge ${repo.statusClass}">${repo.status}</span></span><span class="table-muted">${repo.branch}</span></label>`;
+        }).join("") : `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><strong>找不到符合的 Repo</strong><span class="body-sm">試試其他關鍵字或切換 Group。</span></div>`;
+        document.getElementById("selection-count").textContent = selectedRepos.size;
+        document.getElementById("download-button").disabled = selectedRepos.size === 0;
+        const visibleKeys = repos.map((repo) => `${currentGroup}:${repo.name}`);
+        const allVisibleSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedRepos.has(key));
+        document.getElementById("select-all").checked = allVisibleSelected;
+        document.querySelectorAll(".repo-check").forEach((input) => input.addEventListener("change", (event) => {
+          const key = event.target.dataset.repoKey;
+          if (event.target.checked) selectedRepos.add(key); else selectedRepos.delete(key);
+          renderRepos();
+        }));
+      }
+
+      function renderIssues() {
+        const list = document.getElementById("issue-items");
+        const filtered = issueData.filter((issue) => activeIssueFilter === "all" || issue.status === activeIssueFilter);
+        list.innerHTML = filtered.map((issue) => `<button type="button" class="issue-item ${issue.id === currentIssueId ? "is-active" : ""} ${issue.status === "closed" ? "is-closed" : ""}" data-issue-id="${issue.id}"><div class="od-row"><span class="issue-title od-fill od-truncate">${issue.title}</span><span class="badge ${issue.status === "opened" ? "badge-success" : "badge-muted"}">${issue.status === "opened" ? "進行中" : "已結案"}</span></div><span class="issue-meta">#${issue.id} · ${issue.project} · ${issue.updated}</span><span class="issue-labels">${issue.labels.map((label) => `<span class="badge badge-muted">${label}</span>`).join("")}</span></button>`).join("");
+        document.querySelectorAll("[data-issue-id]").forEach((item) => item.addEventListener("click", () => { currentIssueId = Number(item.dataset.issueId); renderIssues(); renderIssueDetail(); }));
+      }
+
+      function renderIssueDetail() {
+        const issue = issueData.find((item) => item.id === currentIssueId) || issueData[0];
+        const detail = document.getElementById("issue-detail");
+        detail.innerHTML = `<div class="issue-detail-header"><div class="issue-detail-title"><span class="issue-number">#${issue.id} · ${issue.project}</span><h2>${issue.title}</h2><span class="badge ${issue.status === "opened" ? "badge-success" : "badge-muted"}">${issue.status === "opened" ? "進行中" : "已結案"}</span></div><div class="issue-detail-actions">${issue.status === "opened" ? `<button class="btn btn-secondary" type="button" id="edit-issue">編輯</button><button class="btn btn-primary" type="button" id="close-issue">結案 Issue</button>` : `<button class="btn btn-secondary" type="button" id="reopen-issue">重新開啟</button>`}</div></div><div class="issue-description"><p>${issue.description}</p><p class="body-sm body-muted">這是原型中的 Issue 詳情區。正式版可以在此接入 GitLab Markdown、留言串與活動紀錄。</p></div><dl class="issue-properties"><div class="property"><dt>負責人</dt><dd>Dennis Chen</dd></div><div class="property"><dt>優先級</dt><dd>${issue.priority}</dd></div><div class="property"><dt>Labels</dt><dd>${issue.labels.join(" · ")}</dd></div></dl>`;
+        const closeButton = document.getElementById("close-issue");
+        if (closeButton) closeButton.addEventListener("click", () => { issue.status = "closed"; showToast(`Issue #${issue.id} 已結案`); renderIssues(); renderIssueDetail(); });
+        const reopenButton = document.getElementById("reopen-issue");
+        if (reopenButton) reopenButton.addEventListener("click", () => { issue.status = "opened"; showToast(`Issue #${issue.id} 已重新開啟`); renderIssues(); renderIssueDetail(); });
+        const editButton = document.getElementById("edit-issue");
+        if (editButton) editButton.addEventListener("click", () => showToast("編輯模式已開啟，正式版將同步回 GitLab"));
+      }
+
+      document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => goToPage(button.dataset.page)));
+      document.getElementById("group-select").addEventListener("change", (event) => { currentGroup = event.target.value; selectedRepos.clear(); renderRepos(); showToast("Group Repo 清單已更新"); });
+      document.getElementById("repo-search").addEventListener("input", renderRepos);
+      document.getElementById("select-all").addEventListener("change", (event) => {
+        repoGroups[currentGroup].forEach((repo) => { const key = `${currentGroup}:${repo.name}`; if (event.target.checked) selectedRepos.add(key); else selectedRepos.delete(key); });
+        renderRepos();
+      });
+      document.getElementById("download-button").addEventListener("click", () => {
+        const button = document.getElementById("download-button");
+        const progress = document.getElementById("download-progress");
+        const bar = document.getElementById("progress-bar");
+        const label = document.getElementById("progress-label");
+        const percent = document.getElementById("progress-percent");
+        button.disabled = true; progress.classList.add("is-visible");
+        let value = 0; const timer = window.setInterval(() => { value += 25; bar.style.width = `${value}%`; percent.textContent = `${value}%`; label.textContent = value < 100 ? `正在下載 ${selectedRepos.size} 個 Repo` : "下載完成"; if (value >= 100) { window.clearInterval(timer); showToast(`${selectedRepos.size} 個 Repo 已下載至本機工作區`); window.setTimeout(() => { progress.classList.remove("is-visible"); selectedRepos.clear(); renderRepos(); }, 900); } }, 420);
+      });
+      document.getElementById("refresh-repos").addEventListener("click", () => { document.getElementById("repo-sync-status").textContent = "同步中…"; window.setTimeout(() => { document.getElementById("repo-sync-status").textContent = "資料已同步"; showToast("GitLab Group 與 Repo 已同步"); }, 850); });
+      document.querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => { activeIssueFilter = button.dataset.filter; document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("is-active", item === button)); renderIssues(); }));
+      document.getElementById("open-new-issue").addEventListener("click", () => { document.getElementById("new-issue").classList.add("is-open"); document.getElementById("issue-title-input").focus(); });
+      ["close-new-issue", "cancel-new-issue"].forEach((id) => document.getElementById(id).addEventListener("click", () => document.getElementById("new-issue").classList.remove("is-open")));
+      document.getElementById("new-issue-form").addEventListener("submit", (event) => { event.preventDefault(); const title = document.getElementById("issue-title-input").value.trim(); if (!title) return; const nextId = Math.max(...issueData.map((issue) => issue.id)) + 1; issueData.unshift({ id: nextId, title, project: "design-system", status: "opened", priority: "一般", labels: ["new"], updated: "剛剛", description: document.getElementById("issue-description-input").value.trim() || "尚未補充描述。" }); currentIssueId = nextId; activeIssueFilter = "all"; document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("is-active", item.dataset.filter === "all")); renderIssues(); renderIssueDetail(); document.getElementById("new-issue-form").reset(); document.getElementById("new-issue").classList.remove("is-open"); showToast(`Issue #${nextId} 已建立`); });
+      document.getElementById("token-toggle").addEventListener("click", () => { const input = document.getElementById("access-token"); const visible = input.type === "text"; input.type = visible ? "password" : "text"; document.getElementById("token-toggle").setAttribute("aria-label", visible ? "顯示 Access Token" : "隱藏 Access Token"); });
+      document.getElementById("save-token").addEventListener("click", () => showToast("Token 已儲存，GitLab 連線測試成功"));
+      document.getElementById("clear-token").addEventListener("click", () => { document.getElementById("access-token").value = ""; showToast("Access Token 已清除"); });
+      document.getElementById("sync-button").addEventListener("click", () => showToast("GitLab 資料已同步"));
+      document.getElementById("toast-close").addEventListener("click", () => document.getElementById("toast").classList.remove("is-visible"));
+      renderRepos(); renderIssues(); renderIssueDetail();
+    </script>
+  </body>
+</html>
