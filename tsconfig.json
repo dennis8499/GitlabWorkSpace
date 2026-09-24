@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "lib": ["ES2022", "DOM"],
+    "rootDir": ".",
+    "outDir": "out",
+    "sourceMap": true,
+    "strict": true,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noImplicitOverride": true,
+    "types": ["node", "mocha"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

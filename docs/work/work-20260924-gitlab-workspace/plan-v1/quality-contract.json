@@ -1,0 +1,45 @@
+{
+  "schema": "megin-quality-contract/v1",
+  "work_id": "work-20260924-gitlab-workspace",
+  "plan_version": "plan-v1",
+  "allowed_paths": [
+    ".gitignore",
+    ".vscodeignore",
+    ".vscode/",
+    ".vscode-test.mjs",
+    "README.md",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "src/",
+    "test/",
+    "resources/",
+    "docs/work/work-20260924-gitlab-workspace/requirements.md",
+    "docs/work/work-20260924-gitlab-workspace/plan.md",
+    "docs/work/work-20260924-gitlab-workspace/features/",
+    "docs/work/work-20260924-gitlab-workspace/plan-v1/quality-contract.json",
+    "docs/work/work-20260924-gitlab-workspace/workflow.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/quality.json",
+    "docs/work/work-20260924-gitlab-workspace/evidence/red.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/green.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/writer-handoff.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/review.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/acceptance.md"
+  ],
+  "process_records": [
+    "docs/work/work-20260924-gitlab-workspace/evidence/quality.json",
+    "docs/work/work-20260924-gitlab-workspace/evidence/red.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/green.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/writer-handoff.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/review.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+    "docs/work/work-20260924-gitlab-workspace/evidence/acceptance.md"
+  ],
+  "checks": [
+    { "id": "compile", "kind": "command", "command": "npm.cmd run compile" },
+    { "id": "unit", "kind": "test", "command": "npm.cmd run test:unit" },
+    { "id": "extension-host", "kind": "test", "command": "npm.cmd run test:extension" },
+    { "id": "package", "kind": "command", "command": "npm.cmd run package" }
+  ]
+}
