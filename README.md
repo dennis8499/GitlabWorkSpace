@@ -29,4 +29,14 @@ npm.cmd test
 npm.cmd run package
 ```
 
-The VSIX is written to `dist/gitlab-workspace-0.1.0.vsix`. Install it from VS Code’s Extensions view using **Install from VSIX…**. The original `index.html` remains in the repository as a reference and is excluded from the package.
+The VSIX is written to `dist/gitlab-workspace-<version>.vsix` (currently `dist/gitlab-workspace-0.1.0.vsix`). Install it from VS Code’s Extensions view using **Install from VSIX…**. The original `index.html` remains in the repository as a reference and is excluded from the package.
+
+## GitHub releases
+
+To release a new version:
+
+1. Update the version in `package.json` and `package-lock.json`, for example with `npm version 0.1.1 --no-git-tag-version`.
+2. Commit and merge the version change to `main`.
+3. Create and push a matching version tag, for example `git tag v0.1.1` followed by `git push origin v0.1.1`.
+
+GitHub Actions checks the tag against both package files and the `main` branch, runs the tests, packages the VSIX, and creates a GitHub Release with generated notes and the VSIX attached. The initial `v0.1.0` release and tags with a semantic prerelease suffix such as `-beta.1` are marked as pre-releases; plain version tags are published as regular releases. Downloads are provided through GitHub Releases; the extension is not published to the VS Code Marketplace.
