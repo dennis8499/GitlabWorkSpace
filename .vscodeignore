@@ -3,6 +3,7 @@
 scripts/**
 .vscode/**
 .vscode-test/**
+.npm-cache/**
 docs/**
 test/**
 src/**
@@ -10,6 +11,9 @@ node_modules/**
 out/test/**
 index.html
 tsconfig.json
+tsconfig.webview.json
+vite.config.mjs
 .vscode-test.mjs
 package-lock.json
 **/*.map
+resources/issue-webview/index.html

@@ -3,3 +3,5 @@ out/
 dist/
 .vscode-test/
 coverage/
+.npm-cache/
+resources/issue-webview/

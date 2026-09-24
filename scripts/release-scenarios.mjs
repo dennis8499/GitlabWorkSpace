@@ -72,7 +72,7 @@ scenario('BDD-REL-004', () => {
 });
 
 scenario('BDD-REL-005', () => {
-  assert.equal(manifest.version, '0.1.0');
+  assert.equal(manifest.version, '0.2.0');
   assert.ok(existsSync(resolve(root, 'dist', releaseAssetName(manifest))));
 });
 

@@ -1,5 +1,9 @@
 import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
-import type { GitLabGroup, GitLabIssue, GitLabMember, GitLabProject, GitLabUser } from './types';
+import type {
+  GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
+  GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
+  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser
+} from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -7,6 +11,48 @@ export class GitLabApiError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
     this.name = 'GitLabApiError';
+  }
+}
+
+export interface IssueCreateInput {
+  title: string;
+  description?: string;
+  assigneeId?: number;
+  labels?: string[];
+  milestoneId?: number;
+  dueDate?: string;
+  startDate?: string;
+  confidential?: boolean;
+}
+
+export interface IssueUpdateInput {
+  title?: string;
+  description?: string;
+  assigneeId?: number | null;
+  labels?: string[];
+  milestoneId?: number | null;
+  dueDate?: string | null;
+  startDate?: string | null;
+  confidential?: boolean;
+  discussionLocked?: boolean;
+  stateEvent?: 'close' | 'reopen';
+}
+
+export interface GitLabIssueCapabilities {
+  hierarchy: boolean;
+  childMutations: boolean;
+  discussionResolve: boolean;
+  startDate: boolean;
+  timelogReport: boolean;
+  timelogCreate: boolean;
+  timelogDelete: boolean;
+  createPermission: boolean;
+}
+
+export class GitLabConflictError extends Error {
+  constructor() {
+    super('This issue changed in GitLab. Reload it before saving your edits.');
+    this.name = 'GitLabConflictError';
   }
 }
 
@@ -30,6 +76,43 @@ export class GitLabClient {
     return this.getJson<GitLabUser>('user');
   }
 
+  getMetadata(): Promise<GitLabMetadata> {
+    return this.getJson<GitLabMetadata>('metadata');
+  }
+
+  async getIssueCapabilities(): Promise<GitLabIssueCapabilities> {
+    const query = 'query IssueCapabilities { __schema { types { name fields { name } inputFields { name } } } }';
+    const result = await this.graphql<{ __schema?: { types?: Array<{ name: string; fields?: Array<{ name: string }>; inputFields?: Array<{ name: string }> }> } }>(query, {});
+    const schema = new Map(result.__schema?.types?.map((type) => [type.name, type]) ?? []);
+    const has = (type: string, fields: string[]) => {
+      const value = schema.get(type);
+      const available = new Set((value?.fields ?? value?.inputFields ?? []).map((field) => field.name));
+      return fields.every((field) => available.has(field));
+    };
+    const hierarchy = has('Namespace', ['workItem', 'workItemTypes']) &&
+      has('WorkItem', ['id', 'iid', 'userPermissions', 'widgets']) &&
+      has('WorkItemWidgetHierarchy', ['children']) &&
+      has('WorkItemPermissions', ['updateWorkItem', 'deleteWorkItem', 'moveWorkItem', 'cloneWorkItem', 'createNote', 'markNoteAsInternal', 'adminWorkItemLink', 'adminParentLink', 'setWorkItemMetadata']);
+    return {
+      hierarchy,
+      childMutations: hierarchy && has('Mutation', ['workItemCreate', 'workItemUpdate']),
+      discussionResolve: has('Mutation', ['discussionToggleResolve']),
+      startDate: has('Mutation', ['workItemUpdate']) && has('WorkItemUpdateInput', ['startAndDueDateWidget']) && has('WorkItemWidgetStartAndDueDateUpdateInput', ['startDate']) && has('WorkItemWidgetStartAndDueDate', ['startDate']),
+      timelogReport: has('WorkItemWidgetTimeTracking', ['timelogs']) && has('WorkItemTimelog', ['id', 'timeSpent', 'spentAt', 'summary', 'user', 'userPermissions']),
+      timelogCreate: has('Mutation', ['timelogCreate']),
+      timelogDelete: has('Mutation', ['timelogDelete']),
+      createPermission: has('Project', ['userPermissions']) && has('ProjectPermissions', ['createIssue'])
+    };
+  }
+
+  async canCreateIssue(projectPath: string): Promise<boolean> {
+    const data = await this.graphql<{ project?: { userPermissions?: { createIssue: boolean } } }>(
+      'query CanCreateIssue($path: ID!) { project(fullPath: $path) { userPermissions { createIssue } } }',
+      { path: projectPath }
+    );
+    return data.project?.userPermissions?.createIssue === true;
+  }
+
   listGroups(): Promise<GitLabGroup[]> {
     return this.getPages<GitLabGroup>('groups?all_available=false&per_page=100');
   }
@@ -51,22 +134,373 @@ export class GitLabClient {
     return this.getPages<GitLabMember>(`projects/${encodeURIComponent(String(projectId))}/members/all?per_page=100`);
   }
 
+  searchMemberProjects(query: string): Promise<GitLabProject[]> {
+    return this.getPages<GitLabProject>(`projects?membership=true&simple=true&search=${encodeURIComponent(query)}&per_page=100`);
+  }
+
+  getProject(projectId: number): Promise<GitLabProject> {
+    return this.getJson<GitLabProject>(this.projectPath(projectId));
+  }
+
+  getProjectByPath(fullPath: string): Promise<GitLabProject> {
+    return this.getJson<GitLabProject>(`projects/${encodeURIComponent(fullPath)}`);
+  }
+
+  listProjectLabels(projectId: number): Promise<GitLabLabel[]> {
+    return this.getPages<GitLabLabel>(`${this.projectPath(projectId)}/labels?per_page=100&include_ancestor_groups=true`);
+  }
+
+  listProjectMilestones(projectId: number): Promise<GitLabMilestone[]> {
+    return this.getPages<GitLabMilestone>(`${this.projectPath(projectId)}/milestones?state=active&include_ancestors=true&per_page=100`);
+  }
+
+  async listProjectIssueTemplates(projectId: number): Promise<GitLabIssueTemplate[]> {
+    const entries = await this.getPages<{ key: string; name: string }>(`${this.projectPath(projectId)}/templates/issues?per_page=100`);
+    return Promise.all(entries.map(async (entry) => {
+      const template = await this.getJson<{ content: string }>(`${this.projectPath(projectId)}/templates/issues/${encodeURIComponent(entry.key)}`);
+      return { name: entry.name, content: template.content };
+    }));
+  }
+
+  searchProjectIssues(projectId: number, query: string): Promise<GitLabIssue[]> {
+    return this.getPages<GitLabIssue>(`${this.projectPath(projectId)}/issues?scope=all&state=all&search=${encodeURIComponent(query)}&per_page=20`);
+  }
+
+  getIssue(projectId: number, issueIid: number): Promise<GitLabIssue> {
+    return this.getJson<GitLabIssue>(this.issuePath(projectId, issueIid));
+  }
+
   createIssue(
     projectId: number,
-    input: { title: string; description?: string; assigneeId?: number }
+    input: IssueCreateInput
   ): Promise<GitLabIssue> {
-    const body: Record<string, string | number> = { title: input.title };
+    const body: Record<string, string | number | boolean> = { title: input.title };
     if (input.description?.trim()) {
-      body.description = input.description.trim();
+      body.description = input.description;
     }
     if (input.assigneeId !== undefined) {
       body.assignee_id = input.assigneeId;
     }
-    return this.getJson<GitLabIssue>(`projects/${encodeURIComponent(String(projectId))}/issues`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    if (input.labels?.length) body.labels = input.labels.join(',');
+    if (input.milestoneId !== undefined) body.milestone_id = input.milestoneId;
+    if (input.dueDate) body.due_date = input.dueDate;
+    if (input.confidential !== undefined) body.confidential = input.confidential;
+    return this.postJson<GitLabIssue>(`${this.projectPath(projectId)}/issues`, body);
+  }
+
+  updateIssue(projectId: number, issueIid: number, input: IssueUpdateInput): Promise<GitLabIssue> {
+    const body: Record<string, string | number | boolean | null | number[]> = {};
+    if (input.title !== undefined) body.title = input.title;
+    if (input.description !== undefined) body.description = input.description;
+    if (input.assigneeId !== undefined) body.assignee_ids = input.assigneeId === null ? [] : [input.assigneeId];
+    if (input.labels !== undefined) body.labels = input.labels.join(',');
+    if (input.milestoneId !== undefined) body.milestone_id = input.milestoneId ?? 0;
+    if (input.dueDate !== undefined) body.due_date = input.dueDate ?? '';
+    if (input.confidential !== undefined) body.confidential = input.confidential;
+    if (input.discussionLocked !== undefined) body.discussion_locked = input.discussionLocked;
+    if (input.stateEvent !== undefined) body.state_event = input.stateEvent;
+    return this.putJson<GitLabIssue>(this.issuePath(projectId, issueIid), body);
+  }
+
+  async updateIssueIfUnchanged(projectId: number, issueIid: number, expectedUpdatedAt: string | undefined, input: IssueUpdateInput): Promise<GitLabIssue> {
+    const current = await this.getIssue(projectId, issueIid);
+    if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new GitLabConflictError();
+    return this.updateIssue(projectId, issueIid, input);
+  }
+
+  listIssueDiscussions(projectId: number, issueIid: number): Promise<GitLabIssueDiscussion[]> {
+    return this.getPages<GitLabIssueDiscussion>(`${this.issuePath(projectId, issueIid)}/discussions?per_page=100`);
+  }
+
+  listIssueLinks(projectId: number, issueIid: number): Promise<GitLabIssue[]> {
+    return this.getPages<GitLabIssue>(`${this.issuePath(projectId, issueIid)}/links?per_page=100`);
+  }
+
+  listRelatedMergeRequests(projectId: number, issueIid: number): Promise<GitLabMergeRequestSummary[]> {
+    return this.getPages<GitLabMergeRequestSummary>(`${this.issuePath(projectId, issueIid)}/related_merge_requests?per_page=100`);
+  }
+
+  listIssueReactions(projectId: number, issueIid: number): Promise<GitLabEmojiReaction[]> {
+    return this.getPages<GitLabEmojiReaction>(`${this.issuePath(projectId, issueIid)}/award_emoji?per_page=100`);
+  }
+
+  addIssueReaction(projectId: number, issueIid: number, name: string): Promise<GitLabEmojiReaction> {
+    return this.postJson<GitLabEmojiReaction>(`${this.issuePath(projectId, issueIid)}/award_emoji`, { name });
+  }
+
+  removeIssueReaction(projectId: number, issueIid: number, reactionId: number): Promise<void> {
+    return this.deleteResource(`${this.issuePath(projectId, issueIid)}/award_emoji/${reactionId}`);
+  }
+
+  listIssueNoteReactions(projectId: number, issueIid: number, noteId: number): Promise<GitLabEmojiReaction[]> {
+    return this.getPages<GitLabEmojiReaction>(`${this.issuePath(projectId, issueIid)}/notes/${noteId}/award_emoji?per_page=100`);
+  }
+
+  addIssueNoteReaction(projectId: number, issueIid: number, noteId: number, name: string): Promise<GitLabEmojiReaction> {
+    return this.postJson<GitLabEmojiReaction>(`${this.issuePath(projectId, issueIid)}/notes/${noteId}/award_emoji`, { name });
+  }
+
+  removeIssueNoteReaction(projectId: number, issueIid: number, noteId: number, reactionId: number): Promise<void> {
+    return this.deleteResource(`${this.issuePath(projectId, issueIid)}/notes/${noteId}/award_emoji/${reactionId}`);
+  }
+
+  addIssueNote(projectId: number, issueIid: number, body: string, internal = false): Promise<GitLabIssueNote> {
+    return this.postJson<GitLabIssueNote>(`${this.issuePath(projectId, issueIid)}/notes`, { body, internal });
+  }
+
+  updateIssueNote(projectId: number, issueIid: number, discussionId: string, noteId: number, body: string): Promise<GitLabIssueNote> {
+    return this.putJson<GitLabIssueNote>(`${this.issuePath(projectId, issueIid)}/discussions/${encodeURIComponent(discussionId)}/notes/${noteId}`, { body });
+  }
+
+  deleteIssueNote(projectId: number, issueIid: number, discussionId: string, noteId: number): Promise<void> {
+    return this.deleteResource(`${this.issuePath(projectId, issueIid)}/discussions/${encodeURIComponent(discussionId)}/notes/${noteId}`);
+  }
+
+  createIssueThread(projectId: number, issueIid: number, body: string): Promise<GitLabIssueDiscussion> {
+    return this.postJson<GitLabIssueDiscussion>(`${this.issuePath(projectId, issueIid)}/discussions`, { body });
+  }
+
+  replyToIssueThread(projectId: number, issueIid: number, discussionId: string, body: string): Promise<GitLabIssueNote> {
+    return this.postJson<GitLabIssueNote>(`${this.issuePath(projectId, issueIid)}/discussions/${encodeURIComponent(discussionId)}/notes`, { body });
+  }
+
+  async resolveIssueThread(discussionId: string, resolved: boolean): Promise<void> {
+    const data = await this.graphql<{ discussionToggleResolve?: { errors: string[] } }>(
+      'mutation ResolveIssueDiscussion($id: DiscussionID!, $resolve: Boolean!) { discussionToggleResolve(input: { id: $id, resolve: $resolve }) { errors } }',
+      { id: `gid://gitlab/Discussion/${discussionId}`, resolve: resolved }
+    );
+    this.checkMutation(data.discussionToggleResolve, 'GitLab could not update the discussion.');
+  }
+
+  async createChildTask(projectPath: string, parentId: string, taskTypeId: string, title: string): Promise<void> {
+    const data = await this.graphql<{ workItemCreate?: { errors: string[] } }>(
+      'mutation CreateChildTask($path: ID!, $parent: WorkItemID!, $type: WorkItemsTypeID!, $title: String!) { workItemCreate(input: { namespacePath: $path, workItemTypeId: $type, title: $title, hierarchyWidget: { parentId: $parent } }) { errors } }',
+      { path: projectPath, parent: parentId, type: taskTypeId, title }
+    );
+    this.checkMutation(data.workItemCreate, 'GitLab could not create the child task.');
+  }
+
+  async getWorkItemId(projectPath: string, iid: number): Promise<string | undefined> {
+    const data = await this.graphql<{ namespace?: { workItem?: { id: string } } }>(
+      'query FindWorkItem($path: ID!, $iid: String!) { namespace(fullPath: $path) { workItem(iid: $iid) { id } } }',
+      { path: projectPath, iid: String(iid) }
+    );
+    return data.namespace?.workItem?.id;
+  }
+
+  async setChildParent(taskId: string, parentId: string | null): Promise<void> {
+    const data = await this.graphql<{ workItemUpdate?: { errors: string[] } }>(
+      'mutation SetChildParent($id: WorkItemID!, $parent: WorkItemID) { workItemUpdate(input: { id: $id, hierarchyWidget: { parentId: $parent } }) { errors } }',
+      { id: taskId, parent: parentId }
+    );
+    this.checkMutation(data.workItemUpdate, 'GitLab could not change the child task.');
+  }
+
+  async setChildState(taskId: string, stateEvent: 'close' | 'reopen'): Promise<void> {
+    const data = await this.graphql<{ workItemUpdate?: { errors: string[] } }>(
+      'mutation SetChildState($id: WorkItemID!, $event: WorkItemStateEvent!) { workItemUpdate(input: { id: $id, stateEvent: $event }) { errors } }',
+      { id: taskId, event: stateEvent.toUpperCase() }
+    );
+    this.checkMutation(data.workItemUpdate, 'GitLab could not update the task state.');
+  }
+
+  async updateChildTask(taskId: string, title: string, description: string): Promise<void> {
+    const data = await this.graphql<{ workItemUpdate?: { errors: string[] } }>(
+      'mutation UpdateChildTask($id: WorkItemID!, $title: String!, $description: String!) { workItemUpdate(input: { id: $id, title: $title, descriptionWidget: { description: $description } }) { errors } }',
+      { id: taskId, title, description }
+    );
+    this.checkMutation(data.workItemUpdate, 'GitLab could not update the child task.');
+  }
+
+  async setIssueStartDate(workItemId: string, startDate: string | null): Promise<void> {
+    const data = await this.graphql<{ workItemUpdate?: { errors: string[] } }>(
+      'mutation SetIssueStartDate($id: WorkItemID!, $startDate: Date) { workItemUpdate(input: { id: $id, startAndDueDateWidget: { startDate: $startDate } }) { errors } }',
+      { id: workItemId, startDate }
+    );
+    this.checkMutation(data.workItemUpdate, 'GitLab could not update the start date.');
+  }
+
+  async getIssueStartDate(projectPath: string, iid: number): Promise<string | null> {
+    const data = await this.graphql<{ namespace?: { workItem?: { widgets?: Array<{ startDate?: string | null }> } } }>(
+      'query IssueStartDate($path: ID!, $iid: String!) { namespace(fullPath: $path) { workItem(iid: $iid) { widgets { ... on WorkItemWidgetStartAndDueDate { startDate } } } } }',
+      { path: projectPath, iid: String(iid) }
+    );
+    return data.namespace?.workItem?.widgets?.find((widget) => widget.startDate !== undefined)?.startDate ?? null;
+  }
+
+  async listIssueTimelogs(projectPath: string, iid: number): Promise<Array<{ id: string; timeSpent: number; spentAt: string; summary?: string | null; user: GitLabUser; userPermissions?: { adminTimelog: boolean } }>> {
+    type Timelog = { id: string; timeSpent: number; spentAt: string; summary?: string | null; user: GitLabUser; userPermissions?: { adminTimelog: boolean } };
+    type TimePage = { namespace?: { workItem?: { widgets?: Array<{ timelogs?: { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> } } };
+    const query = 'query IssueTimelogs($path: ID!, $iid: String!, $after: String) { namespace(fullPath: $path) { workItem(iid: $iid) { widgets { ... on WorkItemWidgetTimeTracking { timelogs(first: 100, after: $after) { nodes { id timeSpent spentAt summary user { id name username } userPermissions { adminTimelog } } pageInfo { hasNextPage endCursor } } } } } } }';
+    const entries: Timelog[] = [];
+    const seen = new Set<string>();
+    let after: string | null = null;
+    for (let page = 0; page < 100; page++) {
+      const data: TimePage = await this.graphql<TimePage>(query, { path: projectPath, iid: String(iid), after });
+      const connection: { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } | undefined = data.namespace?.workItem?.widgets?.find((widget) => widget.timelogs)?.timelogs;
+      entries.push(...(connection?.nodes ?? []));
+      if (!connection?.pageInfo?.hasNextPage) return entries;
+      const cursor: string | null | undefined = connection.pageInfo.endCursor;
+      if (!cursor || seen.has(cursor)) throw new GitLabApiError('GitLab returned a repeated time entry cursor.');
+      seen.add(cursor);
+      after = cursor;
+    }
+    throw new GitLabApiError('GitLab returned too many time entry pages to load safely.');
+  }
+
+  async createIssueTimelog(issueId: number, duration: string, summary?: string, spentAt?: string): Promise<void> {
+    const data = await this.graphql<{ timelogCreate?: { errors: string[] } }>(
+      'mutation AddIssueTimelog($input: TimelogCreateInput!) { timelogCreate(input: $input) { errors } }',
+      { input: { issuableId: `gid://gitlab/Issue/${issueId}`, timeSpent: duration, summary: summary ?? '', ...(spentAt ? { spentAt } : {}) } }
+    );
+    this.checkMutation(data.timelogCreate, 'GitLab could not log time.');
+  }
+
+  async deleteIssueTimelog(timelogId: string): Promise<void> {
+    const data = await this.graphql<{ timelogDelete?: { errors: string[] } }>(
+      'mutation DeleteIssueTimelog($id: TimelogID!) { timelogDelete(input: { id: $id }) { errors } }',
+      { id: timelogId }
+    );
+    this.checkMutation(data.timelogDelete, 'GitLab could not delete the time entry.');
+  }
+
+  private checkMutation(result: { errors: string[] } | undefined, fallback: string): void {
+    if (!result || result.errors.length) throw new GitLabApiError(result?.errors.join('; ') || fallback);
+  }
+
+  addIssueLink(projectId: number, issueIid: number, targetProjectId: number, targetIssueIid: number, linkType: 'relates_to' | 'blocks' | 'is_blocked_by'): Promise<unknown> {
+    return this.postJson<unknown>(`${this.issuePath(projectId, issueIid)}/links`, {
+      target_project_id: targetProjectId, target_issue_iid: targetIssueIid, link_type: linkType
     });
+  }
+
+  removeIssueLink(projectId: number, issueIid: number, linkId: number): Promise<void> {
+    return this.deleteResource(`${this.issuePath(projectId, issueIid)}/links/${linkId}`);
+  }
+
+  setTimeEstimate(projectId: number, issueIid: number, duration: string): Promise<GitLabTimeStats> {
+    return this.postJson<GitLabTimeStats>(`${this.issuePath(projectId, issueIid)}/time_estimate`, { duration });
+  }
+
+  addSpentTime(projectId: number, issueIid: number, duration: string, summary?: string): Promise<GitLabTimeStats> {
+    return this.postJson<GitLabTimeStats>(`${this.issuePath(projectId, issueIid)}/add_spent_time`, { duration, ...(summary ? { summary } : {}) });
+  }
+
+  resetTimeEstimate(projectId: number, issueIid: number): Promise<GitLabTimeStats> {
+    return this.postJson<GitLabTimeStats>(`${this.issuePath(projectId, issueIid)}/reset_time_estimate`, {});
+  }
+
+  resetSpentTime(projectId: number, issueIid: number): Promise<GitLabTimeStats> {
+    return this.postJson<GitLabTimeStats>(`${this.issuePath(projectId, issueIid)}/reset_spent_time`, {});
+  }
+
+  subscribeToIssue(projectId: number, issueIid: number): Promise<void> {
+    return this.postNoContent(`${this.issuePath(projectId, issueIid)}/subscribe`);
+  }
+
+  unsubscribeFromIssue(projectId: number, issueIid: number): Promise<void> {
+    return this.postNoContent(`${this.issuePath(projectId, issueIid)}/unsubscribe`);
+  }
+
+  createIssueTodo(projectId: number, issueIid: number): Promise<GitLabTodo> {
+    return this.postJson<GitLabTodo>(`${this.issuePath(projectId, issueIid)}/todo`, {});
+  }
+
+  listTodos(): Promise<GitLabTodo[]> {
+    return this.getPages<GitLabTodo>('todos?state=pending&type=Issue&per_page=100');
+  }
+
+  markTodoDone(todoId: number): Promise<void> {
+    return this.postNoContent(`todos/${todoId}/mark_as_done`);
+  }
+
+  moveIssue(projectId: number, issueIid: number, toProjectId: number): Promise<GitLabIssue> {
+    return this.postJson<GitLabIssue>(`${this.issuePath(projectId, issueIid)}/move`, { to_project_id: toProjectId });
+  }
+
+  cloneIssue(projectId: number, issueIid: number, toProjectId: number, withNotes = false): Promise<GitLabIssue> {
+    return this.postJson<GitLabIssue>(`${this.issuePath(projectId, issueIid)}/clone`, { to_project_id: toProjectId, with_notes: withNotes });
+  }
+
+  deleteIssue(projectId: number, issueIid: number): Promise<void> {
+    return this.deleteResource(this.issuePath(projectId, issueIid));
+  }
+
+  renderMarkdown(projectPath: string, markdown: string): Promise<{ html: string }> {
+    return this.postJson<{ html: string }>('markdown', { text: markdown, gfm: true, project: projectPath });
+  }
+
+  async uploadProjectFile(projectId: number, filename: string, bytes: Uint8Array, contentType: string): Promise<GitLabUpload> {
+    const form = new FormData();
+    form.append('file', new Blob([Uint8Array.from(bytes)], { type: contentType }), filename);
+    return this.getJson<GitLabUpload>(`${this.projectPath(projectId)}/uploads`, { method: 'POST', body: form });
+  }
+
+  async downloadUpload(rawUrl: string, maxBytes = 50 * 1024 * 1024): Promise<{ bytes: Uint8Array; contentType: string }> {
+    const url = new URL(rawUrl, this.baseUrl);
+    const base = new URL(this.baseUrl);
+    const basePath = base.pathname.replace(/\/$/, '');
+    const insideBase = !basePath || url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
+    if (url.origin !== base.origin || url.username || url.password || !insideBase || !url.pathname.includes('/uploads/')) {
+      throw new GitLabApiError('The attachment URL is outside this GitLab server.');
+    }
+    const response = await this.fetcher(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, redirect: 'manual' });
+    if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
+    if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
+    if (Number(response.headers.get('content-length') ?? 0) > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
+    return { bytes, contentType: response.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' };
+  }
+
+  async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const url = new URL('../graphql', this.apiRoot);
+    if (url.origin !== this.apiRoot.origin || !url.pathname.startsWith(this.apiRoot.pathname.slice(0, -3))) {
+      throw new GitLabApiError('The GraphQL request is outside the configured GitLab server.');
+    }
+    const response = await this.fetcher(url, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
+      body: JSON.stringify({ query, variables }),
+      redirect: 'manual'
+    });
+    const result = await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response);
+    if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
+    return result.data;
+  }
+
+  private projectPath(projectId: number): string {
+    return `projects/${encodeURIComponent(String(projectId))}`;
+  }
+
+  private issuePath(projectId: number, issueIid: number): string {
+    return `${this.projectPath(projectId)}/issues/${encodeURIComponent(String(issueIid))}`;
+  }
+
+  private postJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    return this.getJson<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
+  private putJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    return this.getJson<T>(path, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
+  private async postNoContent(path: string): Promise<void> {
+    await this.noContent(path, { method: 'POST' });
+  }
+
+  private async deleteResource(path: string): Promise<void> {
+    await this.noContent(path, { method: 'DELETE' });
+  }
+
+  private async noContent(path: string, init: RequestInit): Promise<void> {
+    const url = new URL(path.replace(/^\/+/, ''), this.apiRoot);
+    if (!this.isSafeApiUrl(url)) throw new GitLabApiError('The request is outside the configured GitLab API.');
+    const response = await this.fetcher(url, {
+      ...init, headers: { Accept: 'application/json', 'PRIVATE-TOKEN': this.token }, redirect: 'manual'
+    });
+    if (response.status >= 300 && response.status < 400 && response.status !== 304) throw new GitLabApiError('GitLab redirected the API request.', response.status);
+    if (!response.ok && response.status !== 304) throw new GitLabApiError(`GitLab API request failed (HTTP ${response.status}).`, response.status);
   }
 
   private async getJson<T>(path: string, init: RequestInit = {}): Promise<T> {

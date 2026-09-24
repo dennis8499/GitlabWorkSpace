@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { GitLabApiError } from './api/gitLabClient';
-import type { GitLabGroup, GitLabIssue, GitLabMember, GitLabProject } from './api/types';
+import type { GitLabGroup, GitLabIssue, GitLabProject } from './api/types';
 import { GitLabSession } from './connection/session';
 import { cloneProjects, type CloneProgress } from './git/cloneService';
 import { normalizeGitLabBaseUrl } from './api/urlPolicy';
+import { IssuePanels } from './issues/issuePanel';
 
 class ProjectItem extends vscode.TreeItem {
   readonly project: GitLabProject;
@@ -140,45 +141,11 @@ export class IssueProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   }
 }
 
-class IssueContentProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
-  private readonly documents = new Map<string, string>();
-  private readonly changed = new vscode.EventEmitter<vscode.Uri>();
-  readonly onDidChange = this.changed.event;
-
-  dispose(): void { this.changed.dispose(); }
-
-  async show(issue: GitLabIssue, project?: GitLabProject): Promise<void> {
-    const slug = issue.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'issue';
-    const uri = vscode.Uri.from({ scheme: 'gitlab-issue', path: `/${issue.project_id}/${issue.iid}-${slug}.md` });
-    const lines = [
-      `# ${issue.title}`,
-      '',
-      `- Issue: [#${issue.iid}](${issue.web_url})`,
-      `- State: ${issue.state}`,
-      ...(project ? [`- Project: ${project.path_with_namespace}`] : []),
-      ...(issue.assignees?.length ? [`- Assigned to: ${issue.assignees.map((person) => person.name).join(', ')}`] : []),
-      ...(issue.labels?.length ? [`- Labels: ${issue.labels.join(', ')}`] : []),
-      '',
-      '---',
-      '',
-      issue.description?.trim() || '_No description._'
-    ];
-    this.documents.set(uri.toString(), lines.join('\n'));
-    this.changed.fire(uri);
-    const document = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(document, { preview: false });
-  }
-
-  provideTextDocumentContent(uri: vscode.Uri): string {
-    return this.documents.get(uri.toString()) ?? 'Issue details are no longer available. Refresh the issue list and open it again.';
-  }
-}
-
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const session = new GitLabSession(context.secrets, context.globalState);
   const repositories = new RepositoryProvider(session);
   const issues = new IssueProvider(session);
-  const issueDocuments = new IssueContentProvider();
+  const issuePanels = new IssuePanels(context, session, () => issues.refresh());
   const repoTree = vscode.window.createTreeView('gitlabWorkspace.repositories', {
     treeDataProvider: repositories,
     showCollapseAll: false
@@ -187,30 +154,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeDataProvider: issues,
     showCollapseAll: false
   });
-  const issueProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('gitlab-issue', issueDocuments);
-
-  context.subscriptions.push(repoTree, issueTree, issueProviderRegistration, issueDocuments, repositories, issues);
+  context.subscriptions.push(repoTree, issueTree, issuePanels, repositories, issues);
   context.subscriptions.push(
-    vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues)),
+    vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels)),
     vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group)),
     vscode.commands.registerCommand('gitlabWorkspace.refresh', () => refreshTrees(repositories, issues)),
     vscode.commands.registerCommand('gitlabWorkspace.disconnect', async () => {
+      issuePanels.close();
       await session.disconnect();
       repositories.refresh();
       issues.refresh();
       await vscode.window.showInformationMessage('Disconnected from GitLab.');
     }),
     vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', (item?: ProjectItem) => cloneRepositories(session, item)),
-    vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => createIssue(session, issues)),
+    vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
-      if (item?.issue) await issueDocuments.show(item.issue);
+      if (item?.issue) await issuePanels.showIssue(item.issue);
     })
   );
 }
 
 export function deactivate(): void {}
 
-async function connectToGitLab(session: GitLabSession, repositories: RepositoryProvider, issues: IssueProvider): Promise<void> {
+async function connectToGitLab(session: GitLabSession, repositories: RepositoryProvider, issues: IssueProvider, issuePanels: IssuePanels): Promise<void> {
   const currentUrl = session.baseUrl ?? 'http://127.0.0.1:8929';
   const baseUrl = await vscode.window.showInputBox({
     title: 'Connect to GitLab',
@@ -235,6 +201,7 @@ async function connectToGitLab(session: GitLabSession, repositories: RepositoryP
   await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Connecting to GitLab…', cancellable: false }, async () => {
     try {
       const user = await session.connect(baseUrl, token);
+      issuePanels.close();
       repositories.refresh();
       issues.refresh();
       await vscode.window.showInformationMessage(`Connected to GitLab as ${user.name} (@${user.username}).`);
@@ -367,71 +334,6 @@ function updateCloneProgress(progress: vscode.Progress<{ message?: string; incre
   } else {
     progress.report({ message: `${name}: ${event.message ?? event.state}` });
   }
-}
-
-async function createIssue(session: GitLabSession, issues: IssueProvider): Promise<void> {
-  try {
-    const group = session.selectedGroup;
-    if (!group) {
-      await vscode.window.showWarningMessage('Select a GitLab group first.');
-      return;
-    }
-    const client = await session.getClient();
-    const projects = await client.listGroupProjects(group.id);
-    if (!projects.length) {
-      await vscode.window.showInformationMessage(`No repositories are available in ${group.full_path}.`);
-      return;
-    }
-    const projectPick = await vscode.window.showQuickPick(projects.map((project) => ({
-      label: project.name,
-      description: project.namespace?.full_path ?? project.path_with_namespace,
-      project
-    })), { title: 'Create Issue', placeHolder: 'Choose a project' });
-    if (!projectPick) return;
-
-    const title = await vscode.window.showInputBox({
-      title: 'Create Issue',
-      prompt: 'Issue title',
-      ignoreFocusOut: true,
-      validateInput: (value) => value.trim() ? undefined : 'Enter an issue title.'
-    });
-    if (!title) return;
-    const description = await vscode.window.showInputBox({
-      title: 'Issue Description',
-      prompt: 'Optional one-line description',
-      ignoreFocusOut: true
-    });
-    if (description === undefined) return;
-
-    const members = await client.listProjectMembers(projectPick.project.id);
-    const assignee = await chooseAssignee(members);
-    if (assignee === undefined) return;
-    const created = await client.createIssue(projectPick.project.id, {
-      title: title.trim(),
-      description,
-      ...(assignee === null ? {} : { assigneeId: assignee.id })
-    });
-    issues.refresh();
-    const action = await vscode.window.showInformationMessage(`Created issue #${created.iid}.`, 'Open in GitLab');
-    if (action) await vscode.env.openExternal(vscode.Uri.parse(created.web_url));
-  } catch (error) {
-    await vscode.window.showErrorMessage(readableError(error));
-  }
-}
-
-async function chooseAssignee(members: GitLabMember[]): Promise<GitLabMember | null | undefined> {
-  const picks: Array<{ label: string; description?: string; member: GitLabMember | null }> = [
-    { label: '$(circle-slash) Do not assign', member: null },
-    ...members
-      .filter((member) => !member.state || member.state === 'active')
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((member) => ({ label: member.name, description: `@${member.username}`, member }))
-  ];
-  const choice = await vscode.window.showQuickPick(picks, {
-    title: 'Assign Issue',
-    placeHolder: 'Choose one project member, or do not assign'
-  });
-  return choice?.member;
 }
 
 function readableError(error: unknown): string {
