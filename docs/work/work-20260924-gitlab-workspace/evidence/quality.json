@@ -1,0 +1,122 @@
+{
+  "schema": "megin-quality-evidence/v1",
+  "work_id": "work-20260924-gitlab-workspace",
+  "plan_version": "plan-v1",
+  "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+  "writer": {
+    "context": "writer-20260924-gitlab-workspace-review-fixes",
+    "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+    "source": {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/writer-handoff.md",
+      "sha256": "789cfec386a71220606cb74ce1b909645c1ad76903073a52a786f0f952346a02",
+      "claims": {
+        "context": { "line": 1, "text": "- context: writer-20260924-gitlab-workspace-review-fixes" },
+        "snapshot": { "line": 2, "text": "- snapshot: 43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7" }
+      }
+    }
+  },
+  "review": {
+    "context": "reviewer-20260924-gitlab-workspace-v3",
+    "verdict": "APPROVED",
+    "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+    "source": {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/review.md",
+      "sha256": "049ca2068622b3dd95d1bc4169ecaef2bd5c530df4be6d275ef70058a539be2b",
+      "claims": {
+        "context": { "line": 1, "text": "- context: reviewer-20260924-gitlab-workspace-v3" },
+        "verdict": { "line": 2, "text": "- verdict: APPROVED" },
+        "snapshot": { "line": 3, "text": "- snapshot: 43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7" }
+      }
+    }
+  },
+  "sources": [
+    {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/red.md",
+      "sha256": "fa2b1ea0a8073a636739d578ac0f394199402ad8be522150fd4fb8c8c708fe4a"
+    },
+    {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/green.md",
+      "sha256": "459c5896887b3b20ff5784907c1baccefd5f32e562a5feb41816a8eb7e3c655e"
+    },
+    {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/review.md",
+      "sha256": "049ca2068622b3dd95d1bc4169ecaef2bd5c530df4be6d275ef70058a539be2b"
+    },
+    {
+      "path": "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+      "sha256": "64c16728c70c53edd84135d806b4c827d03b376fac7a0090be4b26ce912004e8"
+    }
+  ],
+  "checks": [
+    {
+      "id": "compile",
+      "status": "passed",
+      "exit_code": 0,
+      "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+      "output": {
+        "path": "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+        "sha256": "64c16728c70c53edd84135d806b4c827d03b376fac7a0090be4b26ce912004e8",
+        "line": 19,
+        "text": "Result: TypeScript 編譯成功。",
+        "claims": {
+          "command": { "line": 17, "text": "Command: npm.cmd run compile" },
+          "exit_code": { "line": 18, "text": "Exit code: 0" }
+        }
+      }
+    },
+    {
+      "id": "unit",
+      "status": "passed",
+      "exit_code": 0,
+      "executed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+      "output": {
+        "path": "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+        "sha256": "64c16728c70c53edd84135d806b4c827d03b376fac7a0090be4b26ce912004e8",
+        "line": 25,
+        "text": "Result: 18 tests passed; 0 failed; 0 skipped.",
+        "claims": {
+          "command": { "line": 23, "text": "Command: npm.cmd run test:unit" },
+          "exit_code": { "line": 24, "text": "Exit code: 0" }
+        }
+      }
+    },
+    {
+      "id": "extension-host",
+      "status": "passed",
+      "exit_code": 0,
+      "executed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+      "output": {
+        "path": "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+        "sha256": "64c16728c70c53edd84135d806b4c827d03b376fac7a0090be4b26ce912004e8",
+        "line": 32,
+        "text": "Result: 3 Extension Host tests passed; 0 failed; 0 skipped. VS Code 1.139.0 成功載入擴充套件，確認 commands、Group/Repo 樹及 Opened/Closed Issue 分組。",
+        "claims": {
+          "command": { "line": 30, "text": "Command: npm.cmd run test:extension" },
+          "exit_code": { "line": 31, "text": "Exit code: 0" }
+        }
+      }
+    },
+    {
+      "id": "package",
+      "status": "passed",
+      "exit_code": 0,
+      "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",
+      "output": {
+        "path": "docs/work/work-20260924-gitlab-workspace/evidence/verification.md",
+        "sha256": "64c16728c70c53edd84135d806b4c827d03b376fac7a0090be4b26ce912004e8",
+        "line": 45,
+        "text": "Result: `dist/gitlab-workspace-0.1.0.vsix` 打包成功，11 個項目，15.23 KB。",
+        "claims": {
+          "command": { "line": 43, "text": "Command: npm.cmd run package" },
+          "exit_code": { "line": 44, "text": "Exit code: 0" }
+        }
+      }
+    }
+  ]
+}

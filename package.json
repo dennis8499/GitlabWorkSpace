@@ -1,0 +1,144 @@
+{
+  "name": "gitlab-workspace",
+  "displayName": "GitLab Workspace",
+  "description": "Browse GitLab groups, clone projects, and manage assigned issues from VS Code.",
+  "version": "0.1.0",
+  "publisher": "local-dev",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "main": "./out/src/extension.js",
+  "activationEvents": [
+    "onView:gitlabWorkspace.repositories",
+    "onView:gitlabWorkspace.myIssues",
+    "onCommand:gitlabWorkspace.connect",
+    "onCommand:gitlabWorkspace.selectGroup"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitlabWorkspace",
+          "title": "GitLab Workspace",
+          "icon": "resources/gitlab-workspace.svg"
+        }
+      ]
+    },
+    "views": {
+      "gitlabWorkspace": [
+        {
+          "id": "gitlabWorkspace.repositories",
+          "name": "Repositories",
+          "contextualTitle": "GitLab Repositories"
+        },
+        {
+          "id": "gitlabWorkspace.myIssues",
+          "name": "My Issues",
+          "contextualTitle": "GitLab Issues"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gitlabWorkspace.connect",
+        "title": "GitLab Workspace: Connect"
+      },
+      {
+        "command": "gitlabWorkspace.selectGroup",
+        "title": "GitLab Workspace: Select Group"
+      },
+      {
+        "command": "gitlabWorkspace.refresh",
+        "title": "GitLab Workspace: Refresh"
+      },
+      {
+        "command": "gitlabWorkspace.cloneRepositories",
+        "title": "GitLab Workspace: Clone Repositories"
+      },
+      {
+        "command": "gitlabWorkspace.createIssue",
+        "title": "GitLab Workspace: Create Issue"
+      },
+      {
+        "command": "gitlabWorkspace.disconnect",
+        "title": "GitLab Workspace: Disconnect"
+      },
+      {
+        "command": "gitlabWorkspace.openIssue",
+        "title": "GitLab Workspace: Open Issue Details"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitlabWorkspace.connect",
+          "when": "view == gitlabWorkspace.repositories",
+          "group": "navigation"
+        },
+        {
+          "command": "gitlabWorkspace.selectGroup",
+          "when": "view == gitlabWorkspace.repositories",
+          "group": "navigation"
+        },
+        {
+          "command": "gitlabWorkspace.cloneRepositories",
+          "when": "view == gitlabWorkspace.repositories",
+          "group": "inline"
+        },
+        {
+          "command": "gitlabWorkspace.createIssue",
+          "when": "view == gitlabWorkspace.myIssues",
+          "group": "inline"
+        },
+        {
+          "command": "gitlabWorkspace.refresh",
+          "when": "view == gitlabWorkspace.repositories || view == gitlabWorkspace.myIssues",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitlabWorkspace.cloneRepositories",
+          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabProject",
+          "group": "inline"
+        },
+        {
+          "command": "gitlabWorkspace.openIssue",
+          "when": "view == gitlabWorkspace.myIssues && viewItem == gitlabIssue",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
+    "test:extension": "npm run compile && vscode-test",
+    "test": "npm run test:unit && npm run test:extension",
+    "package": "npm run compile && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --out dist/gitlab-workspace-0.1.0.vsix --allow-missing-repository",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.2",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.6",
+    "@vscode/test-cli": {
+      "diff": "^8.0.4"
+    }
+  }
+}
