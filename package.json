@@ -5,6 +5,10 @@
   "version": "0.3.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dennis8499/GitlabWorkSpace.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },

@@ -4,7 +4,7 @@ scripts/**
 .vscode/**
 .vscode-test/**
 .npm-cache/**
-docs/**
+docs/work/**
 test/**
 src/**
 node_modules/**

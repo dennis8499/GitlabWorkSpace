@@ -1,44 +1,81 @@
 # GitLab Workspace for VS Code
 
-Browse GitLab groups, clone several repositories into a local workspace folder, and work with issues without leaving VS Code.
+在 VS Code 中瀏覽 GitLab 群組與專案、批次複製儲存庫，並管理指派給自己的議題。
 
-## Connect
+## 目錄
 
-1. Open the **GitLab Workspace** icon in the Activity Bar.
-2. Choose **Connect** and enter the full GitLab base URL. HTTP and HTTPS are supported for any host. HTTP sends your access token without encryption, so use it only on a trusted network.
-3. Enter a Personal Access Token with the `api` scope. The extension validates it with `GET /user` before storing it in VS Code SecretStorage.
-4. Choose **Select Group** to load that group’s repositories and assigned issues. Repository results include projects in subgroups.
+- [功能](#功能)
+- [需求](#需求)
+- [安裝](#安裝)
+- [快速開始](#快速開始)
+- [文件](#文件)
+- [開發與測試](#開發與測試)
+- [版本發行](#版本發行)
+- [授權](#授權)
 
-The token is never stored in extension settings, repository files, or a Git remote URL. Git receives an HTTP authorization header through temporary per-process configuration while a clone runs. Choose **GitLab Workspace: Disconnect** from the Command Palette to remove the stored token.
+## 功能
 
-## Repositories
+- 瀏覽 GitLab 群組及其子群組中的專案。
+- 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
+- 查看所選群組專案中指派給自己的開啟與已關閉議題。
+- 建立、編輯議題，並在 VS Code 中查看議題討論與相關資訊。
+- 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 
-After selecting a group, use **Clone All Repositories** to clone every project in that group and its subgroups. To clone only some projects, check them in the Repositories list and choose **Clone Checked Repositories**. Clicking a project row only selects it. The Command Palette also offers **Choose Repositories to Clone** for a multi-select picker. Clones are placed directly under the current workspace folder. With a multi-root workspace, choose the destination folder. The extension checks every destination before starting; a name collision stops the whole batch.
+## 需求
 
-Git must be installed and available on `PATH`. The extension uses the project’s GitLab HTTP clone URL and allows it only when its scheme, host, and port match the configured GitLab server.
+- VS Code 1.90.0 或更新版本。
+- Git 已安裝且可從 `PATH` 執行；只有複製儲存庫時需要 Git。
+- GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
+- GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 
-## Issues
+## 安裝
 
-The My Issues view lists open and closed issues assigned to the signed-in user within the selected group’s projects. Select an issue to open its live details. **Create Issue** opens a form for the project, title, description template, Markdown, attachment, assignee, labels, milestone, start and due dates, and confidentiality. A newly created issue opens immediately even when it is not assigned to you.
+1. 前往 [GitHub Releases](https://github.com/dennis8499/GitlabWorkSpace/releases) 下載版本附帶的 `gitlab-workspace-<版本>.vsix`。
+2. 在 VS Code 開啟「擴充功能」檢視，選擇檢視右上角的 `...`，再選 **Install from VSIX...**。
+3. 選取下載的 VSIX，安裝完成後重新載入 VS Code（若 VS Code 提示重新載入）。
 
-The detail view supports editing, state changes, discussions with Markdown preview and attachments, issue links, child tasks, reactions, notifications, to-dos, time reports and dated time entries, cloning, moving, and deletion when the signed-in account has permission. Move and clone targets can be searched across groups. GitLab quick actions remain available in descriptions and comments. API failures remain visible so you can retry after refreshing.
+本擴充功能目前透過 GitHub Releases 提供 VSIX，未發布至 Visual Studio Marketplace。
 
-## Development and local package
+## 快速開始
 
-```powershell
-npm.cmd install
-npm.cmd test
-npm.cmd run package
+1. 在活動列開啟 **GitLab Workspace**，於 **Repositories** 檢視選擇 **Connect**。
+2. 輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`。
+3. 輸入具有 `api` 範圍的 Personal Access Token。擴充功能會先驗證 Token，再將它存入 VS Code `SecretStorage`。
+4. 選擇 **Select Group**，載入該群組及其子群組中的專案。
+5. 使用 **Clone All Repositories**、**Clone Checked Repositories**，或命令面板中的 **GitLab Workspace: Choose Repositories to Clone** 複製專案。
+6. 在 **My Issues** 檢視開啟議題，或使用 **GitLab Workspace: Create Issue** 建立議題。
+
+HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
+
+## 文件
+
+- [使用指南](docs/user-guide.md)：連線、複製儲存庫、議題操作與中斷連線。
+- [疑難排解](docs/troubleshooting.md)：常見連線、權限、Git 及複製問題。
+- [貢獻指南](CONTRIBUTING.md)：本機開發、測試、偵錯與發行流程。
+
+## 開發與測試
+
+需要 Node.js 24、npm、Python 3，以及可執行的 Git。安裝相依套件並啟動擴充功能開發主機：
+
+```sh
+npm ci
 ```
 
-`npm test` builds and checks the VSIX as part of the release behavior gate. The VSIX is written to `dist/gitlab-workspace-<version>.vsix` (currently `dist/gitlab-workspace-0.3.0.vsix`). Install it from VS Code’s Extensions view using **Install from VSIX…**. The original `index.html` remains in the repository as a reference and is excluded from the package.
+接著在 VS Code 按 `F5`。常用指令：
 
-## GitHub releases
+```sh
+npm run compile
+npm run build:webview
+npm test
+npm run package
+```
 
-To release a new version:
+`npm test` 會執行單元、行為、發行流程及 Extension Host 測試，並打包與驗證 VSIX。打包結果會寫入 `dist/gitlab-workspace-<版本>.vsix`。Windows PowerShell 若無法執行 `npm` 指令，請改用 `npm.cmd`。
 
-1. Update the version in `package.json` and `package-lock.json`, for example with `npm version 0.3.0 --no-git-tag-version`.
-2. Commit and merge the version change to `main`.
-3. Create and push a matching version tag, for example `git tag v0.3.0` followed by `git push origin v0.3.0`.
+## 版本發行
 
-GitHub Actions checks the tag against both package files and the `main` branch, runs the tests, packages the VSIX, and creates a GitHub Release with generated notes and the VSIX attached. The initial `v0.1.0` release and tags with a semantic prerelease suffix such as `-beta.1` are marked as pre-releases; plain version tags are published as regular releases. Downloads are provided through GitHub Releases; the extension is not published to the VS Code Marketplace.
+發行流程會比對 Git 標籤、`package.json` 與 `package-lock.json` 的版本，並確認發行提交已合併至 `main`。推送符合版本號的 `v<版本>` 標籤後，GitHub Actions 會執行測試、打包 VSIX，並建立附有安裝檔的 GitHub Release。操作細節請參考[貢獻指南](CONTRIBUTING.md)。
+
+## 授權
+
+目前 `package.json` 將套件授權標示為 `UNLICENSED`，儲存庫也未附開源授權檔。此文件不表示本專案採用 MIT 或其他開源授權。
