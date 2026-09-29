@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "Browse GitLab groups, clone projects, and manage assigned issues from VS Code.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "engines": {
