@@ -64,16 +64,16 @@
       },
       {
         "command": "gitlabWorkspace.cloneRepositories",
-        "title": "GitLab Workspace: Choose Repositories to Clone"
+        "title": "GitLab Workspace: Choose Repositories to Clone or Update"
       },
       {
         "command": "gitlabWorkspace.cloneAllRepositories",
-        "title": "GitLab Workspace: Clone All Repositories",
+        "title": "GitLab Workspace: Clone or Update All Repositories",
         "icon": "$(cloud-download)"
       },
       {
         "command": "gitlabWorkspace.cloneSelectedRepositories",
-        "title": "GitLab Workspace: Clone Checked Repositories",
+        "title": "GitLab Workspace: Clone or Update Checked Repositories",
         "icon": "$(checklist)"
       },
       {

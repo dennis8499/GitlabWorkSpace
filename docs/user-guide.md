@@ -1,6 +1,6 @@
 # 使用指南
 
-本指南說明如何連線至 GitLab、瀏覽群組專案、複製儲存庫，以及在 VS Code 中管理議題。
+本指南說明如何連線至 GitLab、瀏覽群組專案、複製或更新儲存庫，以及在 VS Code 中管理議題。
 
 ## 連線至 GitLab
 
@@ -13,17 +13,19 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。只有在你信任�
 
 Token 不會寫入擴充功能設定或 Git remote URL。複製儲存庫時，Git 子程序會透過暫時的 Git 設定取得驗證資訊。中斷連線請執行命令面板中的 **GitLab Workspace: Disconnect**；這會移除已儲存的 Token、GitLab 網址與群組選擇。
 
-## 瀏覽及複製儲存庫
+## 瀏覽、複製及更新儲存庫
 
 選取群組後，**Repositories** 會顯示該群組及子群組中的專案。可用以下方式複製：
 
-- **Clone All Repositories**：複製清單中的全部專案。
-- 勾選專案後選擇 **Clone Checked Repositories**：只複製勾選項目。
-- 從命令面板執行 **GitLab Workspace: Choose Repositories to Clone**：開啟多選清單。
+- **Clone or Update All Repositories**：複製尚未存在的專案，並同步已存在的 Repo。
+- 勾選專案後選擇 **Clone or Update Checked Repositories**：只處理勾選項目。
+- 從命令面板執行 **GitLab Workspace: Choose Repositories to Clone or Update**：開啟多選清單。
 
 單一工作區資料夾會直接作為目的地；多根工作區會先要求選擇資料夾；沒有開啟工作區時，可選擇本機資料夾。每個專案會建立在目的地下以專案名稱命名的子資料夾。Git 必須已安裝且可從 `PATH` 執行。
 
-開始複製前，擴充功能會檢查整批目的地。若有資料夾已存在或名稱衝突，整批會在啟動前停止。若複製進行中有單一專案失敗，先前已完成的專案會保留，後續項目會略過；檢查錯誤訊息及目的地後，可重新執行複製。
+開始操作前，擴充功能會檢查整批目的地。已存在的資料夾必須是對應 GitLab 專案的 Repo，且其 HTTPS 或 SSH origin 必須吻合；一般資料夾、其他 Repo 或不安全路徑會讓整批在啟動前停止。
+
+既有 Repo 會切換到 GitLab 專案的預設分支並快轉到遠端最新提交。若有已暫存、未暫存或未追蹤的本機檔案，或本地主線與遠端分歧，擴充功能會保留現況、略過該 Repo 並繼續其他項目。略過原因會列在完成通知的 **Show Details** 中。Clone 或 Git 更新失敗時，已完成的 Repo 會保留，後續項目會略過。
 
 GitLab 提供的 HTTP clone URL 必須與已設定伺服器使用相同的通訊協定、主機與連接埠。這項檢查可避免將驗證資訊交給不同的伺服器。
 
@@ -44,8 +46,8 @@ GitLab 提供的 HTTP clone URL 必須與已設定伺服器使用相同的通訊
 - **GitLab Workspace: Connect**：連線或更新 GitLab 連線。
 - **GitLab Workspace: Select Group**：選擇作用中的群組。
 - **GitLab Workspace: Refresh**：重新載入儲存庫與議題檢視。
-- **GitLab Workspace: Choose Repositories to Clone**：挑選要複製的專案。
-- **GitLab Workspace: Clone All Repositories**：複製所選群組中的所有專案。
-- **GitLab Workspace: Clone Checked Repositories**：複製勾選的專案。
+- **GitLab Workspace: Choose Repositories to Clone or Update**：挑選要複製或更新的專案。
+- **GitLab Workspace: Clone or Update All Repositories**：處理所選群組中的所有專案。
+- **GitLab Workspace: Clone or Update Checked Repositories**：處理勾選的專案。
 - **GitLab Workspace: Create Issue**：建立議題。
 - **GitLab Workspace: Disconnect**：移除已儲存的連線資訊。

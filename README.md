@@ -42,7 +42,7 @@
 2. 輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`。
 3. 輸入具有 `api` 範圍的 Personal Access Token。擴充功能會先驗證 Token，再將它存入 VS Code `SecretStorage`。
 4. 選擇 **Select Group**，載入該群組及其子群組中的專案。
-5. 使用 **Clone All Repositories**、**Clone Checked Repositories**，或命令面板中的 **GitLab Workspace: Choose Repositories to Clone** 複製專案。
+5. 使用 **Clone or Update All Repositories**、**Clone or Update Checked Repositories**，或命令面板中的 **GitLab Workspace: Choose Repositories to Clone or Update** 複製或同步專案。
 6. 在 **My Issues** 檢視開啟議題，或使用 **GitLab Workspace: Create Issue** 建立議題。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。

@@ -21,6 +21,7 @@ export interface GitLabProject {
   path_with_namespace: string;
   web_url: string;
   http_url_to_repo: string;
+  ssh_url_to_repo?: string | null;
   default_branch?: string | null;
   namespace?: { full_path?: string; name?: string };
   permissions?: {

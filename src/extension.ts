@@ -229,6 +229,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const repositories = new RepositoryProvider(session);
   const issues = new IssueProvider(session);
   const issuePanels = new IssuePanels(context, session, () => issues.refresh());
+  const cloneOutput = vscode.window.createOutputChannel('GitLab Workspace Repositories');
   const repoTree = vscode.window.createTreeView('gitlabWorkspace.repositories', {
     treeDataProvider: repositories,
     showCollapseAll: false
@@ -240,7 +241,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const cloneState = new CloneOperationGate();
   await updateCloneCommandContexts(session, cloneState);
   context.subscriptions.push(repoTree.onDidChangeCheckboxState((event) => repositories.updateCheckboxState(event.items)));
-  context.subscriptions.push(repoTree, issueTree, issuePanels, repositories, issues);
+  context.subscriptions.push(repoTree, issueTree, issuePanels, repositories, issues, cloneOutput);
   context.subscriptions.push(
     vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels, cloneState)),
     vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group, cloneState)),
@@ -253,9 +254,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await updateCloneCommandContexts(session, cloneState);
       await vscode.window.showInformationMessage('Disconnected from GitLab.');
     }),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => cloneRepositories(session, repositories, 'pick', cloneState)),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => cloneRepositories(session, repositories, 'all', cloneState)),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => cloneRepositories(session, repositories, 'selected', cloneState)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => cloneRepositories(session, repositories, 'pick', cloneState, cloneOutput)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => cloneRepositories(session, repositories, 'all', cloneState, cloneOutput)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => cloneRepositories(session, repositories, 'selected', cloneState, cloneOutput)),
     vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
       if (item?.issue) await issuePanels.showIssue(item.issue);
@@ -368,10 +369,11 @@ async function cloneRepositories(
   session: GitLabSession,
   repositories: RepositoryProvider,
   mode: CloneMode,
-  cloneState: CloneOperationGate
+  cloneState: CloneOperationGate,
+  cloneOutput: vscode.OutputChannel
 ): Promise<void> {
   if (!cloneState.tryStart()) {
-    await vscode.window.showWarningMessage('A repository clone is already in progress.');
+    await vscode.window.showWarningMessage('A repository clone or update is already in progress.');
     return;
   }
 
@@ -409,8 +411,8 @@ async function cloneRepositories(
         detail: project.path,
         project
       })), {
-        title: 'Clone Repositories',
-        placeHolder: 'Select one or more repositories',
+        title: 'Clone or Update Repositories',
+        placeHolder: 'Select repositories to clone or update',
         canPickMany: true,
         ignoreFocusOut: true
       });
@@ -436,24 +438,56 @@ async function cloneRepositories(
     repositories.ensureCheckedProjects(group.id, chosen);
     const result = await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: 'Cloning GitLab repositories',
+      title: 'Cloning or updating GitLab repositories',
       cancellable: false
-    }, async (progress) => cloneProjects(destination, chosen, credentials.baseUrl, credentials.token, (event) => updateCloneProgress(progress, event)));
+    }, async (progress) => cloneProjects(
+      destination,
+      chosen,
+      credentials.baseUrl,
+      credentials.token,
+      (event) => updateCloneProgress(progress, event),
+      { resolveProject: (project) => client.getProject(project.id) }
+    ));
     repositories.removeCheckedProjects(group.id, result.completed);
-
-    if (result.failed) {
-      await vscode.window.showErrorMessage(
-        `Cloned ${result.completed.length} repository(ies). “${result.failed.path_with_namespace}” failed; ${result.skipped.length} remaining repository(ies) were skipped.`
-      );
-    } else {
-      await vscode.window.showInformationMessage(`Cloned ${result.completed.length} repository(ies) to ${destination}.`);
-    }
+    await showCloneResult(result, destination, cloneOutput);
   } catch (error) {
     await vscode.window.showErrorMessage(readableError(error));
   } finally {
     cloneState.finish();
     await updateCloneCommandContexts(session, cloneState);
   }
+}
+
+async function showCloneResult(
+  result: Awaited<ReturnType<typeof cloneProjects>>,
+  destination: string,
+  output: vscode.OutputChannel
+): Promise<void> {
+  const summary = 'Cloned ' + result.cloned.length + ', synchronized ' + result.updated.length +
+    ', skipped ' + result.skipped.length + ' repository(ies) to ' + destination + '.';
+  if (result.failed || result.skipped.length > 0) {
+    output.clear();
+    output.appendLine('Repository operation details');
+    output.appendLine('');
+    for (const project of result.cloned) output.appendLine('Cloned: ' + project.path_with_namespace);
+    for (const project of result.updated) output.appendLine('Synchronized: ' + project.path_with_namespace);
+    if (result.failed) {
+      output.appendLine('Failed: ' + result.failed.path_with_namespace + ': ' + (result.failureReason ?? 'Git operation failed.'));
+    }
+    for (const skipped of result.skipped) {
+      output.appendLine('Skipped: ' + skipped.project.path_with_namespace + ': ' + skipped.reason);
+    }
+    const action = 'Show Details';
+    const message = result.failed
+      ? summary + ' The batch stopped after a Git operation failed.'
+      : summary + ' Review the skipped repositories for details.';
+    const selected = result.failed
+      ? await vscode.window.showErrorMessage(message, action)
+      : await vscode.window.showWarningMessage(message, action);
+    if (selected === action) output.show(true);
+    return;
+  }
+  await vscode.window.showInformationMessage(summary);
 }
 
 async function updateCloneCommandContexts(session: GitLabSession, cloneState: CloneOperationGate): Promise<void> {
@@ -487,9 +521,9 @@ function updateCloneProgress(progress: vscode.Progress<{ message?: string; incre
   if (event.state === 'progress') {
     progress.report({ message: `${name}: ${event.percent ?? 0}%` });
   } else if (event.state === 'starting') {
-    progress.report({ message: `${name}: starting` });
+    progress.report({ message: `${name}: ${event.action === 'clone' ? 'cloning' : 'checking and updating'}` });
   } else if (event.state === 'completed') {
-    progress.report({ message: `${name}: complete` });
+    progress.report({ message: `${name}: ${event.action === 'clone' ? 'cloned' : 'synchronized'}` });
   } else {
     progress.report({ message: `${name}: ${event.message ?? event.state}` });
   }
