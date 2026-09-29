@@ -59,6 +59,8 @@ function commitAndPush(source: string, branch: string, filename: string, content
 function createExistingRepo(workspace: string, repo: GitLabProject, bare: string, origin = repo.http_url_to_repo): string {
   const target = path.join(workspace, repo.path);
   execFileSync('git', ['clone', '--quiet', bare, target]);
+  git(['-C', target, 'config', 'user.email', 'test@example.invalid']);
+  git(['-C', target, 'config', 'user.name', 'GitLab Workspace Tests']);
   git(['-C', target, 'remote', 'set-url', 'origin', origin]);
   return target;
 }
