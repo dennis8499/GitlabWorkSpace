@@ -18,6 +18,7 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.cloneRepositories',
       'gitlabWorkspace.cloneAllRepositories',
       'gitlabWorkspace.cloneSelectedRepositories',
+      'gitlabWorkspace.syncLocalDefaultBranches',
       'gitlabWorkspace.createIssue',
       'gitlabWorkspace.disconnect',
       'gitlabWorkspace.openIssue'

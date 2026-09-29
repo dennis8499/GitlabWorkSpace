@@ -2,7 +2,12 @@ import * as vscode from 'vscode';
 import { GitLabApiError } from './api/gitLabClient';
 import type { GitLabGroup, GitLabIssue, GitLabProject } from './api/types';
 import { GitLabSession } from './connection/session';
-import { cloneProjects, type CloneProgress } from './git/cloneService';
+import {
+  cloneProjects,
+  syncLocalDefaultBranches,
+  type CloneProgress,
+  type LocalSyncProgress
+} from './git/cloneService';
 import { normalizeGitLabBaseUrl } from './api/urlPolicy';
 import { IssuePanels } from './issues/issuePanel';
 
@@ -257,6 +262,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => cloneRepositories(session, repositories, 'pick', cloneState, cloneOutput)),
     vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => cloneRepositories(session, repositories, 'all', cloneState, cloneOutput)),
     vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => cloneRepositories(session, repositories, 'selected', cloneState, cloneOutput)),
+    vscode.commands.registerCommand('gitlabWorkspace.syncLocalDefaultBranches', () => syncLocalRepositories(session, cloneState, cloneOutput)),
     vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
       if (item?.issue) await issuePanels.showIssue(item.issue);
@@ -373,7 +379,7 @@ async function cloneRepositories(
   cloneOutput: vscode.OutputChannel
 ): Promise<void> {
   if (!cloneState.tryStart()) {
-    await vscode.window.showWarningMessage('A repository clone or update is already in progress.');
+    await vscode.window.showWarningMessage('A repository operation is already in progress.');
     return;
   }
 
@@ -458,6 +464,67 @@ async function cloneRepositories(
   }
 }
 
+async function syncLocalRepositories(
+  session: GitLabSession,
+  cloneState: CloneOperationGate,
+  cloneOutput: vscode.OutputChannel
+): Promise<void> {
+  if (!cloneState.tryStart()) {
+    await vscode.window.showWarningMessage('A repository operation is already in progress.');
+    return;
+  }
+
+  try {
+    await updateCloneCommandContexts(session, cloneState);
+    const group = session.selectedGroup;
+    if (!group) {
+      await vscode.window.showWarningMessage('Select a GitLab group first.');
+      return;
+    }
+    const client = await session.getClient();
+    const projects = await client.listGroupProjects(group.id);
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start synchronization again for the current group.');
+      return;
+    }
+    if (!projects.length) {
+      await vscode.window.showInformationMessage(`No repositories are available in ${group.full_path}.`);
+      return;
+    }
+
+    const destination = await chooseDestination('Choose Repository Folder', 'Select Folder');
+    if (!destination) return;
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start synchronization again for the current group.');
+      return;
+    }
+    const credentials = await session.getCloneCredentials();
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start synchronization again for the current group.');
+      return;
+    }
+
+    const result = await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Fetching and pulling local GitLab default branches',
+      cancellable: false
+    }, async (progress) => syncLocalDefaultBranches(
+      destination,
+      projects,
+      credentials.baseUrl,
+      credentials.token,
+      (event) => updateLocalSyncProgress(progress, event),
+      { resolveProject: (project) => client.getProject(project.id) }
+    ));
+    await showLocalSyncResult(result, destination, cloneOutput);
+  } catch (error) {
+    await vscode.window.showErrorMessage(readableError(error));
+  } finally {
+    cloneState.finish();
+    await updateCloneCommandContexts(session, cloneState);
+  }
+}
+
 async function showCloneResult(
   result: Awaited<ReturnType<typeof cloneProjects>>,
   destination: string,
@@ -490,12 +557,53 @@ async function showCloneResult(
   await vscode.window.showInformationMessage(summary);
 }
 
+async function showLocalSyncResult(
+  result: Awaited<ReturnType<typeof syncLocalDefaultBranches>>,
+  destination: string,
+  output: vscode.OutputChannel
+): Promise<void> {
+  if (result.found === 0 && result.skipped.length === 0 && result.failed.length === 0) {
+    await vscode.window.showInformationMessage('No local repositories from the selected group were found in ' + destination + '.');
+    return;
+  }
+
+  const summary = 'Updated ' + result.updated.length + ', already up to date ' + result.upToDate.length +
+    ', skipped ' + result.skipped.length + ', failed ' + result.failed.length +
+    ' local repository(ies) in ' + destination + '.';
+  if (result.failed.length > 0 || result.skipped.length > 0) {
+    output.clear();
+    output.appendLine('Local repository synchronization details');
+    output.appendLine('');
+    for (const project of result.updated) output.appendLine('Updated: ' + project.path_with_namespace);
+    for (const project of result.upToDate) output.appendLine('Already up to date: ' + project.path_with_namespace);
+    for (const skipped of result.skipped) {
+      output.appendLine('Skipped: ' + skipped.project.path_with_namespace + ': ' + skipped.reason);
+    }
+    for (const failed of result.failed) {
+      output.appendLine('Failed: ' + failed.project.path_with_namespace + ': ' + failed.reason);
+    }
+    const action = 'Show Details';
+    const message = result.failed.length > 0
+      ? summary + ' Review the failed repositories for details.'
+      : summary + ' Review the skipped repositories for details.';
+    const selected = result.failed.length > 0
+      ? await vscode.window.showErrorMessage(message, action)
+      : await vscode.window.showWarningMessage(message, action);
+    if (selected === action) output.show(true);
+    return;
+  }
+  await vscode.window.showInformationMessage(summary);
+}
+
 async function updateCloneCommandContexts(session: GitLabSession, cloneState: CloneOperationGate): Promise<void> {
   await vscode.commands.executeCommand('setContext', 'gitlabWorkspace.groupSelected', Boolean(session.selectedGroup));
   await vscode.commands.executeCommand('setContext', 'gitlabWorkspace.cloneInProgress', cloneState.inProgress);
 }
 
-async function chooseDestination(): Promise<string | undefined> {
+async function chooseDestination(
+  title = 'Clone into Workspace Folder',
+  openLabel = 'Clone Here'
+): Promise<string | undefined> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 1) return folders[0].uri.fsPath;
   if (folders.length > 1) {
@@ -503,14 +611,14 @@ async function chooseDestination(): Promise<string | undefined> {
       label: folder.name,
       description: folder.uri.fsPath,
       path: folder.uri.fsPath
-    })), { title: 'Clone into Workspace Folder', placeHolder: 'Choose a local workspace folder' });
+    })), { title, placeHolder: 'Choose a local workspace folder' });
     return selected?.path;
   }
   const selected = await vscode.window.showOpenDialog({
     canSelectFiles: false,
     canSelectFolders: true,
     canSelectMany: false,
-    openLabel: 'Clone Here',
+    openLabel,
     title: 'Choose a local destination folder'
   });
   return selected?.[0].scheme === 'file' ? selected[0].fsPath : undefined;
@@ -524,6 +632,24 @@ function updateCloneProgress(progress: vscode.Progress<{ message?: string; incre
     progress.report({ message: `${name}: ${event.action === 'clone' ? 'cloning' : 'checking and updating'}` });
   } else if (event.state === 'completed') {
     progress.report({ message: `${name}: ${event.action === 'clone' ? 'cloned' : 'synchronized'}` });
+  } else {
+    progress.report({ message: `${name}: ${event.message ?? event.state}` });
+  }
+}
+
+function updateLocalSyncProgress(
+  progress: vscode.Progress<{ message?: string; increment?: number }>,
+  event: LocalSyncProgress
+): void {
+  const name = event.project.path_with_namespace;
+  if (event.state === 'progress') {
+    progress.report({ message: `${name}: ${event.percent ?? 0}%` });
+  } else if (event.state === 'starting') {
+    progress.report({ message: `${name}: fetching and checking` });
+  } else if (event.state === 'updated') {
+    progress.report({ message: `${name}: updated` });
+  } else if (event.state === 'up-to-date') {
+    progress.report({ message: `${name}: already up to date` });
   } else {
     progress.report({ message: `${name}: ${event.message ?? event.state}` });
   }

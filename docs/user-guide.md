@@ -29,6 +29,12 @@ Token 不會寫入擴充功能設定或 Git remote URL。複製儲存庫時，Gi
 
 GitLab 提供的 HTTP clone URL 必須與已設定伺服器使用相同的通訊協定、主機與連接埠。這項檢查可避免將驗證資訊交給不同的伺服器。
 
+## 一鍵 Fetch 並更新本地主線
+
+在 **Repositories** 檢視選擇 **GitLab Workspace: Fetch and Pull Local Default Branches**，同步所選群組中已下載至工作區資料夾的 Repo。單一工作區資料夾會直接使用；多根工作區或沒有開啟工作區時，先選擇 Repo 所在的資料夾。此命令不會下載尚未存在的 Repo。
+
+只有目前位於 GitLab 預設分支且工作目錄乾淨的 Repo 會更新。功能分支、含本機變更或與遠端分歧的 Repo 會略過並列出原因；單一 Repo 的 Git 錯誤會記錄下來，其他 Repo 仍會繼續同步。完成通知可開啟 **Show Details** 查看結果。
+
 ## 查看及管理議題
 
 **My Issues** 顯示目前登入帳號在所選群組專案中被指派的開啟與已關閉議題。切換群組會改變清單範圍；選擇檢視標題列的重新整理按鈕或執行 **GitLab Workspace: Refresh** 可重新載入資料。
@@ -49,5 +55,6 @@ GitLab 提供的 HTTP clone URL 必須與已設定伺服器使用相同的通訊
 - **GitLab Workspace: Choose Repositories to Clone or Update**：挑選要複製或更新的專案。
 - **GitLab Workspace: Clone or Update All Repositories**：處理所選群組中的所有專案。
 - **GitLab Workspace: Clone or Update Checked Repositories**：處理勾選的專案。
+- **GitLab Workspace: Fetch and Pull Local Default Branches**：只同步所選群組中已存在於本機的 Repo。
 - **GitLab Workspace: Create Issue**：建立議題。
 - **GitLab Workspace: Disconnect**：移除已儲存的連線資訊。

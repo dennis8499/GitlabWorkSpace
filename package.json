@@ -23,7 +23,8 @@
     "onView:gitlabWorkspace.repositories",
     "onView:gitlabWorkspace.myIssues",
     "onCommand:gitlabWorkspace.connect",
-    "onCommand:gitlabWorkspace.selectGroup"
+    "onCommand:gitlabWorkspace.selectGroup",
+    "onCommand:gitlabWorkspace.syncLocalDefaultBranches"
   ],
   "contributes": {
     "viewsContainers": {
@@ -77,6 +78,11 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "gitlabWorkspace.syncLocalDefaultBranches",
+        "title": "GitLab Workspace: Fetch and Pull Local Default Branches",
+        "icon": "$(sync)"
+      },
+      {
         "command": "gitlabWorkspace.createIssue",
         "title": "GitLab Workspace: Create Issue"
       },
@@ -108,6 +114,11 @@
         },
         {
           "command": "gitlabWorkspace.cloneSelectedRepositories",
+          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
+          "group": "inline"
+        },
+        {
+          "command": "gitlabWorkspace.syncLocalDefaultBranches",
           "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
           "group": "inline"
         },

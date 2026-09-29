@@ -10,7 +10,8 @@ import {
   cloneProjects,
   ClonePreflightError,
   createCloneEnvironmentForTest,
-  planClones
+  planClones,
+  syncLocalDefaultBranches
 } from '../../src/git/cloneService';
 
 const dummyToken = 'clone-unit-test-token-do-not-use';
@@ -391,6 +392,143 @@ test('does not delete an existing repository after update failure and skips the 
     assert.equal(results.skipped.length, 1);
     assert.equal(existsSync(target), true);
     assert.equal(readFileSync(path.join(target, 'README.md'), 'utf8').trim(), 'initial content');
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('fetches and fast-forwards only the current GitLab default branch', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  const { source, bare } = createBareRemote(temp, 'release');
+  const repo = project('sync-demo', 'sync-demo', 'release');
+  const target = createExistingRepo(workspace, repo, bare);
+  const restoreRewrite = addUrlRewrite(repo.http_url_to_repo, bare);
+  try {
+    commitAndPush(source, 'release', 'latest.txt', 'latest content\n', 'remote update');
+    const first = await syncLocalDefaultBranches(workspace, [repo], 'https://gitlab.example.test', dummyToken);
+    assert.equal(first.found, 1);
+    assert.deepEqual(first.updated, [repo]);
+    assert.deepEqual(first.upToDate, []);
+    assert.equal(git(['-C', target, 'branch', '--show-current']), 'release');
+    assert.equal(readFileSync(path.join(target, 'latest.txt'), 'utf8').trim(), 'latest content');
+
+    const second = await syncLocalDefaultBranches(workspace, [repo], 'https://gitlab.example.test', dummyToken);
+    assert.deepEqual(second.updated, []);
+    assert.deepEqual(second.upToDate, [repo]);
+  } finally {
+    restoreRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('skips a repository on a feature branch without fetching or switching branches', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-feature-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  const { source, bare } = createBareRemote(temp);
+  const repo = project('feature-sync');
+  const target = createExistingRepo(workspace, repo, bare);
+  git(['-C', target, 'switch', '--quiet', '-c', 'feature/work']);
+  const trackedBefore = git(['-C', target, 'rev-parse', 'refs/remotes/origin/main']);
+  commitAndPush(source, 'main', 'remote.txt', 'remote update\n', 'remote update');
+  const restoreRewrite = addUrlRewrite(repo.http_url_to_repo, bare);
+  try {
+    const result = await syncLocalDefaultBranches(workspace, [repo], 'https://gitlab.example.test', dummyToken);
+    assert.equal(result.skipped.length, 1);
+    assert.match(result.skipped[0].reason, /not currently on its GitLab default branch/);
+    assert.equal(git(['-C', target, 'branch', '--show-current']), 'feature/work');
+    assert.equal(git(['-C', target, 'rev-parse', 'refs/remotes/origin/main']), trackedBefore);
+    assert.equal(existsSync(path.join(target, 'remote.txt')), false);
+  } finally {
+    restoreRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('skips dirty and divergent local default branches while continuing the batch', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-skip-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+
+  const dirtyRemote = createBareRemote(temp);
+  const dirtyProject = project('sync-dirty');
+  const dirtyTarget = createExistingRepo(workspace, dirtyProject, dirtyRemote.bare);
+  writeFileSync(path.join(dirtyTarget, 'local.txt'), 'keep this change\n');
+
+  const divergentRemote = createBareRemote(temp);
+  const divergentProject = project('sync-diverged');
+  const divergentTarget = createExistingRepo(workspace, divergentProject, divergentRemote.bare);
+  writeFileSync(path.join(divergentTarget, 'local.txt'), 'local commit\n');
+  git(['-C', divergentTarget, 'add', 'local.txt']);
+  git(['-C', divergentTarget, 'commit', '--quiet', '-m', 'local commit']);
+  commitAndPush(divergentRemote.source, 'main', 'remote.txt', 'remote commit\n', 'remote commit');
+
+  const restoreDirtyRewrite = addUrlRewrite(dirtyProject.http_url_to_repo, dirtyRemote.bare);
+  const restoreDivergentRewrite = addUrlRewrite(divergentProject.http_url_to_repo, divergentRemote.bare);
+  try {
+    const result = await syncLocalDefaultBranches(
+      workspace,
+      [dirtyProject, divergentProject],
+      'https://gitlab.example.test',
+      dummyToken
+    );
+    assert.equal(result.found, 2);
+    assert.equal(result.skipped.length, 2);
+    assert.match(result.skipped[0].reason, /local changes or untracked files/);
+    assert.match(result.skipped[1].reason, /diverged/);
+    assert.equal(readFileSync(path.join(dirtyTarget, 'local.txt'), 'utf8').trim(), 'keep this change');
+    assert.equal(git(['-C', divergentTarget, 'branch', '--show-current']), 'main');
+    assert.equal(existsSync(path.join(divergentTarget, 'remote.txt')), false);
+  } finally {
+    restoreDivergentRewrite();
+    restoreDirtyRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('skips invalid destinations, ignores missing repositories, and continues after a per-repository failure', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-batch-'));
+  try {
+    const workspace = path.join(temp, 'workspace');
+    mkdirSync(workspace);
+    const { bare } = createBareRemote(temp);
+    const wrongProject = project('wrong-origin');
+    createExistingRepo(workspace, wrongProject, bare, 'https://gitlab.example.test/group/other.git');
+    const ordinaryProject = project('ordinary-folder');
+    mkdirSync(path.join(workspace, ordinaryProject.path));
+    const failedProject = project('sync-failure');
+    createExistingRepo(workspace, failedProject, bare);
+    const goodProject = { ...project('sync-success'), id: 99 };
+    createExistingRepo(workspace, goodProject, bare);
+    const missingProject = project('not-downloaded');
+    const missingExternalProject = {
+      ...project('external-not-downloaded'),
+      http_url_to_repo: 'https://other.example.test/group/external-not-downloaded.git'
+    };
+    const calls: string[] = [];
+
+    const result = await syncLocalDefaultBranches(
+      workspace,
+      [wrongProject, ordinaryProject, failedProject, missingProject, missingExternalProject, goodProject],
+      'https://gitlab.example.test',
+      dummyToken,
+      () => undefined,
+      {
+        syncRunner: async (plan) => {
+          calls.push(plan.project.path);
+          if (plan.project.id === failedProject.id) throw new Error('private Git output');
+          return { state: 'updated' };
+        }
+      }
+    );
+
+    assert.equal(result.found, 4);
+    assert.deepEqual(result.skipped.map(({ project: skipped }) => skipped), [wrongProject, ordinaryProject]);
+    assert.deepEqual(result.failed.map(({ project: failed }) => failed), [failedProject]);
+    assert.deepEqual(result.updated, [goodProject]);
+    assert.deepEqual(calls, [failedProject.path, goodProject.path]);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

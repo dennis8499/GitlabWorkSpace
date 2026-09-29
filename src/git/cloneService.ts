@@ -38,16 +38,38 @@ export interface CloneBatchResult {
   skipped: CloneSkip[];
 }
 
+export interface LocalSyncProgress {
+  project: GitLabProject;
+  state: 'starting' | 'progress' | 'updated' | 'up-to-date' | 'failed' | 'skipped';
+  percent?: number;
+  message?: string;
+}
+
+export interface LocalSyncBatchResult {
+  /** Existing local destinations considered for synchronization. */
+  found: number;
+  updated: GitLabProject[];
+  upToDate: GitLabProject[];
+  failed: CloneSkip[];
+  skipped: CloneSkip[];
+}
+
 export type CloneRunner = (plan: ClonePlan, baseUrl: string, token: string, onPercent: (percent: number) => void) => Promise<void>;
 export type UpdateOutcome =
   | { state: 'updated' | 'up-to-date' }
   | { state: 'skipped'; reason: string };
 export type UpdateRunner = (plan: ClonePlan, token: string, onPercent: (percent: number) => void) => Promise<UpdateOutcome>;
+export type LocalSyncRunner = UpdateRunner;
 export type ProjectResolver = (project: GitLabProject) => Promise<GitLabProject>;
 
 export interface CloneDependencies {
   cloneRunner?: CloneRunner;
   updateRunner?: UpdateRunner;
+  resolveProject?: ProjectResolver;
+}
+
+export interface LocalSyncDependencies {
+  syncRunner?: LocalSyncRunner;
   resolveProject?: ProjectResolver;
 }
 
@@ -71,18 +93,11 @@ export function planClones(
 
   const foldedPaths = new Set<string>();
   return projects.map((project) => {
-    if (!/^[A-Za-z0-9_.-]+$/.test(project.path) || project.path === '.' || project.path === '..' ||
-        /[. ]$/.test(project.path) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(project.path)) {
-      throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' has an unsafe local folder name.');
-    }
+    const targetPath = getProjectTargetPath(root, project);
     if (!isAllowedGitRemote(gitLabBaseUrl, project.http_url_to_repo)) {
       throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' has a clone URL outside the configured GitLab server.');
     }
 
-    const targetPath = path.resolve(root, project.path);
-    if (path.dirname(targetPath) !== root) {
-      throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' would escape the selected folder.');
-    }
     const folded = targetPath.toLocaleLowerCase('en-US');
     if (foldedPaths.has(folded)) {
       throw new ClonePreflightError('The selection contains repositories with the same local folder name ' + project.path + '.');
@@ -173,18 +188,127 @@ export async function cloneProjects(
   return { plans, completed, cloned, updated, failed, failureReason, skipped };
 }
 
+export async function syncLocalDefaultBranches(
+  workspacePath: string,
+  projects: readonly GitLabProject[],
+  gitLabBaseUrl: string,
+  token: string,
+  onProgress: (progress: LocalSyncProgress) => void = () => undefined,
+  dependencies: LocalSyncDependencies = {}
+): Promise<LocalSyncBatchResult> {
+  // Validate the chosen workspace once, including when the group has no projects.
+  planClones(workspacePath, [], gitLabBaseUrl);
+  const result: LocalSyncBatchResult = { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
+  const resolveProject = dependencies.resolveProject ?? (async (project) => project);
+  const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;
+  const handledPaths = new Set<string>();
+  const root = path.resolve(workspacePath);
+
+  for (const project of projects) {
+    let targetPath: string;
+    try {
+      targetPath = getProjectTargetPath(root, project);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
+      result.skipped.push({ project, reason });
+      onProgress({ project, state: 'skipped', message: reason });
+      continue;
+    }
+
+    // Missing repositories are outside this command's scope, so their clone URLs
+    // do not need to be inspected.
+    if (!isPathPresent(targetPath, existsSync)) continue;
+
+    let plan: ClonePlan;
+    try {
+      plan = planClones(workspacePath, [project], gitLabBaseUrl)[0];
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
+      result.skipped.push({ project, reason });
+      onProgress({ project, state: 'skipped', message: reason });
+      continue;
+    }
+
+    // Synchronization only considers destinations that already exist locally.
+    if (plan.action === 'clone') continue;
+    result.found += 1;
+
+    let prepared: ClonePlan;
+    try {
+      prepared = (await preflightExistingPlans([plan], workspacePath, gitLabBaseUrl, resolveProject, false))[0];
+    } catch (error) {
+      const reason = error instanceof Error
+        ? error.message.replace(/ No repositories were changed\.$/, '')
+        : 'The existing repository could not be verified.';
+      result.skipped.push({ project, reason });
+      onProgress({ project, state: 'skipped', message: reason });
+      continue;
+    }
+
+    const foldedPath = path.resolve(prepared.targetPath).toLocaleLowerCase('en-US');
+    if (handledPaths.has(foldedPath)) {
+      const reason = 'Another GitLab project already uses this local folder.';
+      result.skipped.push({ project: prepared.project, reason });
+      onProgress({ project: prepared.project, state: 'skipped', message: reason });
+      continue;
+    }
+    handledPaths.add(foldedPath);
+
+    if (prepared.skipReason) {
+      result.skipped.push({ project: prepared.project, reason: prepared.skipReason });
+      onProgress({ project: prepared.project, state: 'skipped', message: prepared.skipReason });
+      continue;
+    }
+
+    onProgress({ project: prepared.project, state: 'starting' });
+    try {
+      const outcome = await syncRunner(prepared, token, (percent) =>
+        onProgress({ project: prepared.project, state: 'progress', percent }));
+      if (outcome.state === 'skipped') {
+        result.skipped.push({ project: prepared.project, reason: outcome.reason });
+        onProgress({ project: prepared.project, state: 'skipped', message: outcome.reason });
+      } else if (outcome.state === 'updated') {
+        result.updated.push(prepared.project);
+        onProgress({ project: prepared.project, state: 'updated' });
+      } else {
+        result.upToDate.push(prepared.project);
+        onProgress({ project: prepared.project, state: 'up-to-date' });
+      }
+    } catch {
+      const reason = 'Git could not synchronize this repository.';
+      result.failed.push({ project: prepared.project, reason });
+      onProgress({ project: prepared.project, state: 'failed', message: reason });
+    }
+  }
+
+  return result;
+}
+
+function getProjectTargetPath(root: string, project: GitLabProject): string {
+  if (!/^[A-Za-z0-9_.-]+$/.test(project.path) || project.path === '.' || project.path === '..' ||
+      /[. ]$/.test(project.path) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(project.path)) {
+    throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' has an unsafe local folder name.');
+  }
+  const targetPath = path.resolve(root, project.path);
+  if (path.dirname(targetPath) !== root) {
+    throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' would escape the selected folder.');
+  }
+  return targetPath;
+}
+
 async function preflightExistingPlans(
   plans: ClonePlan[],
   workspacePath: string,
   gitLabBaseUrl: string,
-  resolveProject: ProjectResolver
+  resolveProject: ProjectResolver,
+  includeBatchContext = true
 ): Promise<ClonePlan[]> {
   const inspected: Array<{ plan: ClonePlan; originUrl?: string }> = [];
   for (const plan of plans) {
     inspected.push({
       plan,
       originUrl: plan.action === 'update'
-        ? await inspectExistingRepository(plan.targetPath, workspacePath)
+        ? await inspectExistingRepository(plan.targetPath, workspacePath, includeBatchContext)
         : undefined
     });
   }
@@ -202,12 +326,14 @@ async function preflightExistingPlans(
     }
     if (!isAllowedGitRemote(gitLabBaseUrl, project.http_url_to_repo)) {
       throw new ClonePreflightError(
-        'Repository ' + project.path_with_namespace + ' has a clone URL outside the configured GitLab server. No repositories were changed.'
+        'Repository ' + project.path_with_namespace + ' has a clone URL outside the configured GitLab server.' +
+        (includeBatchContext ? ' No repositories were changed.' : '')
       );
     }
     if (!remoteMatchesProject(originUrl, project)) {
       throw new ClonePreflightError(
-        'The existing folder ' + project.path + ' is not a Git repository for ' + project.path_with_namespace + '. No repositories were changed.'
+        'The existing folder ' + project.path + ' is not a Git repository for ' + project.path_with_namespace + '.' +
+        (includeBatchContext ? ' No repositories were changed.' : '')
       );
     }
 
@@ -225,7 +351,11 @@ async function preflightExistingPlans(
   return resolved;
 }
 
-async function inspectExistingRepository(targetPath: string, workspacePath: string): Promise<string> {
+async function inspectExistingRepository(
+  targetPath: string,
+  workspacePath: string,
+  includeBatchContext = true
+): Promise<string> {
   try {
     const stat = lstatSync(targetPath);
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
@@ -249,7 +379,8 @@ async function inspectExistingRepository(targetPath: string, workspacePath: stri
   } catch {
     throw new ClonePreflightError(
       'The existing destination ' + path.basename(targetPath) +
-      ' is not a safe repository for this selection. No repositories were changed.'
+      ' is not a safe repository for this selection.' +
+      (includeBatchContext ? ' No repositories were changed.' : '')
     );
   }
 }
@@ -398,13 +529,23 @@ function runGitClone(plan: ClonePlan, baseUrl: string, token: string, onPercent:
   });
 }
 
-async function runGitUpdate(plan: ClonePlan, token: string, onPercent: (percent: number) => void): Promise<UpdateOutcome> {
+async function runGitUpdate(
+  plan: ClonePlan,
+  token: string,
+  onPercent: (percent: number) => void,
+  options: { requireCurrentDefault?: boolean } = {}
+): Promise<UpdateOutcome> {
   const branch = plan.defaultBranch;
   if (!branch) return { state: 'skipped', reason: 'GitLab has not configured a default branch for this project.' };
 
-  const status = await runGitCapture([
-    '-C', plan.targetPath, 'status', '--porcelain=v1', '--untracked-files=normal', '--ignore-submodules=none'
-  ]);
+  if (options.requireCurrentDefault) {
+    const currentBranch = await readCurrentBranch(plan.targetPath);
+    if (currentBranch !== branch) {
+      return { state: 'skipped', reason: 'The repository is not currently on its GitLab default branch.' };
+    }
+  }
+
+  const status = await readWorkingTreeStatus(plan.targetPath);
   if (status.code !== 0) {
     return { state: 'skipped', reason: 'Could not verify that the working tree is clean.' };
   }
@@ -428,6 +569,9 @@ async function runGitUpdate(plan: ClonePlan, token: string, onPercent: (percent:
   if (!remoteCommit) throw new Error('Git did not provide the configured default branch.');
   const localCommit = await readRef(plan.targetPath, localRef);
   if (!localCommit) {
+    if (options.requireCurrentDefault) {
+      return { state: 'skipped', reason: 'The local GitLab default branch has no commit to update.' };
+    }
     const switchCode = await runGitProcess(
       ['switch', '--no-guess', '--no-overwrite-ignore', '--track', '-c', branch, remoteRef],
       plan.targetPath,
@@ -456,13 +600,27 @@ async function runGitUpdate(plan: ClonePlan, token: string, onPercent: (percent:
     }
   }
 
-  const switchCode = await runGitProcess(
-    ['switch', '--no-guess', '--no-overwrite-ignore', branch],
-    plan.targetPath,
-    process.env
-  );
-  if (switchCode !== 0) {
-    return { state: 'skipped', reason: 'Could not switch to the default branch safely.' };
+  if (options.requireCurrentDefault) {
+    const currentBranch = await readCurrentBranch(plan.targetPath);
+    if (currentBranch !== branch) {
+      return { state: 'skipped', reason: 'The current branch changed during synchronization.' };
+    }
+    const currentStatus = await readWorkingTreeStatus(plan.targetPath);
+    if (currentStatus.code !== 0) {
+      return { state: 'skipped', reason: 'Could not verify that the working tree is clean.' };
+    }
+    if (currentStatus.stdout.length > 0) {
+      return { state: 'skipped', reason: 'The repository has local changes or untracked files.' };
+    }
+  } else {
+    const switchCode = await runGitProcess(
+      ['switch', '--no-guess', '--no-overwrite-ignore', branch],
+      plan.targetPath,
+      process.env
+    );
+    if (switchCode !== 0) {
+      return { state: 'skipped', reason: 'Could not switch to the default branch safely.' };
+    }
   }
   if (shouldFastForward) {
     const mergeCode = await runGitProcess(
@@ -474,6 +632,25 @@ async function runGitUpdate(plan: ClonePlan, token: string, onPercent: (percent:
     return { state: 'updated' };
   }
   return { state: 'up-to-date' };
+}
+
+function runGitDefaultBranchSync(
+  plan: ClonePlan,
+  token: string,
+  onPercent: (percent: number) => void
+): Promise<UpdateOutcome> {
+  return runGitUpdate(plan, token, onPercent, { requireCurrentDefault: true });
+}
+
+async function readCurrentBranch(cwd: string): Promise<string | undefined> {
+  const result = await runGitCapture(['-C', cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return result.code === 0 ? result.stdout.trim() || undefined : undefined;
+}
+
+function readWorkingTreeStatus(cwd: string): Promise<GitCaptureResult> {
+  return runGitCapture([
+    '-C', cwd, 'status', '--porcelain=v1', '--untracked-files=normal', '--ignore-submodules=none'
+  ]);
 }
 
 async function readRef(cwd: string, ref: string): Promise<string | undefined> {
