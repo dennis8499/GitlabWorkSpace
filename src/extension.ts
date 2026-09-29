@@ -8,19 +8,18 @@ import { IssuePanels } from './issues/issuePanel';
 
 class ProjectItem extends vscode.TreeItem {
   readonly project: GitLabProject;
+  readonly groupId: number;
 
-  constructor(project: GitLabProject) {
+  constructor(project: GitLabProject, groupId: number, checked: boolean) {
     super(project.name, vscode.TreeItemCollapsibleState.None);
     this.project = project;
+    this.groupId = groupId;
+    this.id = `gitlabProject:${groupId}:${project.id}`;
     this.description = project.namespace?.full_path ?? project.path_with_namespace;
     this.tooltip = `${project.path_with_namespace}\n${project.web_url}`;
     this.contextValue = 'gitlabProject';
     this.iconPath = new vscode.ThemeIcon('repo');
-    this.command = {
-      command: 'gitlabWorkspace.cloneRepositories',
-      title: 'Clone Repository',
-      arguments: [this]
-    };
+    this.checkboxState = checked ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked;
   }
 }
 
@@ -78,24 +77,78 @@ class PlaceholderItem extends vscode.TreeItem {
 export class RepositoryProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
+  private checkedProjectIds = new Set<number>();
+  private checkedGroupId: number | undefined;
 
-  constructor(private readonly session: GitLabSession) {}
+  constructor(private readonly session: GitLabSession) {
+    this.checkedGroupId = session.selectedGroup?.id;
+  }
 
   refresh(): void { this.changed.fire(); }
   getTreeItem(item: vscode.TreeItem): vscode.TreeItem { return item; }
   dispose(): void { this.changed.dispose(); }
 
+  setSelectedGroup(groupId: number | undefined): void {
+    this.syncCheckedGroup(groupId);
+    this.refresh();
+  }
+
+  clearCheckedProjects(): void {
+    this.syncCheckedGroup(this.session.selectedGroup?.id);
+    this.checkedProjectIds.clear();
+    this.refresh();
+  }
+
+  updateCheckboxState(items: ReadonlyArray<[vscode.TreeItem, vscode.TreeItemCheckboxState]>): void {
+    const groupId = this.syncCheckedGroup(this.session.selectedGroup?.id);
+    for (const [item, state] of items) {
+      if (!(item instanceof ProjectItem) || item.groupId !== groupId) continue;
+      item.checkboxState = state;
+      if (state === vscode.TreeItemCheckboxState.Checked) this.checkedProjectIds.add(item.project.id);
+      else this.checkedProjectIds.delete(item.project.id);
+    }
+  }
+
+  getCheckedProjects(groupId: number, projects: readonly GitLabProject[]): GitLabProject[] {
+    if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== groupId) return [];
+    const availableIds = new Set(projects.map((project) => project.id));
+    for (const projectId of this.checkedProjectIds) {
+      if (!availableIds.has(projectId)) this.checkedProjectIds.delete(projectId);
+    }
+    return projects.filter((project) => this.checkedProjectIds.has(project.id));
+  }
+
+  ensureCheckedProjects(groupId: number, projects: readonly GitLabProject[]): void {
+    if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== groupId) return;
+    for (const project of projects) this.checkedProjectIds.add(project.id);
+    this.refresh();
+  }
+
+  removeCheckedProjects(groupId: number, projects: readonly GitLabProject[]): void {
+    if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== groupId) return;
+    for (const project of projects) this.checkedProjectIds.delete(project.id);
+    this.refresh();
+  }
+
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
     try {
       const client = await this.session.getClient();
       if (element instanceof GroupItem) {
-        if (this.session.selectedGroup?.id !== element.group.id) {
+        if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== element.group.id) {
           return [new PlaceholderItem('Select this group to browse its repositories')];
         }
         const projects = await client.listGroupProjects(element.group.id);
-        return projects.length ? projects.map((project) => new ProjectItem(project)) : [new PlaceholderItem('No repositories in this group')];
+        if (this.session.selectedGroup?.id !== element.group.id) {
+          this.syncCheckedGroup(this.session.selectedGroup?.id);
+          return [new PlaceholderItem('Select this group to browse its repositories')];
+        }
+        this.reconcileCheckedProjects(element.group.id, projects);
+        return projects.length
+          ? projects.map((project) => new ProjectItem(project, element.group.id, this.checkedProjectIds.has(project.id)))
+          : [new PlaceholderItem('No repositories in this group')];
       }
       const groups = await client.listGroups();
+      this.syncCheckedGroup(this.session.selectedGroup?.id);
       const selectedId = this.session.selectedGroup?.id;
       return groups.length
         ? groups.map((group) => new GroupItem(group, group.id === selectedId))
@@ -104,6 +157,36 @@ export class RepositoryProvider implements vscode.TreeDataProvider<vscode.TreeIt
       return [new PlaceholderItem(readableError(error))];
     }
   }
+
+  private syncCheckedGroup(groupId: number | undefined): number | undefined {
+    if (this.checkedGroupId !== groupId) {
+      this.checkedProjectIds.clear();
+      this.checkedGroupId = groupId;
+    }
+    return groupId;
+  }
+
+  private reconcileCheckedProjects(groupId: number, projects: readonly GitLabProject[]): void {
+    if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== groupId) return;
+    const availableIds = new Set(projects.map((project) => project.id));
+    for (const projectId of this.checkedProjectIds) {
+      if (!availableIds.has(projectId)) this.checkedProjectIds.delete(projectId);
+    }
+  }
+}
+
+export class CloneOperationGate {
+  private active = false;
+
+  get inProgress(): boolean { return this.active; }
+
+  tryStart(): boolean {
+    if (this.active) return false;
+    this.active = true;
+    return true;
+  }
+
+  finish(): void { this.active = false; }
 }
 
 export class IssueProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
@@ -154,19 +237,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeDataProvider: issues,
     showCollapseAll: false
   });
+  const cloneState = new CloneOperationGate();
+  await updateCloneCommandContexts(session, cloneState);
+  context.subscriptions.push(repoTree.onDidChangeCheckboxState((event) => repositories.updateCheckboxState(event.items)));
   context.subscriptions.push(repoTree, issueTree, issuePanels, repositories, issues);
   context.subscriptions.push(
-    vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels)),
-    vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group)),
+    vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels, cloneState)),
+    vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group, cloneState)),
     vscode.commands.registerCommand('gitlabWorkspace.refresh', () => refreshTrees(repositories, issues)),
     vscode.commands.registerCommand('gitlabWorkspace.disconnect', async () => {
       issuePanels.close();
       await session.disconnect();
-      repositories.refresh();
+      repositories.setSelectedGroup(undefined);
       issues.refresh();
+      await updateCloneCommandContexts(session, cloneState);
       await vscode.window.showInformationMessage('Disconnected from GitLab.');
     }),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', (item?: ProjectItem) => cloneRepositories(session, item)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => cloneRepositories(session, repositories, 'pick', cloneState)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => cloneRepositories(session, repositories, 'all', cloneState)),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => cloneRepositories(session, repositories, 'selected', cloneState)),
     vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
       if (item?.issue) await issuePanels.showIssue(item.issue);
@@ -176,7 +265,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 export function deactivate(): void {}
 
-async function connectToGitLab(session: GitLabSession, repositories: RepositoryProvider, issues: IssueProvider, issuePanels: IssuePanels): Promise<void> {
+async function connectToGitLab(
+  session: GitLabSession,
+  repositories: RepositoryProvider,
+  issues: IssueProvider,
+  issuePanels: IssuePanels,
+  cloneState: CloneOperationGate
+): Promise<void> {
   const currentUrl = session.baseUrl ?? '';
   const baseUrl = await vscode.window.showInputBox({
     title: 'Connect to GitLab',
@@ -203,8 +298,9 @@ async function connectToGitLab(session: GitLabSession, repositories: RepositoryP
     try {
       const user = await session.connect(baseUrl, token);
       issuePanels.close();
-      repositories.refresh();
+      repositories.clearCheckedProjects();
       issues.refresh();
+      await updateCloneCommandContexts(session, cloneState);
       await vscode.window.showInformationMessage(`Connected to GitLab as ${user.name} (@${user.username}).`);
     } catch (error) {
       await vscode.window.showErrorMessage(readableError(error));
@@ -216,12 +312,19 @@ function normalizeUrlForPrompt(value: string): string {
   return normalizeGitLabBaseUrl(value);
 }
 
-async function selectGroup(session: GitLabSession, repositories: RepositoryProvider, issues: IssueProvider, requestedGroup?: GitLabGroup): Promise<void> {
+async function selectGroup(
+  session: GitLabSession,
+  repositories: RepositoryProvider,
+  issues: IssueProvider,
+  requestedGroup: GitLabGroup | undefined,
+  cloneState: CloneOperationGate
+): Promise<void> {
   try {
     if (requestedGroup) {
       await session.setSelectedGroup(requestedGroup);
-      repositories.refresh();
+      repositories.setSelectedGroup(requestedGroup.id);
       issues.refresh();
+      await updateCloneCommandContexts(session, cloneState);
       return;
     }
     const client = await session.getClient();
@@ -237,8 +340,9 @@ async function selectGroup(session: GitLabSession, repositories: RepositoryProvi
     });
     if (!selected) return;
     await session.setSelectedGroup(selected.group);
-    repositories.refresh();
+    repositories.setSelectedGroup(selected.group.id);
     issues.refresh();
+    await updateCloneCommandContexts(session, cloneState);
   } catch (error) {
     await vscode.window.showErrorMessage(readableError(error));
   }
@@ -249,23 +353,55 @@ function refreshTrees(repositories: RepositoryProvider, issues: IssueProvider): 
   issues.refresh();
 }
 
-async function cloneRepositories(session: GitLabSession, clickedItem?: ProjectItem): Promise<void> {
+type CloneMode = 'all' | 'selected' | 'pick';
+
+export function resolveCloneCandidates(
+  mode: 'all' | 'selected',
+  groupId: number,
+  projects: readonly GitLabProject[],
+  repositories: RepositoryProvider
+): GitLabProject[] {
+  return mode === 'all' ? [...projects] : repositories.getCheckedProjects(groupId, projects);
+}
+
+async function cloneRepositories(
+  session: GitLabSession,
+  repositories: RepositoryProvider,
+  mode: CloneMode,
+  cloneState: CloneOperationGate
+): Promise<void> {
+  if (!cloneState.tryStart()) {
+    await vscode.window.showWarningMessage('A repository clone is already in progress.');
+    return;
+  }
+
   try {
+    await updateCloneCommandContexts(session, cloneState);
     const group = session.selectedGroup;
     if (!group) {
       await vscode.window.showWarningMessage('Select a GitLab group first.');
       return;
     }
     const client = await session.getClient();
-    const projects = clickedItem?.project ? [clickedItem.project] : await client.listGroupProjects(group.id);
+    const projects = await client.listGroupProjects(group.id);
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start the clone again for the current group.');
+      return;
+    }
     if (!projects.length) {
       await vscode.window.showInformationMessage(`No repositories are available in ${group.full_path}.`);
       return;
     }
 
     let chosen: GitLabProject[];
-    if (clickedItem?.project) {
-      chosen = [clickedItem.project];
+    if (mode === 'all') {
+      chosen = resolveCloneCandidates('all', group.id, projects, repositories);
+    } else if (mode === 'selected') {
+      chosen = resolveCloneCandidates('selected', group.id, projects, repositories);
+      if (!chosen.length) {
+        await vscode.window.showInformationMessage('Check at least one repository before cloning.');
+        return;
+      }
     } else {
       const picks = await vscode.window.showQuickPick(projects.map((project) => ({
         label: project.name,
@@ -282,14 +418,28 @@ async function cloneRepositories(session: GitLabSession, clickedItem?: ProjectIt
       chosen = picks.map((pick) => pick.project);
     }
 
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start the clone again for the current group.');
+      return;
+    }
     const destination = await chooseDestination();
     if (!destination) return;
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start the clone again for the current group.');
+      return;
+    }
     const credentials = await session.getCloneCredentials();
+    if (session.selectedGroup?.id !== group.id) {
+      await vscode.window.showInformationMessage('The selected group changed. Start the clone again for the current group.');
+      return;
+    }
+    repositories.ensureCheckedProjects(group.id, chosen);
     const result = await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
       title: 'Cloning GitLab repositories',
       cancellable: false
     }, async (progress) => cloneProjects(destination, chosen, credentials.baseUrl, credentials.token, (event) => updateCloneProgress(progress, event)));
+    repositories.removeCheckedProjects(group.id, result.completed);
 
     if (result.failed) {
       await vscode.window.showErrorMessage(
@@ -300,7 +450,15 @@ async function cloneRepositories(session: GitLabSession, clickedItem?: ProjectIt
     }
   } catch (error) {
     await vscode.window.showErrorMessage(readableError(error));
+  } finally {
+    cloneState.finish();
+    await updateCloneCommandContexts(session, cloneState);
   }
+}
+
+async function updateCloneCommandContexts(session: GitLabSession, cloneState: CloneOperationGate): Promise<void> {
+  await vscode.commands.executeCommand('setContext', 'gitlabWorkspace.groupSelected', Boolean(session.selectedGroup));
+  await vscode.commands.executeCommand('setContext', 'gitlabWorkspace.cloneInProgress', cloneState.inProgress);
 }
 
 async function chooseDestination(): Promise<string | undefined> {

@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "Browse GitLab groups, clone projects, and manage assigned issues from VS Code.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "engines": {
@@ -60,7 +60,17 @@
       },
       {
         "command": "gitlabWorkspace.cloneRepositories",
-        "title": "GitLab Workspace: Clone Repositories"
+        "title": "GitLab Workspace: Choose Repositories to Clone"
+      },
+      {
+        "command": "gitlabWorkspace.cloneAllRepositories",
+        "title": "GitLab Workspace: Clone All Repositories",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "gitlabWorkspace.cloneSelectedRepositories",
+        "title": "GitLab Workspace: Clone Checked Repositories",
+        "icon": "$(checklist)"
       },
       {
         "command": "gitlabWorkspace.createIssue",
@@ -88,8 +98,13 @@
           "group": "navigation"
         },
         {
-          "command": "gitlabWorkspace.cloneRepositories",
-          "when": "view == gitlabWorkspace.repositories",
+          "command": "gitlabWorkspace.cloneAllRepositories",
+          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
+          "group": "inline"
+        },
+        {
+          "command": "gitlabWorkspace.cloneSelectedRepositories",
+          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
           "group": "inline"
         },
         {
@@ -104,11 +119,6 @@
         }
       ],
       "view/item/context": [
-        {
-          "command": "gitlabWorkspace.cloneRepositories",
-          "when": "view == gitlabWorkspace.repositories && viewItem == gitlabProject",
-          "group": "inline"
-        },
         {
           "command": "gitlabWorkspace.openIssue",
           "when": "view == gitlabWorkspace.myIssues && viewItem == gitlabIssue",
