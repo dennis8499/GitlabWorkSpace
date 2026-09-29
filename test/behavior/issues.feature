@@ -170,6 +170,12 @@ Feature: GitLab CE Issue work inside VS Code
     When I change a field again before the prior save completes
     Then the later field value remains ready for another save
 
+  @automated @SCN-029
+  Scenario: Open in GitLab asks the host to open the current issue externally
+    Given the Issue Webview is ready with an editable issue
+    When I open the issue in GitLab
+    Then the host receives an explicit GitLab open request
+
   @human @SCN-019
   Scenario: An unassigned CE issue is created and opened inside VS Code
     Given VS Code is connected to the local CE instance with a test token

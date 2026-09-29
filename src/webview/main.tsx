@@ -363,7 +363,7 @@ function App() {
   const targetProjects = [...new Map([...projects, ...targetProjectResults].map((project) => [project.id, project])).values()];
 
   return <main class="shell">
-    <header class="topbar"><div><span class="eyebrow">GitLab Workspace {(detail?.metadata ?? createMetadata)?.version ? `· CE ${(detail?.metadata ?? createMetadata)?.version}` : ''}</span><h1>{mode === 'create' ? 'Create Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? 'Create an issue in the selected group' : detail?.project.path_with_namespace}</p></div><div class="toolbar"><button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>Refresh</button>{issue && <button type="button" onClick={() => openLink(issue.web_url)}>Open in GitLab</button>}</div></header>
+    <header class="topbar"><div><span class="eyebrow">GitLab Workspace {(detail?.metadata ?? createMetadata)?.version ? `· CE ${(detail?.metadata ?? createMetadata)?.version}` : ''}</span><h1>{mode === 'create' ? 'Create Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? 'Create an issue in the selected group' : detail?.project.path_with_namespace}</p></div><div class="toolbar"><button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>Refresh</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>Open in GitLab</button>}</div></header>
     {error && <div class="alert" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')}>Dismiss</button></div>}
     {busy && <div class="loading">Working with GitLab…</div>}
     {mode === 'create' ? <section class="card">

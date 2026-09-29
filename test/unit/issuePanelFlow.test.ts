@@ -7,9 +7,12 @@ import type { IssuePanelResponse } from '../../src/issues/protocol';
 test('an unassigned creation opens detail and a later issue selection wins a pending load', async () => {
   const issue = { id: 401, iid: 7, project_id: 42, title: 'New unassigned issue', description: '', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7', updated_at: '2026-09-24T00:00:00Z', assignees: [] };
   const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
+  let internalIssueNavigations = 0;
   const client = {
+    baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     listGroupProjects: async () => [project], canCreateIssue: async () => true, createIssue: async () => issue,
     getIssue: async () => issue, getProject: async () => project,
+    getProjectByPath: async () => { internalIssueNavigations++; return project; },
     getCurrentUser: async () => ({ id: 9, username: 'tester', name: 'Tester' }),
     listProjectMembers: async () => [], listProjectLabels: async () => [],
     listProjectMilestones: async () => [], listProjectIssueTemplates: async () => [],
@@ -26,12 +29,15 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     getClient: async () => client, ensureInstanceChecked: async () => undefined
   } as unknown as GitLabSession;
   const messages: IssuePanelResponse[] = [];
+  const externalUrls: string[] = [];
+  let externalOpenResult = true;
   const webview = {
     cspSource: 'vscode-resource:', asWebviewUri: (uri: unknown) => String(uri),
     onDidReceiveMessage: () => ({ dispose() {} }), postMessage: async (message: IssuePanelResponse) => { messages.push(message); return true; }, html: ''
   };
   const vscode = {
-    Uri: { joinPath: (...parts: unknown[]) => parts.join('/') }, ViewColumn: { Active: 1 },
+    Uri: { joinPath: (...parts: unknown[]) => parts.join('/'), parse: (href: string) => ({ href }) }, ViewColumn: { Active: 1 },
+    env: { openExternal: async (uri: { href: string }) => { externalUrls.push(uri.href); return externalOpenResult; } },
     window: {
       createWebviewPanel: () => ({ webview, reveal() {}, onDidDispose: () => ({ dispose() {} }), dispose() {}, title: '' }),
       showWarningMessage: async () => undefined
@@ -109,5 +115,26 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     await host.handle({ type: 'invoke', issueId: nextIssue.id, action: 'delete', payload: {} });
     assert.equal(deletions, 0);
     assert.equal(messages.at(-1)?.type, 'cancelled');
+
+    await host.handle({ type: 'openIssueInGitLab', issueId: nextIssue.id });
+    assert.deepEqual(externalUrls, [nextIssue.web_url]);
+    assert.equal(internalIssueNavigations, 0);
+    await assert.rejects(host.handle({ type: 'openIssueInGitLab', issueId: selectedIssue.id }), /displayed issue changed/i);
+    assert.deepEqual(externalUrls, [nextIssue.web_url]);
+
+    client.getIssue = async () => issue;
+    await host.handle({ type: 'openLink', url: 'http://gitlab.internal.test:8929/gitlab/group/project/-/issues/7' });
+    assert.equal(internalIssueNavigations, 1);
+    assert.equal((panels as unknown as { issue: typeof issue }).issue?.id, issue.id);
+    assert.equal(externalUrls.length, 1);
+
+    (panels as unknown as { issue: typeof issue }).issue = { ...issue, web_url: 'javascript:alert(1)' };
+    await assert.rejects(host.handle({ type: 'openIssueInGitLab', issueId: issue.id }), /not safe to open/i);
+    assert.equal(externalUrls.length, 1);
+    (panels as unknown as { issue: typeof issue }).issue = issue;
+
+    externalOpenResult = false;
+    await assert.rejects(host.handle({ type: 'openIssueInGitLab', issueId: issue.id }), /could not open.*browser/i);
+    assert.equal(externalUrls.at(-1), issue.web_url);
   } finally { panels.dispose(); }
 });

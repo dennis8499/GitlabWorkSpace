@@ -80,6 +80,7 @@ export type IssuePanelRequest =
   | { type: 'upload'; requestId: string; projectId: number }
   | { type: 'image'; requestId: string; url: string }
   | { type: 'invoke'; issueId: number; action: IssueAction; payload?: Record<string, unknown> }
+  | { type: 'openIssueInGitLab'; issueId: number }
   | { type: 'openLink'; url: string };
 
 export type IssueAction =

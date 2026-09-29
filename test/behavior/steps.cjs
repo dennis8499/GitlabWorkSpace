@@ -340,6 +340,13 @@ When('I use a reaction on a comment', async function () {
   await this.send({ type: 'detailData', data: { ...this.data, noteReactions: { 88: [{ id: 6, name: 'thumbsup', user }] } } });
   await this.click('thumbsup 1');
 });
+When('I open the issue in GitLab', async function () { await this.click('Open in GitLab'); });
+Then('the host receives an explicit GitLab open request', function () {
+  const requests = this.messages.filter((item) => item.type === 'openIssueInGitLab');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].issueId, issue.id);
+  assert.equal(this.messages.some((item) => item.type === 'openLink'), false);
+});
 Then('the comment reaction sends its own typed operation', function () {
   const action = this.messages.find((item) => item.type === 'invoke' && item.action === 'unreactNote');
   assert.equal(action.payload.noteId, 88);

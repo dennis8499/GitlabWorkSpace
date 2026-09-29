@@ -35,6 +35,17 @@ function optionalDate(value: unknown): string | undefined {
   return value;
 }
 
+function safeLinkUrl(value: unknown, baseUrl: string): URL {
+  let url: URL;
+  try { url = new URL(requiredString(value, 'URL')); }
+  catch { throw new Error('This link is not safe to open.'); }
+  const base = new URL(baseUrl);
+  if (url.username || url.password || (url.protocol !== 'https:' && url.origin !== base.origin)) {
+    throw new Error('This link is not safe to open.');
+  }
+  return url;
+}
+
 function createInput(raw: unknown): IssueCreateInput {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid issue form.');
   const input = raw as Record<string, unknown>;
@@ -338,6 +349,17 @@ export class IssuePanels implements vscode.Disposable {
       return this.load();
     }
     if (request.type === 'refresh') return this.load();
+    if (request.type === 'openIssueInGitLab') {
+      const issue = this.issue;
+      if (!issue || this.mode !== 'detail') throw new Error('Open an issue first.');
+      if (requiredId(request.issueId, 'Issue') !== issue.id) throw new Error('The displayed issue changed. Refresh before trying this action.');
+      const baseUrl = this.session.baseUrl;
+      if (!baseUrl) throw new Error('Connect to GitLab first.');
+      const url = safeLinkUrl(issue.web_url, baseUrl);
+      const opened = await vscode.env.openExternal(vscode.Uri.parse(url.href));
+      if (!opened) throw new Error('Could not open the GitLab issue in your browser.');
+      return;
+    }
     const client = await this.session.getClient();
     if (request.type === 'selectProject') {
       const version = this.navigationVersion;
@@ -431,9 +453,8 @@ export class IssuePanels implements vscode.Disposable {
       return;
     }
     if (request.type === 'openLink') {
-      const url = new URL(requiredString(request.url, 'URL'));
+      const url = safeLinkUrl(request.url, client.baseUrl);
       const base = new URL(client.baseUrl);
-      if (url.username || url.password || (url.protocol !== 'https:' && url.origin !== base.origin)) throw new Error('This link is not safe to open.');
       if (url.origin === base.origin && url.pathname.includes('/uploads/')) {
         const name = decodeURIComponent(url.pathname.split('/').at(-1) || 'attachment').replace(/[\\/:*?"<>|]/g, '_');
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
