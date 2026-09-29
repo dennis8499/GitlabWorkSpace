@@ -139,7 +139,10 @@ export class IssuePanels implements vscode.Disposable {
     const nonce = randomBytes(16).toString('base64');
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'issue.js'));
     const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'issue.css'));
-    panel.webview.html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https: http://127.0.0.1:*; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${style}"></head><body><div id="app"></div><script nonce="${nonce}" type="module" src="${script}"></script></body></html>`;
+    const baseUrl = this.session.baseUrl;
+    const configuredUrl = baseUrl ? new URL(baseUrl) : undefined;
+    const httpImageOrigin = configuredUrl?.protocol === 'http:' ? ` ${configuredUrl.origin}` : '';
+    panel.webview.html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:${httpImageOrigin}; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${style}"></head><body><div id="app"></div><script nonce="${nonce}" type="module" src="${script}"></script></body></html>`;
     this.disposables.push(panel.webview.onDidReceiveMessage((message: unknown) => {
       void this.handle(message).catch((error: unknown) => this.post({ type: 'error', message: safeError(error) }));
     }));

@@ -20,6 +20,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     deleteIssue: async (_projectId: number, _iid: number) => undefined
   };
   const session = {
+    baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     selectedGroup: { id: 1, full_path: 'group' }, metadata: { version: '18.4.0' },
     instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true },
     getClient: async () => client, ensureInstanceChecked: async () => undefined
@@ -47,6 +48,8 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   const panels = new IssuePanels!({ extensionUri: 'extension' } as unknown as ExtensionContext, session, () => { treeRefreshes++; });
   try {
     await panels.showCreate();
+    assert.match(webview.html, /img-src vscode-resource: data: https: http:\/\/gitlab\.internal\.test:8929;/);
+    assert.doesNotMatch(webview.html, /http:\/\/127\.0\.0\.1/);
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'ready' });
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'create', projectId: 42, input: { title: issue.title } });
     const detail = [...messages].reverse().find((message) => message.type === 'detailData');

@@ -123,7 +123,7 @@
     "build:webview": "npm run typecheck:webview && vite build",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
-    "test:behavior": "npm run build:webview && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature",
+    "test:behavior": "npm run compile && npm run build:webview && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
     "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",

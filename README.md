@@ -5,7 +5,7 @@ Browse GitLab groups, clone several repositories into a local workspace folder, 
 ## Connect
 
 1. Open the **GitLab Workspace** icon in the Activity Bar.
-2. Choose **Connect** and enter your GitLab base URL. HTTPS is supported; plain HTTP is accepted only for `127.0.0.1` so a local GitLab CE instance can be tested.
+2. Choose **Connect** and enter the full GitLab base URL. HTTP and HTTPS are supported for any host. HTTP sends your access token without encryption, so use it only on a trusted network.
 3. Enter a Personal Access Token with the `api` scope. The extension validates it with `GET /user` before storing it in VS Code SecretStorage.
 4. Choose **Select Group** to load that group’s repositories and assigned issues. Repository results include projects in subgroups.
 

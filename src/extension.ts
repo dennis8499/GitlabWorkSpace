@@ -177,11 +177,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export function deactivate(): void {}
 
 async function connectToGitLab(session: GitLabSession, repositories: RepositoryProvider, issues: IssueProvider, issuePanels: IssuePanels): Promise<void> {
-  const currentUrl = session.baseUrl ?? 'http://127.0.0.1:8929';
+  const currentUrl = session.baseUrl ?? '';
   const baseUrl = await vscode.window.showInputBox({
     title: 'Connect to GitLab',
-    prompt: 'GitLab base URL (HTTPS, or HTTP on exact 127.0.0.1 loopback)',
+    prompt: 'Enter the full GitLab base URL (HTTP or HTTPS). HTTP sends your token without encryption.',
     value: currentUrl,
+    placeHolder: 'https://gitlab.example.com or http://gitlab.local:8929',
     ignoreFocusOut: true,
     validateInput: (value) => {
       try { normalizeUrlForPrompt(value); return undefined; }
