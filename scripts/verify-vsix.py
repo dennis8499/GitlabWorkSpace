@@ -22,12 +22,13 @@ try:
             raise SystemExit("VSIX package version does not match package.json")
         if packaged_manifest.get("name") != MANIFEST["name"]:
             raise SystemExit("VSIX package name does not match package.json")
-        for asset in ("extension/resources/issue-webview/issue.js", "extension/resources/issue-webview/issue.css"):
+        for asset in ("extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js", "extension/resources/issue-webview/dashboard.css"):
             if asset not in members or not archive.read(asset):
-                raise SystemExit(f"VSIX is missing Issue webview asset: {asset}")
-        for asset in ("extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js"):
-            if asset not in members or not archive.read(asset):
-                raise SystemExit(f"VSIX is missing Workspace dashboard asset: {asset}")
+                raise SystemExit(f"VSIX is missing workbench webview asset: {asset}")
+        if any(name.startswith("extension/resources/issue-webview/issue.") for name in members):
+            raise SystemExit("VSIX contains the removed standalone Issue webview bundle")
+        if any(name.startswith("extension/resources/issue-webview/issue-test.") for name in members):
+            raise SystemExit("VSIX contains the Issue behavior test fixture")
         if "extension/resources/tool-installer.py" not in members:
             raise SystemExit("VSIX is missing the Release tool installer")
         if any(name.startswith(("extension/.github/", "extension/scripts/")) for name in members):

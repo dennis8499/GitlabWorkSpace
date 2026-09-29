@@ -70,7 +70,7 @@ suite('GitLab Workspace extension activation', () => {
     try {
       const groups = await provider.getChildren();
       assert.deepEqual(groups.map((item) => item.label), ['team/alpha', 'team/beta']);
-      assert.equal(groups[0].description, 'selected');
+      assert.equal(groups[0].description, '目前選取');
       assert.equal(groups[0].collapsibleState, vscode.TreeItemCollapsibleState.Expanded);
       const repositoryItems = await provider.getChildren(groups[0]);
       assert.deepEqual(repositoryItems.map((item) => item.label), ['service', 'worker']);
@@ -129,7 +129,7 @@ suite('GitLab Workspace extension activation', () => {
     const provider = new IssueProvider(session);
     try {
       const sections = await provider.getChildren();
-      assert.deepEqual(sections.map((item) => item.label), ['team/alpha', 'Opened (1)', 'Closed (1)']);
+      assert.deepEqual(sections.map((item) => item.label), ['team/alpha', '未結案 (1)', '已結案 (1)']);
 
       const opened = await provider.getChildren(sections[1]);
       const closed = await provider.getChildren(sections[2]);

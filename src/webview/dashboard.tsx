@@ -1,23 +1,27 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type {
-  AnalysisIntent, DeliveryPreview, IssueDraft, IssueDraftBundle, ToolId, ToolSource,
+  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolId, ToolSource,
   WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
-import { buildDeveloperPrompt, buildReviewerPrompt } from '../workspace/issueDrafts';
+import type { DeliveryFormState, TimeEdit } from './issue-workflow';
+import { IssueView } from './main';
+import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
+import { buildReviewerPrompt } from '../workspace/issueDrafts';
 import './dashboard.css';
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
-interface DeliveryFormState { workId: string; summary: string; changes: string; tests: string; targetBranch: string; reviewerIds: number[]; acceptanceConfirmed: boolean; }
 interface SavedState {
   mode: WorkspaceMode;
   filters: Partial<Record<WorkspaceMode, string>>;
   selectedIds: Partial<Record<WorkspaceMode, number>>;
   selectedProjectIds: number[];
+  analysisProjectIds?: number[];
   issueStateFilter: 'opened' | 'closed' | 'all';
+  issueDetailSearch?: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
   reviewFilter: 'all' | 'reviewer' | 'assigned';
@@ -34,8 +38,40 @@ interface SavedState {
   toolSource: ToolSource;
   selectedVersions: Partial<Record<ToolId, string>>;
   deliveryForms: Record<string, DeliveryFormState>;
-  manualTime: { duration: string; summary: string; spentAt: string };
-  timeEdits: Record<string, { duration: string; summary: string; spentAt: string }>;
+  /** Kept only to migrate older unscoped drafts. */
+  manualTime?: ManualTimeDraft;
+  manualTimes?: Record<string, ManualTimeDraft>;
+  recoveredManualTime?: ManualTimeDraft;
+  timeEdits: Record<string, TimeEdit>;
+  scopeKey?: string;
+  instanceUserScope?: string;
+  recoveredBundle?: IssueDraftBundle;
+  version?: 3;
+  scopedData?: Record<string, ScopedSavedState>;
+}
+interface ScopedSavedState {
+  filters: Partial<Record<WorkspaceMode, string>>;
+  selectedIds: Partial<Record<WorkspaceMode, number>>;
+  selectedProjectIds: number[];
+  analysisProjectIds: number[];
+  issueStateFilter: 'opened' | 'closed' | 'all';
+  issueDetailSearch: string;
+  issueProjectFilter: string;
+  issueLabelFilter: string;
+  reviewFilter: 'all' | 'reviewer' | 'assigned';
+  analysisIntent: AnalysisIntent;
+  requirement: string;
+  importText: string;
+  importedBundle?: IssueDraftBundle;
+  draftChecked: Record<string, boolean>;
+  draftChoices: Record<string, DraftChoice>;
+  reports: Record<string, { text: string; sha: string }>;
+  deliveryForms: Record<string, DeliveryFormState>;
+  /** Legacy v1/v2 field: its Issue could not be identified. */
+  manualTime?: ManualTimeDraft;
+  manualTimes?: Record<string, ManualTimeDraft>;
+  recoveredManualTime?: ManualTimeDraft;
+  timeEdits: Record<string, TimeEdit>;
 }
 interface VsCodeBridge {
   postMessage(message: WorkspaceRequest): void;
@@ -52,16 +88,24 @@ const tools: Array<{ id: ToolId; name: string; repo: string }> = [
   { id: 'merge-reviewer', name: 'MergeReviewer', repo: 'MergeReviewer' }
 ];
 const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: string }> = [
-  { id: 'clone', name: 'GitLab Group Clone', short: 'Clone', icon: '⇩' },
-  { id: 'sa', name: 'SA Mode', short: 'SA 分析', icon: '⌕' },
-  { id: 'developer', name: '開發者 Mode', short: '我的 Issue', icon: '</>' },
-  { id: 'reviewer', name: 'Reviewer Mode', short: '待審 MR', icon: '⑂' }
+  { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
+  { id: 'clone', name: '專案', short: '專案', icon: '▣' },
+  { id: 'sa', name: '需求分析', short: '分析', icon: '⌕' },
+  { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' }
 ];
 const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
 const emptySaved = (): SavedState => ({
-  mode: 'clone', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
-  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'auto', selectedVersions: {}, deliveryForms: {}, manualTime: { duration: '', summary: '', spentAt: '' }, timeEdits: {}
+  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
+  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'auto', selectedVersions: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
+const emptyScopedState = (): ScopedSavedState => ({
+  filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueStateFilter: 'opened',
+  issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
+  requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {}, deliveryForms: {},
+  manualTimes: {}, timeEdits: {}
+});
+
+const emptyManualTime = (): ManualTimeDraft => ({ duration: '', summary: '', spentAt: '' });
 
 function post(message: WorkspaceRequest): void { vscode.postMessage(message); }
 function issueKey(projectId: number, iid: number): string { return `${projectId}#${iid}`; }
@@ -89,17 +133,22 @@ function BranchStatus({ state, behindBy }: { state: string; behindBy?: number })
 
 function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
-  const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'clone');
+  const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
+  const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(null);
+  const [cloneOperation, setCloneOperation] = useState<Extract<WorkspaceResponse, { type: 'cloneOperation' }>>();
   const [filters, setFilters] = useState<Partial<Record<WorkspaceMode, string>>>(initial?.filters ?? {});
   const [selectedIds, setSelectedIds] = useState<Partial<Record<WorkspaceMode, number>>>(initial?.selectedIds ?? {});
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>(initial?.selectedProjectIds ?? []);
+  const [analysisProjectIds, setAnalysisProjectIds] = useState<number[]>(initial?.analysisProjectIds ?? initial?.selectedProjectIds ?? []);
   const [issueStateFilter, setIssueStateFilter] = useState<'opened' | 'closed' | 'all'>(initial?.issueStateFilter ?? 'opened');
   const [issueProjectFilter, setIssueProjectFilter] = useState(initial?.issueProjectFilter ?? 'all');
   const [issueLabelFilter, setIssueLabelFilter] = useState(initial?.issueLabelFilter ?? 'all');
   const [intent, setIntent] = useState<AnalysisIntent>(initial?.analysisIntent ?? 'requirements');
   const [requirement, setRequirement] = useState(initial?.requirement ?? '');
   const [bundle, setBundle] = useState<IssueDraftBundle | undefined>(initial?.importedBundle);
+  const [recoveredBundle, setRecoveredBundle] = useState<IssueDraftBundle | undefined>(initial?.recoveredBundle ?? (!initial?.scopeKey ? initial?.importedBundle : undefined));
+  const [recoveredTargetPath, setRecoveredTargetPath] = useState('');
   const [importText, setImportText] = useState(initial?.importText ?? '');
   const [draftChecked, setDraftChecked] = useState<Record<string, boolean>>(initial?.draftChecked ?? {});
   const [draftChoices, setDraftChoices] = useState<Record<string, DraftChoice>>(initial?.draftChoices ?? {});
@@ -107,27 +156,79 @@ function App() {
   const [reports, setReports] = useState<Record<string, { text: string; sha: string }>>(initial?.reports ?? {});
   const [similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
+  const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>('changes');
   const [toolDrawer, setToolDrawer] = useState(false);
   const [toolSource, setToolSource] = useState<ToolSource>(initial?.toolSource ?? 'auto');
   const [versions, setVersions] = useState<Partial<Record<ToolId, string>>>(initial?.selectedVersions ?? {});
   const [giteaToken, setGiteaToken] = useState('');
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
-  const [selfReviewUncommitted, setSelfReviewUncommitted] = useState(false);
-  const [manualTime, setManualTime] = useState(initial?.manualTime ?? { duration: '', summary: '', spentAt: '' });
+  const initialScopeState = initial?.scopeKey ? initial.scopedData?.[initial.scopeKey] : undefined;
+  const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
+  const [manualTimes, setManualTimes] = useState<Record<string, ManualTimeDraft>>(initialManualTimeState.manualTimes);
+  const [recoveredManualTime, setRecoveredManualTime] = useState<ManualTimeDraft | undefined>(initialManualTimeState.recoveredManualTime);
   const [timeEdits, setTimeEdits] = useState<Record<string, { duration: string; summary: string; spentAt: string }>>(initial?.timeEdits ?? {});
+  const [issueDetailSearch, setIssueDetailSearch] = useState(initial?.scopeKey ? initial?.scopedData?.[initial.scopeKey]?.issueDetailSearch ?? initial?.issueDetailSearch ?? '' : initial?.issueDetailSearch ?? '');
   const [toast, setToast] = useState('');
+  const [errorNotice, setErrorNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [moreRepoActions, setMoreRepoActions] = useState(false);
+  const scopeRef = useRef(initial?.scopeKey);
+  const instanceUserScopeRef = useRef(initial?.instanceUserScope);
+  const issueNavigationRef = useRef(issueNavigation);
+  issueNavigationRef.current = issueNavigation;
+  const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
+
+  const scopedState: ScopedSavedState = {
+    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter,
+    reviewFilter, analysisIntent: intent, requirement, importText, importedBundle: bundle, draftChecked, draftChoices, reports,
+    deliveryForms, manualTimes, recoveredManualTime, timeEdits
+  };
+  const currentScopeStateRef = useRef(scopedState);
+  currentScopeStateRef.current = scopedState;
+  const projectsRef = useRef<GitLabProject[]>([]);
 
   useEffect(() => {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
       if (!message) return;
       if (message.type === 'snapshot') {
+        const nextScope = message.snapshot.connectedScope;
+        if (nextScope && nextScope !== scopeRef.current) {
+          if (scopeRef.current) savedScopesRef.current[scopeRef.current] = currentScopeStateRef.current;
+          else if (initial && !initial.scopeKey && initial.importedBundle) setRecoveredBundle(initial.importedBundle);
+          const saved = nextScope ? savedScopesRef.current[nextScope] : undefined;
+          const defaults = emptyScopedState();
+          const value = saved ?? defaults;
+          scopeRef.current = nextScope;
+          setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(value.selectedProjectIds);
+          setAnalysisProjectIds(value.analysisProjectIds); setIssueStateFilter(value.issueStateFilter);
+          setIssueDetailSearch(value.issueDetailSearch ?? initial?.issueDetailSearch ?? '');
+          setIssueProjectFilter(value.issueProjectFilter); setIssueLabelFilter(value.issueLabelFilter);
+          setReviewFilter(value.reviewFilter); setIntent(value.analysisIntent); setRequirement(value.requirement);
+          setImportText(value.importText); setBundle(value.importedBundle); setDraftChecked(value.draftChecked);
+          setDraftChoices(value.draftChoices); setReports(value.reports); setDeliveryForms(value.deliveryForms);
+          const manualTimeState = restoreManualTimeState(value);
+          setManualTimes(manualTimeState.manualTimes);
+          setRecoveredManualTime(manualTimeState.recoveredManualTime);
+          setTimeEdits(value.timeEdits ?? {});
+          if (instanceUserScopeRef.current !== message.snapshot.instanceUserScope) setIssueNavigation(null);
+          setMoreRepoActions(false);
+        }
+        instanceUserScopeRef.current = message.snapshot.instanceUserScope;
         setSnapshot(message.snapshot);
+        setMode(message.snapshot.activeMode);
         setToolSource(message.snapshot.toolSource);
+      } else if (message.type === 'issueNavigation') {
+        setIssueNavigation(message.navigation);
+        if (message.navigation) { setMode('developer'); setMobilePanel('detail'); }
+      } else if (message.type === 'issueResponse') {
+        if (message.revision !== undefined && issueNavigationRef.current?.revision !== message.revision) return;
+        window.dispatchEvent(new CustomEvent('workspaceIssueResponse', { detail: message.response }));
+      } else if (message.type === 'cloneOperation') {
+        setCloneOperation(message);
       } else if (message.type === 'busy') setBusy(message.value);
-      else if (message.type === 'error') { setToast(safeError(message.message)); setBusy(false); }
-      else if (message.type === 'message') setToast(message.message);
+      else if (message.type === 'error') { setErrorNotice(safeError(message.message)); setBusy(false); }
+      else if (message.type === 'message') { setToast(message.message); setErrorNotice(''); }
       else if (message.type === 'draftBundle') {
         setBundle(message.bundle);
         setDraftChecked(Object.fromEntries(message.bundle.drafts.map((draft) => [draft.id, true])));
@@ -146,28 +247,53 @@ function App() {
         const created = message.results.filter((item) => item.state !== 'failed').length;
         const failed = message.results.filter((item) => item.state === 'failed').length;
         setToast(`Issue 已建立或確認 ${created} 張${failed ? `，${failed} 張失敗；重試只會處理未建立項目` : ''}。`);
+        const first = message.results.find((item) => item.issueIid && item.state !== 'failed');
+        const project = first && projectsRef.current.find((item) => item.path_with_namespace === first.projectPath);
+        if (first?.issueIid && project) { setMode('developer'); setMobilePanel('detail'); post({ type: 'openIssue', projectId: project.id, issueIid: first.issueIid }); }
       }
     };
+    const forwardIssueRequest = (event: Event) => {
+      const request = (event as CustomEvent<import('../issues/protocol').IssuePanelRequest>).detail;
+      if (request) post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision });
+    };
     window.addEventListener('message', receive);
+    window.addEventListener('workspaceIssueRequest', forwardIssueRequest);
     post({ type: 'ready' });
-    return () => window.removeEventListener('message', receive);
+    return () => { window.removeEventListener('message', receive); window.removeEventListener('workspaceIssueRequest', forwardIssueRequest); };
   }, []);
 
   useEffect(() => {
     const state: SavedState = {
-      mode, filters, selectedIds, selectedProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, reviewFilter, analysisIntent: intent, requirement, importText,
-      importedBundle: bundle, draftChecked, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
-      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource,
-      selectedVersions: versions, deliveryForms, manualTime, timeEdits
+      version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) },
+      instanceUserScope: snapshot?.instanceUserScope,
+      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, reviewFilter, analysisIntent: intent, requirement, importText,
+      importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
+      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
+      selectedVersions: versions, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, reviewFilter, intent, requirement, importText, bundle, draftChecked, draftChoices, reports, toolSource, versions, deliveryForms, manualTime, timeEdits, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, versions, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
+  projectsRef.current = projects;
   const projectById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
   const issues = snapshot?.issues ?? [];
   const selectedIssue = snapshot?.selectedIssue?.issue;
   const selectedIssueProject = snapshot?.selectedIssue?.project;
+  const manualTimeIssueKey = issueNavigation?.mode === 'detail'
+    ? issueKey(issueNavigation.projectId, issueNavigation.issueIid)
+    : selectedIssue ? issueKey(selectedIssue.project_id, selectedIssue.iid) : undefined;
+  const manualTime = manualTimeIssueKey ? manualTimes[manualTimeIssueKey] ?? emptyManualTime() : emptyManualTime();
+  function setManualTime(value: ManualTimeDraft): void {
+    if (!manualTimeIssueKey) return;
+    setManualTimes((current) => ({ ...current, [manualTimeIssueKey]: value }));
+  }
+  function recoverManualTime(projectId: number, issueIid: number): void {
+    if (!recoveredManualTime || !Number.isSafeInteger(projectId) || projectId < 1 || !Number.isSafeInteger(issueIid) || issueIid < 1) return;
+    setManualTimes((current) => ({ ...current, [issueKey(projectId, issueIid)]: recoveredManualTime }));
+    setRecoveredManualTime(undefined);
+    setToast(`舊工時草稿已套用到 ${projectById.get(projectId)?.path_with_namespace ?? `專案 ${projectId}`} #${issueIid}。`);
+  }
   const selectedMr = snapshot?.selectedMergeRequest;
   const mr = selectedMr?.request;
   const currentSha = selectedMr?.sourceSha ?? mr?.diff_refs?.head_sha ?? mr?.sha ?? '';
@@ -194,12 +320,12 @@ function App() {
     const query = (filters[key] ?? '').trim().toLocaleLowerCase();
     return !query || text.toLocaleLowerCase().includes(query);
   }
-  function modeChange(next: WorkspaceMode): void { setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
+  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
   function setFilter(key: WorkspaceMode, value: string): void { setFilters((current) => ({ ...current, [key]: value })); }
   function selectedIssueAction(issue: GitLabIssue): void {
     setMobilePanel('detail');
     setSelectedIds((current) => ({ ...current, developer: issue.project_id }));
-    post({ type: 'selectIssue', projectId: issue.project_id, issueIid: issue.iid });
+    post({ type: 'openIssue', projectId: issue.project_id, issueIid: issue.iid });
   }
   function selectMergeRequest(item: GitLabMergeRequest): void {
     setMobilePanel('detail');
@@ -208,7 +334,7 @@ function App() {
   function openGitLab(url?: string): void { if (url) post({ type: 'openExternal', url }); }
   function addDraftFromMarkdown(): void {
     if (!importText.trim() || !projects.length) return;
-    const projectId = selectedIds.sa ?? selectedProjectIds[0] ?? projects[0].id;
+    const projectId = selectedIds.sa ?? analysisProjectIds[0] ?? projects[0].id;
     const project = projectById.get(projectId);
     if (!project) return;
     const firstHeading = /^#\s+(.+)$/m.exec(importText)?.[1];
@@ -244,8 +370,9 @@ function App() {
     post({ type: 'createIssueDrafts', analysisId: bundle.analysisId, drafts: chosen, options });
   }
   function copyAnalysisPrompt(): void {
-    const selected = projects.filter((project) => selectedProjectIds.includes(project.id));
+    const selected = projects.filter((project) => analysisProjectIds.includes(project.id));
     if (!selected.length || !snapshot?.group) { setToast('請先選擇分析 Repo。'); return; }
+    if (!snapshot.groupRoot) { setToast('請先設定 Group 工作目錄，再開啟 Codex CLI。'); setToolDrawer(true); return; }
     const wiki = snapshot.tools.find((item) => item.tool === 'codebase-wiki')?.status === 'installed';
     const prompt = [
       '$codebase-wiki',
@@ -256,24 +383,15 @@ function App() {
       `Codebase LLM Wiki: ${wiki ? '讀取已安裝的 .agents/skills/codebase-wiki Skill；先建立或更新程式碼地圖，再以檔案證據支持結論。' : '使用 Codebase LLM Wiki 的 repo skill；若未安裝，請在 Codex CLI 執行前安裝工具。'}`,
       '請勿自行呼叫 GitLab 建立 Issue。輸出 IssueDraftBundle/v1 JSON，欄位包含 schema、analysisId、drafts；每張草稿要有唯一 id、projectPath、title、description、acceptanceCriteria、sourceEvidence[{path,claim}]、labels。每張 Issue 僅指定一個 Repo，證據路徑必須是實際讀取過的檔案。'
     ].join('\n\n');
-    post({ type: 'copy', text: prompt });
+    post({ type: 'copyAndOpenCodex', text: prompt, returnTo: '需求分析頁面的「匯入分析結果」區' });
   }
-  function copyDeveloperTask(): void {
-    if (!selectedIssue || !selectedIssueProject || !snapshot?.groupRoot) return;
-    const repo = snapshot.localRepositories[selectedIssueProject.id];
-    post({ type: 'copy', text: buildDeveloperPrompt(selectedIssueProject, selectedIssue, snapshot.groupRoot, repo?.path ?? `${snapshot.groupRoot}/${selectedIssueProject.path}`) });
-  }
-  function copySelfReview(): void {
-    if (!selectedIssueProject || !snapshot?.groupRoot) return;
-    const repo = snapshot.localRepositories[selectedIssueProject.id];
-    const branch = repo?.branch ?? '目前工作分支';
-    post({ type: 'copy', text: [
-      `$merge-reviewer 自查 Repo=${selectedIssueProject.path_with_namespace} 路徑=${repo?.path ?? '尚未 Clone'}`,
-      `Issue=${selectedIssueProject.path_with_namespace}#${selectedIssue?.iid ?? ''} ${selectedIssue?.web_url ?? ''}`,
-      `基礎分支=${selectedIssueProject.default_branch ?? '請讀 GitLab 預設分支'} 比對分支=${branch}`,
-      `包含未提交內容=${selfReviewUncommitted ? '是；檢查工作樹與暫存區' : '否；只檢查已提交的分支差異'}`,
-      '請執行 MergeReviewer 自查，只提出可定位、可重現的問題，輸出 Markdown 審查報告。'
-    ].join('\n') });
+  function openReviewerTask(): void {
+    if (!selectedIssueProject && !mr) return;
+    const project = mr ? projectById.get(mr.project_id) : selectedIssueProject;
+    if (!project || !mr || !selectedMr) return;
+    if (!snapshot?.groupRoot) { setToast('請先設定 Group 工作目錄，再開啟 Codex CLI。'); setToolDrawer(true); return; }
+    const prompt = buildReviewerPrompt(project, mr, snapshot.groupRoot, selectedMr.sourceProject) + `\n\nMR SHA: ${currentSha}\n目標目前 SHA: ${selectedMr.targetSha ?? '請由 GitLab 查詢'}`;
+    post({ type: 'copyAndOpenCodex', text: prompt, returnTo: '待審查頁面的「審查報告」分頁' });
   }
   function updateDelivery(key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject): void {
     setDeliveryForms((current) => {
@@ -281,30 +399,22 @@ function App() {
       return { ...current, [key]: { ...previous, ...patch } };
     });
   }
-  function deliveryAction(action: WorkspaceRequest['type'], delivery: DeliveryPreview): void {
-    if (action === 'commitDelivery') post({ type: 'commitDelivery', deliveryId: delivery.id });
-    else if (action === 'pushDelivery') post({ type: 'pushDelivery', deliveryId: delivery.id });
-    else if (action === 'createDeliveryMergeRequest') post({ type: 'createDeliveryMergeRequest', deliveryId: delivery.id });
-  }
-
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
 
   return <main class="app-shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">GW</span><strong>GitLab Workspace</strong></div>
       <div class="top-controls">
-        {snapshot.group ? <label class="control-inline"><span>Group</span><select value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
-        <button class="quiet root-button" type="button" onClick={() => post({ type: 'selectWorkspace' })}>{snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '選擇本機工作區'}</button>
-        <button class="quiet" type="button" disabled={!snapshot.groupRoot} onClick={() => post({ type: 'openCodexTerminal' })}>開啟 Codex CLI</button>
-        <button class="quiet" type="button" onClick={() => setToolDrawer(true)}>工具管理</button>
-        {snapshot.connected ? <button class="connection" type="button" onClick={() => post({ type: 'disconnect' })}><i />{snapshot.currentUser?.name ?? 'GitLab 已連線'}</button> : <button class="primary" type="button" onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
+        {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
+        <button class="quiet settings-trigger" type="button" onClick={() => setToolDrawer(true)}>設定</button>
+        {snapshot.connected ? <details class="account-menu"><summary class="connection"><i />{snapshot.currentUser?.name ?? 'GitLab 已連線'}　⌄</summary><div class="account-popover"><span>{snapshot.baseUrl}</span><button class="secondary" type="button" onClick={() => { setIssueNavigation(null); post({ type: 'disconnect' }); }}>中斷連線</button></div></details> : <button class="primary" type="button" onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
       </div>
     </header>
 
     <div class="workbench" data-mobile-panel={mobilePanel}>
-      <nav class="mode-nav" aria-label="工作模式">
-        <span class="section-label">工作模式</span>
-        {modes.map((item) => <button type="button" role="tab" aria-selected={mode === item.id} class={`mode-button ${mode === item.id ? 'active' : ''}`} onClick={() => modeChange(item.id)}>
+      <nav class="mode-nav" aria-label="工作台導覽">
+        <span class="section-label">工作流程</span>
+        {modes.map((item) => <button type="button" aria-current={mode === item.id ? 'page' : undefined} class={`mode-button ${mode === item.id ? 'active' : ''}`} onClick={() => modeChange(item.id)}>
           <span class="mode-icon">{item.icon}</span><span>{item.short}</span>
           {item.id === 'developer' && issues.length > 0 && <span class="nav-count">{issues.length}</span>}
           {item.id === 'reviewer' && snapshot.mergeRequests.length > 0 && <span class="nav-count">{snapshot.mergeRequests.length}</span>}
@@ -312,9 +422,15 @@ function App() {
       </nav>
 
       <section class="page" role="tabpanel">
+        {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
+        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
+          <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
+            onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
+        </div>
+        <div class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
-          <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>重新整理</button></div></div>
-        {!snapshot.connected ? <Empty title="連線 GitLab 開始工作" detail="連線資料與 Token 會由 VS Code 安全保存。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
+          <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button></div></div>
+        {!snapshot.connected ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
           : !snapshot.group ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content">
               <div class="list-column"><div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span></div>
@@ -324,15 +440,18 @@ function App() {
                     <span class="repo-details"><strong>{project.path_with_namespace}</strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
                     <span class={`pill ${local?.state === 'ready' ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span></label>;
                 })}{!visibleProjects.length && <p class="empty-inline">找不到符合條件的 Repo。</p>}</div>
-                <div class="list-actions"><button class="primary" type="button" disabled={!selectedProjectIds.length || busy} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>Clone 選取項目</button><button class="secondary" type="button" disabled={!projects.length || busy} onClick={() => post({ type: 'clone', projectIds: [], cloneAll: true })}>Clone 全部</button><button class="secondary" type="button" disabled={busy} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button></div>
-              </div><aside class="detail-column"><h2>工作目錄</h2><p>{snapshot.groupRoot ?? '尚未選擇'}</p><p class="subtle">Repo 以 Group 直屬資料夾排列；同名 Repo 會附上 Project ID。</p><div class="quick-links"><button type="button" class="primary" disabled={!snapshot.groupRoot} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button><button type="button" class="secondary" disabled={!snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button><button class="secondary" type="button" onClick={() => modeChange('sa')}>前往 SA</button><button class="secondary" type="button" onClick={() => modeChange('developer')}>查看我的 Issue</button></div></aside>
-            </div>
+                <div class="list-actions"><button class="primary" type="button" disabled={!selectedProjectIds.length || busy} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>下載／更新選取項目（{selectedProjectIds.length}）</button><details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel"><button class="secondary" type="button" disabled={!projects.length || busy} onClick={() => post({ type: 'clone', projectIds: [], cloneAll: true })}>下載／更新全部 Repo</button><button class="secondary" type="button" disabled={busy || !snapshot.groupRoot} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button><button class="quiet" type="button" onClick={() => setToolDrawer(true)}>設定工作目錄</button></div></details></div>
+                {cloneOperation && <div class="operation-results" role="status"><strong>{cloneOperation.label}</strong>{cloneOperation.items.map((item) => <div class="operation-result"><span>{item.projectPath}</span><span class={`operation-state ${item.state}`}>{item.message ?? ({ starting: '準備中', progress: '處理中', skipped: '略過', updated: '已更新', upToDate: '已是最新', 'up-to-date': '已是最新', failed: '失敗', waiting: '等待中', 成功: '已完成', 略過: '略過', 失敗: '失敗', 等待中: '等待中' } as Record<string, string>)[item.state] ?? item.state}{item.percent !== undefined ? ` ${item.percent}%` : ''}</span></div>)}</div>}
+              </div><aside class="detail-column"><h2>本機 Repo 狀態</h2><p>{snapshot.groupRoot ?? '尚未設定工作目錄'}</p><p class="subtle">閱讀與討論 Issue 不需要工作目錄；Clone、同步或開發時再設定即可。</p><div class="quick-links"><button type="button" class="primary" onClick={() => snapshot.groupRoot ? post({ type: 'openLocalWorkspace' }) : setToolDrawer(true)}>{snapshot.groupRoot ? '開啟工作區' : '選擇工作目錄'}</button><button type="button" class="secondary" disabled={!snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button></div></aside>
+              </div>
             : mode === 'sa' ? <div class="mode-content">
+              {recoveredBundle && <div class="recovered-draft"><strong>找到尚未指定目標專案的舊草稿</strong><p>選擇要匯入的 Repo 後，草稿會保留原內容供你確認。</p><div class="button-row"><select aria-label="待恢復草稿的目標 Repo" value={recoveredTargetPath} onChange={(event) => setRecoveredTargetPath(event.currentTarget.value)}><option value="">選擇目標 Repo</option>{projects.map((project) => <option value={project.path_with_namespace}>{project.path_with_namespace}</option>)}</select><button class="primary" type="button" disabled={!recoveredTargetPath} onClick={() => { const bundle = recoveredBundle; if (!bundle) return; setBundle({ ...bundle, drafts: bundle.drafts.map((draft) => ({ ...draft, projectPath: recoveredTargetPath })) }); setDraftChecked(Object.fromEntries(bundle.drafts.map((draft) => [draft.id, true]))); setRecoveredBundle(undefined); setToast('舊草稿已載入，請逐項檢查後再建立 Issue。'); }}>恢復草稿</button></div></div>}
               <div class="list-column sa-column"><div class="segmented"><button class={intent === 'requirements' ? 'chosen' : ''} type="button" onClick={() => setIntent('requirements')}>需求分析與 Issue 拆分</button><button class={intent === 'audit' ? 'chosen' : ''} type="button" onClick={() => setIntent('audit')}>程式健檢與風險分析</button></div>
-                <h2>選擇 Repo 範圍</h2><div class="repo-picks">{projects.map((project) => <label><input type="checkbox" checked={selectedProjectIds.includes(project.id)} onChange={(event) => setSelectedProjectIds((current) => event.currentTarget.checked ? [...new Set([...current, project.id])] : current.filter((id) => id !== project.id))} />{project.path_with_namespace}</label>)}</div>
+                <h2>① 選擇範圍與背景</h2><div class="repo-picks">{projects.map((project) => <label><input type="checkbox" checked={analysisProjectIds.includes(project.id)} onChange={(event) => setAnalysisProjectIds((current) => event.currentTarget.checked ? [...new Set([...current, project.id])] : current.filter((id) => id !== project.id))} />{project.path_with_namespace}</label>)}</div>
                 <label class="field">需求與分析背景<textarea rows={5} value={requirement} onInput={(event) => setRequirement(event.currentTarget.value)} placeholder="說明需求、使用情境、風險範圍或想確認的行為…" /></label>
-                <div class="button-row"><button class="primary" type="button" disabled={!selectedProjectIds.length} onClick={copyAnalysisPrompt}>複製 Codex 分析提示詞</button><span class="subtle">貼入 Codex CLI 執行，再匯入 JSON 結果。</span></div>
-                <label class="field import-field">匯入 IssueDraftBundle/v1 JSON 或貼上 Markdown<textarea rows={5} value={importText} onInput={(event) => setImportText(event.currentTarget.value)} placeholder="貼上 Codex 的 JSON 草稿包，或貼上 Markdown 分析報告…" /></label>
+                <div class="button-row"><button class="primary" type="button" disabled={!analysisProjectIds.length} onClick={() => copyAnalysisPrompt()}>② 複製任務並開啟 Codex CLI</button><span class="subtle">貼上執行；完成後回到此處匯入結果。</span></div>
+                <label class="field import-field">③ 匯入分析結果<textarea rows={5} value={importText} onInput={(event) => setImportText(event.currentTarget.value)} placeholder="貼上 Codex 的 JSON 草稿包，或貼上 Markdown 分析報告…" /></label>
+                <details class="format-help"><summary>IssueDraftBundle/v1 JSON 格式</summary><p>包含 <code>schema</code>、<code>analysisId</code> 與 <code>drafts</code>。每筆草稿包含 projectPath、title、description、acceptanceCriteria、sourceEvidence 與 labels。</p></details>
                 <div class="button-row"><button class="secondary" type="button" disabled={!importText.trim()} onClick={() => post({ type: 'importIssueDrafts', json: importText })}>驗證並匯入 JSON</button><button class="secondary" type="button" disabled={!importText.trim() || !projects.length} onClick={addDraftFromMarkdown}>將 Markdown 加入草稿</button></div>
               </div><article class="detail-column draft-column"><div class="panel-title"><div><span class="eyebrow">發布前逐項檢查</span><h2>Issue 草稿</h2></div>{bundle && <span class="count">{bundle.drafts.length} 張</span>}</div>
                 {bundle ? <><div class="draft-stack">{bundle.drafts.map((draft) => {
@@ -357,20 +476,14 @@ function App() {
                   : <Empty title="尚無 Issue 草稿" detail="先選 Repo 並複製提示詞，或匯入 Codex 分析結果。" />}</article>
             </div>
             : mode === 'developer' ? <div class="mode-content">
-              <div class="list-column"><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select></div><div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="Issue、Repo、Labels…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><span class="count">{visibleIssues.length}</span></div>
-                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}</div>
+              <div class="list-column"><div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select></div><div class="toolbar list-count"><span>指派給我的 Issue</span><span class="count">{visibleIssues.length}</span></div>
+                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}{!visibleIssues.length && <div class="empty-inline"><strong>{snapshot.error ? 'Issue 載入失敗' : filters.developer || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' ? '沒有符合篩選條件的 Issue' : '目前沒有指派給你的未結案 Issue'}</strong><p>{snapshot.error ?? (filters.developer || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' ? '調整搜尋或篩選條件試試看。' : '建立議題或切換篩選條件以檢視其他工作。')}</p></div>}</div>
               </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
-                <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><button class="quiet" type="button" onClick={() => post({ type: 'openIssue', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid })}>需求與討論</button></div>
-                <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p><div class="button-row"><button class="primary" type="button" onClick={copyDeveloperTask}>複製開發任務</button><label class="check-inline"><input type="checkbox" checked={selfReviewUncommitted} onChange={(event) => setSelfReviewUncommitted(event.currentTarget.checked)} />包含尚未提交內容</label><button class="secondary" type="button" onClick={copySelfReview}>複製 MergeReviewer 自查提示詞</button></div>
-                <section class="section-card"><div class="panel-title"><div><span class="eyebrow">Megin 人工驗收後交接</span><h3>準備交付</h3></div><span class="subtle">Commit → Push → 建立 MR</span></div>
-                  <DeliveryEditor issue={selectedIssue} project={selectedIssueProject} root={snapshot.groupRoot} repo={snapshot.localRepositories[selectedIssueProject.id]} members={snapshot.projectMembers} busy={busy} initial={deliveryForms[issueKey(selectedIssue.project_id, selectedIssue.iid)]} onUpdate={(patch) => updateDelivery(issueKey(selectedIssue.project_id, selectedIssue.iid), patch, selectedIssueProject)} onPrepare={(form) => post({ type: 'prepareDelivery', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid, ...form })} records={snapshot.deliveryRecords.filter((record) => record.projectId === selectedIssue.project_id && record.issueIid === selectedIssue.iid)} onAction={deliveryAction} />
-                </section>
-                <section class="section-card"><div class="panel-title"><div><span class="eyebrow">GitLab Time Tracking</span><h3>工時</h3></div><span class="subtle">Issue 總工時：{selectedIssue.time_stats?.human_total_time_spent ?? '尚無紀錄'}</span></div>
-                  <div class="timer-start">{activeTimer ? <><strong>{fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}</strong><button class="secondary" type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button class="secondary" type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></> : <button class="primary" type="button" onClick={() => post({ type: 'startTimer', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid })}>開始計時</button>}</div>
-                  <div class="manual-time"><input aria-label="工時長度" placeholder="例如 45m、1h30m" value={manualTime.duration} onInput={(event) => setManualTime({ ...manualTime, duration: event.currentTarget.value })} /><input aria-label="工時摘要" placeholder="工時摘要" value={manualTime.summary} onInput={(event) => setManualTime({ ...manualTime, summary: event.currentTarget.value })} /><input aria-label="工時日期" type="date" value={manualTime.spentAt} onInput={(event) => setManualTime({ ...manualTime, spentAt: event.currentTarget.value })} /><button class="secondary" type="button" disabled={!manualTime.duration.trim()} onClick={() => post({ type: 'addManualTime', projectId: selectedIssue.project_id, issueIid: selectedIssue.iid, ...manualTime, spentAt: manualTime.spentAt || undefined })}>新增手動工時</button></div>
-                  <div class="time-list">{snapshot.timers.filter((entry) => entry.projectId === selectedIssue.project_id && entry.issueIid === selectedIssue.iid && entry.phase !== 'posted').map((entry) => <TimeRow entry={entry} edit={timeEdits[entry.id]} onEdit={(edit) => setTimeEdits((current) => ({ ...current, [entry.id]: edit }))} />)}</div>
-                </section>
-              </> : <Empty title="選取一張指派給你的 Issue" detail="任務內容、Codex CLI 提示詞、交付與工時會在此接續。" />}</article>
+                <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
+                <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
+                <div class="next-step"><strong>下一步</strong><p>開啟詳情後，可在同一工作台繼續閱讀與討論、準備開發交付，並管理關聯工作與工時。</p></div>
+                <button class="primary" type="button" onClick={() => selectedIssueAction(selectedIssue)}>開啟 Issue 詳情</button>
+              </> : <Empty title="選取一張指派給你的 Issue" detail="選取後會直接進入整合詳情，接續需求、討論、開發交付與工時。" />}</article>
             </div>
             : <div class="mode-content reviewer-layout"><div class="list-column"><div class="filter-tabs"><button class={reviewFilter === 'all' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('all')}>全部</button><button class={reviewFilter === 'reviewer' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('reviewer')}>指定我為 Reviewer</button><button class={reviewFilter === 'assigned' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('assigned')}>指派給我</button></div>
                 <div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 MR" placeholder="MR、Repo、分支…" value={filters.reviewer ?? ''} onInput={(event) => setFilter('reviewer', event.currentTarget.value)} /></label><span class="count">{visibleMrs.length}</span></div>
@@ -378,23 +491,29 @@ function App() {
               </div><article class="detail-column reviewer-detail">{selectedMr && mr ? <>
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
                 <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>重新檢查分支</button></div>
-                <div class="sha-pair"><span>來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div>
-                <div class="button-row"><button class="primary" type="button" onClick={() => {
-                  const project = projectById.get(mr.project_id);
-                  if (!project) return;
-                  post({ type: 'copy', text: buildReviewerPrompt(project, mr, snapshot.groupRoot, selectedMr.sourceProject) + `\n\nMR SHA: ${currentSha}\n目標目前 SHA: ${selectedMr.targetSha ?? '請由 GitLab 查詢'}` });
-                }}>複製審查任務</button><span class="subtle">包含 Repo、路徑、分支與完整 SHA</span></div>
-                <section class="section-card"><h3>變更</h3><div class="diff-list">{selectedMr.diffs.map((change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : `${change.old_path} → ${change.new_path}`}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>)}{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異內容。</p>}</div></section>
-                <section class="section-card"><h3>審查報告</h3><label class="field">貼上 MergeReviewer Markdown<textarea rows={8} value={currentReport.text} onInput={(event) => { const text = event.currentTarget.value; setReports((current) => { const prior = current[currentMrKey] ?? { text: '', sha: '' }; return { ...current, [currentMrKey]: { ...prior, text, sha: prior.sha || currentSha } }; }); }} placeholder="在 Codex CLI 執行審查後，將報告貼到此處。" /></label>{reportOutdated && <p class="warning">審查報告對應的 SHA 已變更；請重新執行審查後再發布或核准。</p>}
+                <div class="next-step" role="status">{selectedMr.freshness.state === 'current' ? '分支已同步。下一步：執行審查並將報告貼回此處。' : selectedMr.freshness.state === 'behind' ? '來源分支落後目標分支。先更新分支，再重新檢查後審查。' : '先重新檢查分支狀態，再開始審查。'}</div>
+                <div class="button-row"><button class="primary" type="button" onClick={openReviewerTask}>複製審查任務並開啟 Codex CLI</button><span class="subtle">完成後將 Markdown 貼到「審查報告」。</span></div>
+                <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
+                <nav class="issue-tabs review-tabs" role="tablist" aria-label="Merge Request 詳情分頁">{([['changes', '變更'], ['discussion', '討論'], ['report', '審查報告']] as const).map(([tab, label], index) => <button role="tab" tabIndex={reviewerTab === tab ? 0 : -1} aria-selected={reviewerTab === tab} class={reviewerTab === tab ? 'active' : ''} onKeyDown={(event) => {
+                  const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+                  if (nextIndex < 0) return;
+                  event.preventDefault();
+                  const nextTab = (['changes', 'discussion', 'report'] as const)[nextIndex];
+                  setReviewerTab(nextTab);
+                  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
+                }} onClick={() => setReviewerTab(tab)}>{label}</button>)}</nav>
+                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><div class="diff-list">{selectedMr.diffs.map((change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : `${change.old_path} → ${change.new_path}`}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>)}{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異內容。</p>}</div></section>
+                <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3><label class="field">貼上 Codex CLI 回傳的 MergeReviewer Markdown<textarea rows={8} value={currentReport.text} onInput={(event) => { const text = event.currentTarget.value; setReports((current) => { const prior = current[currentMrKey] ?? { text: '', sha: '' }; return { ...current, [currentMrKey]: { ...prior, text, sha: prior.sha || currentSha } }; }); }} placeholder="在 Codex CLI 執行審查後，將報告貼到此處。" /></label>{reportOutdated && <p class="warning">審查報告對應的 SHA 已變更；請重新執行審查後再發布或核准。</p>}
                   <div class="button-row"><button class="secondary" disabled={!currentReport.text.trim() || reportOutdated || busy} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>發布評論</button><button class="secondary" disabled={!currentSha || reportOutdated || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button><button class="primary" disabled={!currentSha || reportOutdated || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button></div>
                 </section>
-                <section class="section-card"><h3>討論串</h3>{selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
+                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3>{selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
               </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>}
+        </div>
       </section>
     </div>
 
-    <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span>{activeTimer && <span class="timer-status">● {fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}<button type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></span>}{pendingTime.length > 0 && <button class="status-link" type="button" onClick={() => modeChange('developer')}>{pendingTime.length} 筆工時待確認／送出</button>}<span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite">{toast}</span>}</footer>
-    {toolDrawer && <ToolDrawer snapshot={snapshot} toolSource={toolSource} versions={versions} token={giteaToken} onToken={setGiteaToken} onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }} onVersion={(tool, version) => setVersions((current) => ({ ...current, [tool]: version }))} onInstall={(tool) => post({ type: 'installTool', tool, version: versions[tool] })} onList={(tool) => post({ type: 'listToolReleases', tool })} onSaveToken={() => { if (giteaToken.trim()) post({ type: 'saveGiteaToken', token: giteaToken.trim() }); setGiteaToken(''); }} onRefresh={() => post({ type: 'refreshTools' })} onClose={() => setToolDrawer(false)} />}
+    <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span>{activeTimer && <span class="timer-status"><button class="status-link timer-link" type="button" onClick={() => post({ type: 'openIssue', projectId: activeTimer.projectId, issueIid: activeTimer.issueIid, tab: 'time' })}>● {fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}</button><button type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></span>}{pendingTime.length > 0 && <button class="status-link" type="button" onClick={() => { const entry = pendingTime[0]; post({ type: 'openIssue', projectId: entry.projectId, issueIid: entry.issueIid, tab: 'time' }); }}>{pendingTime.length} 筆工時待確認／送出</button>}<span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
+    {toolDrawer && <ToolDrawer snapshot={snapshot} toolSource={toolSource} versions={versions} token={giteaToken} onToken={setGiteaToken} onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }} onVersion={(tool, version) => setVersions((current) => ({ ...current, [tool]: version }))} onInstall={(tool) => post({ type: 'installTool', tool, version: versions[tool] })} onList={(tool) => post({ type: 'listToolReleases', tool })} onSaveToken={() => { if (giteaToken.trim()) post({ type: 'saveGiteaToken', token: giteaToken.trim() }); setGiteaToken(''); }} onRefresh={() => post({ type: 'refreshTools' })} onSelectGroup={() => post({ type: 'selectGroup' })} onSelectWorkspace={() => post({ type: 'selectWorkspace' })} onConnect={() => post({ type: 'connect' })} onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
   </main>;
 }
 
@@ -402,60 +521,39 @@ function Empty({ title, detail, action, onAction }: { title: string; detail: str
   return <div class="empty"><div class="empty-mark">◇</div><h2>{title}</h2><p>{detail}</p>{action && onAction && <button class="primary" type="button" onClick={onAction}>{action}</button>}</div>;
 }
 
-function DeliveryEditor({
-  issue, project, root, repo, members, busy, initial, onUpdate, onPrepare, records, onAction
-}: {
-  issue: GitLabIssue; project: GitLabProject; root?: string; repo?: WorkspaceSnapshot['localRepositories'][number]; members: WorkspaceSnapshot['projectMembers']; busy: boolean;
-  initial?: DeliveryFormState; onUpdate: (patch: Partial<DeliveryFormState>) => void;
-  onPrepare: (form: Omit<DeliveryFormState, never>) => void; records: DeliveryPreview[];
-  onAction: (action: WorkspaceRequest['type'], record: DeliveryPreview) => void;
-}) {
-  const form = Object.assign({ workId: '', summary: '', changes: '', tests: '', targetBranch: project.default_branch ?? 'main', reviewerIds: [], acceptanceConfirmed: false }, initial) as DeliveryFormState;
-  return <>
-    <div class="delivery-grid"><label class="field">Megin Work ID<input placeholder="MEGIN-123-feature-name" value={form.workId} onInput={(event) => onUpdate({ workId: event.currentTarget.value })} /></label>
-      <label class="field">Commit 摘要<input placeholder={`[${project.path_with_namespace}#${issue.iid}] 修改摘要`} value={form.summary} onInput={(event) => onUpdate({ summary: event.currentTarget.value })} /></label>
-      <label class="field full">修改內容<textarea rows={3} value={form.changes} onInput={(event) => onUpdate({ changes: event.currentTarget.value })} /></label>
-      <label class="field full">驗證結果<textarea rows={2} value={form.tests} onInput={(event) => onUpdate({ tests: event.currentTarget.value })} /></label>
-      <label class="field">目標分支<input value={form.targetBranch} onInput={(event) => onUpdate({ targetBranch: event.currentTarget.value })} /></label>
-      <div class="field reviewer-picks"><span>MR Reviewer</span><div>{members.slice(0, 50).map((member) => <label class="check-inline"><input type="checkbox" checked={form.reviewerIds.includes(member.id)} onChange={(event) => onUpdate({ reviewerIds: event.currentTarget.checked ? [...new Set([...form.reviewerIds, member.id])] : form.reviewerIds.filter((id) => id !== member.id) })} />{member.name}</label>)}</div></div>
-      <p class="subtle field-hint">Repo：{repo?.path ?? '尚未 Clone'}{root ? `　·　Worktree：${repo?.state ?? '未知'}` : ''}</p>
-      <label class="check-inline field-hint"><input type="checkbox" checked={form.acceptanceConfirmed} onChange={(event) => onUpdate({ acceptanceConfirmed: event.currentTarget.checked })} />我已使用 Megin 完成人工驗收，現在的差異就是已驗收內容</label>
-    </div>
-    <button class="primary" type="button" disabled={busy || repo?.state !== 'ready' || !form.workId || !form.summary || !form.changes || !form.tests || !form.acceptanceConfirmed} onClick={() => onPrepare(form)}>檢查交付並預覽差異</button>
-    {records.map((record) => <div class="delivery-record"><div class="panel-title"><div><strong>{record.workId}</strong><span class="subtle">　{record.branch} → {record.targetBranch}</span></div><span class={`pill ${record.gate.ok ? 'success' : 'danger'}`}>{record.gate.ok ? '驗收快照有效' : '驗收未通過'}</span></div>
-      <p><strong>Commit：</strong>{record.summary}　<strong>狀態：</strong>{({ preview: '待檢查差異', committed: '已 Commit', pushed: '已 Push', 'mr-created': 'MR 已建立' } as const)[record.state]}</p>
-      {record.gate.reasons.map((reason) => <p class="warning">{reason}</p>)}<p class="diff-stat">{record.diffStat || '目前沒有差異'}</p><p class="subtle">{record.changedFiles.join(' · ')}</p><details><summary>查看預覽差異</summary><pre>{record.diff || '沒有可顯示的差異。'}</pre></details>
-      {record.mergeRequestUrl && <button class="quiet" type="button" onClick={() => post({ type: 'openExternal', url: record.mergeRequestUrl! })}>開啟 GitLab MR</button>}
-      <div class="button-row">{record.state === 'preview' && <button class="secondary" type="button" disabled={busy || !record.gate.ok} onClick={() => onAction('commitDelivery', record)}>重新驗收並 Commit</button>}{record.state === 'committed' && <button class="secondary" type="button" disabled={busy} onClick={() => onAction('pushDelivery', record)}>Push 分支</button>}{record.state === 'pushed' && <button class="primary" type="button" disabled={busy} onClick={() => onAction('createDeliveryMergeRequest', record)}>建立 GitLab MR</button>}</div>
-    </div>)}
-  </>;
-}
-
-function TimeRow({ entry, edit, onEdit }: { entry: WorkspaceTimerEntry; edit?: { duration: string; summary: string; spentAt: string }; onEdit: (edit: { duration: string; summary: string; spentAt: string }) => void }) {
-  const value = edit ?? { duration: durationInput(entry.elapsedSeconds), summary: entry.summary, spentAt: entry.spentAt ?? '' };
-  return <div class="time-row"><span><strong>{fmtSeconds(entry.elapsedSeconds)}</strong>　{entry.phase === 'needs-review' ? '休眠後待確認' : entry.phase === 'uncertain' ? '送出結果待對帳' : entry.phase === 'sending' ? '送出中' : '待送出'}</span>
-    <input aria-label="工時長度" placeholder="45m" value={value.duration} onInput={(event) => onEdit({ ...value, duration: event.currentTarget.value })} />
-    <input aria-label="工時摘要" placeholder="工時摘要" value={value.summary} onInput={(event) => onEdit({ ...value, summary: event.currentTarget.value })} />
-    <input aria-label="工時日期" type="date" value={value.spentAt} onInput={(event) => onEdit({ ...value, spentAt: event.currentTarget.value })} />
-    <button class="quiet small" type="button" onClick={() => post({ type: 'updateTimeEntry', id: entry.id, ...value })}>儲存</button>
-    {entry.phase === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'submitTimeEntry', id: entry.id })}>送至 GitLab</button>}
-    {entry.phase === 'uncertain' && <button class="quiet small" type="button" onClick={() => post({ type: 'acknowledgeTimeEntry', id: entry.id })}>已對帳</button>}
-  </div>;
-}
-
 function Discussion({ discussion, onReply }: { discussion: NonNullable<WorkspaceSnapshot['selectedMergeRequest']>['discussions'][number]; onReply: (body: string) => void }) {
   const [reply, setReply] = useState('');
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => setReply(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); setReply(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, toolSource, versions, token, onToken, onSource, onVersion, onInstall, onList, onSaveToken, onRefresh, onClose }: {
+function ToolDrawer({ snapshot, toolSource, versions, token, onToken, onSource, onVersion, onInstall, onList, onSaveToken, onRefresh, onSelectGroup, onSelectWorkspace, onConnect, onClose }: {
   snapshot: WorkspaceSnapshot; toolSource: ToolSource; versions: Partial<Record<ToolId, string>>; token: string;
   onToken: (value: string) => void; onSource: (source: ToolSource) => void; onVersion: (tool: ToolId, version: string) => void;
-  onInstall: (tool: ToolId) => void; onList: (tool: ToolId) => void; onSaveToken: () => void; onRefresh: () => void; onClose: () => void;
+  onInstall: (tool: ToolId) => void; onList: (tool: ToolId) => void; onSaveToken: () => void; onRefresh: () => void;
+  onSelectGroup: () => void; onSelectWorkspace: () => void; onConnect: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '有新版本', checking: '檢查中', installing: '安裝中', error: '錯誤' };
-  return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
-    <div class="drawer-heading"><div><span class="eyebrow">共用抽屜</span><h2 id="tool-title">工具管理</h2></div><button class="quiet" type="button" onClick={onClose}>關閉</button></div>
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const closeHandler = useRef(onClose);
+  closeHandler.current = onClose;
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeHandler.current(); return; }
+      if (event.key !== 'Tab' || !drawerRef.current) return;
+      const focusable = [...drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])')];
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+  return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
+    <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
+    <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">本機路徑：{snapshot.groupRoot ?? '尚未設定。閱讀與討論 Issue 不需要本機路徑。'}</p><div class="button-row"><button type="button" onClick={onSelectGroup}>切換 Group</button><button class="primary" type="button" disabled={!snapshot.group} onClick={onSelectWorkspace}>選擇 Group 工作目錄</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" onClick={onConnect}>連線 GitLab</button></>}</section>
+    <section class="tool-settings"><h3>開發工具</h3>
     <label class="field">Release 來源<select value={toolSource} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="auto">自動：GitHub 優先，Gitea 備援</option><option value="github">GitHub</option><option value="gitea">內網 Gitea</option></select></label>
     {toolSource === 'gitea' && <div class="token-row"><label class="field">Gitea Token<input type="password" autoComplete="new-password" value={token} onInput={(event) => onToken(event.currentTarget.value)} /></label><button class="secondary" type="button" disabled={!token.trim()} onClick={onSaveToken}>安全保存</button></div>}
     <p class="source-lines">GitHub：github.com/dennis8499/{'{工具 Repo 名稱}'}<br />Gitea：tech-sharing.cathaysec.com.tw/01002903/{'{工具 Repo 名稱}'}</p>
@@ -470,6 +568,7 @@ function ToolDrawer({ snapshot, toolSource, versions, token, onToken, onSource, 
         <button class="primary" type="button" disabled={!snapshot.groupRoot || installed?.status === 'installing'} onClick={() => onInstall(tool.id)}>{installed?.status === 'installed' ? '更新工具' : '安裝工具'}</button>
       </section>;
     })}</div>
+    </section>
     <div class="drawer-footer"><span>Skill 安裝於 Group 工作區的 <code>.agents/skills/</code></span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查版本</button></div>
   </aside></div>;
 }

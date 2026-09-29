@@ -1,11 +1,17 @@
 import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
-import type { IssueFormOptions } from '../issues/protocol';
+import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer';
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'auto' | 'github' | 'gitea';
+export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
+export type IssueDetailTab = 'content' | 'development' | 'relations' | 'time';
+
+export type IssueNavigation =
+  | { mode: 'create'; revision: number }
+  | { mode: 'detail'; projectId: number; issueIid: number; tab?: IssueDetailTab; revision: number };
 
 export interface LocalRepositoryState {
   path: string;
@@ -105,6 +111,8 @@ export interface WorkspaceSnapshot {
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
   activeMode: WorkspaceMode;
+  instanceUserScope?: string;
+  connectedScope?: string;
   selectedProjectId?: number;
   selectedIssue?: { project: GitLabProject; issue: GitLabIssue };
   projectMembers: GitLabMember[];
@@ -123,17 +131,21 @@ export type WorkspaceRequest =
   | { type: 'ready' }
   | { type: 'refresh' }
   | { type: 'setMode'; mode: WorkspaceMode }
+  | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
+  | { type: 'closeIssue' }
   | { type: 'connect' }
   | { type: 'disconnect' }
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectWorkspace' }
   | { type: 'openLocalWorkspace' }
   | { type: 'openCodexTerminal' }
+  | { type: 'copyAndOpenCodex'; text: string; returnTo: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
   | { type: 'syncRepos' }
   | { type: 'selectProject'; projectId: number }
   | { type: 'selectIssue'; projectId: number; issueIid: number }
-  | { type: 'openIssue'; projectId: number; issueIid: number }
+  | { type: 'openIssue'; projectId: number; issueIid: number; tab?: IssueDetailTab }
+  | { type: 'createIssue' }
   | { type: 'copy'; text: string }
   | { type: 'importIssueDrafts'; json: string }
   | { type: 'createIssueDrafts'; analysisId: string; drafts: IssueDraft[]; options: Record<string, { assigneeId?: number; labels: string[]; milestoneId?: number }> }
@@ -176,6 +188,9 @@ export type WorkspaceResponse =
   | { type: 'deliveryProgress'; delivery: DeliveryPreview }
   | { type: 'draftOptions'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'similarIssues'; items: Array<{ draftId: string; projectPath: string; issues: Array<{ iid: number; title: string; webUrl: string }> }> }
+  | { type: 'issueResponse'; response: IssuePanelResponse; revision?: number }
+  | { type: 'issueNavigation'; navigation: IssueNavigation | null }
+  | { type: 'cloneOperation'; label: string; items: Array<{ projectPath: string; state: string; percent?: number; message?: string }> }
   | { type: 'reply'; requestId: string; value?: unknown; error?: string };
 
 export interface DeliveryPreview {

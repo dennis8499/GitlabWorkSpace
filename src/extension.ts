@@ -39,8 +39,8 @@ class GroupItem extends vscode.TreeItem {
     );
     this.contextValue = 'gitlabGroup';
     this.iconPath = new vscode.ThemeIcon('organization');
-    this.description = selected ? 'selected' : undefined;
-    this.command = { command: 'gitlabWorkspace.selectGroup', title: 'Select GitLab Group', arguments: [group] };
+    this.description = selected ? '目前選取' : undefined;
+    this.command = { command: 'gitlabWorkspace.selectGroup', title: '選擇 Group', arguments: [group] };
   }
 }
 
@@ -50,7 +50,7 @@ class IssueItem extends vscode.TreeItem {
   constructor(issue: GitLabIssue) {
     super(`#${issue.iid} ${issue.title}`, vscode.TreeItemCollapsibleState.None);
     this.issue = issue;
-    this.description = issue.state;
+    this.description = issue.state === 'opened' ? '未結案' : '已結案';
     this.tooltip = `${issue.title}\n${issue.web_url}`;
     this.contextValue = 'gitlabIssue';
     this.iconPath = new vscode.ThemeIcon(issue.state === 'opened' ? 'issues' : 'pass');
@@ -64,7 +64,7 @@ class IssueItem extends vscode.TreeItem {
 
 class IssueStateGroupItem extends vscode.TreeItem {
   constructor(readonly state: 'opened' | 'closed', readonly issues: GitLabIssue[]) {
-    const label = state === 'opened' ? 'Opened' : 'Closed';
+    const label = state === 'opened' ? '未結案' : '已結案';
     super(`${label} (${issues.length})`, vscode.TreeItemCollapsibleState.Collapsed);
     this.contextValue = 'gitlabIssueStateGroup';
     this.description = label;
@@ -141,24 +141,24 @@ export class RepositoryProvider implements vscode.TreeDataProvider<vscode.TreeIt
       const client = await this.session.getClient();
       if (element instanceof GroupItem) {
         if (this.syncCheckedGroup(this.session.selectedGroup?.id) !== element.group.id) {
-          return [new PlaceholderItem('Select this group to browse its repositories')];
+          return [new PlaceholderItem('選擇此 Group 以瀏覽專案')];
         }
         const projects = await client.listGroupProjects(element.group.id);
         if (this.session.selectedGroup?.id !== element.group.id) {
           this.syncCheckedGroup(this.session.selectedGroup?.id);
-          return [new PlaceholderItem('Select this group to browse its repositories')];
+          return [new PlaceholderItem('選擇此 Group 以瀏覽專案')];
         }
         this.reconcileCheckedProjects(element.group.id, projects);
         return projects.length
           ? projects.map((project) => new ProjectItem(project, element.group.id, this.checkedProjectIds.has(project.id)))
-          : [new PlaceholderItem('No repositories in this group')];
+          : [new PlaceholderItem('此 Group 沒有專案')];
       }
       const groups = await client.listGroups();
       this.syncCheckedGroup(this.session.selectedGroup?.id);
       const selectedId = this.session.selectedGroup?.id;
       return groups.length
         ? groups.map((group) => new GroupItem(group, group.id === selectedId))
-        : [new PlaceholderItem('No GitLab groups are available')];
+        : [new PlaceholderItem('目前帳號沒有可用的 GitLab Group')];
     } catch (error) {
       return [new PlaceholderItem(readableError(error))];
     }
@@ -209,10 +209,10 @@ export class IssueProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
     if (element instanceof IssueStateGroupItem) {
       return element.issues.length
         ? element.issues.map((issue) => new IssueItem(issue))
-        : [new PlaceholderItem(`No ${element.state} issues assigned to you in this group`)];
+        : [new PlaceholderItem(`目前沒有指派給你的${element.state === 'opened' ? '未結案' : '已結案'} Issue`)];
     }
     const group = this.session.selectedGroup;
-    if (!group) return [new PlaceholderItem('Select a GitLab group', 'gitlabWorkspace.selectGroup')];
+    if (!group) return [new PlaceholderItem('選擇 GitLab Group', 'gitlabWorkspace.selectGroup')];
     try {
       const client = await this.session.getClient();
       const projects = await client.listGroupProjects(group.id);
@@ -235,8 +235,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const repositories = new RepositoryProvider(session);
   const issues = new IssueProvider(session);
   const issuePanels = new IssuePanels(context, session, () => issues.refresh());
-  const workspacePanel = new WorkspacePanel(context, session, issuePanels);
   const cloneOutput = vscode.window.createOutputChannel('GitLab Workspace Repositories');
+  const cloneState = new CloneOperationGate();
+  const workspacePanel = new WorkspacePanel(context, session, issuePanels, async () => {
+    repositories.setSelectedGroup(session.selectedGroup?.id);
+    issues.refresh();
+    await updateCloneCommandContexts(session, cloneState);
+  });
   const repoTree = vscode.window.createTreeView('gitlabWorkspace.repositories', {
     treeDataProvider: repositories,
     showCollapseAll: false
@@ -245,27 +250,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeDataProvider: issues,
     showCollapseAll: false
   });
-  const cloneState = new CloneOperationGate();
   await updateCloneCommandContexts(session, cloneState);
   context.subscriptions.push(repoTree.onDidChangeCheckboxState((event) => repositories.updateCheckboxState(event.items)));
   context.subscriptions.push(repoTree, issueTree, issuePanels, workspacePanel, repositories, issues, cloneOutput);
   context.subscriptions.push(
     vscode.commands.registerCommand('gitlabWorkspace.openWorkspace', () => workspacePanel.show()),
-    vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels, cloneState)),
-    vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group, cloneState)),
-    vscode.commands.registerCommand('gitlabWorkspace.refresh', () => refreshTrees(repositories, issues)),
-    vscode.commands.registerCommand('gitlabWorkspace.disconnect', async () => {
-      issuePanels.close();
-      await session.disconnect();
-      repositories.setSelectedGroup(undefined);
-      issues.refresh();
-      await updateCloneCommandContexts(session, cloneState);
-      await vscode.window.showInformationMessage('Disconnected from GitLab.');
+    vscode.commands.registerCommand('gitlabWorkspace.connect', async () => {
+      await connectToGitLab(session, repositories, issues, issuePanels, cloneState);
+      await workspacePanel.refreshFromSidebar();
     }),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => cloneRepositories(session, repositories, 'pick', cloneState, cloneOutput)),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => cloneRepositories(session, repositories, 'all', cloneState, cloneOutput)),
-    vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => cloneRepositories(session, repositories, 'selected', cloneState, cloneOutput)),
-    vscode.commands.registerCommand('gitlabWorkspace.syncLocalDefaultBranches', () => syncLocalRepositories(session, cloneState, cloneOutput)),
+    vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => workspacePanel.selectGroupFromSidebar(group)),
+    vscode.commands.registerCommand('gitlabWorkspace.refresh', async () => {
+      refreshTrees(repositories, issues);
+      await workspacePanel.refreshFromSidebar();
+    }),
+    vscode.commands.registerCommand('gitlabWorkspace.disconnect', () => workspacePanel.disconnectFromSidebar()),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => workspacePanel.cloneFromSidebar('pick')),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneAllRepositories', () => workspacePanel.cloneFromSidebar('all')),
+    vscode.commands.registerCommand('gitlabWorkspace.cloneSelectedRepositories', () => workspacePanel.cloneFromSidebar('selected', (projects, groupId) => resolveCloneCandidates('selected', groupId, projects, repositories).map((project) => project.id))),
+    vscode.commands.registerCommand('gitlabWorkspace.syncLocalDefaultBranches', () => workspacePanel.syncFromSidebar()),
     vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
       if (item?.issue) await issuePanels.showIssue(item.issue);
@@ -288,8 +291,8 @@ async function connectToGitLab(
 ): Promise<void> {
   const currentUrl = session.baseUrl ?? '';
   const baseUrl = await vscode.window.showInputBox({
-    title: 'Connect to GitLab',
-    prompt: 'Enter the full GitLab base URL (HTTP or HTTPS). HTTP sends your token without encryption.',
+    title: '連線至 GitLab',
+    prompt: '輸入完整 GitLab 網址（HTTP 或 HTTPS）。HTTP 不會加密 Token 傳輸。',
     value: currentUrl,
     placeHolder: 'https://gitlab.example.com or http://gitlab.local:8929',
     ignoreFocusOut: true,
@@ -301,21 +304,21 @@ async function connectToGitLab(
   if (!baseUrl) return;
   const token = await vscode.window.showInputBox({
     title: 'GitLab Personal Access Token',
-    prompt: 'Token must be able to call the GitLab API and clone private repositories.',
+    prompt: 'Token 需具備呼叫 GitLab API 的 api 範圍，並有權下載目標私有專案。',
     password: true,
     ignoreFocusOut: true,
     validateInput: (value) => value.trim() ? undefined : 'Enter an access token.'
   });
   if (!token) return;
 
-  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Connecting to GitLab…', cancellable: false }, async () => {
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在連線 GitLab…', cancellable: false }, async () => {
     try {
       const user = await session.connect(baseUrl, token);
       issuePanels.close();
       repositories.clearCheckedProjects();
       issues.refresh();
       await updateCloneCommandContexts(session, cloneState);
-      await vscode.window.showInformationMessage(`Connected to GitLab as ${user.name} (@${user.username}).`);
+      await vscode.window.showInformationMessage(`已連線至 GitLab：${user.name} (@${user.username})`);
     } catch (error) {
       await vscode.window.showErrorMessage(readableError(error));
     }
@@ -324,42 +327,6 @@ async function connectToGitLab(
 
 function normalizeUrlForPrompt(value: string): string {
   return normalizeGitLabBaseUrl(value);
-}
-
-async function selectGroup(
-  session: GitLabSession,
-  repositories: RepositoryProvider,
-  issues: IssueProvider,
-  requestedGroup: GitLabGroup | undefined,
-  cloneState: CloneOperationGate
-): Promise<void> {
-  try {
-    if (requestedGroup) {
-      await session.setSelectedGroup(requestedGroup);
-      repositories.setSelectedGroup(requestedGroup.id);
-      issues.refresh();
-      await updateCloneCommandContexts(session, cloneState);
-      return;
-    }
-    const client = await session.getClient();
-    const groups = await client.listGroups();
-    if (!groups.length) {
-      await vscode.window.showInformationMessage('No GitLab groups are available for this account.');
-      return;
-    }
-    const selected = await vscode.window.showQuickPick(groups.map((group) => ({ label: group.full_path, description: group.name, group })), {
-      title: 'Select GitLab Group',
-      placeHolder: 'Groups where you are a member',
-      ignoreFocusOut: true
-    });
-    if (!selected) return;
-    await session.setSelectedGroup(selected.group);
-    repositories.setSelectedGroup(selected.group.id);
-    issues.refresh();
-    await updateCloneCommandContexts(session, cloneState);
-  } catch (error) {
-    await vscode.window.showErrorMessage(readableError(error));
-  }
 }
 
 function refreshTrees(repositories: RepositoryProvider, issues: IssueProvider): void {

@@ -176,6 +176,13 @@ Feature: GitLab CE Issue work inside VS Code
     When I open the issue in GitLab
     Then the host receives an explicit GitLab open request
 
+  @automated @SCN-030
+  Scenario: The integrated Issue view guides work through four task tabs
+    Given the Issue Webview is ready with an editable issue
+    Then the detail shows the four task tabs and opens on content
+    When I visit each Issue task tab
+    Then the selected tab displays the matching section
+
   @human @SCN-019
   Scenario: An unassigned CE issue is created and opened inside VS Code
     Given VS Code is connected to the local CE instance with a test token

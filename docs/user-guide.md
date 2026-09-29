@@ -1,60 +1,53 @@
 # 使用指南
 
-本指南說明如何連線至 GitLab、瀏覽群組專案、複製或更新儲存庫，以及在 VS Code 中管理議題。
+GitLab Workspace 將專案、需求分析、Issue 討論與交付集中在同一個工作台。第一次使用只需連線 GitLab 並選擇群組；閱讀或討論 Issue 不需要設定本機工作目錄。
 
-## 連線至 GitLab
+## 連線與選擇群組
 
-1. 在活動列開啟 **GitLab Workspace**。
-2. 在 **Repositories** 檢視選擇 **Connect**，輸入完整的 GitLab 網址。支援 HTTP、HTTPS、自架網域、連接埠及安裝路徑，例如 `https://gitlab.example.com/gitlab`。
-3. 輸入具有 `api` 範圍的 Personal Access Token。連線時會呼叫 GitLab `GET /user` 驗證；驗證成功後，Token 會儲存在 VS Code `SecretStorage`。
-4. 選擇 **Select Group**，再選取要瀏覽的群組。
+1. 在 VS Code 活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**。
+2. 選擇 **連線 GitLab**，輸入完整網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`。
+3. 輸入具有 `api` 範圍的 Personal Access Token。擴充功能會以 `GET /user` 驗證，並將 Token 存在 VS Code `SecretStorage`。
+4. 選擇要工作的群組。可從工作台上方切換群組。
 
-HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。只有在你信任並控制的網路中才使用 HTTP。
+HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。Token 不會寫入擴充功能設定或 Git remote URL。使用帳號選單中的 **中斷連線** 可清除已儲存的連線資料；系統會先顯示確認訊息。
 
-Token 不會寫入擴充功能設定或 Git remote URL。複製儲存庫時，Git 子程序會透過暫時的 Git 設定取得驗證資訊。中斷連線請執行命令面板中的 **GitLab Workspace: Disconnect**；這會移除已儲存的 Token、GitLab 網址與群組選擇。
+## 工作台導覽
 
-## 瀏覽、複製及更新儲存庫
+側邊導覽固定有四個工作區：
 
-選取群組後，**Repositories** 會顯示該群組及子群組中的專案。可用以下方式複製：
+- **我的工作**：預設顯示指派給目前帳號的未結案 Issue。可搜尋標題、Repo 或編號，篩選狀態、專案與標籤，並新增 Issue。開啟後，Issue 詳情直接出現在同一工作台。
+- **專案**：查看群組 Repo、預設分支與本機狀態。勾選後使用 **下載／更新選取項目（數量）**；全部下載、同步預設分支及工作目錄設定在 **更多專案操作** 中。結果會逐項說明完成、略過或失敗原因。
+- **需求分析**：先選分析範圍與背景，再複製任務並開啟 Codex CLI、匯入結果，最後逐項確認草稿並建立 Issue。可回到前一步修改，JSON 格式說明收在輔助資訊中。
+- **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
 
-- **Clone or Update All Repositories**：複製尚未存在的專案，並同步已存在的 Repo。
-- 勾選專案後選擇 **Clone or Update Checked Repositories**：只處理勾選項目。
-- 從命令面板執行 **GitLab Workspace: Choose Repositories to Clone or Update**：開啟多選清單。
+狹窄面板會一次顯示清單或詳情。進入詳情後可按 **返回清單**；搜尋、篩選與選取會依 GitLab 執行個體、帳號和群組保留。
 
-單一工作區資料夾會直接作為目的地；多根工作區會先要求選擇資料夾；沒有開啟工作區時，可選擇本機資料夾。每個專案會建立在目的地下以專案名稱命名的子資料夾。Git 必須已安裝且可從 `PATH` 執行。
+## Issue 詳情與建立
 
-開始操作前，擴充功能會檢查整批目的地。已存在的資料夾必須是對應 GitLab 專案的 Repo，且其 HTTPS 或 SSH origin 必須吻合；一般資料夾、其他 Repo 或不安全路徑會讓整批在啟動前停止。
+Issue 詳情分成四個任務分頁：
 
-既有 Repo 會切換到 GitLab 專案的預設分支並快轉到遠端最新提交。若有已暫存、未暫存或未追蹤的本機檔案，或本地主線與遠端分歧，擴充功能會保留現況、略過該 Repo 並繼續其他項目。略過原因會列在完成通知的 **Show Details** 中。Clone 或 Git 更新失敗時，已完成的 Repo 會保留，後續項目會略過。
+1. **內容與討論**：閱讀 Markdown、編輯需求、預覽內容、上傳附件、留言及回覆討論串。指派對象、標籤、里程碑等收在可展開的屬性區。
+2. **開發與交付**：先確認 Repo 與工作目錄狀態，再複製任務並開啟 Codex CLI。準備交付後依序預覽差異、Commit、Push、建立 MR；各階段狀態與重試入口會保留在此分頁。
+3. **關聯與子工作**：管理關聯 Issue、子工作、訂閱與待辦。
+4. **工時**：使用計時器、登錄或編輯手動工時、查看 GitLab 紀錄與預估。舊版沒有 Issue 歸屬的工時草稿會保留；選擇目標專案和 Issue 編號後才能恢復。
 
-GitLab 提供的 HTTP clone URL 必須與已設定伺服器使用相同的通訊協定、主機與連接埠。這項檢查可避免將驗證資訊交給不同的伺服器。
+指派對象、標籤與里程碑集中於 **屬性**。訂閱、待辦、移動、複製和刪除位於具名的 **更多 Issue 操作**。按鈕依帳號權限與 GitLab API 能力顯示。建立 Issue 時先選專案、標題與描述；其他欄位可接著填寫。成功後新 Issue 立即在同一工作台開啟，即使它沒有指派給你。
 
-## 一鍵 Fetch 並更新本地主線
+需求分析、開發和審查都可選擇 **複製任務並開啟 Codex CLI**。複製後請貼到 CLI 執行，再回到畫面指定的結果區貼上或確認結果。
 
-在 **Repositories** 檢視選擇 **GitLab Workspace: Fetch and Pull Local Default Branches**，同步所選群組中已下載至工作區資料夾的 Repo。單一工作區資料夾會直接使用；多根工作區或沒有開啟工作區時，先選擇 Repo 所在的資料夾。此命令不會下載尚未存在的 Repo。
+Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自保存工作目錄；如果 Issue 屬於其他群組，閱讀和討論仍可用，工作台會提示要到設定選擇對應目錄。
 
-只有目前位於 GitLab 預設分支且工作目錄乾淨的 Repo 會更新。功能分支、含本機變更或與遠端分歧的 Repo 會略過並列出原因；單一 Repo 的 Git 錯誤會記錄下來，其他 Repo 仍會繼續同步。完成通知可開啟 **Show Details** 查看結果。
+## 專案與 Git 操作
 
-## 查看及管理議題
+在 **專案** 勾選一個或多個 Repo，再執行 **下載／更新選取項目**。單一工作區資料夾會直接作為目的地；多根工作區會先要求選擇資料夾；沒有開啟工作區時，可在設定選擇本機目錄。Git 必須已安裝且可從 `PATH` 執行。
 
-**My Issues** 顯示目前登入帳號在所選群組專案中被指派的開啟與已關閉議題。切換群組會改變清單範圍；選擇檢視標題列的重新整理按鈕或執行 **GitLab Workspace: Refresh** 可重新載入資料。
+開始前會檢查整批目的地。已存在的資料夾必須是相符 GitLab 專案的 Repo，且 HTTPS 或 SSH origin 必須吻合。預設分支只會在工作目錄乾淨、位於預設分支並能快轉時更新；有本機變更或分歧的 Repo 會略過並列出原因。工作台逐項保留結果。
 
-使用 **Create Issue** 建立議題。表單可選擇專案、填寫標題及 Markdown 描述、預覽內容、附加檔案，並設定指派對象、標籤、里程碑、到期日、開始日期與機密狀態。開始日期欄位只會在 GitLab 伺服器支援時顯示。建立完成後，議題會立即開啟；若新議題沒有指派給你，它不會出現在 **My Issues** 清單中。
+## 命令面板
 
-開啟議題後，可依帳號權限與 GitLab 伺服器能力編輯欄位、關閉或重新開啟議題、參與 Markdown 討論、附加檔案、管理關聯議題與子工作項目、加入表情回應、管理通知與待辦、記錄工時，以及複製、移動或刪除議題。移動議題前會顯示確認訊息；GitLab 會在移動後關閉原議題。
-
-編輯、討論及議題生命週期操作會依 GitLab 回報的權限顯示。子工作項目、開始日期和討論串解決等功能也會依伺服器 API 能力而異；擴充功能會在能力無法確認或不支援時顯示提示。
-
-## 相關命令
-
-在命令面板搜尋以下命令：
-
-- **GitLab Workspace: Connect**：連線或更新 GitLab 連線。
-- **GitLab Workspace: Select Group**：選擇作用中的群組。
-- **GitLab Workspace: Refresh**：重新載入儲存庫與議題檢視。
-- **GitLab Workspace: Choose Repositories to Clone or Update**：挑選要複製或更新的專案。
-- **GitLab Workspace: Clone or Update All Repositories**：處理所選群組中的所有專案。
-- **GitLab Workspace: Clone or Update Checked Repositories**：處理勾選的專案。
-- **GitLab Workspace: Fetch and Pull Local Default Branches**：只同步所選群組中已存在於本機的 Repo。
-- **GitLab Workspace: Create Issue**：建立議題。
-- **GitLab Workspace: Disconnect**：移除已儲存的連線資訊。
+- **GitLab Workspace: 開啟工作台**：開啟整合工作台。
+- **GitLab Workspace: 我的工作／專案／需求分析／待審查**：直接切換至對應工作區；既有命令 ID 仍保留相容性。
+- **GitLab Workspace: 連線 GitLab**、**選擇 Group**、**重新整理工作台**：管理連線、群組與資料。
+- **GitLab Workspace: 選擇要下載或更新的專案**、**下載或更新全部專案**、**下載或更新選取專案**、**更新本機預設分支**：執行 Repo 操作。
+- **GitLab Workspace: 新增 Issue**、**開啟 Issue 詳情**：在同一工作台建立或開啟 Issue。
+- **GitLab Workspace: 中斷連線**：確認後清除連線資料。

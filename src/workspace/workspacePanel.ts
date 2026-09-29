@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { access, mkdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabClient } from '../api/gitLabClient';
-import type { GitLabIssue, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, syncLocalDefaultBranches } from '../git/cloneService';
@@ -15,8 +15,8 @@ import { evaluateMeginDeliveryGate } from './deliveryGate';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { ReleaseDownloadError, ToolReleaseManager, TOOL_SOURCE_KEY } from './releaseManager';
 import type {
-  BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledToolState, IssueDraft,
-  MergeRequestDetail, ToolId, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
+  BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledToolState, IssueDetailTab, IssueDraft,
+  IssueNavigation, MergeRequestDetail, ToolId, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote } from '../api/urlPolicy';
@@ -52,6 +52,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private toolStates: InstalledToolState[] = [];
   private busy = false;
   private requestGeneration = 0;
+  private issueOpenGeneration = 0;
+  private loadedScopeKey?: string;
   private disposed = false;
   private timerQueue: Promise<unknown> = Promise.resolve();
   private issuePublishQueue: Promise<unknown> = Promise.resolve();
@@ -59,12 +61,18 @@ export class WorkspacePanel implements vscode.Disposable {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly session: GitLabSession,
-    private readonly issuePanels: IssuePanels
+    private readonly issuePanels: IssuePanels,
+    private readonly syncSidebarState?: () => void | Promise<void>
   ) {
     this.roots = new GroupWorkspaceRegistry(context.globalState);
     this.timer = new IssueTimeTracker(context.globalState);
     this.releases = new ToolReleaseManager(context.secrets);
-    this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'clone');
+    this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
+    this.issuePanels.setWorkspace({
+      post: (message) => this.post(message),
+      show: () => this.show('developer'),
+      navigate: (navigation) => { if (navigation) this.activeMode = 'developer'; this.post({ type: 'issueNavigation', navigation }); }
+    });
     this.interval = setInterval(() => { void this.onTick(); }, 1000);
   }
 
@@ -102,6 +110,49 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.refresh();
   }
 
+  async refreshFromSidebar(): Promise<void> {
+    this.issueOpenGeneration++;
+    await this.refresh();
+    await this.syncSidebarState?.();
+  }
+
+  async selectGroupFromSidebar(group?: GitLabGroup): Promise<void> {
+    await this.selectGroup(group?.id);
+  }
+
+  async disconnectFromSidebar(): Promise<void> {
+    await this.disconnect();
+  }
+
+  async cloneFromSidebar(
+    mode: 'all' | 'selected' | 'pick',
+    selectedIds?: (projects: readonly GitLabProject[], groupId: number) => number[]
+  ): Promise<void> {
+    try {
+      await this.show('clone');
+      const group = this.session.selectedGroup;
+      if (!group) { this.post({ type: 'error', message: '請先連線 GitLab 並選擇 Group。' }); return; }
+      if (mode === 'pick') {
+        const picks = await vscode.window.showQuickPick(this.projects.map((project) => ({
+          label: project.name, description: project.namespace?.full_path ?? project.path_with_namespace, detail: project.path, project
+        })), { title: '選擇要下載或更新的專案', placeHolder: '可複選 Repo', canPickMany: true, ignoreFocusOut: true });
+        if (!picks?.length) return;
+        await this.clone(picks.map((item) => item.project.id), false);
+      } else if (mode === 'all') {
+        await this.clone([], true);
+      } else {
+        const ids = selectedIds?.(this.projects, group.id) ?? [];
+        if (!ids.length) { this.post({ type: 'message', message: '請先在專案清單勾選要下載或更新的 Repo。' }); return; }
+        await this.clone(ids, false);
+      }
+    } catch (error) { this.post({ type: 'error', message: readableError(error) }); }
+  }
+
+  async syncFromSidebar(): Promise<void> {
+    try { await this.show('clone'); await this.syncRepos(); }
+    catch (error) { this.post({ type: 'error', message: readableError(error) }); }
+  }
+
   private post(message: unknown): void {
     if (this.panel) void this.panel.webview.postMessage(message);
   }
@@ -118,17 +169,28 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
         this.sendSnapshot();
         break;
+      case 'issueRequest':
+        try { await this.issuePanels.handle(request.request, request.revision); }
+        catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error) } }); }
+        break;
+      case 'closeIssue': this.issueOpenGeneration++; this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
       case 'disconnect': await this.disconnect(); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectWorkspace': await this.selectWorkspace(); break;
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;
+      case 'copyAndOpenCodex':
+        await vscode.env.clipboard.writeText(request.text);
+        await this.openCodexTerminal();
+        this.post({ type: 'message', message: `提示詞已複製，Codex CLI 已開啟。請貼上提示詞執行，完成後將結果貼回「${request.returnTo}」。` });
+        break;
       case 'clone': await this.clone(request.projectIds, !!request.cloneAll); break;
       case 'syncRepos': await this.syncRepos(); break;
       case 'selectProject': this.selectedProjectId = request.projectId; await this.context.globalState.update('gitlabWorkspace.selectedProjectId', request.projectId); this.sendSnapshot(); break;
       case 'selectIssue': await this.selectIssue(request.projectId, request.issueIid); break;
-      case 'openIssue': await this.openIssue(request.projectId, request.issueIid); break;
+      case 'openIssue': await this.openIssue(request.projectId, request.issueIid, request.tab); break;
+      case 'createIssue': this.issueOpenGeneration++; await this.issuePanels.showCreate(); break;
       case 'copy': await vscode.env.clipboard.writeText(request.text); this.post({ type: 'message', message: '已複製到剪貼簿，可貼入 Codex CLI。' }); break;
       case 'importIssueDrafts': this.post({ type: 'draftBundle', bundle: parseIssueDraftBundle(request.json) }); break;
       case 'createIssueDrafts': await this.createDrafts(request.analysisId, request.drafts, request.options); break;
@@ -180,6 +242,12 @@ export class WorkspacePanel implements vscode.Disposable {
       this.groups = groups;
       await this.timer.setScope(this.session.baseUrl, user.id);
       const group = this.session.selectedGroup;
+      const scopeKey = `${this.session.baseUrl}|${user.id}|${group?.id ?? 'none'}`;
+      if (scopeKey !== this.loadedScopeKey) {
+        this.loadedScopeKey = scopeKey;
+        this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
+        this.projectMembers = []; this.selectedProjectId = undefined;
+      }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
         this.toolStates = await this.releases.installedStates(undefined, this.toolSource());
@@ -256,6 +324,12 @@ export class WorkspacePanel implements vscode.Disposable {
       issues: this.issues,
       mergeRequests: this.mergeRequests,
       activeMode: this.activeMode,
+      instanceUserScope: this.session.baseUrl && this.currentUser
+        ? createHash('sha256').update(`${this.session.baseUrl}\0${this.currentUser.id}`).digest('hex').slice(0, 24)
+        : undefined,
+      connectedScope: this.session.baseUrl && this.currentUser && this.session.selectedGroup
+        ? createHash('sha256').update(`${this.session.baseUrl}\0${this.currentUser.id}\0${this.session.selectedGroup.id}`).digest('hex').slice(0, 24)
+        : undefined,
       selectedProjectId: this.selectedProjectId,
       selectedIssue: this.selectedIssue,
       selectedMergeRequest: this.selectedMergeRequest,
@@ -274,32 +348,49 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!baseUrl) return;
     const token = await vscode.window.showInputBox({ title: 'GitLab Personal Access Token', prompt: 'Token 儲存在 VS Code SecretStorage。', password: true, ignoreFocusOut: true });
     if (!token) return;
+    const previousBaseUrl = this.session.baseUrl;
+    const previousUserId = this.currentUser?.id;
     const user = await this.session.connect(baseUrl, token);
     this.currentUser = user;
-    await this.selectGroup();
+    if (previousBaseUrl !== this.session.baseUrl || previousUserId !== user.id) {
+      this.issueOpenGeneration++;
+      this.issuePanels.close();
+    }
+    const selected = await this.selectGroup();
+    if (!selected) {
+      await this.refresh();
+      await this.syncSidebarState?.();
+    }
     this.post({ type: 'message', message: `已連線：${user.name}` });
   }
 
   private async disconnect(): Promise<void> {
     const confirm = await vscode.window.showWarningMessage('中斷 GitLab 連線？本機 Repo、草稿及計時紀錄會保留。', { modal: true }, '中斷連線');
     if (confirm !== '中斷連線') return;
+    this.issueOpenGeneration++;
+    this.issuePanels.close();
     await this.session.disconnect();
     this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
     this.currentUser = undefined; this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
     this.sendSnapshot();
+    await this.syncSidebarState?.();
   }
 
-  private async selectGroup(groupId?: number): Promise<void> {
+  private async selectGroup(groupId?: number): Promise<boolean> {
     const groups = this.session.baseUrl ? await (await this.session.getClient()).listGroups() : [];
     const selected = groupId ? groups.find((item) => item.id === groupId) : await vscode.window.showQuickPick(
       groups.map((group) => ({ label: group.full_path, description: group.name, group })),
       { title: '選擇 GitLab Group', placeHolder: '選取工作群組' }
     ).then((item) => item?.group);
-    if (!selected) return;
+    if (!selected) return false;
+    this.issueOpenGeneration++;
+    if (this.issuePanels.activeNavigationMode === 'create') this.issuePanels.close();
     await this.session.setSelectedGroup(selected);
     this.selectedIssue = undefined; this.selectedMergeRequest = undefined; this.projects = [];
     this.projectMembers = [];
     await this.refresh();
+    await this.syncSidebarState?.();
+    return true;
   }
 
   private async selectWorkspace(): Promise<void> {
@@ -334,24 +425,41 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async clone(projectIds: number[], cloneAll: boolean): Promise<void> {
     const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    let root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
-    if (!root) { await this.selectWorkspace(); return; }
+    if (this.busy) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    if (!root) {
+      this.post({ type: 'message', message: '下載或更新 Repo 需要先設定這個 Group 的工作目錄。' });
+      await this.selectWorkspace();
+      root = this.roots.getRoot(this.session.baseUrl, group.id);
+      if (!root) return;
+    }
     const client = await this.session.getClient();
     const projects = this.projects.length ? this.projects : await client.listGroupProjects(group.id);
     const chosen = cloneAll ? projects : projects.filter((project) => projectIds.includes(project.id));
     if (!chosen.length) throw new Error('請先選擇至少一個 Repo。');
     const destinations = chosen.map((project) => `${localRepositoryState(root, groupRepositoryPath(root, project, projects)) === 'ready' ? '更新' : 'Clone'}　${project.path_with_namespace} → ${groupRepositoryPath(root, project, projects)}`);
-    const confirm = await vscode.window.showInformationMessage(`即將在 ${root} 執行 ${chosen.length} 個 Repo 操作：\n${destinations.join('\n')}`, { modal: true }, '開始');
+    const confirm = await vscode.window.showInformationMessage(`即將在 ${root} 處理 ${chosen.length} 個 Repo：\n${destinations.join('\n')}`, { modal: true }, '開始');
     if (confirm !== '開始') return;
     const credentials = await this.session.getCloneCredentials();
+    const operationItems = new Map<string, { projectPath: string; state: string; percent?: number; message?: string }>(chosen.map((project) => [project.path_with_namespace, { projectPath: project.path_with_namespace, state: '等待中' }]));
+    const publishOperation = (label: string): void => this.post({ type: 'cloneOperation', label, items: [...operationItems.values()] });
     this.busy = true; this.sendSnapshot();
+    publishOperation('下載／更新進度');
     try {
-      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'GitLab Repo Clone', cancellable: false }, async (progress) =>
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '下載／更新 GitLab Repo', cancellable: false }, async (progress) =>
         cloneProjects(root, chosen, credentials.baseUrl, credentials.token, (event) => {
-          progress.report({ message: `${event.project.path_with_namespace}: ${event.state}${event.percent === undefined ? '' : ` ${event.percent}%`}`, increment: 0 });
+          operationItems.set(event.project.path_with_namespace, { projectPath: event.project.path_with_namespace, state: event.state, percent: event.percent, message: event.message });
+          publishOperation('下載／更新進度');
+          const state = event.state === 'starting' ? '準備中' : event.state === 'progress' ? '處理中' : event.state === 'completed' ? '已完成' : event.state === 'skipped' ? '略過' : event.state === 'failed' ? '失敗' : event.state;
+          progress.report({ message: `${event.project.path_with_namespace}：${state}${event.percent === undefined ? '' : ` ${event.percent}%`}`, increment: 0 });
         }, { resolveProject: (project) => client.getProject(project.id), groupProjects: projects })
       );
+      for (const project of result.cloned) operationItems.set(project.path_with_namespace, { projectPath: project.path_with_namespace, state: '成功', message: '已下載' });
+      for (const project of result.updated) operationItems.set(project.path_with_namespace, { projectPath: project.path_with_namespace, state: '成功', message: '已更新' });
+      for (const item of result.skipped) operationItems.set(item.project.path_with_namespace, { projectPath: item.project.path_with_namespace, state: '略過', message: item.reason });
+      if (result.failed) operationItems.set(result.failed.path_with_namespace, { projectPath: result.failed.path_with_namespace, state: '失敗', message: result.failureReason ?? '操作失敗' });
+      publishOperation('Repo 操作結果');
       this.post({ type: 'message', message: `完成 ${result.cloned.length} 個 Clone、${result.updated.length} 個更新，${result.skipped.length} 個略過${result.failed ? `；${result.failed.path_with_namespace} 失敗` : ''}。` });
       if (result.failed) await vscode.window.showErrorMessage(`${result.failed.path_with_namespace} Clone／更新失敗，可重新選取該 Repo 重試。`);
     } finally { this.busy = false; await this.refresh(); }
@@ -359,16 +467,49 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async syncRepos(): Promise<void> {
     const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!group || !root) throw new Error('請先選擇 Group 工作目錄。');
+    let root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    if (!group) throw new Error('請先選擇 Group。');
+    if (this.busy) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    if (!root) {
+      this.post({ type: 'message', message: '同步預設分支需要先設定這個 Group 的工作目錄。' });
+      await this.selectWorkspace();
+      root = this.session.baseUrl ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+      if (!root) return;
+    }
     const confirm = await vscode.window.showWarningMessage(`Fetch 並 Pull ${group.full_path} 下所有已 Clone Repo 的預設分支？本機分支不會刪除。`, { modal: true }, '更新預設分支');
     if (confirm !== '更新預設分支') return;
-    const client = await this.session.getClient();
-    const credentials = await this.session.getCloneCredentials();
-    const results = await syncLocalDefaultBranches(root, this.projects, credentials.baseUrl, credentials.token, () => undefined,
-      { resolveProject: (project) => client.getProject(project.id) });
-    this.post({ type: 'message', message: `已更新 ${results.updated.length} 個預設分支；${results.upToDate.length} 個已是最新、${results.skipped.length + results.failed.length} 個需處理。` });
-    await this.refresh();
+    const operationItems = new Map<string, { projectPath: string; state: string; percent?: number; message?: string }>(this.projects.map((project) => [project.path_with_namespace, { projectPath: project.path_with_namespace, state: '等待中' }]));
+    const publishOperation = (): void => this.post({ type: 'cloneOperation', label: '預設分支同步結果', items: [...operationItems.values()] });
+    this.busy = true;
+    this.sendSnapshot();
+    publishOperation();
+    try {
+      const client = await this.session.getClient();
+      const credentials = await this.session.getCloneCredentials();
+      const results = await syncLocalDefaultBranches(root, this.projects, credentials.baseUrl, credentials.token, (event) => {
+        operationItems.set(event.project.path_with_namespace, { projectPath: event.project.path_with_namespace, state: event.state, percent: event.percent, message: event.message });
+        publishOperation();
+      }, { resolveProject: (project) => client.getProject(project.id) });
+      const touched = new Set([...results.updated, ...results.upToDate, ...results.skipped.map((item) => item.project), ...results.failed.map((item) => item.project)].map((project) => project.path_with_namespace));
+      for (const project of this.projects) if (!touched.has(project.path_with_namespace)) operationItems.set(project.path_with_namespace, { projectPath: project.path_with_namespace, state: '略過', message: '尚未下載到本機，略過同步' });
+      for (const project of results.updated) operationItems.set(project.path_with_namespace, { projectPath: project.path_with_namespace, state: '成功', message: '預設分支已更新' });
+      for (const project of results.upToDate) operationItems.set(project.path_with_namespace, { projectPath: project.path_with_namespace, state: '略過', message: '已是最新版本' });
+      for (const item of results.skipped) operationItems.set(item.project.path_with_namespace, { projectPath: item.project.path_with_namespace, state: '略過', message: item.reason });
+      for (const item of results.failed) operationItems.set(item.project.path_with_namespace, { projectPath: item.project.path_with_namespace, state: '失敗', message: item.reason });
+      publishOperation();
+      this.post({ type: 'message', message: `已更新 ${results.updated.length} 個預設分支；${results.upToDate.length} 個已是最新、${results.skipped.length + results.failed.length} 個需處理。` });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : '同步作業失敗。';
+      for (const [key, item] of operationItems) {
+        if (item.state === '等待中' || item.state === 'starting' || item.state === 'progress') operationItems.set(key, { projectPath: item.projectPath, state: '失敗', message: reason });
+      }
+      publishOperation();
+      throw error;
+    } finally {
+      this.busy = false;
+      this.sendSnapshot();
+      await this.refresh();
+    }
   }
 
   private async selectIssue(projectId: number, issueIid: number): Promise<void> {
@@ -382,16 +523,23 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
   }
 
-  private async openIssue(projectId: number, issueIid: number): Promise<void> {
+  private async openIssue(projectId: number, issueIid: number, tab?: IssueDetailTab): Promise<void> {
+    const generation = ++this.issueOpenGeneration;
+    const baseUrl = this.session.baseUrl;
+    const groupId = this.session.selectedGroup?.id;
     requireIssueIid(issueIid);
     const project = this.requireGroupProject(projectId);
     const client = await this.session.getClient();
-    const [issue, fullProject] = await Promise.all([client.getIssue(projectId, issueIid), Promise.resolve(project)]);
+    const [issue, projectMembers] = await Promise.all([
+      client.getIssue(projectId, issueIid), client.listProjectMembers(projectId).catch(() => [])
+    ]);
+    if (generation !== this.issueOpenGeneration || baseUrl !== this.session.baseUrl || groupId !== this.session.selectedGroup?.id) return;
+    const fullProject = project;
     this.selectedIssue = { project: fullProject, issue };
-    this.projectMembers = await client.listProjectMembers(projectId).catch(() => []);
+    this.projectMembers = projectMembers;
     await this.context.globalState.update(this.selectedIssueKey(), { projectId, issueIid });
     this.sendSnapshot();
-    await this.issuePanels.showIssue(issue);
+    await this.issuePanels.showIssue(issue, tab);
   }
 
   private async loadDraftOptions(projectId: number): Promise<void> {

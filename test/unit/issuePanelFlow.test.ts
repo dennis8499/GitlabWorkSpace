@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { ExtensionContext } from 'vscode';
 import type { GitLabSession } from '../../src/connection/session';
 import type { IssuePanelResponse } from '../../src/issues/protocol';
+import type { WorkspaceResponse } from '../../src/workspace/workspaceProtocol';
 
 test('an unassigned creation opens detail and a later issue selection wins a pending load', async () => {
   const issue = { id: 401, iid: 7, project_id: 42, title: 'New unassigned issue', description: '', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7', updated_at: '2026-09-24T00:00:00Z', assignees: [] };
@@ -31,17 +32,10 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   const messages: IssuePanelResponse[] = [];
   const externalUrls: string[] = [];
   let externalOpenResult = true;
-  const webview = {
-    cspSource: 'vscode-resource:', asWebviewUri: (uri: unknown) => String(uri),
-    onDidReceiveMessage: () => ({ dispose() {} }), postMessage: async (message: IssuePanelResponse) => { messages.push(message); return true; }, html: ''
-  };
   const vscode = {
     Uri: { joinPath: (...parts: unknown[]) => parts.join('/'), parse: (href: string) => ({ href }) }, ViewColumn: { Active: 1 },
     env: { openExternal: async (uri: { href: string }) => { externalUrls.push(uri.href); return externalOpenResult; } },
-    window: {
-      createWebviewPanel: () => ({ webview, reveal() {}, onDidDispose: () => ({ dispose() {} }), dispose() {}, title: '' }),
-      showWarningMessage: async () => undefined
-    }
+    window: { showWarningMessage: async () => undefined }
   };
   const moduleLoader = require('node:module') as { _load: (request: string, parent: unknown, isMain: boolean) => unknown };
   const originalLoad = moduleLoader._load;
@@ -52,10 +46,15 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
 
   let treeRefreshes = 0;
   const panels = new IssuePanels!({ extensionUri: 'extension' } as unknown as ExtensionContext, session, () => { treeRefreshes++; });
+  const navigations: Array<import('../../src/workspace/workspaceProtocol').IssueNavigation | null> = [];
+  const workspaceResponses: WorkspaceResponse[] = [];
+  panels.setWorkspace({
+    post: (message) => { workspaceResponses.push(message); if (message.type === 'issueResponse') messages.push(message.response); },
+    navigate: (navigation) => navigations.push(navigation), show: async () => undefined
+  });
   try {
     await panels.showCreate();
-    assert.match(webview.html, /img-src vscode-resource: data: https: http:\/\/gitlab\.internal\.test:8929;/);
-    assert.doesNotMatch(webview.html, /http:\/\/127\.0\.0\.1/);
+    assert.equal(navigations.at(-1)?.mode, 'create');
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'ready' });
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'create', projectId: 42, input: { title: issue.title } });
     const detail = [...messages].reverse().find((message) => message.type === 'detailData');
@@ -66,6 +65,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     }
     assert.equal(treeRefreshes, 1);
     assert.equal(messages.filter((message) => message.type === 'createData').length, 1);
+    assert.deepEqual(navigations.at(-1), { mode: 'detail', projectId: 42, issueIid: 7, revision: navigations.at(-1)?.revision });
     const slowIssue = { ...issue, id: 402, iid: 8, title: 'Slow issue' };
     const selectedIssue = { ...issue, id: 403, iid: 9, title: 'Selected issue' };
     let releaseSlow: (() => void) | undefined;
@@ -78,9 +78,12 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     };
     const first = panels.showIssue(slowIssue);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const second = panels.showIssue(selectedIssue);
+    const second = panels.showIssue(selectedIssue, 'time');
     releaseSlow?.();
     await Promise.all([first, second]);
+    const selectedNavigation = navigations.at(-1);
+    assert.equal(selectedNavigation?.mode, 'detail');
+    assert.equal(selectedNavigation?.mode === 'detail' ? selectedNavigation.tab : undefined, 'time');
     const latest = [...messages].reverse().find((message) => message.type === 'detailData');
     assert.equal(latest?.type === 'detailData' ? latest.data.issue.iid : undefined, 9);
     assert.equal(reads, 2);
@@ -94,13 +97,20 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.equal(taskPages, 2);
 
     const nextIssue = { ...issue, id: 404, iid: 10, title: 'Next issue' };
+    const staleRevision = navigations.at(-1)?.revision;
     let releaseNext: (() => void) | undefined;
     const nextRead = new Promise<void>((resolve) => { releaseNext = resolve; });
     client.getIssue = async () => { await nextRead; return nextIssue; };
     const writes: number[] = [];
     client.updateIssueIfUnchanged = async (_projectId, iid) => { writes.push(iid); return nextIssue; };
     const nextLoad = panels.showIssue(nextIssue);
-    const host = panels as unknown as { handle(message: unknown): Promise<void> };
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const host = panels as unknown as { handle(message: unknown, revision?: number): Promise<void> };
+    const responseCount = messages.length;
+    await host.handle({ type: 'refresh' }, staleRevision);
+    assert.equal(messages.length, responseCount, 'a request from the previous navigation is ignored');
+    const currentNavigation = navigations.at(-1);
+    assert.equal(currentNavigation?.mode === 'detail' ? currentNavigation.issueIid : undefined, 10);
     const staleUpdate = host.handle({ type: 'update', issueId: selectedIssue.id, expectedUpdatedAt: selectedIssue.updated_at, input: { title: 'Wrong target' } });
     const staleClose = host.handle({ type: 'invoke', issueId: selectedIssue.id, action: 'close', payload: {} });
     releaseNext?.();

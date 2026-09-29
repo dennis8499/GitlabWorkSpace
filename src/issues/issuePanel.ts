@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { randomBytes } from 'node:crypto';
 import { GitLabApiError, GitLabConflictError, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
 import type { IssueDetailData, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueTask, IssueTimelog } from './protocol';
+import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
 
 function safeError(error: unknown): string {
   if (error instanceof GitLabConflictError || error instanceof GitLabApiError) return error.message;
@@ -86,15 +86,20 @@ function updateInput(raw: unknown): IssueUpdateInput {
 }
 
 export class IssuePanels implements vscode.Disposable {
-  private panel?: vscode.WebviewPanel;
   private issue?: GitLabIssue;
   private loadingTask?: Promise<void>;
   private ready = false;
   private lastSnapshot?: IssuePanelResponse;
   private operationWarning?: string;
   private navigationVersion = 0;
+  private hasNavigation = false;
   private mode: 'create' | 'detail' = 'create';
-  private readonly disposables: vscode.Disposable[] = [];
+  private revision = 0;
+  private workspace?: {
+    post: (message: WorkspaceResponse) => void;
+    navigate: (navigation: IssueNavigation | null) => void;
+    show: () => Promise<void>;
+  };
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -102,69 +107,89 @@ export class IssuePanels implements vscode.Disposable {
     private readonly refreshIssues: () => void
   ) {}
 
+  setWorkspace(workspace: {
+    post: (message: WorkspaceResponse) => void;
+    navigate: (navigation: IssueNavigation | null) => void;
+    show: () => Promise<void>;
+  }): void {
+    this.workspace = workspace;
+  }
+
+  get activeNavigationMode(): 'create' | 'detail' | undefined {
+    return this.hasNavigation ? this.mode : undefined;
+  }
+
   dispose(): void {
     this.close();
   }
 
   close(): void {
     this.navigationVersion++;
-    this.panel?.dispose();
-    this.panel = undefined;
+    this.revision++;
+    this.hasNavigation = false;
     this.issue = undefined;
-    this.ready = false;
     this.lastSnapshot = undefined;
-    for (const disposable of this.disposables.splice(0)) disposable.dispose();
+    this.workspace?.navigate(null);
   }
 
   async showCreate(): Promise<void> {
-    this.navigationVersion++;
+    const navigationVersion = ++this.navigationVersion;
     this.issue = undefined;
     this.mode = 'create';
-    this.ensurePanel('Create GitLab Issue');
+    this.hasNavigation = true;
+    await this.openWorkspace(undefined, navigationVersion);
+    if (navigationVersion !== this.navigationVersion) return;
     await this.load();
   }
 
-  async showIssue(issue: GitLabIssue): Promise<void> {
-    this.navigationVersion++;
+  async showIssue(issue: GitLabIssue, tab?: IssueDetailTab): Promise<void> {
+    const navigationVersion = ++this.navigationVersion;
     this.issue = issue;
     this.mode = 'detail';
-    this.ensurePanel(`Issue #${issue.iid}`);
+    this.hasNavigation = true;
+    await this.openWorkspace(issue, navigationVersion, tab);
+    if (navigationVersion !== this.navigationVersion) return;
     await this.load();
   }
 
-  private ensurePanel(title: string): void {
-    if (this.panel) {
-      this.panel.title = title;
-      this.panel.reveal();
-      return;
-    }
-    const assetRoot = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'issue-webview');
-    const panel = vscode.window.createWebviewPanel('gitlabWorkspace.issue', title, vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [assetRoot]
-    });
-    this.panel = panel;
-    this.ready = false;
-    this.lastSnapshot = undefined;
-    const nonce = randomBytes(16).toString('base64');
-    const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'issue.js'));
-    const style = panel.webview.asWebviewUri(vscode.Uri.joinPath(assetRoot, 'issue.css'));
-    const baseUrl = this.session.baseUrl;
-    const configuredUrl = baseUrl ? new URL(baseUrl) : undefined;
-    const httpImageOrigin = configuredUrl?.protocol === 'http:' ? ` ${configuredUrl.origin}` : '';
-    panel.webview.html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:${httpImageOrigin}; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${style}"></head><body><div id="app"></div><script nonce="${nonce}" type="module" src="${script}"></script></body></html>`;
-    this.disposables.push(panel.webview.onDidReceiveMessage((message: unknown) => {
-      void this.handle(message).catch((error: unknown) => this.post({ type: 'error', message: safeError(error) }));
-    }));
-    this.disposables.push(panel.onDidDispose(() => { if (this.panel === panel) { this.panel = undefined; this.ready = false; this.lastSnapshot = undefined; } }));
+  private async openWorkspace(issue: GitLabIssue | undefined, navigationVersion: number, tab?: IssueDetailTab): Promise<void> {
+    const revision = ++this.revision;
+    await this.workspace?.show();
+    if (navigationVersion !== this.navigationVersion) return;
+    this.workspace?.navigate(issue
+      ? { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, tab, revision }
+      : { mode: 'create', revision });
   }
 
   private post(message: IssuePanelResponse): void {
-    if (!this.panel) return;
     if (message.type === 'createData' || message.type === 'detailData') this.lastSnapshot = message;
     if (!this.ready) return;
-    void this.panel?.webview.postMessage(message);
+    this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: message });
+  }
+
+  async handle(raw: unknown, revision?: number): Promise<void> { return this.handleRequest(raw, revision); }
+
+  private async handleRequest(raw: unknown, revision?: number): Promise<void> {
+    if (!raw || typeof raw !== 'object') return;
+    if (revision !== undefined && revision !== this.revision) return;
+    const request = raw as IssuePanelRequest;
+    if (request.type === 'ready') {
+      this.ready = true;
+      if (this.loadingTask) {
+        await this.loadingTask;
+        if (this.lastSnapshot) return;
+      }
+      if (this.lastSnapshot) {
+        this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: this.lastSnapshot });
+        return;
+      }
+      return this.load();
+    }
+    return this.handleReadyRequest(request);
+  }
+
+  private async handleReadyRequest(request: IssuePanelRequest): Promise<void> {
+    return this.handleRequestBody(request);
   }
 
   private async load(): Promise<void> {
@@ -333,21 +358,7 @@ export class IssuePanels implements vscode.Disposable {
     this.post({ type: 'detailData', data });
   }
 
-  private async handle(raw: unknown): Promise<void> {
-    if (!raw || typeof raw !== 'object') return;
-    const request = raw as IssuePanelRequest;
-    if (request.type === 'ready') {
-      this.ready = true;
-      if (this.loadingTask) {
-        await this.loadingTask;
-        if (this.lastSnapshot) return;
-      }
-      if (this.lastSnapshot) {
-        void this.panel?.webview.postMessage(this.lastSnapshot);
-        return;
-      }
-      return this.load();
-    }
+  private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
     if (request.type === 'refresh') return this.load();
     if (request.type === 'openIssueInGitLab') {
       const issue = this.issue;
@@ -398,7 +409,7 @@ export class IssuePanels implements vscode.Disposable {
       this.navigationVersion++;
       this.mode = 'detail';
       this.issue = created;
-      if (this.panel) this.panel.title = `Issue #${created.iid}`;
+      this.workspace?.navigate({ mode: 'detail', projectId: created.project_id, issueIid: created.iid, revision: ++this.revision });
       return this.load();
     }
     if (request.type === 'searchProjects') {
@@ -469,12 +480,16 @@ export class IssuePanels implements vscode.Disposable {
         const relative = url.pathname.slice(base.pathname.replace(/\/$/, '').length + 1);
         const match = relative.match(/^(.+?)\/-\/issues\/(\d+)(?:\/.*)?$/);
         if (match) {
+          const navigationVersion = this.navigationVersion;
           const project = await client.getProjectByPath(decodeURIComponent(match[1]));
+          if (navigationVersion !== this.navigationVersion) return;
           const nextIssue = await client.getIssue(project.id, Number(match[2]));
+          if (navigationVersion !== this.navigationVersion) return;
           this.navigationVersion++;
           this.issue = nextIssue;
           this.mode = 'detail';
-          if (this.panel) this.panel.title = `Issue #${this.issue.iid}`;
+          this.hasNavigation = true;
+          this.workspace?.navigate({ mode: 'detail', projectId: nextIssue.project_id, issueIid: nextIssue.iid, revision: ++this.revision });
           return this.load();
         }
       }

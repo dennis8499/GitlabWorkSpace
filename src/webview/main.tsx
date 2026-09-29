@@ -1,14 +1,17 @@
 /** @jsxImportSource preact */
-import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
 import type { IssueAction, IssueDetailData, IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
+import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot } from '../workspace/workspaceProtocol';
+import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
+import { buildDeveloperPrompt } from '../workspace/issueDrafts';
 import './style.css';
 
-declare function acquireVsCodeApi(): { postMessage(message: IssuePanelRequest): void };
-const bridge = acquireVsCodeApi();
+function postIssueRequest(message: IssuePanelRequest): void {
+  window.dispatchEvent(new CustomEvent<IssuePanelRequest>('workspaceIssueRequest', { detail: message }));
+}
 const emptyOptions: IssueFormOptions = { members: [], labels: [], milestones: [], templates: [] };
 const stamp = () => Math.random().toString(36).slice(2);
 
@@ -69,28 +72,51 @@ function IssueFields({ form, setForm, options, projectId, baseUrl, images, onIma
   templateEnabled: boolean; startDateEnabled: boolean; onPreview: () => void; onUpload: () => void; onSearch: () => void;
   similar: GitLabIssue[]; previewHtml: string; onLink: (url: string) => void; editing: boolean;
 }) {
+  const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(false);
   const change = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm({ ...form, [key]: value });
   return <div class="form-grid">
-    <label class="field field-wide"><span>Title *</span><input value={form.title} maxLength={1024} required onInput={(event) => change('title', event.currentTarget.value)} onBlur={onSearch} placeholder="Summarize the work" /></label>
-    {similar.length > 0 && <div class="field-wide hint"><strong>Similar issues</strong>{similar.slice(0, 5).map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}</div>}
-    {templateEnabled && options.templates.length > 0 && <label class="field field-wide"><span>Description template</span><select onChange={(event) => {
+    <label class="field field-wide"><span>標題 *</span><input value={form.title} maxLength={1024} required onInput={(event) => change('title', event.currentTarget.value)} onBlur={onSearch} placeholder="簡要描述工作內容" /></label>
+    {similar.length > 0 && <div class="field-wide hint"><strong>相似 Issue</strong>{similar.slice(0, 5).map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}</div>}
+    {templateEnabled && options.templates.length > 0 && <label class="field field-wide"><span>描述範本</span><select onChange={(event) => {
       const template = options.templates.find((item) => item.name === event.currentTarget.value);
       if (template) change('description', template.content);
-    }}><option value="">Choose a template</option>{options.templates.map((item) => <option value={item.name}>{item.name}</option>)}</select></label>}
-    <label class="field field-wide"><span>Description · GitLab Markdown and quick actions</span><textarea rows={editing ? 12 : 8} value={form.description} onInput={(event) => change('description', event.currentTarget.value)} placeholder="Background, steps, acceptance criteria, or /quick_actions" /></label>
-    <div class="field-wide toolbar"><button type="button" onClick={onPreview} disabled={!form.description.trim()}>Preview Markdown</button><button type="button" onClick={onUpload} disabled={!projectId}>Attach file</button></div>
-    {previewHtml && <div class="field-wide preview"><span class="eyebrow">Preview</span><Markdown html={previewHtml} baseUrl={baseUrl} images={images} onImage={onImage} onLink={onLink} /></div>}
-    <label class="field"><span>Assignee</span><select value={form.assigneeId} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">Unassigned</option>{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select></label>
-    <label class="field"><span>Milestone</span><select value={form.milestoneId} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">None</option>{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select></label>
-    <label class="field"><span>Due date</span><input type="date" value={form.dueDate} onInput={(event) => change('dueDate', event.currentTarget.value)} /></label>
-    {startDateEnabled && <label class="field"><span>Start date</span><input type="date" value={form.startDate} onInput={(event) => change('startDate', event.currentTarget.value)} /></label>}
-    <label class="field"><span>Labels</span><select multiple size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select><small>Hold Ctrl to select multiple labels.</small></label>
-    <label class="check field-wide"><input type="checkbox" checked={form.confidential} onChange={(event) => change('confidential', event.currentTarget.checked)} /> Confidential issue</label>
-    {editing && <label class="check field-wide"><input type="checkbox" checked={form.discussionLocked} onChange={(event) => change('discussionLocked', event.currentTarget.checked)} /> Lock discussion</label>}
+    }}><option value="">選擇描述範本</option>{options.templates.map((item) => <option value={item.name}>{item.name}</option>)}</select></label>}
+    <label class="field field-wide"><span>描述 · 支援 GitLab Markdown 與 quick actions</span><textarea rows={editing ? 12 : 8} value={form.description} onInput={(event) => change('description', event.currentTarget.value)} placeholder="填寫背景、操作步驟、驗收條件或 /quick_actions" /></label>
+    <div class="field-wide toolbar"><button type="button" onClick={onPreview} disabled={!form.description.trim()}>預覽 Markdown</button><button type="button" onClick={onUpload} disabled={!projectId}>上傳附件</button></div>
+    {previewHtml && <div class="field-wide preview"><span class="eyebrow">預覽</span><Markdown html={previewHtml} baseUrl={baseUrl} images={images} onImage={onImage} onLink={onLink} /></div>}
+    <details class="field-wide issue-more-fields" open={editing || optionalFieldsOpen} onToggle={(event) => setOptionalFieldsOpen(event.currentTarget.open)}>
+      <summary>其他設定：負責人、標籤、里程碑與日期</summary>
+      <div class="form-grid">
+        <label class="field"><span>負責人</span><select value={form.assigneeId} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">不指派</option>{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select></label>
+        <label class="field"><span>里程碑</span><select value={form.milestoneId} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">不設定</option>{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select></label>
+        <label class="field"><span>到期日</span><input type="date" value={form.dueDate} onInput={(event) => change('dueDate', event.currentTarget.value)} /></label>
+        {startDateEnabled && <label class="field"><span>開始日期</span><input type="date" value={form.startDate} onInput={(event) => change('startDate', event.currentTarget.value)} /></label>}
+        <label class="field"><span>標籤</span><select multiple size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select><small>可用 Ctrl 多選。</small></label>
+        <label class="check field-wide"><input type="checkbox" checked={form.confidential} onChange={(event) => change('confidential', event.currentTarget.checked)} />機密 Issue</label>
+        {editing && <label class="check field-wide"><input type="checkbox" checked={form.discussionLocked} onChange={(event) => change('discussionLocked', event.currentTarget.checked)} />鎖定討論</label>}
+      </div>
+    </details>
   </div>;
 }
 
-function App() {
+export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit }: {
+  onBack?: () => void;
+  snapshot?: WorkspaceSnapshot;
+  navigation?: IssueNavigation;
+  issueSearch?: string;
+  onIssueSearchChange?: (value: string) => void;
+  onWorkspaceRequest?: (request: IssuePanelRequest) => void;
+  onWorkspaceAction?: (request: WorkspaceRequest) => void;
+  onOpenSettings?: () => void;
+  deliveryForms?: Record<string, DeliveryFormState>;
+  onDeliveryUpdate?: (key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject) => void;
+  manualTime?: { duration: string; summary: string; spentAt: string };
+  onManualTimeChange?: (value: { duration: string; summary: string; spentAt: string }) => void;
+  recoveredManualTime?: { duration: string; summary: string; spentAt: string };
+  onRecoverManualTime?: (projectId: number, issueIid: number) => void;
+  timeEdits?: Record<string, TimeEdit>;
+  onTimeEdit?: (id: string, edit: TimeEdit) => void;
+}) {
   const [mode, setMode] = useState<'waiting' | 'create' | 'detail' | 'deleted'>('waiting');
   const [projects, setProjects] = useState<GitLabProject[]>([]);
   const [projectId, setProjectId] = useState(0);
@@ -100,9 +126,18 @@ function App() {
   const [startDateEnabled, setStartDateEnabled] = useState(false);
   const [canCreateIssue, setCanCreateIssue] = useState(false);
   const [spentDate, setSpentDate] = useState('');
+  const [detailTab, setDetailTab] = useState<'content' | 'development' | 'relations' | 'time'>('content');
+  const [recoveryProjectId, setRecoveryProjectId] = useState('');
+  const [recoveryIssueIid, setRecoveryIssueIid] = useState('');
+  const [deliveryExpanded, setDeliveryExpanded] = useState(false);
+  const [localIssueSearch, setLocalIssueSearch] = useState('');
+  const issueSearch = issueSearchProp ?? localIssueSearch;
+  const updateIssueSearch = (value: string): void => onIssueSearchChange ? onIssueSearchChange(value) : setLocalIssueSearch(value);
   const [form, setForm] = useState<FormState>(blankForm);
   const formRef = useRef(form);
   formRef.current = form;
+  const createDrafts = useRef(new Map<number, FormState>());
+  const createPending = useRef<{ projectId: number; title: string } | null>(null);
   const conflictDraft = useRef<FormState | null>(null);
   const [editing, setEditing] = useState(false);
   const editingRef = useRef(editing);
@@ -125,15 +160,26 @@ function App() {
   const latestEditorPreview = useRef<Map<string, string>>(new Map());
   const uploadTargets = useRef<Map<string, string>>(new Map());
   const activeIssueId = useRef<number | null>(null);
+  const issueDrafts = useRef<Map<number, FormState>>(new Map());
+  const conversationDrafts = useRef<Map<number, { comment: string; reply: Record<string, string> }>>(new Map());
+  const routeRevision = useRef<number | undefined>();
   const [editorHtml, setEditorHtml] = useState<Record<string, string>>({});
   const [similar, setSimilar] = useState<GitLabIssue[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(busy);
   busyRef.current = busy;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
   const [comment, setComment] = useState('');
+  const commentRef = useRef(comment);
+  commentRef.current = comment;
   const [internal, setInternal] = useState(false);
   const [reply, setReply] = useState<Record<string, string>>({});
+  const replyRef = useRef(reply);
+  replyRef.current = reply;
   const [linkProject, setLinkProject] = useState('');
   const [linkIid, setLinkIid] = useState('');
   const [linkType, setLinkType] = useState<'relates_to' | 'blocks' | 'is_blocked_by'>('relates_to');
@@ -168,7 +214,8 @@ function App() {
   const pendingReplyDiscussion = useRef<string | null>(null);
   const pendingSubmission = useRef<{ body?: string; childTitle: string; childIid: string; taskTitle: string; taskDescription: string } | null>(null);
 
-  const post = (message: IssuePanelRequest) => bridge.postMessage(message);
+  const post = (request: IssuePanelRequest) => onWorkspaceRequest ? onWorkspaceRequest(request) : postIssueRequest(request);
+  const postWorkspace = (request: WorkspaceRequest) => onWorkspaceAction?.(request);
   const postReplyRequest = (message: Extract<IssuePanelRequest, { requestId: string }>) => {
     requestEpoch.current.set(message.requestId, viewEpoch.current);
     post(message);
@@ -203,9 +250,29 @@ function App() {
   const upload = (target = 'description') => { if (activeProjectId) { const requestId = `upload-${stamp()}`; uploadTargets.current.set(requestId, target); postReplyRequest({ type: 'upload', requestId, projectId: activeProjectId }); } };
 
   useEffect(() => {
+    if (!navigation || routeRevision.current === navigation.revision) return;
+    if (modeRef.current === 'create' && projectIdRef.current > 0) createDrafts.current.set(projectIdRef.current, formRef.current);
+    routeRevision.current = navigation.revision;
+    viewEpoch.current++;
+    setDetailTab(navigation.mode === 'detail' ? navigation.tab ?? 'content' : 'content');
+    setMode('waiting'); setError(''); setBusy(true); busyRef.current = true;
+  }, [navigation?.revision]);
+
+  useEffect(() => {
+    if (mode === 'create' && projectId > 0) createDrafts.current.set(projectId, form);
+  }, [mode, projectId, form]);
+
+  useEffect(() => {
     const handler = (event: MessageEvent<IssuePanelResponse>) => {
-      const message = event.data;
+      const envelope = event instanceof CustomEvent ? event.detail : event.data;
+      const message = envelope && typeof envelope === 'object' && 'response' in envelope
+        ? (envelope as { response?: IssuePanelResponse }).response
+        : envelope as IssuePanelResponse | undefined;
+      if (!message) return;
       if (message.type === 'createData') {
+        if (modeRef.current === 'create' && projectIdRef.current > 0) createDrafts.current.set(projectIdRef.current, formRef.current);
+        if (activeIssueId.current !== null && editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
+        if (activeIssueId.current !== null) conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current });
         viewEpoch.current++;
         activeIssueId.current = null;
         pendingIssueSave.current = false;
@@ -222,7 +289,7 @@ function App() {
         setCreateMetadata(message.metadata);
         setStartDateEnabled(message.canSetStartDate);
         setCanCreateIssue(message.canCreateIssue);
-        setOptions(message.options ?? emptyOptions); setForm(blankForm()); setDetail(null); setEditing(false); setPreviewHtml(''); setNoteHtml({}); setSimilar([]);
+        setOptions(message.options ?? emptyOptions); setForm(createDrafts.current.get(message.selectedProjectId ?? 0) ?? blankForm()); setDetail(null); setEditing(false); setPreviewHtml(''); setNoteHtml({}); setSimilar([]);
         setError(message.projects.length ? (message.options?.warnings?.join(' ') ?? '') : 'No projects are available in the selected group.'); setBusy(false);
       } else if (message.type === 'projectData') {
         viewEpoch.current++;
@@ -233,24 +300,32 @@ function App() {
         editorPreviewTargets.current.clear(); latestEditorPreview.current.clear(); uploadTargets.current.clear(); setEditorHtml({});
         setOptions(message.options); setProjectId(message.projectId); setSimilar([]); setPreviewHtml(''); setBusy(false);
         setCanCreateIssue(message.canCreateIssue);
-        setForm((current) => ({ ...current, assigneeId: '', labels: [], milestoneId: '' }));
+        const projectDraft = createDrafts.current.get(message.projectId);
+        setForm(projectDraft ? { ...projectDraft, assigneeId: '', labels: [], milestoneId: '' } : { ...blankForm(), ...formRef.current, assigneeId: '', labels: [], milestoneId: '' });
         setError(message.options.warnings?.join(' ') ?? '');
       } else if (message.type === 'detailData') {
         viewEpoch.current++;
         const sameIssue = activeIssueId.current === message.data.issue.id;
+        if (!sameIssue && activeIssueId.current !== null && editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
         const editedAfterSubmit = pendingIssueSave.current && submittedIssueForm.current !== null && JSON.stringify(formRef.current) !== JSON.stringify(submittedIssueForm.current);
         const preserveIssueDraft = sameIssue && editingRef.current && (!pendingIssueSave.current || editedAfterSubmit);
         latestPreviewRequest.current = null;
         latestSearchRequest.current = null;
         latestProjectSearchRequest.current = null;
         if (activeIssueId.current !== message.data.issue.id) {
+          if (activeIssueId.current !== null) conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current });
+          const conversation = conversationDrafts.current.get(message.data.issue.id);
           noteRenderVersion.current.clear(); latestNoteRequests.current.clear(); setNoteHtml({}); setImages({});
-          setComment(''); setReply({}); setInternal(false); setNoteEmoji({}); setEditingNoteId(null); setDeletingNoteId(null);
+          setComment(conversation?.comment ?? ''); setReply(conversation?.reply ?? {}); setInternal(false); setNoteEmoji({}); setEditingNoteId(null); setDeletingNoteId(null);
           setTargetProject(''); setTargetQuery(''); setTargetProjectResults([]);
           setSelectedTaskId(null); setTaskEditing(false);
         }
         editorPreviewTargets.current.clear(); latestEditorPreview.current.clear(); uploadTargets.current.clear(); setEditorHtml({});
         activeIssueId.current = message.data.issue.id;
+        if (createPending.current?.projectId === message.data.issue.project_id && createPending.current.title === message.data.issue.title) {
+          createDrafts.current.delete(message.data.issue.project_id);
+          createPending.current = null;
+        }
         const submission = pendingSubmission.current;
         if ((pendingAction.current === 'note' || pendingAction.current === 'thread') && submission?.body !== undefined) {
           setComment((current) => current === submission.body ? '' : current);
@@ -267,7 +342,7 @@ function App() {
         pendingAction.current = null;
         pendingSubmission.current = null;
         const restoredConflict = conflictDraft.current !== null;
-        const draft = conflictDraft.current ?? (preserveIssueDraft ? formRef.current : null);
+        const draft = conflictDraft.current ?? (preserveIssueDraft ? formRef.current : issueDrafts.current.get(message.data.issue.id) ?? null);
         conflictDraft.current = null;
         pendingIssueSave.current = false;
         submittedIssueForm.current = null;
@@ -337,6 +412,7 @@ function App() {
           else if (uploadTarget.startsWith('task:') && selectedTaskIdRef.current === uploadTarget.slice('task:'.length)) setTaskDescription((current) => append(current));
         }
       } else if (message.type === 'error') {
+        createPending.current = null;
         pendingAction.current = null;
         pendingReplyDiscussion.current = null;
         pendingSubmission.current = null;
@@ -350,77 +426,108 @@ function App() {
       else if (message.type === 'busy') { busyRef.current = message.value; setBusy(message.value); }
       else if (message.type === 'deleted') { busyRef.current = false; setMode('deleted'); setBusy(false); }
     };
-    window.addEventListener('message', handler);
+    window.addEventListener('workspaceIssueResponse', handler as EventListener);
     post({ type: 'ready' });
-    return () => window.removeEventListener('message', handler);
+    return () => window.removeEventListener('workspaceIssueResponse', handler as EventListener);
   }, []);
 
-  if (mode === 'waiting') return <main class="shell"><h1>GitLab Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>Loading GitLab Issue…</p>}<p>Connect to GitLab and select a group in the GitLab Workspace sidebar.</p><button type="button" onClick={() => post({ type: 'refresh' })}>Retry</button></main>;
-  if (mode === 'deleted') return <main class="shell"><h1>Issue deleted</h1><p>The issue was removed from GitLab.</p></main>;
+  if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
+  if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
   const myTodo = detail?.todos.find((todo) => todo.target?.id === issue?.id);
   const myReactions = new Set(detail?.reactions.filter((reaction) => reaction.user.id === detail.user.id).map((reaction) => reaction.id));
   const targetProjects = [...new Map([...projects, ...targetProjectResults].map((project) => [project.id, project])).values()];
+  const issueTimers = snapshot?.timers.filter((entry) => entry.projectId === issue?.project_id && entry.issueIid === issue?.iid) ?? [];
+  const currentIssueTimer = issueTimers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
+  const workspaceIssues = snapshot?.issues.filter((item) => `${item.title} ${item.iid} ${snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace ?? ''}`.toLocaleLowerCase().includes(issueSearch.trim().toLocaleLowerCase())) ?? [];
 
-  return <main class="shell">
-    <header class="topbar"><div><span class="eyebrow">GitLab Workspace {(detail?.metadata ?? createMetadata)?.version ? `· CE ${(detail?.metadata ?? createMetadata)?.version}` : ''}</span><h1>{mode === 'create' ? 'Create Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? 'Create an issue in the selected group' : detail?.project.path_with_namespace}</p></div><div class="toolbar"><button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>Refresh</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>Open in GitLab</button>}</div></header>
-    {error && <div class="alert" role="alert"><span>{error}</span><button type="button" onClick={() => setError('')}>Dismiss</button></div>}
-    {busy && <div class="loading">Working with GitLab…</div>}
+  return <main id="issue-panel" class="shell">
+    <header class="topbar issue-topbar"><div><span class="eyebrow">{mode === 'create' ? '建立工作項目' : detail?.project.path_with_namespace}</span><h1>{mode === 'create' ? '新增 Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? '新增後會直接開啟內容與討論。' : `${issue?.state === 'closed' ? '已結案' : '進行中'}${detail?.options.warnings?.length ? ' · 部分欄位載入受限' : ''}`}</p></div><div class="toolbar issue-heading-actions">{onBack && <button type="button" onClick={onBack}>返回清單</button>}<button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>重新整理</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>在 GitLab 開啟</button>}</div></header>
+    {error && <div class="alert" role="alert"><span>{error}</span><button type="button" aria-label="關閉錯誤訊息" onClick={() => setError('')}>關閉</button></div>}
+    {busy && <div class="loading" role="status">正在與 GitLab 通訊…</div>}
     {mode === 'create' ? <section class="card">
-      <label class="field"><span>Project *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); busyRef.current = true; setBusy(true); post({ type: 'selectProject', projectId: id }); }}><option value="0">Choose a project</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
+      <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); busyRef.current = true; setBusy(true); post({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
       <IssueFields form={form} setForm={setForm} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
-      <div class="actions"><button class="primary" type="button" disabled={busy || !canCreateIssue || !projectId || !form.title.trim()} onClick={() => { busyRef.current = true; setBusy(true); setError(''); post({ type: 'create', projectId, input: createPayload(form) }); }}>Create Issue</button></div>
+      <div class="actions"><button class="primary" type="button" disabled={busy || !canCreateIssue || !projectId || !form.title.trim()} onClick={() => { createDrafts.current.set(projectId, formRef.current); createPending.current = { projectId, title: form.title }; busyRef.current = true; setBusy(true); setError(''); post({ type: 'create', projectId, input: createPayload(form) }); }}>建立 Issue</button></div>
     </section> : issue && detail && <>
-      {detail.warnings.length > 0 && <div class="alert subtle"><strong>Some sections could not be loaded.</strong><ul>{detail.warnings.map((warning) => <li>{warning}</li>)}</ul></div>}
+      {detail.warnings.length > 0 && <div class="alert subtle"><strong>部分內容無法載入。</strong><ul>{detail.warnings.map((warning) => <li>{warning}</li>)}</ul></div>}
+      <div class="issue-workspace-layout">
+      {snapshot && <aside class="issue-list-panel"><div class="issue-list-heading"><strong>我的工作</strong><button type="button" onClick={() => onWorkspaceAction?.({ type: 'createIssue' })}>＋ 新增</button></div><input aria-label="搜尋 Issue 清單" placeholder="搜尋標題、Repo 或編號…" value={issueSearch} onInput={(event) => updateIssueSearch(event.currentTarget.value)} /><div class="issue-list-items">{workspaceIssues.map((item) => <button type="button" class={`issue-list-item ${item.project_id === issue.project_id && item.iid === issue.iid ? 'selected' : ''}`} onClick={() => onWorkspaceAction?.({ type: 'openIssue', projectId: item.project_id, issueIid: item.iid })}><strong>{item.title}</strong><small>{snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace}　#{item.iid}</small></button>)}{!workspaceIssues.length && <p class="muted small">{snapshot.issues.length ? '找不到符合條件的 Issue。' : '目前清單沒有 Issue。'}</p>}</div></aside>}
+      <div class="issue-detail-column">
+      <nav class="issue-tabs" role="tablist" aria-label="Issue 工作區分頁">{([
+        ['content', '內容與討論'], ['development', '開發與交付'], ['relations', '關聯與子工作'], ['time', '工時']
+      ] as const).map(([id, label], index) => <button role="tab" tabIndex={detailTab === id ? 0 : -1} aria-selected={detailTab === id} class={detailTab === id ? 'active' : ''} onKeyDown={(event) => {
+        const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 4 : event.key === 'ArrowLeft' ? (index + 3) % 4 : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : -1;
+        if (nextIndex < 0) return;
+        event.preventDefault();
+        const nextTab = (['content', 'development', 'relations', 'time'] as const)[nextIndex];
+        setDetailTab(nextTab);
+        event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
+      }} onClick={() => setDetailTab(id)}>{label}</button>)}</nav>
       <div class="layout"><div class="main-column">
-        <section class="card"><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => setEditing(!editing)}>{editing ? 'Cancel edit' : 'Edit'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? 'Close Issue' : 'Reopen Issue'}</button>}</div></div>
-          {editing ? <><IssueFields form={form} setForm={setForm} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>Save changes</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">No description.</p>}</div><p class="muted small">Created {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · Updated {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
+        <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => setEditing(!editing)}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
+          {editing ? <><IssueFields form={form} setForm={setForm} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
         </section>
-        <section class="card"><h2>Activity and discussions</h2>
-          {detail.discussions.length === 0 && <p class="muted">No activity yet.</p>}
+        <section class="card issue-section" hidden={detailTab !== 'content'}><h2>討論與活動</h2>
+          {detail.discussions.length === 0 && <p class="muted">尚無討論或活動紀錄。</p>}
           {detail.discussions.map((discussion) => <div class="discussion" key={discussion.id}>
-            <div class="discussion-head"><span>Thread</span>{detail.canResolveThreads && discussion.notes[0]?.resolvable && <button type="button" disabled={busy} onClick={() => invoke('resolveThread', { discussionId: discussion.id, resolved: !discussion.notes[0]?.resolved })}>{discussion.notes[0]?.resolved ? 'Reopen thread' : 'Resolve thread'}</button>}</div>
+            <div class="discussion-head"><span>討論串</span>{detail.canResolveThreads && discussion.notes[0]?.resolvable && <button type="button" disabled={busy} onClick={() => invoke('resolveThread', { discussionId: discussion.id, resolved: !discussion.notes[0]?.resolved })}>{discussion.notes[0]?.resolved ? '重新開啟討論串' : '解決討論串'}</button>}</div>
             {discussion.notes.map((note) => <div class={`note ${note.system ? 'system' : ''}`} key={note.id}>
-              <div class="note-head"><strong>{note.author?.name ?? 'GitLab'}</strong><time>{note.created_at ? new Date(note.created_at).toLocaleString() : ''}</time>{note.internal && <span class="pill">Internal</span>}</div>
-              {editingNoteId === note.id ? <><textarea aria-label="Edit comment" rows={4} value={editingNoteBody} onInput={(event) => setEditingNoteBody(event.currentTarget.value)} /><div class="toolbar wrap"><button disabled={!editingNoteBody.trim()} onClick={() => previewEditor(`edit-note:${note.id}`, editingNoteBody)}>Preview Markdown</button><button onClick={() => upload(`edit-note:${note.id}`)}>Attach file</button><button class="primary" disabled={!editingNoteBody.trim() || busy} onClick={() => invoke('editNote', { discussionId: discussion.id, noteId: note.id, body: editingNoteBody })}>Save</button><button onClick={() => setEditingNoteId(null)}>Cancel</button></div>{editorHtml[`edit-note:${note.id}`] && <Markdown html={editorHtml[`edit-note:${note.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : noteHtml[note.id] ? <Markdown html={noteHtml[note.id]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <p class="note-body">{note.body}</p>}
-              {!note.system && note.author?.id === detail.user.id && editingNoteId !== note.id && <div class="toolbar"><button type="button" onClick={() => { setEditingNoteId(note.id); setEditingNoteBody(note.body); }}>Edit</button><button type="button" onClick={() => setDeletingNoteId(note.id)}>Delete</button></div>}
+              <div class="note-head"><strong>{note.author?.name ?? 'GitLab'}</strong><time>{note.created_at ? new Date(note.created_at).toLocaleString() : ''}</time>{note.internal && <span class="pill">內部留言</span>}</div>
+              {editingNoteId === note.id ? <><textarea aria-label="編輯留言" rows={4} value={editingNoteBody} onInput={(event) => setEditingNoteBody(event.currentTarget.value)} /><div class="toolbar wrap"><button disabled={!editingNoteBody.trim()} onClick={() => previewEditor(`edit-note:${note.id}`, editingNoteBody)}>預覽 Markdown</button><button onClick={() => upload(`edit-note:${note.id}`)}>上傳附件</button><button class="primary" disabled={!editingNoteBody.trim() || busy} onClick={() => invoke('editNote', { discussionId: discussion.id, noteId: note.id, body: editingNoteBody })}>儲存</button><button onClick={() => setEditingNoteId(null)}>取消</button></div>{editorHtml[`edit-note:${note.id}`] && <Markdown html={editorHtml[`edit-note:${note.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : noteHtml[note.id] ? <Markdown html={noteHtml[note.id]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <p class="note-body">{note.body}</p>}
+              {!note.system && note.author?.id === detail.user.id && editingNoteId !== note.id && <div class="toolbar"><button type="button" onClick={() => { setEditingNoteId(note.id); setEditingNoteBody(note.body); }}>編輯</button><button type="button" onClick={() => setDeletingNoteId(note.id)}>刪除</button></div>}
               {!note.system && <div class="toolbar wrap">{[...new Set((detail.noteReactions[note.id] ?? []).map((reaction) => reaction.name))].map((name) => {
                 const reactions = (detail.noteReactions[note.id] ?? []).filter((reaction) => reaction.name === name);
                 const mine = reactions.find((reaction) => reaction.user.id === detail.user.id);
                 return <button class={mine ? 'selected' : ''} disabled={busy} onClick={() => mine ? invoke('unreactNote', { noteId: note.id, reactionId: mine.id }) : invoke('reactNote', { noteId: note.id, name })}>{name} {reactions.length}</button>;
-              })}<input aria-label={`Emoji for comment ${note.id}`} value={noteEmoji[note.id] ?? ''} onInput={(event) => setNoteEmoji((current) => ({ ...current, [note.id]: event.currentTarget.value }))} /><button disabled={!noteEmoji[note.id]?.trim() || busy} onClick={() => invoke('reactNote', { noteId: note.id, name: noteEmoji[note.id].trim() })}>React to comment</button></div>}
-              {deletingNoteId === note.id && <div class="toolbar alert"><span>Delete this comment permanently?</span><button class="danger" disabled={busy} onClick={() => { invoke('deleteNote', { discussionId: discussion.id, noteId: note.id }); setDeletingNoteId(null); }}>Delete</button><button onClick={() => setDeletingNoteId(null)}>Cancel</button></div>}
+              })}<input aria-label={`留言表情 ${note.id}`} value={noteEmoji[note.id] ?? ''} onInput={(event) => setNoteEmoji((current) => ({ ...current, [note.id]: event.currentTarget.value }))} /><button disabled={!noteEmoji[note.id]?.trim() || busy} onClick={() => invoke('reactNote', { noteId: note.id, name: noteEmoji[note.id].trim() })}>回應留言</button></div>}
+              {deletingNoteId === note.id && <div class="toolbar alert"><span>要永久刪除此留言嗎？</span><button class="danger" disabled={busy} onClick={() => { invoke('deleteNote', { discussionId: discussion.id, noteId: note.id }); setDeletingNoteId(null); }}>刪除</button><button onClick={() => setDeletingNoteId(null)}>取消</button></div>}
             </div>)}
-            {detail.canComment && !discussion.notes[0]?.system && <div class="reply-row"><textarea aria-label="Reply" rows={3} placeholder="Reply to this thread" value={reply[discussion.id] ?? ''} onInput={(event) => setReply({ ...reply, [discussion.id]: event.currentTarget.value })} /><div class="toolbar wrap"><button type="button" disabled={!reply[discussion.id]?.trim()} onClick={() => previewEditor(`reply:${discussion.id}`, reply[discussion.id] ?? '')}>Preview Markdown</button><button type="button" onClick={() => upload(`reply:${discussion.id}`)}>Attach file</button><button type="button" disabled={!reply[discussion.id]?.trim() || busy} onClick={() => invoke('reply', { discussionId: discussion.id, body: reply[discussion.id] })}>Reply</button></div>{editorHtml[`reply:${discussion.id}`] && <Markdown html={editorHtml[`reply:${discussion.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</div>}
+            {detail.canComment && !discussion.notes[0]?.system && <div class="reply-row"><textarea aria-label="回覆內容" rows={3} placeholder="回覆這則討論" value={reply[discussion.id] ?? ''} onInput={(event) => setReply({ ...reply, [discussion.id]: event.currentTarget.value })} /><div class="toolbar wrap"><button type="button" disabled={!reply[discussion.id]?.trim()} onClick={() => previewEditor(`reply:${discussion.id}`, reply[discussion.id] ?? '')}>預覽 Markdown</button><button type="button" onClick={() => upload(`reply:${discussion.id}`)}>上傳附件</button><button type="button" disabled={!reply[discussion.id]?.trim() || busy} onClick={() => invoke('reply', { discussionId: discussion.id, body: reply[discussion.id] })}>送出回覆</button></div>{editorHtml[`reply:${discussion.id}`] && <Markdown html={editorHtml[`reply:${discussion.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</div>}
           </div>)}
-          {detail.canComment && <><label class="field"><span>New comment or thread · quick actions are sent to GitLab</span><textarea rows={5} value={comment} onInput={(event) => setComment(event.currentTarget.value)} /></label>
-          {detail.canInternalComment && <label class="check"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.currentTarget.checked)} /> Internal comment</label>}
-          <div class="toolbar wrap"><button disabled={!comment.trim()} onClick={() => previewEditor('comment', comment)}>Preview Markdown</button><button onClick={() => upload('comment')}>Attach file</button><button class="primary" disabled={!comment.trim() || busy} onClick={() => invoke('note', { body: comment, internal })}>Comment</button><button disabled={!comment.trim() || busy || internal} onClick={() => invoke('thread', { body: comment, internal })}>Start thread</button></div>{internal && <p class="muted small">Internal comments cannot start a discussion thread on this GitLab instance.</p>}{editorHtml.comment && <Markdown html={editorHtml.comment} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</>}
+          {detail.canComment && <><label class="field"><span>新增留言或討論（GitLab quick actions 會送至 GitLab）</span><textarea rows={5} value={comment} onInput={(event) => setComment(event.currentTarget.value)} /></label>
+          {detail.canInternalComment && <label class="check"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.currentTarget.checked)} /> 內部留言</label>}
+          <div class="toolbar wrap"><button disabled={!comment.trim()} onClick={() => previewEditor('comment', comment)}>預覽 Markdown</button><button onClick={() => upload('comment')}>上傳附件</button><button class="primary" disabled={!comment.trim() || busy} onClick={() => invoke('note', { body: comment, internal })}>送出留言</button><button disabled={!comment.trim() || busy || internal} onClick={() => invoke('thread', { body: comment, internal })}>開始討論</button></div>{internal && <p class="muted small">此 GitLab 執行個體的內部留言無法建立討論串。</p>}{editorHtml.comment && <Markdown html={editorHtml.comment} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</>}
         </section>
-        <section class="card"><h2>Linked issues</h2>
-          {detail.links.length === 0 ? <p class="muted">No linked issues.</p> : detail.links.map((linked) => <div class="list-row" key={linked.issue_link_id ?? linked.id}><button class="text-link" onClick={() => openLink(linked.web_url)}>{linked.link_type ?? 'relates to'} · #{linked.iid} {linked.title}</button>{linked.issue_link_id && detail.canLink && <button onClick={() => invoke('unlink', { linkId: linked.issue_link_id })}>Remove</button>}</div>)}
-          {detail.canLink && <div class="inline-form"><input type="number" min="1" placeholder="Project ID" value={linkProject} onInput={(event) => setLinkProject(event.currentTarget.value)} /><input type="number" min="1" placeholder="Issue #" value={linkIid} onInput={(event) => setLinkIid(event.currentTarget.value)} /><select value={linkType} onChange={(event) => setLinkType(event.currentTarget.value as typeof linkType)}><option value="relates_to">Relates to</option><option value="blocks">Blocks</option><option value="is_blocked_by">Is blocked by</option></select><button disabled={!linkProject || !linkIid || busy} onClick={() => invoke('link', { targetProjectId: Number(linkProject), targetIssueIid: Number(linkIid), linkType })}>Link issue</button></div>}
+        <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>關聯 Issue</h2>
+          {detail.links.length === 0 ? <p class="muted">尚無關聯 Issue。</p> : detail.links.map((linked) => <div class="list-row" key={linked.issue_link_id ?? linked.id}><button class="text-link" onClick={() => openLink(linked.web_url)}>{({ relates_to: '相關', blocks: '阻擋', is_blocked_by: '被阻擋' } as Record<string, string>)[linked.link_type ?? 'relates_to'] ?? '相關'} · #{linked.iid} {linked.title}</button>{linked.issue_link_id && detail.canLink && <button onClick={() => invoke('unlink', { linkId: linked.issue_link_id })}>移除</button>}</div>)}
+          {detail.canLink && <div class="inline-form"><input type="number" min="1" placeholder="專案 ID" value={linkProject} onInput={(event) => setLinkProject(event.currentTarget.value)} /><input type="number" min="1" placeholder="Issue 編號" value={linkIid} onInput={(event) => setLinkIid(event.currentTarget.value)} /><select value={linkType} onChange={(event) => setLinkType(event.currentTarget.value as typeof linkType)}><option value="relates_to">相關</option><option value="blocks">阻擋</option><option value="is_blocked_by">被阻擋</option></select><button disabled={!linkProject || !linkIid || busy} onClick={() => invoke('link', { targetProjectId: Number(linkProject), targetIssueIid: Number(linkIid), linkType })}>建立關聯</button></div>}
         </section>
-        <section class="card"><h2>Child tasks <span class="muted small">{detail.tasks.length}</span></h2>
+        <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>子工作 <span class="muted small">{detail.tasks.length}</span></h2>
           {detail.tasks.length ? detail.tasks.map((task) => <div class="task-group" key={task.id}><div class="list-row">
             <span class={`state ${task.state}`}>{task.state}</span><button class="text-link" onClick={() => { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); setTaskTitle(task.title); setTaskDescription(task.description ?? ''); setTaskEditing(false); }}>#{task.iid} {task.title}</button>
-            {task.canEdit && <button disabled={busy} onClick={() => invoke('setChildState', { taskId: task.id, stateEvent: task.state.toLowerCase() === 'closed' ? 'reopen' : 'close' })}>{task.state.toLowerCase() === 'closed' ? 'Reopen' : 'Close'}</button>}{detail.canManageChildren && <button disabled={busy} onClick={() => invoke('removeChild', { taskId: task.id })}>Remove</button>}
-          </div>{selectedTaskId === task.id && <div class="task-detail">{taskEditing ? <><label class="field"><span>Task title</span><input aria-label="Task title" value={taskTitle} onInput={(event) => setTaskTitle(event.currentTarget.value)} /></label><label class="field"><span>Task description</span><textarea aria-label="Task description" rows={6} value={taskDescription} onInput={(event) => setTaskDescription(event.currentTarget.value)} /></label><div class="toolbar wrap"><button disabled={!taskDescription.trim()} onClick={() => previewEditor(`task:${task.id}`, taskDescription)}>Preview Markdown</button><button onClick={() => upload(`task:${task.id}`)}>Attach file</button><button class="primary" disabled={!taskTitle.trim() || busy} onClick={() => invoke('updateChild', { taskId: task.id, title: taskTitle, description: taskDescription })}>Save task</button><button onClick={() => setTaskEditing(false)}>Cancel</button></div>{editorHtml[`task:${task.id}`] && <Markdown html={editorHtml[`task:${task.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : <>{task.descriptionHtml ? <Markdown html={task.descriptionHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{task.description || 'No description.'}</pre>}{task.canEdit && <button onClick={() => setTaskEditing(true)}>Edit task</button>}</>}</div>}</div>) : <p class="muted">No child tasks.</p>}
+            {task.canEdit && <button disabled={busy} onClick={() => invoke('setChildState', { taskId: task.id, stateEvent: task.state.toLowerCase() === 'closed' ? 'reopen' : 'close' })}>{task.state.toLowerCase() === 'closed' ? '重新開啟' : '結案'}</button>}{detail.canManageChildren && <button disabled={busy} onClick={() => invoke('removeChild', { taskId: task.id })}>移除子工作</button>}
+          </div>{selectedTaskId === task.id && <div class="task-detail">{taskEditing ? <><label class="field"><span>子工作標題</span><input aria-label="子工作標題" value={taskTitle} onInput={(event) => setTaskTitle(event.currentTarget.value)} /></label><label class="field"><span>子工作描述</span><textarea aria-label="子工作描述" rows={6} value={taskDescription} onInput={(event) => setTaskDescription(event.currentTarget.value)} /></label><div class="toolbar wrap"><button disabled={!taskDescription.trim()} onClick={() => previewEditor(`task:${task.id}`, taskDescription)}>預覽 Markdown</button><button onClick={() => upload(`task:${task.id}`)}>上傳附件</button><button class="primary" disabled={!taskTitle.trim() || busy} onClick={() => invoke('updateChild', { taskId: task.id, title: taskTitle, description: taskDescription })}>儲存子工作</button><button onClick={() => setTaskEditing(false)}>取消</button></div>{editorHtml[`task:${task.id}`] && <Markdown html={editorHtml[`task:${task.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : <>{task.descriptionHtml ? <Markdown html={task.descriptionHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{task.description || '尚未提供描述。'}</pre>}{task.canEdit && <button onClick={() => setTaskEditing(true)}>編輯子工作</button>}</>}</div>}</div>) : <p class="muted">尚無子工作。</p>}
           {detail.canManageChildren && detail.parentWorkItemId && <>
-            {detail.taskTypeId && <div class="inline-form"><input aria-label="New child task title" placeholder="New child task title" value={childTitle} onInput={(event) => setChildTitle(event.currentTarget.value)} /><button disabled={!childTitle.trim() || busy} onClick={() => invoke('createChild', { title: childTitle.trim() })}>Create child task</button></div>}
-            <div class="inline-form"><input aria-label="Existing task number" type="number" min="1" placeholder="Existing task # in this project" value={childIid} onInput={(event) => setChildIid(event.currentTarget.value)} /><button disabled={!childIid || busy} onClick={() => invoke('addChild', { taskIid: Number(childIid) })}>Add existing task</button></div>
+            {detail.taskTypeId && <div class="inline-form"><input aria-label="新子工作標題" placeholder="新子工作標題" value={childTitle} onInput={(event) => setChildTitle(event.currentTarget.value)} /><button disabled={!childTitle.trim() || busy} onClick={() => invoke('createChild', { title: childTitle.trim() })}>建立子工作</button></div>}
+            <div class="inline-form"><input aria-label="既有子工作編號" type="number" min="1" placeholder="此專案的既有子工作編號" value={childIid} onInput={(event) => setChildIid(event.currentTarget.value)} /><button disabled={!childIid || busy} onClick={() => invoke('addChild', { taskIid: Number(childIid) })}>加入既有子工作</button></div>
           </>}
         </section>
-        <section class="card"><h2>Development</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">No related merge requests.</p>}</section>
+        <section class="card issue-section" hidden={detailTab !== 'development'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
+        <section class="card issue-section" hidden={detailTab !== 'development'}><div class="section-head"><div><h2>開始開發與交付</h2><p class="muted small">先確認工作目錄與 Repo 狀態，再複製任務並開啟 Codex CLI。</p></div></div>
+          {(() => { const repo = snapshot?.localRepositories[detail.project.id]; const inGroup = !!snapshot?.projects.some((item) => item.id === detail.project.id); const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready'; return <>
+            {canDevelop ? <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path), returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? '尚未設定此 Group 的工作目錄。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請先檢查工作目錄。' : '此 Repo 尚未下載到本機。'}</strong><p>閱讀與討論可繼續使用；本機開發需要此 Group 的工作目錄及 Repo。</p><button type="button" onClick={onOpenSettings}>前往設定</button></div>}
+            <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>準備開發交付：檢查差異 → Commit → Push → 建立 MR</summary>
+              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers ?? detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => record.projectId === issue.project_id && record.issueIid === issue.iid) ?? []} onAction={(action, record) => {
+                if (action === 'commitDelivery') postWorkspace({ type: 'commitDelivery', deliveryId: record.id });
+                else if (action === 'pushDelivery') postWorkspace({ type: 'pushDelivery', deliveryId: record.id });
+                else if (action === 'createDeliveryMergeRequest') postWorkspace({ type: 'createDeliveryMergeRequest', deliveryId: record.id });
+              }} onOpenExternal={(url) => postWorkspace({ type: 'openExternal', url })} /> : <p class="muted">設定工作目錄並下載 Repo 後，即可開始交付。</p>}
+            </details>
+          </>; })()}
+        </section>
       </div><aside class="sidebar">
-        <section class="card"><h2>Details</h2><dl><dt>Author</dt><dd>{issue.author?.name ?? '—'}</dd><dt>Assignee</dt><dd>{issue.assignees?.map((person) => person.name).join(', ') || 'Unassigned'}</dd><dt>Labels</dt><dd>{issue.labels?.length ? issue.labels.map((label) => <span class="pill">{label}</span>) : 'None'}</dd><dt>Milestone</dt><dd>{issue.milestone?.title ?? 'None'}</dd>{detail.hasStartDate && <><dt>Start date</dt><dd>{detail.startDate ?? 'None'}</dd></>}<dt>Due date</dt><dd>{issue.due_date ?? 'None'}</dd><dt>Confidential</dt><dd>{issue.confidential ? 'Yes' : 'No'}</dd><dt>Discussion</dt><dd>{issue.discussion_locked ? 'Locked' : 'Open'}</dd></dl></section>
-        <section class="card"><h2>Reactions</h2><div class="toolbar wrap">{detail.reactions.map((reaction) => <button class={myReactions.has(reaction.id) ? 'selected' : ''} onClick={() => myReactions.has(reaction.id) ? invoke('unreact', { reactionId: reaction.id }) : invoke('react', { name: reaction.name })}>{reaction.name}</button>)}</div><div class="inline-form"><input aria-label="Emoji name" value={emoji} onInput={(event) => setEmoji(event.currentTarget.value)} /><button disabled={!emoji.trim() || busy} onClick={() => invoke('react', { name: emoji.trim() })}>React</button></div></section>
-        <section class="card"><h2>Notifications and to-do</h2><div class="stack"><button onClick={() => invoke(issue.subscribed ? 'unsubscribe' : 'subscribe')}>{issue.subscribed ? 'Unsubscribe' : 'Subscribe'}</button><button onClick={() => myTodo ? invoke('todoDone', { todoId: myTodo.id }) : invoke('todo')}>{myTodo ? 'Mark to-do done' : 'Add to-do'}</button></div></section>
-        <section class="card"><h2>Time tracking</h2><dl><dt>Estimate</dt><dd>{issue.time_stats?.human_time_estimate ?? 'None'}</dd><dt>Spent</dt><dd>{issue.time_stats?.human_total_time_spent ?? 'None'}</dd></dl>{detail.canTrackTime && <><label class="field"><span>Duration (for example 2h30m)</span><input value={duration} onInput={(event) => setDuration(event.currentTarget.value)} /></label><label class="field"><span>Time note (optional)</span><input value={summary} onInput={(event) => setSummary(event.currentTarget.value)} /></label>{detail.canLogTime && <label class="field"><span>Spent date (optional)</span><input type="date" value={spentDate} onInput={(event) => setSpentDate(event.currentTarget.value)} /></label>}<div class="toolbar wrap"><button disabled={!duration.trim() || busy} onClick={() => invoke('estimate', { duration })}>Set estimate</button><button disabled={!duration.trim() || busy} onClick={() => invoke('spend', { duration, summary, spentDate })}>Log time</button><button onClick={() => invoke('resetEstimate')}>Reset estimate</button><button onClick={() => invoke('resetSpent')}>Reset spent</button></div></>}{detail.timelogs.length > 0 && <div class="time-report"><h3>Time entries</h3>{detail.timelogs.map((entry) => <div class="list-row" key={entry.id}><span>{entry.timeSpent}s · {entry.user.name} · {new Date(entry.spentAt).toLocaleDateString()}{entry.summary ? ` · ${entry.summary}` : ''}</span>{detail.canDeleteTimelog && entry.userPermissions?.adminTimelog && <button class="danger" disabled={busy} onClick={() => invoke('deleteTimelog', { timelogId: entry.id })}>Delete time entry</button>}</div>)}</div>}</section>
-        {(detail.canClone || detail.canMove || detail.canDelete) && <section class="card"><h2>Issue actions</h2>{(detail.canClone || detail.canMove) && <><label class="field"><span>Find a target project, including other groups</span><input aria-label="Find target project" value={targetQuery} onInput={(event) => setTargetQuery(event.currentTarget.value)} /></label><button disabled={!targetQuery.trim() || busy} onClick={searchTargetProjects}>Search projects</button><label class="field"><span>Target project</span><select value={targetProject} onChange={(event) => setTargetProject(event.currentTarget.value)}><option value="">Choose a project</option>{targetProjects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label></>}<div class="stack">{detail.canClone && <><label class="check"><input type="checkbox" checked={cloneWithNotes} onChange={(event) => setCloneWithNotes(event.currentTarget.checked)} /> Include comments when cloning</label><button disabled={!targetProject || busy} onClick={() => invoke('clone', { toProjectId: Number(targetProject), withNotes: cloneWithNotes })}>Clone issue</button></>}{detail.canMove && <button disabled={!targetProject || busy} onClick={() => invoke('move', { toProjectId: Number(targetProject) })}>Move issue</button>}{detail.canDelete && <button class="danger" disabled={busy} onClick={() => invoke('delete')}>Delete issue</button>}</div></section>}
+        <section class="card issue-section" hidden={detailTab !== 'content'}><details class="issue-properties"><summary>屬性：負責人、標籤與里程碑</summary><dl><dt>建立者</dt><dd>{issue.author?.name ?? '—'}</dd><dt>負責人</dt><dd>{issue.assignees?.map((person) => person.name).join('、') || '未指派'}</dd><dt>標籤</dt><dd>{issue.labels?.length ? issue.labels.map((label) => <span class="pill">{label}</span>) : '無'}</dd><dt>里程碑</dt><dd>{issue.milestone?.title ?? '無'}</dd>{detail.hasStartDate && <><dt>開始日期</dt><dd>{detail.startDate ?? '無'}</dd></>}<dt>到期日</dt><dd>{issue.due_date ?? '無'}</dd><dt>機密</dt><dd>{issue.confidential ? '是' : '否'}</dd><dt>討論</dt><dd>{issue.discussion_locked ? '已鎖定' : '開放'}</dd></dl></details></section>
+        <section class="card issue-section" hidden={detailTab !== 'content'}><h2>表情回應</h2><div class="toolbar wrap">{detail.reactions.map((reaction) => <button class={myReactions.has(reaction.id) ? 'selected' : ''} onClick={() => myReactions.has(reaction.id) ? invoke('unreact', { reactionId: reaction.id }) : invoke('react', { name: reaction.name })}>{reaction.name}</button>)}</div><div class="inline-form"><input aria-label="表情名稱" value={emoji} onInput={(event) => setEmoji(event.currentTarget.value)} /><button disabled={!emoji.trim() || busy} onClick={() => invoke('react', { name: emoji.trim() })}>回應</button></div></section>
+        <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>訂閱與待辦</h2><div class="stack"><button onClick={() => invoke(issue.subscribed ? 'unsubscribe' : 'subscribe')}>{issue.subscribed ? '取消訂閱' : '訂閱此 Issue'}</button><button onClick={() => myTodo ? invoke('todoDone', { todoId: myTodo.id }) : invoke('todo')}>{myTodo ? '完成待辦' : '加入待辦'}</button></div></section>
+        <section class="card issue-section" hidden={detailTab !== 'time'}><h2>工時</h2>
+          {recoveredManualTime && <div class="recovered-draft"><strong>有一份舊工時草稿尚未指定 Issue</strong><p class="muted">為避免寫入錯誤的 Issue，請選擇專案並輸入 Issue 編號後再恢復。</p><div class="inline-form"><select aria-label="舊工時草稿的目標專案" value={recoveryProjectId} onChange={(event) => setRecoveryProjectId(event.currentTarget.value)}><option value="">選擇目標專案</option>{snapshot?.projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><input aria-label="舊工時草稿的目標 Issue 編號" inputMode="numeric" type="number" min="1" placeholder="Issue 編號" value={recoveryIssueIid} onInput={(event) => setRecoveryIssueIid(event.currentTarget.value)} /><button type="button" disabled={!recoveryProjectId || !Number(recoveryIssueIid) || Number(recoveryIssueIid) < 1} onClick={() => { onRecoverManualTime?.(Number(recoveryProjectId), Number(recoveryIssueIid)); setRecoveryProjectId(''); setRecoveryIssueIid(''); }}>恢復到指定 Issue</button></div><p class="small">草稿：{[recoveredManualTime.duration, recoveredManualTime.summary, recoveredManualTime.spentAt].filter(Boolean).join(' · ')}</p></div>}
+          <dl><dt>預估</dt><dd>{issue.time_stats?.human_time_estimate ?? '尚未設定'}</dd><dt>已登錄</dt><dd>{issue.time_stats?.human_total_time_spent ?? '尚無紀錄'}</dd></dl>{detail.canTrackTime && <><div class="timer-controls">{currentIssueTimer ? <><strong>{currentIssueTimer.phase === 'running' ? '計時中' : '已暫停'}</strong><button type="button" onClick={() => postWorkspace({ type: currentIssueTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: currentIssueTimer.id })}>{currentIssueTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => postWorkspace({ type: 'stopTimer', id: currentIssueTimer.id })}>結束計時</button></> : <button class="primary" type="button" onClick={() => postWorkspace({ type: 'startTimer', projectId: issue.project_id, issueIid: issue.iid })}>開始計時</button>}</div>
+          <label class="field"><span>新增手動工時（例如 45m、1h30m）</span><input aria-label="工時長度" placeholder="45m" value={manualTime.duration} onInput={(event) => onManualTimeChange?.({ ...manualTime, duration: event.currentTarget.value })} /></label><label class="field"><span>工時摘要</span><input aria-label="工時摘要" value={manualTime.summary} onInput={(event) => onManualTimeChange?.({ ...manualTime, summary: event.currentTarget.value })} /></label><label class="field"><span>登錄日期</span><input aria-label="工時日期" type="date" value={manualTime.spentAt} onInput={(event) => onManualTimeChange?.({ ...manualTime, spentAt: event.currentTarget.value })} /></label><div class="toolbar wrap"><button disabled={!manualTime.duration.trim() || busy} onClick={() => postWorkspace({ type: 'addManualTime', projectId: issue.project_id, issueIid: issue.iid, ...manualTime, spentAt: manualTime.spentAt || undefined })}>新增待送出工時</button><button disabled={!manualTime.duration.trim() || busy} onClick={() => invoke('estimate', { duration: manualTime.duration })}>設定預估</button><button onClick={() => invoke('resetEstimate')}>重設預估</button><button onClick={() => invoke('resetSpent')}>重設已登錄工時</button></div>
+          {issueTimers.filter((entry) => entry.phase !== 'posted').map((entry) => <TimeRow entry={entry} edit={timeEdits[entry.id]} onEdit={(edit) => onTimeEdit?.(entry.id, edit)} onRequest={postWorkspace} />)}</>}{detail.timelogs.length > 0 && <div class="time-report"><h3>GitLab 工時紀錄</h3>{detail.timelogs.map((entry) => <div class="list-row" key={entry.id}><span>{entry.timeSpent}s · {entry.user.name} · {new Date(entry.spentAt).toLocaleDateString()}{entry.summary ? ` · ${entry.summary}` : ''}</span>{detail.canDeleteTimelog && entry.userPermissions?.adminTimelog && <button class="danger" disabled={busy} onClick={() => invoke('deleteTimelog', { timelogId: entry.id })}>刪除</button>}</div>)}</div>}</section>
+        {(detail.canClone || detail.canMove || detail.canDelete) && <details class="card issue-actions"><summary>更多 Issue 操作</summary>{(detail.canClone || detail.canMove) && <><label class="field"><span>搜尋目標專案（包含其他 Group）</span><input aria-label="搜尋目標專案" value={targetQuery} onInput={(event) => setTargetQuery(event.currentTarget.value)} /></label><button disabled={!targetQuery.trim() || busy} onClick={searchTargetProjects}>搜尋專案</button><label class="field"><span>目標專案</span><select value={targetProject} onChange={(event) => setTargetProject(event.currentTarget.value)}><option value="">選擇專案</option>{targetProjects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label></>}<div class="stack">{detail.canClone && <><label class="check"><input type="checkbox" checked={cloneWithNotes} onChange={(event) => setCloneWithNotes(event.currentTarget.checked)} /> 複製時包含留言</label><button disabled={!targetProject || busy} onClick={() => invoke('clone', { toProjectId: Number(targetProject), withNotes: cloneWithNotes })}>複製 Issue</button></>}{detail.canMove && <button disabled={!targetProject || busy} onClick={() => invoke('move', { toProjectId: Number(targetProject) })}>移動 Issue</button>}{detail.canDelete && <button class="danger" disabled={busy} onClick={() => invoke('delete')}>刪除 Issue</button>}</div></details>}
       </aside></div>
+      </div></div>
     </>}
   </main>;
 }
-
-render(<App />, document.getElementById('app')!);

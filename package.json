@@ -1,7 +1,7 @@
 {
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
-  "description": "Browse GitLab groups, clone projects, and manage assigned issues from VS Code.",
+  "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
   "version": "0.4.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
@@ -45,80 +45,80 @@
       "gitlabWorkspace": [
         {
           "id": "gitlabWorkspace.repositories",
-          "name": "Repositories",
-          "contextualTitle": "GitLab Repositories"
+          "name": "專案",
+          "contextualTitle": "GitLab Workspace 專案"
         },
         {
           "id": "gitlabWorkspace.myIssues",
-          "name": "My Issues",
-          "contextualTitle": "GitLab Issues"
+          "name": "我的工作",
+          "contextualTitle": "GitLab Workspace 我的工作"
         }
       ]
     },
     "commands": [
       {
         "command": "gitlabWorkspace.openWorkspace",
-        "title": "GitLab Workspace: Open Workbench",
+        "title": "GitLab Workspace: 開啟工作台",
         "icon": "$(layout)"
       },
       {
         "command": "gitlabWorkspace.openCloneMode",
-        "title": "GitLab Workspace: Open Group Clone"
+        "title": "GitLab Workspace: 專案"
       },
       {
         "command": "gitlabWorkspace.openSaMode",
-        "title": "GitLab Workspace: Open SA Mode"
+        "title": "GitLab Workspace: 需求分析"
       },
       {
         "command": "gitlabWorkspace.openDeveloperMode",
-        "title": "GitLab Workspace: Open Developer Mode"
+        "title": "GitLab Workspace: 我的工作"
       },
       {
         "command": "gitlabWorkspace.openReviewerMode",
-        "title": "GitLab Workspace: Open Reviewer Mode"
+        "title": "GitLab Workspace: 待審查"
       },
       {
         "command": "gitlabWorkspace.connect",
-        "title": "GitLab Workspace: Connect"
+        "title": "GitLab Workspace: 連線 GitLab"
       },
       {
         "command": "gitlabWorkspace.selectGroup",
-        "title": "GitLab Workspace: Select Group"
+        "title": "GitLab Workspace: 選擇 Group"
       },
       {
         "command": "gitlabWorkspace.refresh",
-        "title": "GitLab Workspace: Refresh"
+        "title": "GitLab Workspace: 重新整理工作台"
       },
       {
         "command": "gitlabWorkspace.cloneRepositories",
-        "title": "GitLab Workspace: Choose Repositories to Clone or Update"
+        "title": "GitLab Workspace: 選擇要下載或更新的專案"
       },
       {
         "command": "gitlabWorkspace.cloneAllRepositories",
-        "title": "GitLab Workspace: Clone or Update All Repositories",
+        "title": "GitLab Workspace: 下載或更新全部專案",
         "icon": "$(cloud-download)"
       },
       {
         "command": "gitlabWorkspace.cloneSelectedRepositories",
-        "title": "GitLab Workspace: Clone or Update Checked Repositories",
+        "title": "GitLab Workspace: 下載或更新選取專案",
         "icon": "$(checklist)"
       },
       {
         "command": "gitlabWorkspace.syncLocalDefaultBranches",
-        "title": "GitLab Workspace: Fetch and Pull Local Default Branches",
+        "title": "GitLab Workspace: 更新本機預設分支",
         "icon": "$(sync)"
       },
       {
         "command": "gitlabWorkspace.createIssue",
-        "title": "GitLab Workspace: Create Issue"
+        "title": "GitLab Workspace: 新增 Issue"
       },
       {
         "command": "gitlabWorkspace.disconnect",
-        "title": "GitLab Workspace: Disconnect"
+        "title": "GitLab Workspace: 中斷連線"
       },
       {
         "command": "gitlabWorkspace.openIssue",
-        "title": "GitLab Workspace: Open Issue Details"
+        "title": "GitLab Workspace: 開啟 Issue 詳情"
       }
     ],
     "configuration": {
@@ -127,12 +127,17 @@
         "gitlabWorkspace.pythonPath": {
           "type": "string",
           "default": "python",
-          "description": "Python 3.11+ executable used to install tool Releases."
+          "description": "安裝工具 Release 時使用的 Python 3.11+ 執行檔路徑。"
         }
       }
     },
     "menus": {
       "view/title": [
+        {
+          "command": "gitlabWorkspace.openWorkspace",
+          "when": "view == gitlabWorkspace.repositories || view == gitlabWorkspace.myIssues",
+          "group": "navigation"
+        },
         {
           "command": "gitlabWorkspace.connect",
           "when": "view == gitlabWorkspace.repositories",
@@ -142,21 +147,6 @@
           "command": "gitlabWorkspace.selectGroup",
           "when": "view == gitlabWorkspace.repositories",
           "group": "navigation"
-        },
-        {
-          "command": "gitlabWorkspace.cloneAllRepositories",
-          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
-          "group": "inline"
-        },
-        {
-          "command": "gitlabWorkspace.cloneSelectedRepositories",
-          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
-          "group": "inline"
-        },
-        {
-          "command": "gitlabWorkspace.syncLocalDefaultBranches",
-          "when": "view == gitlabWorkspace.repositories && gitlabWorkspace.groupSelected && !gitlabWorkspace.cloneInProgress",
-          "group": "inline"
         },
         {
           "command": "gitlabWorkspace.createIssue",
@@ -181,10 +171,10 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
-    "build:webview": "npm run typecheck:webview && vite build && vite build --config vite.dashboard.config.mjs",
+    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
-    "test:behavior": "npm run compile && npm run build:webview && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
+    "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
     "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && python test/release/tool_installer_test.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
