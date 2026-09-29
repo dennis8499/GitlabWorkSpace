@@ -151,3 +151,65 @@ export interface GitLabIssueTemplate {
   name: string;
   content: string;
 }
+
+export interface GitLabCommitSummary {
+  id: string;
+  short_id: string;
+  title: string;
+  message?: string;
+  authored_date?: string;
+  committed_date?: string;
+  author_name?: string;
+}
+
+export interface GitLabMergeRequestPipeline {
+  id?: number;
+  status: string;
+  web_url?: string;
+}
+
+export interface GitLabMergeRequest {
+  id: number;
+  iid: number;
+  project_id: number;
+  source_project_id?: number | null;
+  target_project_id?: number | null;
+  title: string;
+  description?: string | null;
+  state: string;
+  web_url: string;
+  author?: GitLabUser;
+  assignees?: GitLabUser[];
+  reviewers?: GitLabUser[];
+  source_branch: string;
+  target_branch: string;
+  sha?: string;
+  diff_refs?: { base_sha?: string; head_sha?: string; start_sha?: string } | null;
+  draft?: boolean;
+  work_in_progress?: boolean;
+  rebase_in_progress?: boolean;
+  has_conflicts?: boolean;
+  detailed_merge_status?: string;
+  merge_status?: string;
+  head_pipeline?: GitLabMergeRequestPipeline | null;
+  merged_at?: string | null;
+  merge_commit_sha?: string | null;
+  references?: { short?: string; relative?: string; full?: string };
+}
+
+export interface GitLabMergeRequestDiff {
+  old_path: string;
+  new_path: string;
+  new_file?: boolean;
+  renamed_file?: boolean;
+  deleted_file?: boolean;
+  diff: string;
+}
+
+export interface GitLabCompareResult {
+  compare_timeout?: boolean;
+  compare_same_ref?: boolean;
+  merge_base_commit?: GitLabCommitSummary | null;
+  commits: GitLabCommitSummary[];
+  diffs?: GitLabMergeRequestDiff[];
+}

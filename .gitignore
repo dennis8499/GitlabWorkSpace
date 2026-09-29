@@ -5,3 +5,5 @@ dist/
 coverage/
 .npm-cache/
 resources/issue-webview/
+__pycache__/
+*.pyc

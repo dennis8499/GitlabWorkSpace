@@ -2,7 +2,8 @@ import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
 import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
-  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser
+  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser,
+  GitLabCommitSummary, GitLabCompareResult, GitLabMergeRequest, GitLabMergeRequestDiff
 } from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -47,6 +48,15 @@ export interface GitLabIssueCapabilities {
   timelogCreate: boolean;
   timelogDelete: boolean;
   createPermission: boolean;
+}
+
+export interface GitLabMergeRequestCreateInput {
+  title: string;
+  description?: string;
+  sourceBranch: string;
+  targetBranch: string;
+  reviewerIds?: number[];
+  assigneeId?: number;
 }
 
 export class GitLabConflictError extends Error {
@@ -128,6 +138,82 @@ export class GitLabClient {
       `groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=all&per_page=100`
     );
     return issues.filter((issue) => projectIds.has(issue.project_id));
+  }
+
+  async listGroupMergeRequests(groupId: number): Promise<GitLabMergeRequest[]> {
+    const root = `groups/${encodeURIComponent(String(groupId))}/merge_requests?state=opened&per_page=100`;
+    const [assignedResult, reviewResult] = await Promise.allSettled([
+      this.getPages<GitLabMergeRequest>(`${root}&scope=assigned_to_me`),
+      this.getPages<GitLabMergeRequest>(`${root}&scope=reviews_for_me`)
+    ]);
+    if (assignedResult.status === 'rejected' && reviewResult.status === 'rejected') throw assignedResult.reason;
+    const assigned = assignedResult.status === 'fulfilled' ? assignedResult.value : [];
+    const reviews = reviewResult.status === 'fulfilled' ? reviewResult.value : [];
+    const byId = new Map<string, GitLabMergeRequest>();
+    for (const request of [...assigned, ...reviews]) {
+      if (request.state !== 'opened' || !Number.isSafeInteger(request.project_id) || !Number.isSafeInteger(request.iid)) continue;
+      byId.set(`${request.project_id}:${request.iid}`, request);
+    }
+    return [...byId.values()];
+  }
+
+  findOpenMergeRequestsBySourceBranch(projectId: number, sourceBranch: string): Promise<GitLabMergeRequest[]> {
+    if (!sourceBranch.trim() || sourceBranch.length > 255) throw new GitLabApiError('A valid source branch is required.');
+    return this.getPages<GitLabMergeRequest>(
+      `${this.projectPath(projectId)}/merge_requests?state=opened&source_branch=${encodeURIComponent(sourceBranch)}&per_page=100`
+    );
+  }
+
+  getMergeRequest(projectId: number, iid: number): Promise<GitLabMergeRequest> {
+    return this.getJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}`);
+  }
+
+  async listMergeRequestDiffs(projectId: number, iid: number): Promise<GitLabMergeRequestDiff[]> {
+    const response = await this.getJson<{ changes?: GitLabMergeRequestDiff[]; diffs?: GitLabMergeRequestDiff[] }>(
+      `${this.projectPath(projectId)}/merge_requests/${iid}/changes`
+    );
+    return (response.changes ?? response.diffs ?? []).slice(0, 200);
+  }
+
+  listMergeRequestDiscussions(projectId: number, iid: number): Promise<GitLabIssueDiscussion[]> {
+    return this.getPages<GitLabIssueDiscussion>(`${this.projectPath(projectId)}/merge_requests/${iid}/discussions?per_page=100`);
+  }
+
+  createMergeRequestNote(projectId: number, iid: number, body: string): Promise<GitLabIssueNote> {
+    return this.postJson<GitLabIssueNote>(`${this.projectPath(projectId)}/merge_requests/${iid}/notes`, { body });
+  }
+
+  replyToMergeRequestDiscussion(projectId: number, iid: number, discussionId: string, body: string): Promise<GitLabIssueNote> {
+    return this.postJson<GitLabIssueNote>(`${this.projectPath(projectId)}/merge_requests/${iid}/discussions/${encodeURIComponent(discussionId)}/notes`, { body });
+  }
+
+  createMergeRequest(projectId: number, input: GitLabMergeRequestCreateInput): Promise<GitLabMergeRequest> {
+    const payload: Record<string, string | number | number[]> = {
+      title: input.title,
+      source_branch: input.sourceBranch,
+      target_branch: input.targetBranch
+    };
+    if (input.description?.trim()) payload.description = input.description;
+    if (input.reviewerIds?.length) payload.reviewer_ids = input.reviewerIds;
+    if (input.assigneeId !== undefined) payload.assignee_id = input.assigneeId;
+    return this.postJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests`, payload);
+  }
+
+  async approveMergeRequest(projectId: number, iid: number, sha: string): Promise<void> {
+    await this.postJson<unknown>(`${this.projectPath(projectId)}/merge_requests/${iid}/approve`, { sha });
+  }
+
+  mergeMergeRequest(projectId: number, iid: number, sha: string): Promise<GitLabMergeRequest> {
+    return this.putJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}/merge`, { sha });
+  }
+
+  getRepositoryBranch(projectId: number, branch: string): Promise<{ name: string; commit: GitLabCommitSummary }> {
+    return this.getJson(`${this.projectPath(projectId)}/repository/branches/${encodeURIComponent(branch)}`);
+  }
+
+  compareRepository(projectId: number, from: string, to: string): Promise<GitLabCompareResult> {
+    const query = new URLSearchParams({ from, to, straight: 'false' });
+    return this.getJson(`${this.projectPath(projectId)}/repository/compare?${query.toString()}`);
   }
 
   listProjectMembers(projectId: number): Promise<GitLabMember[]> {

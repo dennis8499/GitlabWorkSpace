@@ -534,11 +534,12 @@ test('skips invalid destinations, ignores missing repositories, and continues af
   }
 });
 
-test('rejects unsafe names, duplicate destinations, and clone URLs on a different origin', () => {
+test('rejects unsafe local names, gives same-named projects stable ID folders, and rejects foreign clone URLs', () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-plan-'));
   try {
-    assert.throws(() => planClones(temp, [project('unsafe', '../outside')], 'https://gitlab.example.test'), /unsafe local folder name/);
-    assert.throws(() => planClones(temp, [project('one', 'same'), project('two', 'SAME')], 'https://gitlab.example.test'), /same local folder name/);
+    assert.throws(() => planClones(temp, [project('unsafe', '../outside')], 'https://gitlab.example.test'), /無法安全建立 Repo 路徑/);
+    const duplicatePlans = planClones(temp, [project('one', 'same'), project('twooo', 'same')], 'https://gitlab.example.test');
+    assert.deepEqual(duplicatePlans.map((plan) => path.basename(plan.targetPath)), ['same--4', 'same--6']);
     const external = { ...project('external'), http_url_to_repo: 'https://other.example.test/group/external.git' };
     assert.throws(() => planClones(temp, [external], 'https://gitlab.example.test'), /outside the configured GitLab server/);
   } finally {

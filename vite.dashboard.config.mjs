@@ -5,13 +5,13 @@ export default defineConfig({
   base: './',
   build: {
     outDir: '../../resources/issue-webview',
-    emptyOutDir: true,
+    emptyOutDir: false,
     cssCodeSplit: false,
     rollupOptions: {
-      input: 'src/webview/index.html',
+      input: 'src/webview/dashboard.html',
       output: {
-        entryFileNames: 'issue.js',
-        assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'issue.css' : '[name][extname]'
+        entryFileNames: 'dashboard.js',
+        assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'dashboard.css' : '[name][extname]'
       }
     }
   }

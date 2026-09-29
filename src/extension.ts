@@ -10,6 +10,7 @@ import {
 } from './git/cloneService';
 import { normalizeGitLabBaseUrl } from './api/urlPolicy';
 import { IssuePanels } from './issues/issuePanel';
+import { WorkspacePanel } from './workspace/workspacePanel';
 
 class ProjectItem extends vscode.TreeItem {
   readonly project: GitLabProject;
@@ -234,6 +235,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const repositories = new RepositoryProvider(session);
   const issues = new IssueProvider(session);
   const issuePanels = new IssuePanels(context, session, () => issues.refresh());
+  const workspacePanel = new WorkspacePanel(context, session, issuePanels);
   const cloneOutput = vscode.window.createOutputChannel('GitLab Workspace Repositories');
   const repoTree = vscode.window.createTreeView('gitlabWorkspace.repositories', {
     treeDataProvider: repositories,
@@ -246,8 +248,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const cloneState = new CloneOperationGate();
   await updateCloneCommandContexts(session, cloneState);
   context.subscriptions.push(repoTree.onDidChangeCheckboxState((event) => repositories.updateCheckboxState(event.items)));
-  context.subscriptions.push(repoTree, issueTree, issuePanels, repositories, issues, cloneOutput);
+  context.subscriptions.push(repoTree, issueTree, issuePanels, workspacePanel, repositories, issues, cloneOutput);
   context.subscriptions.push(
+    vscode.commands.registerCommand('gitlabWorkspace.openWorkspace', () => workspacePanel.show()),
     vscode.commands.registerCommand('gitlabWorkspace.connect', () => connectToGitLab(session, repositories, issues, issuePanels, cloneState)),
     vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => selectGroup(session, repositories, issues, group, cloneState)),
     vscode.commands.registerCommand('gitlabWorkspace.refresh', () => refreshTrees(repositories, issues)),
@@ -266,7 +269,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('gitlabWorkspace.createIssue', () => issuePanels.showCreate()),
     vscode.commands.registerCommand('gitlabWorkspace.openIssue', async (item: IssueItem) => {
       if (item?.issue) await issuePanels.showIssue(item.issue);
-    })
+    }),
+    vscode.commands.registerCommand('gitlabWorkspace.openCloneMode', () => workspacePanel.show('clone')),
+    vscode.commands.registerCommand('gitlabWorkspace.openSaMode', () => workspacePanel.show('sa')),
+    vscode.commands.registerCommand('gitlabWorkspace.openDeveloperMode', () => workspacePanel.show('developer')),
+    vscode.commands.registerCommand('gitlabWorkspace.openReviewerMode', () => workspacePanel.show('reviewer'))
   );
 }
 

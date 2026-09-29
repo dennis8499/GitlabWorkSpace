@@ -20,6 +20,11 @@
   ],
   "main": "./out/src/extension.js",
   "activationEvents": [
+    "onCommand:gitlabWorkspace.openWorkspace",
+    "onCommand:gitlabWorkspace.openCloneMode",
+    "onCommand:gitlabWorkspace.openSaMode",
+    "onCommand:gitlabWorkspace.openDeveloperMode",
+    "onCommand:gitlabWorkspace.openReviewerMode",
     "onView:gitlabWorkspace.repositories",
     "onView:gitlabWorkspace.myIssues",
     "onCommand:gitlabWorkspace.connect",
@@ -51,6 +56,27 @@
       ]
     },
     "commands": [
+      {
+        "command": "gitlabWorkspace.openWorkspace",
+        "title": "GitLab Workspace: Open Workbench",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "gitlabWorkspace.openCloneMode",
+        "title": "GitLab Workspace: Open Group Clone"
+      },
+      {
+        "command": "gitlabWorkspace.openSaMode",
+        "title": "GitLab Workspace: Open SA Mode"
+      },
+      {
+        "command": "gitlabWorkspace.openDeveloperMode",
+        "title": "GitLab Workspace: Open Developer Mode"
+      },
+      {
+        "command": "gitlabWorkspace.openReviewerMode",
+        "title": "GitLab Workspace: Open Reviewer Mode"
+      },
       {
         "command": "gitlabWorkspace.connect",
         "title": "GitLab Workspace: Connect"
@@ -95,6 +121,16 @@
         "title": "GitLab Workspace: Open Issue Details"
       }
     ],
+    "configuration": {
+      "title": "GitLab Workspace",
+      "properties": {
+        "gitlabWorkspace.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python 3.11+ executable used to install tool Releases."
+        }
+      }
+    },
     "menus": {
       "view/title": [
         {
@@ -145,12 +181,12 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
-    "build:webview": "npm run typecheck:webview && vite build",
+    "build:webview": "npm run typecheck:webview && vite build && vite build --config vite.dashboard.config.mjs",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
     "test:behavior": "npm run compile && npm run build:webview && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
-    "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs",
+    "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && python test/release/tool_installer_test.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
     "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && python scripts/verify-vsix.py",

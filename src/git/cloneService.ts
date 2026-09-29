@@ -3,6 +3,7 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, st
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
+import { groupRepositoryPath } from '../workspace/workspacePaths';
 
 export type CloneAction = 'clone' | 'update';
 
@@ -66,6 +67,8 @@ export interface CloneDependencies {
   cloneRunner?: CloneRunner;
   updateRunner?: UpdateRunner;
   resolveProject?: ProjectResolver;
+  /** Complete selected Group inventory, used to make same-named child Repos deterministic. */
+  groupProjects?: readonly GitLabProject[];
 }
 
 export interface LocalSyncDependencies {
@@ -84,7 +87,8 @@ export function planClones(
   workspacePath: string,
   projects: readonly GitLabProject[],
   gitLabBaseUrl: string,
-  exists: (target: string) => boolean = existsSync
+  exists: (target: string) => boolean = existsSync,
+  groupProjects: readonly GitLabProject[] = projects
 ): ClonePlan[] {
   const root = path.resolve(workspacePath);
   if (!exists(root) || !statSync(root).isDirectory()) {
@@ -93,7 +97,12 @@ export function planClones(
 
   const foldedPaths = new Set<string>();
   return projects.map((project) => {
-    const targetPath = getProjectTargetPath(root, project);
+    let targetPath: string;
+    try {
+      targetPath = groupRepositoryPath(root, project, groupProjects);
+    } catch (error) {
+      throw new ClonePreflightError(error instanceof Error ? error.message : 'The repository path is unsafe.');
+    }
     if (!isAllowedGitRemote(gitLabBaseUrl, project.http_url_to_repo)) {
       throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' has a clone URL outside the configured GitLab server.');
     }
@@ -121,7 +130,7 @@ export async function cloneProjects(
 ): Promise<CloneBatchResult> {
   // Validate every existing destination and remote before the first clone or fetch.
   const plans = await preflightExistingPlans(
-    planClones(workspacePath, projects, gitLabBaseUrl),
+    planClones(workspacePath, projects, gitLabBaseUrl, existsSync, dependencies.groupProjects ?? projects),
     workspacePath,
     gitLabBaseUrl,
     dependencies.resolveProject ?? (async (project) => project)
@@ -207,7 +216,7 @@ export async function syncLocalDefaultBranches(
   for (const project of projects) {
     let targetPath: string;
     try {
-      targetPath = getProjectTargetPath(root, project);
+      targetPath = groupRepositoryPath(root, project, projects);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -282,18 +291,6 @@ export async function syncLocalDefaultBranches(
   }
 
   return result;
-}
-
-function getProjectTargetPath(root: string, project: GitLabProject): string {
-  if (!/^[A-Za-z0-9_.-]+$/.test(project.path) || project.path === '.' || project.path === '..' ||
-      /[. ]$/.test(project.path) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(project.path)) {
-    throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' has an unsafe local folder name.');
-  }
-  const targetPath = path.resolve(root, project.path);
-  if (path.dirname(targetPath) !== root) {
-    throw new ClonePreflightError('Repository ' + project.path_with_namespace + ' would escape the selected folder.');
-  }
-  return targetPath;
 }
 
 async function preflightExistingPlans(
@@ -723,5 +720,9 @@ function removeFailedCloneDirectory(
 }
 
 export function createCloneEnvironmentForTest(remoteUrl: string, token: string): NodeJS.ProcessEnv {
+  return buildGitEnvironment(remoteUrl, token);
+}
+
+export function createScopedGitEnvironment(remoteUrl: string, token: string): NodeJS.ProcessEnv {
   return buildGitEnvironment(remoteUrl, token);
 }

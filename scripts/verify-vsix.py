@@ -25,6 +25,11 @@ try:
         for asset in ("extension/resources/issue-webview/issue.js", "extension/resources/issue-webview/issue.css"):
             if asset not in members or not archive.read(asset):
                 raise SystemExit(f"VSIX is missing Issue webview asset: {asset}")
+        for asset in ("extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js"):
+            if asset not in members or not archive.read(asset):
+                raise SystemExit(f"VSIX is missing Workspace dashboard asset: {asset}")
+        if "extension/resources/tool-installer.py" not in members:
+            raise SystemExit("VSIX is missing the Release tool installer")
         if any(name.startswith(("extension/.github/", "extension/scripts/")) for name in members):
             raise SystemExit("VSIX contains release workflow or helper files")
         if any(name.startswith("extension/.npm-cache/") for name in members):

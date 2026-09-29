@@ -13,7 +13,10 @@ index.html
 tsconfig.json
 tsconfig.webview.json
 vite.config.mjs
+vite.dashboard.config.mjs
 .vscode-test.mjs
 package-lock.json
 **/*.map
+**/__pycache__/**
+**/*.pyc
 resources/issue-webview/index.html
