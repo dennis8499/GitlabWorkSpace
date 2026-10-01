@@ -4,7 +4,10 @@ import importlib.util
 import hashlib
 import io
 import json
+import lzma
+import stat
 import sys
+import tarfile
 import tempfile
 import unittest
 import zipfile
@@ -19,9 +22,170 @@ SPEC = importlib.util.spec_from_file_location("workspace_tool_installer", HELPER
 assert SPEC and SPEC.loader
 installer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(installer)
+BUILDER_PATH = Path(__file__).resolve().parents[2] / "scripts" / "build-offline-tools.py"
+BUILDER_SPEC = importlib.util.spec_from_file_location("workspace_offline_builder", BUILDER_PATH)
+assert BUILDER_SPEC and BUILDER_SPEC.loader
+builder = importlib.util.module_from_spec(BUILDER_SPEC)
+sys.modules[BUILDER_SPEC.name] = builder
+BUILDER_SPEC.loader.exec_module(builder)
+
+
+def tar_xz(entries: list[tuple[str, bytes, str]]) -> bytes:
+    tar_buffer = io.BytesIO()
+    with tarfile.open(fileobj=tar_buffer, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+        for name, contents, kind in entries:
+            member = tarfile.TarInfo(name)
+            member.mtime = 0
+            if kind == "symlink":
+                member.type = tarfile.SYMTYPE
+                member.linkname = "target"
+                archive.addfile(member)
+            elif kind == "hardlink":
+                member.type = tarfile.LNKTYPE
+                member.linkname = "megin/target"
+                archive.addfile(member)
+            elif kind == "directory":
+                member.type = tarfile.DIRTYPE
+                archive.addfile(member)
+            else:
+                member.size = len(contents)
+                archive.addfile(member, io.BytesIO(contents))
+    return lzma.compress(tar_buffer.getvalue(), format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64)
 
 
 class ToolInstallerTests(unittest.TestCase):
+    def test_zip_rejects_bad_crc_symlinks_and_expansion_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bad_zip = root / "bad.zip"
+            bad_zip.write_bytes(b"not a zip")
+            with self.assertRaises(ValueError):
+                installer.extract_verified_zip(bad_zip, root / "bad-stage")
+
+            linked_zip = root / "linked.zip"
+            link = zipfile.ZipInfo("megin/link")
+            link.create_system = 3
+            link.external_attr = (stat.S_IFLNK | 0o777) << 16
+            with zipfile.ZipFile(linked_zip, "w") as archive:
+                archive.writestr(link, "target")
+            with self.assertRaisesRegex(ValueError, "symbolic link"):
+                installer.extract_verified_zip(linked_zip, root / "linked-stage")
+
+            oversized = root / "expanded.zip"
+            with zipfile.ZipFile(oversized, "w") as archive:
+                archive.writestr("release/a.txt", b"12345")
+                archive.writestr("release/b.txt", b"67890")
+            with patch.object(installer, "MAX_EXPANDED_BYTES", 8), self.assertRaisesRegex(ValueError, "400 MB"):
+                installer.extract_verified_zip(oversized, root / "expanded-stage")
+
+            lying = root / "lying.zip"
+            with zipfile.ZipFile(lying, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("megin/SKILL.md", b"A" * 10_000)
+            data = bytearray(lying.read_bytes())
+            local_header = data.index(b"PK\x03\x04")
+            central_header = data.index(b"PK\x01\x02")
+            data[local_header + 22:local_header + 26] = (4).to_bytes(4, "little")
+            data[central_header + 24:central_header + 28] = (4).to_bytes(4, "little")
+            lying.write_bytes(data)
+            with self.assertRaises((ValueError, zipfile.BadZipFile)):
+                installer.extract_verified_zip(lying, root / "lying-stage")
+
+    def test_offline_tar_xz_extracts_only_selected_tool_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = root / "tools.tar.xz"
+            bundle.write_bytes(tar_xz([
+                ("megin/megin/SKILL.md", b"offline skill", "file"),
+                ("merge-reviewer/SKILL.md", b"other tool", "file"),
+            ]))
+            extracted = root / "stage"
+            self.assertEqual(installer.extract_verified_tar_xz(bundle, extracted, "megin"), 1)
+            self.assertEqual((extracted / "megin/SKILL.md").read_bytes(), b"offline skill")
+            self.assertFalse((extracted / "merge-reviewer").exists())
+
+    def test_offline_tar_xz_rejects_traversal_links_and_per_file_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cases = [
+                ("traversal", [("megin/megin/SKILL.md", b"safe", "file"), ("megin/../../outside", b"bad", "file")]),
+                ("symlink", [("megin/megin/link", b"", "symlink")]),
+                ("hardlink", [("megin/megin/link", b"", "hardlink")]),
+            ]
+            for name, members in cases:
+                bundle = root / f"{name}.tar.xz"
+                bundle.write_bytes(tar_xz(members))
+                with self.assertRaises(ValueError):
+                    installer.extract_verified_tar_xz(bundle, root / f"{name}-stage", "megin")
+
+            large = root / "large.tar.xz"
+            large.write_bytes(tar_xz([("megin/megin/SKILL.md", b"12345", "file")]))
+            with patch.object(installer, "MAX_FILE_BYTES", 4), self.assertRaisesRegex(ValueError, "64 MB"):
+                installer.extract_verified_tar_xz(large, root / "large-stage", "megin")
+
+            aggregate = root / "aggregate.tar.xz"
+            aggregate.write_bytes(tar_xz([
+                ("megin/megin/a.txt", b"12345", "file"),
+                ("merge-reviewer/SKILL.md", b"67890", "file"),
+            ]))
+            with patch.object(installer, "MAX_EXPANDED_BYTES", 8), self.assertRaisesRegex(ValueError, "400 MB"):
+                installer.extract_verified_tar_xz(aggregate, root / "aggregate-stage", "megin")
+
+    def test_corrupt_tar_xz_and_archive_digest_mismatch_leave_group_files_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "Group Workspace"
+            root.mkdir()
+            user_file = root / ".agents/skills/megin-local/SKILL.md"
+            user_file.parent.mkdir(parents=True)
+            user_file.write_text("keep local data", encoding="utf-8")
+            damaged = base / "damaged.tar.xz"
+            valid = tar_xz([("megin/megin/SKILL.md", b"offline", "file")])
+            damaged.write_bytes(valid[:-4])
+            with self.assertRaises(ValueError):
+                installer.extract_verified_tar_xz(damaged, base / "damaged-stage", "megin")
+
+            digest_args = [str(HELPER_PATH), "megin", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "megin", "--archive-sha256", hashlib.sha256(damaged.read_bytes()).hexdigest()]
+            with patch.object(sys, "argv", digest_args), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(installer.main(), 1)
+            self.assertEqual(user_file.read_text(encoding="utf-8"), "keep local data")
+            self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())
+
+            args = [str(HELPER_PATH), "megin", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "megin", "--archive-sha256", "0" * 64]
+            with patch.object(sys, "argv", args), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(installer.main(), 1)
+            self.assertEqual(user_file.read_text(encoding="utf-8"), "keep local data")
+            self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())
+
+    def test_import_inspection_detects_versions_and_digests_for_all_pinned_releases(self) -> None:
+        sources = Path(__file__).resolve().parents[2] / "resources" / "offline-tools" / "sources"
+        expected = {
+            "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.2.1", "0472847232774b3eb94eff47bd8b84c285a4e0d2e1a995f993000a3e9159543a"),
+            "megin": ("megin-skills.zip", "0.1.0", "b2e6a4a7bc57df097ba5d04b8d7605429b715db3886e43c8945169541944f5c3"),
+            "merge-reviewer": ("merge-reviewer-0.4.0.zip", "0.4.0", "582790e21aee01965dd812775b5da14553a90d8339731c3338c7c83e528c9168"),
+        }
+        for tool, (filename, version, sha256) in expected.items():
+            with self.subTest(tool=tool):
+                inspected = installer.inspect_zip(tool, sources / filename)
+                self.assertEqual(inspected["detected_version"], version)
+                self.assertEqual(inspected["sha256"], sha256)
+
+    def test_offline_bundle_rebuild_is_byte_for_byte_reproducible(self) -> None:
+        entries = {
+            "megin/megin/SKILL.md": (b"fixed bundle content\n", 0o100644),
+            "codebase-wiki/.agents/skills/codebase-wiki/SKILL.md": (b"wiki content\n", 0o100644),
+            "merge-reviewer/SKILL.md": (b"review content\n", 0o100755),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "first.tar.xz"
+            second = root / "second.tar.xz"
+            with patch.object(builder, "OUTPUT", root):
+                builder.deterministic_bundle(entries, first)
+                builder.deterministic_bundle(entries, second)
+                builder.verify_round_trip(first, entries)
+                builder.verify_round_trip(second, entries)
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+
     def test_archive_extraction_rejects_zip_slip_and_accepts_regular_skill(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

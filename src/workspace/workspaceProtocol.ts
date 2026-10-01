@@ -5,7 +5,9 @@ import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '..
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer';
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
-export type ToolSource = 'auto' | 'github' | 'gitea';
+export type ToolSource = 'gitea' | 'github' | 'bundled';
+export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
+export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'development' | 'relations' | 'time';
 
@@ -85,18 +87,21 @@ export type ToolId = 'codebase-wiki' | 'megin' | 'merge-reviewer';
 export interface InstalledToolState {
   tool: ToolId;
   version?: string;
-  source?: Exclude<ToolSource, 'auto'>;
+  source?: ToolSource;
   status: 'installed' | 'missing' | 'update-available' | 'checking' | 'installing' | 'error';
   message?: string;
 }
 
-export interface ToolReleaseSummary {
-  tag: string;
+export interface ToolPackageSummary {
+  id: string;
+  tool: ToolId;
   version: string;
-  source: Exclude<ToolSource, 'auto'>;
+  source: ToolSource;
   assetName: string;
-  releaseUrl: string;
-  sha256Verified: boolean;
+  format: ToolArchiveFormat;
+  entryRoot: string;
+  available: boolean;
+  error?: string;
 }
 
 export interface WorkspaceSnapshot {
@@ -121,7 +126,7 @@ export interface WorkspaceSnapshot {
   timers: WorkspaceTimerEntry[];
   tools: InstalledToolState[];
   toolSource: ToolSource;
-  toolReleases?: Partial<Record<ToolId, ToolReleaseSummary[]>>;
+  toolPackages?: ToolPackageSummary[];
   deliveryRecords: DeliveryPreview[];
   cloneOperation?: CloneOperationState;
   busy?: boolean;
@@ -187,10 +192,10 @@ export type WorkspaceRequest =
   | { type: 'pushDelivery'; deliveryId: string }
   | { type: 'createDeliveryMergeRequest'; deliveryId: string }
   | { type: 'setToolSource'; source: ToolSource }
-  | { type: 'saveGiteaToken'; token: string }
+  | { type: 'openToolDownload'; tool: ToolId; source: RemoteToolSource }
+  | { type: 'importToolPackage'; tool: ToolId; source: RemoteToolSource }
   | { type: 'refreshTools' }
-  | { type: 'listToolReleases'; tool: ToolId }
-  | { type: 'installTool'; tool: ToolId; version?: string };
+  | { type: 'installTool'; tool: ToolId; packageId: string };
 
 export type WorkspaceResponse =
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
@@ -198,7 +203,6 @@ export type WorkspaceResponse =
   | { type: 'message'; message: string }
   | { type: 'error'; message: string }
   | { type: 'draftBundle'; bundle: IssueDraftBundle }
-  | { type: 'toolReleases'; tool: ToolId; releases: ToolReleaseSummary[]; fallbackMessage?: string }
   | { type: 'draftResults'; analysisId: string; results: DraftIssueResult[] }
   | { type: 'deliveryPreview'; delivery: DeliveryPreview }
   | { type: 'deliveryProgress'; delivery: DeliveryPreview }

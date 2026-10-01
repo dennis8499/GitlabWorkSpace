@@ -132,13 +132,13 @@
         "gitlabWorkspace.pythonPath": {
           "type": "string",
           "default": "python",
-          "description": "安裝工具 Release 時使用的 Python 3.11+ 執行檔路徑。"
+          "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。"
         }
       }
     }
   },
   "scripts": {
-    "compile": "tsc -p .",
+    "compile": "node scripts/clean-compiled.mjs && tsc -p .",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
     "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
     "watch": "tsc -watch -p .",

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type {
-  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolId, ToolSource,
+  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolId, ToolSource, ToolPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
@@ -38,7 +38,7 @@ interface SavedState {
   draftChoices: Record<string, DraftChoice>;
   reports: Record<string, { text: string; sha: string }>;
   toolSource: ToolSource;
-  selectedVersions: Partial<Record<ToolId, string>>;
+  selectedPackageIds: Partial<Record<ToolId, string>>;
   deliveryForms: Record<string, DeliveryFormState>;
   /** Kept only to migrate older unscoped drafts. */
   manualTime?: ManualTimeDraft;
@@ -98,7 +98,7 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
 const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
-  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'auto', selectedVersions: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
+  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'gitea', selectedPackageIds: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
   filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueStateFilter: 'opened',
@@ -163,9 +163,8 @@ function App() {
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>('changes');
   const [toolDrawer, setToolDrawer] = useState(false);
-  const [toolSource, setToolSource] = useState<ToolSource>(initial?.toolSource ?? 'auto');
-  const [versions, setVersions] = useState<Partial<Record<ToolId, string>>>(initial?.selectedVersions ?? {});
-  const [giteaToken, setGiteaToken] = useState('');
+  const [toolSource, setToolSource] = useState<ToolSource>(initial?.toolSource === 'github' || initial?.toolSource === 'bundled' ? initial.toolSource : 'gitea');
+  const [selectedPackageIds, setSelectedPackageIds] = useState<Partial<Record<ToolId, string>>>(initial?.selectedPackageIds ?? {});
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
   const initialScopeState = initial?.scopeKey ? initial.scopedData?.[initial.scopeKey] : undefined;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
@@ -262,9 +261,6 @@ function App() {
         setDraftOptions((current) => ({ ...current, [message.projectId]: { options: message.options, canCreateIssue: message.canCreateIssue } }));
       } else if (message.type === 'similarIssues') {
         setSimilarIssues(Object.fromEntries(message.items.map((item) => [item.draftId, item.issues])));
-      } else if (message.type === 'toolReleases') {
-        setSnapshot((current) => current ? { ...current, toolReleases: { ...current.toolReleases, [message.tool]: message.releases } } : current);
-        if (message.fallbackMessage) setToast(message.fallbackMessage);
       } else if (message.type === 'deliveryPreview' || message.type === 'deliveryProgress') {
         setSnapshot((current) => current ? { ...current, deliveryRecords: [message.delivery, ...current.deliveryRecords.filter((item) => item.id !== message.delivery.id)] } : current);
         setToast(message.delivery.error ?? '交付進度已保存。');
@@ -294,10 +290,10 @@ function App() {
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
-      selectedVersions: versions, deliveryForms, manualTimes, recoveredManualTime, timeEdits
+      selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, versions, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -566,7 +562,16 @@ function App() {
     </div>
 
     <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span>{activeTimer && <span class="timer-status"><button class="status-link timer-link" type="button" onClick={() => post({ type: 'openIssue', projectId: activeTimer.projectId, issueIid: activeTimer.issueIid, tab: 'time' })}>● {fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}</button><button type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></span>}{pendingTime.length > 0 && <button class="status-link" type="button" onClick={() => { const entry = pendingTime[0]; post({ type: 'openIssue', projectId: entry.projectId, issueIid: entry.issueIid, tab: 'time' }); }}>{pendingTime.length} 筆工時待確認／送出</button>}<span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
-    {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} toolSource={toolSource} versions={versions} token={giteaToken} onToken={setGiteaToken} onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }} onVersion={(tool, version) => setVersions((current) => ({ ...current, [tool]: version }))} onInstall={(tool) => post({ type: 'installTool', tool, version: versions[tool] })} onList={(tool) => post({ type: 'listToolReleases', tool })} onSaveToken={() => { if (giteaToken.trim()) post({ type: 'saveGiteaToken', token: giteaToken.trim() }); setGiteaToken(''); }} onRefresh={() => post({ type: 'refreshTools' })} onSelectGroup={() => post({ type: 'selectGroup' })} onSelectWorkspace={() => post({ type: 'selectWorkspace' })} onConnect={() => post({ type: 'connect' })} onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
+    {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} toolSource={toolSource}
+      selectedPackageIds={selectedPackageIds}
+      onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }}
+      onSelectPackage={(tool, packageId) => setSelectedPackageIds((current) => ({ ...current, [tool]: packageId }))}
+      onInstall={(tool, packageId) => post({ type: 'installTool', tool, packageId })}
+      onOpenDownload={(tool, source) => post({ type: 'openToolDownload', tool, source })}
+      onImport={(tool, source) => post({ type: 'importToolPackage', tool, source })}
+      onRefresh={() => post({ type: 'refreshTools' })} onSelectGroup={() => post({ type: 'selectGroup' })}
+      onSelectWorkspace={() => post({ type: 'selectWorkspace' })} onConnect={() => post({ type: 'connect' })}
+      onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
   </main>;
 }
 
@@ -579,10 +584,11 @@ function Discussion({ discussion, onReply }: { discussion: NonNullable<Workspace
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => setReply(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); setReply(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, toolSource, versions, token, onToken, onSource, onVersion, onInstall, onList, onSaveToken, onRefresh, onSelectGroup, onSelectWorkspace, onConnect, onClose }: {
-  snapshot: WorkspaceSnapshot; operationBusy: boolean; toolSource: ToolSource; versions: Partial<Record<ToolId, string>>; token: string;
-  onToken: (value: string) => void; onSource: (source: ToolSource) => void; onVersion: (tool: ToolId, version: string) => void;
-  onInstall: (tool: ToolId) => void; onList: (tool: ToolId) => void; onSaveToken: () => void; onRefresh: () => void;
+function ToolDrawer({ snapshot, operationBusy, toolSource, selectedPackageIds, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onSelectGroup, onSelectWorkspace, onConnect, onClose }: {
+  snapshot: WorkspaceSnapshot; operationBusy: boolean; toolSource: ToolSource; selectedPackageIds: Partial<Record<ToolId, string>>;
+  onSource: (source: ToolSource) => void; onSelectPackage: (tool: ToolId, packageId: string) => void;
+  onInstall: (tool: ToolId, packageId: string) => void; onOpenDownload: (tool: ToolId, source: 'gitea' | 'github') => void;
+  onImport: (tool: ToolId, source: 'gitea' | 'github') => void; onRefresh: () => void;
   onSelectGroup: () => void; onSelectWorkspace: () => void; onConnect: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '有新版本', checking: '檢查中', installing: '安裝中', error: '錯誤' };
@@ -607,18 +613,20 @@ function ToolDrawer({ snapshot, operationBusy, toolSource, versions, token, onTo
     <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">本機路徑：{snapshot.groupRoot ?? '尚未設定。閱讀與討論 Issue 不需要本機路徑。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button><button class="primary" type="button" disabled={!snapshot.group || operationBusy} onClick={onSelectWorkspace}>選擇 Group 工作目錄</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
     <section class="tool-settings"><h3>開發工具</h3>
-    <label class="field">Release 來源<select value={toolSource} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="auto">自動：GitHub 優先，Gitea 備援</option><option value="github">GitHub</option><option value="gitea">內網 Gitea</option></select></label>
-    {toolSource === 'gitea' && <div class="token-row"><label class="field">Gitea Token<input type="password" autoComplete="new-password" value={token} onInput={(event) => onToken(event.currentTarget.value)} /></label><button class="secondary" type="button" disabled={!token.trim()} onClick={onSaveToken}>安全保存</button></div>}
-    <p class="source-lines">GitHub：github.com/dennis8499/{'{工具 Repo 名稱}'}<br />Gitea：tech-sharing.cathaysec.com.tw/01002903/{'{工具 Repo 名稱}'}</p>
+    <label class="field">套件來源<select value={toolSource} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="gitea">內網 Gitea（預設）</option><option value="github">GitHub</option><option value="bundled">內附離線包</option></select></label>
+    <p class="source-lines">Gitea 優先顯示。GitHub 與 Gitea 的 ZIP 由你下載並匯入；安裝只使用下方明確選取的本機套件，不呼叫 Release API。</p>
     <div class="tool-list">{tools.map((tool) => {
       const installed = snapshot.tools.find((item) => item.tool === tool.id);
-      const releases = snapshot.toolReleases?.[tool.id] ?? [];
-      const selected = releases.find((item) => item.version === versions[tool.id]) ?? releases[0];
+      const packages = (snapshot.toolPackages ?? []).filter((item) => item.tool === tool.id && item.source === toolSource);
+      const selectedPackageId = selectedPackageIds[tool.id] ?? '';
+      const selected = packages.find((item) => item.id === selectedPackageId);
       return <section class="tool-card"><div class="panel-title"><strong>{tool.name}</strong><span class="pill">{status[installed?.status ?? 'checking']}</span></div>
         <p>{installed?.version ? `已安裝 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p><p class="subtle">安裝位置：{snapshot.groupRoot ? `${snapshot.groupRoot}/.agents/skills/` : '請先選擇 Group 工作目錄'}</p>{installed?.message && <p class="warning">{installed.message}</p>}
-        <div class="button-row"><button class="quiet small" type="button" onClick={() => onList(tool.id)}>查看 Release</button>{releases.length > 0 && <select aria-label={`${tool.name} Release 版本`} value={selected?.version} onChange={(event) => onVersion(tool.id, event.currentTarget.value)}>{releases.map((item) => <option value={item.version}>v{item.version} · {item.source}</option>)}</select>}</div>
-        {selected && <p class="subtle">{selected.assetName} · {selected.sha256Verified ? 'Release SHA-256 已驗證' : '來源未提供摘要，安裝前會計算本機 SHA-256'} · {selected.source}</p>}
-        <button class="primary" type="button" disabled={!snapshot.groupRoot || installed?.status === 'installing'} onClick={() => onInstall(tool.id)}>{installed?.status === 'installed' ? '更新工具' : '安裝工具'}</button>
+        {toolSource !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(tool.id, toolSource)}>開啟 {toolSource === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(tool.id, toolSource)}>匯入 ZIP</button></div>}
+        <label class="field">安裝套件<select aria-label={`${tool.name} 本機套件`} value={selectedPackageId} onChange={(event) => onSelectPackage(tool.id, event.currentTarget.value)}><option value="">請選擇版本與來源</option>{packages.map((item) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（檔案無法讀取）'}</option>)}</select></label>
+        {toolSource === 'bundled' && <p class="subtle">此套件已放在擴充功能內，可完全離線安裝。</p>}
+        {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? `TAR.XZ · 內部目錄 ${selected.entryRoot}` : 'ZIP · 匯入後保存在 VS Code 持久儲存'} · {selected.available ? '套件可用，安裝前會驗證 SHA-256' : selected.error}</p>}
+        <button class="primary" type="button" disabled={!snapshot.groupRoot || !selected?.available || installed?.status === 'installing' || operationBusy} onClick={() => selected && onInstall(tool.id, selected.id)}>{installed?.status === 'installed' ? '安裝所選版本' : '安裝所選套件'}</button>
       </section>;
     })}</div>
     </section>

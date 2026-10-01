@@ -6,5 +6,7 @@ coverage/
 .npm-cache/
 resources/issue-webview/
 resources/sidebar-webview/
+resources/offline-tools/offline-tools.tar.xz
+resources/offline-tools/manifest.json
 __pycache__/
 *.pyc

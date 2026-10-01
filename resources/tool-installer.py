@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
+import lzma
 import os
 import re
 import shutil
 import stat
 import subprocess
 import sys
+import tarfile
+import tempfile
 import uuid
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -24,6 +28,11 @@ TOOL_FOLDERS = {
     "merge-reviewer": lambda extracted: find_single_skill(extracted, "merge-reviewer"),
 }
 WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE)
+ALLOWED_TOOL_ROOTS = {"codebase-wiki", "megin", "merge-reviewer"}
+MAX_XZ_OUTPUT_BYTES = MAX_EXPANDED_BYTES + MAX_FILES * 1024 + 1024 * 1024
+MEGIN_KNOWN_VERSIONS = {
+    "b2e6a4a7bc57df097ba5d04b8d7605429b715db3886e43c8945169541944f5c3": "0.1.0",
+}
 
 
 def fail(message: str) -> None:
@@ -55,6 +64,7 @@ def extract_verified_zip(archive_path: Path, destination: Path) -> int:
     destination.mkdir(parents=True, exist_ok=False)
     seen: set[str] = set()
     total_bytes = 0
+    extracted_bytes = 0
     file_count = 0
     try:
         with zipfile.ZipFile(archive_path) as archive:
@@ -87,9 +97,19 @@ def extract_verified_zip(archive_path: Path, destination: Path) -> int:
                 target = destination.joinpath(*safe_path.parts)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(member, "r") as source, target.open("xb") as output:
-                    copied = shutil.copyfileobj(source, output, length=256 * 1024)
-                # copyfileobj is streaming; size and CRC are verified below as well.
-                if target.stat().st_size != member.file_size:
+                    copied = 0
+                    while True:
+                        chunk = source.read(256 * 1024)
+                        if not chunk:
+                            break
+                        copied += len(chunk)
+                        extracted_bytes += len(chunk)
+                        if copied > member.file_size or copied > MAX_FILE_BYTES:
+                            fail("Release 封裝實際解壓的單一檔案超過限制。")
+                        if extracted_bytes > MAX_EXPANDED_BYTES:
+                            fail("Release 實際解壓後超過 400 MB 限制。")
+                        output.write(chunk)
+                if copied != member.file_size:
                     fail("Release 封裝的檔案大小與索引不符。")
                 file_count += 1
             if file_count == 0:
@@ -98,6 +118,124 @@ def extract_verified_zip(archive_path: Path, destination: Path) -> int:
         fail("Release 不是有效的 ZIP 封裝。")
     except (OSError, RuntimeError, EOFError) as error:
         fail("Release 封裝讀取失敗或 CRC 驗證未通過。")
+    return file_count
+
+
+class BoundedXZReader(io.RawIOBase):
+    """Stream XZ with an explicit decoder memory and output limit."""
+
+    def __init__(self, source: Any, output_limit: int) -> None:
+        self.source = source
+        self.decoder = lzma.LZMADecompressor(format=lzma.FORMAT_XZ, memlimit=128 * 1024 * 1024)
+        self.output_limit = output_limit
+        self.output_bytes = 0
+        self.pending = bytearray()
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: bytearray) -> int:
+        if not buffer:
+            return 0
+        while not self.pending and not self.decoder.eof:
+            if self.decoder.needs_input:
+                chunk = self.source.read(256 * 1024)
+                if not chunk:
+                    raise lzma.LZMAError("XZ 封裝未完整結束。")
+            else:
+                chunk = b""
+            decoded = self.decoder.decompress(chunk, max_length=min(256 * 1024, self.output_limit - self.output_bytes + 1))
+            self.output_bytes += len(decoded)
+            if self.output_bytes > self.output_limit:
+                raise ValueError("TAR.XZ 解壓後超過容量限制。")
+            self.pending.extend(decoded)
+        if not self.pending:
+            return 0
+        count = min(len(buffer), len(self.pending))
+        buffer[:count] = self.pending[:count]
+        del self.pending[:count]
+        return count
+
+
+def extract_verified_tar_xz(archive_path: Path, destination: Path, entry_root: str) -> int:
+    if not archive_path.is_file() or archive_path.is_symlink() or archive_path.stat().st_size > MAX_ARCHIVE_BYTES:
+        fail("內附 TAR.XZ 不存在或超過 80 MB 限制。")
+    if entry_root not in ALLOWED_TOOL_ROOTS:
+        fail("離線套件根目錄無效。")
+    destination.mkdir(parents=True, exist_ok=False)
+    seen: set[str] = set()
+    total_bytes = 0
+    file_count = 0
+    entry_count = 0
+    selected_root_seen = False
+    try:
+        with archive_path.open("rb") as raw, io.BufferedReader(BoundedXZReader(raw, MAX_XZ_OUTPUT_BYTES)) as decompressed:
+            with tarfile.open(fileobj=decompressed, mode="r|") as archive:
+                for member in archive:
+                    entry_count += 1
+                    if entry_count > MAX_FILES:
+                        fail("TAR.XZ 檔案數量超過限制。")
+                    safe_path = safe_archive_path(member.name.rstrip("/"))
+                    key = safe_path.as_posix().casefold()
+                    if key in seen:
+                        fail("TAR.XZ 包含重複檔案名稱。")
+                    seen.add(key)
+                    root_name = safe_path.parts[0]
+                    if root_name not in ALLOWED_TOOL_ROOTS:
+                        fail("TAR.XZ 包含未允許的工具目錄。")
+                    if member.issym() or member.islnk() or member.isdev() or member.isfifo() or not (member.isfile() or member.isdir()):
+                        fail("TAR.XZ 不允許 symbolic link、hard link 或特殊檔案。")
+                    if len(safe_path.parts) == 1 and not member.isdir():
+                        fail("TAR.XZ 工具根目錄格式無效。")
+                    if member.isfile():
+                        if member.size < 0 or member.size > MAX_FILE_BYTES:
+                            fail("TAR.XZ 單一檔案超過 64 MB 限制。")
+                        total_bytes += member.size
+                        if total_bytes > MAX_EXPANDED_BYTES:
+                            fail("TAR.XZ 解壓後超過 400 MB 限制。")
+                    if root_name != entry_root:
+                        continue
+                    selected_root_seen = True
+                    relative_parts = safe_path.parts[1:]
+                    if not relative_parts:
+                        continue
+                    if member.isdir():
+                        destination.joinpath(*relative_parts).mkdir(parents=True, exist_ok=True)
+                        continue
+                    target = destination.joinpath(*relative_parts)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    source = archive.extractfile(member)
+                    if source is None:
+                        fail("TAR.XZ 檔案內容無法讀取。")
+                    copied = 0
+                    with source, target.open("xb") as output:
+                        while True:
+                            chunk = source.read(256 * 1024)
+                            if not chunk:
+                                break
+                            copied += len(chunk)
+                            if copied > member.size:
+                                fail("TAR.XZ 檔案大小與索引不符。")
+                            output.write(chunk)
+                    if copied != member.size:
+                        fail("TAR.XZ 檔案大小與索引不符。")
+                    file_count += 1
+            # Force the decoder through its XZ checksum and reject trailing payloads.
+            while True:
+                tail = decompressed.read(256 * 1024)
+                if not tail:
+                    break
+                if any(tail):
+                    fail("TAR.XZ 包含 TAR 結束標記後的額外資料。")
+            reader = decompressed.raw
+            if isinstance(reader, BoundedXZReader) and (reader.decoder.unused_data or reader.source.read(1)):
+                fail("TAR.XZ 包含多餘或未驗證的資料。")
+    except (tarfile.TarError, lzma.LZMAError, EOFError) as error:
+        fail("內附 TAR.XZ 損壞或完整性檢查未通過。")
+    except (OSError, RuntimeError) as error:
+        fail("內附 TAR.XZ 讀取失敗。")
+    if not selected_root_seen or file_count == 0:
+        fail("內附 TAR.XZ 找不到所選工具的檔案。")
     return file_count
 
 
@@ -119,6 +257,47 @@ def find_single_skill(extracted: Path, name: str) -> list[Path]:
     if len(matches) != 1:
         fail(f"MergeReviewer Release 必須包含一份 {name} Skill，目前找到 {len(matches)} 份。")
     return [matches[0].parent]
+
+
+def find_wiki_installer(extracted: Path) -> Path:
+    installers = [path for path in extracted.rglob("install-framework.py") if path.parent.name == "scripts" and (path.parent.parent / "SKILL.md").is_file()]
+    if len(installers) != 1:
+        fail("Codebase LLM Wiki ZIP 必須包含唯一的 Codex installer。")
+    return installers[0]
+
+
+def inspect_zip(tool: str, archive_path: Path) -> dict[str, Any]:
+    if tool not in ("codebase-wiki", "megin", "merge-reviewer"):
+        fail("不支援此工具。")
+    digest = file_digest(archive_path)
+    with tempfile.TemporaryDirectory(prefix="workspace-tool-inspect-") as temporary:
+        extracted = Path(temporary) / "extracted"
+        extract_verified_zip(archive_path, extracted)
+        version: str | None = None
+        if tool == "codebase-wiki":
+            installer = find_wiki_installer(extracted)
+            candidates = [installer.parents[4] / "VERSION", installer.parents[3] / "VERSION"]
+            version_file = next((path for path in candidates if path.is_file()), None)
+            if version_file:
+                value = version_file.read_text(encoding="utf-8").strip()
+                if re.fullmatch(r"\d+\.\d+\.\d+", value):
+                    version = value
+        elif tool == "merge-reviewer":
+            skill = find_single_skill(extracted, "merge-reviewer")[0]
+            version_file = skill / "VERSION"
+            if version_file.is_file():
+                value = version_file.read_text(encoding="utf-8").strip()
+                if re.fullmatch(r"\d+\.\d+\.\d+", value):
+                    version = value
+        else:
+            find_megin_skills(extracted)
+            version = MEGIN_KNOWN_VERSIONS.get(digest)
+            if version is None:
+                values = {item.read_text(encoding="utf-8").strip() for item in extracted.rglob("VERSION") if item.is_file()}
+                versions = [value for value in values if re.fullmatch(r"\d+\.\d+\.\d+", value)]
+                if len(versions) == 1:
+                    version = versions[0]
+    return {"ok": True, "tool": tool, "detected_version": version, "sha256": digest}
 
 
 def file_digest(path: Path) -> str:
@@ -305,10 +484,8 @@ def parse_installer_response(output: str) -> dict[str, Any]:
 
 
 def install_wiki(root: Path, extracted: Path, version: str, source: str, archive: Path) -> dict[str, Any]:
-    installers = [path for path in extracted.rglob("install-framework.py") if path.parent.name == "scripts" and (path.parent.parent / "SKILL.md").is_file()]
-    if len(installers) != 1:
-        fail("Codebase LLM Wiki ZIP 必須包含唯一的 Codex installer。")
-    base = installers[0].parent.parent
+    installer = find_wiki_installer(extracted)
+    base = installer.parent.parent
     if base.parent.name != "skills" or base.parent.parent.name != ".agents" or base.name != "codebase-wiki":
         # Release zips may have an enclosing repository directory; the exact Skill contents still need to be present.
         if not base.joinpath("scripts", "install-framework.py").is_file():
@@ -324,7 +501,7 @@ def install_wiki(root: Path, extracted: Path, version: str, source: str, archive
         state_file = root / ".agents/skills/codebase-wiki/install-state.json"
         if not state_file.is_file() or file_digest(state_file) != previous_hash:
             fail("Codebase LLM Wiki 的安裝記錄已變更；請先執行官方 dry-run 並人工檢查。")
-    command = [sys.executable, str(installers[0]), "install", "--target", str(root), "--surface", "codex", "--guard-mode", "coexist", "--format", "json"]
+    command = [sys.executable, str(installer), "install", "--target", str(root), "--surface", "codex", "--guard-mode", "coexist", "--format", "json"]
     preview = subprocess.run(command, cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=180, check=False)
     if preview.returncode != 0:
         fail("Codebase LLM Wiki 官方 dry-run 失敗；Group 檔案未變更。")
@@ -355,12 +532,28 @@ def install_wiki(root: Path, extracted: Path, version: str, source: str, archive
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "inspect":
+        inspect_parser = argparse.ArgumentParser(description="Validate a user-imported Release ZIP without installing it.")
+        inspect_parser.add_argument("command", choices=("inspect",))
+        inspect_parser.add_argument("tool", choices=("codebase-wiki", "megin", "merge-reviewer"))
+        inspect_parser.add_argument("archive", type=Path)
+        args = inspect_parser.parse_args()
+        try:
+            print(json.dumps(inspect_zip(args.tool, args.archive), ensure_ascii=False))
+            return 0
+        except (ValueError, OSError, zipfile.BadZipFile, RuntimeError, EOFError) as error:
+            print(json.dumps({"ok": False, "error": str(error) or "ZIP 檢查失敗。"}, ensure_ascii=False), file=sys.stderr)
+            return 1
+
     parser = argparse.ArgumentParser(description="Validate and install GitLab Workspace Release skill bundles.")
     parser.add_argument("tool", choices=("codebase-wiki", "megin", "merge-reviewer"))
     parser.add_argument("archive", type=Path)
     parser.add_argument("group_root", type=Path)
     parser.add_argument("version", type=str)
-    parser.add_argument("source", choices=("github", "gitea"))
+    parser.add_argument("source", choices=("github", "gitea", "bundled"))
+    parser.add_argument("--format", choices=("zip", "tar.xz"), default="zip")
+    parser.add_argument("--entry-root", default="")
+    parser.add_argument("--archive-sha256", default="")
     args = parser.parse_args()
     stage: Path | None = None
     lock: Path | None = None
@@ -368,6 +561,10 @@ def main() -> int:
     try:
         if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
             fail("Release 版本格式無效。")
+        if args.format == "tar.xz" and args.entry_root != args.tool:
+            fail("離線套件的工具根目錄與選取工具不相符。")
+        if args.archive_sha256 and (not re.fullmatch(r"[a-f0-9]{64}", args.archive_sha256) or file_digest(args.archive).lower() != args.archive_sha256.lower()):
+            fail("套件 SHA-256 與本機套件索引不符，已停止安裝。")
         root = checked_group_root(args.group_root)
         stage_parent = safe_parent(root, ".gitlab-workspace/tool-installs")
         lock = root / ".gitlab-workspace/.tool-installs.lock"
@@ -375,7 +572,10 @@ def main() -> int:
         lock_stat = os.lstat(lock)
         lock_identity = (lock_stat.st_dev, lock_stat.st_ino)
         stage = stage_parent / f"stage-{args.tool}-{uuid.uuid4().hex}"
-        extract_verified_zip(args.archive, stage)
+        if args.format == "tar.xz":
+            extract_verified_tar_xz(args.archive, stage, args.entry_root)
+        else:
+            extract_verified_zip(args.archive, stage)
         if args.tool == "codebase-wiki":
             result = install_wiki(root, stage, args.version, args.source, args.archive)
         else:
@@ -383,7 +583,7 @@ def main() -> int:
             result = replace_skills(root, stage, skills, args.tool, args.version, args.source, args.archive)
         print(json.dumps({"ok": True, "tool": args.tool, "version": args.version, "source": args.source, "skills": len(result.get("skills", {}))}, ensure_ascii=False))
         return 0
-    except (ValueError, OSError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
+    except (ValueError, OSError, zipfile.BadZipFile, tarfile.TarError, lzma.LZMAError, EOFError, subprocess.SubprocessError) as error:
         message = str(error) or "安裝程序已安全停止。"
         print(json.dumps({"ok": False, "error": message}, ensure_ascii=False), file=sys.stderr)
         return 1

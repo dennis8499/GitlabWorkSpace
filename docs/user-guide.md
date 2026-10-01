@@ -9,7 +9,7 @@ GitLab Workspace 將專案、需求分析、Issue 討論與交付集中在同一
 3. 輸入具有 `api` 範圍的 Personal Access Token。擴充功能會以 `GET /user` 驗證，並將 Token 存在 VS Code `SecretStorage`。
 4. 選擇要工作的群組。可從工作台上方切換群組。
 
-HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。Token 不會寫入擴充功能設定或 Git remote URL。使用帳號選單中的 **中斷連線** 可清除已儲存的連線資料；系統會先顯示確認訊息。
+HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會寫入擴充功能設定或 Git remote URL。使用帳號選單中的 **中斷連線** 可清除已儲存的連線資料；系統會先顯示確認訊息。
 
 ## 工作台導覽
 
@@ -36,6 +36,14 @@ Issue 詳情分成四個任務分頁：
 需求分析、開發和審查都可選擇 **複製任務並開啟 Codex CLI**。複製後請貼到 CLI 執行，再回到畫面指定的結果區貼上或確認結果。
 
 Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自保存工作目錄；如果 Issue 屬於其他群組，閱讀和討論仍可用，工作台會提示要到設定選擇對應目錄。
+
+## 安裝開發工具
+
+在工作區設定的 **開發工具** 選擇套件來源。預設是內網 Gitea（`tech-sharing.cathaysec.com.tw/01002903`），也可選 GitHub 或 **內附離線包**。Gitea 與 GitHub 的 Release 頁由你開啟並下載 ZIP；回到 VS Code 選 **匯入 ZIP**，擴充功能會檢查 ZIP 路徑、連結、檔案數量與解壓容量，再保存檔案摘要。擴充功能不會查詢 Release API，也不會自動下載附件。
+
+套件選單會列出目前來源已保存的版本。請明確選擇要安裝的套件，再按 **安裝所選套件**；來源或版本未選定時不會自動挑選。匯入的 ZIP 會複製到 VS Code 持久儲存區，以 SHA-256 去重並保留不同版本，因此原始下載檔可在匯入後刪除。Megin ZIP 若沒有可辨識的版本，會先比對已知 SHA-256；仍無法辨識時才請你輸入 Release 版本。
+
+選擇 **內附離線包** 可在沒有 Gitea、GitHub 或網路連線時安裝 VSIX 內附版本：Codebase LLM Wiki 0.2.1、Megin 0.1.0、MergeReviewer 0.4.0。Group 工作目錄仍需事先設定；安裝位置為該目錄下 `.agents/skills/`。套件會在安裝前驗證 SHA-256 與封裝結構，若 ZIP、TAR.XZ、路徑、連結或容量檢查失敗，現有安裝會保留。
 
 ## 專案與 Git 操作
 

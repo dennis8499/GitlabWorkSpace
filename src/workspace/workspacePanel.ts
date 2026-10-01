@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { access, mkdir, readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabClient } from '../api/gitLabClient';
 import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
@@ -15,11 +15,12 @@ import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { evaluateMeginDeliveryGate } from './deliveryGate';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
-import { ReleaseDownloadError, ToolReleaseManager, TOOL_SOURCE_KEY } from './releaseManager';
+import { isTool, isVersion, ToolPackageManager, TOOL_DEFINITIONS, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
   BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledToolState, IssueDetailTab, IssueDraft,
-  CloneOperationState, IssueNavigation, MergeRequestDetail, ToolId, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
+  CloneOperationState, IssueNavigation, MergeRequestDetail, RemoteToolSource, ToolId, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
+import type { ToolPackage } from './toolPackages';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 
@@ -37,7 +38,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
   private readonly roots: GroupWorkspaceRegistry;
   private readonly timer: IssueTimeTracker;
-  private readonly releases: ToolReleaseManager;
+  private readonly packages: ToolPackageManager;
   private interval?: NodeJS.Timeout;
   private groups: WorkspaceSnapshot['groups'] = [];
   private projects: GitLabProject[] = [];
@@ -52,6 +53,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private activeMode: WorkspaceMode;
   private currentUser?: GitLabUser;
   private toolStates: InstalledToolState[] = [];
+  private toolPackages: ToolPackage[] = [];
   private busy = false;
   private repositoryOperationInProgress = false;
   private workspaceSelectionInProgress = false;
@@ -73,7 +75,16 @@ export class WorkspacePanel implements vscode.Disposable {
   ) {
     this.roots = new GroupWorkspaceRegistry(context.globalState);
     this.timer = new IssueTimeTracker(context.globalState);
-    this.releases = new ToolReleaseManager(context.secrets);
+    const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
+    if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
+      void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'gitea')).catch(() => undefined);
+    }
+    const offlineRoot = vscode.Uri.joinPath(context.extensionUri, 'resources', 'offline-tools');
+    this.packages = new ToolPackageManager(
+      context.globalStorageUri.fsPath,
+      vscode.Uri.joinPath(offlineRoot, 'offline-tools.tar.xz').fsPath,
+      vscode.Uri.joinPath(offlineRoot, 'manifest.json').fsPath
+    );
     this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
     this.issuePanels.setWorkspace({
       post: (message) => this.post(message),
@@ -280,10 +291,10 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'pushDelivery': await this.pushDelivery(request.deliveryId); break;
       case 'createDeliveryMergeRequest': await this.createDeliveryMergeRequest(request.deliveryId); break;
       case 'setToolSource': await this.setToolSource(request.source); break;
-      case 'saveGiteaToken': await this.releases.saveGiteaToken(request.token); this.post({ type: 'message', message: '已安全保存 Gitea Release Token。' }); await this.refreshTools(); break;
+      case 'openToolDownload': await this.openToolDownload(request.tool, request.source); break;
+      case 'importToolPackage': await this.importToolPackage(request.tool, request.source); break;
       case 'refreshTools': await this.refreshTools(); break;
-      case 'listToolReleases': await this.listToolReleases(request.tool); break;
-      case 'installTool': await this.installTool(request.tool, request.version); break;
+      case 'installTool': await this.installTool(request.tool, request.packageId); break;
       default: break;
     }
   }
@@ -295,7 +306,8 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       if (!this.session.baseUrl) {
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
-        this.toolStates = await this.releases.installedStates(undefined, this.toolSource());
+        this.toolPackages = await this.packages.listPackages();
+        this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         this.sendSnapshot();
         return;
       }
@@ -314,7 +326,8 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
-        this.toolStates = await this.releases.installedStates(undefined, this.toolSource());
+        this.toolPackages = await this.packages.listPackages();
+        this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         return;
       }
       const root = this.roots.getRoot(this.session.baseUrl, group.id);
@@ -352,7 +365,8 @@ export class WorkspacePanel implements vscode.Disposable {
           } catch { await this.context.globalState.update(this.selectedMergeRequestKey(), undefined); }
         }
       }
-      this.toolStates = await this.releases.installedStates(root, this.toolSource());
+      this.toolPackages = await this.packages.listPackages();
+      this.toolStates = await this.packages.installedStates(root, this.toolPackages);
     } finally {
       this.busy = false;
       this.post({ type: 'busy', value: false });
@@ -400,6 +414,8 @@ export class WorkspacePanel implements vscode.Disposable {
       projectMembers: this.projectMembers,
       tools: this.toolStates,
       toolSource: this.toolSource(),
+      toolPackages: this.toolPackages.map(({ id, tool, version, source, assetName, format, entryRoot, available, error }) =>
+        ({ id, tool, version, source, assetName, format, entryRoot, available, error })),
       deliveryRecords: this.deliveryRecords()
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope })),
@@ -1190,9 +1206,13 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.context.globalState.update(MR_WRITES_KEY, entries.slice(0, 250));
   }
 
-  private toolSource(): ToolSource { return this.context.globalState.get<ToolSource>(TOOL_SOURCE_KEY, 'auto'); }
+  private toolSource(): ToolSource {
+    const source = this.context.globalState.get<unknown>(TOOL_SOURCE_KEY);
+    return source === 'github' || source === 'bundled' || source === 'gitea' ? source : 'gitea';
+  }
+
   private async setToolSource(source: ToolSource): Promise<void> {
-    if (!['auto', 'github', 'gitea'].includes(source)) throw new Error('Release 來源設定無效。');
+    if (!['gitea', 'github', 'bundled'].includes(source)) throw new Error('套件來源設定無效。');
     await this.context.globalState.update(TOOL_SOURCE_KEY, source);
     await this.refreshTools();
   }
@@ -1200,59 +1220,84 @@ export class WorkspacePanel implements vscode.Disposable {
   private async refreshTools(): Promise<void> {
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    this.toolStates = await this.releases.installedStates(root, this.toolSource());
+    this.toolPackages = await this.packages.listPackages();
+    this.toolStates = await this.packages.installedStates(root, this.toolPackages);
     this.sendSnapshot();
   }
 
-  private async listToolReleases(tool: ToolId): Promise<void> {
-    if (!['codebase-wiki', 'megin', 'merge-reviewer'].includes(tool)) throw new Error('不支援此工具。');
-    const releases = await this.releases.listReleases(tool, this.toolSource());
-    this.post({ type: 'toolReleases', tool, releases: releases.map((release) => ({ tag: release.tag, version: release.version, source: release.source, assetName: release.asset.name, releaseUrl: release.releaseUrl, sha256Verified: !!release.asset.sha256 })), fallbackMessage: releases.some((item) => item.fallbackFrom) ? 'GitHub 無相容 Release，已切換至 Gitea。' : undefined });
+  private async openToolDownload(tool: ToolId, source: RemoteToolSource): Promise<void> {
+    if (!isTool(tool) || (source !== 'gitea' && source !== 'github')) throw new Error('下載來源無效。');
+    const definition = TOOL_DEFINITIONS[tool];
+    const url = source === 'gitea' ? definition.giteaReleaseUrl : definition.githubReleaseUrl;
+    await vscode.env.openExternal(vscode.Uri.parse(url));
   }
 
-  private async installTool(tool: ToolId, version?: string): Promise<void> {
-    if (!['codebase-wiki', 'megin', 'merge-reviewer'].includes(tool)) throw new Error('不支援此工具。');
+  private async importToolPackage(tool: ToolId, source: RemoteToolSource): Promise<void> {
+    if (!isTool(tool) || (source !== 'gitea' && source !== 'github')) throw new Error('匯入來源無效。');
+    const selection = await vscode.window.showOpenDialog({
+      canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+      openLabel: '匯入 Release ZIP',
+      filters: { 'ZIP 封裝': ['zip'] }
+    });
+    const archive = selection?.[0];
+    if (!archive) return;
+    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+    const python = await resolvePythonRuntime(pythonPath);
+    const helper = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'tool-installer.py').fsPath;
+    let inspected: { ok?: boolean; tool?: string; detected_version?: string | null; sha256?: string; error?: string };
+    try {
+      const result = await execFileAsync(python.executable, [...python.args, helper, 'inspect', tool, archive.fsPath], {
+        cwd: this.context.extensionUri.fsPath, env: python.env, timeout: 3 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true
+      });
+      inspected = parseLastJsonLine(result.stdout) as typeof inspected;
+    } catch (error) {
+      throw new Error(`ZIP 驗證失敗：${readableError(error)}`);
+    }
+    if (inspected.ok !== true || inspected.tool !== tool || typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
+      throw new Error(typeof inspected.error === 'string' ? inspected.error : 'ZIP 驗證器未確認套件內容。');
+    }
+    let version = isVersion(inspected.detected_version) ? inspected.detected_version : undefined;
+    if (!version) {
+      version = await vscode.window.showInputBox({
+        title: `輸入 ${tool} 套件版本`,
+        prompt: '此 ZIP 沒有可辨識的版本資訊，請依 Release 標籤輸入 x.y.z。',
+        placeHolder: '1.2.3',
+        ignoreFocusOut: true,
+        validateInput: (value) => isVersion(value) ? undefined : '版本需使用 x.y.z 格式。'
+      });
+      if (!version) return;
+    }
+    await this.packages.importPackage({
+      tool, version, source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath, verifiedSha256: inspected.sha256.toLowerCase()
+    });
+    await this.refreshTools();
+    this.post({ type: 'message', message: `${tool} v${version} ZIP 已保存至 VS Code 持久套件庫，可離線安裝。` });
+  }
+
+  private async installTool(tool: ToolId, packageId: string): Promise<void> {
+    if (!isTool(tool)) throw new Error('不支援此工具。');
+    if (typeof packageId !== 'string' || !packageId) throw new Error('請先從套件選單選擇要安裝的版本。');
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     if (!root) throw new Error('請先選擇非 Git Group 工作目錄。');
     this.toolStates = [...this.toolStates.filter((item) => item.tool !== tool), { tool, status: 'installing' }];
     this.sendSnapshot();
     try {
-    let picked = version ? await this.releases.getVersion(tool, version, this.toolSource()) : await this.releases.latestCompatible(tool, this.toolSource());
-    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-    const python = await resolvePythonRuntime(pythonPath);
-    let archive: Uint8Array;
-    try { archive = await this.releases.download(picked); }
-    catch (error) {
-      if (!(error instanceof ReleaseDownloadError) || this.toolSource() !== 'auto' || picked.source !== 'github') throw error;
-      const githubError = error;
-      try {
-        const fallback = version ? await this.releases.getVersion(tool, picked.version, 'gitea') : await this.releases.latestCompatible(tool, 'gitea');
-        archive = await this.releases.download(fallback);
-        picked = { ...fallback, fallbackFrom: 'github' };
-      } catch (fallbackError) {
-        throw new Error(`GitHub Release 附件下載失敗，內網 Gitea 備援也無法提供可用封裝：${readableError(fallbackError)}`, { cause: new AggregateError([githubError, fallbackError]) });
-      }
-      this.post({ type: 'message', message: `GitHub Release 附件連線失敗，已切換至 Gitea v${picked.version}。` });
-    }
-    const helper = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'tool-installer.py').fsPath;
-    await mkdir(this.context.globalStorageUri.fsPath, { recursive: true });
-    const temporary = await mkdtemp(path.join(this.context.globalStorageUri.fsPath, 'release-'));
-    const zipPath = path.join(temporary, 'release.zip');
-    try {
-      await mkdir(temporary, { recursive: true });
-      await writeFile(zipPath, archive, { flag: 'wx' });
+      const picked = await this.packages.getPackage(tool, packageId);
+      const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+      const python = await resolvePythonRuntime(pythonPath);
+      const helper = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'tool-installer.py').fsPath;
+      const args = [python.executable, ...python.args, helper, tool, picked.archivePath, root, picked.version, picked.source,
+        '--format', picked.format, '--entry-root', picked.entryRoot, '--archive-sha256', picked.sha256];
       const progress = vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `安裝 ${tool} v${picked.version}`, cancellable: false }, async () => {
-        const result = await execFileAsync(python.executable, [...python.args, helper, tool, zipPath, root, picked.version, picked.source], { cwd: root, env: python.env, timeout: 10 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true }).catch((error: unknown) => { throw new Error(`Release 安裝失敗：${readableError(error)}`); });
-        const jsonLine = result.stdout.trim().split(/\r?\n/).at(-1);
-        let payload: { ok?: boolean; error?: string } = {};
-        try { payload = JSON.parse(jsonLine ?? '') as typeof payload; } catch { /* helper errors are checked below */ }
-        if (!payload.ok) throw new Error(payload.error ?? '工具安裝器未確認安裝結果。');
+        const result = await execFileAsync(args[0], args.slice(1), { cwd: root, env: python.env, timeout: 10 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true })
+          .catch((error: unknown) => { throw new Error(`工具安裝失敗：${readableError(error)}`); });
+        const payload = parseLastJsonLine(result.stdout);
+        if (payload.ok !== true) throw new Error(typeof payload.error === 'string' ? payload.error : '工具安裝器未確認安裝結果。');
       });
       await progress;
-    } finally { await rm(temporary, { recursive: true, force: true }); }
-    this.post({ type: 'message', message: `${tool} v${picked.version} 已安裝於 ${root}。` });
-    await this.refreshTools();
+      this.post({ type: 'message', message: `${tool} v${picked.version} 已安裝於 ${root}。` });
+      await this.refreshTools();
     } catch (error) {
       this.toolStates = [...this.toolStates.filter((item) => item.tool !== tool), { tool, status: 'error', message: readableError(error) }];
       this.sendSnapshot();
@@ -1322,4 +1367,14 @@ function checkedText(value: string, label: string, max: number): string {
 function readableError(error: unknown): string {
   if (error instanceof Error) return error.message.replace(/https?:\/\/\S+/g, '[網址]').slice(0, 2000);
   return '操作失敗，請稍後重試。';
+}
+
+function parseLastJsonLine(output: string): Record<string, unknown> {
+  for (const line of output.trim().split(/\r?\n/).reverse()) {
+    try {
+      const value: unknown = JSON.parse(line);
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+    } catch { /* skip non-JSON installer output */ }
+  }
+  throw new Error('工具檢查器沒有回傳可驗證的 JSON 結果。');
 }
