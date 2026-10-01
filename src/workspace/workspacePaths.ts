@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { lstatSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
+import path from 'node:path';
 import type { Memento } from 'vscode';
 import type { GitLabProject } from '../api/types';
 
@@ -40,6 +41,21 @@ export function groupRepositoryPath(root: string, project: GitLabProject, projec
   const rel = relative(base, target);
   if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error('Repo 路徑超出 Group 工作區。');
   return target;
+}
+
+export function sameLocalPath(first: string, second: string, platform = process.platform): boolean {
+  if (platform === 'win32') {
+    return path.win32.resolve(first).toLocaleLowerCase('en-US') === path.win32.resolve(second).toLocaleLowerCase('en-US');
+  }
+  return resolve(first) === resolve(second);
+}
+
+export function sameRealLocalPath(first: string, second: string, platform = process.platform): boolean {
+  try {
+    return sameLocalPath(realpathSync(first), realpathSync(second), platform);
+  } catch {
+    return sameLocalPath(first, second, platform);
+  }
 }
 
 export function localRepositoryState(root: string, target: string): 'missing' | 'ready' | 'unsafe' {

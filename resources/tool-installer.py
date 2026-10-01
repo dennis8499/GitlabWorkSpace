@@ -132,7 +132,7 @@ def file_digest(path: Path) -> str:
 def tree_manifest(path: Path) -> dict[str, str]:
     result: dict[str, str] = {}
     for entry in path.rglob("*"):
-        if entry.is_symlink():
+        if is_symlink_or_junction(entry):
             fail("已安裝 Skill 中包含 symbolic link，為避免覆蓋使用者內容已停止更新。")
         if entry.is_file():
             result[entry.relative_to(path).as_posix()] = file_digest(entry)
@@ -147,14 +147,32 @@ def safe_group_path(root: Path, relative: str) -> Path:
     current = root
     for part in value.parts:
         current = current / part
-        if current.exists() and current.is_symlink():
+        if is_symlink_or_junction(current):
             fail("安裝路徑包含 symbolic link，為避免離開 Group 工作區已停止安裝。")
     if not target.resolve().is_relative_to(root):
         fail("安裝路徑超出 Group 工作區。")
     return target
 
 
-def read_marker(marker_path: Path) -> dict[str, Any]:
+def is_symlink_or_junction(path: Path, windows: bool | None = None) -> bool:
+    if path.is_symlink():
+        return True
+    if windows is None:
+        windows = os.name == "nt"
+    if not windows:
+        return False
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction) and is_junction():
+        return True
+    try:
+        reparse_tag = getattr(path.lstat(), "st_reparse_tag", None)
+    except FileNotFoundError:
+        return False
+    return reparse_tag in (getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003),
+                           getattr(stat, "IO_REPARSE_TAG_SYMLINK", 0xA000000C))
+
+
+def read_marker(marker_path: Path, tool: str) -> dict[str, Any]:
     if not marker_path.exists():
         return {"files": {}, "skills": {}}
     if marker_path.is_symlink() or not marker_path.is_file():
@@ -163,7 +181,9 @@ def read_marker(marker_path: Path) -> dict[str, Any]:
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         fail("工具版本紀錄無法讀取，現有 Skill 未變更。")
-    if marker.get("schema") != MANIFEST_SCHEMA or not isinstance(marker.get("skills"), dict):
+    if not isinstance(marker, dict) or marker.get("schema") != MANIFEST_SCHEMA or marker.get("tool") != tool:
+        fail("工具版本紀錄格式不相容，現有 Skill 未變更。")
+    if tool != "codebase-wiki" and not isinstance(marker.get("skills"), dict):
         fail("工具版本紀錄格式不相容，現有 Skill 未變更。")
     return marker
 
@@ -191,11 +211,12 @@ def safe_parent(root: Path, relative: str) -> Path:
     return target
 
 
-def replace_skills(root: Path, extracted: Path, skill_sources: list[Path], tool: str, version: str, source: str) -> dict[str, Any]:
+def replace_skills(root: Path, extracted: Path, skill_sources: list[Path], tool: str, version: str, source: str, archive_path: Path) -> dict[str, Any]:
+    archive_hash = file_digest(archive_path)
     skills_root = safe_parent(root, ".agents/skills")
     metadata = safe_parent(root, ".gitlab-workspace/tool-manifests")
     manifest_path = safe_group_path(root, f".gitlab-workspace/tool-manifests/{tool}.json")
-    marker = read_marker(manifest_path)
+    marker = read_marker(manifest_path, tool)
     verify_existing(root, skills_root, marker)
 
     new_names = {skill.name for skill in skill_sources}
@@ -250,7 +271,7 @@ def replace_skills(root: Path, extracted: Path, skill_sources: list[Path], tool:
             "tool": tool,
             "version": version,
             "source": source,
-            "archive_sha256": file_digest(extracted.parent / "release.zip"),
+            "archive_sha256": archive_hash,
             "skills": next_skills,
         }
         temporary_marker = stage / "manifest.json"
@@ -294,7 +315,7 @@ def install_wiki(root: Path, extracted: Path, version: str, source: str, archive
             fail("Codebase LLM Wiki Skill 目錄結構無效。")
     manifest_dir = safe_parent(root, ".gitlab-workspace/tool-manifests")
     manifest_path = safe_group_path(root, ".gitlab-workspace/tool-manifests/codebase-wiki.json")
-    old_marker = read_marker(manifest_path)
+    old_marker = read_marker(manifest_path, "codebase-wiki")
     previous_hash = old_marker.get("installer_state_sha256")
     existing_skill = root / ".agents/skills/codebase-wiki"
     if existing_skill.exists() and not previous_hash:
@@ -343,6 +364,7 @@ def main() -> int:
     args = parser.parse_args()
     stage: Path | None = None
     lock: Path | None = None
+    lock_identity: tuple[int, int] | None = None
     try:
         if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
             fail("Release 版本格式無效。")
@@ -350,13 +372,15 @@ def main() -> int:
         stage_parent = safe_parent(root, ".gitlab-workspace/tool-installs")
         lock = root / ".gitlab-workspace/.tool-installs.lock"
         lock.mkdir()
+        lock_stat = os.lstat(lock)
+        lock_identity = (lock_stat.st_dev, lock_stat.st_ino)
         stage = stage_parent / f"stage-{args.tool}-{uuid.uuid4().hex}"
         extract_verified_zip(args.archive, stage)
         if args.tool == "codebase-wiki":
             result = install_wiki(root, stage, args.version, args.source, args.archive)
         else:
             skills = TOOL_FOLDERS[args.tool](stage)
-            result = replace_skills(root, stage, skills, args.tool, args.version, args.source)
+            result = replace_skills(root, stage, skills, args.tool, args.version, args.source, args.archive)
         print(json.dumps({"ok": True, "tool": args.tool, "version": args.version, "source": args.source, "skills": len(result.get("skills", {}))}, ensure_ascii=False))
         return 0
     except (ValueError, OSError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
@@ -366,10 +390,12 @@ def main() -> int:
     finally:
         if stage and stage.exists():
             shutil.rmtree(stage, ignore_errors=True)
-        if lock:
+        if lock and lock_identity:
             try:
-                lock.rmdir()
-            except OSError:
+                lock_stat = os.lstat(lock)
+                if stat.S_ISDIR(lock_stat.st_mode) and (lock_stat.st_dev, lock_stat.st_ino) == lock_identity:
+                    lock.rmdir()
+            except (FileNotFoundError, OSError):
                 pass
 
 

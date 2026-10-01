@@ -145,11 +145,11 @@
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
     "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
-    "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && python test/release/tool_installer_test.py",
+    "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && node scripts/run-python.mjs test/release/tool_installer_test.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
-    "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && python scripts/verify-vsix.py",
-    "verify:package": "python scripts/verify-vsix.py",
+    "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && node scripts/run-python.mjs scripts/verify-vsix.py",
+    "verify:package": "node scripts/run-python.mjs scripts/verify-vsix.py",
     "vscode:prepublish": "npm run compile && npm run build:webview"
   },
   "devDependencies": {

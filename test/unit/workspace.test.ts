@@ -6,7 +6,7 @@ import test from 'node:test';
 import type { Memento } from 'vscode';
 import type { GitLabProject } from '../../src/api/types';
 import { parseIssueDraftBundle } from '../../src/workspace/issueDrafts';
-import { groupRepositoryPath, GroupWorkspaceRegistry, localRepositoryState, projectFolderNames } from '../../src/workspace/workspacePaths';
+import { groupRepositoryPath, GroupWorkspaceRegistry, localRepositoryState, projectFolderNames, sameLocalPath } from '../../src/workspace/workspacePaths';
 import { IssueTimeTracker, parseTimeEntryDuration } from '../../src/workspace/timeTracker';
 
 function project(id: number, localPath: string, fullPath = `group/${localPath}`): GitLabProject {
@@ -48,6 +48,11 @@ test('stores Group roots by GitLab instance and Group ID', async () => {
   assert.equal(registry.getRoot('https://gitlab.example', 4), path.resolve('C:/workspace/group-a'));
   assert.equal(registry.getRoot('https://gitlab.example', 5), path.resolve('C:/workspace/group-b'));
   assert.equal(registry.getRoot('https://other.example', 4), undefined);
+});
+
+test('compares Windows repository paths case-insensitively after normalization', () => {
+  assert.equal(sameLocalPath('C:\\GitLab Workspace\\Repo', 'c:\\gitlab workspace\\repo', 'win32'), true);
+  assert.equal(sameLocalPath('C:\\group\\repo', 'D:\\group\\repo', 'win32'), false);
 });
 
 test('validates IssueDraftBundle/v1 IDs, evidence paths, and required acceptance criteria', () => {

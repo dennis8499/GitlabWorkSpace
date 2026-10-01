@@ -39,10 +39,11 @@ export function DeliveryEditor({
     </div>
     <button class="primary" type="button" disabled={busy || repo?.state !== 'ready' || !form.workId || !form.summary || !form.changes || !form.tests || !form.acceptanceConfirmed} onClick={() => onPrepare(form)}>檢查交付並預覽差異</button>
     {records.map((record) => <div class="delivery-record"><div class="panel-title"><div><strong>{record.workId}</strong><span class="subtle">　{record.branch} → {record.targetBranch}</span></div><span class={`pill ${record.gate.ok ? 'success' : 'danger'}`}>{record.gate.ok ? '驗收快照有效' : '驗收未通過'}</span></div>
+      {record.instanceVerified === false && <p class="warning" role="status">此舊交付紀錄的 GitLab 來源尚未確認。請重新選擇 Repo 並建立新的交付預覽，既有紀錄已保留。</p>}
       <p><strong>Commit：</strong>{record.summary}　<strong>狀態：</strong>{({ preview: '待檢查差異', committed: '已 Commit', pushed: '已 Push', 'mr-created': 'MR 已建立' } as const)[record.state]}</p>
       {record.gate.reasons.map((reason) => <p class="warning">{reason}</p>)}<p class="diff-stat">{record.diffStat || '目前沒有差異'}</p><p class="subtle">{record.changedFiles.join(' · ')}</p><details><summary>查看預覽差異</summary><pre>{record.diff || '沒有可顯示的差異。'}</pre></details>
       {record.mergeRequestUrl && <button class="quiet" type="button" onClick={() => onOpenExternal(record.mergeRequestUrl!)}>開啟 GitLab MR</button>}
-      <div class="button-row">{record.state === 'preview' && <button class="secondary" type="button" disabled={busy || !record.gate.ok} onClick={() => onAction('commitDelivery', record)}>重新驗收並 Commit</button>}{record.state === 'committed' && <button class="secondary" type="button" disabled={busy} onClick={() => onAction('pushDelivery', record)}>Push 分支</button>}{record.state === 'pushed' && <button class="primary" type="button" disabled={busy} onClick={() => onAction('createDeliveryMergeRequest', record)}>建立 GitLab MR</button>}</div>
+      <div class="button-row">{record.state === 'preview' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false || !record.gate.ok} onClick={() => onAction('commitDelivery', record)}>重新驗收並 Commit</button>}{record.state === 'committed' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false} onClick={() => onAction('pushDelivery', record)}>Push 分支</button>}{record.state === 'pushed' && <button class="primary" type="button" disabled={busy || record.instanceVerified === false} onClick={() => onAction('createDeliveryMergeRequest', record)}>建立 GitLab MR</button>}</div>
     </div>)}
   </>;
 }

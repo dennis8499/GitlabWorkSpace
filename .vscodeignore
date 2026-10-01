@@ -8,6 +8,7 @@ docs/work/**
 test/**
 src/**
 node_modules/**
+dist/**
 out/test/**
 index.html
 tsconfig.json

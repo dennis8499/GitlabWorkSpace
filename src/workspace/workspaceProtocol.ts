@@ -236,4 +236,5 @@ export interface DeliveryPreview {
   mergeRequestUrl?: string;
   error?: string;
   updatedAt: number;
+  instanceVerified?: boolean;
 }

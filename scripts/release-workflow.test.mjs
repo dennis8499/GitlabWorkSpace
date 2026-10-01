@@ -4,17 +4,23 @@ import test from 'node:test';
 
 const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
 
-test('[BDD-REL-003] runs validation, tests, packaging, then gates publication on the build job', () => {
+test('[BDD-REL-003] verifies Linux and Windows releases before gated publication', () => {
   assert.match(workflow, /tags:\s*\n\s+-\s*['"]v\*['"]/);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run check:release/);
-  assert.match(workflow, /xvfb-run\s+-a\s+npm test/);
+  assert.match(workflow, /npm test/);
+  assert.match(workflow, /windows-2022/);
+  assert.match(workflow, /python-version:\s*'3\.11'/);
+  assert.match(workflow, /python-version:\s*'3\.14'/);
+  assert.match(workflow, /VSCODE_TEST_VERSION/);
   assert.match(workflow, /npm run package/);
   assert.match(workflow, /needs:\s*build/);
   assert.match(workflow, /actions\/upload-artifact@v\d+/);
   assert.match(workflow, /actions\/download-artifact@v\d+/);
 
-  assert.ok(workflow.indexOf('xvfb-run -a npm test') < workflow.indexOf('npm run package'));
+  assert.match(workflow, /branches:\s*\r?\n\s*- main/);
+  assert.match(workflow, /pull_request:/);
+  assert.ok(workflow.indexOf('npm test') < workflow.indexOf('npm run package'));
   assert.ok(workflow.indexOf('needs: build') < workflow.indexOf('gh release create'));
 });
 

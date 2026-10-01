@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, st
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
-import { groupRepositoryPath } from '../workspace/workspacePaths';
+import { groupRepositoryPath, sameLocalPath } from '../workspace/workspacePaths';
 
 export type CloneAction = 'clone' | 'update';
 
@@ -230,7 +230,7 @@ export async function syncLocalDefaultBranches(
 
     let plan: ClonePlan;
     try {
-      plan = planClones(workspacePath, [project], gitLabBaseUrl)[0];
+      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, projects)[0];
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -382,7 +382,7 @@ async function inspectExistingRepository(
   }
 }
 
-function remoteMatchesProject(originUrl: string, project: GitLabProject): boolean {
+export function projectRemoteMatches(originUrl: string, project: GitLabProject): boolean {
   const originHttp = normalizeHttpCloneUrl(originUrl);
   const expectedHttp = normalizeHttpCloneUrl(project.http_url_to_repo);
   if (originHttp && expectedHttp && originHttp === expectedHttp) return true;
@@ -437,12 +437,12 @@ async function isValidBranchName(branch: string, cwd: string): Promise<boolean> 
   }
 }
 
+function remoteMatchesProject(originUrl: string, project: GitLabProject): boolean {
+  return projectRemoteMatches(originUrl, project);
+}
+
 function samePath(first: string, second: string): boolean {
-  const a = path.resolve(first);
-  const b = path.resolve(second);
-  return process.platform === 'win32'
-    ? a.toLocaleLowerCase('en-US') === b.toLocaleLowerCase('en-US')
-    : a === b;
+  return sameLocalPath(first, second);
 }
 
 interface GitCaptureResult {

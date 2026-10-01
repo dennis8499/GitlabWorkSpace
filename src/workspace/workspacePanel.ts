@@ -8,8 +8,10 @@ import type { GitLabClient } from '../api/gitLabClient';
 import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
-import { cloneProjects, createScopedGitEnvironment, syncLocalDefaultBranches } from '../git/cloneService';
-import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState } from './workspacePaths';
+import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
+import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState, sameRealLocalPath } from './workspacePaths';
+import { resolvePythonRuntime } from './pythonRuntime';
+import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { evaluateMeginDeliveryGate } from './deliveryGate';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
@@ -28,7 +30,7 @@ const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer']);
 
-interface DeliveryRecord extends DeliveryPreview { groupId: number; userId: number; }
+interface DeliveryRecord extends DeliveryPreview { groupId: number; userId: number; instanceScope?: string; }
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 
 export class WorkspacePanel implements vscode.Disposable {
@@ -362,6 +364,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!this.panel || this.disposed) return;
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    const deliveryScope = this.deliveryInstanceScope();
     const localRepositories: WorkspaceSnapshot['localRepositories'] = {};
     if (root && group) {
       const names = new Map(this.projects.map((project) => {
@@ -397,7 +400,9 @@ export class WorkspacePanel implements vscode.Disposable {
       projectMembers: this.projectMembers,
       tools: this.toolStates,
       toolSource: this.toolSource(),
-      deliveryRecords: this.deliveryRecords().filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id),
+      deliveryRecords: this.deliveryRecords()
+        .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
+        .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope })),
       cloneOperation: this.cloneOperation,
       busy: this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress
     };
@@ -500,6 +505,16 @@ export class WorkspacePanel implements vscode.Disposable {
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     if (!root) throw new Error('請先選擇 Group 工作目錄。');
+    if (process.platform === 'win32') {
+      const options = windowsCodexTerminalOptions();
+      if (!options) {
+        await vscode.window.showErrorMessage('找不到 Windows Codex CLI。請安裝 codex.exe 或 codex.cmd，將所在資料夾加入 PATH，然後重新啟動 VS Code。');
+        return;
+      }
+      const windowsTerminal = vscode.window.createTerminal({ name: 'Codex CLI', cwd: root, ...options });
+      windowsTerminal.show();
+      return;
+    }
     const terminal = vscode.window.createTerminal({ name: 'Codex CLI', cwd: root });
     terminal.show();
     terminal.sendText('codex');
@@ -989,7 +1004,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const repoPath = groupRepositoryPath(root, project, this.projects);
     if (localRepositoryState(root, repoPath) !== 'ready') throw new Error('本機 Repo 不存在或路徑不安全。');
     const repoTop = await git(repoPath, ['rev-parse', '--show-toplevel']);
-    if (path.resolve(repoTop.trim()) !== path.resolve(repoPath)) throw new Error('本機路徑不是 Repo 根目錄。');
+    if (!sameRealLocalPath(repoTop.trim(), repoPath)) throw new Error('本機路徑不是 Repo 根目錄。');
     const branch = (await git(repoPath, ['branch', '--show-current'])).trim();
     if (!branch || branch === targetBranch || branch === project.default_branch) throw new Error('Megin 交付必須留在非預設分支，不能提交到目標分支。');
     await git(repoPath, ['check-ref-format', '--branch', branch]);
@@ -1008,7 +1023,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const diffStat = (await git(repoPath, ['diff', '--stat', 'HEAD'])).trim();
     const changedFiles = (await git(repoPath, ['diff', '--name-only', 'HEAD'])).split(/\r?\n/).filter(Boolean).slice(0, 500);
     const delivery: DeliveryRecord = {
-      id: randomUUID(), groupId: group.id, userId, projectId: project.id, issueIid: request.issueIid,
+      id: randomUUID(), groupId: group.id, userId, instanceScope: this.deliveryInstanceScope(), projectId: project.id, issueIid: request.issueIid,
       repoPath, branch, targetBranch, workId: request.workId, summary, changes, tests,
       acceptanceConfirmed: request.acceptanceConfirmed,
       reviewerIds: (Array.isArray(request.reviewerIds) ? request.reviewerIds : []).filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 50),
@@ -1054,7 +1069,9 @@ export class WorkspacePanel implements vscode.Disposable {
     const project = await client.getProject(record.projectId);
     const credentials = await this.session.getCloneCredentials();
     const remote = await git(record.repoPath, ['remote', 'get-url', 'origin']);
-    if (!isAllowedGitRemote(credentials.baseUrl, remote.trim())) throw new Error('origin 不在目前 GitLab instance，已停止 Push。');
+    if (!isAllowedGitRemote(credentials.baseUrl, project.http_url_to_repo) || !projectRemoteMatches(remote.trim(), project)) {
+      throw new Error('origin 不屬於目前 GitLab Project 的 HTTPS 或 SSH Repo，已停止 Push。');
+    }
     const confirm = await vscode.window.showWarningMessage(`將 ${record.headSha.slice(0, 12)} Push 至 ${project.path_with_namespace}:${record.branch}。`, { modal: true }, 'Push');
     if (confirm !== 'Push') return;
     let pushEnv: NodeJS.ProcessEnv | undefined;
@@ -1138,14 +1155,22 @@ export class WorkspacePanel implements vscode.Disposable {
     return { ok: reasons.length === 0, reasons };
   }
 
-  private deliveryRecords(): DeliveryRecord[] { return this.context.globalState.get<DeliveryRecord[]>(DELIVERIES_KEY, []) ?? []; }
+  private deliveryRecords(): DeliveryRecord[] {
+    const value = this.context.globalState.get<DeliveryRecord[]>(DELIVERIES_KEY, []);
+    return Array.isArray(value) ? value.filter((record) => !!record && typeof record.id === 'string') : [];
+  }
+  private deliveryInstanceScope(): string | undefined {
+    return this.session.baseUrl ? createHash('sha256').update(this.session.baseUrl).digest('hex') : undefined;
+  }
   private requireDelivery(id: string): DeliveryRecord {
-    const record = this.deliveryRecords().find((item) => item.id === id && item.groupId === this.session.selectedGroup?.id && item.userId === this.currentUser?.id);
-    if (!record) throw new Error('找不到目前 Group／使用者的交付紀錄。');
+    const instanceScope = this.deliveryInstanceScope();
+    const record = this.deliveryRecords().find((item) => item.id === id && item.groupId === this.session.selectedGroup?.id &&
+      item.userId === this.currentUser?.id && instanceScope !== undefined && item.instanceScope === instanceScope);
+    if (!record) throw new Error('找不到已確認屬於目前 GitLab、Group 與使用者的交付紀錄。');
     return record;
   }
   private async saveDelivery(record: DeliveryRecord): Promise<void> {
-    const entries = this.deliveryRecords().filter((item) => item.id !== record.id);
+    const entries = this.deliveryRecords().filter((item) => item.id !== record.id || item.instanceScope !== record.instanceScope);
     entries.unshift(record);
     await this.context.globalState.update(DELIVERIES_KEY, entries.slice(0, 100));
   }
@@ -1194,11 +1219,8 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
     try {
     let picked = version ? await this.releases.getVersion(tool, version, this.toolSource()) : await this.releases.latestCompatible(tool, this.toolSource());
-    const python = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-    const pythonVersion = await execFileAsync(python, ['--version'], { timeout: 10_000 }).catch(() => { throw new Error('需要 Python 3.11+ 才能安裝工具 Release。'); });
-    const versionText = `${pythonVersion.stdout} ${pythonVersion.stderr}`;
-    const parsed = /Python\s+(\d+)\.(\d+)/.exec(versionText);
-    if (!parsed || Number(parsed[1]) < 3 || (Number(parsed[1]) === 3 && Number(parsed[2]) < 11)) throw new Error('需要 Python 3.11+ 才能安裝工具 Release。');
+    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+    const python = await resolvePythonRuntime(pythonPath);
     let archive: Uint8Array;
     try { archive = await this.releases.download(picked); }
     catch (error) {
@@ -1221,7 +1243,7 @@ export class WorkspacePanel implements vscode.Disposable {
       await mkdir(temporary, { recursive: true });
       await writeFile(zipPath, archive, { flag: 'wx' });
       const progress = vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `安裝 ${tool} v${picked.version}`, cancellable: false }, async () => {
-        const result = await execFileAsync(python, [helper, tool, zipPath, root, picked.version, picked.source], { cwd: root, timeout: 10 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true }).catch((error: unknown) => { throw new Error(`Release 安裝失敗：${readableError(error)}`); });
+        const result = await execFileAsync(python.executable, [...python.args, helper, tool, zipPath, root, picked.version, picked.source], { cwd: root, env: python.env, timeout: 10 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true }).catch((error: unknown) => { throw new Error(`Release 安裝失敗：${readableError(error)}`); });
         const jsonLine = result.stdout.trim().split(/\r?\n/).at(-1);
         let payload: { ok?: boolean; error?: string } = {};
         try { payload = JSON.parse(jsonLine ?? '') as typeof payload; } catch { /* helper errors are checked below */ }

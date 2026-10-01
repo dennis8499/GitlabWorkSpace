@@ -11,8 +11,10 @@ import {
   ClonePreflightError,
   createCloneEnvironmentForTest,
   planClones,
+  projectRemoteMatches,
   syncLocalDefaultBranches
 } from '../../src/git/cloneService';
+import { groupRepositoryPath } from '../../src/workspace/workspacePaths';
 
 const dummyToken = 'clone-unit-test-token-do-not-use';
 let remoteCounter = 0;
@@ -423,6 +425,36 @@ test('fetches and fast-forwards only the current GitLab default branch', async (
     restoreRewrite();
     rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test('synchronizes same-named repositories using the complete group folder mapping', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-duplicate-sync-'));
+  const workspace = path.join(temp, 'Group Workspace');
+  mkdirSync(workspace);
+  const first = { ...project('alpha', 'portal'), path_with_namespace: 'group/first/portal', http_url_to_repo: 'https://gitlab.example.test/group/first/portal.git', ssh_url_to_repo: 'git@gitlab.example.test:group/first/portal.git' };
+  const second = { ...project('bravoo', 'portal'), path_with_namespace: 'group/second/portal', http_url_to_repo: 'https://gitlab.example.test/group/second/portal.git', ssh_url_to_repo: 'git@gitlab.example.test:group/second/portal.git' };
+  const { bare } = createBareRemote(temp);
+  const target = groupRepositoryPath(workspace, second, [first, second]);
+  execFileSync('git', ['clone', '--quiet', bare, target]);
+  git(['-C', target, 'remote', 'set-url', 'origin', second.http_url_to_repo]);
+  const restoreRewrite = addUrlRewrite(second.http_url_to_repo, bare);
+  try {
+    const result = await syncLocalDefaultBranches(workspace, [first, second], 'https://gitlab.example.test', dummyToken);
+    assert.equal(result.found, 1);
+    assert.deepEqual(result.upToDate, [second]);
+    assert.deepEqual(result.skipped, []);
+    assert.equal(groupRepositoryPath(workspace, second, [first, second]), target);
+  } finally {
+    restoreRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('matches SSH pushes to the selected GitLab project identity', () => {
+  const repo = project('ssh-demo');
+  assert.equal(projectRemoteMatches(repo.ssh_url_to_repo!, repo), true);
+  assert.equal(projectRemoteMatches('git@other.example.test:group/ssh-demo.git', repo), false);
+  assert.equal(projectRemoteMatches('git@gitlab.example.test:group/other.git', repo), false);
 });
 
 test('skips a repository on a feature branch without fetching or switching branches', async () => {
