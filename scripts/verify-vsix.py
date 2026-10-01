@@ -22,7 +22,14 @@ try:
             raise SystemExit("VSIX package version does not match package.json")
         if packaged_manifest.get("name") != MANIFEST["name"]:
             raise SystemExit("VSIX package name does not match package.json")
-        for asset in ("extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js", "extension/resources/issue-webview/dashboard.css"):
+        for asset in (
+            "extension/resources/issue-webview/dashboard.html",
+            "extension/resources/issue-webview/dashboard.js",
+            "extension/resources/issue-webview/dashboard.css",
+            "extension/resources/sidebar-webview/sidebar.html",
+            "extension/resources/sidebar-webview/sidebar.js",
+            "extension/resources/sidebar-webview/sidebar.css",
+        ):
             if asset not in members or not archive.read(asset):
                 raise SystemExit(f"VSIX is missing workbench webview asset: {asset}")
         if any(name.startswith("extension/resources/issue-webview/issue.") for name in members):

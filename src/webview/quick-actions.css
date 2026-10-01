@@ -1,0 +1,70 @@
+:root {
+  color-scheme: light dark;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #quick-actions { margin: 0; width: 100%; min-width: 0; }
+body { overflow-x: hidden; }
+
+.quick-actions {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.connection-status {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  line-height: 1.45;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-button {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 5px;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.action-button:hover:not(:disabled):not(.action-primary) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-background)); }
+.action-button.action-primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); font-weight: 600; }
+.action-button.action-primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.action-button:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.action-button:disabled { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); background: var(--vscode-button-secondaryBackground, transparent); cursor: default; }
+.action-button svg { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.action-button span { min-width: 0; }
+.action-message { min-height: 0; margin: 0; color: var(--vscode-errorForeground, var(--vscode-descriptionForeground)); line-height: 1.4; overflow-wrap: anywhere; }
+
+@media (max-width: 279px) {
+  .action-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (forced-colors: active) {
+  .action-button { border: 1px solid ButtonText; }
+  .action-button:focus-visible { outline-color: Highlight; }
+}

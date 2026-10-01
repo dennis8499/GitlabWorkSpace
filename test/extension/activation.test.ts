@@ -10,6 +10,12 @@ suite('GitLab Workspace extension activation', () => {
     assert.ok(extension, 'the extension is installed in the Extension Host');
     await extension.activate();
 
+    const quickActions = extension.packageJSON.contributes.views.gitlabWorkspace[0];
+    assert.equal(quickActions.id, 'gitlabWorkspace.quickActions');
+    assert.equal(quickActions.type, 'webview');
+    assert.equal(quickActions.visibility, 'visible');
+    assert.ok(extension.packageJSON.activationEvents.includes('onView:gitlabWorkspace.quickActions'));
+
     const commands = await vscode.commands.getCommands(true);
     for (const command of [
       'gitlabWorkspace.connect',

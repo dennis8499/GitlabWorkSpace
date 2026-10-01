@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["src/webview/**/*.tsx", "src/issues/protocol.ts", "src/api/types.ts", "src/api/gitLabClient.ts"]
+  "include": ["src/webview/**/*.tsx", "src/issues/protocol.ts", "src/api/types.ts", "src/api/gitLabClient.ts", "src/workspace/quickActionsProtocol.ts"]
 }

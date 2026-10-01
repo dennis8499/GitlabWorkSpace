@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -27,6 +27,7 @@
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onView:gitlabWorkspace.repositories",
     "onView:gitlabWorkspace.myIssues",
+    "onView:gitlabWorkspace.quickActions",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
     "onCommand:gitlabWorkspace.syncLocalDefaultBranches"
@@ -44,6 +45,15 @@
     "views": {
       "gitlabWorkspace": [
         {
+          "type": "webview",
+          "id": "gitlabWorkspace.quickActions",
+          "name": "快速操作",
+          "contextualTitle": "GitLab Workspace 快速操作",
+          "icon": "resources/gitlab-workspace.svg",
+          "visibility": "visible",
+          "initialSize": 2
+        },
+        {
           "id": "gitlabWorkspace.repositories",
           "name": "專案",
           "contextualTitle": "GitLab Workspace 專案"
@@ -59,6 +69,7 @@
       {
         "command": "gitlabWorkspace.openWorkspace",
         "title": "GitLab Workspace: 開啟工作台",
+        "shortTitle": "開啟工作台",
         "icon": "$(layout)"
       },
       {
@@ -79,15 +90,21 @@
       },
       {
         "command": "gitlabWorkspace.connect",
-        "title": "GitLab Workspace: 連線 GitLab"
+        "title": "GitLab Workspace: 連線 GitLab",
+        "shortTitle": "連線 GitLab",
+        "icon": "$(plug)"
       },
       {
         "command": "gitlabWorkspace.selectGroup",
-        "title": "GitLab Workspace: 選擇 Group"
+        "title": "GitLab Workspace: 選擇 Group",
+        "shortTitle": "選擇 Group",
+        "icon": "$(organization)"
       },
       {
         "command": "gitlabWorkspace.refresh",
-        "title": "GitLab Workspace: 重新整理工作台"
+        "title": "GitLab Workspace: 重新整理工作台",
+        "shortTitle": "重新整理",
+        "icon": "$(refresh)"
       },
       {
         "command": "gitlabWorkspace.cloneRepositories",
@@ -136,17 +153,17 @@
         {
           "command": "gitlabWorkspace.openWorkspace",
           "when": "view == gitlabWorkspace.repositories || view == gitlabWorkspace.myIssues",
-          "group": "navigation"
+          "group": "1_actions"
         },
         {
           "command": "gitlabWorkspace.connect",
           "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation"
+          "group": "1_actions"
         },
         {
           "command": "gitlabWorkspace.selectGroup",
           "when": "view == gitlabWorkspace.repositories",
-          "group": "navigation"
+          "group": "1_actions"
         },
         {
           "command": "gitlabWorkspace.createIssue",
@@ -171,10 +188,10 @@
   "scripts": {
     "compile": "tsc -p .",
     "typecheck:webview": "tsc -p tsconfig.webview.json",
-    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs",
+    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
-    "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
+    "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
     "test:release": "node --test scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && python test/release/tool_installer_test.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",

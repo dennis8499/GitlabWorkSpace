@@ -11,6 +11,14 @@ import {
 import { normalizeGitLabBaseUrl } from './api/urlPolicy';
 import { IssuePanels } from './issues/issuePanel';
 import { WorkspacePanel } from './workspace/workspacePanel';
+import { QuickActionsViewProvider, type QuickAction } from './quickActionsView';
+
+const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
+  openWorkspace: 'gitlabWorkspace.openWorkspace',
+  selectGroup: 'gitlabWorkspace.selectGroup',
+  refresh: 'gitlabWorkspace.refresh',
+  connect: 'gitlabWorkspace.connect'
+};
 
 class ProjectItem extends vscode.TreeItem {
   readonly project: GitLabProject;
@@ -237,10 +245,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const issuePanels = new IssuePanels(context, session, () => issues.refresh());
   const cloneOutput = vscode.window.createOutputChannel('GitLab Workspace Repositories');
   const cloneState = new CloneOperationGate();
+  const quickActions = new QuickActionsViewProvider(context.extensionUri, session, (action) =>
+    vscode.commands.executeCommand(QUICK_ACTION_COMMANDS[action])
+  );
   const workspacePanel = new WorkspacePanel(context, session, issuePanels, async () => {
     repositories.setSelectedGroup(session.selectedGroup?.id);
     issues.refresh();
     await updateCloneCommandContexts(session, cloneState);
+    quickActions.refresh();
   });
   const repoTree = vscode.window.createTreeView('gitlabWorkspace.repositories', {
     treeDataProvider: repositories,
@@ -252,17 +264,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   await updateCloneCommandContexts(session, cloneState);
   context.subscriptions.push(repoTree.onDidChangeCheckboxState((event) => repositories.updateCheckboxState(event.items)));
-  context.subscriptions.push(repoTree, issueTree, issuePanels, workspacePanel, repositories, issues, cloneOutput);
+  context.subscriptions.push(quickActions, repoTree, issueTree, issuePanels, workspacePanel, repositories, issues, cloneOutput);
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('gitlabWorkspace.quickActions', quickActions));
   context.subscriptions.push(
     vscode.commands.registerCommand('gitlabWorkspace.openWorkspace', () => workspacePanel.show()),
     vscode.commands.registerCommand('gitlabWorkspace.connect', async () => {
-      await connectToGitLab(session, repositories, issues, issuePanels, cloneState);
-      await workspacePanel.refreshFromSidebar();
+      try {
+        const connected = await connectToGitLab(session, repositories, issues, issuePanels, cloneState);
+        await workspacePanel.refreshFromSidebar();
+        return connected;
+      } finally {
+        quickActions.refresh();
+      }
     }),
     vscode.commands.registerCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => workspacePanel.selectGroupFromSidebar(group)),
     vscode.commands.registerCommand('gitlabWorkspace.refresh', async () => {
-      refreshTrees(repositories, issues);
-      await workspacePanel.refreshFromSidebar();
+      try {
+        refreshTrees(repositories, issues);
+        await workspacePanel.refreshFromSidebar();
+      } finally {
+        quickActions.refresh();
+      }
     }),
     vscode.commands.registerCommand('gitlabWorkspace.disconnect', () => workspacePanel.disconnectFromSidebar()),
     vscode.commands.registerCommand('gitlabWorkspace.cloneRepositories', () => workspacePanel.cloneFromSidebar('pick')),
@@ -288,7 +310,7 @@ async function connectToGitLab(
   issues: IssueProvider,
   issuePanels: IssuePanels,
   cloneState: CloneOperationGate
-): Promise<void> {
+): Promise<boolean | undefined> {
   const currentUrl = session.baseUrl ?? '';
   const baseUrl = await vscode.window.showInputBox({
     title: '連線至 GitLab',
@@ -301,7 +323,7 @@ async function connectToGitLab(
       catch (error) { return readableError(error); }
     }
   });
-  if (!baseUrl) return;
+  if (!baseUrl) return undefined;
   const token = await vscode.window.showInputBox({
     title: 'GitLab Personal Access Token',
     prompt: 'Token 需具備呼叫 GitLab API 的 api 範圍，並有權下載目標私有專案。',
@@ -309,9 +331,9 @@ async function connectToGitLab(
     ignoreFocusOut: true,
     validateInput: (value) => value.trim() ? undefined : 'Enter an access token.'
   });
-  if (!token) return;
+  if (!token) return undefined;
 
-  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在連線 GitLab…', cancellable: false }, async () => {
+  return vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在連線 GitLab…', cancellable: false }, async () => {
     try {
       const user = await session.connect(baseUrl, token);
       issuePanels.close();
@@ -319,8 +341,10 @@ async function connectToGitLab(
       issues.refresh();
       await updateCloneCommandContexts(session, cloneState);
       await vscode.window.showInformationMessage(`已連線至 GitLab：${user.name} (@${user.username})`);
+      return true;
     } catch (error) {
       await vscode.window.showErrorMessage(readableError(error));
+      return false;
     }
   });
 }

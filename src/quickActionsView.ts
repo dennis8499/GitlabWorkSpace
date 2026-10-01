@@ -1,0 +1,95 @@
+import * as vscode from 'vscode';
+import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import type { GitLabSession } from './connection/session';
+import {
+  isQuickActionsRequest,
+  type QuickAction,
+  type QuickActionsResponse,
+  type QuickActionsState
+} from './workspace/quickActionsProtocol';
+
+export type { QuickAction } from './workspace/quickActionsProtocol';
+
+export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+  private view?: vscode.WebviewView;
+  private busyAction?: QuickAction;
+  private errorMessage?: string;
+  private readonly subscriptions: vscode.Disposable[] = [];
+
+  constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly session: GitLabSession,
+    private readonly runAction: (action: QuickAction) => Thenable<unknown> | Promise<unknown> | unknown
+  ) {}
+
+  async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
+    this.clearView();
+    this.view = view;
+    const webviewUri = vscode.Uri.joinPath(this.extensionUri, 'resources', 'sidebar-webview');
+    view.webview.options = { enableScripts: true, localResourceRoots: [webviewUri] };
+    this.subscriptions.push(
+      view.webview.onDidReceiveMessage((message: unknown) => {
+        if (!isQuickActionsRequest(message)) return;
+        if (message.type === 'ready') this.sendState();
+        else void this.perform(message.action);
+      }),
+      view.onDidChangeVisibility(() => { if (view.visible) this.sendState(); }),
+      view.onDidDispose(() => { if (this.view === view) this.clearView(); })
+    );
+
+    const htmlPath = vscode.Uri.joinPath(webviewUri, 'sidebar.html');
+    let html = await readFile(htmlPath.fsPath, 'utf8');
+    if (this.view !== view) return;
+    const nonce = randomBytes(16).toString('base64');
+    const base = view.webview.asWebviewUri(webviewUri).toString().replace(/\/$/, '') + '/';
+    html = html.replace('<head>', `<head><base href="${base}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${view.webview.cspSource}; script-src 'nonce-${nonce}' ${view.webview.cspSource}; font-src ${view.webview.cspSource};">`);
+    html = html.replace(/<script\b([^>]*)>/g, (_match, attributes: string) => `<script nonce="${nonce}"${attributes}>`);
+    view.webview.html = html;
+  }
+
+  refresh(): void {
+    this.errorMessage = undefined;
+    this.sendState();
+  }
+
+  dispose(): void { this.clearView(); }
+
+  private async perform(action: QuickAction): Promise<void> {
+    if (this.busyAction) return;
+    if (!this.session.baseUrl && action !== 'connect' && action !== 'openWorkspace') {
+      this.errorMessage = '請先連線 GitLab。';
+      this.sendState();
+      return;
+    }
+    this.busyAction = action;
+    this.errorMessage = undefined;
+    this.sendState();
+    try {
+      const result = await this.runAction(action);
+      if (action === 'connect' && result === false) this.errorMessage = '無法連線，請檢查 GitLab 網址與存取權杖。';
+    } catch (error) {
+      this.errorMessage = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.busyAction = undefined;
+      this.sendState();
+    }
+  }
+
+  private sendState(): void {
+    if (!this.view) return;
+    const state: QuickActionsState = {
+      connected: !!this.session.baseUrl,
+      groupLabel: this.session.selectedGroup?.full_path,
+      busyAction: this.busyAction,
+      errorMessage: this.errorMessage
+    };
+    const message: QuickActionsResponse = { type: 'state', state };
+    void this.view.webview.postMessage(message);
+  }
+
+  private clearView(): void {
+    for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
+    this.view = undefined;
+  }
+}
