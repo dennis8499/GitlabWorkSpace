@@ -57,17 +57,11 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
 
   private async perform(action: QuickAction): Promise<void> {
     if (this.busyAction) return;
-    if (!this.session.baseUrl && action !== 'connect' && action !== 'openWorkspace') {
-      this.errorMessage = '請先連線 GitLab。';
-      this.sendState();
-      return;
-    }
     this.busyAction = action;
     this.errorMessage = undefined;
     this.sendState();
     try {
-      const result = await this.runAction(action);
-      if (action === 'connect' && result === false) this.errorMessage = '無法連線，請檢查 GitLab 網址與存取權杖。';
+      await this.runAction(action);
     } catch (error) {
       this.errorMessage = error instanceof Error ? error.message : String(error);
     } finally {

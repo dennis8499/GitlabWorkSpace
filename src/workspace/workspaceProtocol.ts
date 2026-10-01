@@ -123,8 +123,23 @@ export interface WorkspaceSnapshot {
   toolSource: ToolSource;
   toolReleases?: Partial<Record<ToolId, ToolReleaseSummary[]>>;
   deliveryRecords: DeliveryPreview[];
+  cloneOperation?: CloneOperationState;
   busy?: boolean;
   error?: string;
+}
+
+export interface CloneOperationState {
+  id: string;
+  scopeKey?: string;
+  phase: 'running' | 'completed' | 'cancelled' | 'failed';
+  label: string;
+  items: Array<{
+    projectId: number;
+    projectPath: string;
+    state: 'waiting' | 'starting' | 'progress' | 'completed' | 'updated' | 'upToDate' | 'skipped' | 'failed';
+    percent?: number;
+    message?: string;
+  }>;
 }
 
 export type WorkspaceRequest =
@@ -141,6 +156,7 @@ export type WorkspaceRequest =
   | { type: 'openCodexTerminal' }
   | { type: 'copyAndOpenCodex'; text: string; returnTo: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
+  | { type: 'cloneSelection'; requestId: string; scopeKey?: string; projectIds: number[] }
   | { type: 'syncRepos' }
   | { type: 'selectProject'; projectId: number }
   | { type: 'selectIssue'; projectId: number; issueIid: number }
@@ -190,7 +206,8 @@ export type WorkspaceResponse =
   | { type: 'similarIssues'; items: Array<{ draftId: string; projectPath: string; issues: Array<{ iid: number; title: string; webUrl: string }> }> }
   | { type: 'issueResponse'; response: IssuePanelResponse; revision?: number }
   | { type: 'issueNavigation'; navigation: IssueNavigation | null }
-  | { type: 'cloneOperation'; label: string; items: Array<{ projectPath: string; state: string; percent?: number; message?: string }> }
+  | { type: 'requestCloneSelection'; requestId: string }
+  | ({ type: 'cloneOperation' } & CloneOperationState)
   | { type: 'reply'; requestId: string; value?: unknown; error?: string };
 
 export interface DeliveryPreview {

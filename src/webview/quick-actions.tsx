@@ -11,18 +11,16 @@ interface VsCodeBridge {
 declare function acquireVsCodeApi(): VsCodeBridge;
 const vscode = acquireVsCodeApi();
 
-const actions: Array<{ id: QuickAction; label: string; pending: string; icon: 'workspace' | 'group' | 'refresh' | 'connect' }> = [
+const actions: Array<{ id: QuickAction; label: string; pending: string; icon: 'workspace' | 'issue' | 'projects' }> = [
   { id: 'openWorkspace', label: '開啟工作台', pending: '開啟中…', icon: 'workspace' },
-  { id: 'selectGroup', label: '切換 Group', pending: '讀取中…', icon: 'group' },
-  { id: 'refresh', label: '重新整理', pending: '更新中…', icon: 'refresh' },
-  { id: 'connect', label: '連線 GitLab', pending: '連線中…', icon: 'connect' }
+  { id: 'openMyWork', label: '我的工作', pending: '開啟中…', icon: 'issue' },
+  { id: 'openProjects', label: '專案', pending: '開啟中…', icon: 'projects' }
 ];
 
 function Icon({ name }: { name: (typeof actions)[number]['icon'] }) {
   if (name === 'workspace') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="7" rx="1" /><rect x="13" y="4" width="8" height="16" rx="1" /><rect x="3" y="13" width="8" height="7" rx="1" /></svg>;
-  if (name === 'group') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" /><path d="M3 19v-1a6 6 0 0 1 12 0v1Z" /><path d="M16 5.2a3 3 0 0 1 0 5.6M17 14a5 5 0 0 1 4 5" /></svg>;
-  if (name === 'refresh') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.8 9a7 7 0 0 1 12-2L20 12M4 12l2.2 5a7 7 0 0 0 12-2" /></svg>;
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v5M16 2v5M6 7h12v4a6 6 0 0 1-6 6v5M9 7V4M15 7V4" /></svg>;
+  if (name === 'issue') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9M12 7v5l3 2" /><path d="M16 3h5v5" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 4v5" /></svg>;
 }
 
 function QuickActions() {
@@ -41,31 +39,37 @@ function QuickActions() {
 
   function activate(action: QuickAction): void {
     if (state.busyAction) return;
-    if (!state.connected && action !== 'connect' && action !== 'openWorkspace') return;
     vscode.postMessage({ type: 'perform', action });
   }
 
-  return <main class="quick-actions" aria-label="GitLab Workspace 快速操作">
-    <p class="connection-status" title={state.groupLabel}>{state.connected ? `目前 Group：${state.groupLabel ?? '尚未選擇'}` : '尚未連線 GitLab'}</p>
-    <div class="action-grid">
-      {actions.map((action) => {
-        const connecting = action.id === 'connect' && state.connected;
-        const label = connecting ? '重新連線' : action.label;
+  return <main class="quick-actions" aria-label="GitLab Workspace 工作台導覽">
+    <p class="connection-status" title={state.groupLabel}>{state.connected ? `GitLab 已連線 · ${state.groupLabel ?? '尚未選擇 Group'}` : '尚未連線 GitLab'}</p>
+    <button
+      class="action-button workspace-primary"
+      type="button"
+      disabled={!!state.busyAction}
+      aria-label={state.busyAction === 'openWorkspace' ? '開啟中…' : '開啟工作台'}
+      onClick={() => activate('openWorkspace')}
+    >
+      <Icon name="workspace" />
+      <span>{state.busyAction === 'openWorkspace' ? '開啟中…' : '開啟工作台'}</span>
+    </button>
+    <nav class="workspace-shortcuts" aria-label="工作台頁面">
+      {actions.filter((action) => action.id !== 'openWorkspace').map((action) => {
         const active = state.busyAction === action.id;
-        const disabled = !!state.busyAction || (!state.connected && (action.id === 'selectGroup' || action.id === 'refresh'));
         return <button
           key={action.id}
-          class={`action-button${action.id === (state.connected ? 'openWorkspace' : 'connect') ? ' action-primary' : ''}`}
+          class={`action-button workspace-shortcut${active ? ' shortcut-active' : ''}`}
           type="button"
-          disabled={disabled}
-          aria-label={active ? action.pending : label}
+          disabled={!!state.busyAction}
+          aria-label={active ? action.pending : action.label}
           onClick={() => activate(action.id)}
         >
           <Icon name={action.icon} />
-          <span>{active ? action.pending : label}</span>
+          <span>{active ? action.pending : action.label}</span>
         </button>;
       })}
-    </div>
+    </nav>
     <p class="action-message" role="status" aria-live="polite">{state.busyAction ? `${actions.find((action) => action.id === state.busyAction)?.pending}` : state.errorMessage ?? ''}</p>
   </main>;
 }

@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -25,8 +25,6 @@
     "onCommand:gitlabWorkspace.openSaMode",
     "onCommand:gitlabWorkspace.openDeveloperMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
-    "onView:gitlabWorkspace.repositories",
-    "onView:gitlabWorkspace.myIssues",
     "onView:gitlabWorkspace.quickActions",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
@@ -47,21 +45,11 @@
         {
           "type": "webview",
           "id": "gitlabWorkspace.quickActions",
-          "name": "快速操作",
-          "contextualTitle": "GitLab Workspace 快速操作",
+          "name": "工作台導覽",
+          "contextualTitle": "GitLab Workspace 工作台導覽",
           "icon": "resources/gitlab-workspace.svg",
           "visibility": "visible",
           "initialSize": 2
-        },
-        {
-          "id": "gitlabWorkspace.repositories",
-          "name": "專案",
-          "contextualTitle": "GitLab Workspace 專案"
-        },
-        {
-          "id": "gitlabWorkspace.myIssues",
-          "name": "我的工作",
-          "contextualTitle": "GitLab Workspace 我的工作"
         }
       ]
     },
@@ -147,42 +135,6 @@
           "description": "安裝工具 Release 時使用的 Python 3.11+ 執行檔路徑。"
         }
       }
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "gitlabWorkspace.openWorkspace",
-          "when": "view == gitlabWorkspace.repositories || view == gitlabWorkspace.myIssues",
-          "group": "1_actions"
-        },
-        {
-          "command": "gitlabWorkspace.connect",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "1_actions"
-        },
-        {
-          "command": "gitlabWorkspace.selectGroup",
-          "when": "view == gitlabWorkspace.repositories",
-          "group": "1_actions"
-        },
-        {
-          "command": "gitlabWorkspace.createIssue",
-          "when": "view == gitlabWorkspace.myIssues",
-          "group": "inline"
-        },
-        {
-          "command": "gitlabWorkspace.refresh",
-          "when": "view == gitlabWorkspace.repositories || view == gitlabWorkspace.myIssues",
-          "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "gitlabWorkspace.openIssue",
-          "when": "view == gitlabWorkspace.myIssues && viewItem == gitlabIssue",
-          "group": "inline"
-        }
-      ]
     }
   },
   "scripts": {

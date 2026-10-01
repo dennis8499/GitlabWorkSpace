@@ -26,12 +26,6 @@ body { overflow-x: hidden; }
   line-height: 1.45;
 }
 
-.action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
 .action-button {
   display: flex;
   min-width: 0;
@@ -52,17 +46,17 @@ body { overflow-x: hidden; }
 }
 
 .action-button:hover:not(:disabled):not(.action-primary) { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-background)); }
-.action-button.action-primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); font-weight: 600; }
-.action-button.action-primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.action-button.workspace-primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); font-weight: 600; }
+.action-button.workspace-primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.workspace-shortcuts { display: grid; gap: 6px; }
+.action-button.workspace-shortcut { min-height: 38px; border-color: transparent; background: transparent; }
+.action-button.workspace-shortcut:hover:not(:disabled) { background: var(--vscode-list-hoverBackground, var(--vscode-button-secondaryBackground)); }
+.action-button.workspace-shortcut.shortcut-active { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
 .action-button:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .action-button:disabled { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); background: var(--vscode-button-secondaryBackground, transparent); cursor: default; }
 .action-button svg { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .action-button span { min-width: 0; }
 .action-message { min-height: 0; margin: 0; color: var(--vscode-errorForeground, var(--vscode-descriptionForeground)); line-height: 1.4; overflow-wrap: anywhere; }
-
-@media (max-width: 279px) {
-  .action-grid { grid-template-columns: minmax(0, 1fr); }
-}
 
 @media (forced-colors: active) {
   .action-button { border: 1px solid ButtonText; }

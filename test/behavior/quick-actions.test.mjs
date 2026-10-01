@@ -12,7 +12,9 @@ async function mount() {
   const requests = [];
   dom.window.acquireVsCodeApi = () => ({ postMessage: (message) => requests.push(message) });
   dom.window.eval(script);
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  for (let attempt = 0; attempt < 50 && requests.length === 0; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
   return {
     dom,
     requests,
@@ -23,42 +25,40 @@ async function mount() {
   };
 }
 
-test('renders accessible quick actions and enables connection as the primary disconnected action', async (t) => {
+test('renders workspace navigation and keeps destinations available before connecting', async (t) => {
   const view = await mount();
   t.after(() => view.dom.window.close());
 
   assert.deepEqual(hostValues(view.requests), [{ type: 'ready' }]);
-  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['開啟工作台', '切換 Group', '重新整理', '連線 GitLab']);
-  assert.equal(view.buttons()[0].disabled, false);
-  assert.equal(view.buttons()[1].disabled, true);
-  assert.equal(view.buttons()[2].disabled, true);
-  assert.equal(view.buttons()[3].classList.contains('action-primary'), true);
+  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['開啟工作台', '我的工作', '專案']);
+  assert.equal(view.buttons().every((button) => !button.disabled), true);
+  assert.equal(view.buttons()[0].classList.contains('workspace-primary'), true);
   assert.equal(view.buttons().every((button) => button.type === 'button'), true);
 
-  view.buttons()[3].click();
-  assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'connect' });
+  view.buttons()[1].click();
+  assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'openMyWork' });
 });
 
-test('updates group and busy state, dispatches existing actions, and exposes errors accessibly', async (t) => {
+test('shows connection scope and dispatches each destination with accessible busy and error feedback', async (t) => {
   const view = await mount();
   t.after(() => view.dom.window.close());
   view.sendState({ connected: true, groupLabel: 'team/dotnet' });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, '目前 Group：team/dotnet');
-  assert.equal(view.buttons()[0].classList.contains('action-primary'), true);
-  assert.equal(view.buttons()[1].textContent.trim(), '切換 Group');
-  assert.equal(view.buttons()[3].textContent.trim(), '重新連線');
+  assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, 'GitLab 已連線 · team/dotnet');
+  assert.equal(view.buttons()[0].classList.contains('workspace-primary'), true);
+  assert.equal(view.buttons()[1].textContent.trim(), '我的工作');
+  assert.equal(view.buttons()[2].textContent.trim(), '專案');
 
-  for (const [index, action] of ['openWorkspace', 'selectGroup', 'refresh', 'connect'].entries()) {
+  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects'].entries()) {
     view.buttons()[index].click();
   }
-  assert.deepEqual(hostValues(view.requests.slice(1)), ['openWorkspace', 'selectGroup', 'refresh', 'connect'].map((action) => ({ type: 'perform', action })));
+  assert.deepEqual(hostValues(view.requests.slice(1)), ['openWorkspace', 'openMyWork', 'openProjects'].map((action) => ({ type: 'perform', action })));
 
-  view.sendState({ connected: true, groupLabel: 'team/dotnet', busyAction: 'refresh' });
+  view.sendState({ connected: true, groupLabel: 'team/dotnet', busyAction: 'openProjects' });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.buttons().every((button) => button.disabled), true);
-  assert.equal(view.dom.window.document.querySelector('[aria-live="polite"]').textContent, '更新中…');
+  assert.equal(view.dom.window.document.querySelector('[aria-live="polite"]').textContent, '開啟中…');
 
   view.sendState({ connected: true, groupLabel: 'team/dotnet', errorMessage: '無法連線' });
   await new Promise((resolve) => setTimeout(resolve, 0));

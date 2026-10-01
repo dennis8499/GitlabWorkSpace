@@ -1,4 +1,4 @@
-export type QuickAction = 'openWorkspace' | 'selectGroup' | 'refresh' | 'connect';
+export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects';
 
 export type QuickActionsRequest =
   | { type: 'ready' }
@@ -22,5 +22,5 @@ export function isQuickActionsRequest(value: unknown): value is QuickActionsRequ
   const keys = Object.keys(message);
   if (message.type === 'ready') return keys.length === 1 && keys[0] === 'type';
   return keys.length === 2 && keys.includes('type') && keys.includes('action') && message.type === 'perform' &&
-    (message.action === 'openWorkspace' || message.action === 'selectGroup' || message.action === 'refresh' || message.action === 'connect');
+    (message.action === 'openWorkspace' || message.action === 'openMyWork' || message.action === 'openProjects');
 }
