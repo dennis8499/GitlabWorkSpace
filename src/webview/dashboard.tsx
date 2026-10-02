@@ -8,6 +8,9 @@ import type {
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
+import { IssueGraphView } from './IssueGraph';
+import type { GraphCamera, GraphPosition } from './IssueGraph';
+import { issueGraphNodeKey, selectIssueGraph } from '../workspace/issueGraph';
 import { IssueView } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import { createDefaultWikiGuideInputs, type WikiGuideInputValues } from './codebaseWikiGuideData';
@@ -25,6 +28,12 @@ interface SavedState {
   appliedCloneOperationIds?: string[];
   analysisProjectIds?: number[];
   issueBoardId?: number;
+  developerView?: 'list' | 'graph';
+  graphBoardId?: number | 'all';
+  graphCamera?: GraphCamera;
+  graphNodePositions?: Record<string, GraphPosition>;
+  graphAnimationEnabled?: boolean;
+  selectedGraphNodeId?: string;
   issueDetailSearch?: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
@@ -61,6 +70,12 @@ interface ScopedSavedState {
   selectedProjectIds: number[];
   analysisProjectIds: number[];
   issueBoardId?: number;
+  developerView?: 'list' | 'graph';
+  graphBoardId?: number | 'all';
+  graphCamera?: GraphCamera;
+  graphNodePositions?: Record<string, GraphPosition>;
+  graphAnimationEnabled?: boolean;
+  selectedGraphNodeId?: string;
   issueDetailSearch: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
@@ -89,6 +104,8 @@ interface VsCodeBridge {
 declare function acquireVsCodeApi(): VsCodeBridge;
 const vscode = acquireVsCodeApi();
 const initial = vscode.getState();
+const initialScopedState = initial?.scopeKey ? initial.scopedData?.[initial.scopeKey] : undefined;
+const defaultGraphCamera: GraphCamera = { x: 0, y: 0, scale: 1 };
 const tools: Array<{ id: ToolId; name: string; repo: string }> = [
   { id: 'codebase-wiki', name: 'Codebase LLM Wiki', repo: 'code-base-llm-wiki' },
   { id: 'megin', name: 'Megin', repo: 'Megin' },
@@ -154,6 +171,12 @@ function App() {
   const [appliedCloneOperationIds, setAppliedCloneOperationIds] = useState<string[]>(initial?.appliedCloneOperationIds ?? []);
   const appliedCloneOperationIdsRef = useRef(new Set(initial?.appliedCloneOperationIds ?? []));
   const [analysisProjectIds, setAnalysisProjectIds] = useState<number[]>(initial?.analysisProjectIds ?? initial?.selectedProjectIds ?? []);
+  const [developerView, setDeveloperView] = useState<'list' | 'graph'>(initialScopedState?.developerView ?? initial?.developerView ?? 'list');
+  const [graphBoardId, setGraphBoardId] = useState<number | 'all'>(initialScopedState?.graphBoardId ?? initial?.graphBoardId ?? 'all');
+  const [graphCamera, setGraphCamera] = useState<GraphCamera>(initialScopedState?.graphCamera ?? initial?.graphCamera ?? defaultGraphCamera);
+  const [graphNodePositions, setGraphNodePositions] = useState<Record<string, GraphPosition>>(initialScopedState?.graphNodePositions ?? initial?.graphNodePositions ?? {});
+  const [graphAnimationEnabled, setGraphAnimationEnabled] = useState<boolean>(initialScopedState?.graphAnimationEnabled ?? initial?.graphAnimationEnabled ?? !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false));
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | undefined>(initialScopedState?.selectedGraphNodeId ?? initial?.selectedGraphNodeId);
   const [issueBoardId, setIssueBoardId] = useState<number | undefined>(() => initial?.scopeKey
     ? initial.scopedData?.[initial.scopeKey]?.issueBoardId ?? initial.issueBoardId
     : initial?.issueBoardId);
@@ -181,7 +204,7 @@ function App() {
   const [toolSource, setToolSource] = useState<ToolSource>(initial?.toolSource === 'github' || initial?.toolSource === 'bundled' ? initial.toolSource : 'gitea');
   const [selectedPackageIds, setSelectedPackageIds] = useState<Partial<Record<ToolId, string>>>(initial?.selectedPackageIds ?? {});
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
-  const initialScopeState = initial?.scopeKey ? initial.scopedData?.[initial.scopeKey] : undefined;
+  const initialScopeState = initialScopedState;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
   const [manualTimes, setManualTimes] = useState<Record<string, ManualTimeDraft>>(initialManualTimeState.manualTimes);
   const [recoveredManualTime, setRecoveredManualTime] = useState<ManualTimeDraft | undefined>(initialManualTimeState.recoveredManualTime);
@@ -194,6 +217,7 @@ function App() {
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
   const issueBoardSelectionRef = useRef<string>();
+  const issueGraphRequestedScopesRef = useRef(new Set<string>());
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
   const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
@@ -206,7 +230,7 @@ function App() {
   wikiGuideInputsRef.current = wikiGuideInputs;
 
   const scopedState: ScopedSavedState = {
-    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
+    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
     reviewFilter, analysisIntent: intent, requirement, importText, importedBundle: bundle, draftChecked, draftChoices, reports,
     deliveryForms, manualTimes, recoveredManualTime, timeEdits
   };
@@ -241,6 +265,7 @@ function App() {
           const defaults = emptyScopedState();
           const value = saved ?? defaults;
           scopeRef.current = nextScope;
+          issueGraphRequestedScopesRef.current.delete(nextScope);
           const availableIds = message.snapshot.projects.map((project) => project.id);
           const preferredBoardId = value.issueBoardId;
           const boardId = message.snapshot.groupIssueBoardsError
@@ -249,6 +274,10 @@ function App() {
           issueBoardIdRef.current = boardId;
           setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(reconcileProjectSelection(value.selectedProjectIds, availableIds));
           setAnalysisProjectIds(value.analysisProjectIds); setIssueBoardId(boardId);
+          setDeveloperView(value.developerView ?? 'list'); setGraphBoardId(value.graphBoardId ?? 'all');
+          setGraphCamera(value.graphCamera ?? defaultGraphCamera); setGraphNodePositions(value.graphNodePositions ?? {});
+          setGraphAnimationEnabled(value.graphAnimationEnabled ?? !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false));
+          setSelectedGraphNodeId(value.selectedGraphNodeId);
           setIssueDetailSearch(value.issueDetailSearch ?? initial?.issueDetailSearch ?? '');
           setIssueProjectFilter(value.issueProjectFilter); setIssueLabelFilter(value.issueLabelFilter);
           setIssueMilestoneFilter(value.issueMilestoneFilter ?? 'all');
@@ -360,17 +389,30 @@ function App() {
   }, [snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, issueBoardId]);
 
   useEffect(() => {
+    const connectedScope = snapshot?.connectedScope;
+    if (mode !== 'developer' || developerView !== 'graph' || !connectedScope) return;
+    if (snapshot?.issueGraph?.connectedScope === connectedScope || issueGraphRequestedScopesRef.current.has(connectedScope)) return;
+    issueGraphRequestedScopesRef.current.add(connectedScope);
+    post({ type: 'loadIssueGraph', connectedScope });
+  }, [mode, developerView, snapshot?.connectedScope, snapshot?.issueGraph?.connectedScope]);
+
+  useEffect(() => {
+    if (graphBoardId === 'all' || !issueBoards.length || issueBoards.some((board) => board.id === graphBoardId)) return;
+    setGraphBoardId('all');
+  }, [snapshot?.connectedScope, groupIssueBoardIdsKey, graphBoardId]);
+
+  useEffect(() => {
     const state: SavedState = {
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
-      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
+      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
       selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -432,11 +474,26 @@ function App() {
     const owner = milestone.group_id === undefined ? undefined : groupsById.get(milestone.group_id)?.full_path ?? `Group #${milestone.group_id}`;
     return `${milestone.title} · ${owner ?? 'Group Milestone'} (#${milestone.id})`;
   };
-  const visibleIssues = issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) &&
+  const matchesSharedIssueFilters = (issue: GitLabIssue): boolean =>
     (issueProjectFilter === 'all' || String(issue.project_id) === issueProjectFilter) &&
     (issueLabelFilter === 'all' || (issue.labels ?? []).includes(issueLabelFilter)) &&
     (issueMilestoneFilter === 'all' || (issueMilestoneFilter === 'none' ? !issue.milestone : String(issue.milestone?.id ?? '') === issueMilestoneFilter)) &&
-    filterText('developer', `${issue.title} ${projectById.get(issue.project_id)?.path_with_namespace ?? ''} #${issue.iid} ${(issue.labels ?? []).join(' ')}`));
+    filterText('developer', `${issue.title} ${projectById.get(issue.project_id)?.path_with_namespace ?? ''} #${issue.iid} ${(issue.labels ?? []).join(' ')}`);
+  const visibleIssues = issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) && matchesSharedIssueFilters(issue));
+  const matchingGraphRootIds = new Set(issues.filter(matchesSharedIssueFilters).map((issue) =>
+    issueGraphNodeKey(issue.project_id, projectById.get(issue.project_id)?.path_with_namespace ?? '', issue.iid)));
+  const issueGraphSnapshot = snapshot && snapshot.issueGraph?.connectedScope === snapshot.connectedScope ? snapshot.issueGraph : undefined;
+  const effectiveGraphBoardId: number | 'all' = issueBoards.some((board) => board.id === graphBoardId) ? graphBoardId : 'all';
+  const graphSelection = issueGraphSnapshot
+    ? selectIssueGraph(issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId)
+    : { nodes: [], edges: [], rootCount: 0 };
+  const graphMatchingRoots = new Set(issueGraphSnapshot?.nodes.filter((node) => node.isRoot && matchingGraphRootIds.has(node.id) &&
+    (effectiveGraphBoardId === 'all' || node.boardIds.includes(effectiveGraphBoardId))).map((node) => node.id) ?? []);
+
+  useEffect(() => {
+    if (!issueGraphSnapshot || !['ready', 'partial', 'error'].includes(issueGraphSnapshot.status)) return;
+    if (selectedGraphNodeId && !issueGraphSnapshot.nodes.some((node) => node.id === selectedGraphNodeId)) setSelectedGraphNodeId(undefined);
+  }, [issueGraphSnapshot?.status, issueGraphSnapshot?.nodes, selectedGraphNodeId]);
   const visibleProjects = projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`));
   const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
   const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]);
@@ -472,6 +529,20 @@ function App() {
     post({ type: 'selectMergeRequest', projectId: item.project_id, iid: item.iid });
   }
   function openGitLab(url?: string): void { if (url) post({ type: 'openExternal', url }); }
+  function openGraphNode(node: import('../workspace/issueGraph').IssueGraphNode): void {
+    const project = node.projectId !== undefined ? projectById.get(node.projectId) : projects.find((item) => item.path_with_namespace === node.projectPath || item.path_with_namespace === node.namespacePath);
+    const iid = Number(node.iid);
+    if (node.kind === 'issue' && project && Number.isSafeInteger(iid) && iid > 0) {
+      setMobilePanel('detail');
+      post({ type: 'openIssue', projectId: project.id, issueIid: iid });
+    } else openGitLab(node.webUrl);
+  }
+  function retryIssueGraph(): void {
+    const connectedScope = snapshot?.connectedScope;
+    if (!connectedScope) return;
+    issueGraphRequestedScopesRef.current.add(connectedScope);
+    post({ type: 'loadIssueGraph', connectedScope });
+  }
   function addDraftFromMarkdown(): void {
     if (!importText.trim() || !projects.length) return;
     const projectId = selectedIds.sa ?? analysisProjectIds[0] ?? projects[0].id;
@@ -579,36 +650,55 @@ function App() {
                 </div>
               </div></div>
             : mode === 'sa' ? <CodebaseWikiGuide inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
-            : mode === 'developer' ? <div class="mode-content">
-              <div class="list-column">
-                <div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div>
-                <div class="filter-row">
-                  <select aria-label="Issue Board" value={issueBoardId ?? ''} disabled={busy || !!snapshot.groupIssueBoardsError || !issueBoards.length} onChange={(event) => {
-                    const boardId = Number(event.currentTarget.value);
-                    if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) setIssueBoardId(boardId);
-                  }}>
-                    <option value="">{snapshot.groupIssueBoardsError ? 'Issue Board 載入失敗' : issueBoards.length ? '選擇 Issue Board' : '此 Group 沒有 Issue Board'}</option>
-                    {issueBoards.map((board) => <option key={board.id} value={board.id}>{board.name}{(issueBoardNameCounts.get(board.name) ?? 0) > 1 ? ` (#${board.id})` : ''}</option>)}
-                  </select>
-                  <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
-                  <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
-                  <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select>
-                </div>
-                {snapshot.groupMilestonesError && <p class="warning" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}
-                <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
-                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}
-                  {!visibleIssues.length && <div class="empty-inline" role={issueBoardContentError ? 'alert' : 'status'}>
-                    <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardContentError ? 'Issue Board 載入失敗' : !issueBoards.length ? '此 Group 沒有可用的 Issue Board' : issueBoardContentLoading ? '正在載入 Board 內容' : !issueBoardContentReady ? '選擇 Issue Board 以載入內容' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
-                    <p>{snapshot.error ?? (issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
-                    {issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
-                  </div>}
-                </div>
-              </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
-                <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
-                <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
-                <div class="next-step"><strong>下一步</strong><p>開啟詳情後，可在同一工作台繼續閱讀與討論、準備開發交付，並管理關聯工作與工時。</p></div>
-                <button class="primary" type="button" onClick={() => selectedIssueAction(selectedIssue)}>開啟 Issue 詳情</button>
-              </> : <Empty title="選取一張指派給你的 Issue" detail="選取後會直接進入整合詳情，接續需求、討論、開發交付與工時。" />}</article>
+            : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
+              <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
+                <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
+                <button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button>
+              </div>
+              <div class="filter-row developer-filter-row">
+                <select aria-label={developerView === 'graph' ? '圖譜 Issue Board' : 'Issue Board'} value={developerView === 'graph' ? effectiveGraphBoardId : issueBoardId ?? ''} disabled={busy || !!snapshot.groupIssueBoardsError || (!issueBoards.length && developerView === 'list')} onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  if (developerView === 'graph') setGraphBoardId(value === 'all' ? 'all' : Number(value));
+                  else { const boardId = Number(value); if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) setIssueBoardId(boardId); }
+                }}>
+                  {developerView === 'graph' ? <option value="all">全部 Board</option> : <option value="">{snapshot.groupIssueBoardsError ? 'Issue Board 載入失敗' : issueBoards.length ? '選擇 Issue Board' : '此 Group 沒有 Issue Board'}</option>}
+                  {issueBoards.map((board) => <option key={board.id} value={board.id}>{board.name}{(issueBoardNameCounts.get(board.name) ?? 0) > 1 ? ` (#${board.id})` : ''}</option>)}
+                </select>
+                <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
+                <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
+                <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select>
+              </div>
+              {snapshot.groupMilestonesError && <p class="warning developer-filter-error" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}
+              {developerView === 'graph' ? <div class="developer-graph-panel">
+                {issueGraphSnapshot?.status === 'loading' && <div class="graph-load-message" role="status">正在載入圖譜資料；已取得的主要 Issue 會先顯示。</div>}
+                {issueGraphSnapshot && issueGraphSnapshot.errors.length > 0 && <div class="graph-load-message warning" role="alert"><span>{issueGraphSnapshot.errors.length} 項圖譜資料未能完整載入，已保留可用節點與連線。</span><button class="quiet small" type="button" onClick={retryIssueGraph}>重試</button></div>}
+                {!issueGraphSnapshot ? <div class="graph-loading-placeholder" role="status">正在準備 Issue 圖譜…</div> : <IssueGraphView
+                  key={snapshot.connectedScope ?? 'disconnected'}
+                  nodes={graphSelection.nodes} edges={graphSelection.edges} boards={issueBoards} boardStatuses={issueGraphSnapshot.boardStatus} boardLoadError={snapshot.groupIssueBoardsError} projects={projects}
+                  matchingRoots={graphMatchingRoots} selectedId={selectedGraphNodeId}
+                  initialPositions={graphNodePositions} initialCamera={graphCamera} animationEnabled={graphAnimationEnabled} active={!issueNavigation}
+                  onAnimationEnabledChange={(enabled) => { if (scopeRef.current === snapshot.connectedScope) setGraphAnimationEnabled(enabled); }}
+                  onPositionsChange={(positions) => { if (scopeRef.current === snapshot.connectedScope) setGraphNodePositions(positions); }}
+                  onCameraChange={(camera) => { if (scopeRef.current === snapshot.connectedScope) setGraphCamera(camera); }}
+                  onSelect={(id) => { if (scopeRef.current === snapshot.connectedScope) setSelectedGraphNodeId(id); }} onOpenIssue={openGraphNode}
+                />}
+              </div> : <div class="mode-content">
+                <div class="list-column">
+                  <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
+                  <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}
+                    {!visibleIssues.length && <div class="empty-inline" role={issueBoardContentError ? 'alert' : 'status'}>
+                      <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardContentError ? 'Issue Board 載入失敗' : !issueBoards.length ? '此 Group 沒有可用的 Issue Board' : issueBoardContentLoading ? '正在載入 Board 內容' : !issueBoardContentReady ? '選擇 Issue Board 以載入內容' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
+                      <p>{snapshot.error ?? (issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
+                      {issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
+                    </div>}
+                  </div>
+                </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
+                  <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
+                  <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
+                  <div class="next-step"><strong>下一步</strong><p>開啟詳情後，可在同一工作台繼續閱讀與討論、準備開發交付，並管理關聯工作與工時。</p></div>
+                  <button class="primary" type="button" onClick={() => selectedIssueAction(selectedIssue)}>開啟 Issue 詳情</button>
+                </> : <Empty title="選取一張指派給你的 Issue" detail="選取後會直接進入整合詳情，接續需求、討論、開發交付與工時。" />}</article>
+              </div>}
             </div>
             : <div class="mode-content reviewer-layout"><div class="list-column"><div class="filter-tabs"><button class={reviewFilter === 'all' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('all')}>全部</button><button class={reviewFilter === 'reviewer' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('reviewer')}>指定我為 Reviewer</button><button class={reviewFilter === 'assigned' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('assigned')}>指派給我</button></div>
                 <div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 MR" placeholder="MR、Repo、分支…" value={filters.reviewer ?? ''} onInput={(event) => setFilter('reviewer', event.currentTarget.value)} /></label><span class="count">{visibleMrs.length}</span></div>

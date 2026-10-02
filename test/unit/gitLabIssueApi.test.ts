@@ -92,8 +92,77 @@ test('includes ancestor milestones and checks the GitLab GraphQL issue capabilit
   };
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
   assert.equal((await client.listProjectMilestones(42))[0].title, 'Parent group milestone');
-  assert.deepEqual(await client.getIssueCapabilities(), { hierarchy: true, childMutations: true, discussionResolve: true, startDate: true, timelogReport: true, timelogCreate: true, timelogDelete: true, createPermission: true });
+  assert.deepEqual(await client.getIssueCapabilities(), {
+    hierarchy: true, childMutations: true, graphWorkItems: false, graphHierarchy: false,
+    graphLinkedItems: false, graphLabels: false, graphAssignees: false, graphWorkItemTypes: false,
+    discussionResolve: true, startDate: true, timelogReport: true, timelogCreate: true, timelogDelete: true, createPermission: true
+  });
   assert.match(paths[0], /include_ancestors=true/);
+});
+
+test('detects read-only Issue graph fields without requiring WorkItem edit permissions', async () => {
+  const names = (value: string) => ({ fields: value.split(' ').map((name) => ({ name })) });
+  const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(JSON.stringify({ data: { __schema: { types: [
+    { name: 'Namespace', ...names('workItem') },
+    { name: 'WorkItem', ...names('id iid title state webUrl namespace project widgets workItemType') },
+    { name: 'WorkItemWidgetHierarchy', ...names('parent children') },
+    { name: 'WorkItemWidgetLinkedItems', ...names('linkedItems') },
+    { name: 'WorkItemWidgetLabels', ...names('labels') },
+    { name: 'WorkItemWidgetAssignees', ...names('assignees') }
+  ] } } })));
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(capabilities.graphWorkItems, true);
+  assert.equal(capabilities.graphHierarchy, true);
+  assert.equal(capabilities.graphLinkedItems, true);
+  assert.equal(capabilities.graphLabels, true);
+  assert.equal(capabilities.graphAssignees, true);
+  assert.equal(capabilities.graphWorkItemTypes, true);
+  assert.equal(capabilities.hierarchy, false);
+  assert.equal(capabilities.childMutations, false);
+});
+
+test('paginates WorkItem parents, child items, linked items, and reads label metadata using read-only capabilities', async () => {
+  const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const page = (after: string | null) => ({
+    data: { namespace: { workItem: {
+      id: 'gid://gitlab/WorkItem/12', iid: '7',
+      widgets: [{
+        parent: { id: 'gid://gitlab/WorkItem/5', iid: '1', title: 'Parent', state: 'OPEN' },
+        children: {
+          nodes: [{ id: `gid://gitlab/WorkItem/child-${after ?? 'first'}`, iid: after ? '9' : '8', title: after ? 'Second child' : 'First child', state: 'OPEN' }],
+          pageInfo: { hasNextPage: !after, endCursor: after ? null : 'child-cursor' }
+        },
+        linkedItems: {
+          nodes: [{ linkType: after ? 'BLOCKS' : 'RELATED', workItem: { id: `gid://gitlab/WorkItem/link-${after ?? 'first'}`, iid: after ? '11' : '10', title: after ? 'Blocked item' : 'Related item', state: 'OPEN' } }],
+          pageInfo: { hasNextPage: !after, endCursor: after ? null : 'link-cursor' }
+        },
+        labels: {
+          nodes: [{ name: after ? 'ready' : 'feature', color: after ? '#00AA77' : '#AA5500', textColor: '#FFFFFF' }],
+          pageInfo: { hasNextPage: !after, endCursor: after ? null : 'label-cursor' }
+        }
+      }]
+    } } }
+  });
+  const client = new GitLabClient('https://gitlab.example.test/gitlab', token, async (_input, init) => {
+    calls.push(JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> });
+    return new Response(JSON.stringify(page(String(init?.body).includes('child-cursor') ? 'next' : null)));
+  });
+  const result = await client.loadIssueGraphRelations('team/service', 7, {
+    graphWorkItems: true, graphHierarchy: true, graphLinkedItems: true, graphLabels: true,
+    graphAssignees: false, graphWorkItemTypes: false
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].variables.path, 'team/service');
+  assert.equal(calls[0].variables.iid, '7');
+  assert.deepEqual(calls[1].variables, { path: 'team/service', iid: '7', childrenAfter: 'child-cursor', linksAfter: 'link-cursor' });
+  assert.match(calls[0].query, /WorkItemWidgetHierarchy/);
+  assert.match(calls[0].query, /WorkItemWidgetLinkedItems/);
+  assert.match(calls[0].query, /color textColor/);
+  assert.equal(result.root?.id, 'gid://gitlab/WorkItem/12');
+  assert.equal(result.parents[0].title, 'Parent');
+  assert.equal(result.children.length, 2);
+  assert.equal(result.links.length, 2);
+  assert.deepEqual(result.links.map((entry) => entry.type), ['RELATED', 'BLOCKS']);
 });
 
 test('updates one CE assignee and edits a note through its discussion', async () => {

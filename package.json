@@ -154,6 +154,7 @@
   },
   "devDependencies": {
     "@cucumber/cucumber": "^13.2.1",
+    "@types/d3-force": "^3.0.10",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.2",
     "@types/vscode": "^1.90.0",
@@ -172,6 +173,7 @@
     }
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
     "preact": "^10.29.8"
   }

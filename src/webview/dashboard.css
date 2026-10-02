@@ -46,6 +46,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-error { align-items: flex-start; max-width: 100%; overflow-wrap: anywhere; }
 .dashboard-error span { flex: 1; white-space: pre-wrap; }
 .issue-embed { flex: 1; min-width: 0; width: 100%; }
+.workspace-tasks { display: flex; min-height: 0; flex: 1; flex-direction: column; }
 .issue-workspace-layout { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 14px; min-width: 0; }
 .issue-list-panel { display: flex; min-width: 0; max-height: calc(100vh - 180px); flex-direction: column; gap: 8px; border: 1px solid var(--border); border-radius: 7px; padding: 10px; background: var(--surface); }
 .issue-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -258,8 +259,89 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .loading { display: flex; min-height: 240px; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
 .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.developer-view-shell { display: flex; min-width: 0; min-height: 400px; flex: 1; flex-direction: column; }
+.developer-toolbar { flex: 0 0 auto; gap: 12px; }
+.developer-view-switch { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 6px; padding: 2px; background: var(--surface-raised); }
+.developer-view-switch button { min-height: 28px; border: 0; border-radius: 4px; padding: 4px 10px; color: var(--muted); background: transparent; }
+.developer-view-switch button:hover { color: var(--vscode-foreground); background: var(--vscode-list-hoverBackground); }
+.developer-view-switch button.active { color: var(--vscode-button-foreground, #fff); background: var(--accent); }
+.developer-filter-row { flex: 0 0 auto; margin: 9px 0 10px; }
+.developer-filter-error { margin: 2px 0 8px; }
+.developer-graph-panel { display: flex; min-width: 0; min-height: 300px; flex: 1; flex-direction: column; gap: 8px; }
+.graph-load-message { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--muted); background: var(--surface); }
+.graph-load-message.warning { border-color: color-mix(in srgb, var(--danger), transparent 55%); color: var(--vscode-foreground); }
+.graph-loading-placeholder { display: grid; min-height: 300px; flex: 1; place-items: center; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); background: var(--surface); }
+.issue-graph-workspace { display: grid; min-width: 0; min-height: 0; flex: 1; grid-template-columns: minmax(0, 1fr) minmax(245px, 290px); gap: 12px; }
+.issue-graph-main { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+.issue-graph-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-height: 38px; padding: 0 2px 7px; }
+.graph-tally { margin-right: auto; color: var(--muted); font-size: 11px; }
+.graph-zoom { min-width: 40px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.graph-animation-toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.graph-animation-toggle input { accent-color: var(--accent); }
+.issue-graph-viewport { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted), transparent 78%) 1px, transparent 1.5px), var(--surface); background-size: 20px 20px; }
+.issue-graph-svg { display: block; width: 100%; height: 100%; min-height: 300px; overflow: visible; cursor: grab; touch-action: none; }
+.issue-graph-svg:active { cursor: grabbing; }
+.graph-empty { position: absolute; z-index: 1; top: 50%; left: 50%; width: min(360px, calc(100% - 36px)); transform: translate(-50%, -50%); color: var(--muted); text-align: center; pointer-events: none; }
+.graph-empty strong { color: var(--vscode-foreground); }
+.graph-empty p { margin: 7px 0 0; }
+.graph-edge { fill: none; stroke: var(--vscode-descriptionForeground, #8a95a4); stroke-width: 1.2; opacity: .56; vector-effect: non-scaling-stroke; }
+.graph-edge-parent { stroke: var(--vscode-textLink-foreground, #65a9ef); stroke-width: 1.7; opacity: .78; }
+.graph-edge-blocks { stroke: var(--danger); stroke-dasharray: 5 4; opacity: .8; }
+.graph-edge-relates_to { stroke-width: 1; opacity: .48; }
+.graph-edge.selected { stroke-width: 2.6; opacity: 1; }
+.graph-edge.dimmed { opacity: .08; }
+.graph-marker-parent { fill: var(--vscode-textLink-foreground, #65a9ef); }
+.graph-marker-blocks { fill: var(--danger); }
+.graph-node { cursor: grab; outline: none; }
+.graph-node:active { cursor: grabbing; }
+.graph-node.context { opacity: .76; }
+.graph-node.closed { opacity: .6; }
+.graph-node.dimmed { opacity: .13; }
+.graph-node.selected { opacity: 1; }
+.graph-node-core { stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.graph-node-sector { stroke: var(--surface); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.graph-node.boardless .graph-node-core { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 3 2; }
+.graph-node.board-loading .graph-node-core { stroke: var(--vscode-textLink-foreground, #65a9ef); stroke-dasharray: 3 2; }
+.graph-node.board-error .graph-node-core { stroke: var(--danger); stroke-dasharray: 2 2; }
+.graph-node.selected .graph-node-core, .graph-node.selected .graph-node-sector { stroke: var(--focus); stroke-width: 2.5; }
+.graph-label-sector { stroke: var(--surface); stroke-width: .7; vector-effect: non-scaling-stroke; }
+.graph-closed-mark { fill: none; stroke: var(--surface); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.graph-node-caption, .graph-context-mark { fill: var(--vscode-foreground); font-family: var(--vscode-font-family, sans-serif); font-size: 9px; font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-linejoin: round; stroke-width: 3px; pointer-events: none; }
+.graph-node-caption.selected { font-size: 10px; font-weight: 700; }
+.graph-context-mark { fill: var(--muted); font-size: 8px; stroke-width: 2px; }
+.graph-node-caption.zoomed-out, .graph-context-mark.zoomed-out { display: none; }
+.graph-board-legend { display: flex; min-height: 26px; align-items: center; flex-wrap: wrap; gap: 5px 12px; padding: 6px 2px 0; color: var(--muted); font-size: 10px; }
+.graph-legend-item, .graph-legend-rule { display: inline-flex; align-items: center; gap: 5px; }
+.graph-legend-item > i, .graph-board-chip > i { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; }
+.graph-legend-rule > i { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--vscode-textLink-foreground, #65a9ef); border-radius: 50%; }
+.graph-legend-rule > .graph-context-legend { border-style: dashed; border-color: var(--muted); }
+.graph-board-fetch { color: var(--vscode-textLink-foreground, #65a9ef); }
+.graph-board-fetch.error { color: var(--danger); }
+.issue-graph-detail { min-width: 0; max-height: 100%; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface); }
+.issue-graph-detail > summary { position: sticky; z-index: 1; top: -12px; margin: -12px -12px 11px; border-bottom: 1px solid var(--border); padding: 11px 12px; background: var(--surface); cursor: pointer; font-weight: 600; }
+.graph-selected-detail { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.graph-selected-detail h2 { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.graph-selected-detail > .subtle { overflow-wrap: anywhere; }
+.graph-detail-state { display: flex; align-items: center; gap: 8px; }
+.graph-detail-section, .graph-related-list { display: flex; width: 100%; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+.graph-detail-section > strong, .graph-related-list > strong { font-size: 11px; }
+.graph-board-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+.graph-detail-labels { display: flex; flex-wrap: wrap; gap: 5px; }
+.graph-label-chip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px; font-size: 10px; overflow-wrap: anywhere; }
+.graph-related-link { display: grid; width: 100%; grid-template-columns: auto minmax(0, 1fr); gap: 6px; border: 0; border-radius: 4px; padding: 5px; color: var(--vscode-textLink-foreground, #65a9ef); background: transparent; text-align: left; font-size: 10px; }
+.graph-related-link:hover { background: var(--vscode-list-hoverBackground); }
+.graph-related-link > :last-child { overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+.graph-no-selection { display: flex; min-height: 150px; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); text-align: center; }
+.graph-no-selection .empty-mark { font-size: 25px; }
+.graph-relation-legend { display: grid; gap: 7px; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 9px; color: var(--muted); font-size: 10px; }
+.graph-relation-legend > span { display: flex; align-items: center; gap: 7px; }
+.graph-relation-legend i { display: inline-block; width: 22px; border-top: 2px solid var(--vscode-textLink-foreground, #65a9ef); }
+.graph-relation-legend .block-line { border-top-color: var(--danger); border-top-style: dashed; }
+.graph-relation-legend .related-line { border-top: 1px solid var(--muted); }
 .vscode-high-contrast .list-column, .vscode-high-contrast .detail-column, .vscode-high-contrast .section-card, .vscode-high-contrast .tool-card, .vscode-high-contrast .wiki-guide-intro, .vscode-high-contrast .wiki-guide-card { border-width: 2px; }
 .vscode-high-contrast .mode-button.active, .vscode-high-contrast .work-row.selected { outline: 1px solid var(--focus); }
+.vscode-high-contrast .issue-graph-viewport, .vscode-high-contrast .issue-graph-detail { border-width: 2px; }
+.vscode-high-contrast .graph-edge, .vscode-high-contrast .graph-context-mark { opacity: 1; }
 @media (max-width: 959px) {
   .workbench { flex-direction: column; }
   .mode-nav { position: sticky; z-index: 2; top: 0; flex: 0 0 auto; flex-direction: row; overflow-x: auto; gap: 3px; border-right: 0; border-bottom: 1px solid var(--border); padding: 5px; }
@@ -281,6 +363,12 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .clone-list-column { min-height: 320px; max-height: none; }
   .detail-column { min-height: 260px; }
   .mode-content { min-height: 0; }
+  .developer-view-shell { min-height: 0; }
+  .developer-view-switch button { padding: 4px 8px; }
+  .issue-graph-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(300px, 55vh) auto; }
+  .issue-graph-viewport { min-height: 300px; }
+  .issue-graph-detail { max-height: 36vh; }
+  .issue-graph-detail:not([open]) { padding-bottom: 0; }
   .issue-workspace-layout .layout { grid-template-columns: minmax(0, 1fr); }
   .issue-workspace-layout .sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .issue-workspace-layout .sidebar .card { margin: 0; }
@@ -294,6 +382,15 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .top-controls { gap: 5px; }
   .root-button { max-width: 100%; }
   .page { padding: 12px; }
+  .developer-toolbar { gap: 7px; padding: 8px 2px; }
+  .developer-toolbar .search { flex: 1 1 100%; }
+  .developer-toolbar > .primary { margin-left: auto; }
+  .developer-filter-row { margin: 8px 0; }
+  .issue-graph-toolbar { gap: 5px; }
+  .graph-tally { flex: 1 1 100%; }
+  .graph-zoom { margin-right: auto; }
+  .issue-graph-workspace { grid-template-rows: minmax(300px, 52vh) auto; }
+  .issue-graph-detail { max-height: 40vh; }
   .page-heading { margin-bottom: 10px; }
   .list-column { min-height: 210px; max-height: 38vh; }
   .clone-list-column { min-height: 320px; max-height: none; }

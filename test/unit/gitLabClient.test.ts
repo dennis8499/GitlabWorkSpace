@@ -119,6 +119,35 @@ test('loads assigned Issues from every visible Group Board list with pagination 
   assert.ok(issueCalls.every((call) => call.query.includes('assigneeUsername')));
 });
 
+test('loads complete Issue Board membership so related unassigned Issues can inherit Board colors', async () => {
+  const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (input, init) => {
+    const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    calls.push(body);
+    if (body.query.includes('GroupIssueBoardLists')) {
+      return new Response(JSON.stringify({ data: { group: { board: {
+        hideBacklogList: true, hideClosedList: false,
+        lists: { nodes: [{ id: 'gid://gitlab/List/4', listType: 'label' }, { id: 'gid://gitlab/List/5', listType: 'closed' }], pageInfo: { hasNextPage: false, endCursor: null } }
+      } } } }));
+    }
+    const closed = body.variables.listId === 'gid://gitlab/List/5';
+    return new Response(JSON.stringify({ data: { boardList: { issues: {
+      nodes: closed ? [{ id: 'gid://gitlab/Issue/202', iid: '1', projectId: 200 }] : [{ id: 'gid://gitlab/Issue/101', iid: '1', projectId: 100 }, { id: 'gid://gitlab/Issue/202', iid: '1', projectId: 200 }],
+      pageInfo: { hasNextPage: false, endCursor: null }
+    } } } }));
+  });
+
+  assert.deepEqual(await client.listGroupBoardIssueIds('parent/child', 25), [101, 202]);
+  const issueQueries = calls.filter((call) => call.query.includes('GroupIssueBoardListIssues'));
+  assert.equal(issueQueries.length, 2);
+  assert.ok(issueQueries.every((call) => !call.query.includes('assigneeUsername')));
+  assert.ok(issueQueries.every((call) => !Object.hasOwn(call.variables, 'username')));
+  assert.deepEqual(issueQueries.map((call) => call.variables.listId), ['gid://gitlab/List/4', 'gid://gitlab/List/5']);
+  assert.deepEqual(await client.listGroupBoardIssueMemberships('parent/child', 25), [
+    { issueId: 101, projectId: 100, iid: 1 }, { issueId: 202, projectId: 200, iid: 1 }
+  ]);
+});
+
 test('retains empty repository metadata from the project details API', async () => {
   const requested: string[] = [];
   const client = new GitLabClient('https://gitlab.example.test', token, async (input) => {

@@ -1,5 +1,6 @@
 import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
+import type { IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer';
@@ -123,6 +124,7 @@ export interface WorkspaceSnapshot {
     status: 'loading' | 'ready' | 'error';
     error?: string;
   };
+  issueGraph?: IssueGraphSnapshot;
   localRepositories: Record<number, LocalRepositoryState>;
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
@@ -168,6 +170,7 @@ export type WorkspaceRequest =
   | { type: 'disconnect' }
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
+  | { type: 'loadIssueGraph'; connectedScope: string }
   | { type: 'selectWorkspace' }
   | { type: 'openLocalWorkspace' }
   | { type: 'openCodexTerminal' }

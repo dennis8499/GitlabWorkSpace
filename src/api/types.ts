@@ -21,6 +21,31 @@ export interface GitLabIssueBoard {
   hide_closed_list?: boolean;
 }
 
+export interface GitLabGraphLabel {
+  name: string;
+  color?: string | null;
+  textColor?: string | null;
+}
+
+export interface GitLabGraphWorkItem {
+  id: string;
+  iid: string;
+  title?: string | null;
+  name?: string | null;
+  state?: string | null;
+  webUrl?: string | null;
+  namespace?: { fullPath?: string | null } | null;
+  project?: { id?: string | null; fullPath?: string | null; webUrl?: string | null } | null;
+  workItemType?: { name?: string | null } | null;
+  widgets?: Array<{
+    parent?: GitLabGraphWorkItem | null;
+    children?: { nodes?: GitLabGraphWorkItem[]; pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } | null;
+    linkedItems?: { nodes?: Array<{ linkType: string; workItem?: GitLabGraphWorkItem | null }>; pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } | null;
+    labels?: { nodes?: GitLabGraphLabel[]; pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } | null;
+    assignees?: { nodes?: GitLabUser[] } | null;
+  }>;
+}
+
 export interface GitLabProject {
   id: number;
   name: string;

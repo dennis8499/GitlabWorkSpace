@@ -235,6 +235,75 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
   assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
 });
 
+test('opens the Issue graph on demand, applies shared filters with one-hop context, and keeps its Board separate from the list', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelector('.developer-view-switch button.active')?.textContent, '清單');
+  assert.equal(document.querySelectorAll('.issue-graph-workspace').length, 0);
+  assert.equal(view.requests.some((request) => request.type === 'loadIssueGraph'), false);
+
+  document.querySelector('.developer-view-switch button[aria-pressed="false"]:last-child')?.click();
+  await view.tick();
+  assert.equal(document.querySelector('.developer-view-switch button.active')?.textContent, '圖譜');
+  const graphRequest = view.requests.filter((request) => request.type === 'loadIssueGraph').at(-1);
+  assert.equal(graphRequest?.type, 'loadIssueGraph');
+  assert.equal(graphRequest?.connectedScope, 'team-scope');
+  assert.match(document.querySelector('.graph-loading-placeholder').textContent, /正在準備/);
+
+  const graphSnapshot = snapshot();
+  graphSnapshot.issueGraph = {
+    connectedScope: 'team-scope', status: 'ready', roots: ['project:1:issue:1', 'project:2:issue:2'],
+    nodes: [
+      { id: 'project:1:issue:1', sourceIds: ['REST:Issue:101', 'GraphQL:WorkItem:gid-a'], kind: 'issue', namespacePath: 'team/alpha', projectPath: 'team/alpha', projectId: 1, iid: '1', title: 'Alpha milestone issue', state: 'opened', webUrl: 'https://gitlab.example.test/team/alpha/-/issues/1', labels: [{ name: 'bug', color: '#cc3300', textColor: '#ffffff' }], assignees: [], boardIds: [31], assignedToMe: true, isRoot: true, relationsStatus: 'ready' },
+      { id: 'project:2:issue:2', sourceIds: ['REST:Issue:102'], kind: 'issue', namespacePath: 'team/beta', projectPath: 'team/beta', projectId: 2, iid: '2', title: 'Beta milestone issue', state: 'opened', webUrl: 'https://gitlab.example.test/team/beta/-/issues/2', labels: [{ name: 'feature', color: '#2266cc', textColor: '#ffffff' }], assignees: [], boardIds: [32], assignedToMe: true, isRoot: true, relationsStatus: 'ready' },
+      { id: 'project:2:issue:4', sourceIds: ['GraphQL:WorkItem:gid-c'], kind: 'issue', namespacePath: 'team/beta', projectPath: 'team/beta', projectId: 2, iid: '4', title: 'Beta context', state: 'closed', labels: [], assignees: [], boardIds: [], assignedToMe: false, isRoot: false, relationsStatus: 'ready' }
+    ],
+    edges: [
+      { id: 'relates_to:project:1:issue:1\0project:2:issue:2', source: 'project:1:issue:1', target: 'project:2:issue:2', type: 'relates_to' },
+      { id: 'parent:project:2:issue:2\0project:2:issue:4', source: 'project:2:issue:2', target: 'project:2:issue:4', type: 'parent' }
+    ],
+    boardIssueIds: { 31: [101], 32: [102] }, boardStatus: { 31: { status: 'ready' }, 32: { status: 'ready' }, 33: { status: 'ready' } }, errors: [], updatedAt: Date.now()
+  };
+  view.sendSnapshot(graphSnapshot);
+  await view.tick();
+  assert.equal(document.querySelectorAll('.graph-node').length, 3);
+  assert.equal(document.querySelectorAll('.graph-edge').length, 2);
+
+  const labelFilter = document.querySelector('select[aria-label="Issue Label"]');
+  labelFilter.value = 'bug';
+  labelFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelectorAll('.graph-node').length, 2, 'the matching Issue and its direct context remain; the context’s own child is excluded');
+  assert.equal(document.querySelectorAll('.graph-edge').length, 1);
+  assert.ok(document.querySelector('.graph-node.primary'));
+  assert.ok(document.querySelector('.graph-node.context'));
+
+  document.querySelector('.graph-node.primary').dispatchEvent(new view.dom.window.MouseEvent('click', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelector('.graph-selected-detail h2')?.textContent, 'Alpha milestone issue');
+  assert.match(document.querySelector('.graph-related-list').textContent, /Beta milestone issue/);
+  document.querySelector('.graph-selected-detail button.primary').click();
+  await view.tick();
+  const openIssueRequest = view.requests.filter((request) => request.type === 'openIssue').at(-1);
+  assert.equal(openIssueRequest?.type, 'openIssue');
+  assert.equal(openIssueRequest?.projectId, 1);
+  assert.equal(openIssueRequest?.issueIid, 1);
+
+  const graphBoard = document.querySelector('select[aria-label="圖譜 Issue Board"]');
+  graphBoard.value = '32';
+  graphBoard.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.equal(view.savedState.scopedData['team-scope'].graphBoardId, 32);
+  document.querySelector('.developer-view-switch button[aria-pressed="false"]:first-child').click();
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '31');
+  assert.equal(document.querySelector('select[aria-label="Issue Label"]').value, 'bug');
+  document.querySelector('.developer-view-switch button[aria-pressed="false"]:last-child').click();
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="圖譜 Issue Board"]').value, '32');
+});
+
 test('restores the first Board after a saved Board is removed and shows Board API failures without stale Issues', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
   t.after(() => view.dom.window.close());

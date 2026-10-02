@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabClient } from '../api/gitLabClient';
-import type { GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
@@ -14,6 +14,7 @@ import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { evaluateMeginDeliveryGate } from './deliveryGate';
+import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { isTool, isVersion, ToolPackageManager, TOOL_DEFINITIONS, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
@@ -49,6 +50,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private selectedIssueBoardId?: number;
   private issueBoardContent?: WorkspaceSnapshot['issueBoardContent'];
   private issueBoardGeneration = 0;
+  private issueGraph?: IssueGraphSnapshot;
+  private issueGraphGeneration = 0;
+  private issueGraphRequestedScope?: string;
   private issues: GitLabIssue[] = [];
   private mergeRequests: GitLabMergeRequest[] = [];
   private selectedIssue?: WorkspaceSnapshot['selectedIssue'];
@@ -103,6 +107,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.issueGraphGeneration++;
     if (this.interval) clearInterval(this.interval);
     this.webviewReady = false;
     for (const waiter of this.cloneSelectionWaiters.values()) {
@@ -247,6 +252,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'disconnect': await this.disconnect(); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
+      case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope); break;
       case 'selectWorkspace': await this.selectWorkspace(); break;
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;
@@ -310,6 +316,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private async refresh(): Promise<void> {
     const generation = ++this.requestGeneration;
     const issueBoardGeneration = ++this.issueBoardGeneration;
+    const reloadIssueGraphScope = this.issueGraphRequestedScope;
+    if (reloadIssueGraphScope === this.connectedScopeKey() && this.issueGraph) {
+      this.issueGraphGeneration++;
+      this.issueGraph = { ...this.issueGraph, status: 'loading', updatedAt: Date.now() };
+    }
     this.busy = true;
     this.post({ type: 'busy', value: true, label: '正在更新工作台' });
     try {
@@ -333,6 +344,8 @@ export class WorkspacePanel implements vscode.Disposable {
       const scopeKey = `${this.session.baseUrl}|${user.id}|${group?.id ?? 'none'}`;
       if (scopeKey !== this.loadedScopeKey) {
         this.loadedScopeKey = scopeKey;
+        this.issueGraphGeneration++;
+        this.issueGraph = undefined;
         this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
         this.projectMembers = []; this.selectedProjectId = undefined;
         this.groupMilestones = []; this.groupMilestonesError = undefined;
@@ -416,6 +429,10 @@ export class WorkspacePanel implements vscode.Disposable {
       this.busy = false;
       this.post({ type: 'busy', value: false });
       this.sendSnapshot();
+      if (reloadIssueGraphScope && reloadIssueGraphScope === this.connectedScopeKey()) {
+        const scope = this.connectedScopeKey();
+        if (scope) void this.loadIssueGraph(scope);
+      }
     }
   }
 
@@ -451,6 +468,330 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
   }
 
+  private async loadIssueGraph(connectedScope: string): Promise<void> {
+    const group = this.session.selectedGroup;
+    const currentScope = this.connectedScopeKey();
+    if (this.disposed || !group || !this.session.baseUrl || connectedScope !== currentScope || !this.currentUser) return;
+    this.issueGraphRequestedScope = connectedScope;
+    const generation = ++this.issueGraphGeneration;
+    const isCurrent = (): boolean => !this.disposed && generation === this.issueGraphGeneration &&
+      connectedScope === this.connectedScopeKey() && this.session.selectedGroup?.id === group.id;
+    let client: GitLabClient;
+    try {
+      client = await this.session.getClient();
+    } catch (error) {
+      if (!isCurrent()) return;
+      const graph = this.emptyIssueGraph(connectedScope);
+      graph.status = 'error';
+      graph.errors = [readableError(error)];
+      this.issueGraph = graph;
+      this.sendSnapshot();
+      return;
+    }
+    if (!isCurrent()) return;
+
+    const projectById = new Map(this.projects.map((project) => [project.id, project]));
+    const boardIdsByGraphNodeId = new Map<string, Set<number>>();
+    const graph = this.emptyIssueGraph(connectedScope);
+    const nodeById = new Map<string, IssueGraphNode>();
+    const edgeById = new Map<string, NonNullable<IssueGraphSnapshot['edges'][number]>>();
+    const errors = new Set<string>();
+    const publish = (status = graph.status): void => {
+      if (!isCurrent()) return;
+      graph.status = status;
+      graph.roots = [...graph.roots];
+      graph.nodes = [...nodeById.values()];
+      graph.edges = [...edgeById.values()];
+      graph.errors = [...errors];
+      graph.updatedAt = Date.now();
+      this.issueGraph = graph;
+      this.sendSnapshot();
+    };
+    const addNode = (incoming: IssueGraphNode): IssueGraphNode => {
+      const previous = nodeById.get(incoming.id);
+      const labels = new Map((previous?.labels ?? []).map((label) => [label.name, label]));
+      for (const label of incoming.labels) {
+        const old = labels.get(label.name);
+        labels.set(label.name, old ? { ...old, ...label, color: label.color ?? old.color, textColor: label.textColor ?? old.textColor } : label);
+      }
+      const merged: IssueGraphNode = {
+        ...previous,
+        ...incoming,
+        kind: incoming.kind,
+        sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...incoming.sourceIds])],
+        isRoot: !!previous?.isRoot || incoming.isRoot,
+        assignedToMe: !!previous?.assignedToMe || incoming.assignedToMe,
+        labels: [...labels.values()],
+        assignees: incoming.assignees.length ? incoming.assignees : previous?.assignees ?? [],
+        boardIds: [...new Set([...(previous?.boardIds ?? []), ...incoming.boardIds])],
+        relationsStatus: incoming.relationsStatus ?? previous?.relationsStatus
+      };
+      nodeById.set(merged.id, merged);
+      return merged;
+    };
+    const addEdge = (source: string, target: string, type: 'parent' | 'relates_to' | 'blocks'): void => {
+      const edge = issueGraphEdge(source, target, type);
+      if (edge) edgeById.set(edge.id, edge);
+    };
+    const projectPathFor = (projectId: number | undefined, workItem: GitLabGraphWorkItem): string =>
+      workItem.project?.fullPath ?? workItem.namespace?.fullPath ??
+      (projectId !== undefined ? projectById.get(projectId)?.path_with_namespace : undefined) ?? group.full_path;
+    const materializeWorkItem = (
+      item: GitLabGraphWorkItem,
+      relation: 'parent' | 'child' | 'linked'
+    ): IssueGraphNode => {
+      const projectId = gitLabGlobalIdNumber(item.project?.id);
+      const namespacePath = projectPathFor(projectId, item);
+      const typeName = item.workItemType?.name?.toLocaleLowerCase();
+      const kind = !projectId || typeName?.includes('epic') ? 'epic' :
+        typeName?.includes('task') || (relation === 'child' && !typeName?.includes('issue')) ? 'task' : 'issue';
+      const assignees = item.widgets?.flatMap((widget) => widget.assignees?.nodes ?? []) ?? [];
+      return {
+        id: issueGraphNodeKey(projectId, namespacePath, item.iid),
+        sourceIds: [`GraphQL:WorkItem:${item.id}`],
+        kind,
+        namespacePath,
+        iid: String(item.iid),
+        title: item.title ?? item.name ?? `Work Item #${item.iid}`,
+        state: item.state?.toLocaleLowerCase().includes('closed') ? 'closed' : item.state?.toLocaleLowerCase() ?? 'unknown',
+        projectId,
+        projectPath: projectId !== undefined ? namespacePath : undefined,
+        webUrl: item.webUrl ?? undefined,
+        labels: item.widgets?.flatMap((widget) => widget.labels?.nodes ?? []) ?? [],
+        assignees,
+        boardIds: [],
+        assignedToMe: assignees.some((assignee) => gitLabGlobalIdNumber(assignee.id) === this.currentUser?.id),
+        isRoot: false,
+        relationsStatus: 'ready'
+      };
+    };
+
+    for (const issue of this.issues) {
+      const project = projectById.get(issue.project_id);
+      if (!project || !Number.isSafeInteger(issue.iid) || issue.iid <= 0) continue;
+      const node = addNode({
+        id: issueGraphNodeKey(issue.project_id, project.path_with_namespace, issue.iid),
+        sourceIds: [`REST:Issue:${issue.id}`],
+        kind: 'issue',
+        namespacePath: project.path_with_namespace,
+        iid: String(issue.iid),
+        title: issue.title,
+        state: issue.state,
+        projectId: issue.project_id,
+        projectPath: project.path_with_namespace,
+        webUrl: issue.web_url,
+        labels: (issue.labels ?? []).map((name) => ({ name })),
+        assignees: issue.assignees ?? (issue.assignee ? [issue.assignee] : []),
+        boardIds: [],
+        assignedToMe: true,
+        isRoot: true,
+        relationsStatus: 'loading'
+      });
+      if (!graph.roots.includes(node.id)) graph.roots.push(node.id);
+    }
+
+    graph.boardStatus = Object.fromEntries(this.groupIssueBoards.map((board) => [board.id, { status: 'loading' }]));
+    if (!graph.roots.length) {
+      for (const board of this.groupIssueBoards) graph.boardStatus[board.id] = { status: 'ready' };
+      publish('ready');
+      return;
+    }
+    publish('loading');
+
+    const jobs: Array<() => Promise<void>> = [];
+    for (const board of this.groupIssueBoards) {
+      jobs.push(async () => {
+        try {
+          const memberships = await client.listGroupBoardIssueMemberships(group.full_path, board.id);
+          if (!isCurrent()) return;
+          graph.boardIssueIds[board.id] = memberships.map((item) => item.issueId);
+          graph.boardStatus[board.id] = { status: 'ready' };
+          for (const membership of memberships) {
+            if (membership.projectId === undefined || membership.iid === undefined) continue;
+            const projectPath = projectById.get(membership.projectId)?.path_with_namespace ?? `project-${membership.projectId}`;
+            const nodeId = issueGraphNodeKey(membership.projectId, projectPath, membership.iid);
+            const boardIds = boardIdsByGraphNodeId.get(nodeId) ?? new Set<number>();
+            boardIds.add(board.id);
+            boardIdsByGraphNodeId.set(nodeId, boardIds);
+            const node = nodeById.get(nodeId);
+            if (node && !node.boardIds.includes(board.id)) node.boardIds.push(board.id);
+          }
+        } catch (error) {
+          if (!isCurrent()) return;
+          const message = readableError(error);
+          graph.boardStatus[board.id] = { status: 'error', error: message };
+          errors.add(`${board.name}: ${message}`);
+        }
+        publish('loading');
+      });
+    }
+
+    const userId = this.currentUser.id;
+    const capabilities = this.session.issueCapabilities;
+    const fallbackLabels = new Set(this.issues.map((issue) => issue.project_id));
+    for (const projectId of fallbackLabels) {
+      const project = projectById.get(projectId);
+      if (!project) continue;
+      jobs.push(async () => {
+        try {
+          const labels = await client.listProjectLabels(projectId);
+          if (!isCurrent()) return;
+          const byName = new Map(labels.map((label) => [label.name, label]));
+          for (const issue of this.issues.filter((item) => item.project_id === projectId)) {
+            const key = issueGraphNodeKey(issue.project_id, project.path_with_namespace, issue.iid);
+            const node = nodeById.get(key);
+            if (!node) continue;
+            node.labels = node.labels.map((label) => {
+              const detail = byName.get(label.name);
+              return detail ? { name: detail.name, color: detail.color, textColor: detail.text_color } : label;
+            });
+          }
+        } catch (error) {
+          if (isCurrent()) errors.add(`無法載入 ${project.path_with_namespace} 的 Label 色彩：${readableError(error)}`);
+        }
+        publish('loading');
+      });
+    }
+
+    for (const issue of this.issues) {
+      const project = projectById.get(issue.project_id);
+      if (!project) continue;
+      jobs.push(async () => {
+        if (!isCurrent()) return;
+        let parents: GitLabGraphWorkItem[] = [];
+        let children: GitLabGraphWorkItem[] = [];
+        let workItemLinks: Array<{ type: string; item: GitLabGraphWorkItem }> = [];
+        let workItemRelationsFailed = false;
+        let workItemRootId: string | undefined;
+        try {
+          if (capabilities?.graphWorkItems) {
+            const relations = await client.loadIssueGraphRelations(project.path_with_namespace, issue.iid, capabilities);
+            parents = relations.parents;
+            children = relations.children;
+            workItemLinks = relations.links;
+            workItemRootId = relations.root?.id;
+          }
+        } catch (error) {
+          workItemRelationsFailed = true;
+          if (capabilities?.graphWorkItems) errors.add(`Issue #${issue.iid} 的 WorkItem 關聯無法載入：${readableError(error)}`);
+        }
+
+        const root = addNode({
+          id: issueGraphNodeKey(issue.project_id, project.path_with_namespace, issue.iid),
+          sourceIds: [`REST:Issue:${issue.id}`, ...(workItemRootId ? [`GraphQL:WorkItem:${workItemRootId}`] : [])],
+          kind: 'issue',
+          namespacePath: project.path_with_namespace,
+          iid: String(issue.iid),
+          title: issue.title,
+          state: issue.state,
+          projectId: issue.project_id,
+          projectPath: project.path_with_namespace,
+          webUrl: issue.web_url,
+          labels: [],
+          assignees: [],
+          boardIds: [],
+          assignedToMe: true,
+          isRoot: true,
+          relationsStatus: workItemRelationsFailed ? 'error' : 'ready'
+        });
+
+        for (const parent of parents) {
+          const node = addNode(materializeWorkItem(parent, 'parent'));
+          addEdge(node.id, root.id, 'parent');
+        }
+        for (const child of children) {
+          const node = addNode(materializeWorkItem(child, 'child'));
+          addEdge(root.id, node.id, 'parent');
+        }
+        for (const relation of workItemLinks) {
+          const node = addNode(materializeWorkItem(relation.item, 'linked'));
+          const type = relation.type.toLocaleLowerCase().replaceAll('-', '_');
+          if (type === 'blocks') addEdge(root.id, node.id, 'blocks');
+          else if (type === 'blocked_by' || type === 'is_blocked_by') addEdge(node.id, root.id, 'blocks');
+          else addEdge(root.id, node.id, 'relates_to');
+        }
+
+        if (!capabilities?.graphLinkedItems || workItemRelationsFailed) {
+          try {
+            const links = await client.listIssueLinks(issue.project_id, issue.iid);
+            for (const relatedIssue of links) {
+              const relatedProject = projectById.get(relatedIssue.project_id);
+              const namespacePath = relatedProject?.path_with_namespace ?? `project-${relatedIssue.project_id}`;
+              const node = addNode({
+                id: issueGraphNodeKey(relatedIssue.project_id, namespacePath, relatedIssue.iid),
+                sourceIds: [`REST:Issue:${relatedIssue.id}`],
+                kind: 'issue',
+                namespacePath,
+                iid: String(relatedIssue.iid),
+                title: relatedIssue.title,
+                state: relatedIssue.state,
+                projectId: relatedIssue.project_id,
+                projectPath: relatedProject?.path_with_namespace,
+                webUrl: relatedIssue.web_url,
+                labels: (relatedIssue.labels ?? []).map((name) => ({ name })),
+                assignees: relatedIssue.assignees ?? (relatedIssue.assignee ? [relatedIssue.assignee] : []),
+                boardIds: [],
+                assignedToMe: !!relatedIssue.assignees?.some((assignee) => assignee.id === userId) || relatedIssue.assignee?.id === userId,
+                isRoot: false,
+                relationsStatus: 'ready'
+              });
+              const type = relatedIssue.link_type?.toLocaleLowerCase();
+              if (type === 'blocks') addEdge(root.id, node.id, 'blocks');
+              else if (type === 'is_blocked_by') addEdge(node.id, root.id, 'blocks');
+              else addEdge(root.id, node.id, 'relates_to');
+            }
+          } catch (error) {
+            root.relationsStatus = 'error';
+            errors.add(`Issue #${issue.iid} 的 Linked Items 無法載入：${readableError(error)}`);
+          }
+        }
+        publish('loading');
+      });
+    }
+
+    await mapWithConcurrency(jobs, 4, async (job) => job());
+    if (!isCurrent()) return;
+    const relationLabelProjectIds = [...new Set([...nodeById.values()]
+      .map((node) => node.projectId)
+      .filter((projectId): projectId is number => projectId !== undefined && !fallbackLabels.has(projectId)))];
+    await mapWithConcurrency(relationLabelProjectIds, 4, async (projectId) => {
+      try {
+        const labels = await client.listProjectLabels(projectId);
+        if (!isCurrent()) return;
+        const byName = new Map(labels.map((label) => [label.name, label]));
+        for (const node of nodeById.values()) {
+          if (node.projectId !== projectId) continue;
+          node.labels = node.labels.map((label) => {
+            const detail = byName.get(label.name);
+            return detail ? { name: detail.name, color: detail.color, textColor: detail.text_color } : label;
+          });
+        }
+      } catch (error) {
+        if (isCurrent()) errors.add(`無法載入專案 #${projectId} 的 Label 色彩：${readableError(error)}`);
+      }
+      publish('loading');
+    });
+    if (!isCurrent()) return;
+    for (const node of nodeById.values()) {
+      node.boardIds = [...new Set([...node.boardIds, ...(boardIdsByGraphNodeId.get(node.id) ?? [])])];
+    }
+    publish(errors.size ? 'partial' : 'ready');
+  }
+
+  private emptyIssueGraph(connectedScope: string): IssueGraphSnapshot {
+    return {
+      connectedScope,
+      status: 'loading',
+      roots: [],
+      nodes: [],
+      edges: [],
+      boardIssueIds: {},
+      boardStatus: {},
+      errors: [],
+      updatedAt: Date.now()
+    };
+  }
+
   private sendSnapshot(): void {
     if (!this.panel || this.disposed) return;
     const group = this.session.selectedGroup;
@@ -481,6 +822,7 @@ export class WorkspacePanel implements vscode.Disposable {
       groupIssueBoards: this.groupIssueBoards,
       groupIssueBoardsError: this.groupIssueBoardsError,
       issueBoardContent: this.issueBoardContent?.connectedScope === this.connectedScopeKey() ? this.issueBoardContent : undefined,
+      issueGraph: this.issueGraph?.connectedScope === this.connectedScopeKey() ? this.issueGraph : undefined,
       localRepositories,
       issues: this.issues,
       mergeRequests: this.mergeRequests,
@@ -1430,6 +1772,13 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!project) throw new Error('此 Project 不屬於目前選取的 GitLab Group。');
     return project;
   }
+}
+
+function gitLabGlobalIdNumber(value: string | number | null | undefined): number | undefined {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  const match = typeof value === 'string' ? value.match(/(?:^|\/)(\d+)$/) : undefined;
+  const id = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
 }
 
 async function exists(target: string): Promise<boolean> {

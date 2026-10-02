@@ -3,7 +3,7 @@ import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
   GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser, GitLabIssueBoard,
-  GitLabCommitSummary, GitLabCompareResult, GitLabMergeRequest, GitLabMergeRequestDiff
+  GitLabCommitSummary, GitLabCompareResult, GitLabGraphWorkItem, GitLabMergeRequest, GitLabMergeRequestDiff
 } from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -42,6 +42,12 @@ export interface IssueUpdateInput {
 export interface GitLabIssueCapabilities {
   hierarchy: boolean;
   childMutations: boolean;
+  graphWorkItems: boolean;
+  graphHierarchy: boolean;
+  graphLinkedItems: boolean;
+  graphLabels: boolean;
+  graphAssignees: boolean;
+  graphWorkItemTypes: boolean;
   discussionResolve: boolean;
   startDate: boolean;
   timelogReport: boolean;
@@ -103,9 +109,16 @@ export class GitLabClient {
       has('WorkItem', ['id', 'iid', 'userPermissions', 'widgets']) &&
       has('WorkItemWidgetHierarchy', ['children']) &&
       has('WorkItemPermissions', ['updateWorkItem', 'deleteWorkItem', 'moveWorkItem', 'cloneWorkItem', 'createNote', 'markNoteAsInternal', 'adminWorkItemLink', 'adminParentLink', 'setWorkItemMetadata']);
+    const graphWorkItems = has('Namespace', ['workItem']) && has('WorkItem', ['id', 'iid', 'title', 'state', 'webUrl', 'namespace', 'project', 'widgets']);
     return {
       hierarchy,
       childMutations: hierarchy && has('Mutation', ['workItemCreate', 'workItemUpdate']),
+      graphWorkItems,
+      graphHierarchy: graphWorkItems && has('WorkItemWidgetHierarchy', ['parent', 'children']),
+      graphLinkedItems: graphWorkItems && has('WorkItemWidgetLinkedItems', ['linkedItems']),
+      graphLabels: graphWorkItems && has('WorkItemWidgetLabels', ['labels']),
+      graphAssignees: graphWorkItems && has('WorkItemWidgetAssignees', ['assignees']),
+      graphWorkItemTypes: graphWorkItems && has('WorkItem', ['workItemType']),
       discussionResolve: has('Mutation', ['discussionToggleResolve']),
       startDate: has('Mutation', ['workItemUpdate']) && has('WorkItemUpdateInput', ['startAndDueDateWidget']) && has('WorkItemWidgetStartAndDueDateUpdateInput', ['startDate']) && has('WorkItemWidgetStartAndDueDate', ['startDate']),
       timelogReport: has('WorkItemWidgetTimeTracking', ['timelogs']) && has('WorkItemTimelog', ['id', 'timeSpent', 'spentAt', 'summary', 'user', 'userPermissions']),
@@ -144,8 +157,24 @@ export class GitLabClient {
     return this.getPages<GitLabIssueBoard>(`groups/${encodeURIComponent(String(groupId))}/boards?per_page=100`);
   }
 
+  listGroupBoardIssueIds(groupPath: string, boardId: number): Promise<number[]> {
+    return this.fetchGroupBoardIssueIds(groupPath, boardId);
+  }
+
+  listGroupBoardIssueMemberships(groupPath: string, boardId: number): Promise<Array<{ issueId: number; projectId?: number; iid?: number }>> {
+    return this.fetchGroupBoardIssueMemberships(groupPath, boardId);
+  }
+
   async listAssignedGroupBoardIssueIds(groupPath: string, boardId: number, username: string): Promise<number[]> {
-    if (!groupPath.trim() || groupPath.length > 255 || !username.trim() || username.length > 255 || !Number.isSafeInteger(boardId) || boardId <= 0) {
+    return (await this.fetchGroupBoardIssueMemberships(groupPath, boardId, username)).map((item) => item.issueId);
+  }
+
+  private async fetchGroupBoardIssueIds(groupPath: string, boardId: number, username?: string): Promise<number[]> {
+    return (await this.fetchGroupBoardIssueMemberships(groupPath, boardId, username)).map((item) => item.issueId);
+  }
+
+  private async fetchGroupBoardIssueMemberships(groupPath: string, boardId: number, username?: string): Promise<Array<{ issueId: number; projectId?: number; iid?: number }>> {
+    if (!groupPath.trim() || groupPath.length > 255 || (username !== undefined && !username.trim()) || !Number.isSafeInteger(boardId) || boardId <= 0) {
       throw new GitLabApiError('A valid Group, Issue Board, and username are required.');
     }
 
@@ -164,7 +193,7 @@ export class GitLabClient {
     type BoardIssuePage = {
       boardList?: {
         issues?: {
-          nodes?: Array<{ id: string }>;
+          nodes?: Array<{ id: string; iid?: string | number; projectId?: number | null }>;
           pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
         } | null;
       } | null;
@@ -198,7 +227,7 @@ export class GitLabClient {
 
     if (!boardFound) throw new GitLabApiError('GitLab Issue Board could not be loaded.');
 
-    const issueIds = new Set<number>();
+    const issuesById = new Map<number, { issueId: number; projectId?: number; iid?: number }>();
     for (const list of lists) {
       const listType = list.listType.toLocaleLowerCase();
       if ((hideBacklogList && listType === 'backlog') || (hideClosedList && listType === 'closed')) continue;
@@ -207,16 +236,27 @@ export class GitLabClient {
       const seenIssueCursors = new Set<string>();
       let issueAfter: string | null = null;
       do {
+        const filter = username === undefined ? '' : ', filters: { assigneeUsername: $username }';
+        const variables: Record<string, unknown> = { listId: list.id, after: issueAfter };
+        if (username !== undefined) variables.username = [username];
         const page: BoardIssuePage = await this.graphql<BoardIssuePage>(
-          'query AssignedGroupIssueBoardListIssues($listId: ListID!, $username: [String!], $after: String) { boardList(id: $listId) { issues(first: 100, after: $after, filters: { assigneeUsername: $username }) { nodes { id } pageInfo { hasNextPage endCursor } } } }',
-          { listId: list.id, username: [username], after: issueAfter }
+          `query ${username === undefined ? 'Group' : 'AssignedGroup'}IssueBoardListIssues($listId: ListID!${username === undefined ? '' : ', $username: [String!]'}, $after: String) { boardList(id: $listId) { issues(first: 100, after: $after${filter}) { nodes { id iid projectId } pageInfo { hasNextPage endCursor } } } }`,
+          variables
         );
         const issues = page.boardList?.issues;
         if (!issues) throw new GitLabApiError('GitLab could not load the selected Issue Board list.');
         for (const issue of issues.nodes ?? []) {
           const match = issue.id.match(/^gid:\/\/gitlab\/Issue\/(\d+)$/);
           const id = match ? Number(match[1]) : NaN;
-          if (Number.isSafeInteger(id) && id > 0) issueIds.add(id);
+          if (Number.isSafeInteger(id) && id > 0) {
+            const projectId = Number(issue.projectId);
+            const iid = Number(issue.iid);
+            issuesById.set(id, {
+              issueId: id,
+              ...(Number.isSafeInteger(projectId) && projectId > 0 ? { projectId } : {}),
+              ...(Number.isSafeInteger(iid) && iid > 0 ? { iid } : {})
+            });
+          }
         }
         const pageInfo = issues.pageInfo;
         issueAfter = pageInfo?.hasNextPage ? pageInfo.endCursor ?? null : null;
@@ -227,7 +267,7 @@ export class GitLabClient {
       } while (issueAfter);
     }
 
-    return [...issueIds];
+    return [...issuesById.values()];
   }
 
   listGroupMilestones(groupId: number): Promise<GitLabMilestone[]> {
@@ -392,6 +432,96 @@ export class GitLabClient {
 
   listIssueDiscussions(projectId: number, issueIid: number): Promise<GitLabIssueDiscussion[]> {
     return this.getPages<GitLabIssueDiscussion>(`${this.issuePath(projectId, issueIid)}/discussions?per_page=100`);
+  }
+
+  async loadIssueGraphRelations(
+    projectPath: string,
+    issueIid: number,
+    capabilities: Pick<GitLabIssueCapabilities, 'graphWorkItems' | 'graphHierarchy' | 'graphLinkedItems' | 'graphLabels' | 'graphAssignees' | 'graphWorkItemTypes'>
+  ): Promise<{ root?: GitLabGraphWorkItem; parents: GitLabGraphWorkItem[]; children: GitLabGraphWorkItem[]; links: Array<{ type: string; item: GitLabGraphWorkItem }> }> {
+    if (!projectPath.trim() || projectPath.length > 255 || !Number.isSafeInteger(issueIid) || issueIid <= 0) {
+      throw new GitLabApiError('A valid project path and Issue IID are required.');
+    }
+    if (!capabilities.graphWorkItems) return { parents: [], children: [], links: [] };
+
+    const hierarchy = capabilities.graphHierarchy
+      ? '... on WorkItemWidgetHierarchy { parent { ...IssueGraphItem } children(first: 100, after: $childrenAfter) { nodes { ...IssueGraphItem } pageInfo { hasNextPage endCursor } } }'
+      : '';
+    const linked = capabilities.graphLinkedItems
+      ? '... on WorkItemWidgetLinkedItems { linkedItems(first: 100, after: $linksAfter) { nodes { linkType workItem { ...IssueGraphItem } } pageInfo { hasNextPage endCursor } } }'
+      : '';
+    const labels = capabilities.graphLabels
+      ? '... on WorkItemWidgetLabels { labels(first: 100) { nodes { name color textColor } } }'
+      : '';
+    const assignees = capabilities.graphAssignees
+      ? '... on WorkItemWidgetAssignees { assignees(first: 100) { nodes { id name username } } }'
+      : '';
+    const type = capabilities.graphWorkItemTypes ? 'workItemType { name }' : '';
+    const rootWidgets = [hierarchy, linked, labels, assignees].filter(Boolean).join(' ');
+    const itemWidgets = [labels, assignees].filter(Boolean).join(' ');
+    const rootWidgetsSelection = rootWidgets ? `widgets { ${rootWidgets} }` : '';
+    const itemWidgetsSelection = itemWidgets ? `widgets { ${itemWidgets} }` : '';
+    const paginationVariables = [
+      capabilities.graphHierarchy ? '$childrenAfter: String' : '',
+      capabilities.graphLinkedItems ? '$linksAfter: String' : ''
+    ].filter(Boolean);
+    const variableDefinitions = ['$path: ID!', '$iid: String!', ...paginationVariables].join(', ');
+    const itemFragment = capabilities.graphHierarchy || capabilities.graphLinkedItems
+      ? `fragment IssueGraphItem on WorkItem {
+      id iid title state webUrl ${type} namespace { fullPath } project { id fullPath }
+      ${itemWidgetsSelection}
+    }`
+      : '';
+    const query = `query IssueGraphRelations(${variableDefinitions}) {
+      namespace(fullPath: $path) { workItem(iid: $iid) { id iid title state webUrl ${type} namespace { fullPath } project { id fullPath }
+        ${rootWidgetsSelection}
+      } }
+    } ${itemFragment}`;
+    const parents = new Map<string, GitLabGraphWorkItem>();
+    const children = new Map<string, GitLabGraphWorkItem>();
+    const links = new Map<string, { type: string; item: GitLabGraphWorkItem }>();
+    let graphRoot: GitLabGraphWorkItem | undefined;
+    const cursors = { children: new Set<string>(), links: new Set<string>() };
+    let after = { children: null as string | null, links: null as string | null };
+
+    for (let pageIndex = 0; pageIndex < 100; pageIndex++) {
+      const variables: Record<string, unknown> = { path: projectPath, iid: String(issueIid) };
+      if (capabilities.graphHierarchy) variables.childrenAfter = after.children;
+      if (capabilities.graphLinkedItems) variables.linksAfter = after.links;
+      const data = await this.graphql<{ namespace?: { workItem?: GitLabGraphWorkItem | null } | null }>(query, variables);
+      const root = data.namespace?.workItem;
+      if (!root) throw new GitLabApiError('GitLab could not find the Issue hierarchy item.');
+      graphRoot = root;
+      let childInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
+      let linkInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
+      for (const widget of root.widgets ?? []) {
+        if (widget.parent?.id) parents.set(widget.parent.id, widget.parent);
+        for (const item of widget.children?.nodes ?? []) if (item.id) children.set(item.id, item);
+        for (const item of widget.linkedItems?.nodes ?? []) {
+          if (item.workItem?.id) links.set(`${item.linkType}:${item.workItem.id}`, { type: item.linkType, item: item.workItem });
+        }
+        childInfo ??= widget.children?.pageInfo;
+        linkInfo ??= widget.linkedItems?.pageInfo;
+      }
+      const advance = (
+        hasNext: boolean | undefined,
+        cursor: string | null | undefined,
+        seen: Set<string>,
+        label: string
+      ): string | null => {
+        if (!hasNext) return null;
+        if (!cursor || seen.has(cursor)) throw new GitLabApiError(`GitLab returned an incomplete or repeated Issue graph ${label} cursor.`);
+        seen.add(cursor);
+        return cursor;
+      };
+      const next = {
+        children: advance(childInfo?.hasNextPage, childInfo?.endCursor, cursors.children, 'child'),
+        links: advance(linkInfo?.hasNextPage, linkInfo?.endCursor, cursors.links, 'linked-item')
+      };
+      if (!next.children && !next.links) return { root: graphRoot, parents: [...parents.values()], children: [...children.values()], links: [...links.values()] };
+      after = next;
+    }
+    throw new GitLabApiError('GitLab returned too many Issue graph pages to load safely.');
   }
 
   listIssueLinks(projectId: number, issueIid: number): Promise<GitLabIssue[]> {
