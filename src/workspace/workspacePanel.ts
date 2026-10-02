@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabClient } from '../api/gitLabClient';
-import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
@@ -42,6 +42,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private interval?: NodeJS.Timeout;
   private groups: WorkspaceSnapshot['groups'] = [];
   private projects: GitLabProject[] = [];
+  private groupMilestones: GitLabMilestone[] = [];
+  private groupMilestonesError?: string;
   private issues: GitLabIssue[] = [];
   private mergeRequests: GitLabMergeRequest[] = [];
   private selectedIssue?: WorkspaceSnapshot['selectedIssue'];
@@ -306,6 +308,7 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       if (!this.session.baseUrl) {
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
+        this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         this.sendSnapshot();
@@ -323,21 +326,29 @@ export class WorkspacePanel implements vscode.Disposable {
         this.loadedScopeKey = scopeKey;
         this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
         this.projectMembers = []; this.selectedProjectId = undefined;
+        this.groupMilestones = []; this.groupMilestonesError = undefined;
       }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
+        this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         return;
       }
       const root = this.roots.getRoot(this.session.baseUrl, group.id);
-      const [projects, mergeRequests] = await Promise.all([
+      const groupMilestonesPromise = client.listGroupMilestones(group.id)
+        .then((milestones) => ({ milestones, error: undefined as string | undefined }))
+        .catch((error: unknown) => ({ milestones: [] as GitLabMilestone[], error: readableError(error) }));
+      const [projects, mergeRequests, milestoneResult] = await Promise.all([
         client.listGroupProjects(group.id),
-        client.listGroupMergeRequests(group.id).catch(() => [])
+        client.listGroupMergeRequests(group.id).catch(() => []),
+        groupMilestonesPromise
       ]);
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
       this.projects = projects;
       this.mergeRequests = mergeRequests;
+      this.groupMilestones = milestoneResult.milestones;
+      this.groupMilestonesError = milestoneResult.error;
       const projectIds = new Set(projects.map((project) => project.id));
       this.issues = await client.listAssignedGroupIssues(group.id, projectIds);
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
@@ -399,6 +410,8 @@ export class WorkspacePanel implements vscode.Disposable {
       groups: this.groups,
       groupRoot: root,
       projects: this.projects,
+      groupMilestones: this.groupMilestones,
+      groupMilestonesError: this.groupMilestonesError,
       localRepositories,
       issues: this.issues,
       mergeRequests: this.mergeRequests,
@@ -627,11 +640,9 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
     this.repositoryOperationInProgress = true;
     this.sendSnapshot();
-    const operation: CloneOperationState = {
-      id: randomUUID(), scopeKey: this.connectedScopeKey(), phase: 'running', label: '預設分支同步結果',
-      items: this.projects.map((project) => ({ projectId: project.id, projectPath: project.path_with_namespace, state: 'waiting' }))
-    };
+    let operation: CloneOperationState | undefined;
     const publishOperation = (): void => {
+      if (!operation) return;
       this.cloneOperation = { ...operation, items: operation.items.map((item) => ({ ...item })) };
       this.post({ type: 'cloneOperation', ...this.cloneOperation });
     };
@@ -640,49 +651,62 @@ export class WorkspacePanel implements vscode.Disposable {
         this.post({ type: 'message', message: '請選擇這個 Group 的工作目錄，才能更新本機預設分支。' });
         await this.selectWorkspace(true);
         root = this.session.baseUrl ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-        if (!root) {
-          operation.phase = 'cancelled';
-          operation.label = '工作目錄選擇已取消';
-          operation.items = operation.items.map((item) => ({ ...item, state: 'skipped', message: '未選擇工作目錄' }));
-          publishOperation();
-          return;
-        }
+        if (!root) return;
       }
-      operation.items = this.projects.map((project) => ({ projectId: project.id, projectPath: project.path_with_namespace, state: 'waiting' }));
+      const groupProjects = this.projects;
+      const existingProjects = groupProjects.filter((project) => {
+        try {
+          const targetPath = groupRepositoryPath(root!, project, groupProjects);
+          return localRepositoryState(root!, targetPath) === 'ready';
+        } catch {
+          return false;
+        }
+      });
+      if (!existingProjects.length) {
+        this.post({ type: 'message', message: `${group.full_path} 尚無已存在且路徑安全的本機 Repo 可更新。` });
+        return;
+      }
+      const activeOperation: CloneOperationState = {
+        id: randomUUID(), scopeKey: this.connectedScopeKey(), phase: 'running', label: '預設分支同步結果',
+        items: existingProjects.map((project) => ({ projectId: project.id, projectPath: project.path_with_namespace, state: 'waiting' }))
+      };
+      operation = activeOperation;
       publishOperation();
-      const confirm = await vscode.window.showWarningMessage(`Fetch 並 Pull ${group.full_path} 下所有已 Clone Repo 的預設分支？本機分支不會刪除。`, { modal: true }, '更新預設分支');
+      const confirm = await vscode.window.showWarningMessage(`Fetch 並 Pull ${group.full_path} 下 ${existingProjects.length} 個已存在 Repo 的預設分支？本機分支不會刪除。`, { modal: true }, '更新預設分支');
       if (confirm !== '更新預設分支') {
-        operation.phase = 'cancelled';
-        operation.label = '已取消';
+        activeOperation.phase = 'cancelled';
+        activeOperation.label = '已取消';
         publishOperation();
         return;
       }
       const client = await this.session.getClient();
       const credentials = await this.session.getCloneCredentials();
-      const results = await syncLocalDefaultBranches(root!, this.projects, credentials.baseUrl, credentials.token, (event) => {
+      const results = await syncLocalDefaultBranches(root!, existingProjects, credentials.baseUrl, credentials.token, (event) => {
         const state = event.state === 'up-to-date' ? 'upToDate' : event.state;
-        operation.items = operation.items.map((item) => item.projectId === event.project.id
+        activeOperation.items = activeOperation.items.map((item) => item.projectId === event.project.id
           ? { ...item, state, percent: event.percent, message: event.message }
           : item);
         publishOperation();
-      }, { resolveProject: (project) => client.getProject(project.id) });
+      }, { groupProjects, resolveProject: (project) => client.getProject(project.id) });
       const touched = new Set([...results.updated, ...results.upToDate, ...results.skipped.map((item) => item.project), ...results.failed.map((item) => item.project)].map((project) => project.id));
-      operation.items = operation.items.map((item) => touched.has(item.projectId) ? item : { ...item, state: 'skipped', message: '尚未下載到本機，略過同步' });
-      for (const project of results.updated) operation.items = operation.items.map((item) => item.projectId === project.id ? { ...item, state: 'updated', percent: undefined, message: '預設分支已更新' } : item);
-      for (const project of results.upToDate) operation.items = operation.items.map((item) => item.projectId === project.id ? { ...item, state: 'upToDate', percent: undefined, message: '已是最新版本' } : item);
-      for (const item of results.skipped) operation.items = operation.items.map((entry) => entry.projectId === item.project.id ? { ...entry, state: 'skipped', percent: undefined, message: item.reason } : entry);
-      for (const item of results.failed) operation.items = operation.items.map((entry) => entry.projectId === item.project.id ? { ...entry, state: 'failed', percent: undefined, message: item.reason } : entry);
-      operation.phase = 'completed';
-      operation.label = '預設分支同步結果';
+      activeOperation.items = activeOperation.items.map((item) => touched.has(item.projectId) ? item : { ...item, state: 'skipped', message: '同步前本機 Repo 已不存在，略過更新' });
+      for (const project of results.updated) activeOperation.items = activeOperation.items.map((item) => item.projectId === project.id ? { ...item, state: 'updated', percent: undefined, message: '預設分支已更新' } : item);
+      for (const project of results.upToDate) activeOperation.items = activeOperation.items.map((item) => item.projectId === project.id ? { ...item, state: 'upToDate', percent: undefined, message: '已是最新版本' } : item);
+      for (const item of results.skipped) activeOperation.items = activeOperation.items.map((entry) => entry.projectId === item.project.id ? { ...entry, state: 'skipped', percent: undefined, message: item.reason } : entry);
+      for (const item of results.failed) activeOperation.items = activeOperation.items.map((entry) => entry.projectId === item.project.id ? { ...entry, state: 'failed', percent: undefined, message: item.reason } : entry);
+      activeOperation.phase = 'completed';
+      activeOperation.label = '預設分支同步結果';
       publishOperation();
       this.post({ type: 'message', message: `已更新 ${results.updated.length} 個預設分支；${results.upToDate.length} 個已是最新、${results.skipped.length + results.failed.length} 個需處理。` });
     } catch (error) {
       const reason = readableError(error);
-      operation.phase = 'failed';
-      operation.items = operation.items.map((item) => item.state === 'waiting' || item.state === 'starting' || item.state === 'progress'
-        ? { ...item, state: 'failed', percent: undefined, message: reason }
-        : item);
-      publishOperation();
+      if (operation) {
+        operation.phase = 'failed';
+        operation.items = operation.items.map((item) => item.state === 'waiting' || item.state === 'starting' || item.state === 'progress'
+          ? { ...item, state: 'failed', percent: undefined, message: reason }
+          : item);
+        publishOperation();
+      }
       throw error;
     } finally {
       try { await this.refresh(); }

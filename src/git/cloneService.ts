@@ -74,6 +74,8 @@ export interface CloneDependencies {
 export interface LocalSyncDependencies {
   syncRunner?: LocalSyncRunner;
   resolveProject?: ProjectResolver;
+  /** Complete Group inventory, used to resolve stable paths when syncing only local repositories. */
+  groupProjects?: readonly GitLabProject[];
 }
 
 export class ClonePreflightError extends Error {
@@ -210,13 +212,14 @@ export async function syncLocalDefaultBranches(
   const result: LocalSyncBatchResult = { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
   const resolveProject = dependencies.resolveProject ?? (async (project) => project);
   const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;
+  const groupProjects = dependencies.groupProjects ?? projects;
   const handledPaths = new Set<string>();
   const root = path.resolve(workspacePath);
 
   for (const project of projects) {
     let targetPath: string;
     try {
-      targetPath = groupRepositoryPath(root, project, projects);
+      targetPath = groupRepositoryPath(root, project, groupProjects);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -230,7 +233,7 @@ export async function syncLocalDefaultBranches(
 
     let plan: ClonePlan;
     try {
-      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, projects)[0];
+      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, groupProjects)[0];
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });

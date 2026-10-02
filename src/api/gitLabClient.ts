@@ -140,6 +140,12 @@ export class GitLabClient {
     return issues.filter((issue) => projectIds.has(issue.project_id));
   }
 
+  listGroupMilestones(groupId: number): Promise<GitLabMilestone[]> {
+    return this.getPages<GitLabMilestone>(
+      `groups/${encodeURIComponent(String(groupId))}/milestones?include_descendants=true&per_page=100`
+    );
+  }
+
   async listGroupMergeRequests(groupId: number): Promise<GitLabMergeRequest[]> {
     const root = `groups/${encodeURIComponent(String(groupId))}/merge_requests?state=opened&per_page=100`;
     const [assignedResult, reviewResult] = await Promise.allSettled([

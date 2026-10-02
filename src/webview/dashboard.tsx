@@ -26,6 +26,7 @@ interface SavedState {
   issueDetailSearch?: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
+  issueMilestoneFilter: string;
   reviewFilter: 'all' | 'reviewer' | 'assigned';
   analysisIntent: AnalysisIntent;
   requirement: string;
@@ -60,6 +61,7 @@ interface ScopedSavedState {
   issueDetailSearch: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
+  issueMilestoneFilter: string;
   reviewFilter: 'all' | 'reviewer' | 'assigned';
   analysisIntent: AnalysisIntent;
   requirement: string;
@@ -97,12 +99,12 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
 ];
 const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
 const emptySaved = (): SavedState => ({
-  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
+  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
   draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'gitea', selectedPackageIds: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
   filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueStateFilter: 'opened',
-  issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
+  issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
   requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {}, deliveryForms: {},
   manualTimes: {}, timeEdits: {}
 });
@@ -149,6 +151,9 @@ function App() {
   const [issueStateFilter, setIssueStateFilter] = useState<'opened' | 'closed' | 'all'>(initial?.issueStateFilter ?? 'opened');
   const [issueProjectFilter, setIssueProjectFilter] = useState(initial?.issueProjectFilter ?? 'all');
   const [issueLabelFilter, setIssueLabelFilter] = useState(initial?.issueLabelFilter ?? 'all');
+  const [issueMilestoneFilter, setIssueMilestoneFilter] = useState(initial?.scopeKey
+    ? initial.scopedData?.[initial.scopeKey]?.issueMilestoneFilter ?? initial?.issueMilestoneFilter ?? 'all'
+    : initial?.issueMilestoneFilter ?? 'all');
   const [intent, setIntent] = useState<AnalysisIntent>(initial?.analysisIntent ?? 'requirements');
   const [requirement, setRequirement] = useState(initial?.requirement ?? '');
   const [bundle, setBundle] = useState<IssueDraftBundle | undefined>(initial?.importedBundle);
@@ -183,7 +188,7 @@ function App() {
   const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
 
   const scopedState: ScopedSavedState = {
-    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter,
+    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
     reviewFilter, analysisIntent: intent, requirement, importText, importedBundle: bundle, draftChecked, draftChoices, reports,
     deliveryForms, manualTimes, recoveredManualTime, timeEdits
   };
@@ -217,6 +222,7 @@ function App() {
           setAnalysisProjectIds(value.analysisProjectIds); setIssueStateFilter(value.issueStateFilter);
           setIssueDetailSearch(value.issueDetailSearch ?? initial?.issueDetailSearch ?? '');
           setIssueProjectFilter(value.issueProjectFilter); setIssueLabelFilter(value.issueLabelFilter);
+          setIssueMilestoneFilter(value.issueMilestoneFilter ?? 'all');
           setReviewFilter(value.reviewFilter); setIntent(value.analysisIntent); setRequirement(value.requirement);
           setImportText(value.importText); setBundle(value.importedBundle); setDraftChecked(value.draftChecked);
           setDraftChoices(value.draftChoices); setReports(value.reports); setDeliveryForms(value.deliveryForms);
@@ -229,6 +235,11 @@ function App() {
         } else if (nextScope && nextScope === scopeRef.current) {
           const availableIds = message.snapshot.projects.map((project) => project.id);
           setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
+        }
+        if (!message.snapshot.groupMilestonesError) {
+          const availableMilestoneIds = new Set((message.snapshot.groupMilestones ?? []).map((milestone) => milestone.id));
+          setIssueMilestoneFilter((current) => current === 'all' || current === 'none' ||
+            (Number.isSafeInteger(Number(current)) && availableMilestoneIds.has(Number(current))) ? current : 'all');
         }
         instanceUserScopeRef.current = message.snapshot.instanceUserScope;
         setSnapshot(message.snapshot);
@@ -287,13 +298,13 @@ function App() {
     const state: SavedState = {
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
-      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, reviewFilter, analysisIntent: intent, requirement, importText,
+      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
       selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -334,14 +345,26 @@ function App() {
   const pendingTime = snapshot?.timers.filter((entry) => !['running', 'paused', 'posted'].includes(entry.phase)) ?? [];
   const activeTimer = snapshot?.timers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
   const issueLabels = [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b));
+  const issueMilestones = [...(snapshot?.groupMilestones ?? [])].sort((a, b) => a.title.localeCompare(b.title) || (a.group_id ?? 0) - (b.group_id ?? 0) || a.id - b.id);
+  const milestoneTitleCounts = new Map<string, number>();
+  for (const milestone of issueMilestones) milestoneTitleCounts.set(milestone.title, (milestoneTitleCounts.get(milestone.title) ?? 0) + 1);
+  const groupsById = new Map((snapshot?.groups ?? []).map((group) => [group.id, group]));
+  const milestoneLabel = (milestone: (typeof issueMilestones)[number]): string => {
+    if ((milestoneTitleCounts.get(milestone.title) ?? 0) < 2) return milestone.title;
+    const owner = milestone.group_id === undefined ? undefined : groupsById.get(milestone.group_id)?.full_path ?? `Group #${milestone.group_id}`;
+    return `${milestone.title} · ${owner ?? 'Group Milestone'} (#${milestone.id})`;
+  };
   const visibleIssues = issues.filter((issue) => (issueStateFilter === 'all' || issue.state === issueStateFilter) &&
     (issueProjectFilter === 'all' || String(issue.project_id) === issueProjectFilter) &&
     (issueLabelFilter === 'all' || (issue.labels ?? []).includes(issueLabelFilter)) &&
+    (issueMilestoneFilter === 'all' || (issueMilestoneFilter === 'none' ? !issue.milestone : String(issue.milestone?.id ?? '') === issueMilestoneFilter)) &&
     filterText('developer', `${issue.title} ${projectById.get(issue.project_id)?.path_with_namespace ?? ''} #${issue.iid} ${(issue.labels ?? []).join(' ')}`));
   const visibleProjects = projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`));
   const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
   const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]);
   const allVisibleProjectsSelected = visibleProjects.length > 0 && visibleProjects.every((project) => selectedProjectIds.includes(project.id));
+  const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIds.includes(project.id)), 0);
+  const hasIssueFilter = !!filters.developer?.trim() || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' || issueMilestoneFilter !== 'all';
   const completedOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate', 'skipped', 'failed'].includes(item.state)).length ?? 0;
   const successfulOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate'].includes(item.state)).length ?? 0;
   const skippedOperationCount = cloneOperation?.items.filter((item) => item.state === 'skipped').length ?? 0;
@@ -472,7 +495,7 @@ function App() {
         {!snapshot.connected ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
           : !snapshot.group ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
-              <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><button class="quiet small" type="button" disabled={!visibleProjects.length || !!snapshot.busy} onClick={() => setSelectedProjectIds((current) => allVisibleProjectsSelected ? toggleProjectSelection(current, [...visibleProjectIds], false) : toggleProjectSelection(current, visibleProjects.map((project) => project.id), true))}>{allVisibleProjectsSelected ? '取消全選' : '全選搜尋結果'}</button></div>
+              <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || !!snapshot.busy} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
                 <div class="repo-list">{visibleProjects.map((project) => {
                   const local = snapshot.localRepositories[project.id];
                   return <label class="repo-row"><input type="checkbox" checked={selectedProjectIds.includes(project.id)} disabled={!!snapshot.busy} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
@@ -489,7 +512,7 @@ function App() {
                 </section>}
                 <div class="list-actions clone-actions">
                   <div class="clone-root-line"><strong>下載位置</strong><span title={snapshot.groupRoot}>{snapshot.groupRoot ?? '尚未設定'}</span><button class="quiet small" type="button" disabled={!!snapshot.busy} onClick={() => setToolDrawer(true)}>{snapshot.groupRoot ? '變更' : '選擇工作目錄'}</button>{snapshot.groupRoot && <button class="quiet small clone-open-workspace" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}</div>
-                  <div class="clone-actions-row"><div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}</div><button class="quiet small" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} onClick={() => setSelectedProjectIds([])}>清除選取</button><details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel"><button class="secondary" type="button" disabled={!projects.length || !!snapshot.busy} onClick={() => post({ type: 'clone', projectIds: [], cloneAll: true })}>下載／更新全部 Repo</button><button class="secondary" type="button" disabled={!!snapshot.busy || !snapshot.groupRoot} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button><button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => snapshot.groupRoot ? post({ type: 'openLocalWorkspace' }) : setToolDrawer(true)}>{snapshot.groupRoot ? '開啟工作區' : '設定工作目錄'}</button><button class="quiet" type="button" disabled={!!snapshot.busy || !snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button></div></details><button class="primary clone-submit" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} aria-label={!snapshot.groupRoot ? `選擇位置並下載 ${selectedProjectIds.length} 個專案` : `下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>{snapshot.groupRoot ? `下載／更新（${selectedProjectIds.length}）` : `選擇位置並下載（${selectedProjectIds.length}）`}</button></div>
+                  <div class="clone-actions-row"><div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}</div><button class="quiet small" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} onClick={() => setSelectedProjectIds([])}>清除選取</button><details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel"><button class="secondary" type="button" disabled={!!snapshot.busy || !snapshot.groupRoot} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button><button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => snapshot.groupRoot ? post({ type: 'openLocalWorkspace' }) : setToolDrawer(true)}>{snapshot.groupRoot ? '開啟工作區' : '設定工作目錄'}</button><button class="quiet" type="button" disabled={!!snapshot.busy || !snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button></div></details><button class="primary clone-submit" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} aria-label={!snapshot.groupRoot ? `選擇位置並下載 ${selectedProjectIds.length} 個專案` : `下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>{snapshot.groupRoot ? `下載／更新（${selectedProjectIds.length}）` : `選擇位置並下載（${selectedProjectIds.length}）`}</button></div>
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
@@ -525,8 +548,8 @@ function App() {
                   : <Empty title="尚無 Issue 草稿" detail="先選 Repo 並複製提示詞，或匯入 Codex 分析結果。" />}</article>
             </div>
             : mode === 'developer' ? <div class="mode-content">
-              <div class="list-column"><div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select></div><div class="toolbar list-count"><span>指派給我的 Issue</span><span class="count">{visibleIssues.length}</span></div>
-                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}{!visibleIssues.length && <div class="empty-inline"><strong>{snapshot.error ? 'Issue 載入失敗' : filters.developer || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' ? '沒有符合篩選條件的 Issue' : '目前沒有指派給你的未結案 Issue'}</strong><p>{snapshot.error ?? (filters.developer || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' ? '調整搜尋或篩選條件試試看。' : '建立議題或切換篩選條件以檢視其他工作。')}</p></div>}</div>
+              <div class="list-column"><div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select><select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select></div>{snapshot.groupMilestonesError && <p class="warning" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}<div class="toolbar list-count"><span>指派給我的 Issue</span><span class="count">{visibleIssues.length}</span></div>
+                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}{!visibleIssues.length && <div class="empty-inline"><strong>{snapshot.error ? 'Issue 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '目前沒有指派給你的未結案 Issue'}</strong><p>{snapshot.error ?? (hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '建立議題或切換篩選條件以檢視其他工作。')}</p></div>}</div>
               </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
                 <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
                 <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>

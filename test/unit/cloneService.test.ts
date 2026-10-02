@@ -439,13 +439,35 @@ test('synchronizes same-named repositories using the complete group folder mappi
   git(['-C', target, 'remote', 'set-url', 'origin', second.http_url_to_repo]);
   const restoreRewrite = addUrlRewrite(second.http_url_to_repo, bare);
   try {
-    const result = await syncLocalDefaultBranches(workspace, [first, second], 'https://gitlab.example.test', dummyToken);
+    const result = await syncLocalDefaultBranches(
+      workspace, [second], 'https://gitlab.example.test', dummyToken, () => undefined,
+      { groupProjects: [first, second] }
+    );
     assert.equal(result.found, 1);
     assert.deepEqual(result.upToDate, [second]);
     assert.deepEqual(result.skipped, []);
     assert.equal(groupRepositoryPath(workspace, second, [first, second]), target);
   } finally {
     restoreRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('syncs no repositories when the Group workspace contains no existing project folder', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-empty-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  let syncCalls = 0;
+  try {
+    const result = await syncLocalDefaultBranches(
+      workspace, [project('not-downloaded')], 'https://gitlab.example.test', dummyToken,
+      () => undefined, { syncRunner: async () => { syncCalls++; return { state: 'updated' }; } }
+    );
+    assert.equal(result.found, 0);
+    assert.deepEqual(result.updated, []);
+    assert.deepEqual(result.upToDate, []);
+    assert.equal(syncCalls, 0);
+  } finally {
     rmSync(temp, { recursive: true, force: true });
   }
 });

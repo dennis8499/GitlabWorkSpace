@@ -72,11 +72,13 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .clone-list-column { min-height: 0; flex: 1; overflow: visible; }
 .detail-column { padding: 17px; overflow: auto; }
 .toolbar { justify-content: space-between; padding: 11px 12px; border-bottom: 1px solid var(--border); }
-.filter-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px; margin: 9px 12px 0; }
+.filter-row { display: grid; grid-template-columns: 1fr 1.4fr 1fr 1.2fr; gap: 8px; margin: 9px 12px 0; }
 .filter-row select { min-width: 0; width: 100%; }
 .search { display: flex; align-items: center; flex: 1; gap: 7px; min-width: 0; color: var(--muted); }
 .search input { width: 100%; border: 0; padding: 5px 0; background: transparent; outline: none; }
 .search input:focus-visible { outline: none; }
+.repo-select-all { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; }
+.repo-select-all input { accent-color: var(--accent); }
 .repo-list, .work-list { overflow: auto; flex: 1; }
 .repo-list { min-height: 0; }
 .repo-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -281,7 +283,6 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .delivery-grid { grid-template-columns: minmax(0, 1fr); }
   .delivery-grid .full { grid-column: auto; }
   .filter-row { grid-template-columns: 1fr 1fr; }
-  .filter-row select:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .statusbar { flex-wrap: wrap; }
   .toast { max-width: 100%; }
   .issue-workspace-layout .layout { grid-template-columns: minmax(0, 1fr); }

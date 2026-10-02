@@ -1,4 +1,4 @@
-import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
 
@@ -112,6 +112,8 @@ export interface WorkspaceSnapshot {
   groups: GitLabGroup[];
   groupRoot?: string;
   projects: GitLabProject[];
+  groupMilestones: GitLabMilestone[];
+  groupMilestonesError?: string;
   localRepositories: Record<number, LocalRepositoryState>;
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];

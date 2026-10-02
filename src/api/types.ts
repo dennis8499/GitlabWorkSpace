@@ -73,6 +73,7 @@ export interface GitLabMember {
 export interface GitLabMilestone {
   id: number;
   iid?: number;
+  group_id?: number;
   title: string;
   state?: string;
   due_date?: string | null;

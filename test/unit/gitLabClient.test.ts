@@ -47,6 +47,30 @@ test('includes subgroup projects and filters assigned group issues to those proj
   assert.deepEqual(issues.map((issue) => issue.iid), [1]);
 });
 
+test('paginates group milestones and includes closed milestones from descendant groups', async () => {
+  const requested: URL[] = [];
+  const fetcher: FetchLike = async (input) => {
+    const url = new URL(String(input));
+    requested.push(url);
+    if (url.searchParams.get('page') === '2') {
+      return new Response(JSON.stringify([{ id: 12, group_id: 8, title: 'Previous release', state: 'closed' }]));
+    }
+    return new Response(JSON.stringify([{ id: 11, group_id: 8, title: 'Next release', state: 'active' }]), {
+      headers: { Link: '<https://gitlab.example.test/api/v4/groups/3/milestones?include_descendants=true&per_page=100&page=2>; rel="next"' }
+    });
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  const milestones = await client.listGroupMilestones(3);
+
+  assert.equal(requested.length, 2);
+  assert.equal(requested[0].pathname, '/api/v4/groups/3/milestones');
+  assert.equal(requested[0].searchParams.get('include_descendants'), 'true');
+  assert.equal(requested[0].searchParams.get('per_page'), '100');
+  assert.deepEqual(milestones.map((milestone) => [milestone.id, milestone.group_id, milestone.state]), [
+    [11, 8, 'active'], [12, 8, 'closed']
+  ]);
+});
+
 test('creates an issue with an optional description and one assignee', async () => {
   let capturedBody: Record<string, unknown> | undefined;
   const fetcher: FetchLike = async (_input, init) => {
