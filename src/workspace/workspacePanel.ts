@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { GitLabClient } from '../api/gitLabClient';
-import type { GitLabGroup, GitLabIssue, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
@@ -44,6 +44,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private projects: GitLabProject[] = [];
   private groupMilestones: GitLabMilestone[] = [];
   private groupMilestonesError?: string;
+  private groupIssueBoards: GitLabIssueBoard[] = [];
+  private groupIssueBoardsError?: string;
+  private selectedIssueBoardId?: number;
+  private issueBoardContent?: WorkspaceSnapshot['issueBoardContent'];
+  private issueBoardGeneration = 0;
   private issues: GitLabIssue[] = [];
   private mergeRequests: GitLabMergeRequest[] = [];
   private selectedIssue?: WorkspaceSnapshot['selectedIssue'];
@@ -241,6 +246,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'connect': await this.connect(); break;
       case 'disconnect': await this.disconnect(); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
+      case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
       case 'selectWorkspace': await this.selectWorkspace(); break;
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;
@@ -303,12 +309,15 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async refresh(): Promise<void> {
     const generation = ++this.requestGeneration;
+    const issueBoardGeneration = ++this.issueBoardGeneration;
     this.busy = true;
     this.post({ type: 'busy', value: true, label: '正在更新工作台' });
     try {
       if (!this.session.baseUrl) {
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
         this.groupMilestones = []; this.groupMilestonesError = undefined;
+        this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
+        this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         this.sendSnapshot();
@@ -327,10 +336,14 @@ export class WorkspacePanel implements vscode.Disposable {
         this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
         this.projectMembers = []; this.selectedProjectId = undefined;
         this.groupMilestones = []; this.groupMilestonesError = undefined;
+        this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
+        this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
       }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
         this.groupMilestones = []; this.groupMilestonesError = undefined;
+        this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
+        this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         return;
@@ -339,18 +352,39 @@ export class WorkspacePanel implements vscode.Disposable {
       const groupMilestonesPromise = client.listGroupMilestones(group.id)
         .then((milestones) => ({ milestones, error: undefined as string | undefined }))
         .catch((error: unknown) => ({ milestones: [] as GitLabMilestone[], error: readableError(error) }));
-      const [projects, mergeRequests, milestoneResult] = await Promise.all([
+      const groupIssueBoardsPromise = client.listGroupIssueBoards(group.id)
+        .then((boards) => ({ boards, error: undefined as string | undefined }))
+        .catch((error: unknown) => ({ boards: [] as GitLabIssueBoard[], error: readableError(error) }));
+      const [projects, mergeRequests, milestoneResult, boardResult] = await Promise.all([
         client.listGroupProjects(group.id),
         client.listGroupMergeRequests(group.id).catch(() => []),
-        groupMilestonesPromise
+        groupMilestonesPromise,
+        groupIssueBoardsPromise
       ]);
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
       this.projects = projects;
       this.mergeRequests = mergeRequests;
       this.groupMilestones = milestoneResult.milestones;
       this.groupMilestonesError = milestoneResult.error;
+      this.groupIssueBoards = boardResult.boards;
+      this.groupIssueBoardsError = boardResult.error;
       const projectIds = new Set(projects.map((project) => project.id));
       this.issues = await client.listAssignedGroupIssues(group.id, projectIds);
+      if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
+      if (this.selectedIssueBoardId !== undefined && !boardResult.error) {
+        if (!boardResult.boards.some((board) => board.id === this.selectedIssueBoardId)) {
+          this.selectedIssueBoardId = undefined;
+          this.issueBoardContent = undefined;
+          this.issueBoardGeneration++;
+        } else {
+          const currentBoardGeneration = ++this.issueBoardGeneration;
+          await this.loadIssueBoardContent(group.full_path, this.selectedIssueBoardId, currentBoardGeneration, this.connectedScopeKey());
+        }
+      } else if (boardResult.error) {
+        this.issueBoardContent = this.selectedIssueBoardId === undefined || !this.connectedScopeKey()
+          ? undefined
+          : { boardId: this.selectedIssueBoardId, connectedScope: this.connectedScopeKey()!, issueIds: [], status: 'error', error: boardResult.error };
+      }
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
       if (this.currentUser && !this.selectedIssue) {
         const previous = this.context.globalState.get<{ projectId: number; issueIid: number }>(this.selectedIssueKey());
@@ -385,6 +419,38 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
+  private async selectIssueBoard(boardId: number, connectedScope: string): Promise<void> {
+    const group = this.session.selectedGroup;
+    const currentScope = this.connectedScopeKey();
+    if (!group || !currentScope || connectedScope !== currentScope || !Number.isSafeInteger(boardId) || boardId <= 0 ||
+      !this.groupIssueBoards.some((board) => board.id === boardId)) return;
+
+    this.selectedIssueBoardId = boardId;
+    const generation = ++this.issueBoardGeneration;
+    await this.loadIssueBoardContent(group.full_path, boardId, generation, currentScope);
+  }
+
+  private async loadIssueBoardContent(groupPath: string, boardId: number, generation: number, connectedScope?: string): Promise<void> {
+    if (!connectedScope) return;
+    const matchesCurrentSelection = (): boolean => !this.disposed && generation === this.issueBoardGeneration &&
+      connectedScope === this.connectedScopeKey() && this.session.selectedGroup?.full_path === groupPath &&
+      this.selectedIssueBoardId === boardId;
+
+    if (!matchesCurrentSelection()) return;
+    this.issueBoardContent = { boardId, connectedScope, issueIds: [], status: 'loading' };
+    this.sendSnapshot();
+    try {
+      const client = await this.session.getClient();
+      const issueIds = await client.listAssignedGroupBoardIssueIds(groupPath, boardId, this.currentUser?.username ?? '');
+      if (!matchesCurrentSelection()) return;
+      this.issueBoardContent = { boardId, connectedScope, issueIds, status: 'ready' };
+    } catch (error) {
+      if (!matchesCurrentSelection()) return;
+      this.issueBoardContent = { boardId, connectedScope, issueIds: [], status: 'error', error: readableError(error) };
+    }
+    this.sendSnapshot();
+  }
+
   private sendSnapshot(): void {
     if (!this.panel || this.disposed) return;
     const group = this.session.selectedGroup;
@@ -412,6 +478,9 @@ export class WorkspacePanel implements vscode.Disposable {
       projects: this.projects,
       groupMilestones: this.groupMilestones,
       groupMilestonesError: this.groupMilestonesError,
+      groupIssueBoards: this.groupIssueBoards,
+      groupIssueBoardsError: this.groupIssueBoardsError,
+      issueBoardContent: this.issueBoardContent?.connectedScope === this.connectedScopeKey() ? this.issueBoardContent : undefined,
       localRepositories,
       issues: this.issues,
       mergeRequests: this.mergeRequests,
@@ -473,9 +542,12 @@ export class WorkspacePanel implements vscode.Disposable {
     const confirm = await vscode.window.showWarningMessage('中斷 GitLab 連線？本機 Repo、草稿及計時紀錄會保留。', { modal: true }, '中斷連線');
     if (confirm !== '中斷連線') return;
     this.issueOpenGeneration++;
+    this.issueBoardGeneration++;
     this.issuePanels.close();
     await this.session.disconnect();
     this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
+    this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
+    this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
     this.currentUser = undefined; this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
     this.sendSnapshot();
     await this.syncSidebarState?.();

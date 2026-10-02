@@ -14,6 +14,13 @@ export interface GitLabGroup {
   web_url: string;
 }
 
+export interface GitLabIssueBoard {
+  id: number;
+  name: string;
+  hide_backlog_list?: boolean;
+  hide_closed_list?: boolean;
+}
+
 export interface GitLabProject {
   id: number;
   name: string;

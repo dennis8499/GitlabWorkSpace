@@ -33,6 +33,12 @@ function snapshot(activeMode = 'developer') {
       { id: 22, group_id: 3, title: 'Duplicate name', state: 'active' },
       { id: 23, group_id: 8, title: 'Duplicate name', state: 'closed' }
     ],
+    groupIssueBoards: [
+      { id: 31, name: 'Delivery', hide_backlog_list: false, hide_closed_list: false },
+      { id: 32, name: 'Triage', hide_backlog_list: true, hide_closed_list: false },
+      { id: 33, name: 'Triage', hide_backlog_list: false, hide_closed_list: true }
+    ],
+    issueBoardContent: { boardId: 31, connectedScope: 'team-scope', issueIds: [101, 102, 103], status: 'ready' },
     localRepositories: {},
     issues: [
       { id: 101, iid: 1, project_id: 1, title: 'Alpha milestone issue', state: 'opened', web_url: 'https://gitlab.example.test/team/alpha/-/issues/1', labels: ['bug'], milestone: { id: 22, title: 'Duplicate name' } },
@@ -193,7 +199,98 @@ test('keeps Wiki guide inputs separate for each selected Group', async (t) => {
   assert.equal(view.savedState.wikiGuideInputsByScope['another-group-scope']['query.question'], 'Team B 的問題');
 });
 
-test('filters assigned Issues by unassigned and Group Milestone IDs while retaining unmatched and duplicate-title options', async (t) => {
+test('filters by the selected Issue Board, saves its ID, and hides previous Board content during a switch', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const boardFilter = document.querySelector('select[aria-label="Issue Board"]');
+  assert.ok(boardFilter);
+  assert.equal(boardFilter.value, '31');
+  assert.deepEqual([...boardFilter.options].map((option) => option.textContent), [
+    '選擇 Issue Board', 'Delivery', 'Triage (#32)', 'Triage (#33)'
+  ]);
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
+
+  boardFilter.value = '32';
+  boardFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  const selection = view.requests.filter((request) => request.type === 'selectIssueBoard').at(-1);
+  assert.equal(selection?.type, 'selectIssueBoard');
+  assert.equal(selection?.boardId, 32);
+  assert.equal(selection?.connectedScope, 'team-scope');
+  assert.equal(document.querySelectorAll('.work-row').length, 0);
+  assert.equal(document.querySelector('.work-list .empty-inline strong').textContent, '正在載入 Board 內容');
+
+  const stale = snapshot();
+  stale.issueBoardContent = { boardId: 31, connectedScope: 'team-scope', issueIds: [101], status: 'ready' };
+  view.sendSnapshot(stale);
+  await view.tick();
+  assert.equal(document.querySelectorAll('.work-row').length, 0);
+
+  const loaded = snapshot();
+  loaded.issueBoardContent = { boardId: 32, connectedScope: 'team-scope', issueIds: [102], status: 'ready' };
+  view.sendSnapshot(loaded);
+  await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta milestone issue']);
+  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
+});
+
+test('restores the first Board after a saved Board is removed and shows Board API failures without stale Issues', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+
+  const deleted = snapshot();
+  deleted.groupIssueBoards = deleted.groupIssueBoards.filter((board) => board.id !== 31);
+  view.sendSnapshot(deleted);
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '32', `scope=${view.savedState.scopeKey}; saved=${JSON.stringify(view.savedState.scopedData?.['team-scope']?.issueBoardId)}; options=${JSON.stringify([...document.querySelectorAll('select[aria-label="Issue Board"] option')].map((option) => option.value))}`);
+  assert.equal(document.querySelectorAll('.work-row').length, 0);
+  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
+
+  const failed = snapshot();
+  failed.groupIssueBoards = [];
+  failed.groupIssueBoardsError = 'Board API unavailable';
+  failed.issueBoardContent = undefined;
+  view.sendSnapshot(failed);
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, true);
+  assert.match(document.querySelector('.work-list .empty-inline').textContent, /Board API unavailable/);
+  assert.equal(document.querySelectorAll('.work-row').length, 0);
+
+  const noBoards = snapshot();
+  noBoards.groupIssueBoards = [];
+  noBoards.issueBoardContent = undefined;
+  view.sendSnapshot(noBoards);
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, true);
+  assert.match(document.querySelector('.work-list .empty-inline').textContent, /此 Group 沒有可用的 Issue Board/);
+});
+
+test('does not display Issue IDs returned for another Group or connected account', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+
+  const changedScope = snapshot();
+  changedScope.connectedScope = 'another-scope';
+  view.sendSnapshot(changedScope);
+  await view.tick();
+  assert.equal(document.querySelectorAll('.work-row').length, 0);
+  const selection = view.requests.filter((request) => request.type === 'selectIssueBoard').at(-1);
+  assert.equal(selection?.type, 'selectIssueBoard');
+  assert.equal(selection?.boardId, 31);
+  assert.equal(selection?.connectedScope, 'another-scope');
+
+  const loaded = snapshot();
+  loaded.connectedScope = 'another-scope';
+  loaded.issueBoardContent = { boardId: 31, connectedScope: 'another-scope', issueIds: [103], status: 'ready' };
+  view.sendSnapshot(loaded);
+  await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta unassigned issue']);
+});
+
+test('filters selected Board Issues by Repo and Group Milestone IDs while retaining unmatched and duplicate-title options', async (t) => {
   const view = await mount(undefined, snapshot());
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -206,7 +303,7 @@ test('filters assigned Issues by unassigned and Group Milestone IDs while retain
     'Duplicate name · team/child (#23)',
     'Unused release'
   ]);
-  assert.equal(document.querySelectorAll('.work-row').length, 2);
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
 
   milestoneFilter.value = '22';
   milestoneFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
@@ -220,9 +317,6 @@ test('filters assigned Issues by unassigned and Group Milestone IDs while retain
   assert.equal(document.querySelectorAll('.work-row').length, 0);
   assert.equal(document.querySelector('.work-list .empty-inline strong').textContent, '沒有符合篩選條件的 Issue');
 
-  const stateFilter = document.querySelector('select[aria-label="Issue 狀態"]');
-  stateFilter.value = 'all';
-  stateFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   const projectFilter = document.querySelector('select[aria-label="Issue 專案"]');
   projectFilter.value = 'all';
   projectFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
@@ -259,7 +353,7 @@ test('restores a Group-scoped Milestone filter and resets it after the selected 
   await view.tick();
   assert.equal(view.dom.window.document.querySelector('select[aria-label="Issue Milestone"]').value, 'all', `saved=${JSON.stringify(view.savedState?.scopedData?.['team-scope']?.issueMilestoneFilter)}`);
   assert.equal(view.savedState.scopedData['team-scope'].issueMilestoneFilter, 'all');
-  assert.equal(view.dom.window.document.querySelectorAll('.work-row').length, 2);
+  assert.equal(view.dom.window.document.querySelectorAll('.work-row').length, 3);
 
 });
 

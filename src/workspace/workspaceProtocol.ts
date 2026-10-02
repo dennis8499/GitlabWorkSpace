@@ -1,4 +1,4 @@
-import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
 
@@ -114,6 +114,15 @@ export interface WorkspaceSnapshot {
   projects: GitLabProject[];
   groupMilestones: GitLabMilestone[];
   groupMilestonesError?: string;
+  groupIssueBoards: GitLabIssueBoard[];
+  groupIssueBoardsError?: string;
+  issueBoardContent?: {
+    boardId: number;
+    connectedScope: string;
+    issueIds: number[];
+    status: 'loading' | 'ready' | 'error';
+    error?: string;
+  };
   localRepositories: Record<number, LocalRepositoryState>;
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
@@ -158,6 +167,7 @@ export type WorkspaceRequest =
   | { type: 'connect' }
   | { type: 'disconnect' }
   | { type: 'selectGroup'; groupId?: number }
+  | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
   | { type: 'selectWorkspace' }
   | { type: 'openLocalWorkspace' }
   | { type: 'openCodexTerminal' }

@@ -47,6 +47,78 @@ test('includes subgroup projects and filters assigned group issues to those proj
   assert.deepEqual(issues.map((issue) => issue.iid), [1]);
 });
 
+test('paginates Group Issue Boards and retains their names and hidden-list settings', async () => {
+  const requested: URL[] = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (input) => {
+    const url = new URL(String(input));
+    requested.push(url);
+    if (url.searchParams.get('page') === '2') {
+      return new Response(JSON.stringify([{ id: 9, name: 'Support', hide_closed_list: true }]));
+    }
+    return new Response(JSON.stringify([{ id: 4, name: 'Delivery', hide_backlog_list: true }]), {
+      headers: { Link: '<https://gitlab.example.test/api/v4/groups/3/boards?per_page=100&page=2>; rel="next"' }
+    });
+  });
+
+  const boards = await client.listGroupIssueBoards(3);
+  assert.deepEqual(boards, [
+    { id: 4, name: 'Delivery', hide_backlog_list: true },
+    { id: 9, name: 'Support', hide_closed_list: true }
+  ]);
+  assert.equal(requested.length, 2);
+  assert.equal(requested[0].pathname, '/api/v4/groups/3/boards');
+  assert.equal(requested[0].searchParams.get('per_page'), '100');
+});
+
+test('loads assigned Issues from every visible Group Board list with pagination and deduplicates list membership', async () => {
+  const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const client = new GitLabClient('https://gitlab.example.test/gitlab', token, async (input, init) => {
+    assert.equal(new URL(String(input)).pathname, '/gitlab/api/graphql');
+    const body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    calls.push(body);
+
+    if (body.query.includes('AssignedGroupIssueBoardLists')) {
+      if (body.variables.after === 'board-cursor') {
+        return new Response(JSON.stringify({ data: { group: { board: {
+          hideBacklogList: true, hideClosedList: true,
+          lists: { nodes: [{ id: 'gid://gitlab/List/13', listType: 'label' }], pageInfo: { hasNextPage: false, endCursor: null } }
+        } } } }));
+      }
+      return new Response(JSON.stringify({ data: { group: { board: {
+        hideBacklogList: true, hideClosedList: true,
+        lists: { nodes: [
+          { id: 'gid://gitlab/List/10', listType: 'backlog' },
+          { id: 'gid://gitlab/List/11', listType: 'closed' },
+          { id: 'gid://gitlab/List/12', listType: 'label' }
+        ], pageInfo: { hasNextPage: true, endCursor: 'board-cursor' } }
+      } } } }));
+    }
+
+    const listId = body.variables.listId;
+    const after = body.variables.after;
+    const issues = listId === 'gid://gitlab/List/12'
+      ? after === 'issue-cursor' ? [{ id: 'gid://gitlab/Issue/102' }, { id: 'gid://gitlab/Issue/104' }] : [{ id: 'gid://gitlab/Issue/101' }, { id: 'gid://gitlab/Issue/102' }]
+      : [{ id: 'gid://gitlab/Issue/103' }, { id: 'gid://gitlab/Issue/101' }];
+    return new Response(JSON.stringify({ data: { boardList: { issues: {
+      nodes: issues,
+      pageInfo: { hasNextPage: listId === 'gid://gitlab/List/12' && !after, endCursor: listId === 'gid://gitlab/List/12' && !after ? 'issue-cursor' : null }
+    } } } }));
+  });
+
+  const issueIds = await client.listAssignedGroupBoardIssueIds('parent/child', 25, 'test-user');
+  assert.deepEqual(issueIds, [101, 102, 104, 103]);
+  const boardCalls = calls.filter((call) => call.query.includes('AssignedGroupIssueBoardLists'));
+  assert.equal(boardCalls.length, 2);
+  assert.equal(boardCalls[0].variables.groupPath, 'parent/child');
+  assert.equal(boardCalls[0].variables.boardId, 'gid://gitlab/Board/25');
+  const issueCalls = calls.filter((call) => call.query.includes('AssignedGroupIssueBoardListIssues'));
+  assert.deepEqual(issueCalls.map((call) => call.variables.listId), [
+    'gid://gitlab/List/12', 'gid://gitlab/List/12', 'gid://gitlab/List/13'
+  ]);
+  assert.ok(issueCalls.every((call) => (call.variables.username as string[] | undefined)?.[0] === 'test-user'));
+  assert.ok(issueCalls.every((call) => call.query.includes('assigneeUsername')));
+});
+
 test('retains empty repository metadata from the project details API', async () => {
   const requested: string[] = [];
   const client = new GitLabClient('https://gitlab.example.test', token, async (input) => {

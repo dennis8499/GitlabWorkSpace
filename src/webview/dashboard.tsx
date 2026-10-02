@@ -24,7 +24,7 @@ interface SavedState {
   selectedProjectIds: number[];
   appliedCloneOperationIds?: string[];
   analysisProjectIds?: number[];
-  issueStateFilter: 'opened' | 'closed' | 'all';
+  issueBoardId?: number;
   issueDetailSearch?: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
@@ -60,7 +60,7 @@ interface ScopedSavedState {
   selectedIds: Partial<Record<WorkspaceMode, number>>;
   selectedProjectIds: number[];
   analysisProjectIds: number[];
-  issueStateFilter: 'opened' | 'closed' | 'all';
+  issueBoardId?: number;
   issueDetailSearch: string;
   issueProjectFilter: string;
   issueLabelFilter: string;
@@ -102,11 +102,11 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
 ];
 const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
 const emptySaved = (): SavedState => ({
-  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueStateFilter: 'opened', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
+  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
   draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'gitea', selectedPackageIds: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
-  filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueStateFilter: 'opened',
+  filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [],
   issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
   requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {}, deliveryForms: {},
   manualTimes: {}, timeEdits: {}
@@ -154,7 +154,11 @@ function App() {
   const [appliedCloneOperationIds, setAppliedCloneOperationIds] = useState<string[]>(initial?.appliedCloneOperationIds ?? []);
   const appliedCloneOperationIdsRef = useRef(new Set(initial?.appliedCloneOperationIds ?? []));
   const [analysisProjectIds, setAnalysisProjectIds] = useState<number[]>(initial?.analysisProjectIds ?? initial?.selectedProjectIds ?? []);
-  const [issueStateFilter, setIssueStateFilter] = useState<'opened' | 'closed' | 'all'>(initial?.issueStateFilter ?? 'opened');
+  const [issueBoardId, setIssueBoardId] = useState<number | undefined>(() => initial?.scopeKey
+    ? initial.scopedData?.[initial.scopeKey]?.issueBoardId ?? initial.issueBoardId
+    : initial?.issueBoardId);
+  const issueBoardIdRef = useRef(issueBoardId);
+  issueBoardIdRef.current = issueBoardId;
   const [issueProjectFilter, setIssueProjectFilter] = useState(initial?.issueProjectFilter ?? 'all');
   const [issueLabelFilter, setIssueLabelFilter] = useState(initial?.issueLabelFilter ?? 'all');
   const [issueMilestoneFilter, setIssueMilestoneFilter] = useState(initial?.scopeKey
@@ -189,6 +193,7 @@ function App() {
   const [moreRepoActions, setMoreRepoActions] = useState(false);
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
+  const issueBoardSelectionRef = useRef<string>();
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
   const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
@@ -201,7 +206,7 @@ function App() {
   wikiGuideInputsRef.current = wikiGuideInputs;
 
   const scopedState: ScopedSavedState = {
-    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
+    filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
     reviewFilter, analysisIntent: intent, requirement, importText, importedBundle: bundle, draftChecked, draftChoices, reports,
     deliveryForms, manualTimes, recoveredManualTime, timeEdits
   };
@@ -237,8 +242,13 @@ function App() {
           const value = saved ?? defaults;
           scopeRef.current = nextScope;
           const availableIds = message.snapshot.projects.map((project) => project.id);
+          const preferredBoardId = value.issueBoardId;
+          const boardId = message.snapshot.groupIssueBoardsError
+            ? preferredBoardId
+            : message.snapshot.groupIssueBoards.find((item) => item.id === preferredBoardId)?.id ?? message.snapshot.groupIssueBoards[0]?.id;
+          issueBoardIdRef.current = boardId;
           setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(reconcileProjectSelection(value.selectedProjectIds, availableIds));
-          setAnalysisProjectIds(value.analysisProjectIds); setIssueStateFilter(value.issueStateFilter);
+          setAnalysisProjectIds(value.analysisProjectIds); setIssueBoardId(boardId);
           setIssueDetailSearch(value.issueDetailSearch ?? initial?.issueDetailSearch ?? '');
           setIssueProjectFilter(value.issueProjectFilter); setIssueLabelFilter(value.issueLabelFilter);
           setIssueMilestoneFilter(value.issueMilestoneFilter ?? 'all');
@@ -254,6 +264,14 @@ function App() {
         } else if (nextScope && nextScope === scopeRef.current) {
           const availableIds = message.snapshot.projects.map((project) => project.id);
           setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
+          if (!message.snapshot.groupIssueBoardsError) {
+            const selectedBoardId = issueBoardIdRef.current;
+            const boardId = message.snapshot.groupIssueBoards.find((item) => item.id === selectedBoardId)?.id ?? message.snapshot.groupIssueBoards[0]?.id;
+            if (boardId !== selectedBoardId) {
+              issueBoardIdRef.current = boardId;
+              setIssueBoardId(boardId);
+            }
+          }
         }
         if (!message.snapshot.groupMilestonesError) {
           const availableMilestoneIds = new Set((message.snapshot.groupMilestones ?? []).map((milestone) => milestone.id));
@@ -313,18 +331,46 @@ function App() {
     return () => { window.removeEventListener('message', receive); window.removeEventListener('workspaceIssueRequest', forwardIssueRequest); };
   }, []);
 
+  const groupIssueBoardIdsKey = (snapshot?.groupIssueBoards ?? []).map((board) => board.id).join(',');
+  useEffect(() => {
+    const connectedScope = snapshot?.connectedScope;
+    if (!connectedScope) {
+      issueBoardSelectionRef.current = undefined;
+      return;
+    }
+    if (snapshot?.groupIssueBoardsError) return;
+
+    const boards = snapshot?.groupIssueBoards ?? [];
+    const availableSelection = boards.some((board) => board.id === issueBoardId)
+      ? issueBoardId
+      : boards[0]?.id;
+    if (availableSelection !== issueBoardId) {
+      setIssueBoardId(availableSelection);
+      return;
+    }
+    if (availableSelection === undefined) {
+      issueBoardSelectionRef.current = `${connectedScope}:none`;
+      return;
+    }
+
+    const selectionKey = `${connectedScope}:${availableSelection}`;
+    if (issueBoardSelectionRef.current === selectionKey) return;
+    issueBoardSelectionRef.current = selectionKey;
+    post({ type: 'selectIssueBoard', boardId: availableSelection, connectedScope });
+  }, [snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, issueBoardId]);
+
   useEffect(() => {
     const state: SavedState = {
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
-      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
+      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
       selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -365,6 +411,18 @@ function App() {
   const pendingTime = snapshot?.timers.filter((entry) => !['running', 'paused', 'posted'].includes(entry.phase)) ?? [];
   const activeTimer = snapshot?.timers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
   const issueLabels = [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b));
+  const issueBoards = snapshot?.groupIssueBoards ?? [];
+  const issueBoardNameCounts = new Map<string, number>();
+  for (const board of issueBoards) issueBoardNameCounts.set(board.name, (issueBoardNameCounts.get(board.name) ?? 0) + 1);
+  const selectedIssueBoard = issueBoards.find((board) => board.id === issueBoardId);
+  const snapshotIssueBoardContent = snapshot?.issueBoardContent;
+  const issueBoardContent = snapshotIssueBoardContent?.connectedScope === snapshot?.connectedScope && snapshotIssueBoardContent?.boardId === issueBoardId
+    ? snapshotIssueBoardContent
+    : undefined;
+  const issueBoardContentReady = issueBoardContent?.status === 'ready' && !snapshot?.groupIssueBoardsError;
+  const issueBoardContentError = snapshot?.groupIssueBoardsError ?? (issueBoardContent?.status === 'error' ? issueBoardContent.error : undefined);
+  const issueBoardContentLoading = !!selectedIssueBoard && !issueBoardContentReady && !issueBoardContentError;
+  const issueBoardIssueIds = new Set(issueBoardContentReady ? issueBoardContent.issueIds : []);
   const issueMilestones = [...(snapshot?.groupMilestones ?? [])].sort((a, b) => a.title.localeCompare(b.title) || (a.group_id ?? 0) - (b.group_id ?? 0) || a.id - b.id);
   const milestoneTitleCounts = new Map<string, number>();
   for (const milestone of issueMilestones) milestoneTitleCounts.set(milestone.title, (milestoneTitleCounts.get(milestone.title) ?? 0) + 1);
@@ -374,7 +432,7 @@ function App() {
     const owner = milestone.group_id === undefined ? undefined : groupsById.get(milestone.group_id)?.full_path ?? `Group #${milestone.group_id}`;
     return `${milestone.title} · ${owner ?? 'Group Milestone'} (#${milestone.id})`;
   };
-  const visibleIssues = issues.filter((issue) => (issueStateFilter === 'all' || issue.state === issueStateFilter) &&
+  const visibleIssues = issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) &&
     (issueProjectFilter === 'all' || String(issue.project_id) === issueProjectFilter) &&
     (issueLabelFilter === 'all' || (issue.labels ?? []).includes(issueLabelFilter)) &&
     (issueMilestoneFilter === 'all' || (issueMilestoneFilter === 'none' ? !issue.milestone : String(issue.milestone?.id ?? '') === issueMilestoneFilter)) &&
@@ -522,8 +580,29 @@ function App() {
               </div></div>
             : mode === 'sa' ? <CodebaseWikiGuide inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class="mode-content">
-              <div class="list-column"><div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select><select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select></div>{snapshot.groupMilestonesError && <p class="warning" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}<div class="toolbar list-count"><span>指派給我的 Issue</span><span class="count">{visibleIssues.length}</span></div>
-                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}{!visibleIssues.length && <div class="empty-inline"><strong>{snapshot.error ? 'Issue 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '目前沒有指派給你的未結案 Issue'}</strong><p>{snapshot.error ?? (hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '建立議題或切換篩選條件以檢視其他工作。')}</p></div>}</div>
+              <div class="list-column">
+                <div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div>
+                <div class="filter-row">
+                  <select aria-label="Issue Board" value={issueBoardId ?? ''} disabled={busy || !!snapshot.groupIssueBoardsError || !issueBoards.length} onChange={(event) => {
+                    const boardId = Number(event.currentTarget.value);
+                    if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) setIssueBoardId(boardId);
+                  }}>
+                    <option value="">{snapshot.groupIssueBoardsError ? 'Issue Board 載入失敗' : issueBoards.length ? '選擇 Issue Board' : '此 Group 沒有 Issue Board'}</option>
+                    {issueBoards.map((board) => <option key={board.id} value={board.id}>{board.name}{(issueBoardNameCounts.get(board.name) ?? 0) > 1 ? ` (#${board.id})` : ''}</option>)}
+                  </select>
+                  <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
+                  <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
+                  <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select>
+                </div>
+                {snapshot.groupMilestonesError && <p class="warning" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}
+                <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
+                <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}
+                  {!visibleIssues.length && <div class="empty-inline" role={issueBoardContentError ? 'alert' : 'status'}>
+                    <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardContentError ? 'Issue Board 載入失敗' : !issueBoards.length ? '此 Group 沒有可用的 Issue Board' : issueBoardContentLoading ? '正在載入 Board 內容' : !issueBoardContentReady ? '選擇 Issue Board 以載入內容' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
+                    <p>{snapshot.error ?? (issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
+                    {issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
+                  </div>}
+                </div>
               </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
                 <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
                 <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>

@@ -2,7 +2,7 @@ import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
 import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
-  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser,
+  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser, GitLabIssueBoard,
   GitLabCommitSummary, GitLabCompareResult, GitLabMergeRequest, GitLabMergeRequestDiff
 } from './types';
 
@@ -138,6 +138,96 @@ export class GitLabClient {
       `groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=all&per_page=100`
     );
     return issues.filter((issue) => projectIds.has(issue.project_id));
+  }
+
+  listGroupIssueBoards(groupId: number): Promise<GitLabIssueBoard[]> {
+    return this.getPages<GitLabIssueBoard>(`groups/${encodeURIComponent(String(groupId))}/boards?per_page=100`);
+  }
+
+  async listAssignedGroupBoardIssueIds(groupPath: string, boardId: number, username: string): Promise<number[]> {
+    if (!groupPath.trim() || groupPath.length > 255 || !username.trim() || username.length > 255 || !Number.isSafeInteger(boardId) || boardId <= 0) {
+      throw new GitLabApiError('A valid Group, Issue Board, and username are required.');
+    }
+
+    type BoardListPage = {
+      group?: {
+        board?: {
+          hideBacklogList: boolean;
+          hideClosedList: boolean;
+          lists?: {
+            nodes?: Array<{ id: string; listType: string }>;
+            pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+          };
+        } | null;
+      } | null;
+    };
+    type BoardIssuePage = {
+      boardList?: {
+        issues?: {
+          nodes?: Array<{ id: string }>;
+          pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+        } | null;
+      } | null;
+    };
+
+    const lists: Array<{ id: string; listType: string }> = [];
+    const seenListCursors = new Set<string>();
+    let after: string | null = null;
+    let boardFound = false;
+    let hideBacklogList = false;
+    let hideClosedList = false;
+
+    do {
+      const page: BoardListPage = await this.graphql<BoardListPage>(
+        'query AssignedGroupIssueBoardLists($groupPath: ID!, $boardId: BoardID!, $after: String) { group(fullPath: $groupPath) { board(id: $boardId) { hideBacklogList hideClosedList lists(first: 100, after: $after) { nodes { id listType } pageInfo { hasNextPage endCursor } } } } }',
+        { groupPath, boardId: `gid://gitlab/Board/${boardId}`, after }
+      );
+      const board = page.group?.board;
+      if (!board?.lists) throw new GitLabApiError('GitLab Issue Board was not found or its lists could not be loaded.');
+      boardFound = true;
+      hideBacklogList = board.hideBacklogList;
+      hideClosedList = board.hideClosedList;
+      lists.push(...(board.lists.nodes ?? []));
+      const pageInfo = board.lists.pageInfo;
+      after = pageInfo?.hasNextPage ? pageInfo.endCursor ?? null : null;
+      if (pageInfo?.hasNextPage && (!after || seenListCursors.has(after))) {
+        throw new GitLabApiError('GitLab returned incomplete or repeated Issue Board pagination data.');
+      }
+      if (after) seenListCursors.add(after);
+    } while (after);
+
+    if (!boardFound) throw new GitLabApiError('GitLab Issue Board could not be loaded.');
+
+    const issueIds = new Set<number>();
+    for (const list of lists) {
+      const listType = list.listType.toLocaleLowerCase();
+      if ((hideBacklogList && listType === 'backlog') || (hideClosedList && listType === 'closed')) continue;
+      if (!list.id) throw new GitLabApiError('GitLab returned an invalid Issue Board list.');
+
+      const seenIssueCursors = new Set<string>();
+      let issueAfter: string | null = null;
+      do {
+        const page: BoardIssuePage = await this.graphql<BoardIssuePage>(
+          'query AssignedGroupIssueBoardListIssues($listId: ListID!, $username: [String!], $after: String) { boardList(id: $listId) { issues(first: 100, after: $after, filters: { assigneeUsername: $username }) { nodes { id } pageInfo { hasNextPage endCursor } } } }',
+          { listId: list.id, username: [username], after: issueAfter }
+        );
+        const issues = page.boardList?.issues;
+        if (!issues) throw new GitLabApiError('GitLab could not load the selected Issue Board list.');
+        for (const issue of issues.nodes ?? []) {
+          const match = issue.id.match(/^gid:\/\/gitlab\/Issue\/(\d+)$/);
+          const id = match ? Number(match[1]) : NaN;
+          if (Number.isSafeInteger(id) && id > 0) issueIds.add(id);
+        }
+        const pageInfo = issues.pageInfo;
+        issueAfter = pageInfo?.hasNextPage ? pageInfo.endCursor ?? null : null;
+        if (pageInfo?.hasNextPage && (!issueAfter || seenIssueCursors.has(issueAfter))) {
+          throw new GitLabApiError('GitLab returned incomplete or repeated Issue Board issue pagination data.');
+        }
+        if (issueAfter) seenIssueCursors.add(issueAfter);
+      } while (issueAfter);
+    }
+
+    return [...issueIds];
   }
 
   listGroupMilestones(groupId: number): Promise<GitLabMilestone[]> {
