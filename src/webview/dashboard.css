@@ -109,7 +109,7 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .clone-action-hint { min-height: 0; margin: 0; color: var(--muted); font-size: 11px; }
 .operation-result { display: flex; justify-content: space-between; gap: 9px; padding: 5px 0; font-size: 11px; }
 .operation-result > span:first-child { min-width: 0; overflow-wrap: anywhere; }
-.operation-state { color: var(--muted); }
+.operation-state { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--muted); }
 .operation-state.failed, .operation-state.unsafe { color: var(--danger); }
 .operation-state.success, .operation-state.completed, .operation-state.updated { color: var(--success); }
 .primary, .secondary, .quiet { min-height: 30px; border-radius: 5px; padding: 5px 10px; }

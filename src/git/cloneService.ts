@@ -183,11 +183,12 @@ export async function cloneProjects(
       }
       completed.push(plan.project);
       onProgress({ project: plan.project, action: plan.action, state: 'completed' });
-    } catch {
+    } catch (error) {
       failed = plan.project;
-      failureReason = plan.action === 'clone'
+      const fallback = plan.action === 'clone'
         ? 'Git could not complete this clone.'
         : 'Git could not update this repository.';
+      failureReason = formatGitFailure(error, fallback, token);
       onProgress({ project: plan.project, action: plan.action, state: 'failed', message: failureReason });
       // Existing repositories are never removed after an update failure.
       if (plan.action === 'clone' && ownedCloneDirectory) {
@@ -247,7 +248,7 @@ export async function syncLocalDefaultBranches(
 
     let prepared: ClonePlan;
     try {
-      prepared = (await preflightExistingPlans([plan], workspacePath, gitLabBaseUrl, resolveProject, false))[0];
+      prepared = (await preflightExistingPlans([plan], workspacePath, gitLabBaseUrl, resolveProject, false, true))[0];
     } catch (error) {
       const reason = error instanceof Error
         ? error.message.replace(/ No repositories were changed\.$/, '')
@@ -265,6 +266,13 @@ export async function syncLocalDefaultBranches(
       continue;
     }
     handledPaths.add(foldedPath);
+
+    if (prepared.project.empty_repo === true) {
+      const reason = 'GitLab 遠端 Repo 尚無任何提交，請先初始化遠端預設分支。';
+      result.skipped.push({ project: prepared.project, reason });
+      onProgress({ project: prepared.project, state: 'skipped', message: reason });
+      continue;
+    }
 
     if (prepared.skipReason) {
       result.skipped.push({ project: prepared.project, reason: prepared.skipReason });
@@ -286,8 +294,8 @@ export async function syncLocalDefaultBranches(
         result.upToDate.push(prepared.project);
         onProgress({ project: prepared.project, state: 'up-to-date' });
       }
-    } catch {
-      const reason = 'Git could not synchronize this repository.';
+    } catch (error) {
+      const reason = formatGitFailure(error, 'Git could not synchronize this repository.', token);
       result.failed.push({ project: prepared.project, reason });
       onProgress({ project: prepared.project, state: 'failed', message: reason });
     }
@@ -301,7 +309,8 @@ async function preflightExistingPlans(
   workspacePath: string,
   gitLabBaseUrl: string,
   resolveProject: ProjectResolver,
-  includeBatchContext = true
+  includeBatchContext = true,
+  refreshProjectDetails = false
 ): Promise<ClonePlan[]> {
   const inspected: Array<{ plan: ClonePlan; originUrl?: string }> = [];
   for (const plan of plans) {
@@ -321,7 +330,7 @@ async function preflightExistingPlans(
     }
     const needsSshUrl = isSshCloneUrl(originUrl) && !plan.project.ssh_url_to_repo;
     let project = plan.project;
-    if (!project.default_branch || needsSshUrl) {
+    if (refreshProjectDetails || !project.default_branch || needsSshUrl) {
       project = { ...project, ...(await resolveProject(project)) };
     }
     if (!isAllowedGitRemote(gitLabBaseUrl, project.http_url_to_repo)) {
@@ -523,9 +532,10 @@ function runGitClone(plan: ClonePlan, baseUrl: string, token: string, onPercent:
     ['clone', '--progress', '--', plan.project.http_url_to_repo, plan.targetPath],
     path.dirname(plan.targetPath),
     env,
-    onPercent
-  ).then((code) => {
-    if (code !== 0) throw new Error('Git clone failed.');
+    onPercent,
+    'clone'
+  ).then((result) => {
+    if (result.code !== 0) throw new GitCommandFailure('clone', result);
   });
 }
 
@@ -561,30 +571,32 @@ async function runGitUpdate(
     ['fetch', '--no-tags', '--no-recurse-submodules', '--progress', plan.project.http_url_to_repo, refspec],
     plan.targetPath,
     env,
-    onPercent
+    onPercent,
+    'fetch'
   );
-  if (fetchCode !== 0) throw new Error('Git fetch failed.');
+  if (fetchCode.code !== 0) throw new GitCommandFailure('fetch', fetchCode);
 
   const remoteCommit = await readRef(plan.targetPath, remoteRef);
-  if (!remoteCommit) throw new Error('Git did not provide the configured default branch.');
+  if (!remoteCommit) {
+    throw new GitCommandFailure('fetch', { code: -1, stderr: 'Git did not provide the configured default branch.' });
+  }
   const localCommit = await readRef(plan.targetPath, localRef);
-  if (!localCommit) {
-    if (options.requireCurrentDefault) {
-      return { state: 'skipped', reason: 'The local GitLab default branch has no commit to update.' };
-    }
+  if (!localCommit && !options.requireCurrentDefault) {
     const switchCode = await runGitProcess(
       ['switch', '--no-guess', '--no-overwrite-ignore', '--track', '-c', branch, remoteRef],
       plan.targetPath,
-      process.env
+      process.env,
+      undefined,
+      'switch'
     );
-    if (switchCode !== 0) {
-      return { state: 'skipped', reason: 'Could not switch to the default branch safely.' };
+    if (switchCode.code !== 0) {
+      return { state: 'skipped', reason: formatGitFailure(new GitCommandFailure('switch', switchCode), 'Could not switch to the default branch safely.', token) };
     }
     return { state: 'updated' };
   }
 
-  let shouldFastForward = false;
-  if (localCommit !== remoteCommit) {
+  let shouldFastForward = !localCommit;
+  if (localCommit && localCommit !== remoteCommit) {
     const localIsAncestor = await isAncestor(plan.targetPath, localRef, remoteRef);
     if (localIsAncestor === true) {
       shouldFastForward = true;
@@ -616,19 +628,23 @@ async function runGitUpdate(
     const switchCode = await runGitProcess(
       ['switch', '--no-guess', '--no-overwrite-ignore', branch],
       plan.targetPath,
-      process.env
+      process.env,
+      undefined,
+      'switch'
     );
-    if (switchCode !== 0) {
-      return { state: 'skipped', reason: 'Could not switch to the default branch safely.' };
+    if (switchCode.code !== 0) {
+      return { state: 'skipped', reason: formatGitFailure(new GitCommandFailure('switch', switchCode), 'Could not switch to the default branch safely.', token) };
     }
   }
   if (shouldFastForward) {
     const mergeCode = await runGitProcess(
       ['merge', '--ff-only', '--no-edit', '--no-overwrite-ignore', remoteRef],
       plan.targetPath,
-      process.env
+      process.env,
+      undefined,
+      'merge'
     );
-    if (mergeCode !== 0) throw new Error('Git could not fast-forward the default branch.');
+    if (mergeCode.code !== 0) throw new GitCommandFailure('merge', mergeCode);
     return { state: 'updated' };
   }
   return { state: 'up-to-date' };
@@ -665,14 +681,55 @@ async function isAncestor(cwd: string, ancestor: string, descendant: string): Pr
   return undefined;
 }
 
+interface GitProcessResult {
+  code: number;
+  stderr: string;
+}
+
+class GitCommandFailure extends Error {
+  constructor(readonly command: 'clone' | 'fetch' | 'switch' | 'merge', readonly result: GitProcessResult) {
+    super('Git command failed.');
+    this.name = 'GitCommandFailure';
+  }
+}
+
+function formatGitFailure(error: unknown, fallback: string, token: string): string {
+  if (!(error instanceof GitCommandFailure)) return fallback;
+  const stderr = sanitizeGitDiagnostic(error.result.stderr, [token]);
+  return `${fallback} (git ${error.command}, exit ${error.result.code})${stderr ? `:\n${stderr}` : ''}`;
+}
+
+export function sanitizeGitDiagnostic(stderr: string, secrets: readonly string[] = []): string {
+  let text = stderr;
+  const redactions = secrets.flatMap((secret) => secret
+    ? [secret, `oauth2:${secret}`, `Basic ${Buffer.from(`oauth2:${secret}`, 'utf8').toString('base64')}`]
+    : []);
+  for (const secret of [...new Set(redactions)].sort((left, right) => right.length - left.length)) {
+    text = text.replaceAll(secret, '[REDACTED]');
+  }
+  text = text
+    .replace(/(\bhttps?:\/\/)[^\s/@]*@/gi, '$1[redacted]@')
+    .replace(/\b(authorization|private-token|job-token)\s*[:=]\s*[^\r\n]*/gi, '$1: [REDACTED]')
+    .replace(/\b(?:basic|bearer)\s+[A-Za-z0-9+/_=-]+/gi, '[REDACTED]')
+    .replace(/([?&](?:access_token|private_token|job_token|token|password)=)[^&#\s]*/gi, '$1[REDACTED]')
+    .replace(/\0/g, '');
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(-10);
+  return lines.join('\n').slice(0, 1600);
+}
+
 function runGitProcess(
   args: string[],
   cwd: string,
   env: NodeJS.ProcessEnv,
-  onPercent?: (percent: number) => void
-): Promise<number> {
+  onPercent?: (percent: number) => void,
+  operation: GitCommandFailure['command'] = 'fetch'
+): Promise<GitProcessResult> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let stderr = '';
     const child = spawn('git', args, {
       cwd,
       env,
@@ -681,22 +738,24 @@ function runGitProcess(
       stdio: ['ignore', 'ignore', 'pipe']
     });
     child.stderr?.on('data', (chunk: Buffer | string) => {
-      if (!onPercent) return;
       const text = String(chunk);
-      for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\\s*(\\d+)%/g)) {
-        onPercent(Number(match[1]));
+      if (stderr.length < 65536) stderr += text.slice(0, 65536 - stderr.length);
+      if (onPercent) {
+        for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\s*(\d+)%/g)) {
+          onPercent(Number(match[1]));
+        }
       }
     });
     child.once('error', () => {
       if (!settled) {
         settled = true;
-        reject(new Error('Unable to start Git.'));
+        reject(new GitCommandFailure(operation, { code: -1, stderr: 'Unable to start Git.' }));
       }
     });
     child.once('close', (code) => {
       if (settled) return;
       settled = true;
-      resolve(code ?? -1);
+      resolve({ code: code ?? -1, stderr });
     });
   });
 }

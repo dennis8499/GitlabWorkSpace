@@ -23,6 +23,7 @@ export interface GitLabProject {
   http_url_to_repo: string;
   ssh_url_to_repo?: string | null;
   default_branch?: string | null;
+  empty_repo?: boolean;
   namespace?: { full_path?: string; name?: string };
   permissions?: {
     project_access?: { access_level: number } | null;

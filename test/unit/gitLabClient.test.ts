@@ -47,6 +47,28 @@ test('includes subgroup projects and filters assigned group issues to those proj
   assert.deepEqual(issues.map((issue) => issue.iid), [1]);
 });
 
+test('retains empty repository metadata from the project details API', async () => {
+  const requested: string[] = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (input) => {
+    requested.push(String(input));
+    return new Response(JSON.stringify({
+      id: 20,
+      name: 'repo',
+      path: 'repo',
+      path_with_namespace: 'parent/repo',
+      web_url: 'https://gitlab.example.test/parent/repo',
+      http_url_to_repo: 'https://gitlab.example.test/parent/repo.git',
+      default_branch: null,
+      empty_repo: true
+    }));
+  });
+
+  const project = await client.getProject(20);
+  assert.equal(requested[0], 'https://gitlab.example.test/api/v4/projects/20');
+  assert.equal(project.default_branch, null);
+  assert.equal(project.empty_repo, true);
+});
+
 test('paginates group milestones and includes closed milestones from descendant groups', async () => {
   const requested: URL[] = [];
   const fetcher: FetchLike = async (input) => {

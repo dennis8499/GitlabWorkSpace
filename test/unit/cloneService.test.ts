@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +13,7 @@ import {
   createCloneEnvironmentForTest,
   planClones,
   projectRemoteMatches,
+  sanitizeGitDiagnostic,
   syncLocalDefaultBranches
 } from '../../src/git/cloneService';
 import { groupRepositoryPath } from '../../src/workspace/workspacePaths';
@@ -126,6 +128,48 @@ test('clones a repository and keeps credentials out of args and remote URL', asy
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test('shows sanitized Git diagnostics when a clone is rejected by the server', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-clone-auth-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  const server = createServer((_request, response) => {
+    response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="GitLab"' });
+    response.end('unauthorized ' + dummyToken);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const repo = {
+    ...project('clone-auth'),
+    http_url_to_repo: `${baseUrl}/group/clone-auth.git`
+  };
+
+  try {
+    const result = await cloneProjects(workspace, [repo], baseUrl, dummyToken);
+    assert.match(result.failureReason ?? '', /git clone, exit \d+/);
+    assert.match(result.failureReason ?? '', /could not read Username|Authentication failed/i);
+    assert.doesNotMatch(result.failureReason ?? '', /clone-unit-test-token-do-not-use|Authorization:|Basic [A-Za-z0-9+/=]+/i);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('sanitizes credentials and bounds Git diagnostic text', () => {
+  const authorization = Buffer.from('oauth2:' + dummyToken, 'utf8').toString('base64');
+  const diagnostic = sanitizeGitDiagnostic(
+    `fatal: denied for ${dummyToken}\nAuthorization: Basic ${authorization}\nhttps://user:password@gitlab.example.test/group/repo.git?private_token=query-secret`,
+    [dummyToken]
+  );
+  assert.doesNotMatch(diagnostic, /clone-unit-test-token-do-not-use|oauth2:|Authorization: Basic|user:password|query-secret/);
+  assert.match(diagnostic, /\[REDACTED\]/);
+  assert.equal(sanitizeGitDiagnostic('x'.repeat(2000)).length, 1600);
 });
 
 test('fast-forwards the GitLab default branch and switches from a feature branch', async () => {
@@ -472,6 +516,109 @@ test('syncs no repositories when the Group workspace contains no existing projec
   }
 });
 
+test('refreshes project metadata and skips a repository the remote reports as empty', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-empty-remote-'));
+  try {
+    const workspace = path.join(temp, 'workspace');
+    mkdirSync(workspace);
+    const bare = path.join(temp, 'empty.git');
+    execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=main', bare]);
+    const repo = project('empty-remote');
+    createExistingRepo(workspace, repo, bare);
+    let syncCalls = 0;
+    let reportedMessage = '';
+
+    const result = await syncLocalDefaultBranches(
+      workspace,
+      [repo],
+      'https://gitlab.example.test',
+      dummyToken,
+      (event) => { reportedMessage = event.message ?? reportedMessage; },
+      {
+        resolveProject: async (current) => ({ ...current, default_branch: null, empty_repo: true }),
+        syncRunner: async () => { syncCalls++; return { state: 'updated' }; }
+      }
+    );
+
+    assert.deepEqual(result.skipped.map(({ reason }) => reason), ['GitLab 遠端 Repo 尚無任何提交，請先初始化遠端預設分支。']);
+    assert.equal(result.failed.length, 0);
+    assert.equal(syncCalls, 0);
+    assert.equal(reportedMessage, 'GitLab 遠端 Repo 尚無任何提交，請先初始化遠端預設分支。');
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('surfaces the fetch error when project metadata reports a missing default branch', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-no-remote-branch-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  const bare = path.join(temp, 'empty.git');
+  execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=main', bare]);
+  const repo = project('missing-remote-branch');
+  createExistingRepo(workspace, repo, bare);
+  const restoreRewrite = addUrlRewrite(repo.http_url_to_repo, bare);
+  try {
+    const result = await syncLocalDefaultBranches(
+      workspace,
+      [repo],
+      'https://gitlab.example.test',
+      dummyToken,
+      () => undefined,
+      { resolveProject: async (current) => ({ ...current, empty_repo: false }) }
+    );
+    assert.equal(result.failed.length, 1);
+    assert.match(result.failed[0].reason, /git fetch, exit 128/);
+    assert.match(result.failed[0].reason, /couldn't find remote ref refs\/heads\/main/);
+    assert.doesNotMatch(result.failed[0].reason, /clone-unit-test-token-do-not-use|Authorization:/i);
+  } finally {
+    restoreRewrite();
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('fast-forwards the current unborn default branch after its first remote commit', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-unborn-'));
+  try {
+    const workspace = path.join(temp, 'workspace');
+    mkdirSync(workspace);
+    const bare = path.join(temp, 'empty.git');
+    execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=main', bare]);
+    const repo = project('unborn-default');
+    const target = createExistingRepo(workspace, repo, bare);
+    const source = path.join(temp, 'source');
+    execFileSync('git', ['init', '--quiet', '--initial-branch=main', source]);
+    git(['-C', source, 'config', 'user.email', 'test@example.invalid']);
+    git(['-C', source, 'config', 'user.name', 'Test User']);
+    git(['-C', source, 'remote', 'add', 'origin', bare]);
+    const restoreRewrite = addUrlRewrite(repo.http_url_to_repo, bare);
+    try {
+      writeFileSync(path.join(source, 'README.md'), 'first remote commit\n');
+      git(['-C', source, 'add', 'README.md']);
+      git(['-C', source, 'commit', '--quiet', '-m', 'initial remote commit']);
+      git(['-C', source, 'push', '--quiet', 'origin', 'main']);
+
+      const first = await syncLocalDefaultBranches(
+        workspace, [repo], 'https://gitlab.example.test', dummyToken, () => undefined,
+        { resolveProject: async (current) => ({ ...current, empty_repo: false }) }
+      );
+      assert.deepEqual(first.updated, [{ ...repo, empty_repo: false }]);
+      assert.equal(git(['-C', target, 'branch', '--show-current']), 'main');
+      assert.equal(readFileSync(path.join(target, 'README.md'), 'utf8').trim(), 'first remote commit');
+
+      const second = await syncLocalDefaultBranches(
+        workspace, [repo], 'https://gitlab.example.test', dummyToken, () => undefined,
+        { resolveProject: async (current) => ({ ...current, empty_repo: false }) }
+      );
+      assert.deepEqual(second.upToDate, [{ ...repo, empty_repo: false }]);
+    } finally {
+      restoreRewrite();
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test('matches SSH pushes to the selected GitLab project identity', () => {
   const repo = project('ssh-demo');
   assert.equal(projectRemoteMatches(repo.ssh_url_to_repo!, repo), true);
@@ -583,6 +730,7 @@ test('skips invalid destinations, ignores missing repositories, and continues af
     assert.equal(result.found, 4);
     assert.deepEqual(result.skipped.map(({ project: skipped }) => skipped), [wrongProject, ordinaryProject]);
     assert.deepEqual(result.failed.map(({ project: failed }) => failed), [failedProject]);
+    assert.equal(result.failed[0].reason, 'Git could not synchronize this repository.');
     assert.deepEqual(result.updated, [goodProject]);
     assert.deepEqual(calls, [failedProject.path, goodProject.path]);
   } finally {

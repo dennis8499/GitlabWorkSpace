@@ -201,3 +201,21 @@ test('selects only visible Repo search results, preserves hidden selections, and
   await view.tick();
   assert.equal(document.querySelector('input[aria-label="全選搜尋結果"]').disabled, true);
 });
+
+test('shows the sanitized Git error details in the repository operation results', async (t) => {
+  const view = await mount(undefined, snapshot('clone'));
+  t.after(() => view.dom.window.close());
+  const message = 'Git could not synchronize this repository. (git fetch, exit 128):\nfatal: Authentication failed';
+  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', {
+    data: {
+      type: 'cloneOperation',
+      id: 'sync-error',
+      scopeKey: 'team-scope',
+      phase: 'completed',
+      label: '預設分支同步結果',
+      items: [{ projectId: 1, projectPath: 'team/alpha', state: 'failed', message }]
+    }
+  }));
+  await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.operation-state.failed')?.textContent, message);
+});
