@@ -30,10 +30,13 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openIssue',
       'gitlabWorkspace.openWorkspace',
       'gitlabWorkspace.openCloneMode',
+      'gitlabWorkspace.openSaMode',
       'gitlabWorkspace.openDeveloperMode'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
+    const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
+    assert.equal(wikiGuideCommand?.title, 'GitLab Workspace: Codebase LLM Wiki');
   });
 
 });

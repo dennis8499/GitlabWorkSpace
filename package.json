@@ -66,7 +66,7 @@
       },
       {
         "command": "gitlabWorkspace.openSaMode",
-        "title": "GitLab Workspace: 需求分析"
+        "title": "GitLab Workspace: Codebase LLM Wiki"
       },
       {
         "command": "gitlabWorkspace.openDeveloperMode",

@@ -10,6 +10,8 @@ import type {
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
 import { IssueView } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
+import { createDefaultWikiGuideInputs, type WikiGuideInputValues } from './codebaseWikiGuideData';
+import { CodebaseWikiGuide } from './CodebaseWikiGuide';
 import { countHiddenProjectSelection, reconcileProjectSelection, toggleProjectSelection } from '../workspace/repositorySelection';
 import { buildReviewerPrompt } from '../workspace/issueDrafts';
 import './dashboard.css';
@@ -49,6 +51,7 @@ interface SavedState {
   scopeKey?: string;
   instanceUserScope?: string;
   recoveredBundle?: IssueDraftBundle;
+  wikiGuideInputsByScope?: Record<string, WikiGuideInputValues>;
   version?: 3;
   scopedData?: Record<string, ScopedSavedState>;
 }
@@ -94,7 +97,7 @@ const tools: Array<{ id: ToolId; name: string; repo: string }> = [
 const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: string }> = [
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
-  { id: 'sa', name: '需求分析', short: '分析', icon: '⌕' },
+  { id: 'sa', name: 'Codebase LLM Wiki', short: '分析', icon: '⌕' },
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' }
 ];
 const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
@@ -110,6 +113,9 @@ const emptyScopedState = (): ScopedSavedState => ({
 });
 
 const emptyManualTime = (): ManualTimeDraft => ({ duration: '', summary: '', spentAt: '' });
+function wikiGuideScopeKey(scopeKey?: string, instanceUserScope?: string): string {
+  return scopeKey ?? (instanceUserScope ? `no-group:${instanceUserScope}` : 'offline');
+}
 
 function post(message: WorkspaceRequest): void { vscode.postMessage(message); }
 function issueKey(projectId: number, iid: number): string { return `${projectId}#${iid}`; }
@@ -186,6 +192,13 @@ function App() {
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
   const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
+  const savedWikiGuideInputsRef = useRef(initial?.wikiGuideInputsByScope ?? {});
+  const wikiGuideScopeRef = useRef(wikiGuideScopeKey(initial?.scopeKey, initial?.instanceUserScope));
+  const [wikiGuideInputs, setWikiGuideInputs] = useState<WikiGuideInputValues>(() => ({
+    ...createDefaultWikiGuideInputs(), ...(savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] ?? {})
+  }));
+  const wikiGuideInputsRef = useRef(wikiGuideInputs);
+  wikiGuideInputsRef.current = wikiGuideInputs;
 
   const scopedState: ScopedSavedState = {
     filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
@@ -209,6 +222,12 @@ function App() {
       const message = event.data;
       if (!message) return;
       if (message.type === 'snapshot') {
+        const nextGuideScope = wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
+        if (nextGuideScope !== wikiGuideScopeRef.current) {
+          savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = wikiGuideInputsRef.current;
+          wikiGuideScopeRef.current = nextGuideScope;
+          setWikiGuideInputs({ ...createDefaultWikiGuideInputs(), ...(savedWikiGuideInputsRef.current[nextGuideScope] ?? {}) });
+        }
         const nextScope = message.snapshot.connectedScope;
         if (nextScope && nextScope !== scopeRef.current) {
           if (scopeRef.current) savedScopesRef.current[scopeRef.current] = currentScopeStateRef.current;
@@ -298,13 +317,14 @@ function App() {
     const state: SavedState = {
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
+      wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueStateFilter, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
       selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueStateFilter, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -431,22 +451,6 @@ function App() {
     }]));
     post({ type: 'createIssueDrafts', analysisId: bundle.analysisId, drafts: chosen, options });
   }
-  function copyAnalysisPrompt(): void {
-    const selected = projects.filter((project) => analysisProjectIds.includes(project.id));
-    if (!selected.length || !snapshot?.group) { setToast('請先選擇分析 Repo。'); return; }
-    if (!snapshot.groupRoot) { setToast('請先設定 Group 工作目錄，再開啟 Codex CLI。'); setToolDrawer(true); return; }
-    const wiki = snapshot.tools.find((item) => item.tool === 'codebase-wiki')?.status === 'installed';
-    const prompt = [
-      '$codebase-wiki',
-      `Group: ${snapshot.group.full_path}`,
-      `Repos: ${selected.map((project) => `${project.path_with_namespace} (${snapshot.localRepositories[project.id]?.path ?? '尚未 Clone'})`).join(', ')}`,
-      `分析目的: ${intent === 'requirements' ? '拆解需求並提出可建立的 GitLab Issues' : '程式健檢，整理風險、缺陷與技術債'}`,
-      `需求與背景:\n${requirement.trim() || '請先閱讀 Group 與 Repo 的程式碼脈絡。'}`,
-      `Codebase LLM Wiki: ${wiki ? '讀取已安裝的 .agents/skills/codebase-wiki Skill；先建立或更新程式碼地圖，再以檔案證據支持結論。' : '使用 Codebase LLM Wiki 的 repo skill；若未安裝，請在 Codex CLI 執行前安裝工具。'}`,
-      '請勿自行呼叫 GitLab 建立 Issue。輸出 IssueDraftBundle/v1 JSON，欄位包含 schema、analysisId、drafts；每張草稿要有唯一 id、projectPath、title、description、acceptanceCriteria、sourceEvidence[{path,claim}]、labels。每張 Issue 僅指定一個 Repo，證據路徑必須是實際讀取過的檔案。'
-    ].join('\n\n');
-    post({ type: 'copyAndOpenCodex', text: prompt, returnTo: '需求分析頁面的「匯入分析結果」區' });
-  }
   function openReviewerTask(): void {
     if (!selectedIssueProject && !mr) return;
     const project = mr ? projectById.get(mr.project_id) : selectedIssueProject;
@@ -492,8 +496,8 @@ function App() {
         <div class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button></div></div>
-        {!snapshot.connected ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
-          : !snapshot.group ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
+        {!snapshot.connected && mode !== 'sa' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
+          : !snapshot.group && mode !== 'sa' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || !!snapshot.busy} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
                 <div class="repo-list">{visibleProjects.map((project) => {
@@ -516,37 +520,7 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
-            : mode === 'sa' ? <div class="mode-content">
-              {recoveredBundle && <div class="recovered-draft"><strong>找到尚未指定目標專案的舊草稿</strong><p>選擇要匯入的 Repo 後，草稿會保留原內容供你確認。</p><div class="button-row"><select aria-label="待恢復草稿的目標 Repo" value={recoveredTargetPath} onChange={(event) => setRecoveredTargetPath(event.currentTarget.value)}><option value="">選擇目標 Repo</option>{projects.map((project) => <option value={project.path_with_namespace}>{project.path_with_namespace}</option>)}</select><button class="primary" type="button" disabled={!recoveredTargetPath} onClick={() => { const bundle = recoveredBundle; if (!bundle) return; setBundle({ ...bundle, drafts: bundle.drafts.map((draft) => ({ ...draft, projectPath: recoveredTargetPath })) }); setDraftChecked(Object.fromEntries(bundle.drafts.map((draft) => [draft.id, true]))); setRecoveredBundle(undefined); setToast('舊草稿已載入，請逐項檢查後再建立 Issue。'); }}>恢復草稿</button></div></div>}
-              <div class="list-column sa-column"><div class="segmented"><button class={intent === 'requirements' ? 'chosen' : ''} type="button" onClick={() => setIntent('requirements')}>需求分析與 Issue 拆分</button><button class={intent === 'audit' ? 'chosen' : ''} type="button" onClick={() => setIntent('audit')}>程式健檢與風險分析</button></div>
-                <h2>① 選擇範圍與背景</h2><div class="repo-picks">{projects.map((project) => <label><input type="checkbox" checked={analysisProjectIds.includes(project.id)} onChange={(event) => setAnalysisProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />{project.path_with_namespace}</label>)}</div>
-                <label class="field">需求與分析背景<textarea rows={5} value={requirement} onInput={(event) => setRequirement(event.currentTarget.value)} placeholder="說明需求、使用情境、風險範圍或想確認的行為…" /></label>
-                <div class="button-row"><button class="primary" type="button" disabled={!analysisProjectIds.length} onClick={() => copyAnalysisPrompt()}>② 複製任務並開啟 Codex CLI</button><span class="subtle">貼上執行；完成後回到此處匯入結果。</span></div>
-                <label class="field import-field">③ 匯入分析結果<textarea rows={5} value={importText} onInput={(event) => setImportText(event.currentTarget.value)} placeholder="貼上 Codex 的 JSON 草稿包，或貼上 Markdown 分析報告…" /></label>
-                <details class="format-help"><summary>IssueDraftBundle/v1 JSON 格式</summary><p>包含 <code>schema</code>、<code>analysisId</code> 與 <code>drafts</code>。每筆草稿包含 projectPath、title、description、acceptanceCriteria、sourceEvidence 與 labels。</p></details>
-                <div class="button-row"><button class="secondary" type="button" disabled={!importText.trim()} onClick={() => post({ type: 'importIssueDrafts', json: importText })}>驗證並匯入 JSON</button><button class="secondary" type="button" disabled={!importText.trim() || !projects.length} onClick={addDraftFromMarkdown}>將 Markdown 加入草稿</button></div>
-              </div><article class="detail-column draft-column"><div class="panel-title"><div><span class="eyebrow">發布前逐項檢查</span><h2>Issue 草稿</h2></div>{bundle && <span class="count">{bundle.drafts.length} 張</span>}</div>
-                {bundle ? <><div class="draft-stack">{bundle.drafts.map((draft) => {
-                  const project = projects.find((item) => item.path_with_namespace === draft.projectPath);
-                  const form = project ? draftOptions[project.id] : undefined;
-                  const choice = draftChoices[draft.id];
-                  return <section class="draft-card"><div class="draft-card-head"><label><input type="checkbox" checked={draftChecked[draft.id] !== false} onChange={(event) => setDraftChecked((current) => ({ ...current, [draft.id]: event.currentTarget.checked }))} /><strong>包含此 Issue</strong></label><span class="pill muted-pill">{project?.path_with_namespace ?? draft.projectPath}</span></div>
-                    <label class="field">專案<select value={draft.projectPath} onChange={(event) => changeDraft(draft.id, { projectPath: event.currentTarget.value })}>{projects.map((item) => <option value={item.path_with_namespace}>{item.path_with_namespace}</option>)}</select></label>
-                    <label class="field">標題<input value={draft.title} onInput={(event) => changeDraft(draft.id, { title: event.currentTarget.value })} /></label>
-                    <label class="field">背景與目前行為<textarea rows={4} value={draft.description} onInput={(event) => changeDraft(draft.id, { description: event.currentTarget.value })} /></label>
-                    <label class="field">驗收條件（每行一項）<textarea rows={3} value={draft.acceptanceCriteria.join('\n')} onInput={(event) => changeDraft(draft.id, { acceptanceCriteria: event.currentTarget.value.split('\n').map((line) => line.trim()).filter(Boolean) })} /></label>
-                    {draft.sourceEvidence.length > 0 && <div class="evidence"><strong>程式證據</strong>{draft.sourceEvidence.map((item) => <p><code>{item.path}</code> — {item.claim}</p>)}</div>}
-                    <button class="quiet small" type="button" onClick={() => post({ type: 'checkSimilarIssues', drafts: [draft] })}>檢查相似 Issue</button>
-                    {(similarIssues[draft.id] ?? []).map((item) => <button class="quiet small" type="button" onClick={() => post({ type: 'openExternal', url: item.webUrl })}>#{item.iid}　{item.title}</button>)}
-                    <button class="quiet small" type="button" onClick={() => project && post({ type: 'loadDraftOptions', projectId: project.id })}>{form ? '重新載入 Issue 表單選項' : '載入負責人、Labels 與 Milestone'}</button>
-                    {form && <div class="draft-options"><label class="field">負責人<select value={choice?.assigneeId ?? ''} onChange={(event) => draftChoice(draft.id, { assigneeId: Number(event.currentTarget.value) || undefined }, draft)}><option value="">不指派</option>{form.options.members.map((member) => <option value={member.id}>{member.name} (@{member.username})</option>)}</select></label>
-                      <label class="field">Milestone<select value={choice?.milestoneId ?? ''} onChange={(event) => draftChoice(draft.id, { milestoneId: Number(event.currentTarget.value) || undefined }, draft)}><option value="">不設定</option>{form.options.milestones.map((item) => <option value={item.id}>{item.title}</option>)}</select></label>
-                      <label class="field">Labels（逗號分隔）<input value={(choice?.labels ?? draft.labels ?? []).join(', ')} onInput={(event) => draftChoice(draft.id, { labels: event.currentTarget.value.split(',').map((item) => item.trim()).filter(Boolean) }, draft)} placeholder={form.options.labels.map((item) => item.name).slice(0, 5).join(', ')} /></label>
-                      {!form.canCreateIssue && <p class="warning">此專案目前沒有建立 Issue 的權限。</p>}</div>}
-                  </section>;
-                })}</div><button class="primary publish-button" type="button" disabled={busy || !bundle.drafts.some((draft) => draftChecked[draft.id] !== false)} onClick={createDrafts}>建立勾選的 Issues</button></>
-                  : <Empty title="尚無 Issue 草稿" detail="先選 Repo 並複製提示詞，或匯入 Codex 分析結果。" />}</article>
-            </div>
+            : mode === 'sa' ? <CodebaseWikiGuide inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class="mode-content">
               <div class="list-column"><div class="toolbar work-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label><button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button></div><div class="filter-row"><select aria-label="Issue 狀態" value={issueStateFilter} onChange={(event) => setIssueStateFilter(event.currentTarget.value as typeof issueStateFilter)}><option value="opened">未結案</option><option value="closed">已結案</option><option value="all">全部狀態</option></select><select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option value={label}>{label}</option>)}</select><select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select></div>{snapshot.groupMilestonesError && <p class="warning" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}<div class="toolbar list-count"><span>指派給我的 Issue</span><span class="count">{visibleIssues.length}</span></div>
                 <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}{!visibleIssues.length && <div class="empty-inline"><strong>{snapshot.error ? 'Issue 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '目前沒有指派給你的未結案 Issue'}</strong><p>{snapshot.error ?? (hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '建立議題或切換篩選條件以檢視其他工作。')}</p></div>}</div>
