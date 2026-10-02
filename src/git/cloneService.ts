@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, st
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
-import { groupRepositoryPath, sameLocalPath } from '../workspace/workspacePaths';
+import { groupRepositoryPath, projectFolderNames, sameLocalPath } from '../workspace/workspacePaths';
 
 export type CloneAction = 'clone' | 'update';
 
@@ -90,7 +90,8 @@ export function planClones(
   projects: readonly GitLabProject[],
   gitLabBaseUrl: string,
   exists: (target: string) => boolean = existsSync,
-  groupProjects: readonly GitLabProject[] = projects
+  groupProjects: readonly GitLabProject[] = projects,
+  folders: ReadonlyMap<number, string> = projectFolderNames(groupProjects)
 ): ClonePlan[] {
   const root = path.resolve(workspacePath);
   if (!exists(root) || !statSync(root).isDirectory()) {
@@ -101,7 +102,7 @@ export function planClones(
   return projects.map((project) => {
     let targetPath: string;
     try {
-      targetPath = groupRepositoryPath(root, project, groupProjects);
+      targetPath = groupRepositoryPath(root, project, groupProjects, folders);
     } catch (error) {
       throw new ClonePreflightError(error instanceof Error ? error.message : 'The repository path is unsafe.');
     }
@@ -214,13 +215,14 @@ export async function syncLocalDefaultBranches(
   const resolveProject = dependencies.resolveProject ?? (async (project) => project);
   const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;
   const groupProjects = dependencies.groupProjects ?? projects;
+  const folders = projectFolderNames(groupProjects);
   const handledPaths = new Set<string>();
   const root = path.resolve(workspacePath);
 
   for (const project of projects) {
     let targetPath: string;
     try {
-      targetPath = groupRepositoryPath(root, project, groupProjects);
+      targetPath = groupRepositoryPath(root, project, groupProjects, folders);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -234,7 +236,7 @@ export async function syncLocalDefaultBranches(
 
     let plan: ClonePlan;
     try {
-      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, groupProjects)[0];
+      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, groupProjects, folders)[0];
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });

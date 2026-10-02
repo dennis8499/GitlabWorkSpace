@@ -76,7 +76,7 @@ export function IssueGraphView(props: IssueGraphProps) {
   const selected = props.nodes.find((node) => node.id === props.selectedId);
   const rootCount = props.nodes.filter((node) => node.isRoot).length;
   const contextCount = props.nodes.length - rootCount;
-  const nodeKey = props.nodes.map((node) => `${node.id}:${node.title}:${node.kind}:${node.state}:${node.boardIds.join(',')}:${node.labels.map((label) => `${label.name}=${label.color ?? ''}`).join(',')}`).join('|');
+  const nodeLayoutKey = props.nodes.map((node) => `${node.id}:${node.isRoot ? 'root' : 'context'}`).join('|');
   const edgeKey = props.edges.map((edge) => edge.id).join('|');
   const adjacentIds = useMemo(() => {
     const ids = new Set<string>();
@@ -231,7 +231,7 @@ export function IssueGraphView(props: IssueGraphProps) {
       requestRef.current = undefined;
       positionsRef.current = Object.fromEntries(nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
     };
-  }, [nodeKey, edgeKey, dimensions.width, dimensions.height]);
+  }, [nodeLayoutKey, edgeKey, dimensions.width, dimensions.height]);
 
   useEffect(() => {
     const simulation = simulationRef.current;

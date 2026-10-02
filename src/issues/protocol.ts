@@ -33,6 +33,9 @@ export interface IssueTimelog {
   userPermissions?: { adminTimelog: boolean };
 }
 
+export type IssueDetailSection = 'options' | 'activity' | 'links' | 'mergeRequests' | 'reactions' | 'todos' | 'tasks' | 'permissions' | 'projects' | 'dates' | 'timelogs';
+export type IssueDetailSectionStatus = 'loading' | 'ready' | 'error';
+
 export interface IssueDetailData {
   issue: GitLabIssue;
   project: GitLabProject;
@@ -66,6 +69,7 @@ export interface IssueDetailData {
   hasStartDate: boolean;
   canLogTime: boolean;
   canDeleteTimelog: boolean;
+  sections?: Partial<Record<IssueDetailSection, IssueDetailSectionStatus>>;
 }
 
 export type IssuePanelRequest =
@@ -94,6 +98,7 @@ export type IssuePanelResponse =
   | { type: 'createData'; projects: GitLabProject[]; selectedProjectId?: number; options?: IssueFormOptions; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
   | { type: 'projectData'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'detailData'; data: IssueDetailData }
+  | { type: 'detailPatch'; issueId: number; patch: Partial<IssueDetailData> }
   | { type: 'reply'; requestId: string; result?: unknown; error?: string }
   | { type: 'busy'; value: boolean }
   | { type: 'cancelled' }

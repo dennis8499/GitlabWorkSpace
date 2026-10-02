@@ -9,7 +9,7 @@ import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, G
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
-import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState, sameRealLocalPath } from './workspacePaths';
+import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState, localRepositoryStateAsync, projectFolderNames, sameRealLocalPath } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
@@ -41,6 +41,12 @@ export class WorkspacePanel implements vscode.Disposable {
   private readonly timer: IssueTimeTracker;
   private readonly packages: ToolPackageManager;
   private interval?: NodeJS.Timeout;
+  private timerVersion = 0;
+  private issueGraphVersion = 0;
+  private timerTickInFlight = false;
+  private localRepositoryStates: WorkspaceSnapshot['localRepositories'] = {};
+  private localRepositoriesKey?: string;
+  private localRepositoryScanGeneration = 0;
   private groups: WorkspaceSnapshot['groups'] = [];
   private projects: GitLabProject[] = [];
   private groupMilestones: GitLabMilestone[] = [];
@@ -50,8 +56,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private selectedIssueBoardId?: number;
   private issueBoardContent?: WorkspaceSnapshot['issueBoardContent'];
   private issueBoardGeneration = 0;
+  private issueBoardAbort?: AbortController;
   private issueGraph?: IssueGraphSnapshot;
   private issueGraphGeneration = 0;
+  private issueGraphAbort?: AbortController;
+  private issueGraphPublishTimer?: NodeJS.Timeout;
   private issueGraphRequestedScope?: string;
   private issues: GitLabIssue[] = [];
   private mergeRequests: GitLabMergeRequest[] = [];
@@ -59,6 +68,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private projectMembers: WorkspaceSnapshot['projectMembers'] = [];
   private selectedMergeRequest?: MergeRequestDetail;
   private mergeRequestGeneration = 0;
+  private mergeRequestAbort?: AbortController;
   private readonly mrWritesInFlight = new Set<string>();
   private selectedProjectId?: number;
   private activeMode: WorkspaceMode;
@@ -72,7 +82,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private webviewReady = false;
   private readonly cloneSelectionWaiters = new Map<string, { resolve: (projectIds: number[]) => void; timeout: NodeJS.Timeout }>();
   private requestGeneration = 0;
+  private refreshScopeKey?: string;
+  private refreshTask?: Promise<void>;
+  private refreshAbort?: AbortController;
   private issueOpenGeneration = 0;
+  private issueOpenAbort?: AbortController;
   private loadedScopeKey?: string;
   private disposed = false;
   private timerQueue: Promise<unknown> = Promise.resolve();
@@ -102,12 +116,17 @@ export class WorkspacePanel implements vscode.Disposable {
       show: () => this.show('developer'),
       navigate: (navigation) => { if (navigation) this.activeMode = 'developer'; this.post({ type: 'issueNavigation', navigation }); }
     });
-    this.interval = setInterval(() => { void this.onTick(); }, 1000);
   }
 
   dispose(): void {
     this.disposed = true;
     this.issueGraphGeneration++;
+    this.issueGraphAbort?.abort();
+    this.issueBoardAbort?.abort();
+    this.mergeRequestAbort?.abort();
+    this.issueOpenAbort?.abort();
+    if (this.issueGraphPublishTimer) clearTimeout(this.issueGraphPublishTimer);
+    this.localRepositoryScanGeneration++;
     if (this.interval) clearInterval(this.interval);
     this.webviewReady = false;
     for (const waiter of this.cloneSelectionWaiters.values()) {
@@ -144,7 +163,7 @@ export class WorkspacePanel implements vscode.Disposable {
     } else {
       this.panel.reveal(vscode.ViewColumn.Active);
     }
-    await this.refresh();
+    if (this.webviewReady) await this.refresh({ forceRepositories: true });
   }
 
   async navigateTo(mode?: WorkspaceMode): Promise<void> {
@@ -159,7 +178,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async refreshFromSidebar(): Promise<void> {
     this.issueOpenGeneration++;
-    await this.refresh();
+    await this.refresh({ forceNetwork: true, forceRepositories: true });
     await this.syncSidebarState?.();
   }
 
@@ -235,8 +254,8 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
     const request = value as WorkspaceRequest;
     switch (request.type) {
-      case 'ready': this.webviewReady = true; await this.refresh(); break;
-      case 'refresh': await this.refresh(); break;
+      case 'ready': this.webviewReady = true; await this.refresh({ forceRepositories: true }); break;
+      case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
       case 'setMode':
         if (!ALLOWED_MODES.has(request.mode)) return;
         this.activeMode = request.mode;
@@ -247,7 +266,7 @@ export class WorkspacePanel implements vscode.Disposable {
         try { await this.issuePanels.handle(request.request, request.revision); }
         catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error) } }); }
         break;
-      case 'closeIssue': this.issueOpenGeneration++; this.issuePanels.close(); break;
+      case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
       case 'disconnect': await this.disconnect(); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
@@ -313,8 +332,39 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async refresh(): Promise<void> {
+  private refresh(options: { forceNetwork?: boolean; forceRepositories?: boolean } = {}): Promise<void> {
+    const scope = `${this.session.baseUrl ?? ''}|${this.session.selectedGroup?.id ?? 'none'}`;
+    if (this.refreshTask && this.refreshScopeKey === scope && !this.refreshAbort?.signal.aborted && !options.forceNetwork) {
+      const currentTask = this.refreshTask;
+      if (!options.forceRepositories) return currentTask;
+      return currentTask.then(async () => {
+        const group = this.session.selectedGroup;
+        const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+        const connectedScope = this.connectedScopeKey();
+        const repositoryKey = connectedScope && root ? this.repositoryStateKey(connectedScope, root, this.projects) : undefined;
+        if (root && connectedScope && repositoryKey) await this.refreshLocalRepositoryStates(root, this.projects, connectedScope, repositoryKey);
+      });
+    }
+    this.refreshAbort?.abort();
+    const abort = new AbortController();
+    this.refreshAbort = abort;
+    this.refreshScopeKey = scope;
     const generation = ++this.requestGeneration;
+    const task = this.refreshWorkspace(generation, abort.signal, options);
+    this.refreshTask = task;
+    return task.finally(() => {
+      if (this.refreshTask === task) {
+        this.refreshTask = undefined;
+        this.refreshScopeKey = undefined;
+      }
+    });
+  }
+
+  private async refreshWorkspace(
+    generation: number,
+    signal: AbortSignal,
+    options: { forceNetwork?: boolean; forceRepositories?: boolean }
+  ): Promise<void> {
     const issueBoardGeneration = ++this.issueBoardGeneration;
     const reloadIssueGraphScope = this.issueGraphRequestedScope;
     if (reloadIssueGraphScope === this.connectedScopeKey() && this.issueGraph) {
@@ -329,22 +379,37 @@ export class WorkspacePanel implements vscode.Disposable {
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
+        this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
+        this.localRepositoryScanGeneration++;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         this.sendSnapshot();
         return;
       }
-      const client = await this.session.getClient();
-      const [user, groups] = await Promise.all([client.getCurrentUser(), client.listGroups()]);
+      const client = (await this.session.getClient()).withReadSignal(signal);
+      const readOptions = { force: options.forceNetwork === true, signal };
+      const [user, groups] = await Promise.all([
+        this.session.cachedRead('current-user', (readClient) => readClient.getCurrentUser(), readOptions),
+        this.session.cachedRead('groups', (readClient) => readClient.listGroups(), readOptions)
+      ]);
       if (generation !== this.requestGeneration) return;
       this.currentUser = user;
       this.groups = groups;
       await this.timer.setScope(this.session.baseUrl, user.id);
+      this.syncTimerPolling();
       const group = this.session.selectedGroup;
       const scopeKey = `${this.session.baseUrl}|${user.id}|${group?.id ?? 'none'}`;
       if (scopeKey !== this.loadedScopeKey) {
         this.loadedScopeKey = scopeKey;
+        this.localRepositoryStates = {};
+        this.localRepositoriesKey = undefined;
+        this.localRepositoryScanGeneration++;
         this.issueGraphGeneration++;
+        this.issueGraphAbort?.abort();
+        this.issueBoardAbort?.abort();
+        this.mergeRequestAbort?.abort();
+        if (this.issueGraphPublishTimer) clearTimeout(this.issueGraphPublishTimer);
+        this.issueGraphPublishTimer = undefined;
         this.issueGraph = undefined;
         this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
         this.projectMembers = []; this.selectedProjectId = undefined;
@@ -357,20 +422,30 @@ export class WorkspacePanel implements vscode.Disposable {
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
+        this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
+        this.localRepositoryScanGeneration++;
         this.toolPackages = await this.packages.listPackages();
         this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
         return;
       }
       const root = this.roots.getRoot(this.session.baseUrl, group.id);
-      const groupMilestonesPromise = client.listGroupMilestones(group.id)
+      const groupMilestonesPromise = this.session.cachedRead(
+        `group/${group.id}/milestones`, (readClient) => readClient.listGroupMilestones(group.id), readOptions
+      )
         .then((milestones) => ({ milestones, error: undefined as string | undefined }))
         .catch((error: unknown) => ({ milestones: [] as GitLabMilestone[], error: readableError(error) }));
-      const groupIssueBoardsPromise = client.listGroupIssueBoards(group.id)
+      const groupIssueBoardsPromise = this.session.cachedRead(
+        `group/${group.id}/boards`, (readClient) => readClient.listGroupIssueBoards(group.id), readOptions
+      )
         .then((boards) => ({ boards, error: undefined as string | undefined }))
         .catch((error: unknown) => ({ boards: [] as GitLabIssueBoard[], error: readableError(error) }));
       const [projects, mergeRequests, milestoneResult, boardResult] = await Promise.all([
-        client.listGroupProjects(group.id),
-        client.listGroupMergeRequests(group.id).catch(() => []),
+        this.session.cachedRead(
+          `group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), readOptions
+        ),
+        this.session.cachedRead(
+          `group/${group.id}/merge-requests`, (readClient) => readClient.listGroupMergeRequests(group.id), readOptions
+        ).catch(() => []),
         groupMilestonesPromise,
         groupIssueBoardsPromise
       ]);
@@ -381,8 +456,15 @@ export class WorkspacePanel implements vscode.Disposable {
       this.groupMilestonesError = milestoneResult.error;
       this.groupIssueBoards = boardResult.boards;
       this.groupIssueBoardsError = boardResult.error;
+      const repositoryKey = this.repositoryStateKey(scopeKey, root, projects);
+      if (root && repositoryKey && (options.forceRepositories || repositoryKey !== this.localRepositoriesKey)) {
+        void this.refreshLocalRepositoryStates(root, projects, scopeKey, repositoryKey);
+      }
       const projectIds = new Set(projects.map((project) => project.id));
-      this.issues = await client.listAssignedGroupIssues(group.id, projectIds);
+      this.issues = await this.session.cachedRead(
+        `group/${group.id}/assigned-issues/${[...projectIds].sort((a, b) => a - b).join(',')}`,
+        (readClient) => readClient.listAssignedGroupIssues(group.id, projectIds), readOptions
+      );
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
       if (this.selectedIssueBoardId !== undefined && !boardResult.error) {
         if (!boardResult.boards.some((board) => board.id === this.selectedIssueBoardId)) {
@@ -391,7 +473,7 @@ export class WorkspacePanel implements vscode.Disposable {
           this.issueBoardGeneration++;
         } else {
           const currentBoardGeneration = ++this.issueBoardGeneration;
-          await this.loadIssueBoardContent(group.full_path, this.selectedIssueBoardId, currentBoardGeneration, this.connectedScopeKey());
+          await this.loadIssueBoardContent(group.full_path, this.selectedIssueBoardId, currentBoardGeneration, this.connectedScopeKey(), options.forceNetwork === true);
         }
       } else if (boardResult.error) {
         this.issueBoardContent = this.selectedIssueBoardId === undefined || !this.connectedScopeKey()
@@ -425,15 +507,53 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       this.toolPackages = await this.packages.listPackages();
       this.toolStates = await this.packages.installedStates(root, this.toolPackages);
+    } catch (error) {
+      if (!signal.aborted) throw error;
     } finally {
-      this.busy = false;
-      this.post({ type: 'busy', value: false });
-      this.sendSnapshot();
-      if (reloadIssueGraphScope && reloadIssueGraphScope === this.connectedScopeKey()) {
-        const scope = this.connectedScopeKey();
-        if (scope) void this.loadIssueGraph(scope);
+      if (generation === this.requestGeneration) {
+        this.busy = false;
+        this.post({ type: 'busy', value: false });
+        this.sendSnapshot();
+        if (reloadIssueGraphScope && reloadIssueGraphScope === this.connectedScopeKey()) {
+          const scope = this.connectedScopeKey();
+          if (scope) void this.loadIssueGraph(scope, options.forceNetwork === true);
+        }
       }
     }
+  }
+
+  private repositoryStateKey(
+    connectedScope: string,
+    root: string | undefined,
+    projects: readonly GitLabProject[]
+  ): string | undefined {
+    if (!root) return undefined;
+    return `${connectedScope}\0${root}\0${projects.map((project) => `${project.id}:${project.path}`).join('\0')}`;
+  }
+
+  private async refreshLocalRepositoryStates(
+    root: string,
+    projects: readonly GitLabProject[],
+    connectedScope: string,
+    repositoryKey: string
+  ): Promise<void> {
+    const generation = ++this.localRepositoryScanGeneration;
+    const folders = projectFolderNames(projects);
+    const states = await mapWithConcurrency(projects, 8, async (project) => {
+      try {
+        const localPath = groupRepositoryPath(root, project, projects, folders);
+        return [project.id, { path: localPath, state: await localRepositoryStateAsync(root, localPath) }] as const;
+      } catch {
+        return [project.id, { path: '', state: 'unsafe' as const }] as const;
+      }
+    });
+    const group = this.session.selectedGroup;
+    const currentRoot = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    if (this.disposed || generation !== this.localRepositoryScanGeneration || connectedScope !== this.connectedScopeKey() ||
+      repositoryKey !== this.repositoryStateKey(connectedScope, currentRoot, this.projects)) return;
+    this.localRepositoryStates = Object.fromEntries(states);
+    this.localRepositoriesKey = repositoryKey;
+    this.sendSnapshot();
   }
 
   private async selectIssueBoard(boardId: number, connectedScope: string): Promise<void> {
@@ -442,23 +562,31 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!group || !currentScope || connectedScope !== currentScope || !Number.isSafeInteger(boardId) || boardId <= 0 ||
       !this.groupIssueBoards.some((board) => board.id === boardId)) return;
 
+    this.issueBoardAbort?.abort();
     this.selectedIssueBoardId = boardId;
     const generation = ++this.issueBoardGeneration;
     await this.loadIssueBoardContent(group.full_path, boardId, generation, currentScope);
   }
 
-  private async loadIssueBoardContent(groupPath: string, boardId: number, generation: number, connectedScope?: string): Promise<void> {
+  private async loadIssueBoardContent(groupPath: string, boardId: number, generation: number, connectedScope?: string, forceNetwork = false): Promise<void> {
     if (!connectedScope) return;
+    this.issueBoardAbort?.abort();
+    const controller = new AbortController();
+    this.issueBoardAbort = controller;
     const matchesCurrentSelection = (): boolean => !this.disposed && generation === this.issueBoardGeneration &&
       connectedScope === this.connectedScopeKey() && this.session.selectedGroup?.full_path === groupPath &&
-      this.selectedIssueBoardId === boardId;
+      this.selectedIssueBoardId === boardId && !controller.signal.aborted;
 
     if (!matchesCurrentSelection()) return;
     this.issueBoardContent = { boardId, connectedScope, issueIds: [], status: 'loading' };
     this.sendSnapshot();
     try {
-      const client = await this.session.getClient();
-      const issueIds = await client.listAssignedGroupBoardIssueIds(groupPath, boardId, this.currentUser?.username ?? '');
+      const username = this.currentUser?.username ?? '';
+      const issueIds = await this.session.cachedRead(
+        `group-board/${groupPath}/${boardId}/assigned/${username}`,
+        (client) => client.listAssignedGroupBoardIssueIds(groupPath, boardId, username),
+        { signal: controller.signal, force: forceNetwork }
+      );
       if (!matchesCurrentSelection()) return;
       this.issueBoardContent = { boardId, connectedScope, issueIds, status: 'ready' };
     } catch (error) {
@@ -468,14 +596,19 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
   }
 
-  private async loadIssueGraph(connectedScope: string): Promise<void> {
+  private async loadIssueGraph(connectedScope: string, forceNetwork = false): Promise<void> {
     const group = this.session.selectedGroup;
     const currentScope = this.connectedScopeKey();
     if (this.disposed || !group || !this.session.baseUrl || connectedScope !== currentScope || !this.currentUser) return;
+    this.issueGraphAbort?.abort();
+    if (this.issueGraphPublishTimer) clearTimeout(this.issueGraphPublishTimer);
+    this.issueGraphPublishTimer = undefined;
+    const controller = new AbortController();
+    this.issueGraphAbort = controller;
     this.issueGraphRequestedScope = connectedScope;
     const generation = ++this.issueGraphGeneration;
     const isCurrent = (): boolean => !this.disposed && generation === this.issueGraphGeneration &&
-      connectedScope === this.connectedScopeKey() && this.session.selectedGroup?.id === group.id;
+      connectedScope === this.connectedScopeKey() && this.session.selectedGroup?.id === group.id && !controller.signal.aborted;
     let client: GitLabClient;
     try {
       client = await this.session.getClient();
@@ -485,7 +618,8 @@ export class WorkspacePanel implements vscode.Disposable {
       graph.status = 'error';
       graph.errors = [readableError(error)];
       this.issueGraph = graph;
-      this.sendSnapshot();
+      this.issueGraphVersion++;
+      this.post({ type: 'issueGraphChanged', connectedScope, version: this.issueGraphVersion, graph });
       return;
     }
     if (!isCurrent()) return;
@@ -496,16 +630,34 @@ export class WorkspacePanel implements vscode.Disposable {
     const nodeById = new Map<string, IssueGraphNode>();
     const edgeById = new Map<string, NonNullable<IssueGraphSnapshot['edges'][number]>>();
     const errors = new Set<string>();
-    const publish = (status = graph.status): void => {
+    const publishNow = (): void => {
       if (!isCurrent()) return;
-      graph.status = status;
       graph.roots = [...graph.roots];
       graph.nodes = [...nodeById.values()];
       graph.edges = [...edgeById.values()];
       graph.errors = [...errors];
       graph.updatedAt = Date.now();
       this.issueGraph = graph;
-      this.sendSnapshot();
+      this.issueGraphVersion++;
+      this.post({ type: 'issueGraphChanged', connectedScope, version: this.issueGraphVersion, graph: { ...graph,
+        roots: [...graph.roots], nodes: graph.nodes.map((node) => ({ ...node, sourceIds: [...node.sourceIds], labels: [...node.labels], assignees: [...node.assignees], boardIds: [...node.boardIds] })),
+        edges: graph.edges.map((edge) => ({ ...edge })), errors: [...graph.errors],
+        boardIssueIds: Object.fromEntries(Object.entries(graph.boardIssueIds).map(([id, ids]) => [id, [...ids]])),
+        boardStatus: Object.fromEntries(Object.entries(graph.boardStatus).map(([id, status]) => [id, { ...status }])) } });
+    };
+    const publish = (status = graph.status, immediate = false): void => {
+      if (!isCurrent()) return;
+      graph.status = status;
+      if (immediate) {
+        if (this.issueGraphPublishTimer) clearTimeout(this.issueGraphPublishTimer);
+        this.issueGraphPublishTimer = undefined;
+        publishNow();
+      } else if (!this.issueGraphPublishTimer) {
+        this.issueGraphPublishTimer = setTimeout(() => {
+          this.issueGraphPublishTimer = undefined;
+          publishNow();
+        }, 250);
+      }
     };
     const addNode = (incoming: IssueGraphNode): IssueGraphNode => {
       const previous = nodeById.get(incoming.id);
@@ -593,7 +745,7 @@ export class WorkspacePanel implements vscode.Disposable {
     graph.boardStatus = Object.fromEntries(this.groupIssueBoards.map((board) => [board.id, { status: 'loading' }]));
     if (!graph.roots.length) {
       for (const board of this.groupIssueBoards) graph.boardStatus[board.id] = { status: 'ready' };
-      publish('ready');
+      publish('ready', true);
       return;
     }
     publish('loading');
@@ -602,7 +754,11 @@ export class WorkspacePanel implements vscode.Disposable {
     for (const board of this.groupIssueBoards) {
       jobs.push(async () => {
         try {
-          const memberships = await client.listGroupBoardIssueMemberships(group.full_path, board.id);
+          const memberships = await this.session.cachedRead(
+            `group-board/${group.id}/${board.id}/memberships`,
+            (readClient) => readClient.withReadSignal(controller.signal).listGroupBoardIssueMemberships(group.full_path, board.id),
+            { signal: controller.signal, force: forceNetwork }
+          );
           if (!isCurrent()) return;
           graph.boardIssueIds[board.id] = memberships.map((item) => item.issueId);
           graph.boardStatus[board.id] = { status: 'ready' };
@@ -634,7 +790,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!project) continue;
       jobs.push(async () => {
         try {
-          const labels = await client.listProjectLabels(projectId);
+          const labels = await this.session.cachedRead(`project/${projectId}/labels`, (readClient) => readClient.listProjectLabels(projectId), { signal: controller.signal, force: forceNetwork });
           if (!isCurrent()) return;
           const byName = new Map(labels.map((label) => [label.name, label]));
           for (const issue of this.issues.filter((item) => item.project_id === projectId)) {
@@ -665,7 +821,7 @@ export class WorkspacePanel implements vscode.Disposable {
         let workItemRootId: string | undefined;
         try {
           if (capabilities?.graphWorkItems) {
-            const relations = await client.loadIssueGraphRelations(project.path_with_namespace, issue.iid, capabilities);
+            const relations = await client.withReadSignal(controller.signal).loadIssueGraphRelations(project.path_with_namespace, issue.iid, capabilities);
             parents = relations.parents;
             children = relations.children;
             workItemLinks = relations.links;
@@ -713,7 +869,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
         if (!capabilities?.graphLinkedItems || workItemRelationsFailed) {
           try {
-            const links = await client.listIssueLinks(issue.project_id, issue.iid);
+            const links = await client.withReadSignal(controller.signal).listIssueLinks(issue.project_id, issue.iid);
             for (const relatedIssue of links) {
               const relatedProject = projectById.get(relatedIssue.project_id);
               const namespacePath = relatedProject?.path_with_namespace ?? `project-${relatedIssue.project_id}`;
@@ -756,7 +912,7 @@ export class WorkspacePanel implements vscode.Disposable {
       .filter((projectId): projectId is number => projectId !== undefined && !fallbackLabels.has(projectId)))];
     await mapWithConcurrency(relationLabelProjectIds, 4, async (projectId) => {
       try {
-        const labels = await client.listProjectLabels(projectId);
+        const labels = await this.session.cachedRead(`project/${projectId}/labels`, (readClient) => readClient.listProjectLabels(projectId), { signal: controller.signal, force: forceNetwork });
         if (!isCurrent()) return;
         const byName = new Map(labels.map((label) => [label.name, label]));
         for (const node of nodeById.values()) {
@@ -775,7 +931,7 @@ export class WorkspacePanel implements vscode.Disposable {
     for (const node of nodeById.values()) {
       node.boardIds = [...new Set([...node.boardIds, ...(boardIdsByGraphNodeId.get(node.id) ?? [])])];
     }
-    publish(errors.size ? 'partial' : 'ready');
+    publish(errors.size ? 'partial' : 'ready', true);
   }
 
   private emptyIssueGraph(connectedScope: string): IssueGraphSnapshot {
@@ -797,18 +953,8 @@ export class WorkspacePanel implements vscode.Disposable {
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     const deliveryScope = this.deliveryInstanceScope();
-    const localRepositories: WorkspaceSnapshot['localRepositories'] = {};
-    if (root && group) {
-      const names = new Map(this.projects.map((project) => {
-        try { return [project.id, groupRepositoryPath(root, project, this.projects)] as const; }
-        catch { return [project.id, ''] as const; }
-      }));
-      for (const [projectId, projectPath] of names) {
-        if (!projectPath) { localRepositories[projectId] = { path: '', state: 'unsafe' }; continue; }
-        const project = this.projects.find((item) => item.id === projectId)!;
-        localRepositories[projectId] = { path: projectPath, state: localRepositoryState(root, projectPath) };
-      }
-    }
+    const localRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', root, this.projects);
+    const localRepositories = localRepositoryKey === this.localRepositoriesKey ? this.localRepositoryStates : {};
     const snapshot: WorkspaceSnapshot = {
       connected: !!this.session.baseUrl,
       baseUrl: this.session.baseUrl,
@@ -823,6 +969,7 @@ export class WorkspacePanel implements vscode.Disposable {
       groupIssueBoardsError: this.groupIssueBoardsError,
       issueBoardContent: this.issueBoardContent?.connectedScope === this.connectedScopeKey() ? this.issueBoardContent : undefined,
       issueGraph: this.issueGraph?.connectedScope === this.connectedScopeKey() ? this.issueGraph : undefined,
+      issueGraphVersion: this.issueGraphVersion,
       localRepositories,
       issues: this.issues,
       mergeRequests: this.mergeRequests,
@@ -835,6 +982,8 @@ export class WorkspacePanel implements vscode.Disposable {
       selectedIssue: this.selectedIssue,
       selectedMergeRequest: this.selectedMergeRequest,
       timers: this.timer.list(),
+      timerVersion: this.timerVersion,
+      scopeEpoch: this.session.connectionEpoch,
       projectMembers: this.projectMembers,
       tools: this.toolStates,
       toolSource: this.toolSource(),
@@ -866,6 +1015,11 @@ export class WorkspacePanel implements vscode.Disposable {
     const previousBaseUrl = this.session.baseUrl;
     const previousUserId = this.currentUser?.id;
     const user = await this.session.connect(baseUrl, token);
+    this.refreshAbort?.abort();
+    this.issueGraphAbort?.abort();
+    this.issueBoardAbort?.abort();
+    this.mergeRequestAbort?.abort();
+    this.issueOpenAbort?.abort();
     this.currentUser = user;
     if (previousBaseUrl !== this.session.baseUrl || previousUserId !== user.id) {
       this.issueOpenGeneration++;
@@ -883,8 +1037,14 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('Repo 操作或工作目錄選擇完成後才能切換連線或 Group。');
     const confirm = await vscode.window.showWarningMessage('中斷 GitLab 連線？本機 Repo、草稿及計時紀錄會保留。', { modal: true }, '中斷連線');
     if (confirm !== '中斷連線') return;
+    this.refreshAbort?.abort();
+    this.requestGeneration++;
     this.issueOpenGeneration++;
     this.issueBoardGeneration++;
+    this.issueGraphAbort?.abort();
+    this.issueBoardAbort?.abort();
+    this.mergeRequestAbort?.abort();
+    this.issueOpenAbort?.abort();
     this.issuePanels.close();
     await this.session.disconnect();
     this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
@@ -897,14 +1057,18 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async selectGroup(groupId?: number): Promise<boolean> {
     if (this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('Repo 操作或工作目錄選擇完成後才能切換連線或 Group。');
-    const groups = this.session.baseUrl ? await (await this.session.getClient()).listGroups() : [];
+    const groups = this.session.baseUrl ? await this.session.cachedRead('groups', (client) => client.listGroups()) : [];
     const selected = groupId ? groups.find((item) => item.id === groupId) : await vscode.window.showQuickPick(
       groups.map((group) => ({ label: group.full_path, description: group.name, group })),
       { title: '選擇 GitLab Group', placeHolder: '選取工作群組' }
     ).then((item) => item?.group);
     if (!selected) return false;
     this.issueOpenGeneration++;
-    if (this.issuePanels.activeNavigationMode === 'create') this.issuePanels.close();
+    this.issuePanels.close();
+    this.issueGraphAbort?.abort();
+    this.issueBoardAbort?.abort();
+    this.mergeRequestAbort?.abort();
+    this.issueOpenAbort?.abort();
     await this.session.setSelectedGroup(selected);
     this.selectedIssue = undefined; this.selectedMergeRequest = undefined; this.projects = [];
     this.projectMembers = [];
@@ -980,7 +1144,9 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (this.session.selectedGroup?.id !== group.id) throw new Error('Group 已變更，請重新選取專案。');
       const client = await this.session.getClient();
-      const projects = this.projects.length ? this.projects : await client.listGroupProjects(group.id);
+      const projects = this.projects.length ? this.projects : await this.session.cachedRead(
+        `group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id)
+      );
       const wantedIds = new Set(projectIds.filter((id) => Number.isSafeInteger(id)));
       const chosen = cloneAll ? projects : projects.filter((project) => wantedIds.has(project.id));
       if (!chosen.length) throw new Error('請先在專案清單勾選要下載或更新的 Repo。');
@@ -995,7 +1161,16 @@ export class WorkspacePanel implements vscode.Disposable {
         this.post({ type: 'cloneOperation', ...this.cloneOperation });
       };
       publishOperation();
-      const destinations = chosen.map((project) => `${localRepositoryState(root!, groupRepositoryPath(root!, project, projects)) === 'ready' ? '更新' : 'Clone'}　${project.path_with_namespace} → ${groupRepositoryPath(root!, project, projects)}`);
+      const folderNames = projectFolderNames(projects);
+      const localStates = await mapWithConcurrency(chosen, 8, async (project) => {
+        const target = groupRepositoryPath(root!, project, projects, folderNames);
+        return [project.id, await localRepositoryStateAsync(root!, target)] as const;
+      });
+      const localStatesById = new Map(localStates);
+      const destinations = chosen.map((project) => {
+        const target = groupRepositoryPath(root!, project, projects, folderNames);
+        return `${localStatesById.get(project.id) === 'ready' ? '更新' : 'Clone'}　${project.path_with_namespace} → ${target}`;
+      });
       const confirm = await vscode.window.showInformationMessage(`即將在 ${root} 處理 ${chosen.length} 個 Repo：\n${destinations.join('\n')}`, { modal: true }, '開始');
       if (confirm !== '開始') {
         operation.phase = 'cancelled';
@@ -1042,7 +1217,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       throw error;
     } finally {
-      try { await this.refresh(); }
+      try { await this.refresh({ forceRepositories: true }); }
       finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); }
     }
   }
@@ -1068,14 +1243,15 @@ export class WorkspacePanel implements vscode.Disposable {
         if (!root) return;
       }
       const groupProjects = this.projects;
-      const existingProjects = groupProjects.filter((project) => {
+      const folderNames = projectFolderNames(groupProjects);
+      const localStates = await mapWithConcurrency(groupProjects, 8, async (project) => {
         try {
-          const targetPath = groupRepositoryPath(root!, project, groupProjects);
-          return localRepositoryState(root!, targetPath) === 'ready';
-        } catch {
-          return false;
-        }
+          const targetPath = groupRepositoryPath(root!, project, groupProjects, folderNames);
+          return [project.id, await localRepositoryStateAsync(root!, targetPath)] as const;
+        } catch { return [project.id, 'unsafe' as const] as const; }
       });
+      const existingIds = new Set(localStates.filter(([, state]) => state === 'ready').map(([id]) => id));
+      const existingProjects = groupProjects.filter((project) => existingIds.has(project.id));
       if (!existingProjects.length) {
         this.post({ type: 'message', message: `${group.full_path} 尚無已存在且路徑安全的本機 Repo 可更新。` });
         return;
@@ -1123,7 +1299,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       throw error;
     } finally {
-      try { await this.refresh(); }
+      try { await this.refresh({ forceRepositories: true }); }
       finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); }
     }
   }
@@ -1131,25 +1307,32 @@ export class WorkspacePanel implements vscode.Disposable {
   private async selectIssue(projectId: number, issueIid: number): Promise<void> {
     requireIssueIid(issueIid);
     const project = this.requireGroupProject(projectId);
-    const issue = await (await this.session.getClient()).getIssue(projectId, issueIid);
+    const client = await this.session.getClient();
+    const [issue, projectMembers] = await Promise.all([
+      client.getIssue(projectId, issueIid),
+      this.session.cachedRead(`project/${projectId}/members`, (readClient) => readClient.listProjectMembers(projectId)).catch(() => [])
+    ]);
     this.selectedIssue = { project, issue };
     this.selectedProjectId = projectId;
-    this.projectMembers = await (await this.session.getClient()).listProjectMembers(projectId).catch(() => []);
+    this.projectMembers = projectMembers;
     await this.context.globalState.update(this.selectedIssueKey(), { projectId, issueIid });
     this.sendSnapshot();
   }
 
   private async openIssue(projectId: number, issueIid: number, tab?: IssueDetailTab): Promise<void> {
+    this.issueOpenAbort?.abort();
+    const controller = new AbortController();
+    this.issueOpenAbort = controller;
     const generation = ++this.issueOpenGeneration;
     const baseUrl = this.session.baseUrl;
     const groupId = this.session.selectedGroup?.id;
     requireIssueIid(issueIid);
     const project = this.requireGroupProject(projectId);
-    const client = await this.session.getClient();
+    const client = (await this.session.getClient()).withReadSignal(controller.signal);
     const [issue, projectMembers] = await Promise.all([
-      client.getIssue(projectId, issueIid), client.listProjectMembers(projectId).catch(() => [])
+      client.getIssue(projectId, issueIid), this.session.cachedRead(`project/${projectId}/members`, (readClient) => readClient.listProjectMembers(projectId), { signal: controller.signal }).catch(() => [])
     ]);
-    if (generation !== this.issueOpenGeneration || baseUrl !== this.session.baseUrl || groupId !== this.session.selectedGroup?.id) return;
+    if (controller.signal.aborted || generation !== this.issueOpenGeneration || baseUrl !== this.session.baseUrl || groupId !== this.session.selectedGroup?.id) return;
     const fullProject = project;
     this.selectedIssue = { project: fullProject, issue };
     this.projectMembers = projectMembers;
@@ -1163,10 +1346,13 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!project) throw new Error('找不到 Issue 專案。');
     const client = await this.session.getClient();
     const [members, labels, milestones, templates, canCreateIssue] = await Promise.all([
-      client.listProjectMembers(projectId), client.listProjectLabels(projectId), client.listProjectMilestones(projectId),
-      client.listProjectIssueTemplates(projectId), client.canCreateIssue(project.path_with_namespace)
+      this.session.cachedRead(`project/${projectId}/members`, (readClient) => readClient.listProjectMembers(projectId)),
+      this.session.cachedRead(`project/${projectId}/labels`, (readClient) => readClient.listProjectLabels(projectId)),
+      this.session.cachedRead(`project/${projectId}/milestones`, (readClient) => readClient.listProjectMilestones(projectId)),
+      this.session.cachedRead(`project/${projectId}/templates`, (readClient) => readClient.listProjectIssueTemplates(projectId)),
+      client.canCreateIssue(project.path_with_namespace)
     ]);
-    const options: IssueFormOptions = { members, labels, milestones, templates };
+    const options: IssueFormOptions = { members: [...members], labels: [...labels], milestones: [...milestones], templates: [...templates] };
     this.post({ type: 'draftOptions', projectId, options, canCreateIssue });
   }
 
@@ -1244,8 +1430,9 @@ export class WorkspacePanel implements vscode.Disposable {
     const issue = await (await this.session.getClient()).getIssue(projectId, issueIid);
     const project = this.projects.find((item) => item.id === projectId) ?? await (await this.session.getClient()).getProject(projectId);
     await this.enqueueTimer(() => this.timer.start(project, issue));
+    this.syncTimerPolling();
     this.post({ type: 'message', message: `開始計時：${project.path_with_namespace}#${issue.iid}` });
-    this.sendSnapshot();
+    this.publishTimers();
   }
 
   private async addManualTime(projectId: number, issueIid: number, duration: string, summary: string, spentAt?: string): Promise<void> {
@@ -1254,10 +1441,14 @@ export class WorkspacePanel implements vscode.Disposable {
     const client = await this.session.getClient();
     const [issue, project] = await Promise.all([client.getIssue(projectId, issueIid), client.getProject(projectId)]);
     await this.enqueueTimer(() => this.timer.addManual(project, issue, duration, summary, spentAt));
-    this.sendSnapshot();
+    this.publishTimers();
   }
 
-  private async updateTimer(action: () => Promise<WorkspaceTimerEntry | void>): Promise<void> { await this.enqueueTimer(action); this.sendSnapshot(); }
+  private async updateTimer(action: () => Promise<WorkspaceTimerEntry | void>): Promise<void> {
+    await this.enqueueTimer(action);
+    this.syncTimerPolling();
+    this.publishTimers();
+  }
 
   private async updateTimeEntry(id: string, duration: string, summary: string, spentAt: string): Promise<void> {
     const entry = this.timer.list().find((item) => item.id === id);
@@ -1283,7 +1474,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const client = await this.session.getClient();
     const issue = await client.getIssue(entry.projectId, entry.issueIid);
     const submitting = await this.enqueueTimer(() => this.timer.beginSubmit(id));
-    this.sendSnapshot();
+    this.publishTimers();
     try {
       if (this.session.issueCapabilities?.timelogCreate && issue.id) {
         const spentAt = submitting.spentAt ? new Date(`${submitting.spentAt}T12:00:00`).toISOString() : undefined;
@@ -1298,26 +1489,36 @@ export class WorkspacePanel implements vscode.Disposable {
     } catch (error) {
       await this.enqueueTimer(() => this.timer.finishSubmit(id, false));
       throw new Error(`工時送出結果尚未確認，請先到 GitLab 對帳；系統不會自動重送。${readableError(error)}`);
-    } finally { this.sendSnapshot(); }
+    } finally { this.publishTimers(); }
   }
 
   private async loadMergeRequest(projectId: number, iid: number): Promise<void> {
     this.requireGroupProject(projectId);
+    this.mergeRequestAbort?.abort();
+    const controller = new AbortController();
+    this.mergeRequestAbort = controller;
     const generation = ++this.mergeRequestGeneration;
     const connectionGeneration = this.requestGeneration;
     this.post({ type: 'busy', value: true, label: '正在讀取 MR' });
     try {
-      const client = await this.session.getClient();
+      const client = (await this.session.getClient()).withReadSignal(controller.signal);
       const request = await client.getMergeRequest(projectId, iid);
       const [diffs, discussions] = await Promise.all([
         client.listMergeRequestDiffs(projectId, iid).catch(() => []),
         client.listMergeRequestDiscussions(projectId, iid).catch(() => [])
       ]);
       const detail = await this.getMergeRequestDetail(client, request, diffs, discussions);
-      if (generation !== this.mergeRequestGeneration || connectionGeneration !== this.requestGeneration) return;
+      if (controller.signal.aborted || generation !== this.mergeRequestGeneration || connectionGeneration !== this.requestGeneration) return;
       this.selectedMergeRequest = detail;
       await this.context.globalState.update(this.selectedMergeRequestKey(), { projectId, iid });
-    } finally { this.post({ type: 'busy', value: false }); this.sendSnapshot(); }
+    } catch (error) {
+      if (!controller.signal.aborted) throw error;
+    } finally {
+      if (generation === this.mergeRequestGeneration) {
+        this.post({ type: 'busy', value: false });
+        this.sendSnapshot();
+      }
+    }
   }
 
   private async getMergeRequestDetail(client: GitLabClient, request: GitLabMergeRequest, diffs: MergeRequestDetail['diffs'], discussions: MergeRequestDetail['discussions']): Promise<MergeRequestDetail> {
@@ -1456,7 +1657,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const targetBranch = checkedText(request.targetBranch, '目標分支', 255);
     await git(path.resolve(root), ['check-ref-format', '--branch', targetBranch]);
     const repoPath = groupRepositoryPath(root, project, this.projects);
-    if (localRepositoryState(root, repoPath) !== 'ready') throw new Error('本機 Repo 不存在或路徑不安全。');
+    if (await localRepositoryStateAsync(root, repoPath) !== 'ready') throw new Error('本機 Repo 不存在或路徑不安全。');
     const repoTop = await git(repoPath, ['rev-parse', '--show-toplevel']);
     if (!sameRealLocalPath(repoTop.trim(), repoPath)) throw new Error('本機路徑不是 Repo 根目錄。');
     const branch = (await git(repoPath, ['branch', '--show-current'])).trim();
@@ -1743,12 +1944,40 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
+  private instanceUserScope(): string | undefined {
+    return this.session.baseUrl && this.currentUser
+      ? createHash('sha256').update(`${this.session.baseUrl}\0${this.currentUser.id}`).digest('hex').slice(0, 24)
+      : undefined;
+  }
+
+  private publishTimers(): void {
+    const instanceUserScope = this.instanceUserScope();
+    if (!instanceUserScope) return;
+    this.timerVersion++;
+    this.post({ type: 'timersChanged', instanceUserScope, version: this.timerVersion, timers: this.timer.list() });
+  }
+
+  private syncTimerPolling(): void {
+    const running = this.timer.list().some((entry) => entry.phase === 'running');
+    if (running && !this.interval) {
+      this.interval = setInterval(() => { void this.onTick(); }, 1000);
+    } else if (!running && this.interval) {
+      clearInterval(this.interval);
+      this.interval = undefined;
+    }
+  }
+
   private async onTick(): Promise<void> {
+    if (this.timerTickInFlight) return;
+    this.timerTickInFlight = true;
     try {
-      await this.enqueueTimer(() => this.timer.tick());
-      const active = this.timer.list().some((entry) => entry.phase === 'running');
-      if (active) this.sendSnapshot();
+      const changed = await this.enqueueTimer(() => this.timer.tick());
+      if (changed) this.publishTimers();
     } catch (error) { this.post({ type: 'error', message: readableError(error) }); }
+    finally {
+      this.timerTickInFlight = false;
+      this.syncTimerPolling();
+    }
   }
 
   private enqueueTimer<T>(action: () => Promise<T>): Promise<T> {

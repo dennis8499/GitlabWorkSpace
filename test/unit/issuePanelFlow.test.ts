@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ExtensionContext } from 'vscode';
+import type { GitLabClient } from '../../src/api/gitLabClient';
 import type { GitLabSession } from '../../src/connection/session';
 import type { IssuePanelResponse } from '../../src/issues/protocol';
 import type { WorkspaceResponse } from '../../src/workspace/workspaceProtocol';
@@ -8,6 +9,8 @@ import type { WorkspaceResponse } from '../../src/workspace/workspaceProtocol';
 test('an unassigned creation opens detail and a later issue selection wins a pending load', async () => {
   const issue = { id: 401, iid: 7, project_id: 42, title: 'New unassigned issue', description: '', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7', updated_at: '2026-09-24T00:00:00Z', assignees: [] };
   const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
+  let releaseDiscussions: (() => void) | undefined;
+  const discussionGate = new Promise<void>((resolve) => { releaseDiscussions = resolve; });
   let internalIssueNavigations = 0;
   const client = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
@@ -17,17 +20,21 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     getCurrentUser: async () => ({ id: 9, username: 'tester', name: 'Tester' }),
     listProjectMembers: async () => [], listProjectLabels: async () => [],
     listProjectMilestones: async () => [], listProjectIssueTemplates: async () => [],
-    listIssueDiscussions: async () => [], listIssueLinks: async () => [],
+    listIssueDiscussions: async (_projectId: number, iid: number) => { if (iid === 9) await discussionGate; return []; },
+    listIssueNoteReactions: async (_projectId: number, _iid: number, _noteId: number) => [], listIssueLinks: async () => [],
     listRelatedMergeRequests: async () => [], listIssueReactions: async () => [],
     listTodos: async () => [], graphql: async (_query: string, _variables: Record<string, unknown>): Promise<unknown> => ({}),
     updateIssueIfUnchanged: async (_projectId: number, _iid: number) => issue,
     deleteIssue: async (_projectId: number, _iid: number) => undefined
   };
+  const signalClient = client as unknown as GitLabClient;
+  Object.assign(signalClient, { withReadSignal: (_signal: AbortSignal) => signalClient });
   const session = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     selectedGroup: { id: 1, full_path: 'group' }, metadata: { version: '18.4.0' },
     instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true },
-    getClient: async () => client, ensureInstanceChecked: async () => undefined
+    getClient: async () => signalClient, ensureInstanceChecked: async () => undefined,
+    cachedRead: async (_key: string, load: (readClient: GitLabClient, signal: AbortSignal) => Promise<unknown>) => load(signalClient, new AbortController().signal)
   } as unknown as GitLabSession;
   const messages: IssuePanelResponse[] = [];
   const externalUrls: string[] = [];
@@ -86,15 +93,34 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.equal(selectedNavigation?.mode === 'detail' ? selectedNavigation.tab : undefined, 'time');
     const latest = [...messages].reverse().find((message) => message.type === 'detailData');
     assert.equal(latest?.type === 'detailData' ? latest.data.issue.iid : undefined, 9);
+    assert.equal(latest?.type === 'detailData' ? latest.data.sections?.activity : undefined, 'loading', 'the Issue core is visible while discussion loading is still pending');
+    releaseDiscussions?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.activity === 'ready'));
     assert.equal(reads, 2);
     let taskPages = 0;
     client.graphql = async (_query, variables) => {
       taskPages++;
       return { namespace: { workItem: { id: 'gid://gitlab/WorkItem/403', userPermissions: { updateWorkItem: true }, widgets: [{ children: { nodes: [{ id: `task-${taskPages}`, iid: String(taskPages), title: `Task ${taskPages}`, state: 'OPEN', userPermissions: { updateWorkItem: true } }], pageInfo: { hasNextPage: taskPages === 1, endCursor: taskPages === 1 ? 'next-task' : null } } }] }, workItemTypes: { nodes: [{ id: 'task-type' }] } } };
     };
-    const tasks = await (panels as unknown as { loadTasks(projectPath: string, iid: number): Promise<{ tasks: Array<{ id: string }> }> }).loadTasks('group/project', 9);
+    const tasks = await (panels as unknown as { loadTasks(client: GitLabClient, projectPath: string, iid: number): Promise<{ tasks: Array<{ id: string }> }> }).loadTasks(signalClient, 'group/project', 9);
     assert.deepEqual(tasks.tasks.map((task) => task.id), ['task-1', 'task-2']);
     assert.equal(taskPages, 2);
+
+    let activeReactions = 0;
+    let maxReactionConcurrency = 0;
+    client.listIssueNoteReactions = async () => {
+      activeReactions++;
+      maxReactionConcurrency = Math.max(maxReactionConcurrency, activeReactions);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      activeReactions--;
+      return [];
+    };
+    const loadNoteReactions = (panels as unknown as { loadNoteReactions(client: GitLabClient, projectId: number, iid: number, discussions: Array<{ notes: Array<{ id: number; system?: boolean }> }>, signal: AbortSignal): Promise<{ reactions: Record<number, unknown[]>; failed: number }> }).loadNoteReactions.bind(panels);
+    const reactionResult = await loadNoteReactions(signalClient, 42, 9, Array.from({ length: 100 }, (_, index) => ({ notes: [{ id: index + 1, system: false }] })), new AbortController().signal);
+    assert.equal(Object.keys(reactionResult.reactions).length, 100);
+    assert.equal(reactionResult.failed, 0);
+    assert.equal(maxReactionConcurrency, 8);
 
     const nextIssue = { ...issue, id: 404, iid: 10, title: 'Next issue' };
     const staleRevision = navigations.at(-1)?.revision;

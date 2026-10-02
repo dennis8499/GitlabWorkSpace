@@ -125,6 +125,7 @@ export interface WorkspaceSnapshot {
     error?: string;
   };
   issueGraph?: IssueGraphSnapshot;
+  issueGraphVersion?: number;
   localRepositories: Record<number, LocalRepositoryState>;
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
@@ -137,6 +138,8 @@ export interface WorkspaceSnapshot {
   draftOptions?: { projectId: number; options: IssueFormOptions; canCreateIssue: boolean };
   selectedMergeRequest?: MergeRequestDetail;
   timers: WorkspaceTimerEntry[];
+  timerVersion?: number;
+  scopeEpoch?: number;
   tools: InstalledToolState[];
   toolSource: ToolSource;
   toolPackages?: ToolPackageSummary[];
@@ -214,6 +217,8 @@ export type WorkspaceRequest =
 
 export type WorkspaceResponse =
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
+  | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
+  | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }
   | { type: 'error'; message: string }

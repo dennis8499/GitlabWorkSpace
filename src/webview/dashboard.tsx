@@ -150,6 +150,35 @@ function durationInput(value: number): string {
   return `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}${seconds ? `${seconds}s` : ''}` || '1m';
 }
 function safeError(message: string): string { return message.replace(/\s+/g, ' ').slice(0, 1000); }
+function TimerStatus({ instanceUserScope, initialTimers, version }: { instanceUserScope?: string; initialTimers: WorkspaceTimerEntry[]; version: number }) {
+  const [timers, setTimers] = useState(initialTimers);
+  const applied = useRef({ scope: instanceUserScope, version });
+  useEffect(() => {
+    if (applied.current.scope !== instanceUserScope) {
+      applied.current = { scope: instanceUserScope, version };
+      setTimers(initialTimers);
+    } else if (version >= applied.current.version) {
+      applied.current.version = version;
+      setTimers(initialTimers);
+    }
+  }, [instanceUserScope, initialTimers, version]);
+  useEffect(() => {
+    const receive = (event: Event): void => {
+      const message = (event as CustomEvent<Extract<WorkspaceResponse, { type: 'timersChanged' }>>).detail;
+      if (!message || message.instanceUserScope !== instanceUserScope || message.version <= applied.current.version) return;
+      applied.current.version = message.version;
+      setTimers(message.timers);
+    };
+    window.addEventListener('workspaceTimersChanged', receive);
+    return () => window.removeEventListener('workspaceTimersChanged', receive);
+  }, [instanceUserScope]);
+  const activeTimer = timers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
+  const pendingTime = timers.filter((entry) => !['running', 'paused', 'posted'].includes(entry.phase));
+  return <>
+    {activeTimer && <span class="timer-status"><button class="status-link timer-link" type="button" onClick={() => post({ type: 'openIssue', projectId: activeTimer.projectId, issueIid: activeTimer.issueIid, tab: 'time' })}>● {fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}</button><button type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></span>}
+    {pendingTime.length > 0 && <button class="status-link" type="button" onClick={() => { const entry = pendingTime[0]; post({ type: 'openIssue', projectId: entry.projectId, issueIid: entry.issueIid, tab: 'time' }); }}>{pendingTime.length} 筆工時待確認／送出</button>}
+  </>;
+}
 function BranchStatus({ state, behindBy }: { state: string; behindBy?: number }) {
   const labels: Record<string, string> = {
     not_checked: '尚未檢查', checking: '檢查中', current: '已包含最新目標提交',
@@ -220,6 +249,8 @@ function App() {
   const issueGraphRequestedScopesRef = useRef(new Set<string>());
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
+  const timerVersionRef = useRef(0);
+  const issueGraphVersionRef = useRef(0);
   const savedScopesRef = useRef<Record<string, ScopedSavedState>>(initial?.scopedData ?? {});
   const savedWikiGuideInputsRef = useRef(initial?.wikiGuideInputsByScope ?? {});
   const wikiGuideScopeRef = useRef(wikiGuideScopeKey(initial?.scopeKey, initial?.instanceUserScope));
@@ -265,6 +296,8 @@ function App() {
           const defaults = emptyScopedState();
           const value = saved ?? defaults;
           scopeRef.current = nextScope;
+          timerVersionRef.current = message.snapshot.timerVersion ?? 0;
+          issueGraphVersionRef.current = message.snapshot.issueGraphVersion ?? 0;
           issueGraphRequestedScopesRef.current.delete(nextScope);
           const availableIds = message.snapshot.projects.map((project) => project.id);
           const preferredBoardId = value.issueBoardId;
@@ -307,8 +340,21 @@ function App() {
           setIssueMilestoneFilter((current) => current === 'all' || current === 'none' ||
             (Number.isSafeInteger(Number(current)) && availableMilestoneIds.has(Number(current))) ? current : 'all');
         }
+        if (nextScope && nextScope === scopeRef.current) {
+          timerVersionRef.current = Math.max(timerVersionRef.current, message.snapshot.timerVersion ?? 0);
+          issueGraphVersionRef.current = Math.max(issueGraphVersionRef.current, message.snapshot.issueGraphVersion ?? 0);
+        }
         instanceUserScopeRef.current = message.snapshot.instanceUserScope;
-        setSnapshot(message.snapshot);
+        setSnapshot((current) => {
+          if (!current || current.connectedScope !== message.snapshot.connectedScope) return message.snapshot;
+          return {
+            ...message.snapshot,
+            ...(message.snapshot.timerVersion !== undefined && message.snapshot.timerVersion < timerVersionRef.current
+              ? { timers: current.timers, timerVersion: current.timerVersion } : {}),
+            ...(message.snapshot.issueGraphVersion !== undefined && message.snapshot.issueGraphVersion < issueGraphVersionRef.current
+              ? { issueGraph: current.issueGraph, issueGraphVersion: current.issueGraphVersion } : {})
+          };
+        });
         const operation = message.snapshot.connectedScope && message.snapshot.cloneOperation?.scopeKey === message.snapshot.connectedScope ? message.snapshot.cloneOperation : undefined;
         setCloneOperation(operation as Extract<WorkspaceResponse, { type: 'cloneOperation' }> | undefined);
         if (operation) applyCompletedSelection(operation);
@@ -320,6 +366,16 @@ function App() {
       } else if (message.type === 'issueResponse') {
         if (message.revision !== undefined && issueNavigationRef.current?.revision !== message.revision) return;
         window.dispatchEvent(new CustomEvent('workspaceIssueResponse', { detail: message.response }));
+      } else if (message.type === 'timersChanged') {
+        if (message.instanceUserScope !== instanceUserScopeRef.current || message.version <= timerVersionRef.current) return;
+        timerVersionRef.current = message.version;
+        window.dispatchEvent(new CustomEvent('workspaceTimersChanged', { detail: message }));
+      } else if (message.type === 'issueGraphChanged') {
+        if (message.connectedScope !== scopeRef.current || message.version <= issueGraphVersionRef.current) return;
+        issueGraphVersionRef.current = message.version;
+        setSnapshot((current) => current?.connectedScope === message.connectedScope
+          ? { ...current, issueGraph: message.graph, issueGraphVersion: message.version }
+          : current);
       } else if (message.type === 'cloneOperation') {
         if (message.scopeKey === scopeRef.current) {
           setCloneOperation(message);
@@ -450,12 +506,13 @@ function App() {
   const currentMrKey = mr ? mrKey(mr.project_id, mr.iid) : '';
   const currentReport = reports[currentMrKey] ?? { text: '', sha: '' };
   const reportOutdated = !!currentReport.text && !!currentReport.sha && currentReport.sha !== currentSha;
-  const pendingTime = snapshot?.timers.filter((entry) => !['running', 'paused', 'posted'].includes(entry.phase)) ?? [];
-  const activeTimer = snapshot?.timers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
-  const issueLabels = [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b));
+  const issueLabels = useMemo(() => [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b)), [issues]);
   const issueBoards = snapshot?.groupIssueBoards ?? [];
-  const issueBoardNameCounts = new Map<string, number>();
-  for (const board of issueBoards) issueBoardNameCounts.set(board.name, (issueBoardNameCounts.get(board.name) ?? 0) + 1);
+  const issueBoardNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const board of issueBoards) counts.set(board.name, (counts.get(board.name) ?? 0) + 1);
+    return counts;
+  }, [issueBoards]);
   const selectedIssueBoard = issueBoards.find((board) => board.id === issueBoardId);
   const snapshotIssueBoardContent = snapshot?.issueBoardContent;
   const issueBoardContent = snapshotIssueBoardContent?.connectedScope === snapshot?.connectedScope && snapshotIssueBoardContent?.boardId === issueBoardId
@@ -464,11 +521,14 @@ function App() {
   const issueBoardContentReady = issueBoardContent?.status === 'ready' && !snapshot?.groupIssueBoardsError;
   const issueBoardContentError = snapshot?.groupIssueBoardsError ?? (issueBoardContent?.status === 'error' ? issueBoardContent.error : undefined);
   const issueBoardContentLoading = !!selectedIssueBoard && !issueBoardContentReady && !issueBoardContentError;
-  const issueBoardIssueIds = new Set(issueBoardContentReady ? issueBoardContent.issueIds : []);
-  const issueMilestones = [...(snapshot?.groupMilestones ?? [])].sort((a, b) => a.title.localeCompare(b.title) || (a.group_id ?? 0) - (b.group_id ?? 0) || a.id - b.id);
-  const milestoneTitleCounts = new Map<string, number>();
-  for (const milestone of issueMilestones) milestoneTitleCounts.set(milestone.title, (milestoneTitleCounts.get(milestone.title) ?? 0) + 1);
-  const groupsById = new Map((snapshot?.groups ?? []).map((group) => [group.id, group]));
+  const issueBoardIssueIds = useMemo(() => new Set(issueBoardContentReady ? issueBoardContent?.issueIds ?? [] : []), [issueBoardContentReady, issueBoardContent?.issueIds]);
+  const issueMilestones = useMemo(() => [...(snapshot?.groupMilestones ?? [])].sort((a, b) => a.title.localeCompare(b.title) || (a.group_id ?? 0) - (b.group_id ?? 0) || a.id - b.id), [snapshot?.groupMilestones]);
+  const milestoneTitleCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const milestone of issueMilestones) counts.set(milestone.title, (counts.get(milestone.title) ?? 0) + 1);
+    return counts;
+  }, [issueMilestones]);
+  const groupsById = useMemo(() => new Map((snapshot?.groups ?? []).map((group) => [group.id, group])), [snapshot?.groups]);
   const milestoneLabel = (milestone: (typeof issueMilestones)[number]): string => {
     if ((milestoneTitleCounts.get(milestone.title) ?? 0) < 2) return milestone.title;
     const owner = milestone.group_id === undefined ? undefined : groupsById.get(milestone.group_id)?.full_path ?? `Group #${milestone.group_id}`;
@@ -479,23 +539,25 @@ function App() {
     (issueLabelFilter === 'all' || (issue.labels ?? []).includes(issueLabelFilter)) &&
     (issueMilestoneFilter === 'all' || (issueMilestoneFilter === 'none' ? !issue.milestone : String(issue.milestone?.id ?? '') === issueMilestoneFilter)) &&
     filterText('developer', `${issue.title} ${projectById.get(issue.project_id)?.path_with_namespace ?? ''} #${issue.iid} ${(issue.labels ?? []).join(' ')}`);
-  const visibleIssues = issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) && matchesSharedIssueFilters(issue));
-  const matchingGraphRootIds = new Set(issues.filter(matchesSharedIssueFilters).map((issue) =>
-    issueGraphNodeKey(issue.project_id, projectById.get(issue.project_id)?.path_with_namespace ?? '', issue.iid)));
+  const visibleIssues = useMemo(() => issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) && matchesSharedIssueFilters(issue)),
+    [issues, issueBoardContentReady, issueBoardIssueIds, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
+  const matchingGraphRootIds = useMemo(() => new Set(issues.filter(matchesSharedIssueFilters).map((issue) =>
+    issueGraphNodeKey(issue.project_id, projectById.get(issue.project_id)?.path_with_namespace ?? '', issue.iid))),
+    [issues, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
   const issueGraphSnapshot = snapshot && snapshot.issueGraph?.connectedScope === snapshot.connectedScope ? snapshot.issueGraph : undefined;
   const effectiveGraphBoardId: number | 'all' = issueBoards.some((board) => board.id === graphBoardId) ? graphBoardId : 'all';
-  const graphSelection = issueGraphSnapshot
+  const graphSelection = useMemo(() => issueGraphSnapshot
     ? selectIssueGraph(issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId)
-    : { nodes: [], edges: [], rootCount: 0 };
-  const graphMatchingRoots = new Set(issueGraphSnapshot?.nodes.filter((node) => node.isRoot && matchingGraphRootIds.has(node.id) &&
-    (effectiveGraphBoardId === 'all' || node.boardIds.includes(effectiveGraphBoardId))).map((node) => node.id) ?? []);
+    : { nodes: [], edges: [], rootCount: 0 }, [issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId]);
+  const graphMatchingRoots = useMemo(() => new Set(issueGraphSnapshot?.nodes.filter((node) => node.isRoot && matchingGraphRootIds.has(node.id) &&
+    (effectiveGraphBoardId === 'all' || node.boardIds.includes(effectiveGraphBoardId))).map((node) => node.id) ?? []), [issueGraphSnapshot?.nodes, matchingGraphRootIds, effectiveGraphBoardId]);
 
   useEffect(() => {
     if (!issueGraphSnapshot || !['ready', 'partial', 'error'].includes(issueGraphSnapshot.status)) return;
     if (selectedGraphNodeId && !issueGraphSnapshot.nodes.some((node) => node.id === selectedGraphNodeId)) setSelectedGraphNodeId(undefined);
   }, [issueGraphSnapshot?.status, issueGraphSnapshot?.nodes, selectedGraphNodeId]);
-  const visibleProjects = projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`));
-  const visibleProjectIds = new Set(visibleProjects.map((project) => project.id));
+  const visibleProjects = useMemo(() => projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`)), [projects, mode, filters[mode]]);
+  const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
   const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]);
   const allVisibleProjectsSelected = visibleProjects.length > 0 && visibleProjects.every((project) => selectedProjectIds.includes(project.id));
   const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIds.includes(project.id)), 0);
@@ -505,13 +567,13 @@ function App() {
   const skippedOperationCount = cloneOperation?.items.filter((item) => item.state === 'skipped').length ?? 0;
   const failedOperationCount = cloneOperation?.items.filter((item) => item.state === 'failed').length ?? 0;
   const activeOperationItem = cloneOperation?.items.find((item) => item.state === 'starting' || item.state === 'progress');
-  const visibleMrs = (snapshot?.mergeRequests ?? []).filter((item) => {
+  const visibleMrs = useMemo(() => (snapshot?.mergeRequests ?? []).filter((item) => {
     const userId = snapshot?.currentUser?.id;
     const isReviewer = !!userId && item.reviewers?.some((user) => user.id === userId);
     const isAssignee = !!userId && item.assignees?.some((user) => user.id === userId);
     const matchesFilter = reviewFilter === 'all' || (reviewFilter === 'reviewer' ? isReviewer : isAssignee);
     return matchesFilter && filterText('reviewer', `${item.title} ${item.author?.name ?? ''} ${projectById.get(item.project_id)?.path_with_namespace ?? ''} !${item.iid} ${item.source_branch} ${item.target_branch}`);
-  });
+  }), [snapshot?.mergeRequests, snapshot?.currentUser?.id, reviewFilter, filters.reviewer, projectById]);
 
   function filterText(key: WorkspaceMode, text: string): boolean {
     const query = (filters[key] ?? '').trim().toLocaleLowerCase();
@@ -727,7 +789,7 @@ function App() {
       </section>
     </div>
 
-    <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span>{activeTimer && <span class="timer-status"><button class="status-link timer-link" type="button" onClick={() => post({ type: 'openIssue', projectId: activeTimer.projectId, issueIid: activeTimer.issueIid, tab: 'time' })}>● {fmtSeconds(activeTimer.elapsedSeconds)}　{activeTimer.projectPath} #{activeTimer.issueIid}</button><button type="button" onClick={() => post({ type: activeTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: activeTimer.id })}>{activeTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => post({ type: 'stopTimer', id: activeTimer.id })}>停止</button></span>}{pendingTime.length > 0 && <button class="status-link" type="button" onClick={() => { const entry = pendingTime[0]; post({ type: 'openIssue', projectId: entry.projectId, issueIid: entry.issueIid, tab: 'time' }); }}>{pendingTime.length} 筆工時待確認／送出</button>}<span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
+    <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
     {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} toolSource={toolSource}
       selectedPackageIds={selectedPackageIds}
       onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }}

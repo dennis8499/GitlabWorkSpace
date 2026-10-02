@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
-import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot } from '../workspace/workspaceProtocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
+import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
 import { buildDeveloperPrompt } from '../workspace/issueDrafts';
 import './style.css';
@@ -97,6 +97,45 @@ function IssueFields({ form, setForm, options, projectId, baseUrl, images, onIma
       </div>
     </details>
   </div>;
+}
+
+function IssueTimerPanel({ snapshot, issue, onRequest, timeEdits, onTimeEdit }: {
+  snapshot?: WorkspaceSnapshot;
+  issue: GitLabIssue;
+  onRequest: (request: WorkspaceRequest) => void;
+  timeEdits: Record<string, TimeEdit>;
+  onTimeEdit?: (id: string, edit: TimeEdit) => void;
+}) {
+  const scope = snapshot?.instanceUserScope;
+  const version = snapshot?.timerVersion ?? 0;
+  const initialTimers = snapshot?.timers ?? [];
+  const [timers, setTimers] = useState(initialTimers);
+  const applied = useRef({ scope, version });
+  useEffect(() => {
+    if (applied.current.scope !== scope) {
+      applied.current = { scope, version };
+      setTimers(initialTimers);
+    } else if (version >= applied.current.version) {
+      applied.current.version = version;
+      setTimers(initialTimers);
+    }
+  }, [scope, version, initialTimers]);
+  useEffect(() => {
+    const receive = (event: Event): void => {
+      const message = (event as CustomEvent<Extract<WorkspaceResponse, { type: 'timersChanged' }>>).detail;
+      if (!message || message.instanceUserScope !== applied.current.scope || message.version <= applied.current.version) return;
+      applied.current.version = message.version;
+      setTimers(message.timers);
+    };
+    window.addEventListener('workspaceTimersChanged', receive);
+    return () => window.removeEventListener('workspaceTimersChanged', receive);
+  }, []);
+  const issueTimers = timers.filter((entry) => entry.projectId === issue.project_id && entry.issueIid === issue.iid);
+  const currentIssueTimer = issueTimers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
+  return <>
+    <div class="timer-controls">{currentIssueTimer ? <><strong>{currentIssueTimer.phase === 'running' ? '???' : '???'}</strong><button type="button" onClick={() => onRequest({ type: currentIssueTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: currentIssueTimer.id })}>{currentIssueTimer.phase === 'running' ? '??' : '??'}</button><button type="button" onClick={() => onRequest({ type: 'stopTimer', id: currentIssueTimer.id })}>????</button></> : <button class="primary" type="button" onClick={() => onRequest({ type: 'startTimer', projectId: issue.project_id, issueIid: issue.iid })}>????</button>}</div>
+    {issueTimers.filter((entry) => entry.phase !== 'posted').map((entry) => <TimeRow entry={entry} edit={timeEdits[entry.id]} onEdit={(edit) => onTimeEdit?.(entry.id, edit)} onRequest={onRequest} />)}
+  </>;
 }
 
 export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit }: {
@@ -213,6 +252,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const pendingAction = useRef<IssueAction | null>(null);
   const pendingReplyDiscussion = useRef<string | null>(null);
   const pendingSubmission = useRef<{ body?: string; childTitle: string; childIid: string; taskTitle: string; taskDescription: string } | null>(null);
+
 
   const post = (request: IssuePanelRequest) => onWorkspaceRequest ? onWorkspaceRequest(request) : postIssueRequest(request);
   const postWorkspace = (request: WorkspaceRequest) => onWorkspaceAction?.(request);
@@ -368,6 +408,18 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
             postReplyRequest({ type: 'preview', requestId, projectId: message.data.issue.project_id, markdown: note.body });
           }
         }
+      } else if (message.type === 'detailPatch') {
+        if (activeIssueId.current !== message.issueId) return;
+        setDetail((current) => {
+          if (!current || current.issue.id !== message.issueId) return current;
+          return {
+            ...current,
+            ...message.patch,
+            options: message.patch.options ? { ...current.options, ...message.patch.options } : current.options,
+            sections: { ...(current.sections ?? {}), ...(message.patch.sections ?? {}) }
+          };
+        });
+        if (message.patch.options) setOptions((current) => ({ ...current, ...message.patch.options }));
       } else if (message.type === 'reply') {
         const epoch = requestEpoch.current.get(message.requestId);
         requestEpoch.current.delete(message.requestId);
@@ -434,17 +486,29 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
+  const sectionLabels: Record<IssueDetailSection, string> = {
+    options: '欄位選項', activity: '討論', links: '關聯 Issue', mergeRequests: '相關 MR',
+    reactions: '反應', todos: '待辦', tasks: '子工作', permissions: 'Issue 權限', projects: '專案清單', dates: '開始日期', timelogs: 'GitLab 工時'
+  };
+  const sectionErrorNames: Record<IssueDetailSection, string> = {
+    options: 'fields', activity: 'activity', links: 'links', mergeRequests: 'merge requests', reactions: 'reactions',
+    todos: 'to-dos', tasks: 'tasks and permissions', permissions: 'permissions', projects: 'projects', dates: 'start date', timelogs: 'time entries'
+  };
+  const sectionStatuses = (Object.entries(detail?.sections ?? {}) as Array<[IssueDetailSection, 'loading' | 'ready' | 'error']>)
+    .filter(([, status]) => status !== 'ready');
   const myTodo = detail?.todos.find((todo) => todo.target?.id === issue?.id);
   const myReactions = new Set(detail?.reactions.filter((reaction) => reaction.user.id === detail.user.id).map((reaction) => reaction.id));
   const targetProjects = [...new Map([...projects, ...targetProjectResults].map((project) => [project.id, project])).values()];
-  const issueTimers = snapshot?.timers.filter((entry) => entry.projectId === issue?.project_id && entry.issueIid === issue?.iid) ?? [];
-  const currentIssueTimer = issueTimers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
   const workspaceIssues = snapshot?.issues.filter((item) => `${item.title} ${item.iid} ${snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace ?? ''}`.toLocaleLowerCase().includes(issueSearch.trim().toLocaleLowerCase())) ?? [];
 
   return <main id="issue-panel" class="shell">
     <header class="topbar issue-topbar"><div><span class="eyebrow">{mode === 'create' ? '建立工作項目' : detail?.project.path_with_namespace}</span><h1>{mode === 'create' ? '新增 Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? '新增後會直接開啟內容與討論。' : `${issue?.state === 'closed' ? '已結案' : '進行中'}${detail?.options.warnings?.length ? ' · 部分欄位載入受限' : ''}`}</p></div><div class="toolbar issue-heading-actions">{onBack && <button type="button" onClick={onBack}>返回清單</button>}<button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>重新整理</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>在 GitLab 開啟</button>}</div></header>
     {error && <div class="alert" role="alert"><span>{error}</span><button type="button" aria-label="關閉錯誤訊息" onClick={() => setError('')}>關閉</button></div>}
     {busy && <div class="loading" role="status">正在與 GitLab 通訊…</div>}
+    {sectionStatuses.length > 0 && <div class="section-status-list" role="status" aria-live="polite">{sectionStatuses.map(([section, status]) => {
+      const warning = status === 'error' ? detail?.warnings.find((item) => item.startsWith(`Could not load ${sectionErrorNames[section]}:`)) : undefined;
+      return <p class={status === 'error' ? 'warning' : 'subtle'} key={section}>{sectionLabels[section]}：{status === 'loading' ? '載入中' : `載入失敗${warning ? `：${warning}` : '，請重新整理再試'}`}</p>;
+    })}</div>}
     {mode === 'create' ? <section class="card">
       <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); busyRef.current = true; setBusy(true); post({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
       <IssueFields form={form} setForm={setForm} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
@@ -522,9 +586,9 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>訂閱與待辦</h2><div class="stack"><button onClick={() => invoke(issue.subscribed ? 'unsubscribe' : 'subscribe')}>{issue.subscribed ? '取消訂閱' : '訂閱此 Issue'}</button><button onClick={() => myTodo ? invoke('todoDone', { todoId: myTodo.id }) : invoke('todo')}>{myTodo ? '完成待辦' : '加入待辦'}</button></div></section>
         <section class="card issue-section" hidden={detailTab !== 'time'}><h2>工時</h2>
           {recoveredManualTime && <div class="recovered-draft"><strong>有一份舊工時草稿尚未指定 Issue</strong><p class="muted">為避免寫入錯誤的 Issue，請選擇專案並輸入 Issue 編號後再恢復。</p><div class="inline-form"><select aria-label="舊工時草稿的目標專案" value={recoveryProjectId} onChange={(event) => setRecoveryProjectId(event.currentTarget.value)}><option value="">選擇目標專案</option>{snapshot?.projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><input aria-label="舊工時草稿的目標 Issue 編號" inputMode="numeric" type="number" min="1" placeholder="Issue 編號" value={recoveryIssueIid} onInput={(event) => setRecoveryIssueIid(event.currentTarget.value)} /><button type="button" disabled={!recoveryProjectId || !Number(recoveryIssueIid) || Number(recoveryIssueIid) < 1} onClick={() => { onRecoverManualTime?.(Number(recoveryProjectId), Number(recoveryIssueIid)); setRecoveryProjectId(''); setRecoveryIssueIid(''); }}>恢復到指定 Issue</button></div><p class="small">草稿：{[recoveredManualTime.duration, recoveredManualTime.summary, recoveredManualTime.spentAt].filter(Boolean).join(' · ')}</p></div>}
-          <dl><dt>預估</dt><dd>{issue.time_stats?.human_time_estimate ?? '尚未設定'}</dd><dt>已登錄</dt><dd>{issue.time_stats?.human_total_time_spent ?? '尚無紀錄'}</dd></dl>{detail.canTrackTime && <><div class="timer-controls">{currentIssueTimer ? <><strong>{currentIssueTimer.phase === 'running' ? '計時中' : '已暫停'}</strong><button type="button" onClick={() => postWorkspace({ type: currentIssueTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: currentIssueTimer.id })}>{currentIssueTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => postWorkspace({ type: 'stopTimer', id: currentIssueTimer.id })}>結束計時</button></> : <button class="primary" type="button" onClick={() => postWorkspace({ type: 'startTimer', projectId: issue.project_id, issueIid: issue.iid })}>開始計時</button>}</div>
+          <dl><dt>預估</dt><dd>{issue.time_stats?.human_time_estimate ?? '尚未設定'}</dd><dt>已登錄</dt><dd>{issue.time_stats?.human_total_time_spent ?? '尚無紀錄'}</dd></dl>{detail.canTrackTime && <><IssueTimerPanel snapshot={snapshot} issue={issue} timeEdits={timeEdits} onTimeEdit={onTimeEdit} onRequest={postWorkspace} />
           <label class="field"><span>新增手動工時（例如 45m、1h30m）</span><input aria-label="工時長度" placeholder="45m" value={manualTime.duration} onInput={(event) => onManualTimeChange?.({ ...manualTime, duration: event.currentTarget.value })} /></label><label class="field"><span>工時摘要</span><input aria-label="工時摘要" value={manualTime.summary} onInput={(event) => onManualTimeChange?.({ ...manualTime, summary: event.currentTarget.value })} /></label><label class="field"><span>登錄日期</span><input aria-label="工時日期" type="date" value={manualTime.spentAt} onInput={(event) => onManualTimeChange?.({ ...manualTime, spentAt: event.currentTarget.value })} /></label><div class="toolbar wrap"><button disabled={!manualTime.duration.trim() || busy} onClick={() => postWorkspace({ type: 'addManualTime', projectId: issue.project_id, issueIid: issue.iid, ...manualTime, spentAt: manualTime.spentAt || undefined })}>新增待送出工時</button><button disabled={!manualTime.duration.trim() || busy} onClick={() => invoke('estimate', { duration: manualTime.duration })}>設定預估</button><button onClick={() => invoke('resetEstimate')}>重設預估</button><button onClick={() => invoke('resetSpent')}>重設已登錄工時</button></div>
-          {issueTimers.filter((entry) => entry.phase !== 'posted').map((entry) => <TimeRow entry={entry} edit={timeEdits[entry.id]} onEdit={(edit) => onTimeEdit?.(entry.id, edit)} onRequest={postWorkspace} />)}</>}{detail.timelogs.length > 0 && <div class="time-report"><h3>GitLab 工時紀錄</h3>{detail.timelogs.map((entry) => <div class="list-row" key={entry.id}><span>{entry.timeSpent}s · {entry.user.name} · {new Date(entry.spentAt).toLocaleDateString()}{entry.summary ? ` · ${entry.summary}` : ''}</span>{detail.canDeleteTimelog && entry.userPermissions?.adminTimelog && <button class="danger" disabled={busy} onClick={() => invoke('deleteTimelog', { timelogId: entry.id })}>刪除</button>}</div>)}</div>}</section>
+          </>}{detail.timelogs.length > 0 && <div class="time-report"><h3>GitLab 工時紀錄</h3>{detail.timelogs.map((entry) => <div class="list-row" key={entry.id}><span>{entry.timeSpent}s · {entry.user.name} · {new Date(entry.spentAt).toLocaleDateString()}{entry.summary ? ` · ${entry.summary}` : ''}</span>{detail.canDeleteTimelog && entry.userPermissions?.adminTimelog && <button class="danger" disabled={busy} onClick={() => invoke('deleteTimelog', { timelogId: entry.id })}>刪除</button>}</div>)}</div>}</section>
         {(detail.canClone || detail.canMove || detail.canDelete) && <details class="card issue-actions"><summary>更多 Issue 操作</summary>{(detail.canClone || detail.canMove) && <><label class="field"><span>搜尋目標專案（包含其他 Group）</span><input aria-label="搜尋目標專案" value={targetQuery} onInput={(event) => setTargetQuery(event.currentTarget.value)} /></label><button disabled={!targetQuery.trim() || busy} onClick={searchTargetProjects}>搜尋專案</button><label class="field"><span>目標專案</span><select value={targetProject} onChange={(event) => setTargetProject(event.currentTarget.value)}><option value="">選擇專案</option>{targetProjects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label></>}<div class="stack">{detail.canClone && <><label class="check"><input type="checkbox" checked={cloneWithNotes} onChange={(event) => setCloneWithNotes(event.currentTarget.checked)} /> 複製時包含留言</label><button disabled={!targetProject || busy} onClick={() => invoke('clone', { toProjectId: Number(targetProject), withNotes: cloneWithNotes })}>複製 Issue</button></>}{detail.canMove && <button disabled={!targetProject || busy} onClick={() => invoke('move', { toProjectId: Number(targetProject) })}>移動 Issue</button>}{detail.canDelete && <button class="danger" disabled={busy} onClick={() => invoke('delete')}>刪除 Issue</button>}</div></details>}
       </aside></div>
       </div></div>

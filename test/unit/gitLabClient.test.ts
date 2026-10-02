@@ -236,3 +236,28 @@ test('rejects pagination links outside the configured GitLab API path', async ()
   const client = new GitLabClient('https://gitlab.example.test/gitlab', token, fetcher);
   await assert.rejects(client.listGroups(), /outside the configured API/);
 });
+
+test('passes cancellation signals to read requests and never to GraphQL mutations', async () => {
+  const controller = new AbortController();
+  const calls: Array<{ method: string; signal?: AbortSignal }> = [];
+  let successfulWrites = 0;
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    calls.push({ method: init?.method ?? 'GET', signal: init?.signal ?? undefined });
+    const body = init?.body ? JSON.parse(String(init.body)) as { query?: string } : undefined;
+    if (body?.query?.startsWith('mutation')) return new Response(JSON.stringify({ data: { ok: true } }));
+    if (String(_input).includes('/graphql')) return new Response(JSON.stringify({ data: { ok: true } }));
+    if (String(_input).includes('/groups?')) return new Response('[]');
+    if ((init?.method ?? 'GET') === 'POST') return new Response(JSON.stringify({ iid: 7, project_id: 42 }));
+    return new Response(JSON.stringify({ id: 5, username: 'tester', name: 'Tester' }));
+  }, undefined, () => { successfulWrites++; });
+  const readClient = client.withReadSignal(controller.signal);
+
+  await readClient.getCurrentUser();
+  await readClient.listGroups();
+  await readClient.graphql('query ReadCheck { currentUser { id } }', {});
+  await readClient.graphql('mutation WriteCheck { updateIssue }', {});
+  await readClient.createIssue(42, { title: 'Created' });
+
+  assert.deepEqual(calls.map((call) => call.signal === controller.signal), [true, true, true, false, false]);
+  assert.equal(successfulWrites, 2);
+});

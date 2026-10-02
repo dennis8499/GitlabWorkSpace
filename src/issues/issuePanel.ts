@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { GitLabApiError, GitLabConflictError, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
-import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabProject } from '../api/types';
+import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
-import type { IssueDetailData, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueTask, IssueTimelog } from './protocol';
+import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueTask, IssueTimelog } from './protocol';
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import { mapWithConcurrency } from '../workspace/issueGraph';
 
 function safeError(error: unknown): string {
   if (error instanceof GitLabConflictError || error instanceof GitLabApiError) return error.message;
@@ -88,6 +89,8 @@ function updateInput(raw: unknown): IssueUpdateInput {
 export class IssuePanels implements vscode.Disposable {
   private issue?: GitLabIssue;
   private loadingTask?: Promise<void>;
+  private loadingVersion?: number;
+  private navigationReadController?: AbortController;
   private ready = false;
   private lastSnapshot?: IssuePanelResponse;
   private operationWarning?: string;
@@ -123,7 +126,13 @@ export class IssuePanels implements vscode.Disposable {
     this.close();
   }
 
+  private cancelNavigationReads(): void {
+    this.navigationReadController?.abort();
+    this.navigationReadController = undefined;
+  }
+
   close(): void {
+    this.cancelNavigationReads();
     this.navigationVersion++;
     this.revision++;
     this.hasNavigation = false;
@@ -133,6 +142,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   async showCreate(): Promise<void> {
+    this.cancelNavigationReads();
     const navigationVersion = ++this.navigationVersion;
     this.issue = undefined;
     this.mode = 'create';
@@ -143,6 +153,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   async showIssue(issue: GitLabIssue, tab?: IssueDetailTab): Promise<void> {
+    this.cancelNavigationReads();
     const navigationVersion = ++this.navigationVersion;
     this.issue = issue;
     this.mode = 'detail';
@@ -163,6 +174,14 @@ export class IssuePanels implements vscode.Disposable {
 
   private post(message: IssuePanelResponse): void {
     if (message.type === 'createData' || message.type === 'detailData') this.lastSnapshot = message;
+    else if (message.type === 'detailPatch' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === message.issueId) {
+      const previous = this.lastSnapshot.data;
+      this.lastSnapshot = { type: 'detailData', data: {
+        ...previous, ...message.patch,
+        options: message.patch.options ? { ...previous.options, ...message.patch.options } : previous.options,
+        sections: { ...(previous.sections ?? {}), ...(message.patch.sections ?? {}) }
+      } };
+    }
     if (!this.ready) return;
     this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: message });
   }
@@ -192,75 +211,81 @@ export class IssuePanels implements vscode.Disposable {
     return this.handleRequestBody(request);
   }
 
-  private async load(): Promise<void> {
-    if (this.loadingTask) {
-      await this.loadingTask;
-      return this.load();
-    }
-    const task = this.loadOnce();
+  private async load(forceNetwork = false): Promise<void> {
+    const version = this.navigationVersion;
+    if (this.loadingTask && this.loadingVersion === version && !forceNetwork) return this.loadingTask;
+    this.cancelNavigationReads();
+    const controller = new AbortController();
+    this.navigationReadController = controller;
+    const task = this.loadOnce(version, controller.signal, forceNetwork);
     this.loadingTask = task;
+    this.loadingVersion = version;
     try { await task; }
-    finally { this.loadingTask = undefined; }
+    finally {
+      if (this.loadingTask === task) {
+        this.loadingTask = undefined;
+        this.loadingVersion = undefined;
+      }
+    }
   }
 
-  private async loadOnce(): Promise<void> {
-    const version = this.navigationVersion;
+  private async loadOnce(version: number, signal: AbortSignal, forceNetwork: boolean): Promise<void> {
     this.post({ type: 'busy', value: true });
     try {
-      if (this.mode === 'create') await this.loadCreate(version);
-      else await this.loadDetail(version);
+      if (this.mode === 'create') await this.loadCreate(version, signal, forceNetwork);
+      else await this.loadDetail(version, signal, forceNetwork);
     } catch (error) {
-      if (version === this.navigationVersion) this.post({ type: 'error', message: safeError(error) });
+      if (version === this.navigationVersion && !signal.aborted) this.post({ type: 'error', message: safeError(error) });
     } finally {
-      if (version === this.navigationVersion) this.post({ type: 'busy', value: false });
+      if (version === this.navigationVersion && !signal.aborted) this.post({ type: 'busy', value: false });
     }
   }
 
-  private async loadCreate(version: number): Promise<void> {
+  private async loadCreate(version: number, signal: AbortSignal, forceNetwork: boolean): Promise<void> {
     const group = this.session.selectedGroup;
     if (!group) throw new Error('Select a GitLab group first.');
-    const client = await this.session.getClient();
-    await this.session.ensureInstanceChecked();
-    const projects = await client.listGroupProjects(group.id);
+    const client = (await this.session.getClient()).withReadSignal(signal);
+    const capabilitiesTask = this.session.ensureInstanceChecked();
+    const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork });
     const first = projects[0];
-    const options = first ? await this.formOptions(first.id) : undefined;
+    const options = first ? await this.formOptions(first.id, signal, forceNetwork) : undefined;
+    await capabilitiesTask;
     const canCreateIssue = first && this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(first.path_with_namespace).catch(() => false) : false;
-    if (version !== this.navigationVersion) return;
+    if (version !== this.navigationVersion || signal.aborted) return;
     if (options) options.warnings = [...this.session.instanceWarnings, ...(options.warnings ?? [])];
     if (options && !canCreateIssue) options.warnings?.push('This account cannot create issues in the selected project, or its permission could not be verified.');
     this.post({ type: 'createData', projects, selectedProjectId: first?.id, options, metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
   }
 
-  private async formOptions(projectId: number): Promise<IssueFormOptions> {
-    const client = await this.session.getClient();
+  private async formOptions(projectId: number, signal?: AbortSignal, forceNetwork = false): Promise<IssueFormOptions> {
     const results = await Promise.allSettled([
-      client.listProjectMembers(projectId), client.listProjectLabels(projectId),
-      client.listProjectMilestones(projectId), client.listProjectIssueTemplates(projectId)
+      this.session.cachedRead(`project/${projectId}/members`, (client) => client.listProjectMembers(projectId), { signal, force: forceNetwork }),
+      this.session.cachedRead(`project/${projectId}/labels`, (client) => client.listProjectLabels(projectId), { signal, force: forceNetwork }),
+      this.session.cachedRead(`project/${projectId}/milestones`, (client) => client.listProjectMilestones(projectId), { signal, force: forceNetwork }),
+      this.session.cachedRead(`project/${projectId}/templates`, (client) => client.listProjectIssueTemplates(projectId), { signal, force: forceNetwork })
     ] as const);
     const labels = ['members', 'labels', 'milestones', 'templates'];
     const warnings = results.flatMap((result, index) => result.status === 'rejected' ? [`Could not load ${labels[index]}: ${safeError(result.reason)}`] : []);
     const value = <T,>(index: number): T[] => results[index].status === 'fulfilled' ? results[index].value as T[] : [];
-    return { members: value(0), labels: value(1), milestones: value(2), templates: value(3), warnings };
+    return {
+      members: [...value<GitLabMember>(0)], labels: [...value<GitLabLabel>(1)],
+      milestones: [...value<GitLabMilestone>(2)], templates: [...value<GitLabIssueTemplate>(3)], warnings
+    };
   }
 
-  private async loadNoteReactions(projectId: number, iid: number, discussions: GitLabIssueDiscussion[]): Promise<{ reactions: Record<number, GitLabEmojiReaction[]>; failed: number }> {
-    const client = await this.session.getClient();
+  private async loadNoteReactions(client: import('../api/gitLabClient').GitLabClient, projectId: number, iid: number, discussions: GitLabIssueDiscussion[], signal: AbortSignal): Promise<{ reactions: Record<number, GitLabEmojiReaction[]>; failed: number }> {
     const ids = discussions.flatMap((discussion) => discussion.notes.filter((note) => !note.system).map((note) => note.id));
     const reactions: Record<number, GitLabEmojiReaction[]> = {};
     let failed = 0;
-    for (let offset = 0; offset < ids.length; offset += 8) {
-      const batch = ids.slice(offset, offset + 8);
-      const results = await Promise.allSettled(batch.map((id) => client.listIssueNoteReactions(projectId, iid, id)));
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') reactions[batch[index]] = result.value;
-        else failed++;
-      });
-    }
+    await mapWithConcurrency(ids, 8, async (id) => {
+      if (signal.aborted) throw new Error('The Issue view request was cancelled.');
+      try { reactions[id] = await client.listIssueNoteReactions(projectId, iid, id); }
+      catch (error) { if (signal.aborted) throw error; failed++; }
+    });
     return { reactions, failed };
   }
 
-  private async loadTasks(projectPath: string, iid: number): Promise<{ tasks: IssueTask[]; parentWorkItemId?: string; taskTypeId?: string; permissions?: { updateWorkItem: boolean; deleteWorkItem: boolean; moveWorkItem: boolean; cloneWorkItem: boolean; createNote: boolean; markNoteAsInternal: boolean; adminWorkItemLink: boolean; adminParentLink: boolean; setWorkItemMetadata: boolean } }> {
-    const client = await this.session.getClient();
+  private async loadTasks(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<{ tasks: IssueTask[]; parentWorkItemId?: string; taskTypeId?: string; permissions?: { updateWorkItem: boolean; deleteWorkItem: boolean; moveWorkItem: boolean; cloneWorkItem: boolean; createNote: boolean; markNoteAsInternal: boolean; adminWorkItemLink: boolean; adminParentLink: boolean; setWorkItemMetadata: boolean } }> {
     const query = `query IssueTasks($path: ID!, $iid: String!, $after: String) { namespace(fullPath: $path) { workItem(iid: $iid) { id userPermissions { updateWorkItem deleteWorkItem moveWorkItem cloneWorkItem createNote markNoteAsInternal adminWorkItemLink adminParentLink setWorkItemMetadata } widgets { ... on WorkItemWidgetHierarchy { children(first: 100, after: $after) { nodes { id iid title description descriptionHtml state webUrl userPermissions { updateWorkItem } } pageInfo { hasNextPage endCursor } } } } } workItemTypes(name: TASK) { nodes { id name } } } }`;
     type TaskPage = { namespace?: { workItem?: { id: string; userPermissions?: { updateWorkItem: boolean; deleteWorkItem: boolean; moveWorkItem: boolean; cloneWorkItem: boolean; createNote: boolean; markNoteAsInternal: boolean; adminWorkItemLink: boolean; adminParentLink: boolean; setWorkItemMetadata: boolean }; widgets?: Array<{ children?: { nodes?: Array<IssueTask & { userPermissions?: { updateWorkItem: boolean } }>; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> }; workItemTypes?: { nodes?: Array<{ id: string; name: string }> } } };
     const tasks: IssueTask[] = [];
@@ -288,78 +313,130 @@ export class IssuePanels implements vscode.Disposable {
     throw new Error('GitLab returned too many child task pages to load safely.');
   }
 
-  private async loadDetail(version: number): Promise<void> {
+  private async loadDetail(version: number, signal: AbortSignal, forceNetwork: boolean): Promise<void> {
     const seed = this.issue;
     if (!seed) return;
-    const client = await this.session.getClient();
-    await this.session.ensureInstanceChecked();
+    const client = (await this.session.getClient()).withReadSignal(signal);
     const [issue, project, user] = await Promise.all([
       client.getIssue(seed.project_id, seed.iid), client.getProject(seed.project_id), client.getCurrentUser()
     ]);
-    if (version !== this.navigationVersion) return;
+    if (version !== this.navigationVersion || signal.aborted) return;
     this.issue = issue;
     const group = this.session.selectedGroup;
-    const optional = await Promise.allSettled([
-      this.formOptions(issue.project_id),
-      client.listIssueDiscussions(issue.project_id, issue.iid),
-      client.listIssueLinks(issue.project_id, issue.iid),
-      client.listRelatedMergeRequests(issue.project_id, issue.iid),
-      client.listIssueReactions(issue.project_id, issue.iid),
-      client.listTodos(),
-      this.session.issueCapabilities?.hierarchy ? this.loadTasks(project.path_with_namespace, issue.iid) : Promise.resolve({ tasks: [] as IssueTask[] }),
-      group ? client.listGroupProjects(group.id) : Promise.resolve([project]),
-      this.session.issueCapabilities?.startDate ? client.getIssueStartDate(project.path_with_namespace, issue.iid) : Promise.resolve(null),
-      this.session.issueCapabilities?.timelogReport ? client.listIssueTimelogs(project.path_with_namespace, issue.iid) : Promise.resolve([] as IssueTimelog[])
-    ] as const);
-    if (version !== this.navigationVersion) return;
-    const names = ['fields', 'activity', 'links', 'merge requests', 'reactions', 'to-dos', 'tasks', 'projects', 'start date', 'time entries'];
-    const warnings = [...this.session.instanceWarnings, ...optional.flatMap((result, index) => result.status === 'rejected' ? [`Could not load ${names[index]}: ${safeError(result.reason)}`] : [])];
-    if (this.operationWarning) { warnings.push(this.operationWarning); this.operationWarning = undefined; }
-    const value = <T,>(index: number, fallback: T): T => optional[index].status === 'fulfilled' ? optional[index].value as T : fallback;
-    const discussions = value<GitLabIssueDiscussion[]>(1, []);
-    const noteResults = await this.loadNoteReactions(issue.project_id, issue.iid, discussions);
-    if (version !== this.navigationVersion) return;
-    if (noteResults.failed) warnings.push(`Could not load reactions for ${noteResults.failed} comment(s).`);
-    const hierarchy = value<Awaited<ReturnType<IssuePanels['loadTasks']>>>(6, { tasks: [] });
-    if (!hierarchy.permissions) warnings.push('GitLab did not expose Issue permissions; editing controls are hidden.');
-    const fields = value<IssueFormOptions>(0, { members: [], labels: [], milestones: [], templates: [] });
-    warnings.push(...(fields.warnings ?? []));
-    for (const assignee of issue.assignees ?? []) {
-      if (!fields.members.some((member) => member.id === assignee.id)) fields.members.push(assignee);
-    }
-    if (issue.milestone && !fields.milestones.some((milestone) => milestone.id === issue.milestone?.id)) fields.milestones.push(issue.milestone);
-    for (const label of issue.labels ?? []) {
-      if (!fields.labels.some((item) => item.name === label)) fields.labels.push({ id: -fields.labels.length - 1, name: label, color: '#888888' });
-    }
-    const data: IssueDetailData = {
-      issue, project, projects: value(7, [project]), user, metadata: this.session.metadata,
-      options: fields,
-      discussions, links: value(2, []), mergeRequests: value(3, []),
-      reactions: value(4, []), noteReactions: noteResults.reactions, todos: value(5, []), tasks: hierarchy.tasks,
-      startDate: value(8, issue.start_date ?? null), timelogs: value(9, []),
-      parentWorkItemId: hierarchy.parentWorkItemId,
-      taskTypeId: hierarchy.taskTypeId,
-      warnings,
-      canEdit: hierarchy.permissions?.updateWorkItem === true,
-      canDelete: hierarchy.permissions?.deleteWorkItem === true,
-      canMove: hierarchy.permissions?.moveWorkItem === true,
-      canClone: hierarchy.permissions?.cloneWorkItem === true,
-      canComment: hierarchy.permissions?.createNote === true,
-      canInternalComment: hierarchy.permissions?.markNoteAsInternal === true,
-      canLink: hierarchy.permissions?.adminWorkItemLink === true,
-      canManageChildren: this.session.issueCapabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true,
-      canTrackTime: hierarchy.permissions?.setWorkItemMetadata === true,
-      canResolveThreads: this.session.issueCapabilities?.discussionResolve === true,
-      canSetStartDate: this.session.issueCapabilities?.startDate === true && hierarchy.permissions?.updateWorkItem === true,
-      hasStartDate: this.session.issueCapabilities?.startDate === true || !!issue.start_date,
-      canLogTime: this.session.issueCapabilities?.timelogCreate === true && hierarchy.permissions?.setWorkItemMetadata === true,
-      canDeleteTimelog: this.session.issueCapabilities?.timelogDelete === true
+    const sectionNames: IssueDetailSection[] = ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'];
+    const sections = Object.fromEntries(sectionNames.map((name) => [name, 'loading'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
+    let data: IssueDetailData = {
+      issue, project, projects: [project], user, metadata: this.session.metadata,
+      options: { members: [], labels: [], milestones: [], templates: [] },
+      discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [],
+      startDate: issue.start_date ?? null,
+      warnings: [...this.session.instanceWarnings], sections,
+      canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
+      canLink: false, canManageChildren: false, canTrackTime: false, canResolveThreads: false, canSetStartDate: false,
+      hasStartDate: !!issue.start_date, canLogTime: false, canDeleteTimelog: false
     };
+    if (this.operationWarning) { data.warnings.push(this.operationWarning); this.operationWarning = undefined; }
     this.post({ type: 'detailData', data });
+    const capabilitiesTask = this.session.ensureInstanceChecked();
+    const current = (): boolean => version === this.navigationVersion && !signal.aborted && this.navigationReadController?.signal === signal;
+    const patch = (section: IssueDetailSection, value: Partial<IssueDetailData>, status: IssueDetailSectionStatus = 'ready', warning?: string): void => {
+      if (!current()) return;
+      const nextSections = { ...(data.sections ?? {}), ...(value.sections ?? {}), [section]: status };
+      const warnings = [...new Set([...data.warnings, ...(value.warnings ?? []), ...(warning ? [warning] : [])])];
+      const next: Partial<IssueDetailData> = { ...value, sections: nextSections, warnings };
+      data = { ...data, ...value, sections: nextSections, warnings };
+      this.post({ type: 'detailPatch', issueId: issue.id, patch: next });
+    };
+    const run = async (section: IssueDetailSection, label: string, loadSection: () => Promise<Partial<IssueDetailData>>): Promise<void> => {
+      try {
+        const value = await loadSection();
+        patch(section, value);
+      } catch (error) {
+        if (signal.aborted || version !== this.navigationVersion) return;
+        patch(section, section === 'tasks' ? { sections: { permissions: 'error' } } : {}, 'error', `Could not load ${label}: ${safeError(error)}`);
+      }
+    };
+
+    const optionTask = run('options', 'fields', async () => {
+      const fields = await this.formOptions(issue.project_id, signal, forceNetwork);
+      fields.members = [...fields.members]; fields.labels = [...fields.labels]; fields.milestones = [...fields.milestones];
+      for (const assignee of issue.assignees ?? []) if (!fields.members.some((member) => member.id === assignee.id)) fields.members.push(assignee);
+      if (issue.milestone && !fields.milestones.some((milestone) => milestone.id === issue.milestone?.id)) fields.milestones.push(issue.milestone);
+      for (const label of issue.labels ?? []) if (!fields.labels.some((item) => item.name === label)) fields.labels.push({ id: -fields.labels.length - 1, name: label, color: '#888888' });
+      return { options: fields };
+    });
+    let discussions: GitLabIssueDiscussion[] | undefined;
+    const activityTask = (async (): Promise<void> => {
+      try {
+        discussions = await client.listIssueDiscussions(issue.project_id, issue.iid);
+        patch('activity', { discussions });
+      } catch (error) {
+        if (signal.aborted || version !== this.navigationVersion) return;
+        patch('activity', {}, 'error', `Could not load activity: ${safeError(error)}`);
+      }
+    })();
+    const reactionTask = run('reactions', 'reactions', async () => {
+      await activityTask;
+      if (signal.aborted) throw new Error('The Issue view request was cancelled.');
+      if (!discussions) return { reactions: [], noteReactions: {} };
+      const [reactions, noteResults] = await Promise.all([
+        client.listIssueReactions(issue.project_id, issue.iid),
+        this.loadNoteReactions(client, issue.project_id, issue.iid, discussions, signal)
+      ]);
+      const warnings = noteResults.failed ? [...new Set([...data.warnings, `Could not load reactions for ${noteResults.failed} comment(s).`])] : data.warnings;
+      if (noteResults.failed) data = { ...data, warnings };
+      return { reactions, noteReactions: noteResults.reactions, ...(noteResults.failed ? { warnings } : {}) };
+    });
+    const linksTask = run('links', 'links', async () => ({ links: await client.listIssueLinks(issue.project_id, issue.iid) }));
+    const mergeRequestsTask = run('mergeRequests', 'merge requests', async () => ({ mergeRequests: await client.listRelatedMergeRequests(issue.project_id, issue.iid) }));
+    const todosTask = run('todos', 'to-dos', async () => ({ todos: await client.listTodos() }));
+    const projectsTask = run('projects', 'projects', async () => ({
+      projects: group ? await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork }) : [project]
+    }));
+    const datesTask = run('dates', 'start date', async () => {
+      await capabilitiesTask;
+      const startDate = this.session.issueCapabilities?.startDate
+        ? await client.getIssueStartDate(project.path_with_namespace, issue.iid)
+        : issue.start_date ?? null;
+      return { startDate, hasStartDate: this.session.issueCapabilities?.startDate === true || !!issue.start_date };
+    });
+    const timelogsTask = run('timelogs', 'time entries', async () => {
+      await capabilitiesTask;
+      const timelogs: IssueTimelog[] = this.session.issueCapabilities?.timelogReport
+        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid) : [];
+      return { timelogs };
+    });
+    const tasksTask = run('tasks', 'tasks and permissions', async () => {
+      await capabilitiesTask;
+      const capabilities = this.session.issueCapabilities;
+      const hierarchy = capabilities?.hierarchy ? await this.loadTasks(client, project.path_with_namespace, issue.iid) : { tasks: [] as IssueTask[] };
+      const permissions = hierarchy.permissions;
+      if (!permissions) {
+        return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
+          canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
+          canLink: false, canManageChildren: false, canTrackTime: false, canResolveThreads: false, canSetStartDate: false,
+          canLogTime: false, canDeleteTimelog: false,
+          sections: { permissions: 'error' },
+          warnings: [...new Set([...data.warnings, 'GitLab did not expose Issue permissions; editing controls are hidden.'])] };
+      }
+      return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
+        sections: { permissions: 'ready' },
+        canEdit: permissions.updateWorkItem === true, canDelete: permissions.deleteWorkItem === true,
+        canMove: permissions.moveWorkItem === true, canClone: permissions.cloneWorkItem === true,
+        canComment: permissions.createNote === true, canInternalComment: permissions.markNoteAsInternal === true,
+        canLink: permissions.adminWorkItemLink === true,
+        canManageChildren: capabilities?.childMutations === true && permissions.adminParentLink === true,
+        canTrackTime: permissions.setWorkItemMetadata === true,
+        canResolveThreads: capabilities?.discussionResolve === true,
+        canSetStartDate: capabilities?.startDate === true && permissions.updateWorkItem === true,
+        canLogTime: capabilities?.timelogCreate === true && permissions.setWorkItemMetadata === true,
+        canDeleteTimelog: capabilities?.timelogDelete === true };
+    });
+    void Promise.all([optionTask, activityTask, reactionTask, linksTask, mergeRequestsTask, todosTask, projectsTask, datesTask, timelogsTask, tasksTask]);
   }
 
   private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
-    if (request.type === 'refresh') return this.load();
+    if (request.type === 'refresh') return this.load(true);
     if (request.type === 'openIssueInGitLab') {
       const issue = this.issue;
       if (!issue || this.mode !== 'detail') throw new Error('Open an issue first.');
@@ -376,7 +453,7 @@ export class IssuePanels implements vscode.Disposable {
       const version = this.navigationVersion;
       const projectId = requiredId(request.projectId, 'Project');
       const group = this.session.selectedGroup;
-      const project = group ? (await client.listGroupProjects(group.id)).find((item) => item.id === projectId) : undefined;
+      const project = group ? (await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id))).find((item) => item.id === projectId) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
       const options = await this.formOptions(projectId);
       const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(project.path_with_namespace).catch(() => false) : false;

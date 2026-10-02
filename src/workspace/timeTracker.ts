@@ -58,15 +58,15 @@ export class IssueTimeTracker {
     return this.entries.map((entry) => ({ ...entry }));
   }
 
-  async tick(now = Date.now()): Promise<void> {
+  async tick(now = Date.now()): Promise<boolean> {
     const active = this.activeEntry();
     if (!active || active.phase !== 'running') {
       this.lastTickAt = undefined;
-      return;
+      return false;
     }
     if (this.lastTickAt === undefined) {
       this.lastTickAt = now;
-      return;
+      return false;
     }
     const elapsed = now - this.lastTickAt;
     this.lastTickAt = now;
@@ -75,16 +75,17 @@ export class IssueTimeTracker {
       active.updatedAt = now;
       this.activeId = undefined;
       this.remainderMs = 0;
-      await this.persist();
-      return;
+      await this.persist(now);
+      return true;
     }
     const totalMs = this.remainderMs + elapsed;
     const seconds = Math.floor(totalMs / 1000);
     this.remainderMs = totalMs % 1000;
-    if (!seconds) return;
+    if (!seconds) return false;
     active.elapsedSeconds += seconds;
     active.updatedAt = now;
-    if (now - this.lastSaveAt >= 10_000) await this.persist();
+    if (now - this.lastSaveAt >= 10_000) await this.persist(now);
+    return true;
   }
 
   async start(project: { id: number; path_with_namespace: string }, issue: { iid: number; title: string }, now = Date.now()): Promise<WorkspaceTimerEntry> {
@@ -103,7 +104,7 @@ export class IssueTimeTracker {
     this.lastTickAt = now;
     this.lastSaveAt = now;
     this.remainderMs = 0;
-    await this.persist();
+    await this.persist(now);
     return { ...entry };
   }
 
@@ -116,7 +117,7 @@ export class IssueTimeTracker {
     this.activeId = undefined;
     this.lastTickAt = undefined;
     this.remainderMs = 0;
-    await this.persist();
+    await this.persist(now);
     return { ...entry };
   }
 
@@ -132,7 +133,7 @@ export class IssueTimeTracker {
     this.lastTickAt = now;
     this.lastSaveAt = now;
     this.remainderMs = 0;
-    await this.persist();
+    await this.persist(now);
     return { ...entry };
   }
 
@@ -147,7 +148,7 @@ export class IssueTimeTracker {
     this.activeId = undefined;
     this.lastTickAt = undefined;
     this.remainderMs = 0;
-    await this.persist();
+    await this.persist(now);
     return { ...entry };
   }
 
@@ -233,11 +234,11 @@ export class IssueTimeTracker {
     return entry;
   }
 
-  private async persist(): Promise<void> {
+  private async persist(now = Date.now()): Promise<void> {
     if (!this.scopeKey) throw new Error('請先連線並選擇 GitLab 使用者。');
     const key = this.scopeKey;
     const value = this.list();
-    this.lastSaveAt = Date.now();
+    this.lastSaveAt = now;
     this.persistTask = this.persistTask.then(() => this.state.update(key, value), () => this.state.update(key, value));
     await this.persistTask;
   }

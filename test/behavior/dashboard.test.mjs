@@ -359,6 +359,34 @@ test('does not display Issue IDs returned for another Group or connected account
   assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta unassigned issue']);
 });
 
+test('applies scoped timer and Issue graph deltas while rejecting stale versions', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph' }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const timer = {
+    id: 'timer-1', projectId: 1, projectPath: 'team/alpha', issueIid: 1, title: 'Alpha milestone issue',
+    elapsedSeconds: 42, phase: 'running', summary: '', updatedAt: Date.now()
+  };
+  const send = (data) => view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data }));
+  send({ type: 'timersChanged', instanceUserScope: 'instance-user', version: 1, timers: [timer] });
+  await view.tick();
+  assert.match(document.querySelector('.statusbar').textContent, /team\/alpha #1/);
+
+  const graph = {
+    connectedScope: 'team-scope', status: 'ready', roots: ['project:1:issue:1'],
+    nodes: [{ id: 'project:1:issue:1', sourceIds: ['REST:Issue:101'], kind: 'issue', namespacePath: 'team/alpha', projectPath: 'team/alpha', projectId: 1, iid: '1', title: 'Graph title v2', state: 'opened', labels: [], assignees: [], boardIds: [31], assignedToMe: true, isRoot: true, relationsStatus: 'ready' }],
+    edges: [], boardIssueIds: { 31: [101] }, boardStatus: { 31: { status: 'ready' } }, errors: [], updatedAt: Date.now()
+  };
+  send({ type: 'issueGraphChanged', connectedScope: 'team-scope', version: 2, graph });
+  await view.tick();
+  assert.equal(document.querySelector('.graph-node title')?.textContent, 'Graph title v2');
+  send({ type: 'issueGraphChanged', connectedScope: 'team-scope', version: 1, graph: { ...graph, nodes: [{ ...graph.nodes[0], title: 'Stale title' }] } });
+  send({ type: 'timersChanged', instanceUserScope: 'another-user', version: 2, timers: [] });
+  await view.tick();
+  assert.equal(document.querySelector('.graph-node title')?.textContent, 'Graph title v2');
+  assert.match(document.querySelector('.statusbar').textContent, /team\/alpha #1/);
+});
+
 test('filters selected Board Issues by Repo and Group Milestone IDs while retaining unmatched and duplicate-title options', async (t) => {
   const view = await mount(undefined, snapshot());
   t.after(() => view.dom.window.close());

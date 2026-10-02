@@ -1,5 +1,6 @@
 import type { Memento, SecretStorage } from 'vscode';
 import { GitLabClient, type GitLabIssueCapabilities } from '../api/gitLabClient';
+import { GitLabReadCache } from '../api/gitLabReadCache';
 import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 
@@ -9,6 +10,8 @@ const GROUP_ID_KEY = 'gitlabWorkspace.selectedGroupId';
 const GROUP_LABEL_KEY = 'gitlabWorkspace.selectedGroupLabel';
 
 export class GitLabSession {
+  private readonly readCache = new GitLabReadCache(60_000, 256);
+  private connectionEpochValue = 0;
   private cachedClient?: GitLabClient;
   private currentMetadata?: GitLabMetadata;
   private currentIssueCapabilities?: GitLabIssueCapabilities;
@@ -22,6 +25,8 @@ export class GitLabSession {
     return value ? normalizeGitLabBaseUrl(value) : undefined;
   }
 
+  get connectionEpoch(): number { return this.connectionEpochValue; }
+
   get selectedGroup(): GitLabGroup | undefined {
     const id = this.state.get<number>(GROUP_ID_KEY);
     const fullPath = this.state.get<string>(GROUP_LABEL_KEY);
@@ -32,6 +37,22 @@ export class GitLabSession {
   get metadata(): GitLabMetadata | undefined { return this.currentMetadata; }
   get issueCapabilities(): GitLabIssueCapabilities | undefined { return this.currentIssueCapabilities; }
   get instanceWarnings(): readonly string[] { return this.currentInstanceWarnings; }
+
+  cachedRead<T>(
+    key: string,
+    load: (client: GitLabClient, signal: AbortSignal) => Promise<T>,
+    options: { force?: boolean; signal?: AbortSignal } = {}
+  ): Promise<T> {
+    const baseUrl = this.baseUrl;
+    if (!baseUrl) return Promise.reject(new Error('Connect to GitLab first.'));
+    const cacheKey = `${this.connectionEpochValue}\0${baseUrl}\0${key}`;
+    return this.readCache.get(cacheKey, async (signal) => {
+      const client = await this.getClient();
+      return load(client.withReadSignal(signal), signal);
+    }, options);
+  }
+
+  invalidateReadCache(): void { this.readCache.invalidate(); }
 
   async ensureInstanceChecked(): Promise<void> {
     if (!this.instanceCheck) {
@@ -61,7 +82,7 @@ export class GitLabSession {
     if (!baseUrl || !token) {
       throw new Error('Connect to GitLab first.');
     }
-    this.cachedClient = new GitLabClient(baseUrl, token);
+    this.cachedClient = new GitLabClient(baseUrl, token, undefined, undefined, () => this.invalidateReadCache());
     return this.cachedClient;
   }
 
@@ -75,25 +96,31 @@ export class GitLabSession {
   async connect(baseUrl: string, token: string): Promise<GitLabUser> {
     const normalizedUrl = normalizeGitLabBaseUrl(baseUrl);
     const serverChanged = this.baseUrl !== normalizedUrl;
-    const client = new GitLabClient(normalizedUrl, token);
-    const user = await client.getCurrentUser();
+    const probeClient = new GitLabClient(normalizedUrl, token);
+    const user = await probeClient.getCurrentUser();
     await this.secrets.store(TOKEN_SECRET_KEY, token);
     await this.state.update(BASE_URL_KEY, normalizedUrl);
     if (serverChanged) {
       await this.setSelectedGroup(undefined);
     }
-    this.cachedClient = client;
+    this.connectionEpochValue++;
+    this.readCache.clear();
+    this.cachedClient = new GitLabClient(normalizedUrl, token, undefined, undefined, () => this.invalidateReadCache());
     this.instanceCheck = undefined;
     await this.ensureInstanceChecked();
     return user;
   }
 
   async setSelectedGroup(group: GitLabGroup | undefined): Promise<void> {
+    const current = this.selectedGroup;
+    if (current?.id !== group?.id || current?.full_path !== group?.full_path) this.readCache.invalidate();
     await this.state.update(GROUP_ID_KEY, group?.id);
     await this.state.update(GROUP_LABEL_KEY, group?.full_path);
   }
 
   async disconnect(): Promise<void> {
+    this.connectionEpochValue++;
+    this.readCache.clear();
     await this.secrets.delete(TOKEN_SECRET_KEY);
     this.cachedClient = undefined;
     this.currentMetadata = undefined;

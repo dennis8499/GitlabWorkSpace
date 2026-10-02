@@ -79,13 +79,19 @@ export class GitLabClient {
   constructor(
     baseUrl: string,
     private readonly token: string,
-    private readonly fetcher: FetchLike = fetch
+    private readonly fetcher: FetchLike = fetch,
+    private readonly readSignal?: AbortSignal,
+    private readonly onSuccessfulWrite?: () => void
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
     if (!token.trim()) {
       throw new Error('A GitLab access token is required.');
     }
+  }
+
+  withReadSignal(signal: AbortSignal): GitLabClient {
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, signal, this.onSuccessfulWrite);
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -756,7 +762,10 @@ export class GitLabClient {
     if (url.origin !== base.origin || url.username || url.password || !insideBase || !url.pathname.includes('/uploads/')) {
       throw new GitLabApiError('The attachment URL is outside this GitLab server.');
     }
-    const response = await this.fetcher(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, redirect: 'manual' });
+    const response = await this.fetcher(url, {
+      method: 'GET', headers: { 'PRIVATE-TOKEN': this.token },
+      ...(this.readSignal ? { signal: this.readSignal } : {}), redirect: 'manual'
+    });
     if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
     if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
     if (Number(response.headers.get('content-length') ?? 0) > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
@@ -770,12 +779,15 @@ export class GitLabClient {
     if (url.origin !== this.apiRoot.origin || !url.pathname.startsWith(this.apiRoot.pathname.slice(0, -3))) {
       throw new GitLabApiError('The GraphQL request is outside the configured GitLab server.');
     }
+    const readOnly = /^\s*(?:query(?:\s|\(|\{)|\{)/i.test(query);
     const response = await this.fetcher(url, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
       body: JSON.stringify({ query, variables }),
+      ...(readOnly && this.readSignal ? { signal: this.readSignal } : {}),
       redirect: 'manual'
     });
+    if (!readOnly && response.ok) this.onSuccessfulWrite?.();
     const result = await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response);
     if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
     return result.data;
@@ -813,6 +825,7 @@ export class GitLabClient {
     });
     if (response.status >= 300 && response.status < 400 && response.status !== 304) throw new GitLabApiError('GitLab redirected the API request.', response.status);
     if (!response.ok && response.status !== 304) throw new GitLabApiError(`GitLab API request failed (HTTP ${response.status}).`, response.status);
+    if (response.ok) this.onSuccessfulWrite?.();
   }
 
   private async getJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -836,6 +849,7 @@ export class GitLabClient {
       const response = await this.fetcher(next, {
         method: 'GET',
         headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json' },
+        ...(this.readSignal ? { signal: this.readSignal } : {}),
         redirect: 'manual'
       });
       const page = await this.readJson<T[]>(response);
@@ -853,6 +867,7 @@ export class GitLabClient {
     if (!this.isSafeApiUrl(url)) {
       throw new GitLabApiError('The request is outside the configured GitLab API.');
     }
+    const method = (init.method ?? 'GET').toUpperCase();
     const response = await this.fetcher(url, {
       ...init,
       headers: {
@@ -860,8 +875,10 @@ export class GitLabClient {
         ...init.headers,
         'PRIVATE-TOKEN': this.token
       },
+      ...(method === 'GET' && this.readSignal ? { signal: this.readSignal } : {}),
       redirect: 'manual'
     });
+    if (method !== 'GET' && method !== 'HEAD' && response.ok) this.onSuccessfulWrite?.();
     return this.readJson<T>(response);
   }
 

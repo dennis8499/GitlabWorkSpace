@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync } from 'node:fs';
+import { lstat } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
 import path from 'node:path';
 import type { Memento } from 'vscode';
@@ -9,30 +10,41 @@ const ROOTS_KEY = 'gitlabWorkspace.groupRoots.v1';
 
 export function projectFolderNames(projects: readonly GitLabProject[]): Map<number, string> {
   const foldedCounts = new Map<string, number>();
-  for (const project of projects) {
-    const key = project.path.toLocaleLowerCase('en-US');
+  const foldedPaths = projects.map((project) => project.path.toLocaleLowerCase('en-US'));
+  for (const key of foldedPaths) {
     foldedCounts.set(key, (foldedCounts.get(key) ?? 0) + 1);
   }
-  const fixed = new Set(projects.filter((project) => (foldedCounts.get(project.path.toLocaleLowerCase('en-US')) ?? 0) === 1)
-    .map((project) => project.path.toLocaleLowerCase('en-US')));
+
+  const fixed = new Set<string>();
+  for (const project of projects) {
+    const key = project.path.toLocaleLowerCase('en-US');
+    if (foldedCounts.get(key) === 1) fixed.add(key);
+  }
   const result = new Map<number, string>();
+  const used = new Set<string>();
   for (const project of projects) {
     let candidate = project.path;
-    if ((foldedCounts.get(project.path.toLocaleLowerCase('en-US')) ?? 0) > 1) candidate = `${project.path}--${project.id}`;
+    if (foldedCounts.get(project.path.toLocaleLowerCase('en-US'))! > 1) candidate = `${project.path}--${project.id}`;
     const key = candidate.toLocaleLowerCase('en-US');
     if (fixed.has(key) && candidate !== project.path) candidate = `${candidate}--${project.id}`;
     let unique = candidate;
     let suffix = 2;
-    while ([...result.values()].some((existing) => existing.toLocaleLowerCase('en-US') === unique.toLocaleLowerCase('en-US'))) {
+    while (used.has(unique.toLocaleLowerCase('en-US'))) {
       unique = `${candidate}--${suffix++}`;
     }
     result.set(project.id, unique);
+    used.add(unique.toLocaleLowerCase('en-US'));
   }
   return result;
 }
 
-export function groupRepositoryPath(root: string, project: GitLabProject, projects: readonly GitLabProject[]): string {
-  const folder = projectFolderNames(projects).get(project.id);
+export function groupRepositoryPath(
+  root: string,
+  project: GitLabProject,
+  projects: readonly GitLabProject[],
+  folders: ReadonlyMap<number, string> = projectFolderNames(projects)
+): string {
+  const folder = folders.get(project.id);
   if (!folder || !/^[A-Za-z0-9_.-]+$/.test(folder) || folder === '.' || folder === '..' || /[. ]$/.test(folder) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(folder)) {
     throw new Error(`無法安全建立 Repo 路徑：${project.path_with_namespace}`);
   }
@@ -63,6 +75,19 @@ export function localRepositoryState(root: string, target: string): 'missing' | 
     const rel = relative(resolve(root), resolve(target));
     if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
     const stat = lstatSync(target);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return 'unsafe';
+    return 'ready';
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') return 'missing';
+    return 'unsafe';
+  }
+}
+
+export async function localRepositoryStateAsync(root: string, target: string): Promise<'missing' | 'ready' | 'unsafe'> {
+  try {
+    const rel = relative(resolve(root), resolve(target));
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
+    const stat = await lstat(target);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return 'unsafe';
     return 'ready';
   } catch (error) {

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { JSDOM } = require('jsdom');
-const { Given, When, Then, setWorldConstructor } = require('@cucumber/cucumber');
+const { After, Given, When, Then, setWorldConstructor } = require('@cucumber/cucumber');
 
 const bundle = readFileSync(resolve(__dirname, '../../resources/issue-webview/issue-test.js'), 'utf8');
 const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
@@ -57,6 +57,10 @@ class IssueWorld {
   }
 }
 setWorldConstructor(IssueWorld);
+
+After(function () {
+  this.dom?.window.close();
+});
 
 Given('the Issue Webview is ready for creation', async function () { await this.boot(); });
 When('the selected group supplies a project and its form options', async function () {
