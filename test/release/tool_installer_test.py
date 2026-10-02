@@ -159,9 +159,9 @@ class ToolInstallerTests(unittest.TestCase):
     def test_import_inspection_detects_versions_and_digests_for_all_pinned_releases(self) -> None:
         sources = Path(__file__).resolve().parents[2] / "resources" / "offline-tools" / "sources"
         expected = {
-            "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.2.1", "0472847232774b3eb94eff47bd8b84c285a4e0d2e1a995f993000a3e9159543a"),
-            "megin": ("megin-skills.zip", "0.1.0", "b2e6a4a7bc57df097ba5d04b8d7605429b715db3886e43c8945169541944f5c3"),
-            "merge-reviewer": ("merge-reviewer-0.4.0.zip", "0.4.0", "582790e21aee01965dd812775b5da14553a90d8339731c3338c7c83e528c9168"),
+            "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.3.0", "de9a087f451cbf7486402df90f58a5d3c66643d1233c4139e23808f0cb6dbaa7"),
+            "megin": ("megin-skills.zip", "0.2.0", "a6e2abde06e8470e37d7a33b0ff253e462a2c92b3ccf2871d3d72956571095fa"),
+            "merge-reviewer": ("merge-reviewer-0.5.0.zip", "0.5.0", "428efc677f428b83d12c7cea691fa438367ad9e40d002c44c994b654903c1305"),
         }
         for tool, (filename, version, sha256) in expected.items():
             with self.subTest(tool=tool):

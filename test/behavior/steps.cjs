@@ -564,3 +564,37 @@ Then('the later field value remains ready for another save', async function () {
   assert.equal(saves.at(-1).input.title, 'Later title draft');
   assert.equal(saves.at(-1).expectedUpdatedAt, '2026-09-24T01:00:00Z');
 });
+
+When('the Group provides an accepted multi-Repo handoff', async function () {
+  await this.send({ type: 'snapshot', snapshot: {
+    groupRoot: 'C:/workspace/group', baseUrl: 'https://gitlab.example.test', projects: [project, target],
+    connected: true, currentUser: user, activeMode: 'developer', groups: [], issues: [issue],
+    mergeRequests: [], groupMilestones: [], groupIssueBoards: [], tools: [], toolSource: 'bundled',
+    localRepositories: { 42: { state: 'ready', path: 'C:/workspace/group/project' } }, projectMembers: [],
+    timers: [], deliveryRecords: [{ id: 'native-handoff', projectId: 43, issueProjectId: 42, issueIid: 7,
+      workId: 'work-20261002-feature', branch: 'feature/work-20261002-feature', targetBranch: 'main', state: 'preview',
+      summary: 'Change', handoffSha256: 'a'.repeat(64), planVersion: 'plan-1', acceptanceVersion: 'acceptance-3',
+      acceptedSnapshot: 'b'.repeat(64), gate: { ok: true, reasons: [] }, changedFiles: ['app.py'], diff: 'accepted diff',
+      reviewResult: { verdict: 'APPROVED', context: 'independent-reviewer' },
+      verificationResults: [{ id: 'native-test', status: 'passed', executed: 3 }],
+      approvedRepositories: [{ repoPath: 'target', projectId: 43, branch: 'feature/work-20261002-feature',
+        baseSha: 'c'.repeat(40), allowedPaths: ['app.py'] }]
+    }]
+  } });
+  await this.tab('開發與交付');
+});
+Then('development tasks use Group paths and native review and verification results', async function () {
+  await this.click('複製任務並開啟 Codex CLI');
+  assert.match(this.workspaceActions.at(-1).text, /gitlab_mr/);
+  assert.match(this.workspaceActions.at(-1).text, /C:\/workspace\/group/);
+  await this.click('審查 Group 未提交內容');
+  assert.equal(this.workspaceActions.at(-1).type, 'openGroupQuickReview');
+  assert.match(this.root.body.textContent, /APPROVED（independent-reviewer）/);
+  assert.match(this.root.body.textContent, /native-test: passed \(3 tests\)/);
+  assert.match(this.root.body.textContent, /acceptance-3/);
+  assert.match(this.root.body.textContent, /允許路徑：app.py/);
+  assert.doesNotMatch(this.root.body.textContent, /我已使用 Megin 完成人工驗收/);
+  await this.click('核對並提交所有核准 Repo');
+  assert.equal(this.workspaceActions.at(-1).type, 'commitDelivery');
+  assert.equal(this.workspaceActions.at(-1).deliveryId, 'native-handoff');
+});

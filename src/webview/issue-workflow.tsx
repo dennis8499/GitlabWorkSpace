@@ -28,22 +28,23 @@ export function DeliveryEditor({
   };
   return <>
     <div class="delivery-grid">
-      <label class="field">Megin ?? ID<input placeholder="MEGIN-123-feature-name" value={form.workId} onInput={(event) => onUpdate({ workId: event.currentTarget.value })} /></label>
+      <label class="field">Megin Work ID<input placeholder="work-20261002-feature-name" value={form.workId} onInput={(event) => onUpdate({ workId: event.currentTarget.value })} /></label>
       <label class="field">Commit 摘要<input placeholder={`[${project.path_with_namespace}#${issue.iid}] 修改摘要`} value={form.summary} onInput={(event) => onUpdate({ summary: event.currentTarget.value })} /></label>
       <label class="field full">修改內容<textarea rows={3} value={form.changes} onInput={(event) => onUpdate({ changes: event.currentTarget.value })} /></label>
       <label class="field full">驗證結果<textarea rows={2} value={form.tests} onInput={(event) => onUpdate({ tests: event.currentTarget.value })} /></label>
-      <label class="field">目標分支<input value={form.targetBranch} onInput={(event) => onUpdate({ targetBranch: event.currentTarget.value })} /></label>
+      <p class="subtle field-hint">Repo、目標分支與提交範圍會從已核准的 Megin 交接讀取。</p>
       <div class="field reviewer-picks"><span>MR 審查者</span><div>{members.slice(0, 50).map((member) => <label class="check-inline"><input type="checkbox" checked={form.reviewerIds.includes(member.id)} onChange={(event) => onUpdate({ reviewerIds: event.currentTarget.checked ? [...new Set([...form.reviewerIds, member.id])] : form.reviewerIds.filter((id) => id !== member.id) })} />{member.name}</label>)}</div></div>
       <p class="subtle field-hint">Repo：{repo?.path ?? '尚未 Clone'}{root ? `　·　Worktree：${repo?.state ?? '未知'}` : ''}</p>
-      <label class="check-inline field-hint"><input type="checkbox" checked={form.acceptanceConfirmed} onChange={(event) => onUpdate({ acceptanceConfirmed: event.currentTarget.checked })} />我已使用 Megin 完成人工驗收，現在的差異就是已驗收內容</label>
+      <p class="subtle field-hint">工作台會核對 Megin 的驗收版本、審查、測試與暫存內容。上方文字是交付摘要，不能代替驗收證據。</p>
     </div>
-    <button class="primary" type="button" disabled={busy || repo?.state !== 'ready' || !form.workId || !form.summary || !form.changes || !form.tests || !form.acceptanceConfirmed} onClick={() => onPrepare(form)}>檢查交付並預覽差異</button>
+    <button class="primary" type="button" disabled={busy || repo?.state !== 'ready' || !form.workId || !form.summary} onClick={() => onPrepare(form)}>載入 Megin 交接並預覽差異</button>
     {records.map((record) => <div class="delivery-record"><div class="panel-title"><div><strong>{record.workId}</strong><span class="subtle">　{record.branch} → {record.targetBranch}</span></div><span class={`pill ${record.gate.ok ? 'success' : 'danger'}`}>{record.gate.ok ? '驗收快照有效' : '驗收未通過'}</span></div>
       {record.instanceVerified === false && <p class="warning" role="status">此舊交付紀錄的 GitLab 來源尚未確認。請重新選擇 Repo 並建立新的交付預覽，既有紀錄已保留。</p>}
       <p><strong>Commit：</strong>{record.summary}　<strong>狀態：</strong>{({ preview: '待檢查差異', committed: '已 Commit', pushed: '已 Push', 'mr-created': 'MR 已建立' } as const)[record.state]}</p>
+      {record.handoffSha256 ? <><p>核准計畫：{record.planVersion} · 驗收版本：{record.acceptanceVersion}</p><p>獨立審查：{record.reviewResult?.verdict}（{record.reviewResult?.context}）</p><p>原始驗證：{record.verificationResults?.map((item) => `${item.id}: ${item.status}${item.executed === undefined ? '' : ` (${item.executed} tests)`}`).join('、')}</p><details><summary>核准交付範圍與驗收快照</summary><p><code>{record.acceptedSnapshot}</code></p>{record.approvedRepositories?.map((item) => <p><strong>{item.repoPath}</strong> · {item.branch}{item.commit ? '（已提交）' : ''}<br />允許路徑：{item.allowedPaths?.join('、')}<br />Base SHA：<code>{item.baseSha}</code></p>)}</details></> : <p class="warning">舊紀錄沒有原生驗收交接證據，請重新載入 Work ID。</p>}
       {record.gate.reasons.map((reason) => <p class="warning">{reason}</p>)}<p class="diff-stat">{record.diffStat || '目前沒有差異'}</p><p class="subtle">{record.changedFiles.join(' · ')}</p><details><summary>查看預覽差異</summary><pre>{record.diff || '沒有可顯示的差異。'}</pre></details>
       {record.mergeRequestUrl && <button class="quiet" type="button" onClick={() => onOpenExternal(record.mergeRequestUrl!)}>開啟 GitLab MR</button>}
-      <div class="button-row">{record.state === 'preview' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false || !record.gate.ok} onClick={() => onAction('commitDelivery', record)}>重新驗收並 Commit</button>}{record.state === 'committed' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false} onClick={() => onAction('pushDelivery', record)}>Push 分支</button>}{record.state === 'pushed' && <button class="primary" type="button" disabled={busy || record.instanceVerified === false} onClick={() => onAction('createDeliveryMergeRequest', record)}>建立 GitLab MR</button>}</div>
+      <div class="button-row">{record.state === 'preview' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false || !record.handoffSha256 || !record.gate.ok} onClick={() => onAction('commitDelivery', record)}>核對並提交所有核准 Repo</button>}{record.state === 'committed' && <button class="secondary" type="button" disabled={busy || record.instanceVerified === false || !record.handoffSha256} onClick={() => onAction('pushDelivery', record)}>Push 分支</button>}{record.state === 'pushed' && <button class="primary" type="button" disabled={busy || record.instanceVerified === false || !record.handoffSha256} onClick={() => onAction('createDeliveryMergeRequest', record)}>建立 GitLab MR</button>}</div>
     </div>)}
   </>;
 }

@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -146,7 +146,7 @@
     "benchmark:performance": "npm run compile && node scripts/performance-benchmark.cjs",
     "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs test/behavior/dashboard.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
-    "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && node scripts/run-python.mjs test/release/tool_installer_test.py",
+    "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
     "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && node scripts/run-python.mjs scripts/verify-vsix.py",

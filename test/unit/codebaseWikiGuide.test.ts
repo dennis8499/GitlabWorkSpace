@@ -5,9 +5,9 @@ import {
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
-  assert.equal(wikiGuideCards.length, 12);
+  assert.equal(wikiGuideCards.length, 13);
   assert.deepEqual(wikiGuideCards.map((card) => card.id), [
-    'install', 'ingest', 'query', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
+    'development-spec', 'install', 'ingest', 'query', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
     'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
@@ -16,8 +16,8 @@ test('defines the complete offline Codebase LLM Wiki guide and working default s
   assert.equal(defaults['ingest.mode'], '互動');
   assert.equal(defaults['lint.operation'], '品質檢查');
   assert.equal(defaults['notebooklm-export.root'], '.');
-  assert.equal(canCopyWikiPrompt(wikiGuideCards[0], defaults), false);
-  assert.equal(canCopyWikiPrompt(wikiGuideCards[10], defaults), true);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, defaults), false);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'notebooklm-export')!, defaults), true);
 });
 
 test('builds prompts from required values while retaining Unicode, spaced paths, and multiline questions', () => {
@@ -29,8 +29,8 @@ test('builds prompts from required values while retaining Unicode, spaced paths,
     'audit.scope': 'src/payments'
   };
 
-  assert.equal(canCopyWikiPrompt(wikiGuideCards[0], inputs), true);
-  assert.equal(canCopyWikiPrompt(wikiGuideCards[2], inputs), true);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, inputs), true);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'query')!, inputs), true);
   assert.match(buildWikiGuidePrompt('install', inputs), /C:\\workspace with spaces\\my-repo/);
   assert.ok(buildWikiGuidePrompt('query', inputs).includes(inputs['query.question']));
   assert.match(buildWikiGuidePrompt('audit', inputs), /wiki\/synthesis\/code-audit\.md/);
@@ -67,4 +67,17 @@ test('preserves the selected Wiki authorization policy in generated prompts', ()
 
 test('rejects unknown guide cards instead of copying an empty prompt', () => {
   assert.throws(() => buildWikiGuidePrompt('missing', {}), /未知的 Codebase LLM Wiki 功能/);
+});
+
+
+test('development specifications require the feature and description, then clarify instead of creating Issues', () => {
+  const card = wikiGuideCards.find((item) => item.id === 'development-spec')!;
+  const defaults = createDefaultWikiGuideInputs();
+  assert.equal(canCopyWikiPrompt(card, defaults), false);
+  const input = { ...defaults, 'development-spec.scope': '退款', 'development-spec.requirement': '客服可發起退款。' };
+  assert.equal(canCopyWikiPrompt(card, input), true);
+  const prompt = buildWikiGuidePrompt(card.id, input);
+  assert.match(prompt, /development_spec/);
+  assert.match(prompt, /未回答保持 draft/);
+  assert.match(prompt, /Issue 由我自行建立/);
 });

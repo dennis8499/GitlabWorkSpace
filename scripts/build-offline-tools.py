@@ -52,24 +52,24 @@ RELEASES = (
     ReleaseSource(
         "codebase-wiki",
         "code-base-llm-wiki",
-        "0.2.1",
+        "0.3.0",
         "codebase-llm-wiki-codex.zip",
-        "0472847232774b3eb94eff47bd8b84c285a4e0d2e1a995f993000a3e9159543a",
-        "codebase-llm-wiki-codex-0.2.1",
+        "de9a087f451cbf7486402df90f58a5d3c66643d1233c4139e23808f0cb6dbaa7",
+        "codebase-llm-wiki-codex-0.3.0",
     ),
     ReleaseSource(
         "megin",
         "Megin",
-        "0.1.0",
+        "0.2.0",
         "megin-skills.zip",
-        "b2e6a4a7bc57df097ba5d04b8d7605429b715db3886e43c8945169541944f5c3",
+        "a6e2abde06e8470e37d7a33b0ff253e462a2c92b3ccf2871d3d72956571095fa",
     ),
     ReleaseSource(
         "merge-reviewer",
         "MergeReviewer",
-        "0.4.0",
-        "merge-reviewer-0.4.0.zip",
-        "582790e21aee01965dd812775b5da14553a90d8339731c3338c7c83e528c9168",
+        "0.5.0",
+        "merge-reviewer-0.5.0.zip",
+        "428efc677f428b83d12c7cea691fa438367ad9e40d002c44c994b654903c1305",
     ),
 )
 
@@ -96,9 +96,9 @@ def checked_path(raw: str) -> PurePosixPath:
 def verified_entries(source: ReleaseSource) -> tuple[dict[str, tuple[bytes, int]], str]:
     archive_path = source.archive_path
     if archive_path.is_symlink() or not archive_path.is_file() or archive_path.stat().st_size > MAX_ARCHIVE_BYTES:
-        raise ValueError(f"找不到已釘選的 {source.tool} 官方 Release ZIP。")
+        raise ValueError(f"找不到已釘選的 {source.tool} 來源 ZIP。")
     if file_sha256(archive_path) != source.expected_sha256:
-        raise ValueError(f"{source.asset_name} 的 SHA-256 不符官方 Release。")
+        raise ValueError(f"{source.asset_name} 的 SHA-256 不符釘選來源。")
 
     entries: dict[str, tuple[bytes, int]] = {}
     seen: set[str] = set()
@@ -191,7 +191,7 @@ def verify_round_trip(target: Path, expected: dict[str, tuple[bytes, int]]) -> N
                 raise ValueError("TAR.XZ 包含連結或特殊檔案。")
             key = relative.as_posix()
             if key not in expected or key in verified:
-                raise ValueError("TAR.XZ 包含重複或非官方的檔案。")
+                raise ValueError("TAR.XZ 包含重複或非來源的檔案。")
             if member.size > MAX_FILE_BYTES:
                 raise ValueError("TAR.XZ 單一檔案超過 64 MB。")
             expanded += member.size
@@ -203,10 +203,10 @@ def verify_round_trip(target: Path, expected: dict[str, tuple[bytes, int]]) -> N
             data = extracted.read(MAX_FILE_BYTES + 1)
             expected_data = expected[key][0]
             if len(data) != member.size or data != expected_data:
-                raise ValueError(f"TAR.XZ 檔案內容與官方 ZIP 不符：{key}")
+                raise ValueError(f"TAR.XZ 檔案內容與來源 ZIP 不符：{key}")
             verified.add(key)
     if verified != set(expected):
-        raise ValueError("TAR.XZ 未包含全部官方 ZIP 檔案。")
+        raise ValueError("TAR.XZ 未包含全部來源 ZIP 檔案。")
 
 
 def main() -> int:

@@ -5,24 +5,25 @@ import {
   type WikiGuideInputValues
 } from './codebaseWikiGuideData';
 
-export function CodebaseWikiGuide({ inputs, onInput, onCopy, onOpenSettings }: {
+export function CodebaseWikiGuide({ inputs, onInput, onCopy, onOpenSettings, groupRoot }: {
   inputs: WikiGuideInputValues;
   onInput: (key: string, value: string) => void;
   onCopy: (text: string) => void;
   onOpenSettings: () => void;
+  groupRoot?: string;
 }) {
   return <div class="wiki-guide">
     <section class="wiki-guide-intro" aria-labelledby="wiki-guide-intro-title">
       <div>
         <h2 id="wiki-guide-intro-title">使用 Codebase LLM Wiki</h2>
-        <p>先在目標 Repo 根目錄開啟 Codex CLI，再選擇工作流程、填寫內容、檢視提示詞並複製執行。提示詞依內附的 Codebase LLM Wiki 0.2.1 Codex 文件整理。</p>
+        <p>先在 Group 工作目錄開啟 Codex CLI，再選擇工作流程、填寫內容、檢視提示詞並複製執行。提示詞依內附的 Codebase LLM Wiki 0.3.0 Codex 文件整理。</p>
         <p class="wiki-guide-notice">預設工具套件尚未安裝時，請先在設定的「開發工具」選擇並安裝 Codebase LLM Wiki。安裝和更新工作流程會先預覽，再等候你確認。</p>
       </div>
       <button class="secondary" type="button" onClick={onOpenSettings}>開啟開發工具設定</button>
     </section>
     <div class="wiki-guide-grid">
       {wikiGuideCards.map((card) => {
-        const prompt = buildWikiGuidePrompt(card.id, inputs);
+        const prompt = `${groupRoot ? `Group 工作區：${groupRoot}\n\n` : ''}${buildWikiGuidePrompt(card.id, inputs)}`;
         const ready = canCopyWikiPrompt(card, inputs);
         return <section class="wiki-guide-card" key={card.id} aria-labelledby={`wiki-card-title-${card.id}`}>
           <header class="wiki-guide-card-header">

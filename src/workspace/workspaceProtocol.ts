@@ -202,6 +202,10 @@ export type WorkspaceRequest =
   | { type: 'selectMergeRequest'; projectId: number; iid: number }
   | { type: 'refreshMergeRequest'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
+  | { type: 'openMergeReviewTask'; projectId: number; iid: number }
+  | { type: 'openGroupQuickReview' }
+  | { type: 'importMergeReviewReport'; projectId: number; iid: number; text?: string }
+  | { type: 'publishMergeReviewReport'; projectId: number; iid: number; text: string }
   | { type: 'replyMergeRequest'; projectId: number; iid: number; discussionId: string; body: string }
   | { type: 'approveMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
@@ -226,6 +230,7 @@ export type WorkspaceResponse =
   | { type: 'draftResults'; analysisId: string; results: DraftIssueResult[] }
   | { type: 'deliveryPreview'; delivery: DeliveryPreview }
   | { type: 'deliveryProgress'; delivery: DeliveryPreview }
+  | { type: 'mergeReviewReportImported'; projectId: number; iid: number; text: string; sourceSha: string; targetSha: string }
   | { type: 'draftOptions'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'similarIssues'; items: Array<{ draftId: string; projectPath: string; issues: Array<{ iid: number; title: string; webUrl: string }> }> }
   | { type: 'issueResponse'; response: IssuePanelResponse; revision?: number }
@@ -261,4 +266,15 @@ export interface DeliveryPreview {
   error?: string;
   updatedAt: number;
   instanceVerified?: boolean;
+  handoffSha256?: string;
+  groupRoot?: string;
+  remote?: string;
+  remoteUrl?: string;
+  issueProjectId?: number;
+  planVersion?: string;
+  acceptanceVersion?: string;
+  acceptedSnapshot?: string;
+  reviewResult?: { verdict: string; context?: string; snapshot?: string };
+  verificationResults?: Array<{ id: string; status: string; executed?: number }>;
+  approvedRepositories?: Array<{ repoPath: string; projectId: number; branch: string; commit?: string; baseSha?: string; allowedPaths?: string[] }>;
 }

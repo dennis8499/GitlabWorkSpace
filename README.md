@@ -20,10 +20,12 @@
 - 以「我的工作、專案、分析、待審查」導覽，集中處理目前任務與下一步。
 - 查看指派給自己的未結案 Issue；建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析」查看內附 Codebase LLM Wiki 0.2.1 的預設功能，填入參數、預覽並複製 Codex 提示詞。
-- 在開發與交付分頁先檢查差異，再依序 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
+- 在「分析」查看內附 Codebase LLM Wiki 0.3.0 的預設功能，填入參數、預覽並複製 Codex 提示詞。
+- 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從工具管理抽屜安裝 Codebase LLM Wiki、Megin 與 MergeReviewer。內網 Gitea 為預設下載入口，也可選擇 GitHub 或 VSIX 內附離線包；Release ZIP 由使用者下載、匯入並選擇安裝。
+
+完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
 ## 需求
 
@@ -53,7 +55,7 @@
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-VSIX 內附固定版本：Codebase LLM Wiki 0.2.1、Megin 0.1.0、MergeReviewer 0.4.0。正式套件以三個官方 ZIP 重壓成一個 TAR.XZ，安裝時只解開所選工具；原始來源 ZIP 不會放入 VSIX。
+VSIX 內附固定版本：Codebase LLM Wiki 0.3.0、Megin 0.2.0、MergeReviewer 0.5.0。套件以三個固定來源 ZIP 重壓成一個 TAR.XZ，安裝時只解開所選工具；原始來源 ZIP 不會放入 VSIX。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 

@@ -110,7 +110,7 @@ test('renders and uses the Wiki guide offline with validated prompts, clipboard 
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.page-heading h1').textContent, 'Codebase LLM Wiki');
-  assert.equal(document.querySelectorAll('.wiki-guide-card').length, 12);
+  assert.equal(document.querySelectorAll('.wiki-guide-card').length, 13);
   assert.ok(document.querySelector('.wiki-guide-notice'));
 
   const query = document.querySelector('[id="wiki-input-query.question"]');
@@ -508,4 +508,54 @@ test('shows the sanitized Git error details in the repository operation results'
   }));
   await view.tick();
   assert.equal(view.dom.window.document.querySelector('.operation-state.failed')?.textContent, message);
+});
+
+test('binds imported reports to both SHAs without adding approval or merge gates', async (t) => {
+  const current = snapshot('reviewer');
+  const sourceSha = 'a'.repeat(40), targetSha = 'b'.repeat(40);
+  const request = { id: 41, iid: 4, project_id: 1, source_project_id: 2, target_project_id: 1,
+    title: 'Fork change', state: 'opened', source_branch: 'feature', target_branch: 'main',
+    web_url: 'https://gitlab.example.test/team/alpha/-/merge_requests/4', diff_refs: { head_sha: sourceSha } };
+  current.mergeRequests = [request];
+  current.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [],
+    freshness: { state: 'current', checkedAt: new Date().toISOString() }, sourceSha, targetSha };
+  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, current);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const button = (label) => [...document.querySelectorAll('button')].find((node) => node.textContent === label);
+  button('審查報告').click();
+  await view.tick();
+  assert.equal(button('發布審查報告').disabled, true);
+  assert.equal(button('核准').disabled, false);
+  assert.equal(button('合併 MR').disabled, false);
+  button('複製審查任務並開啟 Codex CLI').click();
+  await view.tick();
+  assert.equal(view.requests.at(-1).type, 'openMergeReviewTask');
+  const textarea = document.querySelector('.reviewer-detail textarea');
+  textarea.value = 'Legacy plain text';
+  textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  assert.equal(button('發布審查報告').disabled, true);
+  button('作一般留言發布').click();
+  await view.tick();
+  assert.equal(view.requests.at(-1).type, 'postMergeRequestNote');
+  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: {
+    type: 'mergeReviewReportImported', projectId: 1, iid: 4, text: 'Incomplete P1 report', sourceSha, targetSha
+  } }));
+  await view.tick();
+  assert.equal(button('發布審查報告').disabled, false);
+  button('發布審查報告').click();
+  await view.tick();
+  assert.equal(view.requests.at(-1).type, 'publishMergeReviewReport');
+  view.sendSnapshot({ ...current, selectedMergeRequest: { ...current.selectedMergeRequest, targetSha: 'c'.repeat(40) } });
+  await view.tick();
+  assert.equal(button('發布審查報告').disabled, true);
+  assert.equal(button('核准').disabled, false);
+  button('核准').click();
+  await view.tick();
+  assert.equal(view.requests.at(-1).type, 'approveMergeRequest');
+  assert.equal(view.requests.at(-1).sha, sourceSha);
+  button('合併 MR').click();
+  await view.tick();
+  assert.equal(view.requests.at(-1).type, 'mergeMergeRequest');
 });

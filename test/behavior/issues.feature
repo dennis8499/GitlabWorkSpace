@@ -190,6 +190,12 @@ Feature: GitLab CE Issue work inside VS Code
     Then the new issue opens in the VS Code detail view even if it is not assigned to me
     And My Issues still lists only issues assigned to me in the selected group
 
+  @automated @SCN-031
+  Scenario: Group delivery displays native proof instead of editable acceptance assertions
+    Given the Issue Webview is ready with an editable issue
+    When the Group provides an accepted multi-Repo handoff
+    Then development tasks use Group paths and native review and verification results
+
   @human @SCN-020
   Scenario: CE issue details and discussion work inside VS Code
     Given I open a disposable test issue from My Issues

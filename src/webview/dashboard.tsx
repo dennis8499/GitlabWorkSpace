@@ -16,7 +16,6 @@ import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import { createDefaultWikiGuideInputs, type WikiGuideInputValues } from './codebaseWikiGuideData';
 import { CodebaseWikiGuide } from './CodebaseWikiGuide';
 import { countHiddenProjectSelection, reconcileProjectSelection, toggleProjectSelection } from '../workspace/repositorySelection';
-import { buildReviewerPrompt } from '../workspace/issueDrafts';
 import './dashboard.css';
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
@@ -48,7 +47,7 @@ interface SavedState {
   draftMilestones: Record<string, string>;
   draftLabels: Record<string, string>;
   draftChoices: Record<string, DraftChoice>;
-  reports: Record<string, { text: string; sha: string }>;
+  reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>;
   toolSource: ToolSource;
   selectedPackageIds: Partial<Record<ToolId, string>>;
   deliveryForms: Record<string, DeliveryFormState>;
@@ -87,7 +86,7 @@ interface ScopedSavedState {
   importedBundle?: IssueDraftBundle;
   draftChecked: Record<string, boolean>;
   draftChoices: Record<string, DraftChoice>;
-  reports: Record<string, { text: string; sha: string }>;
+  reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>;
   deliveryForms: Record<string, DeliveryFormState>;
   /** Legacy v1/v2 field: its Issue could not be identified. */
   manualTime?: ManualTimeDraft;
@@ -225,7 +224,7 @@ function App() {
   const [draftChecked, setDraftChecked] = useState<Record<string, boolean>>(initial?.draftChecked ?? {});
   const [draftChoices, setDraftChoices] = useState<Record<string, DraftChoice>>(initial?.draftChoices ?? {});
   const [draftOptions, setDraftOptions] = useState<Record<number, { options: IssueFormOptions; canCreateIssue: boolean }>>({});
-  const [reports, setReports] = useState<Record<string, { text: string; sha: string }>>(initial?.reports ?? {});
+  const [reports, setReports] = useState<Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>>(initial?.reports ?? {});
   const [similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>('changes');
@@ -281,6 +280,11 @@ function App() {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
       if (!message) return;
+      if (message.type === 'mergeReviewReportImported') {
+        setReports((current) => ({ ...current, [mrKey(message.projectId, message.iid)]: {
+          text: message.text, sha: message.sourceSha, targetSha: message.targetSha, validated: true
+        } }));
+      }
       if (message.type === 'snapshot') {
         const nextGuideScope = wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
         if (nextGuideScope !== wikiGuideScopeRef.current) {
@@ -505,7 +509,7 @@ function App() {
   const currentSha = selectedMr?.sourceSha ?? mr?.diff_refs?.head_sha ?? mr?.sha ?? '';
   const currentMrKey = mr ? mrKey(mr.project_id, mr.iid) : '';
   const currentReport = reports[currentMrKey] ?? { text: '', sha: '' };
-  const reportOutdated = !!currentReport.text && !!currentReport.sha && currentReport.sha !== currentSha;
+  const reportOutdated = !!currentReport.validated && (currentReport.sha !== currentSha || currentReport.targetSha !== selectedMr?.targetSha);
   const issueLabels = useMemo(() => [...new Set(issues.flatMap((issue) => issue.labels ?? []))].sort((a, b) => a.localeCompare(b)), [issues]);
   const issueBoards = snapshot?.groupIssueBoards ?? [];
   const issueBoardNameCounts = useMemo(() => {
@@ -647,8 +651,7 @@ function App() {
     const project = mr ? projectById.get(mr.project_id) : selectedIssueProject;
     if (!project || !mr || !selectedMr) return;
     if (!snapshot?.groupRoot) { setToast('請先設定 Group 工作目錄，再開啟 Codex CLI。'); setToolDrawer(true); return; }
-    const prompt = buildReviewerPrompt(project, mr, snapshot.groupRoot, selectedMr.sourceProject) + `\n\nMR SHA: ${currentSha}\n目標目前 SHA: ${selectedMr.targetSha ?? '請由 GitLab 查詢'}`;
-    post({ type: 'copyAndOpenCodex', text: prompt, returnTo: '待審查頁面的「審查報告」分頁' });
+    post({ type: 'openMergeReviewTask', projectId: mr.project_id, iid: mr.iid });
   }
   function updateDelivery(key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject): void {
     setDeliveryForms((current) => {
@@ -711,7 +714,7 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
-            : mode === 'sa' ? <CodebaseWikiGuide inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
+            : mode === 'sa' ? <CodebaseWikiGuide groupRoot={snapshot.groupRoot} inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
                 <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
@@ -780,8 +783,21 @@ function App() {
                   event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
                 }} onClick={() => setReviewerTab(tab)}>{label}</button>)}</nav>
                 <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><div class="diff-list">{selectedMr.diffs.map((change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : `${change.old_path} → ${change.new_path}`}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>)}{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異內容。</p>}</div></section>
-                <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3><label class="field">貼上 Codex CLI 回傳的 MergeReviewer Markdown<textarea rows={8} value={currentReport.text} onInput={(event) => { const text = event.currentTarget.value; setReports((current) => { const prior = current[currentMrKey] ?? { text: '', sha: '' }; return { ...current, [currentMrKey]: { ...prior, text, sha: prior.sha || currentSha } }; }); }} placeholder="在 Codex CLI 執行審查後，將報告貼到此處。" /></label>{reportOutdated && <p class="warning">審查報告對應的 SHA 已變更；請重新執行審查後再發布或核准。</p>}
-                  <div class="button-row"><button class="secondary" disabled={!currentReport.text.trim() || reportOutdated || busy} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>發布評論</button><button class="secondary" disabled={!currentSha || reportOutdated || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button><button class="primary" disabled={!currentSha || reportOutdated || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button></div>
+                <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3>
+                  <label class="field">貼上 MergeReviewer Markdown 或 JSON 報告<textarea rows={8} value={currentReport.text} onInput={(event) => {
+                    const text = event.currentTarget.value;
+                    setReports((current) => ({ ...current, [currentMrKey]: { text, sha: '', targetSha: '', validated: false } }));
+                  }} placeholder="貼上完整報告後，先核對版本。" /></label>
+                  {reportOutdated && <p class="warning">報告的來源或目標版本已變更，請重新審查後再發布報告。</p>}
+                  {!currentReport.validated && currentReport.text && <p class="subtle">尚未核對報告版本；舊純文字可作一般留言。</p>}
+                  <div class="button-row">
+                    <button class="secondary" disabled={busy} type="button" onClick={() => post({ type: 'importMergeReviewReport', projectId: mr.project_id, iid: mr.iid })}>匯入報告檔</button>
+                    <button class="secondary" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'importMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>核對貼上報告</button>
+                    <button class="secondary" disabled={!currentReport.validated || reportOutdated || busy} type="button" onClick={() => post({ type: 'publishMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>發布審查報告</button>
+                    {!currentReport.validated && <button class="quiet" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>作一般留言發布</button>}
+                    <button class="secondary" disabled={!currentSha || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>
+                    <button class="primary" disabled={!currentSha || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
+                  </div>
                 </section>
                 <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3>{selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
               </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>}

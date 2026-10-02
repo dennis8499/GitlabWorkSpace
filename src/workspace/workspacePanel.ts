@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import type { GitLabClient } from '../api/gitLabClient';
+import { GitLabApiError, type GitLabClient } from '../api/gitLabClient';
 import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMergeRequest, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
@@ -13,9 +14,10 @@ import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState, loca
 import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
-import { evaluateMeginDeliveryGate } from './deliveryGate';
+import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
+import { parseMergeReviewReport, validateReportIdentity, type MergeReviewIdentity } from './mergeReviewReport';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
-import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
+import { buildIssueDraftDescription, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { isTool, isVersion, ToolPackageManager, TOOL_DEFINITIONS, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
   BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledToolState, IssueDetailTab, IssueDraft,
@@ -316,6 +318,10 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'selectMergeRequest': await this.loadMergeRequest(request.projectId, request.iid); break;
       case 'refreshMergeRequest': await this.loadMergeRequest(request.projectId, request.iid); break;
       case 'postMergeRequestNote': await this.postMergeRequestNote(request.projectId, request.iid, request.body); break;
+      case 'openMergeReviewTask': await this.openMergeReviewTask(request.projectId, request.iid); break;
+      case 'openGroupQuickReview': await this.openGroupQuickReview(); break;
+      case 'importMergeReviewReport': await this.importMergeReviewReport(request.projectId, request.iid, request.text); break;
+      case 'publishMergeReviewReport': await this.publishMergeReviewReport(request.projectId, request.iid, request.text); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
@@ -991,7 +997,7 @@ export class WorkspacePanel implements vscode.Disposable {
         ({ id, tool, version, source, assetName, format, entryRoot, available, error })),
       deliveryRecords: this.deliveryRecords()
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
-        .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope })),
+        .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
       cloneOperation: this.cloneOperation,
       busy: this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress
     };
@@ -1554,13 +1560,90 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.publishMergeRequestText(projectId, iid, body);
   }
 
+  private async liveReviewIdentity(projectId: number, iid: number): Promise<{ identity: MergeReviewIdentity; request: GitLabMergeRequest }> {
+    this.requireGroupProject(projectId);
+    requireIssueIid(iid);
+    const client = await this.session.getClient();
+    const request = await client.getMergeRequest(projectId, iid);
+    const sourceProjectId = request.source_project_id ?? projectId;
+    const targetProjectId = request.target_project_id ?? projectId;
+    if (targetProjectId !== projectId) throw new Error('MR 目標專案與目前專案不一致。');
+    const [source, target] = await Promise.all([
+      client.getRepositoryBranch(sourceProjectId, request.source_branch),
+      client.getRepositoryBranch(targetProjectId, request.target_branch)
+    ]);
+    const head = request.diff_refs?.head_sha ?? request.sha;
+    if (!head || head !== source.commit.id) throw new Error('MR 與來源分支版本尚未一致，請重新整理後審查。');
+    return { request, identity: {
+      origin: this.session.baseUrl!.replace(/\/$/, ''), projectId, mrIid: iid,
+      sourceProjectId, targetProjectId, sourceBranch: request.source_branch, targetBranch: request.target_branch,
+      sourceSha: head, targetSha: target.commit.id
+    } };
+  }
+
+  private async openMergeReviewTask(projectId: number, iid: number): Promise<void> {
+    const root = this.meginGroupRoot();
+    const { identity, request } = await this.liveReviewIdentity(projectId, iid);
+    const client = await this.session.getClient();
+    const [target, source] = await Promise.all([client.getProject(identity.targetProjectId), client.getProject(identity.sourceProjectId)]);
+    const repoPath = groupRepositoryPath(root, target, this.projects);
+    if (await localRepositoryStateAsync(root, repoPath) !== 'ready') throw new Error('MR 的目標 Repo 尚未下載，或本機路徑不安全。');
+    const remotes = (await git(repoPath, ['remote'])).split(/\r?\n/).filter(Boolean);
+    const urls = await Promise.all(remotes.map((remote) => git(repoPath, ['remote', 'get-url', remote])));
+    if (!urls.some((url) => projectRemoteMatches(url.trim(), target))) throw new Error('本機 Repo remote 與 MR 目標專案不一致。');
+    if (!isAllowedGitRemote(identity.origin, source.http_url_to_repo) || !isAllowedGitRemote(identity.origin, target.http_url_to_repo)) throw new Error('MR remote 不屬於目前 GitLab。');
+    const directory = path.join(root, 'review-reports', 'tasks');
+    await mkdir(directory, { recursive: true });
+    const taskFile = path.join(directory, `mr-${projectId}-${iid}-${randomUUID()}.json`);
+    await writeFile(taskFile, JSON.stringify({ schema: 'MergeReviewTask/v1', ...identity, repoPath,
+      sourceRemoteUrl: source.http_url_to_repo, targetRemoteUrl: target.http_url_to_repo, mode: 'merge' }, null, 2) + '\n', 'utf8');
+    const prompt = buildReviewerPrompt(target, request, root, source, { repoPath, taskFile, sourceSha: identity.sourceSha, targetSha: identity.targetSha });
+    await vscode.env.clipboard.writeText(prompt);
+    await this.openCodexTerminal();
+    this.post({ type: 'message', message: '已固定實際 Repo 與來源／目標 SHA。請貼上任務審查，完成後匯入報告。' });
+  }
+
+  private async openGroupQuickReview(): Promise<void> {
+    const root = this.meginGroupRoot();
+    const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'git_review_context.py');
+    if (!await exists(script) || !(await readFile(script, 'utf8')).includes('--group-root')) throw new Error('請先安裝支援 Group 審查的 MergeReviewer 0.5.0 以上。');
+    const prompt = `$merge-reviewer 請審查 Group「${root}」下一層所有 Repo 的未提交內容。使用 git_review_context.py --group-root "${root}" --quick，分別審查固定的暫存區與工作檔快照，保留版本證據，輸出 Group 總覽與各 Repo 報告。`;
+    await vscode.env.clipboard.writeText(prompt);
+    await this.openCodexTerminal();
+    this.post({ type: 'message', message: '已複製整個 Group 的未提交內容審查任務。' });
+  }
+
+  private async importMergeReviewReport(projectId: number, iid: number, text?: string): Promise<void> {
+    if (text === undefined) {
+      const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { '審查報告': ['md', 'json'] }, openLabel: '匯入審查報告' });
+      if (!picked?.[0]) return;
+      text = await readFile(picked[0].fsPath, 'utf8');
+    }
+    const report = parseMergeReviewReport(text);
+    const { identity } = await this.liveReviewIdentity(projectId, iid);
+    validateReportIdentity(report, identity);
+    this.post({ type: 'mergeReviewReportImported', projectId, iid, text: report.text,
+      sourceSha: report.metadata.sourceSha, targetSha: report.metadata.targetSha });
+    this.post({ type: 'message', message: '已核對報告正文、MR 身分及來源／目標版本。' });
+  }
+
+  private async publishMergeReviewReport(projectId: number, iid: number, text: string): Promise<void> {
+    const report = parseMergeReviewReport(text);
+    const { identity } = await this.liveReviewIdentity(projectId, iid);
+    validateReportIdentity(report, identity);
+    await this.publishMergeRequestText(projectId, iid, report.text, undefined, async () => {
+      const current = await this.liveReviewIdentity(projectId, iid);
+      validateReportIdentity(report, current.identity);
+    });
+  }
+
   private async replyMergeRequest(projectId: number, iid: number, discussionId: string, body: string): Promise<void> {
     const detail = this.selectedMergeRequest;
     if (detail?.request.project_id !== projectId || detail.request.iid !== iid || !detail.discussions.some((item) => item.id === discussionId)) throw new Error('找不到這則 MR 討論，請重新整理。');
     await this.publishMergeRequestText(projectId, iid, body, discussionId);
   }
 
-  private async publishMergeRequestText(projectId: number, iid: number, body: string, discussionId?: string): Promise<void> {
+  private async publishMergeRequestText(projectId: number, iid: number, body: string, discussionId?: string, beforePublish?: () => Promise<void>): Promise<void> {
     this.requireGroupProject(projectId);
     if (!body.trim() || body.length > 50_000) throw new Error('請輸入 1 到 50,000 字的 MR 評論。');
     const client = await this.session.getClient();
@@ -1594,6 +1677,12 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     await this.savePendingMrWrite({ key, marker, groupId, userId, projectId, iid, discussionId, state: 'sending' }, key);
     const markedBody = `${body.trim()}\n\n${marker}`;
+    try {
+      await beforePublish?.();
+    } catch (error) {
+      await this.savePendingMrWrite(undefined, key);
+      throw error;
+    }
     try {
       if (discussionId) await client.replyToMergeRequestDiscussion(projectId, iid, discussionId, markedBody);
       else await client.createMergeRequestNote(projectId, iid, markedBody);
@@ -1641,91 +1730,144 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.refresh();
   }
 
+  private meginGroupRoot(): string {
+    const group = this.session.selectedGroup;
+    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    if (!root) throw new Error('請先選擇 Group 工作目錄。');
+    return root;
+  }
+
+  private async runMeginHandoff(action: 'inspect' | 'commit' | 'completed', workId: string, digest?: string, messageFile?: string): Promise<MeginHandoff> {
+    if (!/^work-\d{8}-[a-z0-9-]+$/.test(workId)) throw new Error('請輸入 Megin Work ID：work-YYYYMMDD-slug。');
+    const root = this.meginGroupRoot();
+    const script = path.join(root, '.agents', 'skills', 'megin', 'scripts', 'gitlab_delivery.py');
+    if (!await exists(script)) throw new Error('請先安裝 Megin 0.2.0 以上，並完成 gitlab_mr 驗收交接。');
+    const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+    const python = await resolvePythonRuntime(configured);
+    const args = [...python.args, '-X', 'utf8', '-B', script, action, '--group-root', root, '--work-id', workId];
+    if (digest) args.push('--handoff-sha256', digest);
+    if (action === 'commit') {
+      let writer = this.context.globalState.get<string>('gitlabWorkspace.meginWriter');
+      if (!writer) { writer = `gitlab-workspace-${randomUUID()}`; await this.context.globalState.update('gitlabWorkspace.meginWriter', writer); }
+      args.push('--writer', writer, '--message-file', messageFile!);
+    }
+    try {
+      const result = await execFileAsync(python.executable, args, { cwd: root, env: { ...python.env, GIT_TERMINAL_PROMPT: '0' }, timeout: 3 * 60_000, maxBuffer: 12 * 1024 * 1024, windowsHide: true });
+      return parseMeginHandoff(JSON.parse(result.stdout), workId);
+    } catch (error) { throw new Error(`Megin 交接檢查未通過；已保留工作現場。${readableError(error)}`); }
+  }
+
+  private async validateWorkspaceHandoff(value: MeginHandoff): Promise<void> {
+    const root = this.meginGroupRoot();
+    if (!sameRealLocalPath(value.group_root, root) || value.gitlab.origin !== this.session.baseUrl?.replace(/\/$/, '')) throw new Error('交接證據不屬於目前 Group 或 GitLab。');
+    const client = await this.session.getClient();
+    for (const item of value.repositories) {
+      const project = this.requireGroupProject(item.gitlab_project_id);
+      const repoPath = groupRepositoryPath(root, project, this.projects);
+      if (project.path_with_namespace !== item.gitlab_namespace || !sameRealLocalPath(repoPath, path.join(root, item.repo_path)) ||
+          !projectRemoteMatches(item.remote_url, project)) throw new Error('交接 Repo 路徑、GitLab project ID 或 remote 身分不一致。');
+      if (value.state !== 'complete') {
+        const target = await client.getRepositoryBranch(project.id, item.base_branch);
+        if (target.commit.id !== item.base_commit) throw new Error(`${project.path_with_namespace} 目標分支已更新，請重新規劃、驗證與驗收。`);
+      }
+    }
+  }
+
   private async prepareDelivery(request: Extract<WorkspaceRequest, { type: 'prepareDelivery' }>): Promise<void> {
     requireIssueIid(request.issueIid);
     const group = this.session.selectedGroup;
     const userId = this.currentUser?.id;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    const project = this.requireGroupProject(request.projectId);
-    if (!group || !userId || !root || !project) throw new Error('請先選擇 Group 工作目錄與有效 Repo。');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(request.workId)) throw new Error('Megin Work ID 僅能使用英數字、句點、底線與連字號。');
-    if (request.acceptanceConfirmed !== true) throw new Error('請先確認已完成 Megin 人工驗收。');
+    const root = this.meginGroupRoot();
+    if (!group || !userId) throw new Error('請先選擇 GitLab Group。');
+    this.requireGroupProject(request.projectId);
+    const value = await this.runMeginHandoff('inspect', request.workId);
+    await this.validateWorkspaceHandoff(value);
+    if (value.gitlab.issue_project_id !== request.projectId || value.gitlab.issue_iid !== request.issueIid) throw new Error('Work ID 的核准 Issue 與目前 Issue 不同。');
     const summary = checkedText(request.summary, 'Commit 摘要', 200);
     if (/[\r\n]/.test(summary)) throw new Error('Commit 摘要必須是一行文字。');
-    const changes = checkedText(request.changes, '修改內容', 12_000);
-    const tests = checkedText(request.tests, '驗收證據', 8_000);
-    const targetBranch = checkedText(request.targetBranch, '目標分支', 255);
-    await git(path.resolve(root), ['check-ref-format', '--branch', targetBranch]);
-    const repoPath = groupRepositoryPath(root, project, this.projects);
-    if (await localRepositoryStateAsync(root, repoPath) !== 'ready') throw new Error('本機 Repo 不存在或路徑不安全。');
-    const repoTop = await git(repoPath, ['rev-parse', '--show-toplevel']);
-    if (!sameRealLocalPath(repoTop.trim(), repoPath)) throw new Error('本機路徑不是 Repo 根目錄。');
-    const branch = (await git(repoPath, ['branch', '--show-current'])).trim();
-    if (!branch || branch === targetBranch || branch === project.default_branch) throw new Error('Megin 交付必須留在非預設分支，不能提交到目標分支。');
-    await git(repoPath, ['check-ref-format', '--branch', branch]);
-    const headSha = (await git(repoPath, ['rev-parse', 'HEAD'])).trim();
-    const targetRef = `refs/remotes/origin/${targetBranch}`;
-    const baseTargetSha = (await git(repoPath, ['rev-parse', '--verify', `${targetRef}^{commit}`])).trim();
-    const client = await this.session.getClient();
-    const [target, latestIssue] = await Promise.all([client.getRepositoryBranch(project.id, targetBranch), client.getIssue(project.id, request.issueIid)]);
-    const baseSha = (await git(repoPath, ['merge-base', 'HEAD', targetRef])).trim();
-    if (latestIssue.state !== 'opened') throw new Error('Issue 已關閉，請先重新確認工作範圍。');
-    const status = await git(repoPath, ['status', '--porcelain=v1', '--untracked-files=all']);
-    const rawDiff = await git(repoPath, ['diff', '--no-ext-diff', '--binary', 'HEAD', '--'], { maxBuffer: MAX_DIFF_BYTES + 16_384 });
-    const diffSha256 = createHash('sha256').update(rawDiff).digest('hex');
-    const gate = evaluateMeginDeliveryGate({ workId: request.workId, headSha, baseSha, localTargetSha: baseTargetSha, cloudTargetSha: target.commit.id, status, diffSha256, acceptanceConfirmed: request.acceptanceConfirmed });
-    const diff = rawDiff.slice(0, MAX_DIFF_BYTES);
-    const diffStat = (await git(repoPath, ['diff', '--stat', 'HEAD'])).trim();
-    const changedFiles = (await git(repoPath, ['diff', '--name-only', 'HEAD'])).split(/\r?\n/).filter(Boolean).slice(0, 500);
-    const delivery: DeliveryRecord = {
-      id: randomUUID(), groupId: group.id, userId, instanceScope: this.deliveryInstanceScope(), projectId: project.id, issueIid: request.issueIid,
-      repoPath, branch, targetBranch, workId: request.workId, summary, changes, tests,
-      acceptanceConfirmed: request.acceptanceConfirmed,
-      reviewerIds: (Array.isArray(request.reviewerIds) ? request.reviewerIds : []).filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 50),
-      headSha, baseSha, baseTargetSha, diffSha256, statusSnapshot: status,
-      diffStat: rawDiff.length > MAX_DIFF_BYTES ? `${diffStat}\n(diff 顯示截斷)` : diffStat,
-      diff, changedFiles, gate, state: 'preview', updatedAt: Date.now()
-    };
-    await this.saveDelivery(delivery);
-    this.post({ type: 'deliveryPreview', delivery });
-    this.post({ type: 'message', message: gate.ok ? '交付預覽已建立，可檢查差異後 Commit。' : '交付檢查未通過，已保留工作現場。' });
+    const changes = request.changes.trim() ? checkedText(request.changes, '修改內容', 12_000) : summary;
+    const evidenceText = value.checks.map((check) => `${check.id}: ${check.status}${check.executed === undefined ? '' : ` (${check.executed} tests)`}`).join('\n');
+    const tests = request.tests.trim() ? checkedText(request.tests, '驗證摘要', 8_000) : evidenceText;
+    const approvedRepositories = value.repositories.map((item) => ({ repoPath: item.repo_path, projectId: item.gitlab_project_id,
+      branch: item.feature_branch, baseSha: item.base_commit, allowedPaths: item.allowed_paths,
+      commit: value.delivery?.repositories.find((r) => r.repo_path === item.repo_path)?.feature_commit }));
+    for (const item of value.repositories) {
+      const project = this.requireGroupProject(item.gitlab_project_id);
+      const repoPath = groupRepositoryPath(root, project, this.projects);
+      const commit = value.delivery?.repositories.find((r) => r.repo_path === item.repo_path)?.feature_commit;
+      const ref = value.state === 'complete' ? commit! : undefined;
+      const diffArgs = ['diff', '--no-ext-diff', '--binary', ...(ref ? [item.base_commit, ref] : ['--cached', item.base_commit]), '--'];
+      const rawDiff = await git(repoPath, diffArgs, { maxBuffer: 12 * 1024 * 1024 });
+      const id = createHash('sha256').update(`${this.deliveryInstanceScope()}:${request.workId}:${project.id}:${value.handoff_sha256}`).digest('hex');
+      const previous = this.deliveryRecords().find((r) => r.id === id);
+      const delivery: DeliveryRecord = {
+        id, groupId: group.id, userId, instanceScope: this.deliveryInstanceScope(), projectId: project.id,
+        issueIid: request.issueIid, issueProjectId: request.projectId, repoPath, groupRoot: root,
+        branch: item.feature_branch, targetBranch: item.base_branch, remote: item.remote, remoteUrl: item.remote_url,
+        workId: request.workId, summary, changes, tests, acceptanceConfirmed: true,
+        handoffSha256: value.handoff_sha256, planVersion: value.plan_version,
+        acceptanceVersion: value.acceptance.version, acceptedSnapshot: value.snapshot, approvedRepositories,
+        reviewResult: { verdict: value.review.verdict, context: value.review.context, snapshot: value.review.snapshot },
+        verificationResults: value.checks.map(({ id, status, executed }) => ({ id, status, executed })),
+        reviewerIds: (Array.isArray(request.reviewerIds) ? request.reviewerIds : []).filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 50),
+        headSha: commit ?? item.snapshot.head, baseSha: item.base_commit, baseTargetSha: item.base_commit,
+        diffSha256: createHash('sha256').update(rawDiff).digest('hex'), statusSnapshot: '',
+        diffStat: `${item.staged.staged_paths.length} accepted changed paths`, diff: rawDiff.slice(0, MAX_DIFF_BYTES),
+        changedFiles: item.staged.staged_paths, gate: { ok: true, reasons: [] },
+        state: value.state === 'complete' ? previous?.state === 'pushed' || previous?.state === 'mr-created' ? previous.state : 'committed' : 'preview',
+        mergeRequestUrl: previous?.mergeRequestUrl, updatedAt: Date.now()
+      };
+      await this.saveDelivery(delivery);
+      this.post({ type: 'deliveryPreview', delivery });
+    }
+    this.sendSnapshot();
+    this.post({ type: 'message', message: `已核對 ${value.acceptance.version} 的交接證據，共 ${value.repositories.length} 個核准 Repo。` });
   }
 
   private async commitDelivery(id: string): Promise<void> {
     const record = this.requireDelivery(id);
-    if (record.state !== 'preview') throw new Error('這筆交付已 Commit；請從目前步驟繼續。');
-    const state = await this.recheckDeliveryGate(record);
-    if (!state.ok) { await this.saveDelivery({ ...record, gate: state, error: state.reasons.join('；'), updatedAt: Date.now() }); throw new Error(state.reasons.join('\n')); }
-    const diff = await hasCachedChanges(record.repoPath);
-    if (diff) throw new Error('暫存區已有內容。已保留現場；請檢查是否與 Megin 驗收快照一致，再重新預覽。');
-    const currentHead = (await git(record.repoPath, ['rev-parse', 'HEAD'])).trim();
-    if (currentHead !== record.headSha) throw new Error('分支 HEAD 已漂移，請重新執行交付預覽。');
-    const changedNow = await git(record.repoPath, ['status', '--porcelain=v1', '--untracked-files=all']);
-    if (changedNow !== record.statusSnapshot) throw new Error('工作樹狀態與驗收預覽不同；已保留現場，請重新確認 Megin 驗收內容。');
-    const diffNow = await git(record.repoPath, ['diff', '--no-ext-diff', '--binary', 'HEAD', '--'], { maxBuffer: MAX_DIFF_BYTES + 16_384 });
-    if (createHash('sha256').update(diffNow).digest('hex') !== record.diffSha256) throw new Error('差異內容與驗收預覽不同；已保留現場，請重新確認 Megin 驗收內容。');
-    const projectPath = this.projects.find((project) => project.id === record.projectId)?.path_with_namespace ?? 'project';
-    const message = `[${projectPath}#${record.issueIid}] ${record.summary}`;
-    await git(record.repoPath, ['add', '--all']);
+    if (!record.handoffSha256) throw new Error('舊交付紀錄沒有原生驗收證據，請重新載入 Megin 交接。');
+    if (record.state !== 'preview') throw new Error('本機交付已完成，請從 Push／MR 步驟繼續。');
+    const value = await this.runMeginHandoff('inspect', record.workId, record.handoffSha256);
+    await this.validateWorkspaceHandoff(value);
+    const temporary = await mkdtemp(path.join(os.tmpdir(), 'gitlab-workspace-commit-'));
+    const messageFile = path.join(temporary, 'message.txt');
     try {
-      await git(record.repoPath, ['commit', '-m', message, '-m', `${record.changes}\n\n驗證：\n${record.tests}\n\nMegin Work ID: ${record.workId}`]);
-    } catch (error) { throw error; }
-    const committedHead = (await git(record.repoPath, ['rev-parse', 'HEAD'])).trim();
-    const updated = { ...record, headSha: committedHead, state: 'committed' as const, updatedAt: Date.now() };
-    await this.saveDelivery(updated);
-    this.post({ type: 'deliveryProgress', delivery: updated });
+      await writeFile(messageFile, `${record.summary}\n\n${record.changes}\n\n驗證：\n${record.tests}`, 'utf8');
+      const result = await this.runMeginHandoff('commit', record.workId, record.handoffSha256, messageFile);
+      for (const entry of this.deliveryRecords().filter((r) => r.workId === record.workId && r.handoffSha256 === record.handoffSha256 && r.instanceScope === record.instanceScope)) {
+        const commit = result.delivery?.repositories.find((r) => r.repo_path === path.basename(entry.repoPath))?.feature_commit;
+        if (!commit) throw new Error('完成證據缺少 Repo commit；請重新載入交接。');
+        const updated: DeliveryRecord = { ...entry, headSha: commit, state: 'committed', updatedAt: Date.now(),
+          approvedRepositories: entry.approvedRepositories?.map((r) => ({ ...r, commit: result.delivery?.repositories.find((item) => item.repo_path === r.repoPath)?.feature_commit })) };
+        await this.saveDelivery(updated); this.post({ type: 'deliveryProgress', delivery: updated });
+      }
+      this.sendSnapshot();
+      this.post({ type: 'message', message: '所有核准 Repo 本機提交已驗證，Group 鎖已釋放；可依序 Push 與建立 MR。' });
+    } finally { await unlink(messageFile).catch(() => undefined); await rmdir(temporary).catch(() => undefined); }
   }
 
   private async pushDelivery(id: string): Promise<void> {
     const record = this.requireDelivery(id);
     if (record.state !== 'committed') throw new Error('Commit 尚未完成，不能 Push。');
-    if ((await git(record.repoPath, ['rev-parse', 'HEAD'])).trim() !== record.headSha) throw new Error('Commit SHA 已變動，請先檢查工作樹。');
+    await this.verifyDeliveredCommit(record);
     const client = await this.session.getClient();
     const project = await client.getProject(record.projectId);
+    const existingBranch = await client.getRepositoryBranch(project.id, record.branch).catch((error: unknown) => {
+      if (error instanceof GitLabApiError && error.status === 404) return undefined;
+      throw error;
+    });
+    if (existingBranch) {
+      if (existingBranch.commit.id !== record.headSha) throw new Error('遠端交付分支已有不同版本；請先檢查衝突，工作台不會覆寫或 force push。');
+      const updated = { ...record, state: 'pushed' as const, updatedAt: Date.now() };
+      await this.saveDelivery(updated);
+      this.post({ type: 'deliveryProgress', delivery: updated });
+      return;
+    }
     const credentials = await this.session.getCloneCredentials();
-    const remote = await git(record.repoPath, ['remote', 'get-url', 'origin']);
+    const remote = await git(record.repoPath, ['remote', 'get-url', record.remote!]);
     if (!isAllowedGitRemote(credentials.baseUrl, project.http_url_to_repo) || !projectRemoteMatches(remote.trim(), project)) {
-      throw new Error('origin 不屬於目前 GitLab Project 的 HTTPS 或 SSH Repo，已停止 Push。');
+      throw new Error('已核准 remote 不屬於目前 GitLab Project，已停止 Push。');
     }
     const confirm = await vscode.window.showWarningMessage(`將 ${record.headSha.slice(0, 12)} Push 至 ${project.path_with_namespace}:${record.branch}。`, { modal: true }, 'Push');
     if (confirm !== 'Push') return;
@@ -1734,7 +1876,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const remoteUrl = new URL(remote.trim());
       if (remoteUrl.protocol === 'https:' || remoteUrl.protocol === 'http:') pushEnv = createScopedGitEnvironment(remote.trim(), credentials.token);
     } catch { /* SSH remotes use the user's configured SSH agent. */ }
-    try { await git(record.repoPath, ['push', '--set-upstream', 'origin', record.branch], { env: pushEnv }); }
+    try { await git(record.repoPath, ['push', record.remote!, `${record.headSha}:refs/heads/${record.branch}`], { env: pushEnv }); }
     catch (error) {
       const observed = await client.getRepositoryBranch(project.id, record.branch).catch(() => undefined);
       if (observed?.commit.id !== record.headSha) throw new Error(`Push 結果尚未確認；請先檢查 GitLab 分支 ${record.branch}，系統不會自動重送。${readableError(error)}`);
@@ -1749,8 +1891,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private async createDeliveryMergeRequest(id: string): Promise<void> {
     const record = this.requireDelivery(id);
     if (record.state !== 'pushed') throw new Error('Push 尚未完成；已 Push 的內容可從此步驟重試建立 MR。');
+    await this.verifyDeliveredCommit(record);
     const client = await this.session.getClient();
-    const issue = await client.getIssue(record.projectId, record.issueIid);
+    const issue = await client.getIssue(record.issueProjectId ?? record.projectId, record.issueIid);
     const project = await client.getProject(record.projectId);
     const found = await client.findOpenMergeRequestsBySourceBranch(record.projectId, record.branch);
     const matchingBranch = found.filter((item) => item.project_id === record.projectId && item.source_branch === record.branch && item.state === 'opened');
@@ -1761,7 +1904,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     if (matchingBranch.length) throw new Error('此來源分支已有其他內容或目標分支的 MR；請先檢查 GitLab，工作台不會重複建立。');
     const description = [
-      `## Issue\nRelates to ${project.path_with_namespace}#${issue.iid}\n${issue.web_url}`,
+      `## Issue\nRelates to ${issue.web_url}\nMegin Work ID: ${record.workId}\n驗收版本: ${record.acceptanceVersion}`,
       `## 修改摘要\n${record.changes}`,
       `## 測試與驗收\n${record.tests}`,
       `## 來源與目標\n${record.branch} → ${record.targetBranch}`,
@@ -1787,32 +1930,15 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async recheckDeliveryGate(record: DeliveryRecord): Promise<DeliveryPreview['gate']> {
-    const head = (await git(record.repoPath, ['rev-parse', 'HEAD'])).trim();
-    const branch = (await git(record.repoPath, ['branch', '--show-current'])).trim();
-    const targetRef = `refs/remotes/origin/${record.targetBranch}`;
-    const baseTargetSha = (await git(record.repoPath, ['rev-parse', '--verify', `${targetRef}^{commit}`])).trim();
-    const client = await this.session.getClient();
-    const target = await client.getRepositoryBranch(record.projectId, record.targetBranch);
-    const baseSha = (await git(record.repoPath, ['merge-base', 'HEAD', targetRef])).trim();
-    const status = await git(record.repoPath, ['status', '--porcelain=v1', '--untracked-files=all']);
-    const rawDiff = await git(record.repoPath, ['diff', '--no-ext-diff', '--binary', 'HEAD', '--'], { maxBuffer: MAX_DIFF_BYTES + 16_384 });
-    const diffSha256 = createHash('sha256').update(rawDiff).digest('hex');
-    const gate = evaluateMeginDeliveryGate({ workId: record.workId, headSha: head, baseSha, localTargetSha: baseTargetSha, cloudTargetSha: target.commit.id, status, diffSha256, acceptanceConfirmed: record.acceptanceConfirmed });
-    const reasons = [...gate.reasons];
-    if (branch !== record.branch) reasons.push('目前分支已變更；請回到 Megin 驗收時使用的工作分支。');
-    if (head !== record.headSha) reasons.push('分支 HEAD 已漂移；請重新執行交付預覽。');
-    if (baseSha !== record.baseSha) reasons.push('目標分支的共同基底已變更；請重新確認 Megin 驗收。');
-    if (baseTargetSha !== record.baseTargetSha) reasons.push('本機遠端追蹤分支已變更；請重新確認 Megin 驗收。');
-    if (target.commit.id !== record.baseTargetSha) reasons.push('GitLab 目標分支已更新；請先同步並重新確認 Megin 驗收。');
-    if (status !== record.statusSnapshot) reasons.push('工作樹狀態已變更；請重新確認 Megin 驗收。');
-    if (diffSha256 !== record.diffSha256) reasons.push('程式差異內容已變更；請重新確認 Megin 驗收。');
-    return { ok: reasons.length === 0, reasons };
-  }
-
   private deliveryRecords(): DeliveryRecord[] {
     const value = this.context.globalState.get<DeliveryRecord[]>(DELIVERIES_KEY, []);
     return Array.isArray(value) ? value.filter((record) => !!record && typeof record.id === 'string') : [];
+  }
+  private async verifyDeliveredCommit(record: DeliveryRecord): Promise<void> {
+    const value = await this.runMeginHandoff('completed', record.workId, record.handoffSha256);
+    await this.validateWorkspaceHandoff(value);
+    const commit = value.delivery?.repositories.find((repo) => repo.repo_path === path.basename(record.repoPath))?.feature_commit;
+    if (commit !== record.headSha) throw new Error('交付 commit 與已驗證的本機完成證據不符。');
   }
   private deliveryInstanceScope(): string | undefined {
     return this.session.baseUrl ? createHash('sha256').update(this.session.baseUrl).digest('hex') : undefined;
@@ -1822,6 +1948,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const record = this.deliveryRecords().find((item) => item.id === id && item.groupId === this.session.selectedGroup?.id &&
       item.userId === this.currentUser?.id && instanceScope !== undefined && item.instanceScope === instanceScope);
     if (!record) throw new Error('找不到已確認屬於目前 GitLab、Group 與使用者的交付紀錄。');
+    if (!record.handoffSha256 || !record.groupRoot || !sameRealLocalPath(record.groupRoot, this.meginGroupRoot())) throw new Error('此紀錄沒有有效的 Megin 交接證據，請重新載入 Work ID。');
     return record;
   }
   private async saveDelivery(record: DeliveryRecord): Promise<void> {
@@ -2023,15 +2150,7 @@ async function git(cwd: string, args: string[], options: { maxBuffer?: number; e
   return result.stdout;
 }
 
-async function hasCachedChanges(repo: string): Promise<boolean> {
-  try {
-    await git(repo, ['diff', '--cached', '--quiet', '--exit-code']);
-    return false;
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string | number }).code === 1) return true;
-    throw error;
-  }
-}
+
 
 function checkedText(value: string, label: string, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\0\r]/.test(value)) throw new Error(`${label} 請填寫 1 到 ${max} 個字元。`);

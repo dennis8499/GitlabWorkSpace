@@ -68,17 +68,20 @@ export function containsIssueDraftMarker(description: string | null | undefined,
   return match?.[1] === analysisId && match[2] === draftId;
 }
 
-export function buildDeveloperPrompt(project: GitLabProject, issue: GitLabIssue, groupRoot: string, repoPath: string): string {
+export function buildDeveloperPrompt(project: GitLabProject, issue: GitLabIssue, groupRoot: string, repoPath: string, origin?: string): string {
   return [
     `$megin 請依照 GitLab Issue ${project.path_with_namespace}#${issue.iid} 完成開發。`,
     `Issue：${issue.web_url}`,
     `Group 工作區：${groupRoot}`,
     `目標 Repo：${project.path_with_namespace}`,
     `本機 Repo 路徑：${repoPath}`,
+    `交付模式：gitlab_mr`,
+    `GitLab 契約：${JSON.stringify({ origin: origin?.replace(/\/$/, '') ?? project.web_url.split(`/${project.path_with_namespace}`)[0], issue_project_id: project.id, issue_iid: issue.iid })}`,
+    `Repo 契約：gitlab_project_id=${project.id}，gitlab_namespace=${project.path_with_namespace}`,
     `預設分支：${project.default_branch ?? '請依 GitLab 遠端確認'}`,
     '',
     '先閱讀完整 Issue 需求、討論及驗收條件，依 Megin 完成需求探索、規劃、實作、獨立審查、自動驗證與人工驗收。',
-    '使用 GitLab Workspace 接手交付；在人工驗收後停止，不要自行 Commit、Push 或建立 MR。工作台會檢查驗收差異，再建立含 Issue 編號的 Commit。',
+    '使用 GitLab Workspace 接手交付；人工驗收後只暫存核准路徑、通過原生 delivery gate，再使用 gitlab_delivery.py prepare 產生 handoff.json，停在 delivery/awaiting_user。不要自行 Commit、Push、建立 MR 或本機合併。工作台會核對驗收證據，再提交所有核准 Repo。',
     '交付摘要請記錄主要改動、驗收條件與實際執行的驗證。',
     '',
     'GitLab Issue 正文：',
@@ -86,14 +89,16 @@ export function buildDeveloperPrompt(project: GitLabProject, issue: GitLabIssue,
   ].join('\n');
 }
 
-export function buildReviewerPrompt(project: GitLabProject, request: GitLabMergeRequest, workspacePath?: string, sourceProject?: GitLabProject): string {
+export function buildReviewerPrompt(project: GitLabProject, request: GitLabMergeRequest, workspacePath?: string, sourceProject?: GitLabProject,
+  binding?: { repoPath: string; taskFile: string; sourceSha: string; targetSha: string }): string {
   const ref = request.diff_refs;
-  const sourceSha = ref?.head_sha ?? request.sha ?? '';
-  const targetSha = ref?.start_sha ?? ref?.base_sha ?? '';
+  const sourceSha = binding?.sourceSha ?? ref?.head_sha ?? request.sha ?? '';
+  const targetSha = binding?.targetSha ?? '';
   return [
-    `$merge-reviewer Repo=${project.path_with_namespace} 基礎分支=${request.target_branch} 比較分支=${request.source_branch} 比較模式=合併前審查`,
+    binding ? `$merge-reviewer 請使用固定 MR 任務：git_review_context.py --mr-context "${binding.taskFile}"` : '$merge-reviewer 請先由工作台建立固定 MR 任務；缺少實際 Repo 與目標目前 SHA 時不能開始審查。',
     `MR：${request.web_url}`,
     `Group Workspace：${workspacePath ?? '請使用目前已開啟的 Group 工作區'}`,
+    `本機 Repo 路徑：${binding?.repoPath ?? '請由 project ID 對應實際 Repo，不能使用 namespace 猜測資料夾'}`,
     `來源 Repo：${sourceProject?.path_with_namespace ?? (request.source_project_id && request.source_project_id !== request.target_project_id ? `Project ID ${request.source_project_id}` : project.path_with_namespace)}`,
     `來源 SHA：${sourceSha || '重新查詢 GitLab MR 最新 head'}`,
     `目標基準 SHA：${targetSha || '重新查詢 GitLab MR 最新 target'}`,

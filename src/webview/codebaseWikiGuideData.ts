@@ -24,6 +24,15 @@ const field = (id: string, label: string, options: Partial<Omit<WikiGuideField, 
 
 export const wikiGuideCards: readonly WikiGuideCard[] = [
   {
+    id: 'development-spec', title: '開發規格（給 Megin）',
+    description: '先釐清功能決策，再產生可直接貼入 Issue 的精簡規格。',
+    output: '五段獨立規格、SCN 驗收情境與 draft／ready 狀態。',
+    behavior: '必要問題逐題詢問；未回答保持草稿。Issue 由使用者自行建立與指派。',
+    fields: [field('scope', '功能名稱', { required: true }),
+      field('repos', '適用 Repo（選填）', { placeholder: 'Group 下的實際 Repo 資料夾名稱' }),
+      field('requirement', '功能敘述', { required: true, kind: 'textarea', rows: 4 })]
+  },
+  {
     id: 'install', title: '安裝／設定',
     description: '在目標專案安裝或升級 Codex 版本的 Codebase LLM Wiki。',
     output: '官方 installer 的 dry-run 預覽；確認後才套用安裝。',
@@ -171,6 +180,8 @@ export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValue
       return `請使用 $codebase-wiki 建立一份 ADR，決策標題為「${promptValue(card, 'title', inputs)}」。依現有決策紀錄格式寫入 wiki/decisions/，說明背景、決策及其後果，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'synthesis':
       return `請使用 $codebase-wiki 將主題「${promptValue(card, 'topic', inputs)}」整理成持續維護的 Synthesis 頁面，寫入 wiki/synthesis/。以目前 Wiki 和可查證來源為依據，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
+    case 'development-spec':
+      return `請使用 $codebase-wiki 的 development_spec 流程，為「${promptValue(card, 'scope', inputs)}」產生可直接貼入 Issue 給另一位 Megin 開發者的精簡獨立規格。適用 Repo：${inputValue(card, 'repos', inputs).trim() || '先從 Group 確認'}。功能敘述：${promptValue(card, 'requirement', inputs)}。先唯讀確認來源事實，再逐題詢問影響範圍、行為、權限或驗收的必要決策；未回答保持 draft，不得猜測。依五段模板產出，包含 SCN、spec_revision 與 spec_status，不另產出 BA／SA／SD。Issue 由我自行建立與指派。`;
     case 'business-analysis':
       return `請使用 $codebase-wiki，以目前 Wiki 與可查證來源產出「${promptValue(card, 'scope', inputs)}」的標準 BA 業務分析文件；依 Business Analysis 標準建立功能涵蓋、BA IDs 與 gaps，保留人工 notes，寫入 wiki/synthesis/，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'system-analysis':
