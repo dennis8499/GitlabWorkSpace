@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import {
   sanitizeGitDiagnostic,
   syncLocalDefaultBranches
 } from '../../src/git/cloneService';
-import { groupRepositoryPath } from '../../src/workspace/workspacePaths';
+import { groupRepositoryPath, sameRealLocalPath } from '../../src/workspace/workspacePaths';
 
 const dummyToken = 'clone-unit-test-token-do-not-use';
 let remoteCounter = 0;
@@ -170,6 +170,50 @@ test('sanitizes credentials and bounds Git diagnostic text', () => {
   assert.doesNotMatch(diagnostic, /clone-unit-test-token-do-not-use|oauth2:|Authorization: Basic|user:password|query-secret/);
   assert.match(diagnostic, /\[REDACTED\]/);
   assert.equal(sanitizeGitDiagnostic('x'.repeat(2000)).length, 1600);
+});
+
+test('updates an existing repository through a Windows short-path Group alias', { skip: process.platform !== 'win32' }, async (context) => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-short-alias-'));
+  const workspace = path.join(temp, 'workspace');
+  mkdirSync(workspace);
+  try {
+    const script = `
+Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class WorkspaceShortPath {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  public static extern uint GetShortPathName(string path, StringBuilder buffer, uint size);
+}
+'@
+$buffer = New-Object System.Text.StringBuilder 32768
+if ([WorkspaceShortPath]::GetShortPathName($env:GITLAB_WORKSPACE_TEST_LONG_PATH, $buffer, 32768) -eq 0) { exit 1 }
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+[Console]::Write($buffer.ToString())
+`;
+    const alias = execFileSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8', windowsHide: true, env: { ...process.env, GITLAB_WORKSPACE_TEST_LONG_PATH: workspace }
+    }).trim();
+    if (alias.toLowerCase() === workspace.toLowerCase()) {
+      context.skip('This filesystem does not provide short-path aliases.');
+      return;
+    }
+    const { bare } = createBareRemote(temp, 'main');
+    const repo = project('alias-repo');
+    createExistingRepo(workspace, repo, bare);
+    let updates = 0;
+    const result = await cloneProjects(alias, [repo], 'https://gitlab.example.test', dummyToken, undefined, {
+      updateRunner: async () => { updates++; return { state: 'up-to-date' }; }
+    });
+    assert.equal(updates, 1);
+    assert.equal(result.completed.length, 1);
+    assert.equal(sameRealLocalPath(alias, workspace), true);
+  } finally {
+    const actualTemp = realpathSync.native(temp);
+    assert.equal(path.dirname(actualTemp).toLowerCase(), realpathSync.native(os.tmpdir()).toLowerCase());
+    rmSync(actualTemp, { recursive: true, force: true });
+  }
 });
 
 test('fast-forwards the GitLab default branch and switches from a feature branch', async () => {

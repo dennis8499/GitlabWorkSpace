@@ -319,6 +319,7 @@ def tree_manifest(path: Path) -> dict[str, str]:
 
 
 def safe_group_path(root: Path, relative: str) -> Path:
+    root = root.resolve()
     value = PurePosixPath(relative)
     if value.is_absolute() or not value.parts or any(part in ("", ".", "..") for part in value.parts):
         fail("安裝檔案的受管路徑無效。")
@@ -558,6 +559,7 @@ def main() -> int:
     stage: Path | None = None
     lock: Path | None = None
     lock_identity: tuple[int, int] | None = None
+    lock_owner: Path | None = None
     try:
         if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
             fail("Release 版本格式無效。")
@@ -571,6 +573,9 @@ def main() -> int:
         lock.mkdir()
         lock_stat = os.lstat(lock)
         lock_identity = (lock_stat.st_dev, lock_stat.st_ino)
+        # Directory IDs can be reused after replacement; a nonce identifies this owner.
+        lock_owner = lock / f"owner-{uuid.uuid4().hex}"
+        lock_owner.touch(exist_ok=False)
         stage = stage_parent / f"stage-{args.tool}-{uuid.uuid4().hex}"
         if args.format == "tar.xz":
             extract_verified_tar_xz(args.archive, stage, args.entry_root)
@@ -590,11 +595,13 @@ def main() -> int:
     finally:
         if stage and stage.exists():
             shutil.rmtree(stage, ignore_errors=True)
-        if lock and lock_identity:
+        if lock and lock_identity and lock_owner:
             try:
                 lock_stat = os.lstat(lock)
                 if stat.S_ISDIR(lock_stat.st_mode) and (lock_stat.st_dev, lock_stat.st_ino) == lock_identity:
-                    lock.rmdir()
+                    if stat.S_ISREG(os.lstat(lock_owner).st_mode):
+                        lock_owner.unlink()
+                        lock.rmdir()
             except (FileNotFoundError, OSError):
                 pass
 

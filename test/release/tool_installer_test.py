@@ -54,6 +54,16 @@ def tar_xz(entries: list[tuple[str, bytes, str]]) -> bytes:
 
 
 class ToolInstallerTests(unittest.TestCase):
+    def test_managed_paths_resolve_group_aliases_without_allowing_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "Group Workspace"
+            root.mkdir()
+            alias = root / ".." / root.name
+            self.assertEqual(installer.safe_group_path(alias, ".agents/skills/megin"),
+                             (root / ".agents/skills/megin").resolve())
+            with self.assertRaises(ValueError):
+                installer.safe_group_path(alias, "../outside")
+
     def test_zip_rejects_bad_crc_symlinks_and_expansion_limits(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -389,15 +399,40 @@ class ToolInstallerTests(unittest.TestCase):
             root.mkdir()
             lock = root / ".gitlab-workspace/.tool-installs.lock"
             arguments = [str(HELPER_PATH), "megin", str(root / "release.zip"), str(root), "1.0.0", "github"]
+            original_stat = None
+            replaced = False
+            real_lstat = installer.os.lstat
+
+            def reused_lock_identity(path, *args, **kwargs):
+                nonlocal original_stat
+                if Path(path) == lock:
+                    if replaced:
+                        return original_stat
+                    original_stat = real_lstat(path, *args, **kwargs)
+                    return original_stat
+                return real_lstat(path, *args, **kwargs)
 
             def replace_lock_and_fail(_archive: Path, _destination: Path) -> None:
+                nonlocal replaced
+                for marker in lock.iterdir():
+                    marker.unlink()
                 lock.rmdir()
                 lock.mkdir()
+                replaced = True
                 raise OSError("simulated staging failure")
 
-            with patch.object(sys, "argv", arguments), patch.object(installer, "extract_verified_zip", side_effect=replace_lock_and_fail), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            with patch.object(sys, "argv", arguments), patch.object(installer.os, "lstat", side_effect=reused_lock_identity), patch.object(installer, "extract_verified_zip", side_effect=replace_lock_and_fail), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(installer.main(), 1)
             self.assertTrue(lock.is_dir())
+
+    def test_failed_install_releases_its_own_lock(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "Group Workspace"
+            root.mkdir()
+            arguments = [str(HELPER_PATH), "megin", str(root / "missing.zip"), str(root), "1.0.0", "github"]
+            with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(installer.main(), 1)
+            self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())
 
     def test_windows_junctions_and_symbolic_links_are_rejected(self) -> None:
         path = SimpleNamespace(is_symlink=lambda: False, lstat=lambda: SimpleNamespace(st_reparse_tag=0xA0000003))

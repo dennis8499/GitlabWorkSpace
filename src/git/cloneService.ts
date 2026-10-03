@@ -372,8 +372,8 @@ async function inspectExistingRepository(
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw new Error('not a plain directory');
     }
-    const workspaceRealPath = realpathSync(workspacePath);
-    const targetRealPath = realpathSync(targetPath);
+    const workspaceRealPath = realpathSync.native(workspacePath);
+    const targetRealPath = realpathSync.native(targetPath);
     if (!samePath(path.dirname(targetRealPath), workspaceRealPath)) {
       throw new Error('outside the selected folder');
     }
@@ -769,12 +769,12 @@ function removeFailedCloneDirectory(
 ): void {
   try {
     if (!existsSync(targetPath)) return;
-    const root = realpathSync(workspacePath);
+    const root = realpathSync.native(workspacePath);
     const stat = lstatSync(targetPath);
     if (stat.isSymbolicLink()) return;
     if (!stat.isDirectory()) return;
     if (stat.dev !== identity.dev || stat.ino !== identity.ino || stat.birthtimeMs !== identity.birthtimeMs) return;
-    const realTarget = realpathSync(targetPath);
+    const realTarget = realpathSync.native(targetPath);
     if (!samePath(path.dirname(realTarget), root)) return;
     if (!existsSync(path.join(realTarget, '.git')) && readdirSync(realTarget).length > 0) return;
     rmSync(realTarget, { recursive: true, force: true });

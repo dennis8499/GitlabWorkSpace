@@ -64,7 +64,7 @@ export function sameLocalPath(first: string, second: string, platform = process.
 
 export function sameRealLocalPath(first: string, second: string, platform = process.platform): boolean {
   try {
-    return sameLocalPath(realpathSync(first), realpathSync(second), platform);
+    return sameLocalPath(realpathSync.native(first), realpathSync.native(second), platform);
   } catch {
     return sameLocalPath(first, second, platform);
   }
