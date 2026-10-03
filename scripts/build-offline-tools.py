@@ -54,7 +54,7 @@ RELEASES = (
         "code-base-llm-wiki",
         "0.3.0",
         "codebase-llm-wiki-codex.zip",
-        "de9a087f451cbf7486402df90f58a5d3c66643d1233c4139e23808f0cb6dbaa7",
+        "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07",
         "codebase-llm-wiki-codex-0.3.0",
     ),
     ReleaseSource(
@@ -62,14 +62,14 @@ RELEASES = (
         "Megin",
         "0.2.0",
         "megin-skills.zip",
-        "a6e2abde06e8470e37d7a33b0ff253e462a2c92b3ccf2871d3d72956571095fa",
+        "7d0323f0f8d97a90adee8eca980c3b929c4d22130e2422cf729b35a4673347a4",
     ),
     ReleaseSource(
         "merge-reviewer",
         "MergeReviewer",
         "0.5.0",
         "merge-reviewer-0.5.0.zip",
-        "428efc677f428b83d12c7cea691fa438367ad9e40d002c44c994b654903c1305",
+        "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f",
     ),
 )
 

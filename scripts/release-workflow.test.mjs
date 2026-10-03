@@ -32,6 +32,17 @@ test('keeps the build read-only and grants write access only to the release job'
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf('\n  publish:')), /contents:\s*write/);
 });
 
+test('runs Xvfb only on Linux and runs the full suite directly on Windows', () => {
+  const steps = workflow.split(/\r?\n\s+- name:/).slice(1);
+  const linux = steps.find(step => /run: xvfb-run -a npm test/.test(step));
+  const windows = steps.find(step => /run: npm test(?:\r?\n|$)/.test(step));
+  assert.ok(linux, 'Linux runs the full suite with a virtual display');
+  assert.match(linux, /if: runner\.os == 'Linux'/);
+  assert.ok(windows, 'Windows runs the full suite directly');
+  assert.match(windows, /if: runner\.os == 'Windows'/);
+  assert.doesNotMatch(windows, /xvfb-run/);
+});
+
 test('fails on an existing release and chooses prerelease only for v0.1.0 or a SemVer prerelease suffix', () => {
   assert.match(workflow, /gh release view[\s\S]*?exit 1/);
   assert.match(workflow, /--verify-tag/);

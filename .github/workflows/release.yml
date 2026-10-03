@@ -61,7 +61,12 @@ jobs:
         run: npm run check:release
 
       - name: Run tests with a virtual display
+        if: runner.os == 'Linux'
         run: xvfb-run -a npm test
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows'
+        run: npm test
 
       - name: Package and verify VSIX
         run: npm run package
