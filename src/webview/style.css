@@ -40,6 +40,9 @@ small, .small { font-size: 11px; }
 .inline-form { margin-top: 12px; flex-wrap: wrap; }
 .inline-form input, .inline-form select { flex: 1 1 100px; }
 .inline-form button { flex: 0 0 auto; }
+.issue-relation-editor { display: flex; flex-direction: column; gap: 8px; }
+.issue-relation-editor .graph-detail-section { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+.issue-relation-editor .graph-detail-section > strong { font-size: 12px; }
 .stack { display: grid; gap: 8px; }
 .muted { color: var(--vscode-descriptionForeground); }
 .alert { display: flex; gap: 10px; justify-content: space-between; margin-bottom: 16px; padding: 10px 12px; color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground)); background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); border-radius: 4px; }

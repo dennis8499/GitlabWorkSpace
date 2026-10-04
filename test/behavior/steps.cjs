@@ -297,7 +297,8 @@ Then('the relationship, child task, time, move, clone, and delete controls are a
   for (const label of ['建立關聯', '建立子工作', '加入既有子工作', '設定預估', '新增待送出工時', '移動 Issue', '複製 Issue', '刪除 Issue']) {
     assert.ok(this.button(label));
   }
-  assert.equal(this.root.querySelectorAll('select option[value="43"]').length, 1);
+  assert.ok(this.root.querySelector('.issue-relation-editor select option[value="43"]'));
+  assert.ok(this.root.querySelector('.sidebar .card:last-child select option[value="43"]'));
 });
 When('I request a clone with comments', async function () {
   const targetSelect = this.root.querySelector('.sidebar .card:last-child select');
@@ -348,6 +349,78 @@ When('I inspect and edit a child task', async function () {
   await this.input('input[aria-label="子工作標題"]', 'Updated child');
   await this.input('textarea[aria-label="子工作描述"]', 'Updated details');
   await this.click('儲存子工作');
+});
+When('I start, pause, resume, and stop its timer', async function () {
+  await this.send({ type: 'snapshot', snapshot: {
+    connected: true, instanceUserScope: 'timer-scope', timerVersion: 0, timers: [], issues: [issue], projects: [project],
+    localRepositories: {}, deliveryRecords: [], meginWorkItems: [], workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
+  } });
+  await this.detail();
+  await this.tab('工時');
+  await this.click('開始計時');
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  assert.deepEqual(plain(this.workspaceActions.at(-1)), { type: 'startTimer', projectId: 42, issueIid: 7 });
+  const timer = { id: 'timer-1', projectId: 42, projectPath: 'group/project', issueIid: 7, title: issue.title, elapsedSeconds: 60, phase: 'running', summary: '', updatedAt: Date.now() };
+  const sendTimers = async (version, phase) => {
+    this.dom.window.dispatchEvent(new this.dom.window.CustomEvent('workspaceTimersChanged', { detail: {
+      instanceUserScope: 'timer-scope', version, timers: phase ? [{ ...timer, phase }] : []
+    } }));
+    await this.tick();
+  };
+  await sendTimers(1, 'running');
+  assert.ok(this.root.body.textContent.includes('計時中'));
+  await this.click('暫停');
+  assert.deepEqual(plain(this.workspaceActions.at(-1)), { type: 'pauseTimer', id: 'timer-1' });
+  await sendTimers(2, 'paused');
+  assert.ok(this.root.body.textContent.includes('已暫停'));
+  await this.click('繼續');
+  assert.deepEqual(plain(this.workspaceActions.at(-1)), { type: 'resumeTimer', id: 'timer-1' });
+  await sendTimers(3, 'running');
+  await this.click('結束計時');
+  assert.deepEqual(plain(this.workspaceActions.at(-1)), { type: 'stopTimer', id: 'timer-1' });
+  await sendTimers(4, 'ready');
+});
+Then('the timer states and pending time entry are labeled in Traditional Chinese', function () {
+  assert.ok(this.button('開始計時'));
+  assert.match(this.root.querySelector('.time-row').textContent, /待送出/);
+  assert.ok(this.button('送至 GitLab'));
+  assert.equal(this.root.querySelector('input[aria-label="工時長度"]').placeholder, '45m');
+  assert.equal(this.root.querySelector('input[aria-label="工時摘要"]').placeholder, '工時摘要');
+  assert.ok(this.root.querySelector('input[aria-label="工時日期"]'));
+});
+When('I create a child Task and a related Issue from its detail view', async function () {
+  await this.send({ type: 'snapshot', snapshot: {
+    connected: true, connectedScope: 'team-scope', instanceUserScope: 'timer-scope', timerVersion: 0, timers: [], issues: [issue], projects: [project],
+    localRepositories: {}, deliveryRecords: [], meginWorkItems: [], workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
+  } });
+  await this.detail();
+  const load = this.workspaceActions.filter((item) => item.type === 'loadIssueRelations').at(-1);
+  assert.equal(load?.connectedScope, 'team-scope');
+  await this.send({ type: 'issueRelations', requestId: load.requestId, connectedScope: 'team-scope', projectId: 42, issueIid: 7, data: this.data });
+  await this.tab('關聯與子工作');
+  await this.input('input[aria-label="新子工作標題"]', 'Preserve this Task draft');
+  await this.click('建立子工作');
+  const childAction = this.workspaceActions.filter((item) => item.type === 'mutateIssueRelations').at(-1);
+  assert.equal(childAction.connectedScope, 'team-scope');
+  assert.equal(childAction.projectId, 42);
+  assert.equal(childAction.issueIid, 7);
+  assert.deepEqual(JSON.parse(JSON.stringify(childAction.action)), { type: 'createChild', title: 'Preserve this Task draft' });
+  await this.send({ type: 'issueRelations', requestId: childAction.requestId, connectedScope: 'team-scope', projectId: 42, issueIid: 7, error: 'GitLab rejected this Task.' });
+  assert.equal(this.root.querySelector('input[aria-label="新子工作標題"]').value, 'Preserve this Task draft');
+
+  await this.input('input[aria-label="關聯 Issue 編號"]', '9');
+  await this.click('建立關聯');
+  const linkAction = this.workspaceActions.filter((item) => item.type === 'mutateIssueRelations').at(-1);
+  assert.deepEqual(JSON.parse(JSON.stringify(linkAction.action)), { type: 'link', targetProjectId: 42, targetIssueIid: 9, linkType: 'relates_to' });
+  await this.send({ type: 'issueRelations', requestId: linkAction.requestId, connectedScope: 'team-scope', projectId: 42, issueIid: 7, error: 'GitLab rejected this link.' });
+  assert.equal(this.root.querySelector('input[aria-label="關聯 Issue 編號"]').value, '9');
+  this.relationshipActions = [childAction, linkAction];
+});
+Then('the detail relationship actions carry the selected Group scope and retain failed inputs', function () {
+  assert.equal(this.relationshipActions.length, 2);
+  assert.match(this.root.querySelector('[role="alert"]').textContent, /GitLab rejected this link/);
+  assert.equal(this.root.querySelector('input[aria-label="新子工作標題"]').value, 'Preserve this Task draft');
+  assert.equal(this.root.querySelector('input[aria-label="關聯 Issue 編號"]').value, '9');
 });
 Then('the task update stays inside the Issue Webview', function () {
   const action = this.messages.find((item) => item.type === 'invoke' && item.action === 'updateChild');

@@ -61,6 +61,17 @@ function snapshot(activeMode = 'developer') {
   };
 }
 
+function issueDetailData(issue, project) {
+  return {
+    issue, project, projects: [project], user: { id: 7, username: 'test-user', name: 'Test User' },
+    options: { members: [], labels: [], milestones: [], templates: [], warnings: [] }, discussions: [], links: [], mergeRequests: [],
+    reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [], startDate: null, warnings: [],
+    canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
+    canTrackTime: false, canResolveThreads: false, canSetStartDate: false, hasStartDate: false, canLogTime: false,
+    canDeleteTimelog: false, canLink: false, canManageChildren: false
+  };
+}
+
 async function mount(initialState, initialSnapshot) {
   const runtimeErrors = [];
   const virtualConsole = new VirtualConsole();
@@ -99,6 +110,9 @@ async function mount(initialState, initialSnapshot) {
     get savedState() { return state; },
     sendSnapshot(value) {
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: value } }));
+    },
+    send(value) {
+      dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: value }));
     }
   };
 }
@@ -220,6 +234,70 @@ test('blocks copied Wiki tasks until the Group directory and complete workflow k
   assert.match(document.querySelector('.wiki-guide-intro').textContent, /檢查完整工作流程包已安裝/);
 });
 
+test('shows every assigned Issue by default and keeps the list usable when Board loading fails', async (t) => {
+  const initialSnapshot = snapshot();
+  initialSnapshot.issueBoardContent = undefined;
+  initialSnapshot.groupIssueBoardsError = 'Board API unavailable';
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, initialSnapshot);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const boardFilter = document.querySelector('select[aria-label="Issue Board"]');
+  assert.equal(boardFilter.value, 'all');
+  assert.equal(boardFilter.disabled, false);
+  assert.match(boardFilter.options[0].textContent, /全部指派給我的 Issue.*Board 載入失敗/);
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), [
+    'Alpha milestone issue', 'Beta milestone issue', 'Beta unassigned issue'
+  ]);
+
+  const projectFilter = document.querySelector('select[aria-label="Issue 專案"]');
+  projectFilter.value = '2';
+  projectFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta milestone issue', 'Beta unassigned issue']);
+  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 'all');
+});
+
+test('returning from Issue details preserves list filters and scroll, and drops delayed navigation responses', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const search = document.querySelector('input[aria-label="搜尋 Issue"]');
+  search.value = 'Beta milestone';
+  search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const projectFilter = document.querySelector('select[aria-label="Issue 專案"]');
+  projectFilter.value = '2';
+  projectFilter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  const workList = document.querySelector('.work-list');
+  workList.scrollTop = 88;
+  assert.equal(document.querySelectorAll('.work-row').length, 1);
+  document.querySelector('.work-row').click();
+  await view.tick();
+  assert.equal(view.requests.filter((request) => request.type === 'openIssue').at(-1)?.issueIid, 2);
+
+  const navigation = { mode: 'detail', projectId: 2, issueIid: 2, revision: 10 };
+  view.send({ type: 'issueNavigation', navigation });
+  await view.tick();
+  view.send({ type: 'issueResponse', revision: 10, response: { type: 'detailData', data: issueDetailData(snapshot().issues[1], snapshot().projects[1]) } });
+  await view.tick();
+  assert.equal(document.querySelector('.issue-embed').hidden, false);
+  assert.match(document.querySelector('.issue-topbar h1').textContent, /#2 Beta milestone issue/);
+  document.querySelector('.issue-topbar button').click();
+  await view.tick();
+  assert.equal(document.querySelector('.issue-embed').hidden, true);
+  assert.equal(document.querySelector('.workbench').dataset.mobilePanel, 'list');
+  assert.equal(document.querySelector('.work-list').scrollTop, 88);
+  assert.equal(document.querySelector('input[aria-label="搜尋 Issue"]').value, 'Beta milestone');
+  assert.equal(document.querySelector('select[aria-label="Issue 專案"]').value, '2');
+  assert.equal(document.querySelectorAll('.work-row').length, 1);
+
+  const staleIssue = { ...snapshot().issues[2], title: 'Late response must not reopen' };
+  view.send({ type: 'issueResponse', revision: 10, response: { type: 'detailData', data: issueDetailData(staleIssue, snapshot().projects[1]) } });
+  await view.tick();
+  assert.equal(document.querySelector('.issue-embed').hidden, true);
+  assert.equal(document.querySelectorAll('.work-row').length, 1);
+});
+
 test('filters by the selected Issue Board, saves its ID, and hides previous Board content during a switch', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
   t.after(() => view.dom.window.close());
@@ -228,7 +306,7 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
   assert.ok(boardFilter);
   assert.equal(boardFilter.value, '31');
   assert.deepEqual([...boardFilter.options].map((option) => option.textContent), [
-    '選擇 Issue Board', 'Delivery', 'Triage (#32)', 'Triage (#33)'
+    '全部指派給我的 Issue', 'Delivery', 'Triage (#32)', 'Triage (#33)'
   ]);
   assert.equal(document.querySelectorAll('.work-row').length, 3);
 
@@ -257,7 +335,10 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
 });
 
 test('opens the Issue graph on demand, applies shared filters with one-hop context, and keeps its Board separate from the list', async (t) => {
-  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
+  const initialCamera = { x: 84, y: -32, scale: 1.4 };
+  const initialNodePosition = { x: 255, y: 190 };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31, graphCamera: initialCamera,
+    graphNodePositions: { 'project:1:issue:1': initialNodePosition }, graphAnimationEnabled: false }, snapshot());
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.developer-view-switch button.active')?.textContent, '清單');
@@ -312,6 +393,16 @@ test('opens the Issue graph on demand, applies shared filters with one-hop conte
   assert.equal(openIssueRequest?.issueIid, 1);
 
   const graphBoard = document.querySelector('select[aria-label="圖譜 Issue Board"]');
+  document.querySelector('.developer-view-switch button[aria-pressed="false"]:first-child').click();
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '31');
+  assert.equal(document.querySelector('select[aria-label="Issue Label"]').value, 'bug');
+  document.querySelector('.developer-view-switch button[aria-pressed="false"]:last-child').click();
+  await view.tick();
+  assert.equal(document.querySelector('select[aria-label="圖譜 Issue Board"]').value, 'all');
+  assert.deepEqual(view.savedState.graphCamera, initialCamera);
+  assert.deepEqual(view.savedState.graphNodePositions['project:1:issue:1'], initialNodePosition);
+
   graphBoard.value = '32';
   graphBoard.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   await view.tick();
@@ -319,13 +410,80 @@ test('opens the Issue graph on demand, applies shared filters with one-hop conte
   document.querySelector('.developer-view-switch button[aria-pressed="false"]:first-child').click();
   await view.tick();
   assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '31');
-  assert.equal(document.querySelector('select[aria-label="Issue Label"]').value, 'bug');
   document.querySelector('.developer-view-switch button[aria-pressed="false"]:last-child').click();
   await view.tick();
   assert.equal(document.querySelector('select[aria-label="圖譜 Issue Board"]').value, '32');
 });
 
-test('restores the first Board after a saved Board is removed and shows Board API failures without stale Issues', async (t) => {
+test('graph relation forms use scoped requests, retry reads without repeating writes, and ignore stale node responses', async (t) => {
+  const graphSnapshot = snapshot();
+  const assignedNodes = graphSnapshot.issues.map((issue) => ({
+    id: `project:${issue.project_id}:issue:${issue.iid}`, sourceIds: [`REST:Issue:${issue.id}`], kind: 'issue',
+    namespacePath: `team/${issue.project_id === 1 ? 'alpha' : 'beta'}`, projectPath: `team/${issue.project_id === 1 ? 'alpha' : 'beta'}`,
+    projectId: issue.project_id, iid: String(issue.iid), title: issue.title, state: issue.state,
+    webUrl: issue.web_url, labels: [], assignees: [], boardIds: [], assignedToMe: true, isRoot: true, relationsStatus: 'ready'
+  }));
+  graphSnapshot.issueGraph = {
+    connectedScope: 'team-scope', status: 'ready', roots: assignedNodes.map((node) => node.id), nodes: assignedNodes, edges: [],
+    boardIssueIds: {}, boardStatus: {}, errors: [], updatedAt: Date.now()
+  };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph', selectedGraphNodeId: 'project:1:issue:1' }, graphSnapshot);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const firstLoad = view.requests.filter((item) => item.type === 'loadIssueRelations').at(-1);
+  assert.equal(firstLoad?.type, 'loadIssueRelations');
+  assert.equal(firstLoad?.connectedScope, 'team-scope');
+  assert.equal(firstLoad?.projectId, 1);
+  assert.equal(firstLoad?.issueIid, 1);
+
+  const firstData = {
+    issue: { id: 101, project_id: 1, iid: 1, title: 'Alpha milestone issue', state: 'opened', web_url: 'https://gitlab.example.test/team/alpha/-/issues/1' },
+    project: graphSnapshot.projects[0], links: [], tasks: [], parentWorkItemId: 'gid://gitlab/WorkItem/101', taskTypeId: 'gid://gitlab/WorkItems::Type/5', canLink: true, canManageChildren: true
+  };
+  view.send({ type: 'issueRelations', requestId: firstLoad.requestId, connectedScope: 'team-scope', projectId: 1, issueIid: 1, data: firstData });
+  await view.tick();
+  assert.ok(document.querySelector('input[aria-label="新子工作標題"]'));
+  assert.ok(document.querySelector('input[aria-label="關聯 Issue 編號"]'));
+
+  const childTitle = document.querySelector('input[aria-label="新子工作標題"]');
+  childTitle.value = 'Graph child';
+  childTitle.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  document.querySelector('.issue-relation-editor button[type="button"]')?.click();
+  await view.tick();
+  const mutation = view.requests.filter((item) => item.type === 'mutateIssueRelations').at(-1);
+  assert.equal(mutation?.type, 'mutateIssueRelations');
+  assert.equal(mutation?.connectedScope, 'team-scope');
+  assert.equal(mutation?.projectId, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(mutation?.action)), { type: 'createChild', title: 'Graph child' });
+  view.send({ type: 'issueRelations', requestId: mutation.requestId, connectedScope: 'team-scope', projectId: 1, issueIid: 1, mutationApplied: true, error: '關係已更新，但重新載入失敗：暫時無法讀取' });
+  await view.tick();
+  assert.ok([...document.querySelectorAll('.issue-relation-editor button')].some((button) => button.textContent === '重新載入關係'));
+  const mutationCount = view.requests.filter((item) => item.type === 'mutateIssueRelations').length;
+  document.querySelector('.issue-relation-editor button.quiet')?.click();
+  await view.tick();
+  const retry = view.requests.filter((item) => item.type === 'loadIssueRelations').at(-1);
+  assert.equal(retry?.type, 'loadIssueRelations');
+  assert.equal(view.requests.filter((item) => item.type === 'mutateIssueRelations').length, mutationCount, 'retry performs a read only');
+
+  document.querySelector('[aria-label*="team/beta #2"]')?.dispatchEvent(new view.dom.window.MouseEvent('click', { bubbles: true }));
+  await view.tick();
+  const secondLoad = view.requests.filter((item) => item.type === 'loadIssueRelations').at(-1);
+  assert.equal(secondLoad?.projectId, 2);
+  assert.equal(secondLoad?.issueIid, 2);
+  view.send({ type: 'issueRelations', requestId: retry.requestId, connectedScope: 'team-scope', projectId: 1, issueIid: 1, data: firstData });
+  await view.tick();
+  assert.equal(document.querySelector('input[aria-label="新子工作標題"]'), null, 'the previous Issue response cannot restore its form');
+  view.send({ type: 'issueRelations', requestId: secondLoad.requestId, connectedScope: 'team-scope', projectId: 2, issueIid: 2, data: {
+    issue: { id: 102, project_id: 2, iid: 2, title: 'Beta milestone issue', state: 'opened', web_url: 'https://gitlab.example.test/team/beta/-/issues/2' },
+    project: graphSnapshot.projects[1], links: [], tasks: [], canLink: false, canManageChildren: false
+  } });
+  await view.tick();
+  assert.equal(document.querySelector('input[aria-label="新子工作標題"]'), null);
+  assert.match(document.querySelector('.graph-selected-detail h2').textContent, /Beta milestone issue/);
+});
+
+test('falls back to all assigned Issues after a saved Board is removed and survives Board API failures', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -334,9 +492,9 @@ test('restores the first Board after a saved Board is removed and shows Board AP
   deleted.groupIssueBoards = deleted.groupIssueBoards.filter((board) => board.id !== 31);
   view.sendSnapshot(deleted);
   await view.tick();
-  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '32', `scope=${view.savedState.scopeKey}; saved=${JSON.stringify(view.savedState.scopedData?.['team-scope']?.issueBoardId)}; options=${JSON.stringify([...document.querySelectorAll('select[aria-label="Issue Board"] option')].map((option) => option.value))}`);
-  assert.equal(document.querySelectorAll('.work-row').length, 0);
-  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, 'all');
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
+  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 'all');
 
   const failed = snapshot();
   failed.groupIssueBoards = [];
@@ -344,9 +502,9 @@ test('restores the first Board after a saved Board is removed and shows Board AP
   failed.issueBoardContent = undefined;
   view.sendSnapshot(failed);
   await view.tick();
-  assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, true);
-  assert.match(document.querySelector('.work-list .empty-inline').textContent, /Board API unavailable/);
-  assert.equal(document.querySelectorAll('.work-row').length, 0);
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, false);
+  assert.match(document.querySelector('select[aria-label="Issue Board"] option[value="all"]').textContent, /Board 載入失敗/);
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
 
   const noBoards = snapshot();
   noBoards.groupIssueBoards = [];
@@ -354,10 +512,10 @@ test('restores the first Board after a saved Board is removed and shows Board AP
   view.sendSnapshot(noBoards);
   await view.tick();
   assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, true);
-  assert.match(document.querySelector('.work-list .empty-inline').textContent, /此 Group 沒有可用的 Issue Board/);
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
 });
 
-test('does not display Issue IDs returned for another Group or connected account', async (t) => {
+test('a new Group starts on all assigned Issues and ignores Board content for another scope', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -366,18 +524,16 @@ test('does not display Issue IDs returned for another Group or connected account
   changedScope.connectedScope = 'another-scope';
   view.sendSnapshot(changedScope);
   await view.tick();
-  assert.equal(document.querySelectorAll('.work-row').length, 0);
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
   const selection = view.requests.filter((request) => request.type === 'selectIssueBoard').at(-1);
-  assert.equal(selection?.type, 'selectIssueBoard');
-  assert.equal(selection?.boardId, 31);
-  assert.equal(selection?.connectedScope, 'another-scope');
+  assert.equal(selection?.connectedScope, 'team-scope');
 
   const loaded = snapshot();
   loaded.connectedScope = 'another-scope';
   loaded.issueBoardContent = { boardId: 31, connectedScope: 'another-scope', issueIds: [103], status: 'ready' };
   view.sendSnapshot(loaded);
   await view.tick();
-  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta unassigned issue']);
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Alpha milestone issue', 'Beta milestone issue', 'Beta unassigned issue']);
 });
 
 test('applies scoped timer and Issue graph deltas while rejecting stale versions', async (t) => {

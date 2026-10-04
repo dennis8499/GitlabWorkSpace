@@ -111,6 +111,18 @@ Feature: GitLab CE Issue work inside VS Code
     When I inspect and edit a child task
     Then the task update stays inside the Issue Webview
 
+  @automated @SCN-027
+  Scenario: Timer controls and pending time entries use readable Traditional Chinese labels
+    Given the Issue Webview is ready with an editable issue
+    When I start, pause, resume, and stop its timer
+    Then the timer states and pending time entry are labeled in Traditional Chinese
+
+  @automated @SCN-028
+  Scenario: Issue details share the scoped Task and Issue relationship form
+    Given the Issue Webview is ready with an editable issue
+    When I create a child Task and a related Issue from its detail view
+    Then the detail relationship actions carry the selected Group scope and retain failed inputs
+
   @automated @SCN-017
   Scenario: A comment has its own reactions
     Given the Issue Webview is ready with an editable issue

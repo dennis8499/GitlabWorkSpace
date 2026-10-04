@@ -12,14 +12,19 @@ window.addEventListener('message', (event) => {
 function IssueTestApp() {
   const [manualTime, setManualTime] = useState({ duration: '', summary: '', spentAt: '' });
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
+  const [relationResponses, setRelationResponses] = useState<Record<string, Extract<import('../workspace/workspaceProtocol').WorkspaceResponse, { type: 'issueRelations' }>>>({});
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>({});
   useEffect(() => {
-    const receive = (event: MessageEvent) => { if (event.data?.type === 'snapshot') setSnapshot(event.data.snapshot); };
+    const receive = (event: MessageEvent) => {
+      if (event.data?.type === 'snapshot') setSnapshot(event.data.snapshot);
+      if (event.data?.type === 'issueRelations') setRelationResponses((current) => ({ ...current, [event.data.requestId]: event.data }));
+    };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, []);
   return <IssueView
     snapshot={snapshot}
+    relationResponses={relationResponses}
     deliveryForms={deliveryForms}
     onDeliveryUpdate={(key, patch) => setDeliveryForms((current) => ({ ...current, [key]: {
       ...(current[key] ?? { workId: '', summary: '', changes: '', tests: '', targetBranch: 'main', reviewerIds: [], acceptanceConfirmed: false }), ...patch

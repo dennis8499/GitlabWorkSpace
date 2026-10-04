@@ -3,9 +3,11 @@ import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } 
 import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssueBoard, GitLabProject } from '../api/types';
+import type { IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueGraphEdge, IssueGraphNode } from '../workspace/issueGraph';
 import type { IssueGraphSnapshot } from '../workspace/issueGraph';
 import { issueGraphBoardColor } from '../workspace/issueGraph';
+import { IssueRelationsEditor } from './issue-relations';
 
 export interface GraphPosition { x: number; y: number; }
 export interface GraphCamera { x: number; y: number; scale: number; }
@@ -39,6 +41,13 @@ interface IssueGraphProps {
   onCameraChange: (camera: GraphCamera) => void;
   onSelect: (id: string) => void;
   onOpenIssue: (node: IssueGraphNode) => void;
+  relations?: IssueRelationsData;
+  relationBusy?: boolean;
+  relationError?: string;
+  relationMutationApplied?: boolean;
+  onLoadRelations?: () => void;
+  onRelationAction?: (action: IssueRelationAction) => void;
+  onOpenLink?: (url: string) => void;
 }
 
 const MIN_SCALE = 0.12;
@@ -502,6 +511,11 @@ export function IssueGraphView(props: IssueGraphProps) {
         })}{!props.edges.some((edge) => edge.source === selected.id || edge.target === selected.id) && <span class="subtle">沒有已載入的直接關聯</span>}</div>
         {selected.relationsStatus === 'loading' && <span class="subtle" role="status">正在載入關聯…</span>}
         {selected.relationsStatus === 'error' && <span class="warning" role="status">部分關聯無法載入；可重試「更新資料」。</span>}
+        {selected.kind === 'issue' && selected.projectId !== undefined && props.onRelationAction && props.onLoadRelations && props.onOpenLink && <IssueRelationsEditor
+          key={selected.id} issue={{ id: selected.id, project_id: selected.projectId, iid: Number(selected.iid), title: selected.title }}
+          data={props.relations?.issue.project_id === selected.projectId && props.relations.issue.iid === Number(selected.iid) ? props.relations : undefined}
+          projects={props.projects} busy={props.relationBusy} error={props.relationError} mutationApplied={props.relationMutationApplied}
+          onReload={props.onLoadRelations} onAction={props.onRelationAction} onOpenLink={props.onOpenLink} />}
         {selected.webUrl && <button class="primary" type="button" onClick={() => props.onOpenIssue(selected)}>{selected.kind === 'issue' && selected.projectId !== undefined ? '開啟 Issue 詳情' : '在 GitLab 開啟'}</button>}
       </div> : <div class="graph-no-selection"><span class="empty-mark">◇</span><p>選取一個節點，查看 Issue 狀態與關聯。</p></div>}
       <div class="graph-relation-legend" aria-label="關聯線條圖例"><strong>關聯線條</strong><span><i class="parent-line" />父項目與 Child Items</span><span><i class="block-line" />阻擋關係</span><span><i class="related-line" />一般 Linked Item</span></div>

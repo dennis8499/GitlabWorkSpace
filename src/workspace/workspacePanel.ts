@@ -94,6 +94,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private disposed = false;
   private timerQueue: Promise<unknown> = Promise.resolve();
   private issuePublishQueue: Promise<unknown> = Promise.resolve();
+  private readonly issueRelationWritesInFlight = new Set<string>();
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -276,6 +277,45 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
       case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope); break;
+      case 'loadIssueRelations': {
+        const connectedScope = request.connectedScope;
+        try {
+          const data = await this.issuePanels.loadIssueRelations(request.projectId, request.issueIid);
+          if (connectedScope === this.connectedScopeKey()) this.post({ type: 'issueRelations', requestId: request.requestId, connectedScope, projectId: request.projectId, issueIid: request.issueIid, data });
+        } catch (error) {
+          if (connectedScope === this.connectedScopeKey()) this.post({ type: 'issueRelations', requestId: request.requestId, connectedScope, projectId: request.projectId, issueIid: request.issueIid, error: readableError(error) });
+        }
+        break;
+      }
+      case 'mutateIssueRelations': {
+        const connectedScope = request.connectedScope;
+        const writeKey = `${connectedScope}:${request.projectId}:${request.issueIid}`;
+        if (connectedScope !== this.connectedScopeKey()) break;
+        if (this.issueRelationWritesInFlight.has(writeKey)) {
+          this.post({ type: 'issueRelations', requestId: request.requestId, connectedScope, projectId: request.projectId, issueIid: request.issueIid, error: '此 Issue 的關係更新仍在處理中。' });
+          break;
+        }
+        this.issueRelationWritesInFlight.add(writeKey);
+        let mutationApplied = false;
+        try {
+          await this.issuePanels.mutateIssueRelations(request.projectId, request.issueIid, request.action);
+          mutationApplied = true;
+          const data = await this.issuePanels.loadIssueRelations(request.projectId, request.issueIid);
+          if (connectedScope !== this.connectedScopeKey()) break;
+          this.post({ type: 'issueRelations', requestId: request.requestId, connectedScope, projectId: request.projectId, issueIid: request.issueIid, mutationApplied, data });
+          if (this.issueGraphRequestedScope === connectedScope) void this.loadIssueGraph(connectedScope, true);
+        } catch (error) {
+          if (connectedScope === this.connectedScopeKey()) {
+            this.post({ type: 'issueRelations', requestId: request.requestId, connectedScope, projectId: request.projectId, issueIid: request.issueIid, mutationApplied, error: mutationApplied
+              ? `關係已更新，但重新載入失敗：${readableError(error)}`
+              : readableError(error) });
+            if (mutationApplied && this.issueGraphRequestedScope === connectedScope) void this.loadIssueGraph(connectedScope, true);
+          }
+        } finally {
+          this.issueRelationWritesInFlight.delete(writeKey);
+        }
+        break;
+      }
       case 'selectWorkspace': await this.selectWorkspace(); break;
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;

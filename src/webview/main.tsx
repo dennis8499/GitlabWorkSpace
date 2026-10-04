@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueDetailSection, IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
+import { IssueRelationsEditor } from './issue-relations';
 import { buildDeveloperPrompt } from '../workspace/issueDrafts';
 import './style.css';
 
@@ -133,12 +134,12 @@ function IssueTimerPanel({ snapshot, issue, onRequest, timeEdits, onTimeEdit }: 
   const issueTimers = timers.filter((entry) => entry.projectId === issue.project_id && entry.issueIid === issue.iid);
   const currentIssueTimer = issueTimers.find((entry) => entry.phase === 'running' || entry.phase === 'paused');
   return <>
-    <div class="timer-controls">{currentIssueTimer ? <><strong>{currentIssueTimer.phase === 'running' ? '???' : '???'}</strong><button type="button" onClick={() => onRequest({ type: currentIssueTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: currentIssueTimer.id })}>{currentIssueTimer.phase === 'running' ? '??' : '??'}</button><button type="button" onClick={() => onRequest({ type: 'stopTimer', id: currentIssueTimer.id })}>????</button></> : <button class="primary" type="button" onClick={() => onRequest({ type: 'startTimer', projectId: issue.project_id, issueIid: issue.iid })}>????</button>}</div>
+    <div class="timer-controls">{currentIssueTimer ? <><strong>{currentIssueTimer.phase === 'running' ? '計時中' : '已暫停'}</strong><button type="button" onClick={() => onRequest({ type: currentIssueTimer.phase === 'running' ? 'pauseTimer' : 'resumeTimer', id: currentIssueTimer.id })}>{currentIssueTimer.phase === 'running' ? '暫停' : '繼續'}</button><button type="button" onClick={() => onRequest({ type: 'stopTimer', id: currentIssueTimer.id })}>結束計時</button></> : <button class="primary" type="button" onClick={() => onRequest({ type: 'startTimer', projectId: issue.project_id, issueIid: issue.iid })}>開始計時</button>}</div>
     {issueTimers.filter((entry) => entry.phase !== 'posted').map((entry) => <TimeRow entry={entry} edit={timeEdits[entry.id]} onEdit={(edit) => onTimeEdit?.(entry.id, edit)} onRequest={onRequest} />)}
   </>;
 }
 
-export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit }: {
+export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit }: {
   onBack?: () => void;
   snapshot?: WorkspaceSnapshot;
   navigation?: IssueNavigation;
@@ -146,6 +147,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   onIssueSearchChange?: (value: string) => void;
   onWorkspaceRequest?: (request: IssuePanelRequest) => void;
   onWorkspaceAction?: (request: WorkspaceRequest) => void;
+  relationResponses?: Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>;
   onOpenSettings?: () => void;
   deliveryForms?: Record<string, DeliveryFormState>;
   onDeliveryUpdate?: (key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject) => void;
@@ -161,6 +163,11 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [projectId, setProjectId] = useState(0);
   const [options, setOptions] = useState<IssueFormOptions>(emptyOptions);
   const [detail, setDetail] = useState<IssueDetailData | null>(null);
+  const [relationData, setRelationData] = useState<IssueRelationsData | undefined>();
+  const [relationBusy, setRelationBusy] = useState(false);
+  const [relationError, setRelationError] = useState('');
+  const [relationMutationApplied, setRelationMutationApplied] = useState(false);
+  const relationRequest = useRef<{ requestId: string; connectedScope: string; projectId: number; issueIid: number }>();
   const [createMetadata, setCreateMetadata] = useState<GitLabMetadata | undefined>();
   const [startDateEnabled, setStartDateEnabled] = useState(false);
   const [canCreateIssue, setCanCreateIssue] = useState(false);
@@ -220,9 +227,6 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [reply, setReply] = useState<Record<string, string>>({});
   const replyRef = useRef(reply);
   replyRef.current = reply;
-  const [linkProject, setLinkProject] = useState('');
-  const [linkIid, setLinkIid] = useState('');
-  const [linkType, setLinkType] = useState<'relates_to' | 'blocks' | 'is_blocked_by'>('relates_to');
   const [duration, setDuration] = useState('');
   const [summary, setSummary] = useState('');
   const [targetProject, setTargetProject] = useState('');
@@ -231,8 +235,6 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [cloneWithNotes, setCloneWithNotes] = useState(false);
   const [emoji, setEmoji] = useState('thumbsup');
   const [noteEmoji, setNoteEmoji] = useState<Record<number, string>>({});
-  const [childTitle, setChildTitle] = useState('');
-  const [childIid, setChildIid] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const selectedTaskIdRef = useRef(selectedTaskId);
   selectedTaskIdRef.current = selectedTaskId;
@@ -252,7 +254,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null);
   const pendingAction = useRef<IssueAction | null>(null);
   const pendingReplyDiscussion = useRef<string | null>(null);
-  const pendingSubmission = useRef<{ body?: string; childTitle: string; childIid: string; taskTitle: string; taskDescription: string } | null>(null);
+  const pendingSubmission = useRef<{ body?: string; taskTitle: string; taskDescription: string } | null>(null);
 
 
   const post = (request: IssuePanelRequest) => onWorkspaceRequest ? onWorkspaceRequest(request) : postIssueRequest(request);
@@ -266,10 +268,37 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     busyRef.current = true;
     pendingAction.current = action;
     pendingReplyDiscussion.current = action === 'reply' && typeof payload.discussionId === 'string' ? payload.discussionId : null;
-    pendingSubmission.current = { body: typeof payload.body === 'string' ? payload.body : undefined, childTitle, childIid, taskTitle, taskDescription };
+    pendingSubmission.current = { body: typeof payload.body === 'string' ? payload.body : undefined, taskTitle, taskDescription };
     setError(''); setBusy(true); post({ type: 'invoke', issueId: detail?.issue.id ?? 0, action, payload });
   };
   const openLink = (url: string) => post({ type: 'openLink', url });
+  const requestIssueRelations = () => {
+    const issue = detail?.issue;
+    const connectedScope = snapshot?.connectedScope;
+    if (!issue || !connectedScope || !onWorkspaceAction) return;
+    const requestId = `issue-relations-${stamp()}`;
+    relationRequest.current = { requestId, connectedScope, projectId: issue.project_id, issueIid: issue.iid };
+    setRelationBusy(true);
+    setRelationError('');
+    setRelationMutationApplied(false);
+    onWorkspaceAction({ type: 'loadIssueRelations', requestId, connectedScope, projectId: issue.project_id, issueIid: issue.iid });
+  };
+  const mutateIssueRelations = (action: IssueRelationAction) => {
+    const issue = detail?.issue;
+    const connectedScope = snapshot?.connectedScope;
+    if (!issue || !connectedScope || relationBusy) return;
+    if (!onWorkspaceAction) {
+      const { type, ...payload } = action;
+      invoke(type, payload);
+      return;
+    }
+    const requestId = `issue-relations-${stamp()}`;
+    relationRequest.current = { requestId, connectedScope, projectId: issue.project_id, issueIid: issue.iid };
+    setRelationBusy(true);
+    setRelationError('');
+    setRelationMutationApplied(false);
+    onWorkspaceAction({ type: 'mutateIssueRelations', requestId, connectedScope, projectId: issue.project_id, issueIid: issue.iid, action });
+  };
   const requestImage = (url: string) => {
     if (images[url] || failedImages.current.has(url) || [...imageRequests.current.values()].includes(url)) return;
     const requestId = `image-${stamp()}`;
@@ -298,6 +327,45 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     setDetailTab(navigation.mode === 'detail' ? navigation.tab ?? 'content' : 'content');
     setMode('waiting'); setError(''); setBusy(true); busyRef.current = true;
   }, [navigation?.revision]);
+
+  useEffect(() => {
+    const hasClosedWorkspaceNavigation = !!onBack && !navigation;
+    const navigationTargetsAnotherIssue = navigation?.mode === 'detail' && detail &&
+      (navigation.projectId !== detail.issue.project_id || navigation.issueIid !== detail.issue.iid);
+    if (mode !== 'detail' || !detail || !snapshot?.connectedScope || !onWorkspaceAction || hasClosedWorkspaceNavigation || navigationTargetsAnotherIssue) {
+      relationRequest.current = undefined;
+      setRelationBusy(false);
+      return;
+    }
+    relationRequest.current = undefined;
+    setRelationData(detail);
+    const requestId = `issue-relations-${stamp()}`;
+    relationRequest.current = { requestId, connectedScope: snapshot.connectedScope, projectId: detail.issue.project_id, issueIid: detail.issue.iid };
+    setRelationBusy(true);
+    setRelationError('');
+    setRelationMutationApplied(false);
+    onWorkspaceAction({ type: 'loadIssueRelations', requestId, connectedScope: snapshot.connectedScope, projectId: detail.issue.project_id, issueIid: detail.issue.iid });
+  }, [mode, detail?.issue.id, snapshot?.connectedScope, navigation?.revision, onBack]);
+
+  useEffect(() => {
+    const current = relationRequest.current;
+    const response = current && relationResponses ? relationResponses[current.requestId] : undefined;
+    if (!current || !response || response.requestId !== current.requestId || response.connectedScope !== current.connectedScope ||
+      response.projectId !== current.projectId || response.issueIid !== current.issueIid || detail?.issue.project_id !== current.projectId || detail.issue.iid !== current.issueIid) return;
+    relationRequest.current = undefined;
+    setRelationBusy(false);
+    setRelationError(response.error ?? '');
+    setRelationMutationApplied(response.mutationApplied === true);
+    if (response.data) {
+      const data = response.data;
+      setRelationData(data);
+      setDetail((previous) => {
+        if (!previous || previous.issue.id !== data.issue.id) return previous;
+        return { ...previous, links: data.links, tasks: data.tasks, parentWorkItemId: data.parentWorkItemId,
+          taskTypeId: data.taskTypeId, canLink: data.canLink, canManageChildren: data.canManageChildren };
+      });
+    }
+  }, [relationResponses]);
 
   useEffect(() => {
     if (mode === 'create' && projectId > 0) createDrafts.current.set(projectId, form);
@@ -377,8 +445,6 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         }
         pendingReplyDiscussion.current = null;
         if (pendingAction.current === 'editNote' && editingNoteBodyRef.current === submission?.body) setEditingNoteId(null);
-        if (pendingAction.current === 'createChild') setChildTitle((current) => current === submission?.childTitle ? '' : current);
-        if (pendingAction.current === 'addChild') setChildIid((current) => current === submission?.childIid ? '' : current);
         if (pendingAction.current === 'updateChild' && taskTitleRef.current === submission?.taskTitle && taskDescriptionRef.current === submission?.taskDescription) setTaskEditing(false);
         pendingAction.current = null;
         pendingSubmission.current = null;
@@ -555,19 +621,14 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
           {detail.canInternalComment && <label class="check"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.currentTarget.checked)} /> 內部留言</label>}
           <div class="toolbar wrap"><button disabled={!comment.trim()} onClick={() => previewEditor('comment', comment)}>預覽 Markdown</button><button onClick={() => upload('comment')}>上傳附件</button><button class="primary" disabled={!comment.trim() || busy} onClick={() => invoke('note', { body: comment, internal })}>送出留言</button><button disabled={!comment.trim() || busy || internal} onClick={() => invoke('thread', { body: comment, internal })}>開始討論</button></div>{internal && <p class="muted small">此 GitLab 執行個體的內部留言無法建立討論串。</p>}{editorHtml.comment && <Markdown html={editorHtml.comment} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</>}
         </section>
-        <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>關聯 Issue</h2>
-          {detail.links.length === 0 ? <p class="muted">尚無關聯 Issue。</p> : detail.links.map((linked) => <div class="list-row" key={linked.issue_link_id ?? linked.id}><button class="text-link" onClick={() => openLink(linked.web_url)}>{({ relates_to: '相關', blocks: '阻擋', is_blocked_by: '被阻擋' } as Record<string, string>)[linked.link_type ?? 'relates_to'] ?? '相關'} · #{linked.iid} {linked.title}</button>{linked.issue_link_id && detail.canLink && <button onClick={() => invoke('unlink', { linkId: linked.issue_link_id })}>移除</button>}</div>)}
-          {detail.canLink && <div class="inline-form"><input type="number" min="1" placeholder="專案 ID" value={linkProject} onInput={(event) => setLinkProject(event.currentTarget.value)} /><input type="number" min="1" placeholder="Issue 編號" value={linkIid} onInput={(event) => setLinkIid(event.currentTarget.value)} /><select value={linkType} onChange={(event) => setLinkType(event.currentTarget.value as typeof linkType)}><option value="relates_to">相關</option><option value="blocks">阻擋</option><option value="is_blocked_by">被阻擋</option></select><button disabled={!linkProject || !linkIid || busy} onClick={() => invoke('link', { targetProjectId: Number(linkProject), targetIssueIid: Number(linkIid), linkType })}>建立關聯</button></div>}
-        </section>
         <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>子工作 <span class="muted small">{detail.tasks.length}</span></h2>
           {detail.tasks.length ? detail.tasks.map((task) => <div class="task-group" key={task.id}><div class="list-row">
             <span class={`state ${task.state}`}>{task.state}</span><button class="text-link" onClick={() => { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); setTaskTitle(task.title); setTaskDescription(task.description ?? ''); setTaskEditing(false); }}>#{task.iid} {task.title}</button>
             {task.canEdit && <button disabled={busy} onClick={() => invoke('setChildState', { taskId: task.id, stateEvent: task.state.toLowerCase() === 'closed' ? 'reopen' : 'close' })}>{task.state.toLowerCase() === 'closed' ? '重新開啟' : '結案'}</button>}{detail.canManageChildren && <button disabled={busy} onClick={() => invoke('removeChild', { taskId: task.id })}>移除子工作</button>}
           </div>{selectedTaskId === task.id && <div class="task-detail">{taskEditing ? <><label class="field"><span>子工作標題</span><input aria-label="子工作標題" value={taskTitle} onInput={(event) => setTaskTitle(event.currentTarget.value)} /></label><label class="field"><span>子工作描述</span><textarea aria-label="子工作描述" rows={6} value={taskDescription} onInput={(event) => setTaskDescription(event.currentTarget.value)} /></label><div class="toolbar wrap"><button disabled={!taskDescription.trim()} onClick={() => previewEditor(`task:${task.id}`, taskDescription)}>預覽 Markdown</button><button onClick={() => upload(`task:${task.id}`)}>上傳附件</button><button class="primary" disabled={!taskTitle.trim() || busy} onClick={() => invoke('updateChild', { taskId: task.id, title: taskTitle, description: taskDescription })}>儲存子工作</button><button onClick={() => setTaskEditing(false)}>取消</button></div>{editorHtml[`task:${task.id}`] && <Markdown html={editorHtml[`task:${task.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : <>{task.descriptionHtml ? <Markdown html={task.descriptionHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{task.description || '尚未提供描述。'}</pre>}{task.canEdit && <button onClick={() => setTaskEditing(true)}>編輯子工作</button>}</>}</div>}</div>) : <p class="muted">尚無子工作。</p>}
-          {detail.canManageChildren && detail.parentWorkItemId && <>
-            {detail.taskTypeId && <div class="inline-form"><input aria-label="新子工作標題" placeholder="新子工作標題" value={childTitle} onInput={(event) => setChildTitle(event.currentTarget.value)} /><button disabled={!childTitle.trim() || busy} onClick={() => invoke('createChild', { title: childTitle.trim() })}>建立子工作</button></div>}
-            <div class="inline-form"><input aria-label="既有子工作編號" type="number" min="1" placeholder="此專案的既有子工作編號" value={childIid} onInput={(event) => setChildIid(event.currentTarget.value)} /><button disabled={!childIid || busy} onClick={() => invoke('addChild', { taskIid: Number(childIid) })}>加入既有子工作</button></div>
-          </>}
+          <IssueRelationsEditor key={issue.id} issue={issue} data={relationData?.issue.id === issue.id ? relationData : detail} projects={detail.projects}
+            busy={relationBusy || busy} error={relationError || error || undefined} mutationApplied={relationMutationApplied}
+            onReload={requestIssueRelations} onAction={mutateIssueRelations} onOpenLink={openLink} showLinks />
         </section>
         <section class="card issue-section" hidden={detailTab !== 'development'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
         <section class="card issue-section" hidden={detailTab !== 'development'}><div class="section-head"><div><h2>開始開發與交付</h2><p class="muted small">先確認工作目錄與 Repo 狀態，再複製任務並開啟 Codex CLI。</p></div></div>

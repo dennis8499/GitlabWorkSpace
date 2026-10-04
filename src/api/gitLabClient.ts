@@ -606,6 +606,16 @@ export class GitLabClient {
     return data.namespace?.workItem?.id;
   }
 
+  async getWorkItemTypeAndParent(projectPath: string, iid: number, canReadHierarchy: boolean, canReadType: boolean): Promise<{ id: string; type?: string; parentId?: string } | undefined> {
+    if (!canReadHierarchy || !canReadType) throw new GitLabApiError('This GitLab version cannot verify the selected child item.');
+    const data = await this.graphql<{ namespace?: { workItem?: { id: string; workItemType?: { name: string } | null; widgets?: Array<{ parent?: { id: string } | null }> } } }>(
+      'query VerifyIssueChildTask($path: ID!, $iid: String!) { namespace(fullPath: $path) { workItem(iid: $iid) { id workItemType { name } widgets { ... on WorkItemWidgetHierarchy { parent { id } } } } } }',
+      { path: projectPath, iid: String(iid) }
+    );
+    const item = data.namespace?.workItem;
+    return item ? { id: item.id, type: item.workItemType?.name, parentId: item.widgets?.find((widget) => widget.parent !== undefined)?.parent?.id } : undefined;
+  }
+
   async setChildParent(taskId: string, parentId: string | null): Promise<void> {
     const data = await this.graphql<{ workItemUpdate?: { errors: string[] } }>(
       'mutation SetChildParent($id: WorkItemID!, $parent: WorkItemID) { workItemUpdate(input: { id: $id, hierarchyWidget: { parentId: $parent } }) { errors } }',

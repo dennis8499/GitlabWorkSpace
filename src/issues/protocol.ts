@@ -33,10 +33,27 @@ export interface IssueTimelog {
   userPermissions?: { adminTimelog: boolean };
 }
 
+export interface IssueRelationsData {
+  issue: GitLabIssue;
+  project: GitLabProject;
+  links: GitLabIssue[];
+  tasks: IssueTask[];
+  parentWorkItemId?: string;
+  taskTypeId?: string;
+  canLink: boolean;
+  canManageChildren: boolean;
+}
+
+export type IssueRelationAction =
+  | { type: 'createChild'; title: string }
+  | { type: 'addChild'; taskIid: number }
+  | { type: 'link'; targetProjectId: number; targetIssueIid: number; linkType: 'relates_to' | 'blocks' | 'is_blocked_by' }
+  | { type: 'unlink'; linkId: number };
+
 export type IssueDetailSection = 'options' | 'activity' | 'links' | 'mergeRequests' | 'reactions' | 'todos' | 'tasks' | 'permissions' | 'projects' | 'dates' | 'timelogs';
 export type IssueDetailSectionStatus = 'loading' | 'ready' | 'error';
 
-export interface IssueDetailData {
+export interface IssueDetailData extends IssueRelationsData {
   issue: GitLabIssue;
   project: GitLabProject;
   projects: GitLabProject[];
@@ -44,16 +61,12 @@ export interface IssueDetailData {
   metadata?: GitLabMetadata;
   options: IssueFormOptions;
   discussions: GitLabIssueDiscussion[];
-  links: GitLabIssue[];
   mergeRequests: GitLabMergeRequestSummary[];
   reactions: GitLabEmojiReaction[];
   noteReactions: Record<number, GitLabEmojiReaction[]>;
   todos: GitLabTodo[];
-  tasks: IssueTask[];
   timelogs: IssueTimelog[];
   startDate: string | null;
-  parentWorkItemId?: string;
-  taskTypeId?: string;
   warnings: string[];
   canEdit: boolean;
   canDelete: boolean;
@@ -61,8 +74,6 @@ export interface IssueDetailData {
   canClone: boolean;
   canComment: boolean;
   canInternalComment: boolean;
-  canLink: boolean;
-  canManageChildren: boolean;
   canTrackTime: boolean;
   canResolveThreads: boolean;
   canSetStartDate: boolean;

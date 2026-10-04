@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GitLabApiError, GitLabConflictError, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
-import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueTask, IssueTimelog } from './protocol';
+import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { mapWithConcurrency } from '../workspace/issueGraph';
 
@@ -116,6 +116,78 @@ export class IssuePanels implements vscode.Disposable {
     show: () => Promise<void>;
   }): void {
     this.workspace = workspace;
+  }
+
+  async loadIssueRelations(projectId: number, iid: number): Promise<IssueRelationsData> {
+    const group = this.session.selectedGroup;
+    if (!group) throw new Error('Choose a GitLab Group first.');
+    await this.session.ensureInstanceChecked();
+    const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id));
+    const project = projects.find((item) => item.id === requiredId(projectId, 'Project'));
+    if (!project) throw new Error('The Issue is outside the selected Group.');
+    const client = await this.session.getClient();
+    const capabilities = this.session.issueCapabilities;
+    const [issue, links, hierarchy] = await Promise.all([
+      client.getIssue(projectId, requiredId(iid, 'Issue')),
+      client.listIssueLinks(projectId, iid),
+      capabilities?.hierarchy ? this.loadTasks(client, project.path_with_namespace, iid) : Promise.resolve({ tasks: [] as IssueTask[], parentWorkItemId: undefined, taskTypeId: undefined, permissions: undefined })
+    ]);
+    const permissions = hierarchy.permissions;
+    return {
+      issue, project, links, tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
+      canLink: permissions?.adminWorkItemLink === true,
+      canManageChildren: capabilities?.childMutations === true && permissions?.adminParentLink === true
+    };
+  }
+
+  async mutateIssueRelations(projectId: number, iid: number, action: IssueRelationAction): Promise<void> {
+    const relations = await this.loadIssueRelations(projectId, iid);
+    const client = await this.session.getClient();
+    switch (action.type) {
+      case 'createChild': {
+        if (!relations.canManageChildren || !relations.parentWorkItemId || !relations.taskTypeId) throw new Error('You cannot create child tasks on this issue.');
+        const title = requiredString(action.title, 'Task title').trim();
+        if (title.length > 1024) throw new Error('Task title is too long.');
+        await client.createChildTask(relations.project.path_with_namespace, relations.parentWorkItemId, relations.taskTypeId, title);
+        break;
+      }
+      case 'addChild': {
+        if (!relations.canManageChildren || !relations.parentWorkItemId) throw new Error('You cannot add child tasks to this issue.');
+        const taskIid = requiredId(action.taskIid, 'Task');
+        if (taskIid === iid) throw new Error('An issue cannot be its own child task.');
+        if (relations.tasks.some((task) => Number(task.iid) === taskIid)) throw new Error('This Task is already a child of the current issue.');
+        const capabilities = this.session.issueCapabilities;
+        const item = await client.getWorkItemTypeAndParent(relations.project.path_with_namespace, taskIid, capabilities?.graphHierarchy === true, capabilities?.graphWorkItemTypes === true);
+        if (!item) throw new Error('The selected Task was not found in this project.');
+        if (item.type?.toLocaleLowerCase() !== 'task') throw new Error('The selected work item is not a Task.');
+        if (item.parentId === relations.parentWorkItemId) throw new Error('This Task is already a child of the current issue.');
+        if (item.parentId) throw new Error('This Task already has another parent. Remove its existing parent in GitLab before adding it here.');
+        await client.setChildParent(item.id, relations.parentWorkItemId);
+        break;
+      }
+      case 'link': {
+        if (!relations.canLink) throw new Error('You do not have permission to link issues from this issue.');
+        const targetProjectId = requiredId(action.targetProjectId, 'Target project');
+        const targetIssueIid = requiredId(action.targetIssueIid, 'Target issue');
+        if (!this.session.selectedGroup || !await this.session.cachedRead(`group/${this.session.selectedGroup.id}/projects`, (readClient) => readClient.listGroupProjects(this.session.selectedGroup!.id)).then((items) => items.some((item) => item.id === targetProjectId))) {
+          throw new Error('The target issue must belong to the selected Group.');
+        }
+        if (targetProjectId === projectId && targetIssueIid === iid) throw new Error('An issue cannot link to itself.');
+        if (relations.links.some((item) => item.project_id === targetProjectId && item.iid === targetIssueIid)) throw new Error('These issues are already linked.');
+        if (!['relates_to', 'blocks', 'is_blocked_by'].includes(action.linkType)) throw new Error('Unsupported issue link type.');
+        await client.getIssue(targetProjectId, targetIssueIid);
+        await client.addIssueLink(projectId, iid, targetProjectId, targetIssueIid, action.linkType);
+        break;
+      }
+      case 'unlink': {
+        if (!relations.canLink) throw new Error('You do not have permission to remove issue links.');
+        const linkId = requiredId(action.linkId, 'Issue link');
+        if (!relations.links.some((item) => item.issue_link_id === linkId)) throw new Error('This link does not belong to the current issue.');
+        await client.removeIssueLink(projectId, iid, linkId);
+        break;
+      }
+      default: throw new Error('Unsupported issue relationship action.');
+    }
   }
 
   get activeNavigationMode(): 'create' | 'detail' | undefined {

@@ -220,6 +220,23 @@ test('GraphQL child task mutation keeps the token in the host and reports mutati
   assert.doesNotMatch(JSON.stringify(requests[0].body), /issue-api-test-token/);
 });
 
+test('verifies a selected child item is a Task and reads its current parent before adding it', async () => {
+  let request: { query: string; variables: Record<string, unknown> } | undefined;
+  const fetcher: FetchLike = async (_input, init) => {
+    request = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    return new Response(JSON.stringify({ data: { namespace: { workItem: {
+      id: 'gid://gitlab/WorkItem/416', workItemType: { name: 'Task' }, widgets: [{ parent: { id: 'gid://gitlab/WorkItem/401' } }]
+    } } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  const item = await client.getWorkItemTypeAndParent('group/project', 16, true, true);
+  assert.deepEqual(item, { id: 'gid://gitlab/WorkItem/416', type: 'Task', parentId: 'gid://gitlab/WorkItem/401' });
+  assert.match(request?.query ?? '', /workItemType\s*\{\s*name\s*\}/);
+  assert.match(request?.query ?? '', /WorkItemWidgetHierarchy\s*\{\s*parent\s*\{\s*id\s*\}/);
+  assert.deepEqual(request?.variables, { path: 'group/project', iid: '16' });
+  await assert.rejects(client.getWorkItemTypeAndParent('group/project', 16, false, true), /cannot verify/i);
+});
+
 test('child task title and description use the work item description widget', async () => {
   let body: { query: string; variables: Record<string, unknown> } | undefined;
   const fetcher: FetchLike = async (_input, init) => {

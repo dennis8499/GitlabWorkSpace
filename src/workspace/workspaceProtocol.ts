@@ -1,7 +1,7 @@
 import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
 import type { IssueGraphSnapshot } from './issueGraph';
-import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse } from '../issues/protocol';
+import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer';
 export type AnalysisIntent = 'requirements' | 'audit';
@@ -182,6 +182,8 @@ export type WorkspaceRequest =
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
   | { type: 'loadIssueGraph'; connectedScope: string }
+  | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
+  | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'selectWorkspace' }
   | { type: 'openLocalWorkspace' }
   | { type: 'openCodexTerminal' }
@@ -232,6 +234,7 @@ export type WorkspaceResponse =
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
   | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }
+  | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; error?: string }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }
   | { type: 'error'; message: string }

@@ -2,7 +2,7 @@
 import { render } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
-import type { IssueFormOptions } from '../issues/protocol';
+import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type {
   AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
@@ -26,7 +26,7 @@ interface SavedState {
   selectedProjectIds: number[];
   appliedCloneOperationIds?: string[];
   analysisProjectIds?: number[];
-  issueBoardId?: number;
+  issueBoardId?: number | 'all';
   developerView?: 'list' | 'graph';
   graphBoardId?: number | 'all';
   graphCamera?: GraphCamera;
@@ -70,7 +70,7 @@ interface ScopedSavedState {
   selectedIds: Partial<Record<WorkspaceMode, number>>;
   selectedProjectIds: number[];
   analysisProjectIds: number[];
-  issueBoardId?: number;
+  issueBoardId?: number | 'all';
   developerView?: 'list' | 'graph';
   graphBoardId?: number | 'all';
   graphCamera?: GraphCamera;
@@ -114,11 +114,11 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' }
 ];
 const emptySaved = (): SavedState => ({
-  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
+  mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
   draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'bundled', deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
-  filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [],
+  filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueBoardId: 'all',
   issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
   requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {}, deliveryForms: {},
   manualTimes: {}, timeEdits: {}
@@ -187,6 +187,10 @@ function App() {
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
   const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(null);
+  const [issueRelationResponses, setIssueRelationResponses] = useState<Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>>({});
+  const [graphRelations, setGraphRelations] = useState<{ requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; busy: boolean; error?: string; mutationApplied?: boolean }>();
+  const graphRelationRequest = useRef<{ requestId: string; connectedScope: string; nodeId: string; projectId: number; issueIid: number }>();
+  const graphRelationSequence = useRef(0);
   const [cloneOperation, setCloneOperation] = useState<Extract<WorkspaceResponse, { type: 'cloneOperation' }>>();
   const [cloneSelectionRequest, setCloneSelectionRequest] = useState<string>();
   const [filters, setFilters] = useState<Partial<Record<WorkspaceMode, string>>>(initial?.filters ?? {});
@@ -201,9 +205,9 @@ function App() {
   const [graphNodePositions, setGraphNodePositions] = useState<Record<string, GraphPosition>>(initialScopedState?.graphNodePositions ?? initial?.graphNodePositions ?? {});
   const [graphAnimationEnabled, setGraphAnimationEnabled] = useState<boolean>(initialScopedState?.graphAnimationEnabled ?? initial?.graphAnimationEnabled ?? !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false));
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState<string | undefined>(initialScopedState?.selectedGraphNodeId ?? initial?.selectedGraphNodeId);
-  const [issueBoardId, setIssueBoardId] = useState<number | undefined>(() => initial?.scopeKey
-    ? initial.scopedData?.[initial.scopeKey]?.issueBoardId ?? initial.issueBoardId
-    : initial?.issueBoardId);
+  const [issueBoardId, setIssueBoardId] = useState<number | 'all'>(() => initial?.scopeKey
+    ? initial.scopedData?.[initial.scopeKey]?.issueBoardId ?? initial.issueBoardId ?? 'all'
+    : initial?.issueBoardId ?? 'all');
   const issueBoardIdRef = useRef(issueBoardId);
   issueBoardIdRef.current = issueBoardId;
   const [issueProjectFilter, setIssueProjectFilter] = useState(initial?.issueProjectFilter ?? 'all');
@@ -290,6 +294,9 @@ function App() {
         }
         const nextScope = message.snapshot.connectedScope;
         if (nextScope && nextScope !== scopeRef.current) {
+          graphRelationRequest.current = undefined;
+          setGraphRelations(undefined);
+          setIssueRelationResponses({});
           if (scopeRef.current) savedScopesRef.current[scopeRef.current] = currentScopeStateRef.current;
           else if (initial && !initial.scopeKey && initial.importedBundle) setRecoveredBundle(initial.importedBundle);
           const saved = nextScope ? savedScopesRef.current[nextScope] : undefined;
@@ -300,10 +307,10 @@ function App() {
           issueGraphVersionRef.current = message.snapshot.issueGraphVersion ?? 0;
           issueGraphRequestedScopesRef.current.delete(nextScope);
           const availableIds = message.snapshot.projects.map((project) => project.id);
-          const preferredBoardId = value.issueBoardId;
-          const boardId = message.snapshot.groupIssueBoardsError
+          const preferredBoardId = value.issueBoardId ?? 'all';
+          const boardId = message.snapshot.groupIssueBoardsError || preferredBoardId === 'all'
             ? preferredBoardId
-            : message.snapshot.groupIssueBoards.find((item) => item.id === preferredBoardId)?.id ?? message.snapshot.groupIssueBoards[0]?.id;
+            : message.snapshot.groupIssueBoards.find((item) => item.id === preferredBoardId)?.id ?? 'all';
           issueBoardIdRef.current = boardId;
           setFilters(value.filters); setSelectedIds(value.selectedIds); setSelectedProjectIds(reconcileProjectSelection(value.selectedProjectIds, availableIds));
           setAnalysisProjectIds(value.analysisProjectIds); setIssueBoardId(boardId);
@@ -328,7 +335,9 @@ function App() {
           setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
           if (!message.snapshot.groupIssueBoardsError) {
             const selectedBoardId = issueBoardIdRef.current;
-            const boardId = message.snapshot.groupIssueBoards.find((item) => item.id === selectedBoardId)?.id ?? message.snapshot.groupIssueBoards[0]?.id;
+            const boardId = selectedBoardId === 'all' || message.snapshot.groupIssueBoards.some((item) => item.id === selectedBoardId)
+              ? selectedBoardId
+              : 'all';
             if (boardId !== selectedBoardId) {
               issueBoardIdRef.current = boardId;
               setIssueBoardId(boardId);
@@ -376,6 +385,20 @@ function App() {
         setSnapshot((current) => current?.connectedScope === message.connectedScope
           ? { ...current, issueGraph: message.graph, issueGraphVersion: message.version }
           : current);
+      } else if (message.type === 'issueRelations') {
+        if (message.connectedScope !== scopeRef.current) return;
+        setIssueRelationResponses((current) => {
+          const next = { ...current, [message.requestId]: message };
+          const requestIds = Object.keys(next);
+          for (const staleId of requestIds.slice(0, Math.max(0, requestIds.length - 12))) delete next[staleId];
+          return next;
+        });
+        const current = graphRelationRequest.current;
+        if (!current || current.requestId !== message.requestId || current.connectedScope !== message.connectedScope ||
+          current.projectId !== message.projectId || current.issueIid !== message.issueIid) return;
+        graphRelationRequest.current = undefined;
+        setGraphRelations({ requestId: message.requestId, connectedScope: message.connectedScope, projectId: message.projectId, issueIid: message.issueIid,
+          data: message.data, busy: false, error: message.error, mutationApplied: message.mutationApplied });
       } else if (message.type === 'cloneOperation') {
         if (message.scopeKey === scopeRef.current) {
           setCloneOperation(message);
@@ -426,14 +449,14 @@ function App() {
     if (snapshot?.groupIssueBoardsError) return;
 
     const boards = snapshot?.groupIssueBoards ?? [];
-    const availableSelection = boards.some((board) => board.id === issueBoardId)
+    const availableSelection = issueBoardId === 'all' || boards.some((board) => board.id === issueBoardId)
       ? issueBoardId
-      : boards[0]?.id;
+      : 'all';
     if (availableSelection !== issueBoardId) {
       setIssueBoardId(availableSelection);
       return;
     }
-    if (availableSelection === undefined) {
+    if (availableSelection === 'all') {
       issueBoardSelectionRef.current = `${connectedScope}:none`;
       return;
     }
@@ -520,7 +543,7 @@ function App() {
     : undefined;
   const issueBoardContentReady = issueBoardContent?.status === 'ready' && !snapshot?.groupIssueBoardsError;
   const issueBoardContentError = snapshot?.groupIssueBoardsError ?? (issueBoardContent?.status === 'error' ? issueBoardContent.error : undefined);
-  const issueBoardContentLoading = !!selectedIssueBoard && !issueBoardContentReady && !issueBoardContentError;
+  const issueBoardContentLoading = issueBoardId !== 'all' && !issueBoardContentReady && !issueBoardContentError;
   const issueBoardIssueIds = useMemo(() => new Set(issueBoardContentReady ? issueBoardContent?.issueIds ?? [] : []), [issueBoardContentReady, issueBoardContent?.issueIds]);
   const issueMilestones = useMemo(() => [...(snapshot?.groupMilestones ?? [])].sort((a, b) => a.title.localeCompare(b.title) || (a.group_id ?? 0) - (b.group_id ?? 0) || a.id - b.id), [snapshot?.groupMilestones]);
   const milestoneTitleCounts = useMemo(() => {
@@ -539,8 +562,8 @@ function App() {
     (issueLabelFilter === 'all' || (issue.labels ?? []).includes(issueLabelFilter)) &&
     (issueMilestoneFilter === 'all' || (issueMilestoneFilter === 'none' ? !issue.milestone : String(issue.milestone?.id ?? '') === issueMilestoneFilter)) &&
     filterText('developer', `${issue.title} ${projectById.get(issue.project_id)?.path_with_namespace ?? ''} #${issue.iid} ${(issue.labels ?? []).join(' ')}`);
-  const visibleIssues = useMemo(() => issues.filter((issue) => issueBoardContentReady && issueBoardIssueIds.has(issue.id) && matchesSharedIssueFilters(issue)),
-    [issues, issueBoardContentReady, issueBoardIssueIds, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
+  const visibleIssues = useMemo(() => issues.filter((issue) => (issueBoardId === 'all' || issueBoardContentReady && issueBoardIssueIds.has(issue.id)) && matchesSharedIssueFilters(issue)),
+    [issues, issueBoardId, issueBoardContentReady, issueBoardIssueIds, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
   const matchingGraphRootIds = useMemo(() => new Set(issues.filter(matchesSharedIssueFilters).map((issue) =>
     issueGraphNodeKey(issue.project_id, projectById.get(issue.project_id)?.path_with_namespace ?? '', issue.iid))),
     [issues, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
@@ -549,8 +572,33 @@ function App() {
   const graphSelection = useMemo(() => issueGraphSnapshot
     ? selectIssueGraph(issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId)
     : { nodes: [], edges: [], rootCount: 0 }, [issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId]);
+  const selectedGraphNode = graphSelection.nodes.find((node) => node.id === selectedGraphNodeId);
   const graphMatchingRoots = useMemo(() => new Set(issueGraphSnapshot?.nodes.filter((node) => node.isRoot && matchingGraphRootIds.has(node.id) &&
     (effectiveGraphBoardId === 'all' || node.boardIds.includes(effectiveGraphBoardId))).map((node) => node.id) ?? []), [issueGraphSnapshot?.nodes, matchingGraphRootIds, effectiveGraphBoardId]);
+
+  function sendGraphRelationRequest(action?: IssueRelationAction): void {
+    const connectedScope = snapshot?.connectedScope;
+    const node = selectedGraphNode;
+    const issueIid = Number(node?.iid);
+    if (!connectedScope || !node || node.kind !== 'issue' || node.projectId === undefined || !Number.isSafeInteger(issueIid) || issueIid < 1) return;
+    const requestId = `graph-relations-${Date.now()}-${++graphRelationSequence.current}`;
+    graphRelationRequest.current = { requestId, connectedScope, nodeId: node.id, projectId: node.projectId, issueIid };
+    setGraphRelations((current) => ({ requestId, connectedScope, projectId: node.projectId!, issueIid,
+      data: current?.connectedScope === connectedScope && current.projectId === node.projectId && current.issueIid === issueIid ? current.data : undefined,
+      busy: true, mutationApplied: false }));
+    post(action
+      ? { type: 'mutateIssueRelations', requestId, connectedScope, projectId: node.projectId, issueIid, action }
+      : { type: 'loadIssueRelations', requestId, connectedScope, projectId: node.projectId, issueIid });
+  }
+
+  useEffect(() => {
+    if (developerView !== 'graph' || !selectedGraphNode || selectedGraphNode.kind !== 'issue' || selectedGraphNode.projectId === undefined) {
+      graphRelationRequest.current = undefined;
+      setGraphRelations(undefined);
+      return;
+    }
+    sendGraphRelationRequest();
+  }, [developerView, snapshot?.connectedScope, selectedGraphNode?.id, selectedGraphNode?.kind, issueGraphSnapshot?.status]);
 
   useEffect(() => {
     if (!issueGraphSnapshot || !['ready', 'partial', 'error'].includes(issueGraphSnapshot.status)) return;
@@ -680,7 +728,7 @@ function App() {
       <section class="page" role="tabpanel">
         {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
         <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
-          <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
+          <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
@@ -717,12 +765,15 @@ function App() {
                 <button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button>
               </div>
               <div class="filter-row developer-filter-row">
-                <select aria-label={developerView === 'graph' ? '圖譜 Issue Board' : 'Issue Board'} value={developerView === 'graph' ? effectiveGraphBoardId : issueBoardId ?? ''} disabled={busy || !!snapshot.groupIssueBoardsError || (!issueBoards.length && developerView === 'list')} onChange={(event) => {
+                <select aria-label={developerView === 'graph' ? '圖譜 Issue Board' : 'Issue Board'} value={developerView === 'graph' ? effectiveGraphBoardId : issueBoardId} disabled={busy || developerView === 'list' && !issueBoards.length && !snapshot.groupIssueBoardsError} onChange={(event) => {
                   const value = event.currentTarget.value;
                   if (developerView === 'graph') setGraphBoardId(value === 'all' ? 'all' : Number(value));
+                  else if (value === 'all') setIssueBoardId('all');
                   else { const boardId = Number(value); if (Number.isSafeInteger(boardId) && issueBoards.some((board) => board.id === boardId)) setIssueBoardId(boardId); }
                 }}>
-                  {developerView === 'graph' ? <option value="all">全部 Board</option> : <option value="">{snapshot.groupIssueBoardsError ? 'Issue Board 載入失敗' : issueBoards.length ? '選擇 Issue Board' : '此 Group 沒有 Issue Board'}</option>}
+                  {developerView === 'graph'
+                    ? <option value="all">全部 Board</option>
+                    : <option value="all">全部指派給我的 Issue{snapshot.groupIssueBoardsError ? '（Board 載入失敗）' : ''}</option>}
                   {issueBoards.map((board) => <option key={board.id} value={board.id}>{board.name}{(issueBoardNameCounts.get(board.name) ?? 0) > 1 ? ` (#${board.id})` : ''}</option>)}
                 </select>
                 <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
@@ -741,16 +792,21 @@ function App() {
                   onAnimationEnabledChange={(enabled) => { if (scopeRef.current === snapshot.connectedScope) setGraphAnimationEnabled(enabled); }}
                   onPositionsChange={(positions) => { if (scopeRef.current === snapshot.connectedScope) setGraphNodePositions(positions); }}
                   onCameraChange={(camera) => { if (scopeRef.current === snapshot.connectedScope) setGraphCamera(camera); }}
-                  onSelect={(id) => { if (scopeRef.current === snapshot.connectedScope) setSelectedGraphNodeId(id); }} onOpenIssue={openGraphNode}
+                  onSelect={(id) => { if (scopeRef.current === snapshot.connectedScope) { graphRelationRequest.current = undefined; setGraphRelations(undefined); setSelectedGraphNodeId(id); } }} onOpenIssue={openGraphNode}
+                  relations={graphRelations?.connectedScope === snapshot.connectedScope ? graphRelations?.data : undefined}
+                  relationBusy={graphRelations?.connectedScope === snapshot.connectedScope ? graphRelations?.busy : false}
+                  relationError={graphRelations?.connectedScope === snapshot.connectedScope ? graphRelations?.error : undefined}
+                  relationMutationApplied={graphRelations?.connectedScope === snapshot.connectedScope ? graphRelations?.mutationApplied : false}
+                  onLoadRelations={() => sendGraphRelationRequest()} onRelationAction={(action) => sendGraphRelationRequest(action)} onOpenLink={openGitLab}
                 />}
               </div> : <div class="mode-content">
                 <div class="list-column">
                   <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
                   <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}
-                    {!visibleIssues.length && <div class="empty-inline" role={issueBoardContentError ? 'alert' : 'status'}>
-                      <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardContentError ? 'Issue Board 載入失敗' : !issueBoards.length ? '此 Group 沒有可用的 Issue Board' : issueBoardContentLoading ? '正在載入 Board 內容' : !issueBoardContentReady ? '選擇 Issue Board 以載入內容' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
-                      <p>{snapshot.error ?? (issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
-                      {issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
+                    {!visibleIssues.length && <div class="empty-inline" role={snapshot.error || issueBoardId !== 'all' && issueBoardContentError ? 'alert' : 'status'}>
+                      <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardId !== 'all' && issueBoardContentError ? 'Issue Board 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : issueBoardContentLoading ? '正在載入 Board 內容' : issueBoardId !== 'all' && !issueBoardContentReady ? '正在準備 Issue Board' : issueBoardId === 'all' ? '目前沒有指派給你的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
+                      <p>{snapshot.error ?? (issueBoardId !== 'all' && issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試，或切回全部 Issue。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : issueBoardId === 'all' ? '目前選定的 Group 沒有指派給你的 Issue。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
+                      {issueBoardId !== 'all' && issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
                     </div>}
                   </div>
                 </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
