@@ -15,8 +15,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "resources/workflow-kit-installer.py"
 ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
-RELEASE_ZIP = ROOT / "dist/gitlab-workspace-kit-0.9.0.zip"
-VERSION = "0.9.0"
+RELEASE_ZIP = ROOT / "dist/gitlab-workspace-kit-0.10.0.zip"
+VERSION = "0.10.0"
 SKILLS = (
     "codebase-wiki", "megin", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
     "megin-finishing-delivery", "megin-human-acceptance", "megin-implementation-execution",

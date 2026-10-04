@@ -8,9 +8,9 @@ import { PackageIntegrityError, WorkflowKitPackageManager } from '../../src/work
 
 const sha256 = (value: Uint8Array): string => createHash('sha256').update(value).digest('hex');
 const createIndex = (archive: Buffer, zip: Buffer) => ({
-  schema: 'gitlab-workspace-kit-bundle/v1', package: 'gitlab-workspace-kit', version: '0.9.0',
+  schema: 'gitlab-workspace-kit-bundle/v1', package: 'gitlab-workspace-kit', version: '0.10.0',
   archive: 'workflow-kit.tar.xz', format: 'tar.xz', archiveSha256: sha256(archive),
-  releaseZip: 'gitlab-workspace-kit-0.9.0.zip', releaseZipSha256: sha256(zip), workspaceContract: 1, payloadFiles: 141
+  releaseZip: 'gitlab-workspace-kit-0.10.0.zip', releaseZipSha256: sha256(zip), workspaceContract: 1, payloadFiles: 141
 });
 
 test('lists a single bundled kit first, then Gitea and GitHub imports for the extension version', async () => {
@@ -22,30 +22,30 @@ test('lists a single bundled kit first, then Gitea and GitHub imports for the ex
     const bundledBytes = Buffer.from('tar.xz package bytes');
     const zipBytes = Buffer.from('release ZIP package bytes');
     const bundledPath = path.join(root, 'workflow-kit.tar.xz');
-    const releaseZip = path.join(root, 'gitlab-workspace-kit-0.9.0.zip');
+    const releaseZip = path.join(root, 'gitlab-workspace-kit-0.10.0.zip');
     const manifestPath = path.join(root, 'manifest.json');
     await writeFile(bundledPath, bundledBytes);
     await writeFile(releaseZip, zipBytes);
     await writeFile(manifestPath, JSON.stringify(createIndex(bundledBytes, zipBytes)));
-    const manager = new WorkflowKitPackageManager(storage, bundledPath, manifestPath, '0.9.0');
+    const manager = new WorkflowKitPackageManager(storage, bundledPath, manifestPath, '0.10.0');
     const importedRecords: string[] = [];
     for (const source of ['github', 'gitea'] as const) {
       const downloaded = path.join(sourceDir, `${source}.zip`);
       const bytes = Buffer.from(`${source} workflow kit ZIP`);
       await writeFile(downloaded, bytes);
-      const saved = await manager.importPackage({ version: '0.9.0', source, assetName: path.basename(downloaded), archivePath: downloaded, verifiedSha256: sha256(bytes) });
+      const saved = await manager.importPackage({ version: '0.10.0', source, assetName: path.basename(downloaded), archivePath: downloaded, verifiedSha256: sha256(bytes) });
       importedRecords.push(saved.id);
     }
     const packages = await manager.listPackages();
     assert.deepEqual(packages.map((item) => item.source), ['bundled', 'gitea', 'github']);
     assert.equal(packages.length, 3);
-    assert.equal((await manager.getPackage(importedRecords[1]!)).version, '0.9.0');
+    assert.equal((await manager.getPackage(importedRecords[1]!)).version, '0.10.0');
     assert.equal(packages.find((item) => item.source === 'bundled')?.assetName, 'workflow-kit.tar.xz');
     const conflictingArchive = path.join(sourceDir, 'gitea-conflicting.zip');
     const conflictingBytes = Buffer.from('different same-version package');
     await writeFile(conflictingArchive, conflictingBytes);
     await assert.rejects(manager.importPackage({
-      version: '0.9.0', source: 'gitea', assetName: path.basename(conflictingArchive), archivePath: conflictingArchive,
+      version: '0.10.0', source: 'gitea', assetName: path.basename(conflictingArchive), archivePath: conflictingArchive,
       verifiedSha256: sha256(conflictingBytes)
     }), PackageIntegrityError);
     await assert.rejects(manager.importPackage({
@@ -61,11 +61,11 @@ test('keeps imported kit ZIPs in extension storage and detects tampering before 
     const source = path.join(root, 'gitlab-workspace-kit.zip');
     const contents = Buffer.from('persistent workflow kit bytes');
     await writeFile(source, contents);
-    const manager = new WorkflowKitPackageManager(storage, path.join(root, 'missing.tar.xz'), path.join(root, 'missing.json'), '0.9.0');
-    const saved = await manager.importPackage({ version: '0.9.0', source: 'gitea', assetName: 'gitlab-workspace-kit.zip', archivePath: source, verifiedSha256: sha256(contents) });
+    const manager = new WorkflowKitPackageManager(storage, path.join(root, 'missing.tar.xz'), path.join(root, 'missing.json'), '0.10.0');
+    const saved = await manager.importPackage({ version: '0.10.0', source: 'gitea', assetName: 'gitlab-workspace-kit.zip', archivePath: source, verifiedSha256: sha256(contents) });
     await rm(source);
-    const afterRestart = new WorkflowKitPackageManager(storage, path.join(root, 'missing.tar.xz'), path.join(root, 'missing.json'), '0.9.0');
-    assert.equal((await afterRestart.getPackage(saved.id)).version, '0.9.0');
+    const afterRestart = new WorkflowKitPackageManager(storage, path.join(root, 'missing.tar.xz'), path.join(root, 'missing.json'), '0.10.0');
+    assert.equal((await afterRestart.getPackage(saved.id)).version, '0.10.0');
     await writeFile(saved.archivePath, 'changed');
     await assert.rejects(afterRestart.getPackage(saved.id), PackageIntegrityError);
     const catalog = JSON.parse(await readFile(path.join(storage, 'workflow-kit-packages.json'), 'utf8')) as { packages: unknown[] };
