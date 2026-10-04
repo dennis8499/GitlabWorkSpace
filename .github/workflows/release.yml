@@ -71,12 +71,15 @@ jobs:
       - name: Package and verify VSIX
         run: npm run package
 
-      - name: Save VSIX for the release job
+      - name: Save verified release assets for the release job
         uses: actions/upload-artifact@v7
         if: matrix.os == 'ubuntu-latest'
         with:
-          name: vsix
-          path: dist/*.vsix
+          name: release-assets
+          path: |
+            dist/*.vsix
+            dist/gitlab-workspace-kit-*.zip
+            dist/SHA256SUMS
           if-no-files-found: error
 
   publish:
@@ -87,13 +90,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download the verified VSIX
+      - name: Download the verified release assets
         uses: actions/download-artifact@v8
         with:
-          name: vsix
+          name: release-assets
           path: dist
 
-      - name: Create release and upload VSIX
+      - name: Create release with the extension, workflow kit, and checksums
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
@@ -101,17 +104,20 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          assets=(dist/*.vsix)
-          if [[ ${#assets[@]} -ne 1 ]]; then
-            echo "Expected exactly one VSIX artifact; found ${#assets[@]}" >&2
+          vsix_assets=(dist/*.vsix)
+          kit_assets=(dist/gitlab-workspace-kit-*.zip)
+          if [[ ${#vsix_assets[@]} -ne 1 || ${#kit_assets[@]} -ne 1 || ! -f dist/SHA256SUMS ]]; then
+            echo "Expected one VSIX, one workflow kit ZIP, and SHA256SUMS." >&2
             exit 1
           fi
 
           expected_asset="gitlab-workspace-${TAG_NAME#v}.vsix"
-          if [[ "$(basename "${assets[0]}")" != "$expected_asset" ]]; then
-            echo "Unexpected VSIX artifact: ${assets[0]} (expected $expected_asset)" >&2
+          expected_kit="gitlab-workspace-kit-${TAG_NAME#v}.zip"
+          if [[ "$(basename "${vsix_assets[0]}")" != "$expected_asset" || "$(basename "${kit_assets[0]}")" != "$expected_kit" ]]; then
+            echo "Unexpected release artifact names; expected $expected_asset and $expected_kit." >&2
             exit 1
           fi
+          (cd dist && sha256sum --check SHA256SUMS)
 
           if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG_NAME already exists; refusing to overwrite it." >&2
@@ -120,7 +126,9 @@ jobs:
 
           release_args=(
             "$TAG_NAME"
-            "${assets[0]}"
+            "${vsix_assets[0]}"
+            "${kit_assets[0]}"
+            "dist/SHA256SUMS"
             --title "$TAG_NAME"
             --verify-tag
             --generate-notes

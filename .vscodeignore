@@ -24,4 +24,5 @@ package-lock.json
 **/*.pyc
 resources/issue-webview/index.html
 resources/issue-webview/issue-test.*
+resources/tool-installer.py
 resources/offline-tools/sources/**

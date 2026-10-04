@@ -22,6 +22,15 @@ export interface LocalRepositoryState {
   branch?: string;
 }
 
+export interface MeginWorkSummary {
+  workId: string;
+  status: string;
+  planVersion?: string;
+  issueProjectId?: number;
+  issueIid?: number;
+  projectPath?: string;
+}
+
 export interface IssueDraftEvidence {
   path: string;
   claim: string;
@@ -84,18 +93,16 @@ export interface MergeRequestDetail {
   warnings: string[];
 }
 
-export type ToolId = 'codebase-wiki' | 'megin' | 'merge-reviewer';
-export interface InstalledToolState {
-  tool: ToolId;
+export interface InstalledWorkflowKitState {
   version?: string;
   source?: ToolSource;
-  status: 'installed' | 'missing' | 'update-available' | 'checking' | 'installing' | 'error';
+  status: 'installed' | 'missing' | 'update-available' | 'work-in-progress' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
   message?: string;
+  legacyPaths?: string[];
 }
 
-export interface ToolPackageSummary {
+export interface WorkflowKitPackageSummary {
   id: string;
-  tool: ToolId;
   version: string;
   source: ToolSource;
   assetName: string;
@@ -140,9 +147,10 @@ export interface WorkspaceSnapshot {
   timers: WorkspaceTimerEntry[];
   timerVersion?: number;
   scopeEpoch?: number;
-  tools: InstalledToolState[];
-  toolSource: ToolSource;
-  toolPackages?: ToolPackageSummary[];
+  workflowKit: InstalledWorkflowKitState;
+  workflowKitSource: ToolSource;
+  workflowKitPackages?: WorkflowKitPackageSummary[];
+  meginWorkItems: MeginWorkSummary[];
   deliveryRecords: DeliveryPreview[];
   cloneOperation?: CloneOperationState;
   busy?: boolean;
@@ -211,13 +219,14 @@ export type WorkspaceRequest =
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'prepareDelivery'; projectId: number; issueIid: number; workId: string; summary: string; changes: string; tests: string; targetBranch: string; reviewerIds: number[]; acceptanceConfirmed: boolean }
   | { type: 'commitDelivery'; deliveryId: string }
+  | { type: 'copyWikiUpdatePrompt'; deliveryId: string }
   | { type: 'pushDelivery'; deliveryId: string }
   | { type: 'createDeliveryMergeRequest'; deliveryId: string }
-  | { type: 'setToolSource'; source: ToolSource }
-  | { type: 'openToolDownload'; tool: ToolId; source: RemoteToolSource }
-  | { type: 'importToolPackage'; tool: ToolId; source: RemoteToolSource }
-  | { type: 'refreshTools' }
-  | { type: 'installTool'; tool: ToolId; packageId: string };
+  | { type: 'setWorkflowKitSource'; source: ToolSource }
+  | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
+  | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
+  | { type: 'refreshWorkflowKit' }
+  | { type: 'installWorkflowKit'; packageId: string };
 
 export type WorkspaceResponse =
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }

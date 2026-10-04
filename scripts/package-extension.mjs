@@ -21,7 +21,7 @@ function runPython(script) {
 }
 
 await mkdir(join(repositoryRoot, 'dist'), { recursive: true });
-runPython('scripts/build-offline-tools.py');
+runPython('scripts/build-workflow-kit.py');
 
 const result = spawnSync(process.execPath, [
   vsceCommand,
@@ -37,4 +37,5 @@ if (result.status !== 0) {
   process.exitCode = result.status ?? 1;
 } else {
   runPython('scripts/optimize-vsix.py');
+  runPython('scripts/write-release-checksums.py');
 }

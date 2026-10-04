@@ -17,6 +17,11 @@ test('[BDD-REL-003] verifies Linux and Windows releases before gated publication
   assert.match(workflow, /needs:\s*build/);
   assert.match(workflow, /actions\/upload-artifact@v\d+/);
   assert.match(workflow, /actions\/download-artifact@v\d+/);
+  assert.match(workflow, /name: release-assets/);
+  assert.match(workflow, /dist\/\*\.vsix/);
+  assert.match(workflow, /dist\/gitlab-workspace-kit-\*\.zip/);
+  assert.match(workflow, /dist\/SHA256SUMS/);
+  assert.match(workflow, /sha256sum --check SHA256SUMS/);
 
   assert.match(workflow, /branches:\s*\r?\n\s*- main/);
   assert.match(workflow, /pull_request:/);

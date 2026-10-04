@@ -30,14 +30,14 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
             base = Path(temporary)
             group = base / "測試 Group 工作區"
             group.mkdir()
-            tools = group / ".agents/skills"
-            bundle = ROOT / "resources/offline-tools/offline-tools.tar.xz"
+            bundle = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
             digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
-            for tool, version in (("codebase-wiki", "0.3.0"), ("megin", "0.2.0"), ("merge-reviewer", "0.5.0")):
-                installed = self.helper(ROOT / "resources/tool-installer.py", tool, bundle, group, version, "bundled",
-                                        "--format", "tar.xz", "--entry-root", tool, "--archive-sha256", digest)
-                self.assertTrue(installed["ok"])
+            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.9.0", "bundled",
+                                    "--format", "tar.xz", "--entry-root", "workflow-kit", "--archive-sha256", digest)
+            self.assertTrue(installed["ok"])
+            self.assertEqual(14, installed["skills"])
             self.assertFalse((group / ".git").exists())
+            tools = group / ".agents/skills"
             wiki = tools / "codebase-wiki/scripts"
             megin = tools / "megin/scripts"
             reviewer = tools / "merge-reviewer/scripts"

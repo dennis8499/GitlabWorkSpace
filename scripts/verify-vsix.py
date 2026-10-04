@@ -1,140 +1,122 @@
 from __future__ import annotations
 
 import hashlib
-import io
+import importlib.util
 import json
 import re
-import stat
 import sys
 import tarfile
+import tempfile
 import zipfile
-import zlib
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
-VSIX_PATH = ROOT / "dist" / f"{MANIFEST['name']}-{MANIFEST['version']}.vsix"
-OFFLINE = ROOT / "resources" / "offline-tools"
-SOURCE_ROOT = OFFLINE / "sources"
-MAX_FILES = 12_000
-MAX_FILE_BYTES = 64 * 1024 * 1024
-MAX_EXPANDED_BYTES = 400 * 1024 * 1024
+DIST = ROOT / "dist"
+VSIX_PATH = DIST / f"{MANIFEST['name']}-{MANIFEST['version']}.vsix"
+KIT_ZIP_PATH = DIST / f"gitlab-workspace-kit-{MANIFEST['version']}.zip"
+MAX_ARCHIVE_BYTES = 80 * 1024 * 1024
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def checked_tar_path(raw: str) -> PurePosixPath:
-    if not raw or "\\" in raw or "\x00" in raw:
+def checked_tar_path(raw: str) -> str:
+    if not raw or "\\" in raw or "\x00" in raw or raw.startswith("/"):
         raise ValueError("TAR.XZ contains an unsafe path")
-    path = PurePosixPath(raw)
-    if path.is_absolute() or not path.parts or any(part in ("", ".", "..") for part in path.parts):
-        raise ValueError("TAR.XZ contains a path traversal")
-    if any(part[-1:] in (".", " ") or any(char in part for char in '<>:"|?*') for part in path.parts):
-        raise ValueError("TAR.XZ contains an unsupported path")
-    if any(re.fullmatch(r"(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?", part, re.IGNORECASE) for part in path.parts):
+    parts = raw.split("/")
+    if any(part in ("", ".", "..") or part.endswith((".", " ")) or any(char in part for char in '<>:"|?*') for part in parts):
+        raise ValueError("TAR.XZ contains a path traversal or unsupported path")
+    if any(re.fullmatch(r"(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?", part, re.IGNORECASE) for part in parts):
         raise ValueError("TAR.XZ contains a Windows-reserved path")
-    return path
+    return "/".join(parts)
 
 
-def compression_choice(data: bytes) -> int:
-    compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
-    return zipfile.ZIP_DEFLATED if len(compressor.compress(data) + compressor.flush()) < len(data) else zipfile.ZIP_STORED
+def load_installer() -> Any:
+    path = ROOT / "resources" / "workflow-kit-installer.py"
+    spec = importlib.util.spec_from_file_location("gitlab_workspace_workflow_kit_installer", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("Workflow kit installer could not be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def add_entry(archive: zipfile.ZipFile, name: str, data: bytes, original: zipfile.ZipInfo | None = None) -> None:
-    info = zipfile.ZipInfo(name, original.date_time if original else (2024, 1, 1, 0, 0, 0))
-    info.compress_type = compression_choice(data)
-    if original:
-        info.create_system = original.create_system
-        info.external_attr = original.external_attr
-        info.internal_attr = original.internal_attr
-        info.comment = original.comment
-    archive.writestr(info, data, compress_type=info.compress_type, compresslevel=9)
+def payload_hashes(entries: dict[str, bytes], root: str = "workflow-kit") -> dict[str, str]:
+    prefix = f"{root}/payload/"
+    return {name[len(prefix):]: digest(data) for name, data in entries.items() if name.startswith(prefix)}
 
 
-def baseline_size(vsix: zipfile.ZipFile, bundle_paths: set[str], package_tools: dict[str, dict[str, str]]) -> int:
-    temporary = io.BytesIO()
-    with zipfile.ZipFile(temporary, "w", allowZip64=True) as alternative:
-        alternative.comment = vsix.comment
-        for entry in vsix.infolist():
-            if entry.filename in bundle_paths:
-                continue
-            add_entry(alternative, entry.filename, vsix.read(entry.filename), entry)
-        for item in package_tools.values():
-            source = SOURCE_ROOT / item["assetName"]
-            if not source.is_file():
-                raise ValueError(f"Pinned source ZIP is missing: {source.name}")
-            add_entry(alternative, f"extension/resources/offline-tools/{source.name}", source.read_bytes())
-    return len(temporary.getvalue())
+def verify_package_bytes(installer: Any, content: bytes, archive_format: str, expected_version: str) -> tuple[dict[str, Any], dict[str, str]]:
+    suffix = ".zip" if archive_format == "zip" else ".tar.xz"
+    with tempfile.NamedTemporaryFile(prefix="verify-workflow-kit-", suffix=suffix, delete=False) as stream:
+        path = Path(stream.name)
+        stream.write(content)
+    try:
+        manifest, _ = installer.import_package(path, archive_format, expected_version)
+        entries = installer.extract_zip(path) if archive_format == "zip" else installer.extract_tar_xz(path)
+        return manifest, payload_hashes(entries)
+    finally:
+        path.unlink(missing_ok=True)
 
 
-def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str]) -> tuple[set[str], dict[str, dict[str, str]]]:
-    archive_name = "extension/resources/offline-tools/offline-tools.tar.xz"
+def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer: Any) -> tuple[set[str], dict[str, Any]]:
+    archive_name = "extension/resources/offline-tools/workflow-kit.tar.xz"
     manifest_name = "extension/resources/offline-tools/manifest.json"
-    if archive_name not in members or manifest_name not in members:
-        raise ValueError("VSIX is missing its offline tool archive or package index")
+    helper_name = "extension/resources/workflow-kit-installer.py"
+    if archive_name not in members or manifest_name not in members or helper_name not in members:
+        raise ValueError("VSIX is missing its offline workflow kit or installer")
+    if "extension/resources/tool-installer.py" in members:
+        raise ValueError("VSIX must not include the legacy per-tool installer")
     if any(name.startswith("extension/resources/offline-tools/sources/") for name in members):
-        raise ValueError("VSIX contains the original source ZIP files")
+        raise ValueError("VSIX contains original source ZIP files outside the workflow kit")
     manifest = json.loads(archive.read(manifest_name).decode("utf-8"))
-    tools = manifest.get("tools")
-    if manifest.get("schema") != "gitlab-workspace-offline-tools/v1" or manifest.get("archive") != "offline-tools.tar.xz" or \
-            manifest.get("format") != "tar.xz" or not isinstance(tools, dict) or set(tools) != {"codebase-wiki", "megin", "merge-reviewer"}:
-        raise ValueError("Offline package index is invalid")
+    if manifest.get("schema") != "gitlab-workspace-kit-bundle/v1" or manifest.get("package") != "gitlab-workspace-kit" or \
+       manifest.get("version") != MANIFEST["version"] or manifest.get("archive") != "workflow-kit.tar.xz" or \
+       manifest.get("format") != "tar.xz" or manifest.get("releaseZip") != KIT_ZIP_PATH.name or \
+       manifest.get("workspaceContract") != 1 or not isinstance(manifest.get("upstream"), dict) or \
+       not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("archiveSha256", ""))) or \
+       not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("releaseZipSha256", ""))):
+        raise ValueError("Workflow kit package index is invalid or has the wrong extension version")
     bundle = archive.read(archive_name)
-    if len(bundle) > 80 * 1024 * 1024 or digest(bundle) != manifest.get("archiveSha256"):
-        raise ValueError("Offline TAR.XZ SHA-256 does not match its index")
+    if len(bundle) > MAX_ARCHIVE_BYTES or digest(bundle) != manifest["archiveSha256"]:
+        raise ValueError("Embedded workflow kit TAR.XZ SHA-256 does not match its index")
+    if not KIT_ZIP_PATH.is_file() or digest(KIT_ZIP_PATH.read_bytes()) != manifest["releaseZipSha256"]:
+        raise ValueError("Release ZIP SHA-256 does not match the workflow kit index")
 
-    for tool, item in tools.items():
-        if item.get("entryRoot") != tool or not re.fullmatch(r"\d+\.\d+\.\d+", str(item.get("version", ""))):
-            raise ValueError(f"Offline package metadata is invalid for {tool}")
-        if not re.fullmatch(r"[a-f0-9]{64}", str(item.get("upstreamZipSha256", ""))):
-            raise ValueError(f"Pinned ZIP digest is invalid for {tool}")
-        source = SOURCE_ROOT / item.get("assetName", "")
-        if not source.is_file() or digest(source.read_bytes()) != item["upstreamZipSha256"]:
-            raise ValueError(f"Pinned upstream ZIP digest does not match for {tool}")
+    _, tar_payload = verify_package_bytes(installer, bundle, "tar.xz", MANIFEST["version"])
+    zip_manifest, zip_payload = verify_package_bytes(installer, KIT_ZIP_PATH.read_bytes(), "zip", MANIFEST["version"])
+    if manifest.get("upstream") != zip_manifest.get("upstream") or manifest.get("skills") != zip_manifest.get("skills") or \
+       manifest.get("payloadFiles") != len(zip_payload) or tar_payload != zip_payload or zip_payload != zip_manifest.get("files"):
+        raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group payload")
+    if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 14 or len(set(manifest["skills"])) != 14:
+        raise ValueError("Workflow kit must include all fourteen Skills")
+    return {archive_name, manifest_name}, manifest
 
-    names: set[str] = set()
-    roots: set[str] = set()
-    total = 0
-    file_count = 0
-    with tarfile.open(fileobj=io.BytesIO(bundle), mode="r:xz") as tar:
-        for member in tar:
-            relative = checked_tar_path(member.name)
-            if not member.isfile() or member.issym() or member.islnk() or member.isdev() or member.isfifo():
-                raise ValueError("Offline TAR.XZ contains a link or non-regular file")
-            key = relative.as_posix().casefold()
-            if key in names:
-                raise ValueError("Offline TAR.XZ contains duplicate paths")
-            names.add(key)
-            if relative.parts[0] not in tools:
-                raise ValueError("Offline TAR.XZ contains an unexpected tool root")
-            roots.add(relative.parts[0])
-            if member.size < 0 or member.size > MAX_FILE_BYTES:
-                raise ValueError("Offline TAR.XZ file exceeds the per-file limit")
-            file_count += 1
-            total += member.size
-            if file_count > MAX_FILES or total > MAX_EXPANDED_BYTES:
-                raise ValueError("Offline TAR.XZ exceeds expanded archive limits")
-            contents = tar.extractfile(member)
-            if contents is None:
-                raise ValueError("Offline TAR.XZ file could not be read")
-            copied = 0
-            while chunk := contents.read(1024 * 1024):
-                copied += len(chunk)
-            if copied != member.size:
-                raise ValueError("Offline TAR.XZ file size does not match its header")
-    if roots != set(tools) or not names:
-        raise ValueError("Offline TAR.XZ does not contain all three tools")
-    return {archive_name, manifest_name}, tools
+
+def verify_checksums() -> None:
+    checksum_path = DIST / "SHA256SUMS"
+    expected_assets = {VSIX_PATH.name, KIT_ZIP_PATH.name}
+    parsed: dict[str, str] = {}
+    for line in checksum_path.read_text(encoding="ascii").splitlines():
+        match = re.fullmatch(r"([a-f0-9]{64})  ([A-Za-z0-9._-]+)", line)
+        if not match or match.group(2) in parsed:
+            raise ValueError("SHA256SUMS contains an invalid or duplicate entry")
+        parsed[match.group(2)] = match.group(1)
+    if set(parsed) != expected_assets:
+        raise ValueError("SHA256SUMS must list exactly the VSIX and workflow kit ZIP")
+    for asset in (VSIX_PATH, KIT_ZIP_PATH):
+        if digest(asset.read_bytes()) != parsed[asset.name]:
+            raise ValueError(f"SHA256SUMS digest does not match {asset.name}")
 
 
 def main() -> int:
     if not VSIX_PATH.is_file():
         raise SystemExit(f"VSIX not found: {VSIX_PATH.relative_to(ROOT)}")
-
+    installer = load_installer()
     try:
         with zipfile.ZipFile(VSIX_PATH) as archive:
             if bad_member := archive.testzip():
@@ -147,13 +129,10 @@ def main() -> int:
             if packaged_manifest.get("version") != MANIFEST["version"] or packaged_manifest.get("name") != MANIFEST["name"]:
                 raise ValueError("VSIX manifest does not match package.json")
             for asset in (
-                "extension/resources/issue-webview/dashboard.html",
-                "extension/resources/issue-webview/dashboard.js",
-                "extension/resources/issue-webview/dashboard.css",
-                "extension/resources/sidebar-webview/sidebar.html",
-                "extension/resources/sidebar-webview/sidebar.js",
-                "extension/resources/sidebar-webview/sidebar.css",
-                "extension/resources/tool-installer.py",
+                "extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js",
+                "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
+                "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
+                "extension/resources/workflow-kit-installer.py"
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
@@ -161,7 +140,7 @@ def main() -> int:
                 raise ValueError("VSIX contains a release helper or npm cache")
             if any(name.startswith("extension/resources/issue-webview/issue-test.") for name in members):
                 raise ValueError("VSIX contains the Issue behavior test fixture")
-            bundle_paths, bundle_tools = verify_offline_bundle(archive, members)
+            _, kit_manifest = verify_offline_bundle(archive, members, installer)
             entries = {entry.filename: entry for entry in archive.infolist()}
             for entry in entries.values():
                 if entry.compress_type == zipfile.ZIP_DEFLATED and entry.compress_size >= entry.file_size:
@@ -169,15 +148,11 @@ def main() -> int:
                 if entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
                     raise ValueError(f"VSIX contains an unsupported compression method: {entry.filename}")
             optimized_size = VSIX_PATH.stat().st_size
-            baseline = baseline_size(archive, bundle_paths, bundle_tools)
-            if optimized_size >= baseline:
-                raise ValueError(f"Offline TAR.XZ VSIX ({optimized_size} bytes) is not smaller than embedded source ZIPs ({baseline} bytes)")
-            reduction = (baseline - optimized_size) / baseline * 100
-    except (OSError, ValueError, KeyError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError) as error:
-        print(f"Invalid VSIX archive: {error}", file=sys.stderr)
+            verify_checksums()
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, UnicodeDecodeError, json.JSONDecodeError, tarfile.TarError, RuntimeError) as error:
+        print(f"Invalid VSIX package: {error}", file=sys.stderr)
         return 1
-
-    print(f"Verified {VSIX_PATH.relative_to(ROOT)} version {MANIFEST['version']} ({optimized_size} bytes; {reduction:.1f}% smaller than the embedded original ZIP variant)")
+    print(f"Verified {VSIX_PATH.relative_to(ROOT)} and {KIT_ZIP_PATH.relative_to(ROOT)} v{MANIFEST['version']} ({optimized_size} bytes; matching payloads and SHA256SUMS)")
     return 0
 
 

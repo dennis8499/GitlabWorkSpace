@@ -20,6 +20,12 @@ export interface WikiGuideCard {
   fields: readonly WikiGuideField[];
 }
 
+export interface WikiGuideContext {
+  groupRoot?: string;
+  repositories: Array<{ namespace: string; localPath?: string }>;
+  workflowKitVersion?: string;
+}
+
 const field = (id: string, label: string, options: Partial<Omit<WikiGuideField, 'id' | 'label'>> = {}): WikiGuideField => ({ id, label, ...options });
 
 export const wikiGuideCards: readonly WikiGuideCard[] = [
@@ -34,13 +40,10 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
   },
   {
     id: 'install', title: '安裝／設定',
-    description: '在目標專案安裝或升級 Codex 版本的 Codebase LLM Wiki。',
-    output: '官方 installer 的 dry-run 預覽；確認後才套用安裝。',
-    behavior: '先預覽安裝變更並等待確認；以 wiki-only 作為預設 guard mode。',
-    fields: [
-      field('target', '目標專案路徑', { required: true, placeholder: '例如 C:\\work\\my-repo' }),
-      field('operation', '操作', { kind: 'select', defaultValue: '安裝', options: ['安裝', '升級'] })
-    ]
+    description: '透過 GitLab Workspace 一次管理所有工作 Skills 與 Group 規則。',
+    output: '整包含 14 個 Skills、固定來源版本、Group Wiki 設定及安裝紀錄。',
+    behavior: '使用工具抽屜的單一套件卡安裝或更新；檢查失敗時整包回復。',
+    fields: []
   },
   {
     id: 'ingest', title: '建立／更新 Wiki（Ingest）',
@@ -142,7 +145,16 @@ function promptValue(card: WikiGuideCard, fieldId: string, inputs: WikiGuideInpu
 }
 
 export function canCopyWikiPrompt(card: WikiGuideCard, inputs: WikiGuideInputValues): boolean {
-  return card.fields.every((item) => !item.required || inputValue(card, item.id, inputs).trim().length > 0);
+  return card.id !== 'install' && card.fields.every((item) => !item.required || inputValue(card, item.id, inputs).trim().length > 0);
+}
+
+export function buildWikiGuideContext(context: WikiGuideContext): string {
+  return [
+    `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
+    `實際 Group 工作區：${context.groupRoot ?? '尚未選擇；先從工作區設定選擇 Group 路徑'}`,
+    'Group Repo 對照：',
+    ...context.repositories.map((item) => `- ${item.namespace}${item.localPath ? ` → ${item.localPath}` : '（尚未 Clone）'}`)
+  ].join('\n');
 }
 
 export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValues): string {
@@ -152,10 +164,8 @@ export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValue
   switch (card.id) {
     case 'install':
       return [
-        '請使用 $codebase-wiki 依 Codex 安裝流程，使用官方 installer 對指定專案執行 Codex surface 與 wiki-only guard mode 的安裝或升級。',
-        `操作：${promptValue(card, 'operation', inputs)}`,
-        `目標專案路徑：${promptValue(card, 'target', inputs)}`,
-        '先執行 dry-run 並說明變更與衝突；等我確認後才使用 --apply 套用。保留既有內容，不可略過 installer 的保護檢查。'
+        'GitLab Workspace 組合包安裝與更新由工具抽屜的一張套件卡處理。',
+        '這張卡不複製 Codex 指令；開啟工作區設定並選擇整包版本。'
       ].join('\n');
     case 'ingest':
       return inputValue(card, 'mode', inputs) === '批次'

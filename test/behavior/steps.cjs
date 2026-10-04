@@ -566,11 +566,14 @@ Then('the later field value remains ready for another save', async function () {
 });
 
 When('the Group provides an accepted multi-Repo handoff', async function () {
-  await this.send({ type: 'snapshot', snapshot: {
+  this.groupSnapshot = {
     groupRoot: 'C:/workspace/group', baseUrl: 'https://gitlab.example.test', projects: [project, target],
     connected: true, currentUser: user, activeMode: 'developer', groups: [], issues: [issue],
     mergeRequests: [], groupMilestones: [], groupIssueBoards: [], tools: [], toolSource: 'bundled',
+    workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
     localRepositories: { 42: { state: 'ready', path: 'C:/workspace/group/project' } }, projectMembers: [],
+    meginWorkItems: [{ workId: 'work-20261002-feature', status: 'active', planVersion: 'plan-1', issueProjectId: 42,
+      issueIid: 7, projectPath: 'group/project' }],
     timers: [], deliveryRecords: [{ id: 'native-handoff', projectId: 43, issueProjectId: 42, issueIid: 7,
       workId: 'work-20261002-feature', branch: 'feature/work-20261002-feature', targetBranch: 'main', state: 'preview',
       summary: 'Change', handoffSha256: 'a'.repeat(64), planVersion: 'plan-1', acceptanceVersion: 'acceptance-3',
@@ -580,13 +583,19 @@ When('the Group provides an accepted multi-Repo handoff', async function () {
       approvedRepositories: [{ repoPath: 'target', projectId: 43, branch: 'feature/work-20261002-feature',
         baseSha: 'c'.repeat(40), allowedPaths: ['app.py'] }]
     }]
-  } });
+  };
+  await this.send({ type: 'snapshot', snapshot: this.groupSnapshot });
   await this.tab('開發與交付');
 });
 Then('development tasks use Group paths and native review and verification results', async function () {
+  const resume = [...this.root.querySelectorAll('label')].find((item) => item.textContent.includes('延續既有 Megin 工作'))?.querySelector('select');
+  assert.ok(resume, 'the existing matching Megin Work ID is available to resume');
+  assert.equal(resume.value, 'work-20261002-feature');
   await this.click('複製任務並開啟 Codex CLI');
   assert.match(this.workspaceActions.at(-1).text, /gitlab_mr/);
+  assert.match(this.workspaceActions.at(-1).text, /續作 Work ID：work-20261002-feature/);
   assert.match(this.workspaceActions.at(-1).text, /C:\/workspace\/group/);
+  assert.match(this.workspaceActions.at(-1).text, /First comment/);
   await this.click('審查 Group 未提交內容');
   assert.equal(this.workspaceActions.at(-1).type, 'openGroupQuickReview');
   assert.match(this.root.body.textContent, /APPROVED（independent-reviewer）/);
@@ -596,5 +605,23 @@ Then('development tasks use Group paths and native review and verification resul
   assert.doesNotMatch(this.root.body.textContent, /我已使用 Megin 完成人工驗收/);
   await this.click('核對並提交所有核准 Repo');
   assert.equal(this.workspaceActions.at(-1).type, 'commitDelivery');
+  assert.equal(this.workspaceActions.at(-1).deliveryId, 'native-handoff');
+  assert.equal(this.root.querySelectorAll('button').length ? [...this.root.querySelectorAll('button')].filter((item) => item.textContent.trim() === '複製 Wiki 更新任務').length : 0, 0,
+    'Wiki feedback stays hidden before all approved Repo commits are saved');
+
+  const approvedRepositories = [
+    { repoPath: 'project', projectId: 42, branch: 'feature/work-20261002-feature', baseSha: 'c'.repeat(40), allowedPaths: ['app.py'], commit: 'd'.repeat(40) },
+    { repoPath: 'target', projectId: 43, branch: 'feature/work-20261002-feature', baseSha: 'e'.repeat(40), allowedPaths: ['app.py'], commit: 'f'.repeat(40) }
+  ];
+  this.groupSnapshot.deliveryRecords = [
+    { ...this.groupSnapshot.deliveryRecords[0], state: 'committed', repoPath: 'C:/workspace/group/project', approvedRepositories },
+    { ...this.groupSnapshot.deliveryRecords[0], id: 'target-handoff', projectId: 43, state: 'committed', repoPath: 'C:/workspace/group/target', approvedRepositories }
+  ];
+  await this.send({ type: 'snapshot', snapshot: { ...this.groupSnapshot, deliveryRecords: [...this.groupSnapshot.deliveryRecords] } });
+  await this.tab('開發與交付');
+  assert.equal([...this.root.querySelectorAll('button')].filter((item) => item.textContent.trim() === '複製 Wiki 更新任務').length, 1,
+    'one Repo owns the Group Wiki feedback action after every approved commit is saved');
+  await this.click('複製 Wiki 更新任務');
+  assert.equal(this.workspaceActions.at(-1).type, 'copyWikiUpdatePrompt');
   assert.equal(this.workspaceActions.at(-1).deliveryId, 'native-handoff');
 });

@@ -166,6 +166,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [canCreateIssue, setCanCreateIssue] = useState(false);
   const [spentDate, setSpentDate] = useState('');
   const [detailTab, setDetailTab] = useState<'content' | 'development' | 'relations' | 'time'>('content');
+  const [resumeWorkId, setResumeWorkId] = useState('');
   const [recoveryProjectId, setRecoveryProjectId] = useState('');
   const [recoveryIssueIid, setRecoveryIssueIid] = useState('');
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
@@ -486,6 +487,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
+  useEffect(() => { setResumeWorkId(''); }, [issue?.id]);
   const sectionLabels: Record<IssueDetailSection, string> = {
     options: '欄位選項', activity: '討論', links: '關聯 Issue', mergeRequests: '相關 MR',
     reactions: '反應', todos: '待辦', tasks: '子工作', permissions: 'Issue 權限', projects: '專案清單', dates: '開始日期', timelogs: 'GitLab 工時'
@@ -569,11 +571,24 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         </section>
         <section class="card issue-section" hidden={detailTab !== 'development'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
         <section class="card issue-section" hidden={detailTab !== 'development'}><div class="section-head"><div><h2>開始開發與交付</h2><p class="muted small">先確認工作目錄與 Repo 狀態，再複製任務並開啟 Codex CLI。</p></div></div>
-          {(() => { const repo = snapshot?.localRepositories[detail.project.id]; const inGroup = !!snapshot?.projects.some((item) => item.id === detail.project.id); const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready'; return <>
-            {canDevelop ? <><button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl), returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button><button class="secondary" type="button" onClick={() => postWorkspace({ type: 'openGroupQuickReview' })}>審查 Group 未提交內容</button></> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? '尚未設定此 Group 的工作目錄。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請先檢查工作目錄。' : '此 Repo 尚未下載到本機。'}</strong><p>閱讀與討論可繼續使用；本機開發需要此 Group 的工作目錄及 Repo。</p><button type="button" onClick={onOpenSettings}>前往設定</button></div>}
+          {(() => {
+            const repo = snapshot?.localRepositories[detail.project.id];
+            const inGroup = !!snapshot?.projects.some((item) => item.id === detail.project.id);
+            const kitReady = snapshot?.workflowKit?.status === 'installed' || snapshot?.workflowKit?.status === 'work-in-progress';
+            const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready' && kitReady;
+            const matchingWorks = (snapshot?.meginWorkItems ?? []).filter((item) => item.status !== 'complete' && item.status !== 'aborted' && item.issueIid === issue.iid &&
+              (item.issueProjectId === detail.project.id || item.projectPath?.toLocaleLowerCase('en-US') === detail.project.path_with_namespace.toLocaleLowerCase('en-US')));
+            const selectedWorkId = matchingWorks.some((item) => item.workId === resumeWorkId) ? resumeWorkId : matchingWorks[0]?.workId;
+            return <>
+            {canDevelop ? <>
+              {matchingWorks.length > 0 && <label class="field">延續既有 Megin 工作<select value={selectedWorkId ?? ''} onChange={(event) => setResumeWorkId(event.currentTarget.value)}><option value="">建立新工作（開始前仍會檢查重複 Work ID）</option>{matchingWorks.map((item) => <option value={item.workId}>{item.workId} · {item.status}{item.planVersion ? ` · ${item.planVersion}` : ''}</option>)}</select></label>}
+              <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl, { discussions: detail.discussions, actor: detail.user, workId: selectedWorkId }), returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button>
+              <button class="secondary" type="button" onClick={() => postWorkspace({ type: 'openGroupQuickReview' })}>審查 Group 未提交內容</button>
+            </> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? '尚未設定此 Group 的工作目錄。' : !kitReady ? '請先安裝或更新 GitLab Workspace 完整工作流程包。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請先檢查工作目錄。' : '此 Repo 尚未下載到本機。'}</strong><p>Issue 內容和討論可繼續查看；Codex 工作任務會先核對整包安裝狀態。</p><button type="button" onClick={onOpenSettings}>前往設定</button></div>}
             <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>準備開發交付：檢查差異 → Commit → Push → 建立 MR</summary>
-              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers ?? detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} onAction={(action, record) => {
+              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers ?? detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} workflowRecords={snapshot?.deliveryRecords ?? []} onAction={(action, record) => {
                 if (action === 'commitDelivery') postWorkspace({ type: 'commitDelivery', deliveryId: record.id });
+                else if (action === 'copyWikiUpdatePrompt') postWorkspace({ type: 'copyWikiUpdatePrompt', deliveryId: record.id });
                 else if (action === 'pushDelivery') postWorkspace({ type: 'pushDelivery', deliveryId: record.id });
                 else if (action === 'createDeliveryMergeRequest') postWorkspace({ type: 'createDeliveryMergeRequest', deliveryId: record.id });
               }} onOpenExternal={(url) => postWorkspace({ type: 'openExternal', url })} /> : <p class="muted">設定工作目錄並下載 Repo 後，即可開始交付。</p>}

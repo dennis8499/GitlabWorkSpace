@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions } from '../issues/protocol';
 import type {
-  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolId, ToolSource, ToolPackageSummary,
+  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
@@ -48,8 +48,10 @@ interface SavedState {
   draftLabels: Record<string, string>;
   draftChoices: Record<string, DraftChoice>;
   reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>;
-  toolSource: ToolSource;
-  selectedPackageIds: Partial<Record<ToolId, string>>;
+  workflowKitSource: ToolSource;
+  selectedWorkflowKitPackageId?: string;
+  /** Read older saved webview state without discarding it. */
+  toolSource?: ToolSource;
   deliveryForms: Record<string, DeliveryFormState>;
   /** Kept only to migrate older unscoped drafts. */
   manualTime?: ManualTimeDraft;
@@ -105,21 +107,15 @@ const vscode = acquireVsCodeApi();
 const initial = vscode.getState();
 const initialScopedState = initial?.scopeKey ? initial.scopedData?.[initial.scopeKey] : undefined;
 const defaultGraphCamera: GraphCamera = { x: 0, y: 0, scale: 1 };
-const tools: Array<{ id: ToolId; name: string; repo: string }> = [
-  { id: 'codebase-wiki', name: 'Codebase LLM Wiki', repo: 'code-base-llm-wiki' },
-  { id: 'megin', name: 'Megin', repo: 'Megin' },
-  { id: 'merge-reviewer', name: 'MergeReviewer', repo: 'MergeReviewer' }
-];
 const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: string }> = [
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
   { id: 'sa', name: 'Codebase LLM Wiki', short: '分析', icon: '⌕' },
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' }
 ];
-const toolNames = Object.fromEntries(tools.map((item) => [item.id, item.name])) as Record<ToolId, string>;
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
-  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, toolSource: 'gitea', selectedPackageIds: {}, deliveryForms: {}, manualTimes: {}, timeEdits: {}
+  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'bundled', deliveryForms: {}, manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
   filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [],
@@ -229,8 +225,8 @@ function App() {
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>('changes');
   const [toolDrawer, setToolDrawer] = useState(false);
-  const [toolSource, setToolSource] = useState<ToolSource>(initial?.toolSource === 'github' || initial?.toolSource === 'bundled' ? initial.toolSource : 'gitea');
-  const [selectedPackageIds, setSelectedPackageIds] = useState<Partial<Record<ToolId, string>>>(initial?.selectedPackageIds ?? {});
+  const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'bundled');
+  const [selectedWorkflowKitPackageId, setSelectedWorkflowKitPackageId] = useState<string>(initial?.selectedWorkflowKitPackageId ?? '');
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
   const initialScopeState = initialScopedState;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
@@ -363,7 +359,7 @@ function App() {
         setCloneOperation(operation as Extract<WorkspaceResponse, { type: 'cloneOperation' }> | undefined);
         if (operation) applyCompletedSelection(operation);
         setMode(message.snapshot.activeMode);
-        setToolSource(message.snapshot.toolSource);
+        setWorkflowKitSource(message.snapshot.workflowKitSource);
       } else if (message.type === 'issueNavigation') {
         setIssueNavigation(message.navigation);
         if (message.navigation) { setMode('developer'); setMobilePanel('detail'); }
@@ -468,11 +464,11 @@ function App() {
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
-      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, toolSource: snapshot?.toolSource ?? toolSource, recoveredBundle,
-      selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits
+      draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
+      selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, toolSource, selectedPackageIds, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.toolSource]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, snapshot?.workflowKitSource]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -714,7 +710,7 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
-            : mode === 'sa' ? <CodebaseWikiGuide groupRoot={snapshot.groupRoot} inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
+            : mode === 'sa' ? <CodebaseWikiGuide groupRoot={snapshot.groupRoot} repositories={snapshot.projects.map((project) => ({ namespace: project.path_with_namespace, localPath: snapshot.localRepositories[project.id]?.path }))} workflowKitVersion={snapshot.workflowKit.version} kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
                 <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
@@ -806,14 +802,14 @@ function App() {
     </div>
 
     <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : '尚未選擇本機工作區'}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
-    {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} toolSource={toolSource}
-      selectedPackageIds={selectedPackageIds}
-      onSource={(source) => { setToolSource(source); post({ type: 'setToolSource', source }); }}
-      onSelectPackage={(tool, packageId) => setSelectedPackageIds((current) => ({ ...current, [tool]: packageId }))}
-      onInstall={(tool, packageId) => post({ type: 'installTool', tool, packageId })}
-      onOpenDownload={(tool, source) => post({ type: 'openToolDownload', tool, source })}
-      onImport={(tool, source) => post({ type: 'importToolPackage', tool, source })}
-      onRefresh={() => post({ type: 'refreshTools' })} onSelectGroup={() => post({ type: 'selectGroup' })}
+    {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} source={workflowKitSource}
+      selectedPackageId={selectedWorkflowKitPackageId}
+      onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
+      onSelectPackage={setSelectedWorkflowKitPackageId}
+      onInstall={(packageId) => post({ type: 'installWorkflowKit', packageId })}
+      onOpenDownload={(source) => post({ type: 'openWorkflowKitDownload', source })}
+      onImport={(source) => post({ type: 'importWorkflowKitPackage', source })}
+      onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onSelectWorkspace={() => post({ type: 'selectWorkspace' })} onConnect={() => post({ type: 'connect' })}
       onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
   </main>;
@@ -828,14 +824,14 @@ function Discussion({ discussion, onReply }: { discussion: NonNullable<Workspace
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => setReply(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); setReply(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, toolSource, selectedPackageIds, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onSelectGroup, onSelectWorkspace, onConnect, onClose }: {
-  snapshot: WorkspaceSnapshot; operationBusy: boolean; toolSource: ToolSource; selectedPackageIds: Partial<Record<ToolId, string>>;
-  onSource: (source: ToolSource) => void; onSelectPackage: (tool: ToolId, packageId: string) => void;
-  onInstall: (tool: ToolId, packageId: string) => void; onOpenDownload: (tool: ToolId, source: 'gitea' | 'github') => void;
-  onImport: (tool: ToolId, source: 'gitea' | 'github') => void; onRefresh: () => void;
+function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onSelectGroup, onSelectWorkspace, onConnect, onClose }: {
+  snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
+  onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
+  onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
+  onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void;
   onSelectGroup: () => void; onSelectWorkspace: () => void; onConnect: () => void; onClose: () => void;
 }) {
-  const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '有新版本', checking: '檢查中', installing: '安裝中', error: '錯誤' };
+  const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'work-in-progress': '工作進行中', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
   const drawerRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const closeHandler = useRef(onClose);
@@ -856,25 +852,30 @@ function ToolDrawer({ snapshot, operationBusy, toolSource, selectedPackageIds, o
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">本機路徑：{snapshot.groupRoot ?? '尚未設定。閱讀與討論 Issue 不需要本機路徑。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button><button class="primary" type="button" disabled={!snapshot.group || operationBusy} onClick={onSelectWorkspace}>選擇 Group 工作目錄</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
-    <section class="tool-settings"><h3>開發工具</h3>
-    <label class="field">套件來源<select value={toolSource} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="gitea">內網 Gitea（預設）</option><option value="github">GitHub</option><option value="bundled">內附離線包</option></select></label>
-    <p class="source-lines">Gitea 優先顯示。GitHub 與 Gitea 的 ZIP 由你下載並匯入；安裝只使用下方明確選取的本機套件，不呼叫 Release API。</p>
-    <div class="tool-list">{tools.map((tool) => {
-      const installed = snapshot.tools.find((item) => item.tool === tool.id);
-      const packages = (snapshot.toolPackages ?? []).filter((item) => item.tool === tool.id && item.source === toolSource);
-      const selectedPackageId = selectedPackageIds[tool.id] ?? '';
-      const selected = packages.find((item) => item.id === selectedPackageId);
-      return <section class="tool-card"><div class="panel-title"><strong>{tool.name}</strong><span class="pill">{status[installed?.status ?? 'checking']}</span></div>
-        <p>{installed?.version ? `已安裝 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p><p class="subtle">安裝位置：{snapshot.groupRoot ? `${snapshot.groupRoot}/.agents/skills/` : '請先選擇 Group 工作目錄'}</p>{installed?.message && <p class="warning">{installed.message}</p>}
-        {toolSource !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(tool.id, toolSource)}>開啟 {toolSource === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(tool.id, toolSource)}>匯入 ZIP</button></div>}
-        <label class="field">安裝套件<select aria-label={`${tool.name} 本機套件`} value={selectedPackageId} onChange={(event) => onSelectPackage(tool.id, event.currentTarget.value)}><option value="">請選擇版本與來源</option>{packages.map((item) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（檔案無法讀取）'}</option>)}</select></label>
-        {toolSource === 'bundled' && <p class="subtle">此套件已放在擴充功能內，可完全離線安裝。</p>}
-        {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? `TAR.XZ · 內部目錄 ${selected.entryRoot}` : 'ZIP · 匯入後保存在 VS Code 持久儲存'} · {selected.available ? '套件可用，安裝前會驗證 SHA-256' : selected.error}</p>}
-        <button class="primary" type="button" disabled={!snapshot.groupRoot || !selected?.available || installed?.status === 'installing' || operationBusy} onClick={() => selected && onInstall(tool.id, selected.id)}>{installed?.status === 'installed' ? '安裝所選版本' : '安裝所選套件'}</button>
+    <section class="tool-settings"><h3>工作流程組合包</h3>
+    <label class="field">套件來源<select value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
+    <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
+    {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
+    {(() => {
+      const installed = snapshot.workflowKit ?? { status: 'missing' as const };
+      const packages = (snapshot.workflowKitPackages ?? []).filter((item) => item.source === source);
+      const effectiveId = packages.some((item) => item.id === selectedPackageId)
+        ? selectedPackageId : packages.find((item) => item.available)?.id || '';
+      const selected = packages.find((item) => item.id === effectiveId);
+      const kitVersion = (snapshot.workflowKitPackages ?? []).find((item) => item.source === 'bundled')?.version ?? installed.version;
+      return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
+        <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
+        <p class="subtle">安裝位置：{snapshot.groupRoot ?? '請先選擇 Group 工作目錄'}</p>
+        {installed.message && <p class="warning">{installed.message}</p>}
+        {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
+        <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
+        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 14 個 Skills。</p>}
+        {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
+        <button class="primary" type="button" disabled={!snapshot.groupRoot || !selected?.available || ['installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;
-    })}</div>
+    })()}
     </section>
-    <div class="drawer-footer"><span>Skill 安裝於 Group 工作區的 <code>.agents/skills/</code></span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查版本</button></div>
+    <div class="drawer-footer"><span>工作 Skills、Group 規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>
   </aside></div>;
 }
 

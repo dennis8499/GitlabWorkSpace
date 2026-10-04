@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir } from 'node:fs/promises';
+import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir, readdir, lstat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { GitLabApiError, type GitLabClient } from '../api/gitLabClient';
@@ -17,13 +17,13 @@ import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
 import { parseMergeReviewReport, validateReportIdentity, type MergeReviewIdentity } from './mergeReviewReport';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
-import { buildIssueDraftDescription, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
-import { isTool, isVersion, ToolPackageManager, TOOL_DEFINITIONS, TOOL_SOURCE_KEY } from './toolPackages';
+import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
+import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
-  BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledToolState, IssueDetailTab, IssueDraft,
-  CloneOperationState, IssueNavigation, MergeRequestDetail, RemoteToolSource, ToolId, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
+  BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
+  CloneOperationState, IssueNavigation, MergeRequestDetail, MeginWorkSummary, RemoteToolSource, ToolSource, WorkspaceMode, WorkspaceRequest, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
-import type { ToolPackage } from './toolPackages';
+import type { WorkflowKitPackage } from './toolPackages';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 
@@ -41,7 +41,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
   private readonly roots: GroupWorkspaceRegistry;
   private readonly timer: IssueTimeTracker;
-  private readonly packages: ToolPackageManager;
+  private readonly packages: WorkflowKitPackageManager;
   private interval?: NodeJS.Timeout;
   private timerVersion = 0;
   private issueGraphVersion = 0;
@@ -75,8 +75,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private selectedProjectId?: number;
   private activeMode: WorkspaceMode;
   private currentUser?: GitLabUser;
-  private toolStates: InstalledToolState[] = [];
-  private toolPackages: ToolPackage[] = [];
+  private workflowKitState: InstalledWorkflowKitState = { status: 'missing' };
+  private workflowKitPackages: WorkflowKitPackage[] = [];
+  private meginWorkItems: MeginWorkSummary[] = [];
   private busy = false;
   private repositoryOperationInProgress = false;
   private workspaceSelectionInProgress = false;
@@ -104,13 +105,14 @@ export class WorkspacePanel implements vscode.Disposable {
     this.timer = new IssueTimeTracker(context.globalState);
     const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
     if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
-      void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'gitea')).catch(() => undefined);
+      void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'bundled')).catch(() => undefined);
     }
     const offlineRoot = vscode.Uri.joinPath(context.extensionUri, 'resources', 'offline-tools');
-    this.packages = new ToolPackageManager(
+    this.packages = new WorkflowKitPackageManager(
       context.globalStorageUri.fsPath,
-      vscode.Uri.joinPath(offlineRoot, 'offline-tools.tar.xz').fsPath,
-      vscode.Uri.joinPath(offlineRoot, 'manifest.json').fsPath
+      vscode.Uri.joinPath(offlineRoot, 'workflow-kit.tar.xz').fsPath,
+      vscode.Uri.joinPath(offlineRoot, 'manifest.json').fsPath,
+      String(context.extension.packageJSON.version)
     );
     this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
     this.issuePanels.setWorkspace({
@@ -278,6 +280,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;
       case 'copyAndOpenCodex':
+        await this.assertWorkflowKitReady();
         await vscode.env.clipboard.writeText(request.text);
         await this.openCodexTerminal();
         this.post({ type: 'message', message: `提示詞已複製，Codex CLI 已開啟。請貼上提示詞執行，完成後將結果貼回「${request.returnTo}」。` });
@@ -301,7 +304,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'selectIssue': await this.selectIssue(request.projectId, request.issueIid); break;
       case 'openIssue': await this.openIssue(request.projectId, request.issueIid, request.tab); break;
       case 'createIssue': this.issueOpenGeneration++; await this.issuePanels.showCreate(); break;
-      case 'copy': await vscode.env.clipboard.writeText(request.text); this.post({ type: 'message', message: '已複製到剪貼簿，可貼入 Codex CLI。' }); break;
+      case 'copy': await this.assertWorkflowKitReady(); await vscode.env.clipboard.writeText(request.text); this.post({ type: 'message', message: '已複製到剪貼簿，可貼入 Codex CLI。' }); break;
       case 'importIssueDrafts': this.post({ type: 'draftBundle', bundle: parseIssueDraftBundle(request.json) }); break;
       case 'createIssueDrafts': await this.createDrafts(request.analysisId, request.drafts, request.options); break;
       case 'loadDraftOptions': await this.loadDraftOptions(request.projectId); break;
@@ -327,13 +330,14 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'prepareDelivery': await this.prepareDelivery(request); break;
       case 'commitDelivery': await this.commitDelivery(request.deliveryId); break;
+      case 'copyWikiUpdatePrompt': await this.copyWikiUpdatePrompt(request.deliveryId); break;
       case 'pushDelivery': await this.pushDelivery(request.deliveryId); break;
       case 'createDeliveryMergeRequest': await this.createDeliveryMergeRequest(request.deliveryId); break;
-      case 'setToolSource': await this.setToolSource(request.source); break;
-      case 'openToolDownload': await this.openToolDownload(request.tool, request.source); break;
-      case 'importToolPackage': await this.importToolPackage(request.tool, request.source); break;
-      case 'refreshTools': await this.refreshTools(); break;
-      case 'installTool': await this.installTool(request.tool, request.packageId); break;
+      case 'setWorkflowKitSource': await this.setWorkflowKitSource(request.source); break;
+      case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
+      case 'importWorkflowKitPackage': await this.importWorkflowKitPackage(request.source); break;
+      case 'refreshWorkflowKit': await this.refreshWorkflowKit(); break;
+      case 'installWorkflowKit': await this.installWorkflowKit(request.packageId); break;
       default: break;
     }
   }
@@ -382,13 +386,13 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       if (!this.session.baseUrl) {
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
+        this.meginWorkItems = [];
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
         this.localRepositoryScanGeneration++;
-        this.toolPackages = await this.packages.listPackages();
-        this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
+        await this.refreshWorkflowKit(false);
         this.sendSnapshot();
         return;
       }
@@ -425,13 +429,13 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
+        this.meginWorkItems = [];
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
         this.localRepositoryScanGeneration++;
-        this.toolPackages = await this.packages.listPackages();
-        this.toolStates = await this.packages.installedStates(undefined, this.toolPackages);
+        await this.refreshWorkflowKit(false);
         return;
       }
       const root = this.roots.getRoot(this.session.baseUrl, group.id);
@@ -511,8 +515,8 @@ export class WorkspacePanel implements vscode.Disposable {
           } catch { await this.context.globalState.update(this.selectedMergeRequestKey(), undefined); }
         }
       }
-      this.toolPackages = await this.packages.listPackages();
-      this.toolStates = await this.packages.installedStates(root, this.toolPackages);
+      this.meginWorkItems = root ? await readMeginWorkItems(root) : [];
+      await this.refreshWorkflowKit(false, root);
     } catch (error) {
       if (!signal.aborted) throw error;
     } finally {
@@ -991,10 +995,11 @@ export class WorkspacePanel implements vscode.Disposable {
       timerVersion: this.timerVersion,
       scopeEpoch: this.session.connectionEpoch,
       projectMembers: this.projectMembers,
-      tools: this.toolStates,
-      toolSource: this.toolSource(),
-      toolPackages: this.toolPackages.map(({ id, tool, version, source, assetName, format, entryRoot, available, error }) =>
-        ({ id, tool, version, source, assetName, format, entryRoot, available, error })),
+      workflowKit: this.workflowKitState,
+      workflowKitSource: this.workflowKitSource(),
+      workflowKitPackages: this.workflowKitPackages.map(({ id, version, source, assetName, format, entryRoot, available, error }) =>
+        ({ id, version, source, assetName, format, entryRoot, available, error })),
+      meginWorkItems: this.meginWorkItems,
       deliveryRecords: this.deliveryRecords()
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
@@ -1582,6 +1587,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async openMergeReviewTask(projectId: number, iid: number): Promise<void> {
+    await this.assertWorkflowKitReady();
     const root = this.meginGroupRoot();
     const { identity, request } = await this.liveReviewIdentity(projectId, iid);
     const client = await this.session.getClient();
@@ -1604,6 +1610,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async openGroupQuickReview(): Promise<void> {
+    await this.assertWorkflowKitReady();
     const root = this.meginGroupRoot();
     const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'git_review_context.py');
     if (!await exists(script) || !(await readFile(script, 'utf8')).includes('--group-root')) throw new Error('請先安裝支援 Group 審查的 MergeReviewer 0.5.0 以上。');
@@ -1847,6 +1854,51 @@ export class WorkspacePanel implements vscode.Disposable {
     } finally { await unlink(messageFile).catch(() => undefined); await rmdir(temporary).catch(() => undefined); }
   }
 
+  private async copyWikiUpdatePrompt(id: string): Promise<void> {
+    await this.assertWorkflowKitReady();
+    const record = this.requireDelivery(id);
+    if (!record.handoffSha256) throw new Error('交付紀錄缺少 Megin handoff 證據。');
+    const related = this.deliveryRecords().filter((item) => item.workId === record.workId && item.handoffSha256 === record.handoffSha256 && item.instanceScope === record.instanceScope);
+    if (!related.length || related.some((item) => item.state === 'preview' || item.instanceVerified === false)) {
+      throw new Error('所有核准 Repo 的本機交付都完成並保存後，才能建立 Wiki 更新任務。');
+    }
+    const handoff = await this.runMeginHandoff('inspect', record.workId, record.handoffSha256);
+    await this.validateWorkspaceHandoff(handoff);
+    if (handoff.state !== 'complete' || handoff.delivery?.completion_ok !== true) throw new Error('Megin 尚未確認所有核准 Repo 的本機交付完成。');
+    const commits = handoff.delivery.repositories;
+    if (commits.length !== handoff.repositories.length || commits.some((item) => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(item.feature_commit))) {
+      throw new Error('完成交接缺少有效的 Repo commit SHA。');
+    }
+    const evidence: Array<{ projectPath: string; repoPath: string; commit: string; changedPaths: string[] }> = [];
+    for (const item of handoff.repositories) {
+      const delivery = commits.find((entry) => entry.repo_path === item.repo_path);
+      if (!delivery) throw new Error(`Megin 完成交付缺少 Repo：${item.repo_path}`);
+      const project = this.requireGroupProject(item.gitlab_project_id);
+      evidence.push({ projectPath: project.path_with_namespace, repoPath: item.repo_path,
+        commit: delivery.feature_commit, changedPaths: item.staged.staged_paths });
+    }
+    const client = await this.session.getClient();
+    const issueProject = this.requireGroupProject(handoff.gitlab.issue_project_id);
+    const issue = await client.getIssue(handoff.gitlab.issue_project_id, handoff.gitlab.issue_iid);
+    const groupRoot = this.meginGroupRoot();
+    const prompt = buildPostDeliveryWikiUpdatePrompt({
+      groupRoot,
+      wikiPath: path.join(groupRoot, 'wiki'),
+      issue: { projectPath: issueProject.path_with_namespace, iid: issue.iid, webUrl: issue.web_url },
+      workId: handoff.work_id,
+      planVersion: handoff.plan_version,
+      acceptanceVersion: handoff.acceptance.version,
+      handoffSha256: handoff.handoff_sha256,
+      repositories: evidence,
+      changes: record.changes,
+      verification: record.tests,
+      checks: handoff.checks,
+      mergeStates: related.map((item) => ({ repoPath: item.repoPath, state: item.state, mergeRequestUrl: item.mergeRequestUrl }))
+    });
+    await vscode.env.clipboard.writeText(prompt);
+    this.post({ type: 'message', message: '已複製交付後 Wiki 更新任務；內容已包含 Work ID、Repo commit 與驗證證據。' });
+  }
+
   private async pushDelivery(id: string): Promise<void> {
     const record = this.requireDelivery(id);
     if (record.state !== 'committed') throw new Error('Commit 尚未完成，不能 Push。');
@@ -1972,102 +2024,111 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.context.globalState.update(MR_WRITES_KEY, entries.slice(0, 250));
   }
 
-  private toolSource(): ToolSource {
+  private workflowKitSource(): ToolSource {
     const source = this.context.globalState.get<unknown>(TOOL_SOURCE_KEY);
-    return source === 'github' || source === 'bundled' || source === 'gitea' ? source : 'gitea';
+    return source === 'github' || source === 'gitea' || source === 'bundled' ? source : 'bundled';
   }
 
-  private async setToolSource(source: ToolSource): Promise<void> {
-    if (!['gitea', 'github', 'bundled'].includes(source)) throw new Error('套件來源設定無效。');
+  private async assertWorkflowKitReady(): Promise<void> {
+    const root = this.meginGroupRoot();
+    await this.refreshWorkflowKit(false, root);
+    if (this.workflowKitState.status !== 'installed' && this.workflowKitState.status !== 'work-in-progress') {
+      throw new Error(this.workflowKitState.message ?? '請先從工具設定安裝或更新 GitLab Workspace 完整工作流程包。');
+    }
+  }
+
+  private async setWorkflowKitSource(source: ToolSource): Promise<void> {
+    if (!['gitea', 'github', 'bundled'].includes(source)) throw new Error('Invalid workflow kit source.');
     await this.context.globalState.update(TOOL_SOURCE_KEY, source);
-    await this.refreshTools();
+    await this.refreshWorkflowKit();
   }
 
-  private async refreshTools(): Promise<void> {
+  private workflowKitHelper(): string {
+    return vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'workflow-kit-installer.py').fsPath;
+  }
+
+  private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000): Promise<Record<string, unknown>> {
+    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+    const python = await resolvePythonRuntime(pythonPath);
+    const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
+      cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
+    });
+    const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
+    if (value.ok !== true) throw new Error(typeof value.error === 'string' ? value.error : 'Workflow kit operation was not confirmed.');
+    return value;
+  }
+
+  private async refreshWorkflowKit(publish = true, selectedRoot?: string): Promise<void> {
     const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    this.toolPackages = await this.packages.listPackages();
-    this.toolStates = await this.packages.installedStates(root, this.toolPackages);
-    this.sendSnapshot();
+    const root = selectedRoot ?? (this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined);
+    this.workflowKitPackages = await this.packages.listPackages();
+    if (!root) {
+      this.workflowKitState = { status: 'missing' };
+    } else {
+      try {
+        const response = await this.runWorkflowKitHelper(['status', root, '--expected-version', String(this.context.extension.packageJSON.version)], 60_000);
+        const valid = ['installed', 'missing', 'update-available', 'work-in-progress', 'needs-cleanup', 'error'].includes(String(response.status));
+        this.workflowKitState = valid ? {
+          status: response.status as InstalledWorkflowKitState['status'],
+          version: typeof response.version === 'string' ? response.version : undefined,
+          source: response.source === 'bundled' || response.source === 'gitea' || response.source === 'github' ? response.source : undefined,
+          message: typeof response.message === 'string' ? response.message : undefined,
+          legacyPaths: Array.isArray(response.legacyPaths) ? response.legacyPaths.filter((item): item is string => typeof item === 'string') : undefined
+        } : { status: 'error', message: 'Workflow kit status response is invalid.' };
+      } catch (error) {
+        this.workflowKitState = { status: 'error', message: readableError(error) };
+      }
+    }
+    if (publish) this.sendSnapshot();
   }
 
-  private async openToolDownload(tool: ToolId, source: RemoteToolSource): Promise<void> {
-    if (!isTool(tool) || (source !== 'gitea' && source !== 'github')) throw new Error('下載來源無效。');
-    const definition = TOOL_DEFINITIONS[tool];
-    const url = source === 'gitea' ? definition.giteaReleaseUrl : definition.githubReleaseUrl;
-    await vscode.env.openExternal(vscode.Uri.parse(url));
+  private async openWorkflowKitDownload(source: RemoteToolSource): Promise<void> {
+    if (source !== 'gitea' && source !== 'github') throw new Error('Invalid download source.');
+    await vscode.env.openExternal(vscode.Uri.parse(WORKFLOW_KIT_RELEASES[source]));
   }
 
-  private async importToolPackage(tool: ToolId, source: RemoteToolSource): Promise<void> {
-    if (!isTool(tool) || (source !== 'gitea' && source !== 'github')) throw new Error('匯入來源無效。');
+  private async importWorkflowKitPackage(source: RemoteToolSource): Promise<void> {
+    if (source !== 'gitea' && source !== 'github') throw new Error('Invalid import source.');
     const selection = await vscode.window.showOpenDialog({
       canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-      openLabel: '匯入 Release ZIP',
-      filters: { 'ZIP 封裝': ['zip'] }
+      openLabel: 'Import workflow kit ZIP', filters: { 'Workflow kit ZIP': ['zip'] }
     });
     const archive = selection?.[0];
     if (!archive) return;
-    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-    const python = await resolvePythonRuntime(pythonPath);
-    const helper = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'tool-installer.py').fsPath;
-    let inspected: { ok?: boolean; tool?: string; detected_version?: string | null; sha256?: string; error?: string };
-    try {
-      const result = await execFileAsync(python.executable, [...python.args, helper, 'inspect', tool, archive.fsPath], {
-        cwd: this.context.extensionUri.fsPath, env: python.env, timeout: 3 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true
-      });
-      inspected = parseLastJsonLine(result.stdout) as typeof inspected;
-    } catch (error) {
-      throw new Error(`ZIP 驗證失敗：${readableError(error)}`);
+    const inspected = await this.runWorkflowKitHelper(['inspect', archive.fsPath, '--format', 'zip', '--expected-version', String(this.context.extension.packageJSON.version)], 3 * 60_000);
+    if (inspected.package !== 'gitlab-workspace-kit' || inspected.version !== this.context.extension.packageJSON.version ||
+      typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
+      throw new Error(typeof inspected.error === 'string' ? inspected.error : 'The ZIP does not match this workflow kit version.');
     }
-    if (inspected.ok !== true || inspected.tool !== tool || typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
-      throw new Error(typeof inspected.error === 'string' ? inspected.error : 'ZIP 驗證器未確認套件內容。');
-    }
-    let version = isVersion(inspected.detected_version) ? inspected.detected_version : undefined;
-    if (!version) {
-      version = await vscode.window.showInputBox({
-        title: `輸入 ${tool} 套件版本`,
-        prompt: '此 ZIP 沒有可辨識的版本資訊，請依 Release 標籤輸入 x.y.z。',
-        placeHolder: '1.2.3',
-        ignoreFocusOut: true,
-        validateInput: (value) => isVersion(value) ? undefined : '版本需使用 x.y.z 格式。'
-      });
-      if (!version) return;
-    }
-    await this.packages.importPackage({
-      tool, version, source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath, verifiedSha256: inspected.sha256.toLowerCase()
+    const selected = await this.packages.importPackage({
+      version: String(inspected.version), source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath,
+      verifiedSha256: inspected.sha256.toLowerCase()
     });
-    await this.refreshTools();
-    this.post({ type: 'message', message: `${tool} v${version} ZIP 已保存至 VS Code 持久套件庫，可離線安裝。` });
+    await this.refreshWorkflowKit();
+    this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} saved for offline installation.` });
   }
 
-  private async installTool(tool: ToolId, packageId: string): Promise<void> {
-    if (!isTool(tool)) throw new Error('不支援此工具。');
-    if (typeof packageId !== 'string' || !packageId) throw new Error('請先從套件選單選擇要安裝的版本。');
+  private async installWorkflowKit(packageId: string): Promise<void> {
+    if (typeof packageId !== 'string' || !packageId) throw new Error('Select a workflow kit version first.');
     const group = this.session.selectedGroup;
     const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!root) throw new Error('請先選擇非 Git Group 工作目錄。');
-    this.toolStates = [...this.toolStates.filter((item) => item.tool !== tool), { tool, status: 'installing' }];
+    if (!root) throw new Error('Select a non-Git Group workspace first.');
+    this.workflowKitState = { ...this.workflowKitState, status: 'installing' };
     this.sendSnapshot();
     try {
-      const picked = await this.packages.getPackage(tool, packageId);
-      const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-      const python = await resolvePythonRuntime(pythonPath);
-      const helper = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'tool-installer.py').fsPath;
-      const args = [python.executable, ...python.args, helper, tool, picked.archivePath, root, picked.version, picked.source,
-        '--format', picked.format, '--entry-root', picked.entryRoot, '--archive-sha256', picked.sha256];
-      const progress = vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `安裝 ${tool} v${picked.version}`, cancellable: false }, async () => {
-        const result = await execFileAsync(args[0], args.slice(1), { cwd: root, env: python.env, timeout: 10 * 60_000, maxBuffer: 1024 * 1024, windowsHide: true })
-          .catch((error: unknown) => { throw new Error(`工具安裝失敗：${readableError(error)}`); });
-        const payload = parseLastJsonLine(result.stdout);
-        if (payload.ok !== true) throw new Error(typeof payload.error === 'string' ? payload.error : '工具安裝器未確認安裝結果。');
-      });
-      await progress;
-      this.post({ type: 'message', message: `${tool} v${picked.version} 已安裝於 ${root}。` });
-      await this.refreshTools();
+      const selected = await this.packages.getPackage(packageId);
+      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
+        title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, () =>
+        this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
+          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256]));
+      if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version) throw new Error('The installer returned an unexpected package identity.');
+      this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });
     } catch (error) {
-      this.toolStates = [...this.toolStates.filter((item) => item.tool !== tool), { tool, status: 'error', message: readableError(error) }];
+      this.workflowKitState = { status: 'error', message: readableError(error) };
       this.sendSnapshot();
       throw error;
+    } finally {
+      await this.refreshWorkflowKit();
     }
   }
 
@@ -2170,4 +2231,48 @@ function parseLastJsonLine(output: string): Record<string, unknown> {
     } catch { /* skip non-JSON installer output */ }
   }
   throw new Error('工具檢查器沒有回傳可驗證的 JSON 結果。');
+}
+
+async function readMeginWorkItems(groupRoot: string): Promise<MeginWorkSummary[]> {
+  const workRoot = path.join(groupRoot, 'docs', 'work');
+  let entries: import('node:fs').Dirent[];
+  try { entries = await readdir(workRoot, { withFileTypes: true }); }
+  catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  }
+  if (entries.length > 5000) return [];
+  const result: MeginWorkSummary[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^work-[A-Za-z0-9._-]{1,120}$/.test(entry.name)) continue;
+    const directory = path.join(workRoot, entry.name);
+    const workflow = path.join(directory, 'workflow.md');
+    try {
+      const directoryInfo = await lstat(directory);
+      const fileInfo = await lstat(workflow);
+      if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink() || !fileInfo.isFile() || fileInfo.isSymbolicLink() || fileInfo.size > 1024 * 1024) continue;
+      const text = await readFile(workflow, 'utf8');
+      const field = (names: string[]): string | undefined => {
+        const match = text.match(new RegExp(`^\\s*-?\\s*(?:${names.join('|')})\\s*:\\s*(.*?)\\s*$`, 'im'));
+        return match?.[1]?.trim().replace(/^([`"'])(.*)\1$/, '$2');
+      };
+      const status = field(['status'])?.toLocaleLowerCase('en-US') ?? 'unknown';
+      const issueProjectId = Number(field(['issue_project_id', 'gitlab_project_id', 'project_id']));
+      const issueIid = Number(field(['issue_iid', 'gitlab_issue_iid', 'issue_number']));
+      const issue = field(['issue_url', 'gitlab_issue_url', 'issue']);
+      const issueMatch = issue?.match(/https?:\/\/[^/]+\/(.+)\/(?:-\/)?issues\/([1-9]\d*)$/i);
+      const parsed: MeginWorkSummary = {
+        workId: entry.name,
+        status,
+        planVersion: field(['plan_version']),
+        issueProjectId: Number.isSafeInteger(issueProjectId) && issueProjectId > 0 ? issueProjectId : undefined,
+        issueIid: Number.isSafeInteger(issueIid) && issueIid > 0 ? issueIid : issueMatch ? Number(issueMatch[2]) : undefined,
+        projectPath: field(['issue_project_path', 'gitlab_project_path', 'project_path']) ?? issueMatch?.[1]
+      };
+      result.push(parsed);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+  }
+  return result.sort((a, b) => (a.status === 'complete' ? 1 : 0) - (b.status === 'complete' ? 1 : 0) || a.workId.localeCompare(b.workId));
 }

@@ -51,6 +51,9 @@ function snapshot(activeMode = 'developer') {
     connectedScope: 'team-scope',
     projectMembers: [],
     timers: [],
+    workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
+    workflowKitPackages: [{ id: 'bundled-0.9.0', version: '0.9.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
+    workflowKitSource: 'bundled',
     tools: [],
     toolSource: 'gitea',
     deliveryRecords: [],
@@ -100,18 +103,17 @@ async function mount(initialState, initialSnapshot) {
   };
 }
 
-test('renders and uses the Wiki guide offline with validated prompts, clipboard feedback, and saved inputs', async (t) => {
-  const disconnected = snapshot('sa');
-  Object.assign(disconnected, {
-    connected: false, baseUrl: undefined, currentUser: undefined, group: undefined, groups: [], groupRoot: undefined,
-    projects: [], issues: [], mergeRequests: [], instanceUserScope: undefined, connectedScope: undefined, activeMode: 'sa'
-  });
-  const view = await mount({ mode: 'sa' }, disconnected);
+test('renders and uses the installed Group Wiki guide with validated prompts and saved inputs', async (t) => {
+  const selectedGroup = snapshot('sa');
+  selectedGroup.localRepositories = { 1: { state: 'ready', path: 'C:/workspace/team/alpha' } };
+  const view = await mount({ mode: 'sa' }, selectedGroup);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.page-heading h1').textContent, 'Codebase LLM Wiki');
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 13);
   assert.ok(document.querySelector('.wiki-guide-notice'));
+  assert.equal(document.querySelector('[aria-label="複製安裝／設定提示詞"]'), null);
+  assert.match(document.querySelector('[id="wiki-card-title-install"]').closest('.wiki-guide-card').textContent, /開啟整包安裝與更新/);
 
   const query = document.querySelector('[id="wiki-input-query.question"]');
   const copy = document.querySelector('[aria-label="複製查詢 Wiki提示詞"]');
@@ -143,6 +145,9 @@ test('renders and uses the Wiki guide offline with validated prompts, clipboard 
   assert.ok(preview);
   preview.open = true;
   assert.ok(preview.textContent.includes(query.value));
+  assert.match(preview.textContent, /實際 Group 工作區：C:\/workspace\/team/);
+  assert.match(preview.textContent, /工作流程包版本：0\.9\.0/);
+  assert.match(preview.textContent, /team\/alpha → C:\/workspace\/team\/alpha/);
 
   document.querySelector('.wiki-guide-intro button').click();
   await view.tick();
@@ -153,6 +158,7 @@ test('renders and uses the Wiki guide offline with validated prompts, clipboard 
   const request = view.requests.at(-1);
   assert.equal(request.type, 'copy');
   assert.ok(request.text.includes(query.value));
+  assert.match(request.text, /team\/alpha → C:\/workspace\/team\/alpha/);
   view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: { type: 'message', message: '已複製到剪貼簿，可貼入 Codex CLI。' } }));
   await view.tick();
   assert.match(document.querySelector('.toast').textContent, /已複製到剪貼簿/);
@@ -166,9 +172,9 @@ test('renders and uses the Wiki guide offline with validated prompts, clipboard 
   document.querySelectorAll('.mode-button')[2].click();
   await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, query.value);
-  assert.equal(view.savedState.wikiGuideInputsByScope.offline['query.question'], query.value);
+  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], query.value);
 
-  const reopened = await mount(view.savedState, disconnected);
+  const reopened = await mount(view.savedState, selectedGroup);
   t.after(() => reopened.dom.window.close());
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-query.question"]').value, query.value);
 });
@@ -197,6 +203,21 @@ test('keeps Wiki guide inputs separate for each selected Group', async (t) => {
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A 的問題');
   assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], 'Team A 的問題');
   assert.equal(view.savedState.wikiGuideInputsByScope['another-group-scope']['query.question'], 'Team B 的問題');
+});
+
+test('blocks copied Wiki tasks until the Group directory and complete workflow kit are ready', async (t) => {
+  const state = snapshot('sa');
+  state.groupRoot = undefined;
+  state.workflowKit = { status: 'missing' };
+  const view = await mount({ mode: 'sa' }, state);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const query = document.querySelector('[id="wiki-input-query.question"]');
+  query.value = 'How does retry work?';
+  query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelector('[aria-label="複製查詢 Wiki提示詞"]').disabled, true);
+  assert.match(document.querySelector('.wiki-guide-intro').textContent, /檢查完整工作流程包已安裝/);
 });
 
 test('filters by the selected Issue Board, saves its ID, and hides previous Board content during a switch', async (t) => {

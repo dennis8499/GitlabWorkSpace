@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, wikiGuideCards
+  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, wikiGuideCards
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
@@ -12,10 +12,11 @@ test('defines the complete offline Codebase LLM Wiki guide and working default s
   ]);
 
   const defaults = createDefaultWikiGuideInputs();
-  assert.equal(defaults['install.operation'], '安裝');
+  assert.equal(defaults['install.operation'], undefined);
   assert.equal(defaults['ingest.mode'], '互動');
   assert.equal(defaults['lint.operation'], '品質檢查');
   assert.equal(defaults['notebooklm-export.root'], '.');
+  assert.equal(wikiGuideCards.find((card) => card.id === 'install')!.fields.length, 0);
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, defaults), false);
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'notebooklm-export')!, defaults), true);
 });
@@ -24,14 +25,13 @@ test('builds prompts from required values while retaining Unicode, spaced paths,
   const defaults = createDefaultWikiGuideInputs();
   const inputs = {
     ...defaults,
-    'install.target': 'C:\\workspace with spaces\\my-repo',
     'query.question': '退款 API 如何處理逾時？\n需要指出設定檔和呼叫路徑。',
     'audit.scope': 'src/payments'
   };
 
-  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, inputs), true);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, inputs), false);
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'query')!, inputs), true);
-  assert.match(buildWikiGuidePrompt('install', inputs), /C:\\workspace with spaces\\my-repo/);
+  assert.match(buildWikiGuidePrompt('install', inputs), /工具抽屜的一張套件卡/);
   assert.ok(buildWikiGuidePrompt('query', inputs).includes(inputs['query.question']));
   assert.match(buildWikiGuidePrompt('audit', inputs), /wiki\/synthesis\/code-audit\.md/);
 });
@@ -56,13 +56,28 @@ test('preserves the selected Wiki authorization policy in generated prompts', ()
 
   const batchInputs = { ...inputs, 'ingest.mode': '批次' };
   assert.match(buildWikiGuidePrompt('ingest', batchInputs), /Batch Ingest/);
-  assert.match(buildWikiGuidePrompt('install', { ...inputs, 'install.target': 'repo', 'install.operation': '升級' }), /升級/);
+  assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, inputs), false);
   assert.match(buildWikiGuidePrompt('lint', { ...inputs, 'lint.operation': '重建索引' }), /重建 wiki\/index\.md/);
   assert.match(buildWikiGuidePrompt('adr', inputs), /改採事件佇列/);
   assert.match(buildWikiGuidePrompt('synthesis', inputs), /付款重試/);
   assert.match(buildWikiGuidePrompt('business-analysis', inputs), /整體系統/);
   assert.match(buildWikiGuidePrompt('system-analysis', inputs), /solution-neutral/);
   assert.match(buildWikiGuidePrompt('system-design', inputs), /architecture views/);
+});
+
+test('adds the selected Group, spaced Windows paths, Repo mapping and installed kit version to copied prompts', () => {
+  const context = buildWikiGuideContext({
+    groupRoot: 'C:\\workspace with spaces\\測試 Group',
+    workflowKitVersion: '0.9.0',
+    repositories: [
+      { namespace: 'team/付款服務', localPath: '付款 服務' },
+      { namespace: 'team/未 Clone', localPath: undefined }
+    ]
+  });
+  assert.match(context, /C:\\workspace with spaces\\測試 Group/);
+  assert.match(context, /工作流程包版本：0\.9\.0/);
+  assert.match(context, /team\/付款服務 → 付款 服務/);
+  assert.match(context, /team\/未 Clone（尚未 Clone）/);
 });
 
 test('rejects unknown guide cards instead of copying an empty prompt', () => {
