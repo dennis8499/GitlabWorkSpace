@@ -20,7 +20,7 @@
 - 以「我的工作、專案、分析、待審查」導覽，集中處理目前任務與下一步。
 - 查看指派給自己的未結案 Issue；建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析」查看內附 Codebase LLM Wiki 0.3.0 的預設功能，填入參數、預覽並複製 Codex 提示詞。
+- 在「分析」查看內附 Codebase LLM Wiki 0.3.0 的 13 張功能卡，填入參數、預覽並複製 Codex 提示詞。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從工具管理抽屜安裝 Codebase LLM Wiki、Megin 與 MergeReviewer。內網 Gitea 為預設下載入口，也可選擇 GitHub 或 VSIX 內附離線包；Release ZIP 由使用者下載、匯入並選擇安裝。
@@ -30,7 +30,7 @@
 ## 需求
 
 - VS Code 1.90.0 或更新版本。
-- Git 已安裝且可從 `PATH` 執行；只有複製儲存庫時需要 Git。
+- Git 已安裝且可從 `PATH` 執行；下載／同步 Repo 與 Group 開發交付均需要 Git。
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 - Python 3.11+；匯入 ZIP、檢查及安裝工具時需要，可在 VS Code 設定 `gitlabWorkspace.pythonPath` 指定直譯器路徑。
