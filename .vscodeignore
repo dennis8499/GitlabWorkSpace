@@ -26,3 +26,4 @@ resources/issue-webview/index.html
 resources/issue-webview/issue-test.*
 resources/tool-installer.py
 resources/offline-tools/sources/**
+resources/offline-tools/offline-tools.tar.xz
