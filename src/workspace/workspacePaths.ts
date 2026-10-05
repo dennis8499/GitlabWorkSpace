@@ -58,37 +58,45 @@ function uniquePaths(paths: readonly string[], platform: NodeJS.Platform): strin
 export async function scanLocalGroupRepositories(root: string): Promise<LocalGroupRepository[]> {
   const rootPath = await realpath(root);
   const entries = await readdir(rootPath, { withFileTypes: true });
-  const repositories: LocalGroupRepository[] = [];
+  const candidates: Array<{ name: string; path: string }> = [];
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
     const repositoryPath = path.join(rootPath, entry.name);
     let marker;
-    try { marker = await lstat(path.join(repositoryPath, '.git')); }
+    try { marker = await lstat(path.join(repositoryPath, ".git")); }
     catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      if (error && typeof error === "object" && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
     }
     if (marker.isSymbolicLink() || (!marker.isDirectory() && !marker.isFile())) continue;
-
-    try {
-      const result = await execFileAsync('git', ['-C', repositoryPath, 'rev-parse', '--show-toplevel'], {
-        windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-      });
-      const gitRoot = await realpath(result.stdout.trim());
-      const actualPath = await realpath(repositoryPath);
-      if (sameLocalPath(gitRoot, actualPath)) repositories.push({ name: entry.name, path: actualPath });
-    } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT') throw new Error('找不到 Git，無法確認本機 Repo。');
-        if (typeof code === 'number') continue;
-      }
-      throw new Error(`無法確認本機 Repo「${entry.name}」。`);
-    }
+    candidates.push({ name: entry.name, path: repositoryPath });
   }
-  return repositories.sort((first, second) => first.name.localeCompare(second.name, 'en-US', { sensitivity: 'base' }));
+  const repositories = new Array<LocalGroupRepository | undefined>(candidates.length);
+  let nextCandidate = 0;
+  await Promise.all(Array.from({ length: Math.min(4, candidates.length) }, async () => {
+    while (nextCandidate < candidates.length) {
+      const index = nextCandidate++;
+      const candidate = candidates[index];
+      try {
+        const result = await execFileAsync("git", ["-C", candidate.path, "rev-parse", "--show-toplevel"], {
+          windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
+        });
+        const gitRoot = await realpath(result.stdout.trim());
+        const actualPath = await realpath(candidate.path);
+        if (sameLocalPath(gitRoot, actualPath)) repositories[index] = { name: candidate.name, path: actualPath };
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "ENOENT") throw new Error("Git could not be found while scanning local Repos.");
+          if (typeof code === "number") continue;
+        }
+        throw new Error("Could not inspect local Repo: " + candidate.name);
+      }
+    }
+  }));
+  return repositories.filter((repository): repository is LocalGroupRepository => !!repository)
+    .sort((first, second) => first.name.localeCompare(second.name, "en-US", { sensitivity: "base" }));
 }
-
 export async function inspectWorkspaceFolder(
   folderPath: string,
   projects: readonly GitLabProject[],

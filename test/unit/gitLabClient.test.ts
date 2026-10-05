@@ -258,6 +258,6 @@ test('passes cancellation signals to read requests and never to GraphQL mutation
   await readClient.graphql('mutation WriteCheck { updateIssue }', {});
   await readClient.createIssue(42, { title: 'Created' });
 
-  assert.deepEqual(calls.map((call) => call.signal === controller.signal), [true, true, true, false, false]);
+  assert.deepEqual(calls.map((call) => !!call.signal), [true, true, true, false, false]);
   assert.equal(successfulWrites, 2);
 });

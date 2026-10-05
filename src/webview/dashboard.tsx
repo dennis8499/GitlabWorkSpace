@@ -5,12 +5,13 @@ import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/type
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type {
   AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
-  CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot, WorkspaceTimerEntry
+  CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
 import { IssueGraphView } from './IssueGraph';
 import type { GraphCamera, GraphPosition } from './IssueGraph';
-import { issueGraphNodeKey, selectIssueGraph } from '../workspace/issueGraph';
+import { applyIssueGraphPatch, issueGraphNodeKey, selectIssueGraph } from '../workspace/issueGraph';
+import { VirtualRows } from './VirtualRows';
 import { IssueView } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import { createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, type WikiGuideInputValues } from './codebaseWikiGuideData';
@@ -183,6 +184,21 @@ function BranchStatus({ state, behindBy }: { state: string; behindBy?: number })
     behind: `落後 ${behindBy ?? 0} 個提交`, unknown: '無法確認'
   };
   return <span class={`branch-status ${state}`} role="status">{labels[state] ?? '無法確認'}</span>;
+}
+
+function WorkspaceSectionNotice({ section, label, status, onRetry }: {
+  section: WorkspaceSection;
+  label: string;
+  status?: WorkspaceSectionState;
+  onRetry: () => void;
+}) {
+  if (!status || status.status === 'ready' || status.status === 'idle') return null;
+  const failed = status.status === 'error';
+  const unsupported = status.status === 'unsupported';
+  return <div class={`section-status ${failed ? 'error' : ''}`} role={failed ? 'alert' : 'status'}>
+    <span>{unsupported ? `${label}目前不受此 GitLab 版本支援。` : failed ? `${label}載入失敗：${status.error ?? '未知錯誤'}` : `${label}載入中…`}</span>
+    {failed && <button class="quiet small" type="button" onClick={onRetry}>重試</button>}
+  </div>;
 }
 
 function App() {
@@ -372,7 +388,8 @@ function App() {
             ...(message.snapshot.timerVersion !== undefined && message.snapshot.timerVersion < timerVersionRef.current
               ? { timers: current.timers, timerVersion: current.timerVersion } : {}),
             ...(message.snapshot.issueGraphVersion !== undefined && message.snapshot.issueGraphVersion < issueGraphVersionRef.current
-              ? { issueGraph: current.issueGraph, issueGraphVersion: current.issueGraphVersion } : {})
+              ? { issueGraph: current.issueGraph, issueGraphVersion: current.issueGraphVersion }
+              : message.snapshot.issueGraph === undefined && current.issueGraph ? { issueGraph: current.issueGraph } : {})
           };
         });
         const operation = message.snapshot.connectedScope && message.snapshot.cloneOperation?.scopeKey === message.snapshot.connectedScope ? message.snapshot.cloneOperation : undefined;
@@ -395,6 +412,12 @@ function App() {
         issueGraphVersionRef.current = message.version;
         setSnapshot((current) => current?.connectedScope === message.connectedScope
           ? { ...current, issueGraph: message.graph, issueGraphVersion: message.version }
+          : current);
+      } else if (message.type === 'issueGraphPatch') {
+        if (message.connectedScope !== scopeRef.current || message.version <= issueGraphVersionRef.current) return;
+        issueGraphVersionRef.current = message.version;
+        setSnapshot((current) => current && current.connectedScope === message.connectedScope && current.issueGraph
+          ? { ...current, issueGraph: applyIssueGraphPatch(current.issueGraph, message), issueGraphVersion: message.version }
           : current);
       } else if (message.type === 'issueRelations') {
         if (message.connectedScope !== scopeRef.current) return;
@@ -480,11 +503,15 @@ function App() {
 
   useEffect(() => {
     const connectedScope = snapshot?.connectedScope;
-    if (mode !== 'developer' || developerView !== 'graph' || !connectedScope) return;
-    if (snapshot?.issueGraph?.connectedScope === connectedScope || issueGraphRequestedScopesRef.current.has(connectedScope)) return;
+    if (!connectedScope) return;
+    const visible = mode === 'developer' && developerView === 'graph';
+    post({ type: 'setIssueGraphVisibility', connectedScope, visible });
+    if (!visible) return;
+    if (snapshot?.issueGraph?.connectedScope === connectedScope && snapshot.sections?.graph?.status !== 'idle') return;
+    if (issueGraphRequestedScopesRef.current.has(connectedScope)) return;
     issueGraphRequestedScopesRef.current.add(connectedScope);
     post({ type: 'loadIssueGraph', connectedScope });
-  }, [mode, developerView, snapshot?.connectedScope, snapshot?.issueGraph?.connectedScope]);
+  }, [mode, developerView, snapshot?.connectedScope, snapshot?.issueGraph?.connectedScope, snapshot?.sections?.graph?.status]);
 
   useEffect(() => {
     if (graphBoardId === 'all' || !issueBoards.length || issueBoards.some((board) => board.id === graphBoardId)) return;
@@ -537,6 +564,12 @@ function App() {
   }
   const selectedMr = snapshot?.selectedMergeRequest;
   const mr = selectedMr?.request;
+  useEffect(() => {
+    if (!selectedMr || !mr || reviewerTab === 'report') return;
+    const section = reviewerTab === 'changes' ? 'diffs' : 'discussions';
+    const status = selectedMr.sections?.[section]?.status;
+    if (status === 'idle' || status === 'error') post({ type: 'loadMergeRequestSection', section, projectId: mr.project_id, iid: mr.iid });
+  }, [reviewerTab, mr?.project_id, mr?.iid, selectedMr?.sections?.diffs?.status, selectedMr?.sections?.discussions?.status]);
   const currentSha = selectedMr?.sourceSha ?? mr?.diff_refs?.head_sha ?? mr?.sha ?? '';
   const currentMrKey = mr ? mrKey(mr.project_id, mr.iid) : '';
   const currentReport = reports[currentMrKey] ?? { text: '', sha: '' };
@@ -732,7 +765,14 @@ function App() {
       <section class="page" role="tabpanel">
         {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
         {snapshot.connected && snapshot.instance?.warnings.length ? <div class="alert subtle" role="status"><strong>GitLab {snapshot.instance.version ?? '版本未知'}</strong><ul>{snapshot.instance.warnings.map((warning) => <li>{warning}</li>)}</ul></div> : null}
-        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
+        {snapshot.connectedScope && mode === 'clone' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
+        {snapshot.connectedScope && mode === 'developer' && <>
+          <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
+          {developerView === 'list' && <WorkspaceSectionNotice section="boards" label="Issue Board" status={snapshot.sections?.boards} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'boards', connectedScope: snapshot.connectedScope! })} />}
+          {developerView === 'list' && <WorkspaceSectionNotice section="milestones" label="Milestone" status={snapshot.sections?.milestones} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'milestones', connectedScope: snapshot.connectedScope! })} />}
+          {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={() => snapshot.connectedScope && post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope })} />}
+        </>}
+        {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
           <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
@@ -744,12 +784,12 @@ function App() {
             : mode === 'git' ? <GitControlPanel post={post} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || !!snapshot.busy} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
-                <div class="repo-list">{visibleProjects.map((project) => {
+                {visibleProjects.length ? <VirtualRows className="repo-list" items={visibleProjects} itemKey={(project) => project.id} estimateHeight={58} renderItem={(project) => {
                   const local = snapshot.localRepositories[project.id];
                   return <div class="repo-row"><input type="checkbox" checked={selectedProjectIds.includes(project.id)} disabled={!!snapshot.busy} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
                     <span class="repo-details"><strong>{project.path_with_namespace}</strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
                     <span class={`pill ${local?.state === 'ready' ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
-                })}{!visibleProjects.length && <p class="empty-inline">找不到符合條件的 Repo。</p>}</div>
+                }} /> : <div class="repo-list">{!visibleProjects.length && <p class="empty-inline">找不到符合條件的 Repo。</p>}</div>}
                 {cloneOperation && cloneOperation.scopeKey === snapshot.connectedScope && <section class="operation-results" aria-label="下載與更新結果">
                   <div class="operation-heading"><strong>{cloneOperation.label}</strong><span class="count" role="status" aria-live="polite" aria-atomic="true">{cloneOperation.phase === 'running' ? `處理中 ${completedOperationCount}/${cloneOperation.items.length}${activeOperationItem ? ` - ${activeOperationItem.projectPath}` : ''}` : cloneOperation.phase === 'cancelled' ? `已取消: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個; 未完成項目保留選取` : cloneOperation.phase === 'failed' ? `處理中斷: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個` : `處理完成: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個`}</span></div>
                   <div class="operation-item-list" aria-live="off">{cloneOperation.items.map((item) => {
@@ -808,13 +848,13 @@ function App() {
               </div> : <div class="mode-content">
                 <div class="list-column">
                   <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
-                  <div class="work-list">{visibleIssues.map((issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>)}
+                  <VirtualRows className="work-list" items={visibleIssues} itemKey={(issue) => issue.project_id + ':' + issue.iid} estimateHeight={92} renderItem={(issue) => <button type="button" class={`work-row ${selectedIssue?.project_id === issue.project_id && selectedIssue.iid === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>} />
                     {!visibleIssues.length && <div class="empty-inline" role={snapshot.error || issueBoardId !== 'all' && issueBoardContentError ? 'alert' : 'status'}>
                       <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardId !== 'all' && issueBoardContentError ? 'Issue Board 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : issueBoardContentLoading ? '正在載入 Board 內容' : issueBoardId !== 'all' && !issueBoardContentReady ? '正在準備 Issue Board' : issueBoardId === 'all' ? '目前沒有指派給你的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
                       <p>{snapshot.error ?? (issueBoardId !== 'all' && issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試，或切回全部 Issue。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : issueBoardId === 'all' ? '目前選定的 Group 沒有指派給你的 Issue。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
                       {issueBoardId !== 'all' && issueBoardContentError && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}
                     </div>}
-                  </div>
+
                 </div><article class="detail-column issue-detail">{selectedIssue && selectedIssueProject ? <>
                   <div class="panel-title"><div><span class="eyebrow">{selectedIssueProject.path_with_namespace} #{selectedIssue.iid}</span><h2>{selectedIssue.title}</h2></div><span class={`state ${selectedIssue.state}`}>{selectedIssue.state === 'closed' ? '已結案' : '未結案'}</span></div>
                   <p class="issue-description">{selectedIssue.description || '此 Issue 尚無描述。'}</p>
@@ -825,7 +865,7 @@ function App() {
             </div>
             : <div class="mode-content reviewer-layout"><div class="list-column"><div class="filter-tabs"><button class={reviewFilter === 'all' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('all')}>全部</button><button class={reviewFilter === 'reviewer' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('reviewer')}>指定我為 Reviewer</button><button class={reviewFilter === 'assigned' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('assigned')}>指派給我</button></div>
                 <div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 MR" placeholder="MR、Repo、分支…" value={filters.reviewer ?? ''} onInput={(event) => setFilter('reviewer', event.currentTarget.value)} /></label><span class="count">{visibleMrs.length}</span></div>
-                <div class="work-list">{visibleMrs.map((item) => <button type="button" class={`work-row ${mr?.project_id === item.project_id && mr.iid === item.iid ? 'selected' : ''}`} onClick={() => selectMergeRequest(item)}><span class="row-title">!{item.iid}　{item.title}</span><span class="row-meta">{projectById.get(item.project_id)?.path_with_namespace} · {item.author?.name ?? '未知作者'}</span><span class="branch-pair">{item.source_branch} → {item.target_branch}</span><span class="row-meta">Pipeline：{item.head_pipeline?.status ?? '未設定'}</span></button>)}</div>
+                <VirtualRows className="work-list" items={visibleMrs} itemKey={(item) => item.project_id + ':' + item.iid} estimateHeight={112} renderItem={(item) => <button type="button" class={`work-row ${mr?.project_id === item.project_id && mr.iid === item.iid ? 'selected' : ''}`} onClick={() => selectMergeRequest(item)}><span class="row-title">!{item.iid}　{item.title}</span><span class="row-meta">{projectById.get(item.project_id)?.path_with_namespace} · {item.author?.name ?? '未知作者'}</span><span class="branch-pair">{item.source_branch} → {item.target_branch}</span><span class="row-meta">Pipeline：{item.head_pipeline?.status ?? '未設定'}</span></button>} />
               </div><article class="detail-column reviewer-detail">{selectedMr && mr ? <>
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
                 <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>重新檢查分支</button></div>
@@ -840,7 +880,7 @@ function App() {
                   setReviewerTab(nextTab);
                   event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
                 }} onClick={() => setReviewerTab(tab)}>{label}</button>)}</nav>
-                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><div class="diff-list">{selectedMr.diffs.map((change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : `${change.old_path} → ${change.new_path}`}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>)}{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異內容。</p>}</div></section>
+                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.diffs.status === 'ready' && <><VirtualRows className="diff-list" items={selectedMr.diffs} itemKey={(change) => change.new_path} estimateHeight={48} renderItem={(change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>} />{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}</>}</section>
                 <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3>
                   <label class="field">貼上 MergeReviewer Markdown 或 JSON 報告<textarea rows={8} value={currentReport.text} onInput={(event) => {
                     const text = event.currentTarget.value;
@@ -857,7 +897,7 @@ function App() {
                     <button class="primary" disabled={!currentSha || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
                   </div>
                 </section>
-                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3>{selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
+                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
               </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>}
         </div>
       </section>

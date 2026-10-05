@@ -83,3 +83,16 @@ Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自
 - **GitLab Workspace: 中斷連線**：確認後清除連線資料。
 
 Group 開發規格、驗收證據、鎖接手、固定版本審查與恢復步驟見 [Group 工作流程](group-workflow.md)。
+
+
+## Version Support and Performance Behavior
+
+The minimum supported server version is **GitLab Community Edition 16.11.10**. Version metadata and GraphQL capabilities are checked separately. If the version endpoint is unavailable, confirmed APIs still work and the interface explains that the minimum version could not be verified. Missing schema fields or account permissions affect only the corresponding feature; sections show when they are not loaded, loading, unsupported, or failed, and failed sections can be retried.
+
+CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. Optional Work Item, child-task, and time-report features are enabled from the server's actual schema. Both the legacy Project/projectPath and newer Namespace/namespacePath shapes are supported. Merge Request review uses the 16.11 scope=all&reviewer_id filter and paginated /diffs.
+
+The workspace initially loads projects, assigned Issues, and the current user. The review list loads in reviewer mode; Issue edit options load when editing starts; relations, development data, and time data load when their tabs open; the graph refreshes only while visible. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
+
+GitLab reads are limited to six concurrent requests per connection, each with a 30-second timeout. The cache holds up to 256 entries for 60 seconds and shares identical in-flight reads. Successful writes invalidate affected data. Sidebar Repo summaries update from Git state changes; repeated reads without a change use the cached summary.
+
+The automated performance benchmark measures production helper paths with synthetic datasets on the recorded machine; it does not measure live GitLab response bytes, actual Repo scans, or Webview memory. See the [benchmark record](work/work-20261002-workspace-performance/evidence/performance.md) for workload sizes, same-machine comparisons, and measurements that still require a real GitLab CE 16.11.10 instance.

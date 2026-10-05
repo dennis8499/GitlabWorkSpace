@@ -12,6 +12,10 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   let releaseDiscussions: (() => void) | undefined;
   const discussionGate = new Promise<void>((resolve) => { releaseDiscussions = resolve; });
   let internalIssueNavigations = 0;
+  let optionReads = 0;
+  let issueLinkReads = 0;
+  let relatedMergeRequestReads = 0;
+  let todoReads = 0;
   const client = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     listGroupProjects: async () => [project], canCreateIssue: async () => true, createIssue: async () => issue,
@@ -19,12 +23,12 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     getIssuePermissions: async () => ({ updateIssue: true, adminIssue: false, deleteIssue: true, createNote: true }),
     getProjectByPath: async () => { internalIssueNavigations++; return project; },
     getCurrentUser: async () => ({ id: 9, username: 'tester', name: 'Tester' }),
-    listProjectMembers: async () => [], listProjectLabels: async () => [],
+    listProjectMembers: async () => { optionReads++; return []; }, listProjectLabels: async () => [],
     listProjectMilestones: async () => [], listProjectIssueTemplates: async () => [],
     listIssueDiscussions: async (_projectId: number, iid: number) => { if (iid === 9) await discussionGate; return []; },
-    listIssueNoteReactions: async (_projectId: number, _iid: number, _noteId: number) => [], listIssueLinks: async () => [],
-    listRelatedMergeRequests: async () => [], listIssueReactions: async () => [],
-    listTodos: async () => [], graphql: async (_query: string, _variables: Record<string, unknown>): Promise<unknown> => ({}),
+    listIssueNoteReactions: async (_projectId: number, _iid: number, _noteId: number) => [], listIssueLinks: async () => { issueLinkReads++; return []; },
+    listRelatedMergeRequests: async () => { relatedMergeRequestReads++; return []; }, listIssueReactions: async () => [],
+    listTodos: async () => { todoReads++; return []; }, graphql: async (_query: string, _variables: Record<string, unknown>): Promise<unknown> => ({}),
     updateIssueIfUnchanged: async (_projectId: number, _iid: number) => issue,
     deleteIssue: async (_projectId: number, _iid: number) => undefined
   };
@@ -54,6 +58,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
 
   let treeRefreshes = 0;
   const panels = new IssuePanels!({ extensionUri: 'extension' } as unknown as ExtensionContext, session, () => { treeRefreshes++; });
+  const host = panels as unknown as { handle(message: unknown, revision?: number): Promise<void> };
   const navigations: Array<import('../../src/workspace/workspaceProtocol').IssueNavigation | null> = [];
   const workspaceResponses: WorkspaceResponse[] = [];
   panels.setWorkspace({
@@ -65,6 +70,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.equal(navigations.at(-1)?.mode, 'create');
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'ready' });
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'create', projectId: 42, input: { title: issue.title } });
+    const optionsAfterCreate = optionReads;
     const detail = [...messages].reverse().find((message) => message.type === 'detailData');
     assert.equal(detail?.type, 'detailData');
     if (detail?.type === 'detailData') {
@@ -94,12 +100,22 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.equal(selectedNavigation?.mode === 'detail' ? selectedNavigation.tab : undefined, 'time');
     const latest = [...messages].reverse().find((message) => message.type === 'detailData');
     assert.equal(latest?.type === 'detailData' ? latest.data.issue.iid : undefined, 9);
-    assert.equal(latest?.type === 'detailData' ? latest.data.sections?.activity : undefined, 'loading', 'the Issue core is visible while discussion loading is still pending');
+    assert.equal(latest?.type === 'detailData' ? latest.data.sections?.activity : undefined, 'idle', 'the Issue body is sent before optional section reads start');
+    assert.equal(optionReads, optionsAfterCreate, 'Issue edit options are not loaded until editing is opened');
+    assert.equal(issueLinkReads, 0, 'Issue relations remain idle until the relations tab opens');
+    assert.equal(relatedMergeRequestReads, 0, 'related Merge Requests remain idle until the development tab opens');
+    assert.equal(todoReads, 0, 'to-dos remain idle until their tab opens');
     releaseDiscussions?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.activity === 'ready'));
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.canEdit === true && message.patch.canComment === true), 'Issue edit and comment permissions load independently of unavailable child tasks');
     assert.equal(reads, 2);
+    await host.handle({ type: 'loadSection', sections: ['options', 'links', 'mergeRequests', 'todos'] });
+    assert.equal(optionReads, optionsAfterCreate + 1);
+    assert.equal(issueLinkReads, 1);
+    assert.equal(relatedMergeRequestReads, 1);
+    assert.equal(todoReads, 1);
+    assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.links === 'ready'));
     let taskPages = 0;
     client.graphql = async (_query, variables) => {
       taskPages++;
@@ -133,7 +149,6 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     client.updateIssueIfUnchanged = async (_projectId, iid) => { writes.push(iid); return nextIssue; };
     const nextLoad = panels.showIssue(nextIssue);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const host = panels as unknown as { handle(message: unknown, revision?: number): Promise<void> };
     const responseCount = messages.length;
     await host.handle({ type: 'refresh' }, staleRevision);
     assert.equal(messages.length, responseCount, 'a request from the previous navigation is ignored');
@@ -193,6 +208,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     client.getIssuePermissions = async () => ({ updateIssue: true, adminIssue: false, deleteIssue: false, createNote: true });
     client.graphql = async () => { throw new Error('GitLab API request failed (HTTP 403).'); };
     await panels.showIssue(childLoadFailureIssue);
+    await host.handle({ type: 'loadSection', sections: ['tasks'] });
     await new Promise((resolve) => setTimeout(resolve, 0));
     const childFailurePatches = messages.filter((message) => message.type === 'detailPatch' && message.issueId === childLoadFailureIssue.id);
     assert.ok(childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.tasks === 'error'));

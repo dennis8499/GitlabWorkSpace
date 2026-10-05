@@ -418,7 +418,7 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
   assert.equal(selection?.boardId, 32);
   assert.equal(selection?.connectedScope, 'team-scope');
   assert.equal(document.querySelectorAll('.work-row').length, 0);
-  assert.equal(document.querySelector('.work-list .empty-inline strong').textContent, '正在載入 Board 內容');
+  assert.equal(document.querySelector('.empty-inline strong').textContent, '正在載入 Board 內容');
 
   const stale = snapshot();
   stale.issueBoardContent = { boardId: 31, connectedScope: 'team-scope', issueIds: [101], status: 'ready' };
@@ -432,6 +432,34 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
   await view.tick();
   assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta milestone issue']);
   assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
+});
+
+test('windows a long Issue list and moves keyboard focus across virtualized rows', async (t) => {
+  const data = snapshot('developer');
+  data.issues = Array.from({ length: 230 }, (_, index) => ({
+    id: 1_000 + index, iid: index + 1, project_id: index % 3 + 1,
+    title: `Virtualized Issue ${index + 1}`, state: 'opened', labels: []
+  }));
+  const view = await mount({ mode: 'developer' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const list = document.querySelector('.work-list');
+  assert.ok(list);
+  assert.ok(list.querySelectorAll('.work-row').length < data.issues.length);
+  list.scrollTop = 9_200;
+  list.dispatchEvent(new view.dom.window.Event('scroll'));
+  await view.tick();
+  const firstVisible = list.querySelector('.work-row');
+  const currentIndex = Number(firstVisible.closest('[data-virtual-index]').dataset.virtualIndex);
+  firstVisible.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  await view.tick();
+  const focusedIndex = Number(document.activeElement.closest('[data-virtual-index]').dataset.virtualIndex);
+  assert.equal(focusedIndex, currentIndex + 1);
+  const search = document.querySelector('input[aria-label="搜尋 Issue"]');
+  search.value = 'Virtualized Issue 221';
+  search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((row) => row.textContent), ['Virtualized Issue 221']);
 });
 
 test('opens the Issue graph on demand, applies shared filters with one-hop context, and keeps its Board separate from the list', async (t) => {
@@ -689,7 +717,7 @@ test('filters selected Board Issues by Repo and Group Milestone IDs while retain
   document.querySelector('select[aria-label="Issue 專案"]').dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   await view.tick();
   assert.equal(document.querySelectorAll('.work-row').length, 0);
-  assert.equal(document.querySelector('.work-list .empty-inline strong').textContent, '沒有符合篩選條件的 Issue');
+  assert.equal(document.querySelector('.empty-inline strong').textContent, '沒有符合篩選條件的 Issue');
 
   const projectFilter = document.querySelector('select[aria-label="Issue 專案"]');
   projectFilter.value = 'all';
@@ -795,7 +823,7 @@ test('binds imported reports to both SHAs without adding approval or merge gates
     title: 'Fork change', state: 'opened', source_branch: 'feature', target_branch: 'main',
     web_url: 'https://gitlab.example.test/team/alpha/-/merge_requests/4', diff_refs: { head_sha: sourceSha } };
   current.mergeRequests = [request];
-  current.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [],
+  current.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } }, warnings: [],
     freshness: { state: 'current', checkedAt: new Date().toISOString() }, sourceSha, targetSha };
   const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, current);
   t.after(() => view.dom.window.close());

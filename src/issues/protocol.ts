@@ -51,7 +51,7 @@ export type IssueRelationAction =
   | { type: 'unlink'; linkId: number };
 
 export type IssueDetailSection = 'options' | 'activity' | 'links' | 'mergeRequests' | 'reactions' | 'todos' | 'tasks' | 'permissions' | 'projects' | 'dates' | 'timelogs';
-export type IssueDetailSectionStatus = 'loading' | 'ready' | 'error';
+export type IssueDetailSectionStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unsupported';
 
 export interface IssueDetailData extends IssueRelationsData {
   issue: GitLabIssue;
@@ -87,6 +87,7 @@ export interface IssueDetailData extends IssueRelationsData {
 export type IssuePanelRequest =
   | { type: 'ready' }
   | { type: 'refresh' }
+  | { type: 'loadSection'; sections: IssueDetailSection[] }
   | { type: 'copyDescription'; requestId: string; issueId: number }
   | { type: 'selectProject'; projectId: number }
   | { type: 'create'; projectId: number; input: IssueCreateInput }

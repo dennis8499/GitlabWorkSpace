@@ -95,6 +95,7 @@ export class IssuePanels implements vscode.Disposable {
   private lastSnapshot?: IssuePanelResponse;
   private operationWarning?: string;
   private navigationVersion = 0;
+  private detailSectionLoader?: (sections: IssueDetailSection[], forceNetwork?: boolean) => Promise<void>;
   private hasNavigation = false;
   private mode: 'create' | 'detail' = 'create';
   private revision = 0;
@@ -208,6 +209,7 @@ export class IssuePanels implements vscode.Disposable {
   private cancelNavigationReads(): void {
     this.navigationReadController?.abort();
     this.navigationReadController = undefined;
+    this.detailSectionLoader = undefined;
   }
 
   close(): void {
@@ -418,7 +420,7 @@ export class IssuePanels implements vscode.Disposable {
     this.issue = issue;
     const group = this.session.selectedGroup;
     const sectionNames: IssueDetailSection[] = ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'];
-    const sections = Object.fromEntries(sectionNames.map((name) => [name, 'loading'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
+    const sections = Object.fromEntries(sectionNames.map((name) => [name, 'idle'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
     let data: IssueDetailData = {
       issue, project, projects: [project], user, metadata: this.session.metadata,
       options: { members: [], labels: [], milestones: [], templates: [] },
@@ -433,7 +435,7 @@ export class IssuePanels implements vscode.Disposable {
     this.post({ type: 'detailData', data });
     const capabilitiesTask = this.session.ensureInstanceChecked();
     const current = (): boolean => version === this.navigationVersion && !signal.aborted && this.navigationReadController?.signal === signal;
-    const patch = (section: IssueDetailSection, value: Partial<IssueDetailData>, status: IssueDetailSectionStatus = 'ready', warning?: string): void => {
+    const patch = (section: IssueDetailSection, value: Partial<IssueDetailData>, status: IssueDetailSectionStatus = value.sections?.[section] ?? 'ready', warning?: string): void => {
       if (!current()) return;
       const nextSections = { ...(data.sections ?? {}), ...(value.sections ?? {}), [section]: status };
       const warnings = [...new Set([...data.warnings, ...(value.warnings ?? []), ...(warning ? [warning] : [])])];
@@ -441,79 +443,65 @@ export class IssuePanels implements vscode.Disposable {
       data = { ...data, ...value, sections: nextSections, warnings };
       this.post({ type: 'detailPatch', issueId: issue.id, patch: next });
     };
-    const run = async (section: IssueDetailSection, label: string, loadSection: () => Promise<Partial<IssueDetailData>>): Promise<void> => {
-      try {
-        const value = await loadSection();
-        patch(section, value);
-      } catch (error) {
-        if (signal.aborted || version !== this.navigationVersion) return;
-        patch(section, {}, 'error', `Could not load ${label}: ${safeError(error)}`);
-      }
-    };
-
-    const optionTask = run('options', 'fields', async () => {
+    const loaders: Partial<Record<IssueDetailSection, () => Promise<Partial<IssueDetailData>>>> = {};
+    const running = new Map<IssueDetailSection, Promise<void>>();
+    loaders.options = async () => {
       const fields = await this.formOptions(issue.project_id, signal, forceNetwork);
       fields.members = [...fields.members]; fields.labels = [...fields.labels]; fields.milestones = [...fields.milestones];
       for (const assignee of issue.assignees ?? []) if (!fields.members.some((member) => member.id === assignee.id)) fields.members.push(assignee);
       if (issue.milestone && !fields.milestones.some((milestone) => milestone.id === issue.milestone?.id)) fields.milestones.push(issue.milestone);
       for (const label of issue.labels ?? []) if (!fields.labels.some((item) => item.name === label)) fields.labels.push({ id: -fields.labels.length - 1, name: label, color: '#888888' });
       return { options: fields };
-    });
-    let discussions: GitLabIssueDiscussion[] | undefined;
-    const activityTask = (async (): Promise<void> => {
-      try {
-        discussions = await client.listIssueDiscussions(issue.project_id, issue.iid);
-        patch('activity', { discussions });
-      } catch (error) {
-        if (signal.aborted || version !== this.navigationVersion) return;
-        patch('activity', {}, 'error', `Could not load activity: ${safeError(error)}`);
-      }
-    })();
-    const reactionTask = run('reactions', 'reactions', async () => {
-      await activityTask;
+    };
+    loaders.activity = async () => ({ discussions: await client.listIssueDiscussions(issue.project_id, issue.iid) });
+    loaders.reactions = async () => {
+      await runSection('activity');
       if (signal.aborted) throw new Error('The Issue view request was cancelled.');
-      if (!discussions) return { reactions: [], noteReactions: {} };
+      if (data.sections?.activity !== 'ready') throw new Error('Issue discussion activity must load before its reactions.');
       const [reactions, noteResults] = await Promise.all([
         client.listIssueReactions(issue.project_id, issue.iid),
-        this.loadNoteReactions(client, issue.project_id, issue.iid, discussions, signal)
+        this.loadNoteReactions(client, issue.project_id, issue.iid, data.discussions, signal)
       ]);
       const warnings = noteResults.failed ? [...new Set([...data.warnings, `Could not load reactions for ${noteResults.failed} comment(s).`])] : data.warnings;
       if (noteResults.failed) data = { ...data, warnings };
       return { reactions, noteReactions: noteResults.reactions, ...(noteResults.failed ? { warnings } : {}) };
-    });
-    const linksTask = run('links', 'links', async () => ({ links: await client.listIssueLinks(issue.project_id, issue.iid) }));
-    const mergeRequestsTask = run('mergeRequests', 'merge requests', async () => ({ mergeRequests: await client.listRelatedMergeRequests(issue.project_id, issue.iid) }));
-    const todosTask = run('todos', 'to-dos', async () => ({ todos: await client.listTodos() }));
-    const projectsTask = run('projects', 'projects', async () => ({
+    };
+    loaders.links = async () => ({ links: await client.listIssueLinks(issue.project_id, issue.iid) });
+    loaders.mergeRequests = async () => ({ mergeRequests: await client.listRelatedMergeRequests(issue.project_id, issue.iid) });
+    loaders.todos = async () => ({ todos: await client.listTodos() });
+    loaders.projects = async () => ({
       projects: group ? await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork }) : [project]
-    }));
-    const datesTask = run('dates', 'start date', async () => {
+    });
+    loaders.dates = async () => {
       await capabilitiesTask;
       const startDate = this.session.issueCapabilities?.startDate
         ? await client.getIssueStartDate(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope)
         : issue.start_date ?? null;
       return { startDate, hasStartDate: this.session.issueCapabilities?.startDate === true || !!issue.start_date };
-    });
-    const timelogsTask = run('timelogs', 'time entries', async () => {
+    };
+    loaders.timelogs = async () => {
       await capabilitiesTask;
-      const timelogs: IssueTimelog[] = this.session.issueCapabilities?.timelogReport
-        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope, this.session.issueCapabilities.timelogAdminPermission === true) : [];
+      const supported = this.session.issueCapabilities?.timelogReport === true;
+      const timelogs: IssueTimelog[] = supported
+        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid, this.session.issueCapabilities!.workItemScope, this.session.issueCapabilities!.timelogAdminPermission === true) : [];
+      if (!supported) return { timelogs, sections: { timelogs: 'unsupported' }, warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose the time entry report; time logging controls remain available.'] };
       return { timelogs };
-    });
-    const tasksTask = run('tasks', 'child tasks', async () => {
+    };
+    loaders.tasks = async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
-      const hierarchy = capabilities?.hierarchy ? await this.loadTasks(client, project.path_with_namespace, issue.iid) : { tasks: [] as IssueTask[] };
+      if (!capabilities?.hierarchy) return { tasks: [], sections: { tasks: 'unsupported' }, warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose Issue child tasks.'] };
+      const hierarchy = await this.loadTasks(client, project.path_with_namespace, issue.iid);
       return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
         canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true };
-    });
-    const permissionsTask = run('permissions', 'Issue permissions', async () => {
+    };
+    loaders.permissions = async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
       const fields = capabilities?.issuePermissionFields ?? [];
       if (!fields.length) return {
         metadata: this.session.metadata,
-        sections: { permissions: 'ready' },
+        sections: { permissions: 'unsupported' },
         warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose Issue-level permissions; permission-dependent actions are disabled.']
       };
       const permissions = await client.getIssuePermissions(project.path_with_namespace, issue.iid, fields);
@@ -526,7 +514,6 @@ export class IssuePanels implements vscode.Disposable {
       else if (!canComment) permissionWarnings.push('GitLab reports that this account does not have permission to comment on this Issue.');
       return {
         metadata: this.session.metadata,
-        sections: { permissions: 'ready' },
         warnings: [...this.session.instanceWarnings, ...permissionWarnings],
         canEdit: editable,
         canDelete: permissions.deleteIssue === true || permissions.adminIssue === true,
@@ -542,12 +529,48 @@ export class IssuePanels implements vscode.Disposable {
         canLogDatedTime: capabilities?.timelogCreateDated === true && editable,
         canDeleteTimelog: capabilities?.timelogDelete === true && capabilities.timelogAdminPermission === true
       };
-    });
-    void Promise.all([optionTask, activityTask, reactionTask, linksTask, mergeRequestsTask, todosTask, projectsTask, datesTask, timelogsTask, tasksTask, permissionsTask]);
+    };
+    const runSection = async (section: IssueDetailSection): Promise<void> => {
+      if (!current()) return;
+      const status = data.sections?.[section];
+      if (status === 'ready' || status === 'unsupported') return;
+      const active = running.get(section);
+      if (active) return active;
+      const loader = loaders[section];
+      if (!loader) return;
+      data = { ...data, sections: { ...(data.sections ?? {}), [section]: 'loading' } };
+      this.post({ type: 'detailPatch', issueId: issue.id, patch: { sections: data.sections } });
+      const task = (async (): Promise<void> => {
+        try {
+          const value = await loader();
+          if (!current()) return;
+          patch(section, value, value.sections?.[section] ?? 'ready');
+        } catch (error) {
+          if (!current()) return;
+          patch(section, {}, 'error', `Could not load ${section === 'options' ? 'fields' : section === 'mergeRequests' ? 'merge requests' : section === 'timelogs' ? 'time entries' : section === 'dates' ? 'start date' : section === 'tasks' ? 'child tasks' : section === 'todos' ? 'to-dos' : section}` + `: ${safeError(error)}`);
+        } finally {
+          running.delete(section);
+        }
+      })();
+      running.set(section, task);
+      return task;
+    };
+    this.detailSectionLoader = async (requested, force = false) => {
+      if (!current()) return;
+      if (force) for (const section of requested) if (data.sections?.[section] === 'error') data = { ...data, sections: { ...(data.sections ?? {}), [section]: 'idle' } };
+      await Promise.all(requested.map((section) => runSection(section)));
+    };
+    void this.detailSectionLoader(['activity', 'permissions']);
   }
 
   private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
     if (request.type === 'refresh') return this.load(true);
+    if (request.type === 'loadSection') {
+      const valid = (Array.isArray(request.sections) ? request.sections : []).filter((section): section is IssueDetailSection =>
+        ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'].includes(section));
+      await this.detailSectionLoader?.([...new Set(valid)]);
+      return;
+    }
     if (request.type === 'copyDescription') {
       const requestId = requiredString(request.requestId, 'Request ID');
       const issue = this.issue;

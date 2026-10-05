@@ -1,6 +1,6 @@
 import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabIssueBoard, GitLabMember, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMilestone, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabIssueDiscussion } from '../api/types';
-import type { IssueGraphSnapshot } from './issueGraph';
+import type { IssueGraphPatch, IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
 import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
 
@@ -12,6 +12,8 @@ export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'development' | 'relations' | 'time';
+export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
+export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; }
 
 export type IssueNavigation =
   | { mode: 'create'; revision: number }
@@ -87,6 +89,7 @@ export interface MergeRequestDetail {
   sourceProject?: GitLabProject;
   diffs: GitLabMergeRequestDiff[];
   discussions: GitLabIssueDiscussion[];
+  sections: { diffs: WorkspaceSectionState; discussions: WorkspaceSectionState };
   freshness: BranchFreshness;
   targetSha?: string;
   sourceSha?: string;
@@ -126,6 +129,7 @@ export interface WorkspaceSnapshot {
   groupRepositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
   groupRepositoryScanError?: string;
   projects: GitLabProject[];
+  sections?: Partial<Record<WorkspaceSection, WorkspaceSectionState>>;
   groupMilestones: GitLabMilestone[];
   groupMilestonesError?: string;
   groupIssueBoards: GitLabIssueBoard[];
@@ -191,6 +195,8 @@ export type WorkspaceRequest =
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
   | { type: 'loadIssueGraph'; connectedScope: string }
+  | { type: 'setIssueGraphVisibility'; visible: boolean; connectedScope: string }
+  | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }
@@ -219,6 +225,7 @@ export type WorkspaceRequest =
   | { type: 'acknowledgeTimeEntry'; id: string }
   | { type: 'selectMergeRequest'; projectId: number; iid: number }
   | { type: 'refreshMergeRequest'; projectId: number; iid: number }
+  | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
   | { type: 'openMergeReviewTask'; projectId: number; iid: number }
   | { type: 'openGroupQuickReview' }
@@ -243,6 +250,7 @@ export type WorkspaceResponse =
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
   | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }
+  | ({ type: 'issueGraphPatch'; version: number } & IssueGraphPatch)
   | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; error?: string }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }

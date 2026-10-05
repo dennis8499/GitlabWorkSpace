@@ -153,7 +153,7 @@
     "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
     "watch": "tsc -watch -p .",
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
-    "benchmark:performance": "npm run compile && node scripts/performance-benchmark.cjs",
+    "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
     "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs test/behavior/dashboard.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
     "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py",

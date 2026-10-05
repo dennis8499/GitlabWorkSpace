@@ -69,6 +69,69 @@ test('keeps confirmed API capabilities when GitLab version metadata is unavailab
   assert.ok(session.instanceWarnings.some((warning) => /version metadata is unavailable.*still load/i.test(warning)));
 });
 
+test('backs failed version and capability probes off for 60 seconds but lets a manual check retry immediately', async () => {
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  let metadataRequests = 0;
+  let versionRequests = 0;
+  let capabilityRequests = 0;
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => ({
+    getMetadata: async () => { metadataRequests++; throw new Error('metadata unavailable'); },
+    getVersion: async () => { versionRequests++; throw new Error('version unavailable'); },
+    getIssueCapabilities: async () => { capabilityRequests++; throw new Error('schema unavailable'); }
+  } as unknown as GitLabClient);
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  try {
+    await session.ensureInstanceChecked();
+    await session.ensureInstanceChecked();
+    assert.deepEqual([metadataRequests, versionRequests, capabilityRequests], [1, 1, 1]);
+    now += 59_999;
+    await session.ensureInstanceChecked();
+    assert.deepEqual([metadataRequests, versionRequests, capabilityRequests], [1, 1, 1]);
+    now++;
+    await session.ensureInstanceChecked();
+    assert.deepEqual([metadataRequests, versionRequests, capabilityRequests], [2, 2, 2]);
+    await session.ensureInstanceChecked({ force: true });
+    assert.deepEqual([metadataRequests, versionRequests, capabilityRequests], [3, 3, 3]);
+  } finally { Date.now = originalNow; }
+});
+
+test('discards version and capability probe results from an earlier connection epoch', async () => {
+  let releaseOldMetadata: ((value: GitLabMetadata) => void) | undefined;
+  let releaseOldCapabilities: ((value: GitLabIssueCapabilities) => void) | undefined;
+  const oldMetadata = new Promise<GitLabMetadata>((resolve) => { releaseOldMetadata = resolve; });
+  const oldCapabilities = new Promise<GitLabIssueCapabilities>((resolve) => { releaseOldCapabilities = resolve; });
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  const oldClient = {
+    getMetadata: () => oldMetadata, getIssueCapabilities: () => oldCapabilities
+  } as unknown as GitLabClient;
+  const newClient = {
+    getMetadata: async () => ({ version: '16.11.10', enterprise: false }),
+    getIssueCapabilities: async () => ({ hierarchy: false, discussionResolve: true } as GitLabIssueCapabilities)
+  } as unknown as GitLabClient;
+  let selectedClient = oldClient;
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => selectedClient;
+  const oldCheck = session.ensureInstanceChecked();
+  await new Promise((resolve) => setImmediate(resolve));
+  const internals = session as unknown as {
+    connectionEpochValue: number; currentMetadata?: GitLabMetadata; currentIssueCapabilities?: GitLabIssueCapabilities;
+    metadataCheck?: Promise<void>; capabilitiesCheck?: Promise<void>;
+  };
+  internals.connectionEpochValue++;
+  internals.currentMetadata = undefined;
+  internals.currentIssueCapabilities = undefined;
+  internals.metadataCheck = undefined;
+  internals.capabilitiesCheck = undefined;
+  selectedClient = newClient;
+  await session.ensureInstanceChecked();
+  releaseOldMetadata?.({ version: '15.0.0', enterprise: true });
+  releaseOldCapabilities?.({ hierarchy: true, discussionResolve: false } as GitLabIssueCapabilities);
+  await oldCheck;
+  assert.equal(session.metadata?.version, '16.11.10');
+  assert.equal(session.issueCapabilities?.discussionResolve, true);
+});
+
 test('stores the access token in SecretStorage only after the current-user check succeeds', async () => {
   const running = await serve(() => ({ status: 200, body: { id: 1, username: 'tester', name: 'Test User' } }));
   const secrets = new MemorySecrets();
@@ -79,7 +142,7 @@ test('stores the access token in SecretStorage only after the current-user check
     assert.equal(user.username, 'tester');
     assert.equal(secrets.values.get('gitlabWorkspace.accessToken'), 'unit-session-token-do-not-use');
     assert.equal(state.get('gitlabWorkspace.baseUrl'), running.baseUrl);
-    assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
+    assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
     assert.match(session.instanceWarnings.join(' '), /capabilities could not be verified/);
   } finally {
     await stop(running.server);

@@ -71,6 +71,17 @@ export class GitLabReadCache {
     }
   }
 
+  invalidateWhere(matches: (key: string) => boolean): number {
+    let invalidated = 0;
+    for (const key of this.values.keys()) {
+      if (matches(key)) { this.values.delete(key); invalidated++; }
+    }
+    for (const [key, pending] of this.inFlight) {
+      if (matches(key)) { pending.invalidated = true; invalidated++; }
+    }
+    return invalidated;
+  }
+
   clear(): void {
     this.values.clear();
     for (const pending of this.inFlight.values()) pending.controller.abort();

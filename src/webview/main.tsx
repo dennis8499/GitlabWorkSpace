@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueDetailSection, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
 import { IssueRelationsEditor } from './issue-relations';
 import { buildDeveloperPrompt } from '../workspace/issueDrafts';
+import { VirtualRows } from './VirtualRows';
 import './style.css';
 
 function postIssueRequest(message: IssuePanelRequest): void {
@@ -554,16 +555,27 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
   useEffect(() => { setResumeWorkId(''); }, [issue?.id]);
+  useEffect(() => {
+    if (!issue || !detail) return;
+    const wanted: Record<typeof detailTab, IssueDetailSection[]> = {
+      content: ['activity', 'reactions'],
+      development: ['mergeRequests', 'projects'],
+      relations: ['links', 'tasks', 'todos'],
+      time: ['dates', 'timelogs']
+    };
+    const sections = wanted[detailTab].filter((section) => detail.sections?.[section] === 'idle' || detail.sections?.[section] === 'error');
+    if (sections.length) post({ type: 'loadSection', sections });
+  }, [issue?.id, detailTab, detail?.sections]);
   const sectionLabels: Record<IssueDetailSection, string> = {
     options: '欄位選項', activity: '討論', links: '關聯 Issue', mergeRequests: '相關 MR',
     reactions: '反應', todos: '待辦', tasks: '子工作', permissions: 'Issue 權限', projects: '專案清單', dates: '開始日期', timelogs: 'GitLab 工時'
   };
   const sectionErrorNames: Record<IssueDetailSection, string> = {
     options: 'fields', activity: 'activity', links: 'links', mergeRequests: 'merge requests', reactions: 'reactions',
-    todos: 'to-dos', tasks: 'tasks and permissions', permissions: 'permissions', projects: 'projects', dates: 'start date', timelogs: 'time entries'
+    todos: 'to-dos', tasks: 'child tasks', permissions: 'permissions', projects: 'projects', dates: 'start date', timelogs: 'time entries'
   };
-  const sectionStatuses = (Object.entries(detail?.sections ?? {}) as Array<[IssueDetailSection, 'loading' | 'ready' | 'error']>)
-    .filter(([, status]) => status !== 'ready');
+  const sectionStatuses = (Object.entries(detail?.sections ?? {}) as Array<[IssueDetailSection, IssueDetailSectionStatus]>)
+    .filter(([, status]) => status !== 'ready' && status !== 'idle');
   const myTodo = detail?.todos.find((todo) => todo.target?.id === issue?.id);
   const myReactions = new Set(detail?.reactions.filter((reaction) => reaction.user.id === detail.user.id).map((reaction) => reaction.id));
   const targetProjects = [...new Map([...projects, ...targetProjectResults].map((project) => [project.id, project])).values()];
@@ -573,9 +585,9 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     <header class="topbar issue-topbar"><div><span class="eyebrow">{mode === 'create' ? '建立工作項目' : detail?.project.path_with_namespace}</span><h1>{mode === 'create' ? '新增 Issue' : `#${issue?.iid} ${issue?.title}`}</h1><p>{mode === 'create' ? '新增後會直接開啟內容與討論。' : `${issue?.state === 'closed' ? '已結案' : '進行中'}${detail?.options.warnings?.length ? ' · 部分欄位載入受限' : ''}`}</p></div><div class="toolbar issue-heading-actions">{onBack && <button type="button" onClick={onBack}>返回清單</button>}<button type="button" onClick={() => { failedImages.current.clear(); post({ type: 'refresh' }); }} disabled={busy}>重新整理</button>{issue && <button type="button" onClick={() => post({ type: 'openIssueInGitLab', issueId: issue.id })}>在 GitLab 開啟</button>}</div></header>
     {error && <div class="alert" role="alert"><span>{error}</span><button type="button" aria-label="關閉錯誤訊息" onClick={() => setError('')}>關閉</button></div>}
     {busy && <div class="loading" role="status">正在與 GitLab 通訊…</div>}
-    {sectionStatuses.length > 0 && <div class="section-status-list" role="status" aria-live="polite">{sectionStatuses.map(([section, status]) => {
+    {sectionStatuses.length > 0 && <div class="section-status-list" aria-live="polite">{sectionStatuses.map(([section, status]) => {
       const warning = status === 'error' ? detail?.warnings.find((item) => item.startsWith(`Could not load ${sectionErrorNames[section]}:`)) : undefined;
-      return <p class={status === 'error' ? 'warning' : 'subtle'} key={section}>{sectionLabels[section]}：{status === 'loading' ? '載入中' : `載入失敗${warning ? `：${warning}` : '，請重新整理再試'}`}</p>;
+      return <div class={status === 'error' ? 'warning' : 'subtle'} key={section} role={status === 'error' ? 'alert' : 'status'}><span>{sectionLabels[section]}: {status === 'error' ? warning ?? '無法載入此區塊。' : status === 'unsupported' ? '目前 GitLab Schema 不支援。' : '載入中…'}</span>{status === 'error' && <button class="quiet small" type="button" onClick={() => post({ type: 'loadSection', sections: [section] })}>重試</button>}</div>;
     })}</div>}
     {mode === 'create' ? <section class="card">
       <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); busyRef.current = true; setBusy(true); post({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
@@ -584,7 +596,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     </section> : issue && detail && <>
       {detail.warnings.length > 0 && <div class="alert subtle"><strong>部分內容無法載入。</strong><ul>{detail.warnings.map((warning) => <li>{warning}</li>)}</ul></div>}
       <div class="issue-workspace-layout">
-      {snapshot && <aside class="issue-list-panel"><div class="issue-list-heading"><strong>我的工作</strong><button type="button" onClick={() => onWorkspaceAction?.({ type: 'createIssue' })}>＋ 新增</button></div><input aria-label="搜尋 Issue 清單" placeholder="搜尋標題、Repo 或編號…" value={issueSearch} onInput={(event) => updateIssueSearch(event.currentTarget.value)} /><div class="issue-list-items">{workspaceIssues.map((item) => <button type="button" class={`issue-list-item ${item.project_id === issue.project_id && item.iid === issue.iid ? 'selected' : ''}`} onClick={() => onWorkspaceAction?.({ type: 'openIssue', projectId: item.project_id, issueIid: item.iid })}><strong>{item.title}</strong><small>{snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace}　#{item.iid}</small></button>)}{!workspaceIssues.length && <p class="muted small">{snapshot.issues.length ? '找不到符合條件的 Issue。' : '目前清單沒有 Issue。'}</p>}</div></aside>}
+      {snapshot && <aside class="issue-list-panel"><div class="issue-list-heading"><strong>我的工作</strong><button type="button" onClick={() => onWorkspaceAction?.({ type: 'createIssue' })}>＋ 新增</button></div><input aria-label="搜尋 Issue 清單" placeholder="搜尋標題、Repo 或編號…" value={issueSearch} onInput={(event) => updateIssueSearch(event.currentTarget.value)} /><div class="issue-list-items">{<VirtualRows className="issue-list-items" items={workspaceIssues} itemKey={(item) => item.project_id + ":" + item.iid} estimateHeight={68} renderItem={(item) => <button type="button" class={`issue-list-item ${item.project_id === issue.project_id && item.iid === issue.iid ? "selected" : ""}`} onClick={() => onWorkspaceAction?.({ type: "openIssue", projectId: item.project_id, issueIid: item.iid })}><strong>{item.title}</strong><small>{snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace} #{item.iid}</small></button>} />}{!workspaceIssues.length && <p class="muted small">{snapshot.issues.length ? '找不到符合條件的 Issue。' : '目前清單沒有 Issue。'}</p>}</div></aside>}
       <div class="issue-detail-column">
       <nav class="issue-tabs" role="tablist" aria-label="Issue 工作區分頁">{([
         ['content', '內容與討論'], ['development', '開發與交付'], ['relations', '關聯與子工作'], ['time', '工時']
@@ -597,7 +609,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
       }} onClick={() => setDetailTab(id)}>{label}</button>)}</nav>
       <div class="layout"><div class="main-column">
-        <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => setEditing(!editing)}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
+        <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => { if (!editing) post({ type: 'loadSection', sections: ['options'] }); setEditing(!editing); }}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
           {editing ? <><IssueFields form={form} setForm={setForm} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
           {!editing && <div class="toolbar wrap"><button class="quiet small" type="button" disabled={busy || !issue.description?.trim()} aria-label="複製 Issue 描述" onClick={() => postReplyRequest({ type: 'copyDescription', requestId: `copy-description-${issue.id}-${stamp()}`, issueId: issue.id })}>複製描述</button></div>}
         </section>

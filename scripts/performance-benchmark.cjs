@@ -1,6 +1,12 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 const { projectFolderNames, groupRepositoryPath } = require('../out/src/workspace/workspacePaths.js');
 const { GitLabReadCache } = require('../out/src/api/gitLabReadCache.js');
+const { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, mergeCapabilityTypes } = require('../out/src/api/graphqlCapabilities.js');
+const { createIssueGraphPatch, applyIssueGraphPatch } = require('../out/src/workspace/issueGraph.js');
+const { virtualWindow } = require('../out/src/webview/virtualWindow.js');
 
 function legacyProjectFolderNames(projects) {
   const foldedCounts = new Map();
@@ -14,114 +20,212 @@ function legacyProjectFolderNames(projects) {
   const result = new Map();
   for (const project of projects) {
     let candidate = project.path;
-    if ((foldedCounts.get(project.path.toLocaleLowerCase('en-US')) ?? 0) > 1) candidate = `${project.path}--${project.id}`;
+    if ((foldedCounts.get(project.path.toLocaleLowerCase('en-US')) ?? 0) > 1) candidate = candidate + '--' + project.id;
     const key = candidate.toLocaleLowerCase('en-US');
-    if (fixed.has(key) && candidate !== project.path) candidate = `${candidate}--${project.id}`;
+    if (fixed.has(key) && candidate !== project.path) candidate = candidate + '--' + project.id;
     let unique = candidate;
     let suffix = 2;
     while ([...result.values()].some((existing) => existing.toLocaleLowerCase('en-US') === unique.toLocaleLowerCase('en-US'))) {
-      unique = `${candidate}--${suffix++}`;
+      unique = candidate + '--' + suffix++;
     }
     result.set(project.id, unique);
   }
   return result;
 }
 
-const projects = Array.from({ length: 500 }, (_, index) => ({
-  id: index + 1, path: `repo-${index}`, path_with_namespace: `team/repo-${index}`,
-  name: `Repository ${index}`, web_url: `https://gitlab.example.test/team/repo-${index}`
-}));
-const root = 'C:/workspace/team';
-const oldBatch = () => projects.map((project) => groupRepositoryPath(root, project, projects, legacyProjectFolderNames(projects)));
-const newBatch = () => {
-  const folders = projectFolderNames(projects);
-  return projects.map((project) => groupRepositoryPath(root, project, projects, folders));
-};
-const median = (values) => [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
-
-oldBatch();
-newBatch();
-const oldRuns = [];
-const newRuns = [];
-for (let run = 0; run < 5; run++) {
-  let started = performance.now();
-  oldBatch();
-  oldRuns.push(performance.now() - started);
-  started = performance.now();
-  newBatch();
-  newRuns.push(performance.now() - started);
+function makeProjects(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: index + 1, path: 'repo-' + index, path_with_namespace: 'team/repo-' + index,
+    name: 'Repository ' + index, web_url: 'https://gitlab.example.test/team/repo-' + index
+  }));
 }
 
-async function measureSharedReads() {
+function elapsed(operation) {
+  const started = performance.now();
+  operation();
+  return performance.now() - started;
+}
+
+function median(values) {
+  return [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
+}
+
+function measureFolderPaths(count, samples) {
+  const projects = makeProjects(count);
+  const root = 'C:/workspace/team';
+  const oldRuns = [];
+  const newRuns = [];
+  for (let run = 0; run < samples; run++) {
+    if (count <= 500) oldRuns.push(elapsed(() => projects.map((project) =>
+      groupRepositoryPath(root, project, projects, legacyProjectFolderNames(projects)))));
+    newRuns.push(elapsed(() => {
+      const folders = projectFolderNames(projects);
+      projects.map((project) => groupRepositoryPath(root, project, projects, folders));
+    }));
+  }
+  const oldMedian = oldRuns.length ? median(oldRuns) : undefined;
+  const newMedian = median(newRuns);
+  return {
+    projects: count,
+    samples,
+    legacyMedianMs: oldMedian === undefined ? null : Number(oldMedian.toFixed(2)),
+    productionMedianMs: Number(newMedian.toFixed(2)),
+    elapsedReductionPercent: oldMedian === undefined ? null : Number(((1 - newMedian / oldMedian) * 100).toFixed(2)),
+    legacyComparisonSkipped: count > 500 ? 'The legacy per-repository full remap is cubic for this workload; current production path is still measured at 2,000 Repos.' : undefined,
+    legacyRunsMs: oldRuns.map((value) => Number(value.toFixed(2))),
+    productionRunsMs: newRuns.map((value) => Number(value.toFixed(2)))
+  };
+}
+
+async function measureCache(count) {
+  const projects = makeProjects(count);
+  const responseBytes = Buffer.byteLength(JSON.stringify(projects));
   const cache = new GitLabReadCache(60_000, 256);
-  let apiRequests = 0;
-  const consumers = Array.from({ length: 8 }, () => cache.get('group/3/projects', async () => {
-    apiRequests++;
-    return projects;
-  }));
-  await Promise.all(consumers);
-  return { concurrentConsumers: consumers.length, apiRequests, avoidedRequests: consumers.length - apiRequests };
+  let requests = 0;
+  const load = async () => { requests++; return projects; };
+  const coldStarted = performance.now();
+  await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
+  const coldMs = performance.now() - coldStarted;
+  const coldRequests = requests;
+  const warmStarted = performance.now();
+  await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
+  const warmMs = performance.now() - warmStarted;
+  assert.equal(requests, 1, 'concurrent and warm reads should share one production cache entry');
+  return {
+    concurrentConsumers: 8,
+    legacyUnsharedApiRequests: 8,
+    productionApiRequests: requests,
+    coldLatencyMs: Number(coldMs.toFixed(3)),
+    warmLatencyMs: Number(warmMs.toFixed(3)),
+    responsePayloadBytes: responseBytes,
+    warmNetworkBytes: 0
+  };
 }
 
-function measureTimerTransport() {
-  const timer = [{ id: 'timer-1', projectId: 1, projectPath: 'team/repo-0', issueIid: 1, title: 'Issue 1', elapsedSeconds: 30, phase: 'running', summary: '', updatedAt: 1_000 }];
-  const issues = Array.from({ length: 1_000 }, (_, index) => ({
-    id: index + 1, iid: index + 1, project_id: index % 500 + 1, title: `Issue ${index + 1}`,
-    description: 'Synthetic issue description for transport sizing. '.repeat(5), state: 'opened', labels: ['performance']
+function makeGraph(nodeCount, issueCount) {
+  const projects = makeProjects(nodeCount);
+  const nodes = Array.from({ length: nodeCount }, (_, index) => ({
+    id: 'project:' + (index + 1) + ':issue:' + (index + 1),
+    sourceIds: ['REST:Issue:' + (index + 1)], kind: 'issue', namespacePath: projects[index].path_with_namespace,
+    projectPath: projects[index].path_with_namespace, projectId: index + 1, iid: String(index + 1),
+    title: 'Graph issue ' + (index + 1), state: 'opened',
+    labels: [{ name: 'performance', color: '#3282b8' }], assignees: [], boardIds: [1],
+    assignedToMe: true, isRoot: true, relationsStatus: 'ready'
   }));
-  const nodes = Array.from({ length: 500 }, (_, index) => ({
-    id: `project:${index + 1}:issue:${index + 1}`, sourceIds: [`REST:Issue:${index + 1}`], kind: 'issue',
-    namespacePath: `team/repo-${index}`, projectPath: `team/repo-${index}`, projectId: index + 1, iid: String(index + 1),
-    title: `Graph issue ${index + 1}`, state: 'opened', labels: [{ name: 'performance', color: '#3282b8' }],
-    assignees: [], boardIds: [1], assignedToMe: true, isRoot: true, relationsStatus: 'ready'
+  const issues = Array.from({ length: issueCount }, (_, index) => ({
+    id: index + 1, iid: index + 1, project_id: index % Math.max(1, nodeCount) + 1,
+    title: 'Issue ' + (index + 1), description: 'Synthetic issue description for transport sizing. '.repeat(3),
+    state: 'opened', labels: ['performance']
   }));
-  const graph = {
+  return {
     connectedScope: 'synthetic-scope', status: 'ready', roots: nodes.map((node) => node.id), nodes,
-    edges: nodes.slice(1).map((node, index) => ({ id: `relates_to:${nodes[index].id}:${node.id}`, source: nodes[index].id, target: node.id, type: 'relates_to' })),
+    edges: nodes.slice(1).map((node, index) => ({ id: 'relates_to:' + nodes[index].id + ':' + node.id, source: nodes[index].id, target: node.id, type: 'relates_to' })),
     boardIssueIds: { 1: issues.map((issue) => issue.id) }, boardStatus: { 1: { status: 'ready' } }, errors: [], updatedAt: 1_000
   };
-  const snapshotMessage = {
-    type: 'snapshot', snapshot: {
-      connected: true, currentUser: { id: 7, username: 'synthetic', name: 'Synthetic User' }, groups: [],
-      group: { id: 3, name: 'Team', full_path: 'team', web_url: '' }, groupRoot: root, projects,
-      groupMilestones: [], groupIssueBoards: [], issueGraph: graph, issueGraphVersion: 1,
-      localRepositories: {}, issues, mergeRequests: [], activeMode: 'developer', connectedScope: 'synthetic-scope',
-      instanceUserScope: 'synthetic-user', projectMembers: [], timers: timer, timerVersion: 30,
-      tools: [], toolSource: 'gitea', deliveryRecords: []
-    }
-  };
-  const timerDelta = { type: 'timersChanged', instanceUserScope: 'synthetic-user', version: 31, timers: timer };
-  const graphDelta = { type: 'issueGraphChanged', connectedScope: 'synthetic-scope', version: 2, graph };
-  const fullBytes = Buffer.byteLength(JSON.stringify(snapshotMessage));
-  const deltaBytes = Buffer.byteLength(JSON.stringify(timerDelta));
-  const graphBytes = Buffer.byteLength(JSON.stringify(graphDelta));
+}
+
+async function measureGraph(nodeCount, issueCount) {
+  let previous = makeGraph(nodeCount, issueCount);
+  if (global.gc) global.gc();
+  const initialHeapBytes = process.memoryUsage().heapUsed;
+  let peakSampledHeapBytes = initialHeapBytes;
+  const fullBytesPerUpdate = [];
+  const patchBytesPerUpdate = [];
+  const patchDurations = [];
+  let changedNodeCount = 0;
+  for (let tick = 0; tick < 30; tick++) {
+    const index = tick % nodeCount;
+    const nodes = previous.nodes.slice();
+    nodes[index] = { ...nodes[index], title: nodes[index].title + ' *' };
+    const next = { ...previous, nodes, updatedAt: previous.updatedAt + 100 };
+    const started = performance.now();
+    const patch = createIssueGraphPatch(previous, next);
+    patchDurations.push(performance.now() - started);
+    const fullMessage = { type: 'issueGraphChanged', connectedScope: next.connectedScope, version: tick + 2, graph: next };
+    const deltaMessage = { type: 'issueGraphPatch', version: tick + 2, ...patch };
+    fullBytesPerUpdate.push(Buffer.byteLength(JSON.stringify(fullMessage)));
+    patchBytesPerUpdate.push(Buffer.byteLength(JSON.stringify(deltaMessage)));
+    changedNodeCount += patch.upsertNodes.length;
+    if (tick === 0) assert.deepEqual(applyIssueGraphPatch(previous, patch), next);
+    previous = next;
+    await new Promise((resolve) => setImmediate(resolve));
+    peakSampledHeapBytes = Math.max(peakSampledHeapBytes, process.memoryUsage().heapUsed);
+  }
+  const fullBytes = fullBytesPerUpdate.reduce((total, value) => total + value, 0);
+  const patchBytes = patchBytesPerUpdate.reduce((total, value) => total + value, 0);
+  const windowOffsets = new Array(issueCount + 1);
+  windowOffsets[0] = 0;
+  for (let index = 0; index < issueCount; index++) windowOffsets[index + 1] = windowOffsets[index] + 44 + index % 3 * 12;
+  const listWindow = virtualWindow(issueCount, windowOffsets, Math.floor(windowOffsets.at(-1) / 2), 640);
+  const afterHeapBytes = process.memoryUsage().heapUsed;
   return {
-    ticks: 30,
-    fullSnapshotBytes: fullBytes,
-    timerDeltaBytes: deltaBytes,
-    fullSnapshotBytesFor30Ticks: fullBytes * 30,
-    timerDeltaBytesFor30Ticks: deltaBytes * 30,
-    timerByteReductionPercent: Number(((1 - deltaBytes / fullBytes) * 100).toFixed(2)),
-    graphDeltaBytes: graphBytes,
-    graphDeltaReductionPercent: Number(((1 - graphBytes / fullBytes) * 100).toFixed(2))
+    nodes: nodeCount, issues: issueCount, updates: 30,
+    fullGraphTransportBytes: fullBytes,
+    incrementalGraphTransportBytes: patchBytes,
+    graphTransportReductionPercent: Number(((1 - patchBytes / fullBytes) * 100).toFixed(2)),
+    averageChangedNodesPerUpdate: Number((changedNodeCount / 30).toFixed(2)),
+    patchBuildMedianMs: Number(median(patchDurations).toFixed(3)),
+    issueRowsAtMidScroll: { total: issueCount, mounted: listWindow.end - listWindow.start, range: [listWindow.start, listWindow.end] },
+    heapUsedBeforeBytes: initialHeapBytes,
+    heapUsedAfterBytes: afterHeapBytes,
+    peakSampledHeapBytes,
+    peakSampledHeapDeltaBytes: peakSampledHeapBytes - initialHeapBytes
   };
 }
 
-measureSharedReads().then((sharedReads) => {
-  const oldMedianMs = median(oldRuns);
-  const newMedianMs = median(newRuns);
-  process.stdout.write(`${JSON.stringify({
-    workload: { projects: 500, issues: 1_000, graphNodes: 500 },
-    repoPathNaming: {
-      oldMedianMs: Number(oldMedianMs.toFixed(2)), newMedianMs: Number(newMedianMs.toFixed(2)),
-      reductionPercent: Number(((1 - newMedianMs / oldMedianMs) * 100).toFixed(2)),
-      oldRunsMs: oldRuns.map((value) => Number(value.toFixed(2))),
-      newRunsMs: newRuns.map((value) => Number(value.toFixed(2)))
+async function run() {
+  if (global.gc) global.gc();
+  const heapBeforeBytes = process.memoryUsage().heapUsed;
+  const folderPaths = [
+    measureFolderPaths(50, 5),
+    measureFolderPaths(500, 5),
+    measureFolderPaths(2_000, 3)
+  ];
+  const cache = await measureCache(1_000);
+  const graphWorkloads = [
+    await measureGraph(50, 100),
+    await measureGraph(500, 1_000),
+    await measureGraph(2_000, 10_000)
+  ];
+  const capabilityFixture = JSON.parse(readFileSync(path.join(__dirname, '../test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8'));
+  const initialNames = buildInitialTypeNames();
+  const fixtureTypes = capabilityFixture.types;
+  const fixtureTypeMap = new Map(fixtureTypes.map((type) => [type.name, type]));
+  const initialTypes = initialNames.flatMap((name) => fixtureTypeMap.has(name) ? [fixtureTypeMap.get(name)] : []);
+  const firstFollowupNames = buildFollowupTypeNames(mergeCapabilityTypes(initialTypes));
+  const firstFollowupTypes = firstFollowupNames.flatMap((name) => fixtureTypeMap.has(name) ? [fixtureTypeMap.get(name)] : []);
+  const secondSchema = mergeCapabilityTypes(initialTypes, firstFollowupTypes);
+  const nestedNames = buildFollowupTypeNames(secondSchema).filter((name) => !secondSchema.has(name));
+  const probeBatches = [initialNames, firstFollowupNames, nestedNames].filter((names) => names.length > 0);
+  const probeRequestBytes = probeBatches.map((names) => Buffer.byteLength(JSON.stringify({ query: buildCapabilityQuery(names), variables: {} })));
+  const legacySchemaQuery = 'query IssueCapabilities { __schema { types { name fields { name type { name kind ofType { name kind ofType { name kind } } } args { name type { name kind ofType { name kind ofType { name kind } } } } } inputFields { name type { name kind ofType { name kind ofType { name kind } } } } } } }';
+  if (global.gc) global.gc();
+  process.stdout.write(JSON.stringify({
+    environment: { platform: process.platform, node: process.version, gcExposed: !!global.gc, measuredAt: new Date().toISOString() },
+    methodology: 'Synthetic benchmark of production helpers; no live GitLab requests, VS Code webview, or real repository folders are included.',
+    workloads: { small: { repos: 50, issues: 100, graphNodes: 50 }, primary: { repos: 500, issues: 1_000, graphNodes: 500 }, stress: { repos: 2_000, issues: 10_000, graphNodes: 2_000 } },
+    repositoryPathNaming: folderPaths,
+    sharedReadCache: cache,
+    graphAndVirtualList: graphWorkloads,
+    capabilityProbe: {
+      sourceFixture: capabilityFixture.sourceTag,
+      targetedTypesPerInitialProbe: initialNames.length,
+      legacyRequestBytes: Buffer.byteLength(JSON.stringify({ query: legacySchemaQuery, variables: {} })),
+      targetedProbeBatches: probeBatches.length,
+      targetedTypesRequested: probeBatches.reduce((total, names) => total + names.length, 0),
+      targetedRequestBytesByBatch: probeRequestBytes,
+      targetedRequestBytesTotal: probeRequestBytes.reduce((total, bytes) => total + bytes, 0),
+      fullSchemaResponseBytes: null,
+      targetedResponseBytes: null,
+      responseReductionPercent: null,
+      measurementLimit: 'The pinned fixture is a minimal capability contract, not a full schema export. An authenticated CE 16.11.10 instance is required to measure response transfer reduction; request bytes alone are not a substitute.'
     },
-    sharedReadCache: sharedReads,
-    timerTransport: measureTimerTransport()
-  }, null, 2)}\n`);
-}).catch((error) => {
-  process.stderr.write(`${error.stack ?? error}\n`);
+    heapUsedBeforeBytes: heapBeforeBytes,
+    heapUsedAfterBytes: process.memoryUsage().heapUsed
+  }, null, 2) + '\n');
+}
+
+run().catch((error) => {
+  process.stderr.write(String(error && error.stack || error) + '\n');
   process.exitCode = 1;
 });

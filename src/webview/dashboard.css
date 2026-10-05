@@ -40,6 +40,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .page [hidden] { display: none !important; }
 .dashboard-error { align-items: flex-start; max-width: 100%; overflow-wrap: anywhere; }
 .dashboard-error span { flex: 1; white-space: pre-wrap; }
+.section-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 6px; margin: 4px 0; padding: 7px 10px; color: var(--muted); font-size: 11px; }
+.section-status.error { border-color: color-mix(in srgb, var(--danger), transparent 55%); color: var(--danger); }
+.virtual-list-row { min-width: 0; }
 .issue-embed { flex: 1; min-width: 0; min-height: 0; width: 100%; }
 .page pre { max-width: 100%; overflow: auto; }
 .workspace-tasks { display: flex; min-height: min-content; flex: 1 0 auto; flex-direction: column; }
@@ -47,7 +50,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .issue-list-panel { display: flex; min-width: 0; max-height: calc(100dvh - 180px); flex-direction: column; gap: 8px; overflow: auto; border: 1px solid var(--border); border-radius: 7px; padding: 10px; background: var(--surface); }
 .issue-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .issue-list-panel > input { width: 100%; }
-.issue-list-items { min-height: 120px; overflow: auto; }
+.issue-list-items { min-height: 120px; max-height: 50dvh; overflow: auto; }
 .issue-list-item { display: flex; width: 100%; flex-direction: column; gap: 5px; border: 0; border-radius: 5px; padding: 9px; text-align: left; background: transparent; }
 .issue-list-item:hover, .issue-list-item.selected { background: var(--vscode-list-activeSelectionBackground, #263c55); }
 .issue-list-item strong { overflow-wrap: anywhere; }

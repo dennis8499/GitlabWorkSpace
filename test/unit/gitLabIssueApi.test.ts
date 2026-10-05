@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { GitLabClient, type FetchLike } from '../../src/api/gitLabClient';
+import type { GraphQLSchemaType } from '../../src/api/graphqlCapabilities';
+import { selectedCapabilityData } from './graphqlFixture';
 
 const token = 'issue-api-test-token';
 const issue = { id: 401, iid: 7, project_id: 42, title: 'Before', state: 'opened', web_url: 'https://gitlab.example.test/g/p/-/issues/7', updated_at: '2026-09-24T00:00:00Z' };
@@ -39,7 +43,7 @@ test('updates an issue and rejects a stale local snapshot before writing', async
 
 test('loads discussions and related issues with pagination', async () => {
   const paths: string[] = [];
-  const fetcher: FetchLike = async (input) => {
+  const fetcher: FetchLike = async (input, init) => {
     const url = String(input);
     paths.push(url);
     const payload = url.includes('/discussions') ? [{ id: 'thread-1', notes: [{ id: 1, body: 'Hello' }] }] : [{ id: 2, iid: 8, project_id: 42, issue_link_id: 5, title: 'Related' }];
@@ -59,7 +63,7 @@ test('handles a successful issue deletion with no JSON response', async () => {
 
 test('loads inherited issue templates through the project template API', async () => {
   const paths: string[] = [];
-  const fetcher: FetchLike = async (input) => {
+  const fetcher: FetchLike = async (input, init) => {
     const path = new URL(String(input)).pathname;
     paths.push(path);
     return new Response(JSON.stringify(path.endsWith('/templates/issues') ? [{ key: 'Bug', name: 'Bug' }] : { content: 'Steps to reproduce' }));
@@ -72,10 +76,11 @@ test('loads inherited issue templates through the project template API', async (
 test('includes ancestor milestones and checks the GitLab GraphQL issue capabilities', async () => {
   const paths: string[] = [];
   const names = (value: string) => ({ fields: value.split(' ').map((name) => ({ name })) });
-  const fetcher: FetchLike = async (input) => {
+  const fetcher: FetchLike = async (input, init) => {
     const url = new URL(String(input));
     paths.push(url.pathname + url.search);
-    if (url.pathname.endsWith('/graphql')) return new Response(JSON.stringify({ data: { __schema: { types: [
+    if (url.pathname.endsWith('/graphql')) {
+      const schema: GraphQLSchemaType[] = [
       { name: 'Namespace', fields: [{ name: 'workItem', args: [{ name: 'iid' }] }, { name: 'workItemTypes' }] },
       { name: 'WorkItem', ...names('id iid userPermissions widgets') },
       { name: 'WorkItemWidgetHierarchy', ...names('children') },
@@ -83,7 +88,7 @@ test('includes ancestor milestones and checks the GitLab GraphQL issue capabilit
       { name: 'Mutation', fields: [
         { name: 'workItemCreate', args: [{ name: 'input', type: { name: 'WorkItemCreateInput' } }] },
         { name: 'workItemUpdate', args: [{ name: 'input', type: { name: 'WorkItemUpdateInput' } }] },
-        { name: 'discussionToggleResolve' },
+        { name: 'discussionToggleResolve', args: [{ name: 'input', type: { name: 'DiscussionToggleResolveInput' } }] },
         { name: 'timelogCreate', args: [{ name: 'input', type: { name: 'TimelogCreateInput' } }] },
         { name: 'timelogDelete', args: [{ name: 'input', type: { name: 'TimelogDeleteInput' } }] }
       ] },
@@ -97,7 +102,10 @@ test('includes ancestor milestones and checks the GitLab GraphQL issue capabilit
       { name: 'WorkItemWidgetTimeTracking', ...names('timelogs') },
       { name: 'WorkItemTimelog', fields: [...names('id timeSpent spentAt summary user').fields, { name: 'userPermissions', type: { name: 'TimelogPermissions' } }] },
       { name: 'TimelogPermissions', ...names('adminTimelog') }
-    ] } } }));
+      ];
+      const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+      return new Response(JSON.stringify({ data: selectedCapabilityData(query, schema) }));
+    }
     return new Response(JSON.stringify([{ id: 8, title: 'Parent group milestone' }]));
   };
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
@@ -124,7 +132,7 @@ test('matches the GitLab CE 16.11.10 GraphQL compatibility contract using Projec
   const names = (value: string) => value.split(' ').map((name) => ({ name }));
   const field = (name: string, args?: Array<{ name: string; type: { name: string } }>) => ({ name, ...(args ? { args } : {}) });
   const schema = [
-    { name: 'Project', fields: [field('workItem', [{ name: 'iid', type: { name: 'String' } }]), field('workItemTypes', [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }]), field('userPermissions')] },
+    { name: 'Project', fields: [field('fullPath'), field('workItem', [{ name: 'iid', type: { name: 'String' } }]), field('workItemTypes', [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }]), field('userPermissions')] },
     { name: 'WorkItem', fields: names('id iid title state webUrl userPermissions widgets') },
     { name: 'WorkItemPermissions', fields: names('updateWorkItem adminParentLink') },
     { name: 'WorkItemWidgetHierarchy', fields: names('parent children') },
@@ -136,15 +144,19 @@ test('matches the GitLab CE 16.11.10 GraphQL compatibility contract using Projec
       field('workItemUpdate', [{ name: 'input', type: { name: 'WorkItemUpdateInput' } }])
     ] },
     { name: 'WorkItemCreateInput', inputFields: names('projectPath workItemTypeId title hierarchyWidget') },
-    { name: 'WorkItemUpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') }
+    { name: 'WorkItemUpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') },
+    { name: 'WorkItemWidgetHierarchyInput', inputFields: names('parentId') }
   ];
-  let requestBody = '';
+  const requestBodies: string[] = [];
   const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
-    requestBody = String(init?.body);
-    return new Response(JSON.stringify({ data: { __schema: { types: schema } } }));
+    const request = JSON.parse(String(init?.body)) as { query: string };
+    requestBodies.push(request.query);
+    return new Response(JSON.stringify({ data: selectedCapabilityData(request.query, schema as GraphQLSchemaType[]) }));
   });
   const capabilities = await client.getIssueCapabilities();
-  assert.match(requestBody, /__schema/);
+  assert.ok(requestBodies.length <= 3);
+  assert.ok(requestBodies.every((query) => query.includes('__type(name:')));
+  assert.ok(requestBodies.every((query) => !query.includes('__schema')));
   assert.equal(capabilities.workItemScope, 'project');
   assert.equal(capabilities.workItemCreatePathField, 'projectPath');
   assert.equal(capabilities.workItemTypeList, true);
@@ -154,10 +166,34 @@ test('matches the GitLab CE 16.11.10 GraphQL compatibility contract using Projec
   assert.equal(capabilities.graphHierarchy, true);
 });
 
+test('runs the pinned CE 16.11.10 selective-introspection fixture and checks its generated query', async () => {
+  const fixture = JSON.parse(readFileSync(path.join(process.cwd(), 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8')) as {
+    sourceTag: string; source: string; types: GraphQLSchemaType[];
+  };
+  const requests: string[] = [];
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    requests.push(query);
+    return new Response(JSON.stringify({ data: selectedCapabilityData(query, fixture.types) }));
+  });
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(fixture.sourceTag, 'v16.11.10-ee');
+  assert.match(fixture.source, /v16\.11\.10-ee\/app\/graphql/);
+  assert.equal(capabilities.workItemScope, 'project');
+  assert.equal(capabilities.workItemCreatePathField, 'projectPath');
+  assert.equal(capabilities.childMutations, true);
+  assert.equal(capabilities.discussionResolve, true);
+  assert.equal(capabilities.timelogReport, true);
+  assert.ok(requests.length <= 3);
+  assert.ok(requests.every((query) => query.includes('__type(name:')));
+  assert.ok(requests.every((query) => !query.includes('__schema')));
+  assert.ok(requests.flatMap((query) => [...query.matchAll(/__type\(name: "([^"]+)"\)/g)].map((match) => match[1])).length < 40);
+});
+
 test('keeps the Namespace and namespacePath GraphQL shape for newer GitLab schemas', async () => {
   const names = (value: string) => value.split(' ').map((name) => ({ name }));
   const scope = { fields: [{ name: 'workItem', args: [{ name: 'iid', type: { name: 'String' } }] }, { name: 'workItemTypes', args: [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }] }] };
-  const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(JSON.stringify({ data: { __schema: { types: [
+  const schema: GraphQLSchemaType[] = [
     { name: 'Namespace', ...scope },
     { name: 'WorkItem', fields: names('id iid title state webUrl widgets') },
     { name: 'WorkItemWidgetHierarchy', fields: names('parent children') },
@@ -166,8 +202,13 @@ test('keeps the Namespace and namespacePath GraphQL shape for newer GitLab schem
       { name: 'workItemUpdate', args: [{ name: 'input', type: { name: 'UpdateInput' } }] }
     ] },
     { name: 'CreateInput', inputFields: names('namespacePath hierarchyWidget workItemTypeId title') },
-    { name: 'UpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') }
-  ] } } })));
+    { name: 'UpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') },
+    { name: 'WorkItemWidgetHierarchyInput', inputFields: names('parentId') }
+  ];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    return new Response(JSON.stringify({ data: selectedCapabilityData(query, schema) }));
+  });
   const capabilities = await client.getIssueCapabilities();
   assert.equal(capabilities.workItemScope, 'namespace');
   assert.equal(capabilities.workItemCreatePathField, 'namespacePath');
@@ -205,14 +246,18 @@ test('uses the legacy Project root and projectPath when creating a child task', 
 
 test('detects read-only Issue graph fields without requiring WorkItem edit permissions', async () => {
   const names = (value: string) => ({ fields: value.split(' ').map((name) => ({ name })) });
-  const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(JSON.stringify({ data: { __schema: { types: [
+  const schema: GraphQLSchemaType[] = [
     { name: 'Namespace', fields: [{ name: 'workItem', args: [{ name: 'iid' }] }] },
     { name: 'WorkItem', ...names('id iid title state webUrl namespace project widgets workItemType') },
     { name: 'WorkItemWidgetHierarchy', ...names('parent children') },
     { name: 'WorkItemWidgetLinkedItems', ...names('linkedItems') },
     { name: 'WorkItemWidgetLabels', ...names('labels') },
     { name: 'WorkItemWidgetAssignees', ...names('assignees') }
-  ] } } })));
+  ];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    return new Response(JSON.stringify({ data: selectedCapabilityData(query, schema) }));
+  });
   const capabilities = await client.getIssueCapabilities();
   assert.equal(capabilities.graphWorkItems, true);
   assert.equal(capabilities.graphHierarchy, true);
@@ -257,7 +302,7 @@ test('paginates WorkItem parents, child items, linked items, and reads label met
   assert.equal(calls.length, 2);
   assert.equal(calls[0].variables.path, 'team/service');
   assert.equal(calls[0].variables.iid, '7');
-  assert.deepEqual(calls[1].variables, { path: 'team/service', iid: '7', childrenAfter: 'child-cursor', linksAfter: 'link-cursor' });
+  assert.deepEqual(calls[1].variables, { path: 'team/service', iid: '7', childrenAfter: 'child-cursor', includeChildren: true, linksAfter: 'link-cursor', includeLinks: true });
   assert.match(calls[0].query, /WorkItemWidgetHierarchy/);
   assert.match(calls[0].query, /WorkItemWidgetLinkedItems/);
   assert.match(calls[0].query, /color textColor/);
@@ -266,6 +311,29 @@ test('paginates WorkItem parents, child items, linked items, and reads label met
   assert.equal(result.children.length, 2);
   assert.equal(result.links.length, 2);
   assert.deepEqual(result.links.map((entry) => entry.type), ['RELATED', 'BLOCKS']);
+});
+
+test('stops requesting a completed WorkItem connection while another connection paginates', async () => {
+  const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    const request = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    calls.push(request);
+    const later = request.variables.includeChildren === false;
+    const data = { data: { namespace: { workItem: { id: 'work-item', iid: '7', widgets: [
+      ...(later ? [] : [{ children: { nodes: [{ id: 'child-1', iid: '8', title: 'Child', state: 'OPEN' }], pageInfo: { hasNextPage: false } } }]),
+      { linkedItems: { nodes: [{ linkType: 'RELATED', workItem: { id: later ? 'linked-2' : 'linked-1', iid: later ? '10' : '9', title: 'Link', state: 'OPEN' } }], pageInfo: { hasNextPage: !later, endCursor: later ? null : 'links-next' } } }
+    ] } } } };
+    return new Response(JSON.stringify(data));
+  });
+  const graph = await client.loadIssueGraphRelations('team/project', 7, {
+    graphWorkItems: true, graphHierarchy: true, graphLinkedItems: true, graphLabels: false, graphAssignees: false, graphWorkItemTypes: false
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].variables.includeChildren, false);
+  assert.equal(calls[1].variables.includeLinks, true);
+  assert.match(calls[1].query, /children\(first: 100, after: \$childrenAfter\) @include\(if: \$includeChildren\)/);
+  assert.equal(graph.children.length, 1);
+  assert.equal(graph.links.length, 2);
 });
 
 test('loads Work Item relations from the legacy Project query root', async () => {

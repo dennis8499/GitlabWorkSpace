@@ -1,0 +1,64 @@
+{
+  "source": "https://gitlab.com/gitlab-org/gitlab/-/tree/v16.11.10-ee/app/graphql",
+  "sourceTag": "v16.11.10-ee",
+  "note": "Minimal selective-introspection contract fixture for the Project/projectPath API shape; it is not a complete exported schema.",
+  "types": [
+    { "name": "Project", "kind": "OBJECT", "fields": [
+      { "name": "fullPath", "type": { "name": "ID", "kind": "SCALAR" } },
+      { "name": "workItem", "args": [{ "name": "iid", "type": { "name": "String", "kind": "SCALAR" } }] },
+      { "name": "workItemTypes", "args": [{ "name": "name", "type": { "name": "WorkItemsTypeEnum", "kind": "ENUM" } }] },
+      { "name": "userPermissions", "type": { "name": "ProjectPermissions", "kind": "OBJECT" } }
+    ] },
+    { "name": "Issue", "kind": "OBJECT", "fields": [{ "name": "userPermissions", "type": { "name": "IssuePermissions", "kind": "OBJECT" } }] },
+    { "name": "IssuePermissions", "kind": "OBJECT", "fields": [
+      { "name": "updateIssue" }, { "name": "adminIssue" }, { "name": "deleteIssue" }, { "name": "createNote" }
+    ] },
+    { "name": "ProjectPermissions", "kind": "OBJECT", "fields": [{ "name": "createIssue" }] },
+    { "name": "WorkItem", "kind": "OBJECT", "fields": [
+      { "name": "id" }, { "name": "iid" }, { "name": "title" }, { "name": "state" }, { "name": "webUrl" },
+      { "name": "namespace" }, { "name": "project" }, { "name": "workItemType" },
+      { "name": "userPermissions", "type": { "name": "WorkItemPermissions", "kind": "OBJECT" } },
+      { "name": "widgets", "type": { "name": "WorkItemWidget", "kind": "INTERFACE" } }
+    ] },
+    { "name": "WorkItemPermissions", "kind": "OBJECT", "fields": [{ "name": "updateWorkItem" }, { "name": "adminParentLink" }] },
+    { "name": "WorkItemWidget", "kind": "INTERFACE", "possibleTypes": [
+      { "name": "WorkItemWidgetHierarchy" }, { "name": "WorkItemWidgetLinkedItems" },
+      { "name": "WorkItemWidgetLabels" }, { "name": "WorkItemWidgetAssignees" },
+      { "name": "WorkItemWidgetStartAndDueDate" }, { "name": "WorkItemWidgetTimeTracking" }
+    ] },
+    { "name": "WorkItemWidgetHierarchy", "kind": "OBJECT", "fields": [{ "name": "parent" }, { "name": "children" }] },
+    { "name": "WorkItemWidgetLinkedItems", "kind": "OBJECT", "fields": [{ "name": "linkedItems" }] },
+    { "name": "WorkItemWidgetLabels", "kind": "OBJECT", "fields": [{ "name": "labels" }] },
+    { "name": "WorkItemWidgetAssignees", "kind": "OBJECT", "fields": [{ "name": "assignees" }] },
+    { "name": "WorkItemWidgetStartAndDueDate", "kind": "OBJECT", "fields": [{ "name": "startDate" }] },
+    { "name": "WorkItemWidgetTimeTracking", "kind": "OBJECT", "fields": [{ "name": "timelogs" }] },
+    { "name": "WorkItemTimelog", "kind": "OBJECT", "fields": [
+      { "name": "id" }, { "name": "timeSpent" }, { "name": "spentAt" }, { "name": "summary" }, { "name": "user" },
+      { "name": "userPermissions", "type": { "name": "TimelogPermissions", "kind": "OBJECT" } }
+    ] },
+    { "name": "TimelogPermissions", "kind": "OBJECT", "fields": [{ "name": "adminTimelog" }] },
+    { "name": "Mutation", "kind": "OBJECT", "fields": [
+      { "name": "workItemCreate", "args": [{ "name": "input", "type": { "name": "WorkItemCreateInput", "kind": "INPUT_OBJECT" } }] },
+      { "name": "workItemUpdate", "args": [{ "name": "input", "type": { "name": "WorkItemUpdateInput", "kind": "INPUT_OBJECT" } }] },
+      { "name": "discussionToggleResolve", "args": [{ "name": "input", "type": { "name": "DiscussionToggleResolveInput", "kind": "INPUT_OBJECT" } }] },
+      { "name": "timelogCreate", "args": [{ "name": "input", "type": { "name": "TimelogCreateInput", "kind": "INPUT_OBJECT" } }] },
+      { "name": "timelogDelete", "args": [{ "name": "input", "type": { "name": "TimelogDeleteInput", "kind": "INPUT_OBJECT" } }] }
+    ] },
+    { "name": "WorkItemCreateInput", "kind": "INPUT_OBJECT", "inputFields": [
+      { "name": "projectPath" }, { "name": "workItemTypeId" }, { "name": "title" },
+      { "name": "hierarchyWidget", "type": { "name": "WorkItemWidgetHierarchyInput", "kind": "INPUT_OBJECT" } }
+    ] },
+    { "name": "WorkItemUpdateInput", "kind": "INPUT_OBJECT", "inputFields": [
+      { "name": "hierarchyWidget", "type": { "name": "WorkItemWidgetHierarchyInput", "kind": "INPUT_OBJECT" } },
+      { "name": "stateEvent" }, { "name": "title" }, { "name": "descriptionWidget" },
+      { "name": "startAndDueDateWidget", "type": { "name": "WorkItemWidgetStartAndDueDateInput", "kind": "INPUT_OBJECT" } }
+    ] },
+    { "name": "WorkItemWidgetHierarchyInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "parentId" }] },
+    { "name": "WorkItemWidgetStartAndDueDateInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "startDate" }] },
+    { "name": "TimelogCreateInput", "kind": "INPUT_OBJECT", "inputFields": [
+      { "name": "issuableId" }, { "name": "timeSpent" }, { "name": "spentAt" }, { "name": "summary" }
+    ] },
+    { "name": "TimelogDeleteInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "id" }] },
+    { "name": "DiscussionToggleResolveInput", "kind": "INPUT_OBJECT", "inputFields": [] }
+  ]
+}

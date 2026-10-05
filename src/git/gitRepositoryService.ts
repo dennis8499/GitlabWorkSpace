@@ -31,6 +31,18 @@ interface GitBranch {
   upstream?: { remote: string; name: string; commit?: string };
 }
 
+async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number, operation: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await operation(items[index], index);
+    }
+  }));
+  return results;
+}
+
 interface GitRef {
   name?: string;
   commit?: string;
@@ -108,6 +120,12 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly panelEmitter = new vscode.EventEmitter<GitPanelMessage>();
   private readonly pendingRequests = new Set<string>();
   private repositoriesRevision = 0;
+  private repositoryListRevision = 0;
+  private cachedSummaries: GitRepositorySummary[] = [];
+  private cachedSummariesListRevision = -1;
+  private summaryRefresh?: Promise<GitRepositorySummary[]>;
+  private dirtySummaryRefresh?: Promise<void>;
+  private readonly dirtySummaryIds = new Set<string>();
   private projectSource: () => readonly GitLabProject[] = () => [];
   private readonly gitlabSession: GitLabSession;
   private initialization: Promise<void>;
@@ -126,29 +144,52 @@ export class GitRepositoryService implements vscode.Disposable {
 
   async refresh(): Promise<GitRepositorySummary[]> {
     await this.initialization;
-    if (!this.api || !this.enabled) return [];
-    const summaries: GitRepositorySummary[] = [];
-    for (const repository of this.api.repositories) {
+    if (!this.api || !this.enabled) {
+      this.cachedSummaries = [];
+      this.cachedSummariesListRevision = this.repositoryListRevision;
+      this.dirtySummaryIds.clear();
+      return [];
+    }
+    if (this.summaryRefresh) return this.summaryRefresh;
+    const listRevision = this.repositoryListRevision;
+    const task = mapWithConcurrency([...this.api.repositories], 4, async (repository) => {
       const id = this.repositoryId(repository.rootUri.fsPath);
       try {
-        const summary = await withGitDirectoryLock(repository.rootUri.fsPath, async () => {
+        return await withGitDirectoryLock(repository.rootUri.fsPath, async () => {
           await repository.status();
           this.reconcileRepositorySubscription(repository, id);
-          return this.buildSummary(repository, id);
+          const stateRevision = this.revisionByRepository.get(id) ?? 0;
+          return { id, stateRevision, summary: await this.buildSummary(repository, id) };
         });
-        summaries.push(summary);
       } catch {
-        summaries.push(await this.buildSummary(repository, id));
+        const stateRevision = this.revisionByRepository.get(id) ?? 0;
+        return { id, stateRevision, summary: await this.buildSummary(repository, id) };
       }
-    }
-    return summaries.sort((first, second) =>
-      first.name.localeCompare(second.name, 'en-US', { sensitivity: 'base' }) || first.path.localeCompare(second.path));
+    }).then((summaries) => {
+      const values = summaries.map((item) => item.summary);
+      values.sort((first, second) =>
+        first.name.localeCompare(second.name, 'en-US', { sensitivity: 'base' }) || first.path.localeCompare(second.path));
+      if (listRevision === this.repositoryListRevision) {
+        this.cachedSummaries = values;
+        this.cachedSummariesListRevision = listRevision;
+        const currentIds = new Set(summaries.map((item) => item.id));
+        for (const id of this.dirtySummaryIds) if (!currentIds.has(id)) this.dirtySummaryIds.delete(id);
+        for (const item of summaries) {
+          if ((this.revisionByRepository.get(item.id) ?? 0) === item.stateRevision) this.dirtySummaryIds.delete(item.id);
+        }
+      }
+      return values;
+    });
+    this.summaryRefresh = task;
+    return task.finally(() => { if (this.summaryRefresh === task) this.summaryRefresh = undefined; });
   }
 
   async getSummaryState(): Promise<{ repositories: GitRepositorySummary[]; available: boolean; message?: string; revision: number }> {
     await this.initialization;
+    if (this.cachedSummariesListRevision !== this.repositoryListRevision) await this.refresh();
+    if (this.dirtySummaryIds.size) await this.refreshDirtySummaries();
     return {
-      repositories: await this.refresh(),
+      repositories: this.cachedSummaries,
       available: this.enabled,
       message: this.error,
       revision: this.repositoriesRevision
@@ -293,7 +334,7 @@ export class GitRepositoryService implements vscode.Disposable {
       if (this.needsSavedEditorCheck(action) && !await this.confirmSavedEditors(repository, affectedPaths)) return this.readSnapshot(repository, repositoryId);
       this.activeOperations.add(repositoryId);
       this.bump(repositoryId);
-      this.publishRepositories();
+      this.publishRepositoryState(repositoryId);
       try {
         await this.performAction(repository, repositoryId, action);
         await repository.status();
@@ -301,7 +342,7 @@ export class GitRepositoryService implements vscode.Disposable {
       } finally {
         this.activeOperations.delete(repositoryId);
         this.bump(repositoryId);
-        this.publishRepositories();
+        this.publishRepositoryState(repositoryId);
       }
     });
   }
@@ -407,7 +448,7 @@ export class GitRepositoryService implements vscode.Disposable {
     if (this.repositorySubscriptions.has(id)) return;
     this.repositorySubscriptions.set(id, repository.state.onDidChange(() => {
       this.bump(id);
-      this.publishRepositories();
+      this.publishRepositoryState(id);
       void this.sendRepositoryUpdate(id);
     }));
   }
@@ -432,7 +473,53 @@ export class GitRepositoryService implements vscode.Disposable {
     }
   }
 
-  private publishRepositories(): void { this.repositoriesRevision++; this.emitter.fire(); }
+  private async refreshDirtySummaries(): Promise<void> {
+    if (this.dirtySummaryRefresh) return this.dirtySummaryRefresh;
+    const listRevision = this.repositoryListRevision;
+    const ids = [...this.dirtySummaryIds];
+    const task = mapWithConcurrency(ids, 4, async (id) => {
+      const stateRevision = this.revisionByRepository.get(id) ?? 0;
+      const repository = this.findRepository(id);
+      if (!repository) return { id, stateRevision, summary: undefined };
+      try { return { id, stateRevision, summary: await withGitDirectoryLock(repository.rootUri.fsPath, () => this.buildSummary(repository, id)) }; }
+      catch { return { id, stateRevision, summary: undefined }; }
+    }).then((updates) => {
+      if (listRevision !== this.repositoryListRevision) return;
+      for (const update of updates) {
+        if ((this.revisionByRepository.get(update.id) ?? 0) !== update.stateRevision) continue;
+        if (update.summary) {
+          const index = this.cachedSummaries.findIndex((summary) => summary.id === update.id);
+          if (index >= 0) this.cachedSummaries[index] = update.summary;
+          else this.cachedSummaries.push(update.summary);
+        }
+        this.dirtySummaryIds.delete(update.id);
+      }
+      this.cachedSummaries.sort((first, second) =>
+        first.name.localeCompare(second.name, 'en-US', { sensitivity: 'base' }) || first.path.localeCompare(second.path));
+    });
+    this.dirtySummaryRefresh = task;
+    try { await task; }
+    finally {
+      if (this.dirtySummaryRefresh === task) {
+        this.dirtySummaryRefresh = undefined;
+        if (this.dirtySummaryIds.size) {
+          const timer = setTimeout(() => this.emitter.fire(), 160);
+          timer.unref?.();
+        }
+      }
+    }
+  }
+
+  private publishRepositories(): void {
+    this.repositoriesRevision++;
+    this.repositoryListRevision++;
+    this.emitter.fire();
+  }
+  private publishRepositoryState(repositoryId: string): void {
+    this.repositoriesRevision++;
+    this.dirtySummaryIds.add(repositoryId);
+    this.emitter.fire();
+  }
   private bump(repositoryId: string): void {
     this.revisionByRepository.set(repositoryId, (this.revisionByRepository.get(repositoryId) ?? 0) + 1);
   }

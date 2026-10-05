@@ -1,21 +1,36 @@
-# 效能改善量測紀錄
+# Performance benchmark record
 
-日期：2026-10-02
-環境：Windows、Node.js v24.21.0、npm 11.19.0
-重跑方式：`npm run benchmark:performance`
+## Current run
 
-## 合成工作負載
+- Measured: 2026-10-05 07:51 UTC
+- Environment: Windows, Node.js v24.21.0, exposed garbage collector
+- Reproduce with: `npm run benchmark:performance`
+- Validation on the same checkout: `npm test` and `npm run typecheck:webview`
+- Workloads: small (50 Repos / 100 Issues / 50 graph nodes), primary (500 / 1,000 / 500), stress (2,000 / 10,000 / 2,000)
 
-基準工作負載為 500 個專案、1,000 張 Issue、500 個圖譜節點。路徑量測先暖機，再測 5 次並取中位數；載荷量測以 JSON 序列化位元組數比較完整 snapshot 與增量訊息。
+The benchmark calls the production folder-name, read-cache, graph-patch, capability-query, and virtual-window helpers with synthetic data. It does not include a live GitLab request, actual local Repo folders, a VS Code Webview, or browser rendering. The legacy Repo-path and full-snapshot measurements are comparison implementations run in the same process. Heap figures are sampled Node process data for the synthetic graph workload, not Webview memory measurements.
 
-| 項目 | 改善前 | 改善後 | 結果 |
+| Workload / metric | Before or full payload | Current path | Change |
 | --- | ---: | ---: | ---: |
-| 500 個專案的 Repo 路徑命名，中位數 | 1,561.47 ms | 1.49 ms | 降低 99.90% |
-| 同一清單的 8 個同時讀取者 | 8 次 API 讀取 | 1 次 API 讀取 | 少 7 次 |
-| 工時更新單次傳輸 | 704,121 B snapshot | 243 B delta | 降低 99.97% |
-| 30 次工時更新傳輸 | 21,123,630 B | 7,290 B | 降低 99.97% |
-| 圖譜更新傳輸 | 704,121 B snapshot | 265,062 B graph delta | 降低 62.36% |
+| 50 Repo path mapping, median | 2.37 ms | 0.20 ms | 91.65% less elapsed time |
+| 500 Repo path mapping, median | 1,321.16 ms | 1.10 ms | 99.92% less elapsed time |
+| 2,000 Repo path mapping | Legacy cubic comparison skipped | 3.72 ms | Current path measured |
+| 8 identical concurrent reads | 8 API calls | 1 API call | 7 calls coalesced |
+| 8 warm reads | 144,454 B response fixture | 0 network bytes | Served by cache |
+| 30 graph updates, small | 770,422 B full snapshots | 19,538 B deltas | 97.46% less serialized data |
+| 30 graph updates, primary | 7,952,812 B full snapshots | 19,538 B deltas | 99.75% less serialized data |
+| 30 graph updates, stress | 33,513,202 B full snapshots | 19,538 B deltas | 99.94% less serialized data |
+| Primary Issue list at mid-scroll | 1,000 rows | 32 mounted rows | Variable-height window plus overscan |
+| Stress Issue list at mid-scroll | 10,000 rows | 32 mounted rows | Variable-height window plus overscan |
 
-路徑測試每次舊流程都重算整批命名表，以重現逐專案呼叫時的成本；新流程每批只計算一次。工時與圖譜傳輸數據是代表性合成 payload 的序列化大小，不代表 GitLab 網路流量，也沒有包含 VS Code 訊息框架額外開銷。讀取快取數據是同一 session、同一 key 的同時請求合併測量。
+The sampled heap delta was 4.09 MB for the small case, 34.95 MB for primary, and 34.62 MB for stress. These values include the synthetic benchmark's in-memory data and are not a before/after measurement of the extension Webview.
 
-完整測量程式位於 `scripts/performance-benchmark.cjs`。這些結果適合用來比較同一環境下的程式變化；真實專案的網路等待、磁碟、GitLab 回應大小及畫面渲染時間仍會因環境而異。
+## Capability-probe transfer
+
+The pinned `v16.11.10-ee` fixture is a minimal CE-compatible schema contract, not a complete schema export. The current query planner makes three targeted batches for 23 types. Their combined request bodies are 2,579 bytes; the old whole-schema query body was 316 bytes. Request text therefore grows because the targeted probe asks for field, argument, and input details. The response payloads cannot be compared from this fixture, so the planned 80% capability-probe transfer reduction is **not yet verified**. It requires a captured full-schema and targeted response from an authenticated GitLab CE 16.11.10 instance. No response-size or live-instance improvement is claimed here.
+
+## Historical measurement (2026-10-02)
+
+The earlier benchmark run recorded 1,561.47 ms to 1.49 ms for 500 Repo path mapping, eight concurrent reads to one, a 99.97% reduction for a representative timer payload, and a 62.36% reduction for a representative graph payload. Its graph fixture and comparison path differ from the current production-helper benchmark above, so the values are retained as historical context rather than combined into one series.
+
+The benchmark is useful for comparing algorithm and serialized-payload changes on the same machine. Live GitLab latency, bytes transferred, Git command counts against real folders, Webview rendering, and resident memory still need acceptance measurements in the target environment.

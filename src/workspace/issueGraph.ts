@@ -41,6 +41,77 @@ export interface IssueGraphSnapshot {
   updatedAt: number;
 }
 
+export interface IssueGraphPatch {
+  connectedScope: string;
+  upsertNodes: IssueGraphNode[];
+  removeNodeIds: string[];
+  upsertEdges: IssueGraphEdge[];
+  removeEdgeIds: string[];
+  addRootIds: string[];
+  removeRootIds: string[];
+  boardIssueIds: Partial<Record<number, number[]>>;
+  removeBoardIds: number[];
+  boardStatus: Partial<Record<number, IssueGraphSnapshot['boardStatus'][number]>>;
+  removeBoardStatusIds: number[];
+  status: IssueGraphSnapshot['status'];
+  errors: string[];
+  updatedAt: number;
+}
+
+export function createIssueGraphPatch(previous: IssueGraphSnapshot | undefined, current: IssueGraphSnapshot): IssueGraphPatch {
+  const priorNodes = new Map((previous?.nodes ?? []).map((node) => [node.id, JSON.stringify(node)]));
+  const nextNodes = new Map(current.nodes.map((node) => [node.id, JSON.stringify(node)]));
+  const priorEdges = new Map((previous?.edges ?? []).map((edge) => [edge.id, JSON.stringify(edge)]));
+  const nextEdges = new Map(current.edges.map((edge) => [edge.id, JSON.stringify(edge)]));
+  const priorRoots = new Set(previous?.roots ?? []);
+  const nextRoots = new Set(current.roots);
+  const boardIssueIds: Partial<Record<number, number[]>> = {};
+  const removeBoardIds: number[] = [];
+  for (const [id, issues] of Object.entries(current.boardIssueIds)) {
+    if (JSON.stringify(previous?.boardIssueIds[Number(id)] ?? null) !== JSON.stringify(issues)) boardIssueIds[Number(id)] = issues;
+  }
+  for (const id of Object.keys(previous?.boardIssueIds ?? {})) if (!Object.hasOwn(current.boardIssueIds, id)) removeBoardIds.push(Number(id));
+  const boardStatus: Partial<Record<number, IssueGraphSnapshot['boardStatus'][number]>> = {};
+  const removeBoardStatusIds: number[] = [];
+  for (const [id, status] of Object.entries(current.boardStatus)) {
+    if (JSON.stringify(previous?.boardStatus[Number(id)] ?? null) !== JSON.stringify(status)) boardStatus[Number(id)] = status;
+  }
+  for (const id of Object.keys(previous?.boardStatus ?? {})) if (!Object.hasOwn(current.boardStatus, id)) removeBoardStatusIds.push(Number(id));
+  return {
+    connectedScope: current.connectedScope,
+    upsertNodes: current.nodes.filter((node) => priorNodes.get(node.id) !== nextNodes.get(node.id)),
+    removeNodeIds: [...priorNodes.keys()].filter((id) => !nextNodes.has(id)),
+    upsertEdges: current.edges.filter((edge) => priorEdges.get(edge.id) !== nextEdges.get(edge.id)),
+    removeEdgeIds: [...priorEdges.keys()].filter((id) => !nextEdges.has(id)),
+    addRootIds: current.roots.filter((id) => !priorRoots.has(id)),
+    removeRootIds: [...priorRoots].filter((id) => !nextRoots.has(id)),
+    boardIssueIds, removeBoardIds, boardStatus, removeBoardStatusIds,
+    status: current.status,
+    errors: [...current.errors],
+    updatedAt: current.updatedAt
+  };
+}
+
+export function applyIssueGraphPatch(snapshot: IssueGraphSnapshot, patch: IssueGraphPatch): IssueGraphSnapshot {
+  const nodes = new Map(snapshot.nodes.map((node) => [node.id, node]));
+  for (const id of patch.removeNodeIds) nodes.delete(id);
+  for (const node of patch.upsertNodes) nodes.set(node.id, node);
+  const edges = new Map(snapshot.edges.map((edge) => [edge.id, edge]));
+  for (const id of patch.removeEdgeIds) edges.delete(id);
+  for (const edge of patch.upsertEdges) edges.set(edge.id, edge);
+  const roots = new Set(snapshot.roots);
+  for (const id of patch.removeRootIds) roots.delete(id);
+  for (const id of patch.addRootIds) roots.add(id);
+  const boardIssueIds = { ...snapshot.boardIssueIds };
+  for (const id of patch.removeBoardIds) delete boardIssueIds[id];
+  Object.assign(boardIssueIds, patch.boardIssueIds);
+  const boardStatus = { ...snapshot.boardStatus };
+  for (const id of patch.removeBoardStatusIds) delete boardStatus[id];
+  Object.assign(boardStatus, patch.boardStatus);
+  return { ...snapshot, nodes: [...nodes.values()], edges: [...edges.values()], roots: [...roots], boardIssueIds, boardStatus,
+    status: patch.status, errors: [...patch.errors], updatedAt: patch.updatedAt };
+}
+
 const BOARD_COLORS = ['#e7815c', '#50a88b', '#6b91db', '#be83ce', '#c19d46', '#47aeb6', '#d46a8e', '#7e9c53'];
 
 /** WorkItem and REST representations of an Issue use the same project/IID identity. */

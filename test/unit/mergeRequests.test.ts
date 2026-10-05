@@ -8,33 +8,34 @@ const mergeRequest = (projectId: number, iid: number, title: string): GitLabMerg
   source_branch: 'feature/update', target_branch: 'main', sha: `sha-${iid}`
 });
 
-test('loads assigned and review-requested Group MRs, then deduplicates by project and IID', async () => {
+test('loads the paginated 16.11 review list with scope=all and reviewer_id', async () => {
   const requested: string[] = [];
   const client = new GitLabClient('https://gitlab.example/gitlab', 'token', async (input) => {
     const url = new URL(String(input));
     requested.push(url.toString());
-    const payload = url.searchParams.get('scope') === 'assigned_to_me'
-      ? [mergeRequest(4, 7, 'Assigned'), mergeRequest(4, 8, 'Both')]
-      : [mergeRequest(4, 8, 'Both'), mergeRequest(5, 7, 'Review')];
+    const payload = [mergeRequest(4, 8, 'Both'), mergeRequest(5, 7, 'Review')];
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
   });
-  const rows = await client.listGroupMergeRequests(21);
-  assert.deepEqual(rows.map((item) => [item.project_id, item.iid]), [[4, 7], [4, 8], [5, 7]]);
-  assert.ok(requested.some((url) => url.includes('/api/v4/groups/21/merge_requests') && url.includes('scope=assigned_to_me')));
-  assert.ok(requested.some((url) => url.includes('scope=reviews_for_me')));
+  const rows = await client.listGroupMergeRequests(21, 9);
+  assert.deepEqual(rows.map((item) => [item.project_id, item.iid]), [[4, 8], [5, 7]]);
+  assert.equal(requested.length, 1);
+  assert.equal(new URL(requested[0]).searchParams.get('scope'), 'all');
+  assert.equal(new URL(requested[0]).searchParams.get('reviewer_id'), '9');
 });
 
-test('keeps assigned MRs when an older GitLab does not support review-requested scope', async () => {
+test('paginates Merge Request diffs without truncating at 200 files', async () => {
   const requested: string[] = [];
   const client = new GitLabClient('https://gitlab.example', 'token', async (input) => {
     const url = new URL(String(input));
     requested.push(url.toString());
-    if (url.searchParams.get('scope') === 'reviews_for_me') return new Response(JSON.stringify({ message: 'scope is unsupported' }), { status: 400 });
-    if (url.searchParams.has('reviewer_id')) return new Response(JSON.stringify([mergeRequest(4, 8, 'Reviewer fallback')]), { status: 200, headers: { 'content-type': 'application/json' } });
-    return new Response(JSON.stringify([mergeRequest(4, 7, 'Assigned')]), { status: 200, headers: { 'content-type': 'application/json' } });
+    const page = Number(url.searchParams.get('page') ?? 1);
+    const files = Array.from({ length: 100 }, (_, index) => ({ old_path: `file-${page}-${index}.txt`, new_path: `file-${page}-${index}.txt`, diff: '+updated' }));
+    return new Response(JSON.stringify(files), { status: 200, headers: { 'content-type': 'application/json', 'x-next-page': page < 3 ? String(page + 1) : '' } });
   });
-  assert.deepEqual((await client.listGroupMergeRequests(21, 9)).map((item) => item.iid), [7, 8]);
-  assert.ok(requested.some((url) => new URL(url).searchParams.get('reviewer_id') === '9'));
+  const diffs = await client.listMergeRequestDiffs(4, 8);
+  assert.equal(diffs.length, 300);
+  assert.equal(requested.length, 3);
+  assert.ok(requested.every((url) => url.includes('/merge_requests/8/diffs')));
 });
 
 test('encodes source branches and pins approvals and merges to the reviewed MR SHA', async () => {

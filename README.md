@@ -97,3 +97,14 @@ npm run package
 ## 授權
 
 目前 `package.json` 將套件授權標示為 `UNLICENSED`，儲存庫也未附開源授權檔。此文件不表示本專案採用 MIT 或其他開源授權。
+
+
+## GitLab CE 16.11.10 Compatibility and Performance
+
+- The minimum supported server version is GitLab Community Edition 16.11.10. Version metadata and GraphQL capabilities are probed independently. If version metadata is unavailable, confirmed APIs remain available and the UI says that the minimum version could not be verified.
+- Capability discovery requests only the GraphQL types used by the extension and supports both the legacy Project/projectPath and newer Namespace/namespacePath shapes. Missing optional schema fields or permissions disable only the affected operation and explain why.
+- CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list uses the 16.11-compatible scope=all&reviewer_id filter, and all changed files load through paginated /diffs.
+- The initial workspace waits only for projects, assigned Issues, and the current user. Merge Requests, Boards, milestones, Issue relations, time data, discussions, and the graph load when their mode or tab is opened.
+- Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared.
+- Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
+- Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.

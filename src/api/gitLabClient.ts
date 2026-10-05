@@ -1,4 +1,6 @@
 import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
+import { GitLabReadGate } from './gitLabReadGate';
+import { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, detectIssueCapabilities, mergeCapabilityTypes, type GraphQLSchemaType } from './graphqlCapabilities';
 import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
@@ -7,6 +9,11 @@ import type {
 } from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+export interface GitLabWriteContext {
+  url: string;
+  method: string;
+}
 
 export class GitLabApiError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -94,8 +101,9 @@ export class GitLabClient {
     baseUrl: string,
     private readonly token: string,
     private readonly fetcher: FetchLike = fetch,
-    private readonly readSignal?: AbortSignal,
-    private readonly onSuccessfulWrite?: () => void
+    private readonly readSignal?: AbortSignal | readonly (AbortSignal | undefined)[],
+    private readonly onSuccessfulWrite?: (context: GitLabWriteContext) => void,
+    private readonly readGate = new GitLabReadGate()
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
@@ -105,7 +113,8 @@ export class GitLabClient {
   }
 
   withReadSignal(signal: AbortSignal): GitLabClient {
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, signal, this.onSuccessfulWrite);
+    const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate);
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -116,79 +125,28 @@ export class GitLabClient {
     return this.getJson<GitLabMetadata>('metadata');
   }
 
+  getVersion(): Promise<GitLabMetadata> {
+    return this.getJson<GitLabMetadata>('version');
+  }
+
   async getIssueCapabilities(): Promise<GitLabIssueCapabilities> {
-    const query = 'query IssueCapabilities { __schema { types { name fields { name type { name kind ofType { name kind ofType { name kind } } } args { name type { name kind ofType { name kind ofType { name kind } } } } } inputFields { name type { name kind ofType { name kind ofType { name kind } } } } } } }';
-    type TypeRef = { name?: string | null; ofType?: TypeRef | null };
-    type SchemaField = { name: string; type?: TypeRef | null; args?: Array<{ name: string; type?: TypeRef | null }> };
-    type SchemaType = { name: string; fields?: SchemaField[] | null; inputFields?: SchemaField[] | null };
-    const result = await this.graphql<{ __schema?: { types?: SchemaType[] } }>(query, {});
-    const schema = new Map(result.__schema?.types?.map((type) => [type.name, type]) ?? []);
-    const fieldsFor = (type: string): string[] => schema.get(type)?.fields?.map((field) => field.name) ?? [];
-    const inputFieldsFor = (type: string): string[] => schema.get(type)?.inputFields?.map((field) => field.name) ?? [];
-    const fieldFor = (type: string, name: string): SchemaField | undefined => schema.get(type)?.fields?.find((field) => field.name === name);
-    const namedType = (value?: TypeRef | null): string | undefined => value ? value.name ?? namedType(value.ofType) : undefined;
-    const has = (type: string, required: string[]): boolean => {
-      const fields = new Set(fieldsFor(type));
-      return required.every((field) => fields.has(field));
+    const readTypes = async (names: readonly string[]): Promise<GraphQLSchemaType[]> => {
+      if (!names.length) return [];
+      const response = await this.graphql<Record<string, GraphQLSchemaType | null>>(
+        buildCapabilityQuery(names), {}
+      );
+      return names.flatMap((_name, index) => {
+        const type = response[`type${index}`];
+        return type ? [type] : [];
+      });
     };
-    const hasInput = (type: string, required: string[]): boolean => {
-      const fields = new Set(inputFieldsFor(type));
-      return required.every((field) => fields.has(field));
-    };
-    const namespaceScope = has('Namespace', ['workItem']) && !!fieldFor('Namespace', 'workItem')?.args?.some((arg) => arg.name === 'iid');
-    const projectScope = has('Project', ['workItem']) && !!fieldFor('Project', 'workItem')?.args?.some((arg) => arg.name === 'iid');
-    const workItemScope = namespaceScope ? 'namespace' : projectScope ? 'project' : undefined;
-    const issuePermissionsType = namedType(fieldFor('Issue', 'userPermissions')?.type) ?? 'IssuePermissions';
-    const projectPermissionsType = namedType(fieldFor('Project', 'userPermissions')?.type) ?? 'ProjectPermissions';
-    const workItemPermissionsType = namedType(fieldFor('WorkItem', 'userPermissions')?.type) ?? 'WorkItemPermissions';
-    const workItemPermissions = fieldsFor(workItemPermissionsType);
-    const issuePermissionFields = has('Issue', ['userPermissions'])
-      ? ['updateIssue', 'adminIssue', 'deleteIssue', 'createNote'].filter((name) => fieldsFor(issuePermissionsType).includes(name))
-      : [];
-    const workItemCreateInput = namedType(fieldFor('Mutation', 'workItemCreate')?.args?.find((arg) => arg.name === 'input')?.type) ?? 'WorkItemCreateInput';
-    const workItemCreateInputFields = inputFieldsFor(workItemCreateInput);
-    const workItemUpdateInput = namedType(fieldFor('Mutation', 'workItemUpdate')?.args?.find((arg) => arg.name === 'input')?.type) ?? 'WorkItemUpdateInput';
-    const workItemUpdateInputFields = inputFieldsFor(workItemUpdateInput);
-    const workItemCreatePathField = workItemCreateInputFields.includes('namespacePath')
-      ? 'namespacePath'
-      : workItemCreateInputFields.includes('projectPath') ? 'projectPath' : undefined;
-    const timelogCreateInput = namedType(fieldFor('Mutation', 'timelogCreate')?.args?.find((arg) => arg.name === 'input')?.type);
-    const timelogCreateInputFields = timelogCreateInput ? inputFieldsFor(timelogCreateInput) : [];
-    const timelogPermissionType = namedType(fieldFor('WorkItemTimelog', 'userPermissions')?.type);
-    const workItemFields = fieldsFor('WorkItem');
-    const hierarchy = !!workItemScope &&
-      has('WorkItem', ['id', 'iid', 'widgets']) &&
-      has('WorkItemWidgetHierarchy', ['children']);
-    const graphWorkItems = !!workItemScope && has('WorkItem', ['id', 'iid', 'widgets']);
-    const workItemGraphFields = ['title', 'name', 'state', 'webUrl', 'namespace', 'project', 'workItemType']
-      .filter((name) => workItemFields.includes(name));
-    return {
-      workItemScope,
-      workItemCreatePathField,
-      issuePermissionFields,
-      workItemPermissionFields: workItemPermissions,
-      workItemFields,
-      workItemGraphFields,
-      workItemTypeList: !!workItemScope && !!fieldFor(workItemScope === 'namespace' ? 'Namespace' : 'Project', 'workItemTypes')?.args?.some((arg) => arg.name === 'name'),
-      hierarchy,
-      childMutations: hierarchy && !!workItemCreatePathField && ['workItemTypeId', 'title', 'hierarchyWidget'].every((field) => workItemCreateInputFields.includes(field)) &&
-        has('Mutation', ['workItemCreate', 'workItemUpdate']) && ['hierarchyWidget', 'stateEvent', 'title', 'descriptionWidget'].every((field) => workItemUpdateInputFields.includes(field)),
-      graphWorkItems,
-      graphHierarchy: graphWorkItems && has('WorkItemWidgetHierarchy', ['parent', 'children']),
-      graphLinkedItems: graphWorkItems && has('WorkItemWidgetLinkedItems', ['linkedItems']),
-      graphLabels: graphWorkItems && has('WorkItemWidgetLabels', ['labels']),
-      graphAssignees: graphWorkItems && has('WorkItemWidgetAssignees', ['assignees']),
-      graphWorkItemTypes: graphWorkItems && has('WorkItem', ['workItemType']),
-      discussionResolve: has('Mutation', ['discussionToggleResolve']),
-      startDate: has('Mutation', ['workItemUpdate']) && hasInput('WorkItemUpdateInput', ['startAndDueDateWidget']) && hasInput('WorkItemWidgetStartAndDueDateUpdateInput', ['startDate']) && has('WorkItemWidgetStartAndDueDate', ['startDate']),
-      timelogReport: has('WorkItemWidgetTimeTracking', ['timelogs']) && has('WorkItemTimelog', ['id', 'timeSpent', 'spentAt', 'summary', 'user']),
-      timelogCreate: has('Mutation', ['timelogCreate']) && ['issuableId', 'timeSpent'].every((field) => timelogCreateInputFields.includes(field)),
-      timelogCreateDated: has('Mutation', ['timelogCreate']) && ['issuableId', 'timeSpent', 'spentAt'].every((field) => timelogCreateInputFields.includes(field)),
-      timelogCreateSummary: has('Mutation', ['timelogCreate']) && ['issuableId', 'timeSpent', 'summary'].every((field) => timelogCreateInputFields.includes(field)),
-      timelogAdminPermission: !!timelogPermissionType && has(timelogPermissionType, ['adminTimelog']),
-      timelogDelete: has('Mutation', ['timelogDelete']) && inputFieldsFor(namedType(fieldFor('Mutation', 'timelogDelete')?.args?.find((arg) => arg.name === 'input')?.type) ?? 'TimelogDeleteInput').includes('id'),
-      createPermission: has('Project', ['userPermissions']) && has(projectPermissionsType, ['createIssue'])
-    };
+    const base = await readTypes(buildInitialTypeNames());
+    const baseSchema = mergeCapabilityTypes(base);
+    const followup = await readTypes(buildFollowupTypeNames(baseSchema));
+    const secondSchema = mergeCapabilityTypes(base, followup);
+    const nestedNames = buildFollowupTypeNames(secondSchema).filter((name) => !secondSchema.has(name));
+    const nested = await readTypes(nestedNames);
+    return detectIssueCapabilities(mergeCapabilityTypes(base, followup, nested));
   }
 
   async canCreateIssue(projectPath: string): Promise<boolean> {
@@ -222,11 +180,11 @@ export class GitLabClient {
     );
   }
 
-  async listAssignedGroupIssues(groupId: number, projectIds: ReadonlySet<number>): Promise<GitLabIssue[]> {
+  async listAssignedGroupIssues(groupId: number, projectIds?: ReadonlySet<number>): Promise<GitLabIssue[]> {
     const issues = await this.getPages<GitLabIssue>(
       `groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=all&per_page=100`
     );
-    return issues.filter((issue) => projectIds.has(issue.project_id));
+    return projectIds ? issues.filter((issue) => projectIds.has(issue.project_id)) : issues;
   }
 
   listGroupIssueBoards(groupId: number): Promise<GitLabIssueBoard[]> {
@@ -353,24 +311,12 @@ export class GitLabClient {
   }
 
   async listGroupMergeRequests(groupId: number, currentUserId?: number): Promise<GitLabMergeRequest[]> {
-    const root = `groups/${encodeURIComponent(String(groupId))}/merge_requests?state=opened&per_page=100`;
-    const loadReviews = async (): Promise<GitLabMergeRequest[]> => {
-      try {
-        return await this.getPages<GitLabMergeRequest>(`${root}&scope=reviews_for_me`);
-      } catch (error) {
-        if (!(error instanceof GitLabApiError) || ![400, 422].includes(error.status ?? 0) || !Number.isSafeInteger(currentUserId) || !currentUserId) throw error;
-        return this.getPages<GitLabMergeRequest>(`${root}&reviewer_id=${encodeURIComponent(String(currentUserId))}`);
-      }
-    };
-    const [assignedResult, reviewResult] = await Promise.allSettled([
-      this.getPages<GitLabMergeRequest>(`${root}&scope=assigned_to_me`),
-      loadReviews()
-    ]);
-    if (assignedResult.status === 'rejected' && reviewResult.status === 'rejected') throw assignedResult.reason;
-    const assigned = assignedResult.status === 'fulfilled' ? assignedResult.value : [];
-    const reviews = reviewResult.status === 'fulfilled' ? reviewResult.value : [];
+    if (!Number.isSafeInteger(currentUserId) || !currentUserId) throw new GitLabApiError('The current GitLab user is not available for the review list.');
+    const requests = await this.getPages<GitLabMergeRequest>(
+      `groups/${encodeURIComponent(String(groupId))}/merge_requests?scope=all&state=opened&reviewer_id=${encodeURIComponent(String(currentUserId))}&per_page=100`
+    );
     const byId = new Map<string, GitLabMergeRequest>();
-    for (const request of [...assigned, ...reviews]) {
+    for (const request of requests) {
       if (request.state !== 'opened' || !Number.isSafeInteger(request.project_id) || !Number.isSafeInteger(request.iid)) continue;
       byId.set(`${request.project_id}:${request.iid}`, request);
     }
@@ -389,10 +335,7 @@ export class GitLabClient {
   }
 
   async listMergeRequestDiffs(projectId: number, iid: number): Promise<GitLabMergeRequestDiff[]> {
-    const response = await this.getJson<{ changes?: GitLabMergeRequestDiff[]; diffs?: GitLabMergeRequestDiff[] }>(
-      `${this.projectPath(projectId)}/merge_requests/${iid}/changes`
-    );
-    return (response.changes ?? response.diffs ?? []).slice(0, 200);
+    return this.getPages<GitLabMergeRequestDiff>(`${this.projectPath(projectId)}/merge_requests/${iid}/diffs?per_page=100`);
   }
 
   listMergeRequestDiscussions(projectId: number, iid: number): Promise<GitLabIssueDiscussion[]> {
@@ -529,10 +472,10 @@ export class GitLabClient {
     if (!capabilities.graphWorkItems) return { parents: [], children: [], links: [] };
 
     const hierarchy = capabilities.graphHierarchy
-      ? '... on WorkItemWidgetHierarchy { parent { ...IssueGraphItem } children(first: 100, after: $childrenAfter) { nodes { ...IssueGraphItem } pageInfo { hasNextPage endCursor } } }'
+      ? '... on WorkItemWidgetHierarchy { parent { ...IssueGraphItem } children(first: 100, after: $childrenAfter) @include(if: $includeChildren) { nodes { ...IssueGraphItem } pageInfo { hasNextPage endCursor } } }'
       : '';
     const linked = capabilities.graphLinkedItems
-      ? '... on WorkItemWidgetLinkedItems { linkedItems(first: 100, after: $linksAfter) { nodes { linkType workItem { ...IssueGraphItem } } pageInfo { hasNextPage endCursor } } }'
+      ? '... on WorkItemWidgetLinkedItems { linkedItems(first: 100, after: $linksAfter) @include(if: $includeLinks) { nodes { linkType workItem { ...IssueGraphItem } } pageInfo { hasNextPage endCursor } } }'
       : '';
     const labels = capabilities.graphLabels
       ? '... on WorkItemWidgetLabels { labels(first: 100) { nodes { name color textColor } } }'
@@ -545,8 +488,8 @@ export class GitLabClient {
     const rootWidgetsSelection = rootWidgets ? `widgets { ${rootWidgets} }` : '';
     const itemWidgetsSelection = itemWidgets ? `widgets { ${itemWidgets} }` : '';
     const paginationVariables = [
-      capabilities.graphHierarchy ? '$childrenAfter: String' : '',
-      capabilities.graphLinkedItems ? '$linksAfter: String' : ''
+      capabilities.graphHierarchy ? '$childrenAfter: String, $includeChildren: Boolean!' : '',
+      capabilities.graphLinkedItems ? '$linksAfter: String, $includeLinks: Boolean!' : ''
     ].filter(Boolean);
     const variableDefinitions = ['$path: ID!', '$iid: String!', ...paginationVariables].join(', ');
     const itemFields = new Set(capabilities.workItemGraphFields ?? ['title', 'state', 'webUrl', 'namespace', 'project', ...(capabilities.graphWorkItemTypes ? ['workItemType'] : [])]);
@@ -576,11 +519,13 @@ export class GitLabClient {
     let graphRoot: GitLabGraphWorkItem | undefined;
     const cursors = { children: new Set<string>(), links: new Set<string>() };
     let after = { children: null as string | null, links: null as string | null };
+    let childrenActive = capabilities.graphHierarchy;
+    let linksActive = capabilities.graphLinkedItems;
 
     for (let pageIndex = 0; pageIndex < 100; pageIndex++) {
       const variables: Record<string, unknown> = { path: projectPath, iid: String(issueIid) };
-      if (capabilities.graphHierarchy) variables.childrenAfter = after.children;
-      if (capabilities.graphLinkedItems) variables.linksAfter = after.links;
+      if (capabilities.graphHierarchy) { variables.childrenAfter = after.children; variables.includeChildren = childrenActive; }
+      if (capabilities.graphLinkedItems) { variables.linksAfter = after.links; variables.includeLinks = linksActive; }
       const data = await this.graphql<{ namespace?: { workItem?: GitLabGraphWorkItem | null } | null; project?: { workItem?: GitLabGraphWorkItem | null } | null }>(query, variables);
       const root = scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem;
       if (!root) throw new GitLabApiError('GitLab could not find the Issue hierarchy item.');
@@ -608,9 +553,11 @@ export class GitLabClient {
         return cursor;
       };
       const next = {
-        children: advance(childInfo?.hasNextPage, childInfo?.endCursor, cursors.children, 'child'),
-        links: advance(linkInfo?.hasNextPage, linkInfo?.endCursor, cursors.links, 'linked-item')
+        children: childrenActive ? advance(childInfo?.hasNextPage, childInfo?.endCursor, cursors.children, 'child') : null,
+        links: linksActive ? advance(linkInfo?.hasNextPage, linkInfo?.endCursor, cursors.links, 'linked-item') : null
       };
+      childrenActive = next.children !== null;
+      linksActive = next.links !== null;
       if (!next.children && !next.links) return { root: graphRoot, parents: [...parents.values()], children: [...children.values()], links: [...links.values()] };
       after = next;
     }
@@ -786,6 +733,7 @@ export class GitLabClient {
 
   private checkMutation(result: { errors: string[] } | undefined, fallback: string): void {
     if (!result || result.errors.length) throw new GitLabApiError(result?.errors.join('; ') || fallback);
+    this.onSuccessfulWrite?.({ url: new URL('../graphql', this.apiRoot).toString(), method: 'POST' });
   }
 
   addIssueLink(projectId: number, issueIid: number, targetProjectId: number, targetIssueIid: number, linkType: 'relates_to' | 'blocks' | 'is_blocked_by'): Promise<unknown> {
@@ -864,16 +812,15 @@ export class GitLabClient {
     if (url.origin !== base.origin || url.username || url.password || !insideBase || !url.pathname.includes('/uploads/')) {
       throw new GitLabApiError('The attachment URL is outside this GitLab server.');
     }
-    const response = await this.fetcher(url, {
-      method: 'GET', headers: { 'PRIVATE-TOKEN': this.token },
-      ...(this.readSignal ? { signal: this.readSignal } : {}), redirect: 'manual'
+    return this.withReadRequest(async (signal) => {
+      const response = await this.fetcher(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' });
+      if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
+      if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
+      if (Number(response.headers.get('content-length') ?? 0) > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
+      return { bytes, contentType: response.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' };
     });
-    if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
-    if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
-    if (Number(response.headers.get('content-length') ?? 0) > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
-    return { bytes, contentType: response.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' };
   }
 
   async graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
@@ -882,15 +829,18 @@ export class GitLabClient {
       throw new GitLabApiError('The GraphQL request is outside the configured GitLab server.');
     }
     const readOnly = /^\s*(?:query(?:\s|\(|\{)|\{)/i.test(query);
-    const response = await this.fetcher(url, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
-      body: JSON.stringify({ query, variables }),
-      ...(readOnly && this.readSignal ? { signal: this.readSignal } : {}),
-      redirect: 'manual'
-    });
-    if (!readOnly && response.ok) this.onSuccessfulWrite?.();
-    const result = await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response);
+    const request = async (signal?: AbortSignal) => {
+      const response = await this.fetcher(url, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
+        body: JSON.stringify({ query, variables }),
+        ...(signal ? { signal } : {}),
+        redirect: 'manual'
+      });
+      return { response, result: await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response) };
+    };
+    const { response, result } = readOnly ? await this.withReadRequest((signal) => request(signal)) : await request();
+    if (!readOnly && result.data) this.onSuccessfulWrite?.({ url: url.toString(), method: 'POST' });
     if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
     return result.data;
   }
@@ -927,7 +877,7 @@ export class GitLabClient {
     });
     if (response.status >= 300 && response.status < 400 && response.status !== 304) throw new GitLabApiError('GitLab redirected the API request.', response.status);
     if (!response.ok && response.status !== 304) throw new GitLabApiError(`GitLab API request failed (HTTP ${response.status}).`, response.status);
-    if (response.ok) this.onSuccessfulWrite?.();
+    if (response.ok) this.onSuccessfulWrite?.({ url: url.toString(), method: (init.method ?? 'GET').toUpperCase() });
   }
 
   private async getJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -948,13 +898,12 @@ export class GitLabClient {
         throw new GitLabApiError('GitLab returned a repeated pagination link.');
       }
       seen.add(next.href);
-      const response = await this.fetcher(next, {
-        method: 'GET',
-        headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json' },
-        ...(this.readSignal ? { signal: this.readSignal } : {}),
-        redirect: 'manual'
+      const { page, response } = await this.withReadRequest(async (signal) => {
+        const response = await this.fetcher(next!, {
+          method: 'GET', headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json' }, signal, redirect: 'manual'
+        });
+        return { response, page: await this.readJson<T[]>(response) };
       });
-      const page = await this.readJson<T[]>(response);
       if (!Array.isArray(page)) {
         throw new GitLabApiError('GitLab returned an unexpected list response.', response.status);
       }
@@ -970,18 +919,22 @@ export class GitLabClient {
       throw new GitLabApiError('The request is outside the configured GitLab API.');
     }
     const method = (init.method ?? 'GET').toUpperCase();
-    const response = await this.fetcher(url, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        ...init.headers,
-        'PRIVATE-TOKEN': this.token
-      },
-      ...(method === 'GET' && this.readSignal ? { signal: this.readSignal } : {}),
-      redirect: 'manual'
-    });
-    if (method !== 'GET' && method !== 'HEAD' && response.ok) this.onSuccessfulWrite?.();
-    return this.readJson<T>(response);
+    const request = async (signal?: AbortSignal): Promise<T> => {
+      const response = await this.fetcher(url, {
+        ...init,
+        headers: { Accept: 'application/json', ...init.headers, 'PRIVATE-TOKEN': this.token },
+        ...(signal ? { signal } : {}),
+        redirect: 'manual'
+      });
+      const value = await this.readJson<T>(response);
+      if (method !== 'GET' && method !== 'HEAD' && response.ok) this.onSuccessfulWrite?.({ url: url.toString(), method });
+      return value;
+    };
+    return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : request();
+  }
+
+  private withReadRequest<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    return this.readGate.run(this.readSignal, operation);
   }
 
   private async readJson<T>(response: Response): Promise<T> {

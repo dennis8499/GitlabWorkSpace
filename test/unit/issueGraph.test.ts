@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  issueGraphBoardColor, issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, selectIssueGraph,
-  type IssueGraphSnapshot
+  applyIssueGraphPatch, createIssueGraphPatch, issueGraphBoardColor, issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, selectIssueGraph,
+  type IssueGraphNode, type IssueGraphSnapshot
 } from '../../src/workspace/issueGraph';
 
 test('uses a shared identity for REST and WorkItem Issue records across projects', () => {
@@ -26,6 +26,22 @@ test('preserves deterministic Board colors', () => {
   assert.equal(issueGraphBoardColor(31), issueGraphBoardColor(31));
   assert.match(issueGraphBoardColor(31), /^#[\da-f]{6}$/i);
   assert.notEqual(issueGraphBoardColor(31), issueGraphBoardColor(32));
+});
+
+test('applies graph deltas with only changed nodes and edges', () => {
+  const node = (id: string, title: string): IssueGraphNode => ({ id, sourceIds: [], kind: 'issue', namespacePath: 'team/repo', iid: id,
+    title, state: 'opened', labels: [], assignees: [], boardIds: [], assignedToMe: true, isRoot: id === 'a' });
+  const previous: IssueGraphSnapshot = { connectedScope: 'scope-a', status: 'loading', roots: ['a'], nodes: [node('a', 'old'), node('b', 'removed')],
+    edges: [{ id: 'parent:a:b', source: 'a', target: 'b', type: 'parent' }], boardIssueIds: { 1: [10] }, boardStatus: { 1: { status: 'loading' } }, errors: [], updatedAt: 1 };
+  const next: IssueGraphSnapshot = { ...previous, status: 'ready', roots: ['a', 'c'], nodes: [node('a', 'updated'), node('c', 'new')],
+    edges: [{ id: 'parent:a:c', source: 'a', target: 'c', type: 'parent' }], boardIssueIds: { 1: [10], 2: [11] },
+    boardStatus: { 1: { status: 'ready' }, 2: { status: 'ready' } }, updatedAt: 2 };
+  const patch = createIssueGraphPatch(previous, next);
+  assert.deepEqual(patch.upsertNodes.map((item) => item.id), ['a', 'c']);
+  assert.deepEqual(patch.removeNodeIds, ['b']);
+  assert.deepEqual(patch.upsertEdges.map((item) => item.id), ['parent:a:c']);
+  assert.deepEqual(patch.removeEdgeIds, ['parent:a:b']);
+  assert.deepEqual(applyIssueGraphPatch(previous, patch), next);
 });
 
 test('filters primary Issues but retains only their directly connected context', () => {
