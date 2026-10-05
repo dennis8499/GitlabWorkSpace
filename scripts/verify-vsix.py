@@ -132,6 +132,7 @@ def main() -> int:
                 "extension/resources/issue-webview/dashboard.html", "extension/resources/issue-webview/dashboard.js",
                 "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
                 "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
+                "extension/resources/git-rebase-editor.cjs",
                 "extension/resources/workflow-kit-installer.py"
             ):
                 if asset not in members or not archive.read(asset):

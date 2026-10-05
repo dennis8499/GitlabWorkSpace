@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
 import { groupRepositoryPath, projectFolderNames, sameLocalPath } from '../workspace/workspacePaths';
+import { withGitDirectoryLock } from './repositoryOperationLock';
 
 export type CloneAction = 'clone' | 'update';
 
@@ -163,25 +164,29 @@ export async function cloneProjects(
     onProgress({ project: plan.project, action: plan.action, state: 'starting' });
     let ownedCloneDirectory: { dev: number; ino: number; birthtimeMs: number } | undefined;
     try {
-      if (plan.action === 'clone') {
-        // Reserve the previously absent path atomically so cleanup can never remove a
-        // destination created by another process after preflight.
-        mkdirSync(plan.targetPath);
-        const createdStat = lstatSync(plan.targetPath);
-        ownedCloneDirectory = { dev: createdStat.dev, ino: createdStat.ino, birthtimeMs: createdStat.birthtimeMs };
-        await cloneRunner(plan, gitLabBaseUrl, token, (percent) =>
-          onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
-        cloned.push(plan.project);
-      } else {
-        const outcome = await updateRunner(plan, token, (percent) =>
-          onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
-        if (outcome.state === 'skipped') {
-          skipped.push({ project: plan.project, reason: outcome.reason });
-          onProgress({ project: plan.project, action: plan.action, state: 'skipped', message: outcome.reason });
-          continue;
+      await withGitDirectoryLock(plan.targetPath, async () => {
+        if (plan.action === 'clone') {
+          // Reserve the previously absent path atomically so cleanup can never remove a
+          // destination created by another process after preflight.
+          mkdirSync(plan.targetPath);
+          const createdStat = lstatSync(plan.targetPath);
+          ownedCloneDirectory = { dev: createdStat.dev, ino: createdStat.ino, birthtimeMs: createdStat.birthtimeMs };
+          await cloneRunner(plan, gitLabBaseUrl, token, (percent) =>
+            onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
+          cloned.push(plan.project);
+        } else {
+          if (!isPathPresent(plan.targetPath, existsSync)) throw new Error('The repository disappeared before synchronization started.');
+          const outcome = await updateRunner(plan, token, (percent) =>
+            onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
+          if (outcome.state === 'skipped') {
+            skipped.push({ project: plan.project, reason: outcome.reason });
+            onProgress({ project: plan.project, action: plan.action, state: 'skipped', message: outcome.reason });
+            return;
+          }
+          updated.push(plan.project);
         }
-        updated.push(plan.project);
-      }
+      });
+      if (skipped.some((item) => item.project.id === plan.project.id)) continue;
       completed.push(plan.project);
       onProgress({ project: plan.project, action: plan.action, state: 'completed' });
     } catch (error) {
@@ -284,8 +289,8 @@ export async function syncLocalDefaultBranches(
 
     onProgress({ project: prepared.project, state: 'starting' });
     try {
-      const outcome = await syncRunner(prepared, token, (percent) =>
-        onProgress({ project: prepared.project, state: 'progress', percent }));
+      const outcome = await withGitDirectoryLock(prepared.targetPath, () => syncRunner(prepared, token, (percent) =>
+        onProgress({ project: prepared.project, state: 'progress', percent })));
       if (outcome.state === 'skipped') {
         result.skipped.push({ project: prepared.project, reason: outcome.reason });
         onProgress({ project: prepared.project, state: 'skipped', message: outcome.reason });

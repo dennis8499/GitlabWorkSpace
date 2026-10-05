@@ -27,6 +27,25 @@
 
 開始前會檢查整批 Repo 的資料夾與 origin。既有目錄必須是對應的 Git Repo，且 origin 必須符合 GitLab 專案的 HTTPS 或 SSH URL；一般資料夾、其他 Repo、符號連結或名稱重複會讓操作停止。有本機修改、未追蹤檔案或分支分歧的 Repo 會略過，其他 Repo 仍會處理。
 
+## 側欄或版控工作台沒有 Repo
+
+- 確認已在 VS Code 開啟本機 Git Repo 根目錄；多資料夾工作區會列出每個由 VS Code Git 偵測到的 Repo。
+- 在擴充功能檢視確認 **Git**（`vscode.git`）已啟用，再按版控頁的 **重新整理**。
+- 使用桌面版 VS Code 1.90 或更新版本，並確認 Git 2.30+ 可供 VS Code 使用。Git 版控可離線使用，不需要先連線 GitLab。
+
+## Git 操作失敗或結果不確定
+
+- 檢查目前選取的 Repo、分支、工作目錄變更與錯誤訊息；重新整理後確認狀態再決定是否重試。
+- HTTPS／SSH 認證沿用 VS Code Git 與作業系統原有的認證方式。GitLab 權杖只會用在 remote 已確認對應目前 GitLab 專案時。
+- Force Push 若回報遠端 SHA 已變更，先 Fetch 並檢查提交歷史；不要直接重送舊的 Force Push。
+- Amend、Reset、捨棄檔案和改寫歷史前會建立復原 ref 或 Stash。可在變更清單的 **復原點** 或 **Stash** 區塊檢視與還原。
+
+## Merge 或 Rebase 衝突
+
+在衝突清單按 **開啟 Merge Editor**。若 VS Code Merge Editor 無法開啟，工作台會提供原生文字編輯器。儲存解決內容後按 **標記已解決**，再依操作類型按 **繼續**、Rebase 的 **略過** 或 **中止**。互動式 Rebase 的 GUI todo 狀態會保留在 Repo 的 Git metadata 中，重啟 VS Code 後仍可繼續。Stash 套用衝突不會刪除原 Stash；解決並暫存後可在清單再次 Apply。
+
+超過 1 MiB 的 Diff 會顯示原生 Diff 入口；二進位檔仍可在變更清單使用整檔暫存或取消暫存。
+
 ## 開發與交付入口不可用
 
 Issue 可閱讀與討論，但本機開發需要讓 VS Code 工作區符合該 Issue 所屬 Group，並先下載對應 Repo。單一 Git Repo 會以 remote 對應目前 Group；若工作區無法唯一辨識，請在 VS Code 開啟 Group 資料夾或調整多資料夾工作區，再重新整理工作台。工作目錄不從舊儲存值回復，也無法在工作台手動指定。

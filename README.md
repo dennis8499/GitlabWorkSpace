@@ -17,7 +17,9 @@
 
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
-- 以「我的工作、專案、分析、待審查」導覽，集中處理目前任務與下一步。
+- VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。
+- 在獨立的 Git GUI 管理所有 VS Code 已偵測的本機 Repo；檔案、部分行暫存、Commit／Amend、分支、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset 均由按鈕、選單和表單操作。
+- Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析」使用整包內附的 Wiki、Megin 與 MergeReviewer 能力；提示詞會帶入 Group、Repo 與套件版本，並可複製到 Codex CLI。
@@ -62,9 +64,9 @@ HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任
 
 ## 文件
 
-- [使用指南](docs/user-guide.md)：工作台導覽、Issue 任務分頁、專案下載與中斷連線。
+- [使用指南](docs/user-guide.md)：統一側欄、本機 Git GUI、Issue 任務分頁、專案下載與中斷連線。
 - [Group 工作流程](docs/group-workflow.md)：整包安裝、需求分析、Work ID 續作、MR 交付／審查及 Wiki 知識回饋。
-- [疑難排解](docs/troubleshooting.md)：連線、清單、舊草稿、Git 及交付問題。
+- [疑難排解](docs/troubleshooting.md)：連線、Repo 偵測、GUI 版控、舊草稿及交付問題。
 - [貢獻指南](CONTRIBUTING.md)：本機開發、測試、偵錯與發行流程。
 
 ## 開發與測試

@@ -5,11 +5,16 @@ import { GitLabSession } from './connection/session';
 import { IssuePanels } from './issues/issuePanel';
 import { WorkspacePanel } from './workspace/workspacePanel';
 import { QuickActionsViewProvider, type QuickAction } from './quickActionsView';
+import { GitRepositoryService } from './git/gitRepositoryService';
 
 const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openWorkspace: 'gitlabWorkspace.openWorkspace',
   openMyWork: 'gitlabWorkspace.openDeveloperMode',
-  openProjects: 'gitlabWorkspace.openCloneMode'
+  openProjects: 'gitlabWorkspace.openCloneMode',
+  openAnalysis: 'gitlabWorkspace.openSaMode',
+  openReviewer: 'gitlabWorkspace.openReviewerMode',
+  openGit: 'gitlabWorkspace.openGitMode',
+  openRepository: 'gitlabWorkspace.openGitMode'
 };
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -17,10 +22,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
   const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange());
   let workspacePanel: WorkspacePanel | undefined;
-  const quickActions = new QuickActionsViewProvider(context.extensionUri, session, (action) =>
-    vscode.commands.executeCommand(QUICK_ACTION_COMMANDS[action])
+  const gitRepositories = new GitRepositoryService(context.extensionUri, context.globalStorageUri, session);
+  const quickActions = new QuickActionsViewProvider(context.extensionUri, session, (action, repositoryId) =>
+    vscode.commands.executeCommand(
+      QUICK_ACTION_COMMANDS[action],
+      action === 'openRepository' ? repositoryId : undefined
+    ),
+    async () => {
+      const state = await gitRepositories.getSummaryState();
+      return {
+        activeMode: workspacePanel?.getActiveMode() ?? 'developer',
+        selectedRepositoryId: workspacePanel?.getSelectedGitRepositoryId(),
+        repositories: state.repositories,
+        gitAvailable: state.available,
+        gitMessage: state.message
+      };
+    }
   );
-  workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh());
+  workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories);
+  gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
+  context.subscriptions.push(gitRepositories.onDidChangeRepositories(() => quickActions.refresh()));
   refreshWorkspaceAfterIssueChange = () => {
     const refresh = workspacePanel?.refreshFromSidebar();
     if (refresh) void refresh.catch((error: unknown) => vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)));
@@ -31,7 +52,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return workspacePanel;
   };
 
-  context.subscriptions.push(quickActions, issuePanels, workspacePanel);
+  context.subscriptions.push(gitRepositories, quickActions, issuePanels, workspacePanel);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('gitlabWorkspace.quickActions', quickActions));
   context.subscriptions.push(
     vscode.commands.registerCommand('gitlabWorkspace.openWorkspace', () => getWorkspace().navigateTo()),
@@ -61,7 +82,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('gitlabWorkspace.openCloneMode', () => getWorkspace().navigateTo('clone')),
     vscode.commands.registerCommand('gitlabWorkspace.openSaMode', () => getWorkspace().navigateTo('sa')),
     vscode.commands.registerCommand('gitlabWorkspace.openDeveloperMode', () => getWorkspace().navigateTo('developer')),
-    vscode.commands.registerCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer'))
+    vscode.commands.registerCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer')),
+    vscode.commands.registerCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),
+    vscode.commands.registerCommand('gitlabWorkspace.openRepository', (repoId?: string) => getWorkspace().navigateTo('git', repoId))
   );
 }
 

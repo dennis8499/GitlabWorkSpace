@@ -2,8 +2,9 @@ import type { GitLabCompareResult, GitLabGroup, GitLabIssue, GitLabIssueBoard, G
 import type { GitLabIssueDiscussion } from '../api/types';
 import type { IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
+import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
 
-export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer';
+export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git';
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github' | 'bundled';
@@ -177,7 +178,9 @@ export interface CloneOperationState {
 }
 
 export type WorkspaceRequest =
+  | GitPanelRequest
   | { type: 'ready' }
+  | GitPanelRequest
   | { type: 'refresh' }
   | { type: 'toggleFullDisplay' }
   | { type: 'setMode'; mode: WorkspaceMode }
@@ -236,6 +239,7 @@ export type WorkspaceRequest =
   | { type: 'installWorkflowKit'; packageId: string };
 
 export type WorkspaceResponse =
+  | GitPanelMessage
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
   | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }

@@ -25,6 +25,8 @@
     "onCommand:gitlabWorkspace.openSaMode",
     "onCommand:gitlabWorkspace.openDeveloperMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
+    "onCommand:gitlabWorkspace.openGitMode",
+    "onCommand:gitlabWorkspace.openRepository",
     "onView:gitlabWorkspace.quickActions",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
@@ -75,6 +77,14 @@
       {
         "command": "gitlabWorkspace.openReviewerMode",
         "title": "GitLab Workspace: 待審查"
+      },
+      {
+        "command": "gitlabWorkspace.openGitMode",
+        "title": "GitLab Workspace: 開啟版控"
+      },
+      {
+        "command": "gitlabWorkspace.openRepository",
+        "title": "GitLab Workspace: 開啟 Repo 版控"
       },
       {
         "command": "gitlabWorkspace.connect",

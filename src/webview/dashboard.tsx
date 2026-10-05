@@ -15,6 +15,7 @@ import { IssueView } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import { createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, type WikiGuideInputValues } from './codebaseWikiGuideData';
 import { CodebaseWikiGuide } from './CodebaseWikiGuide';
+import { GitControlPanel } from './GitControlPanel';
 import { countHiddenProjectSelection, reconcileProjectSelection, toggleProjectSelection } from '../workspace/repositorySelection';
 import './dashboard.css';
 
@@ -112,7 +113,8 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
   { id: 'sa', name: 'Codebase LLM Wiki', short: '分析', icon: '⌕' },
-  { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' }
+  { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' },
+  { id: 'git', name: '版控', short: '版控', icon: '⑂' }
 ];
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
@@ -727,15 +729,6 @@ function App() {
     </header>
 
     <div class="workbench" data-mobile-panel={mobilePanel}>
-      <nav class="mode-nav" aria-label="工作台導覽">
-        <span class="section-label">工作流程</span>
-        {modes.map((item) => <button type="button" aria-current={mode === item.id ? 'page' : undefined} class={`mode-button ${mode === item.id ? 'active' : ''}`} onClick={() => modeChange(item.id)}>
-          <span class="mode-icon">{item.icon}</span><span>{item.short}</span>
-          {item.id === 'developer' && issues.length > 0 && <span class="nav-count">{issues.length}</span>}
-          {item.id === 'reviewer' && snapshot.mergeRequests.length > 0 && <span class="nav-count">{snapshot.mergeRequests.length}</span>}
-        </button>)}
-      </nav>
-
       <section class="page" role="tabpanel">
         {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
         {snapshot.connected && snapshot.instance?.warnings.length ? <div class="alert subtle" role="status"><strong>GitLab {snapshot.instance.version ?? '版本未知'}</strong><ul>{snapshot.instance.warnings.map((warning) => <li>{warning}</li>)}</ul></div> : null}
@@ -744,17 +737,18 @@ function App() {
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
-        <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
-          <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button></div></div>
-        {!snapshot.connected && mode !== 'sa' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
-          : !snapshot.group && mode !== 'sa' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
+        {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
+          <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button></div></div>}
+        {!snapshot.connected && mode !== 'sa' && mode !== 'git' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
+          : !snapshot.group && mode !== 'sa' && mode !== 'git' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
+            : mode === 'git' ? <GitControlPanel post={post} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || !!snapshot.busy} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
                 <div class="repo-list">{visibleProjects.map((project) => {
                   const local = snapshot.localRepositories[project.id];
-                  return <label class="repo-row"><input type="checkbox" checked={selectedProjectIds.includes(project.id)} disabled={!!snapshot.busy} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
+                  return <div class="repo-row"><input type="checkbox" checked={selectedProjectIds.includes(project.id)} disabled={!!snapshot.busy} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
                     <span class="repo-details"><strong>{project.path_with_namespace}</strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
-                    <span class={`pill ${local?.state === 'ready' ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span></label>;
+                    <span class={`pill ${local?.state === 'ready' ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
                 })}{!visibleProjects.length && <p class="empty-inline">找不到符合條件的 Repo。</p>}</div>
                 {cloneOperation && cloneOperation.scopeKey === snapshot.connectedScope && <section class="operation-results" aria-label="下載與更新結果">
                   <div class="operation-heading"><strong>{cloneOperation.label}</strong><span class="count" role="status" aria-live="polite" aria-atomic="true">{cloneOperation.phase === 'running' ? `處理中 ${completedOperationCount}/${cloneOperation.items.length}${activeOperationItem ? ` - ${activeOperationItem.projectPath}` : ''}` : cloneOperation.phase === 'cancelled' ? `已取消: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個; 未完成項目保留選取` : cloneOperation.phase === 'failed' ? `處理中斷: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個` : `處理完成: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個`}</span></div>

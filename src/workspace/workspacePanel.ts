@@ -26,13 +26,18 @@ import type {
 import type { WorkflowKitPackage } from './toolPackages';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote } from '../api/urlPolicy';
+import { GitRepositoryService } from '../git/gitRepositoryService';
+import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
+import { isGitPanelRequest } from '../git/gitProtocol';
+import type { GitPanelMessage } from '../git/gitProtocol';
 
 const execFileAsync = promisify(execFile);
 const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const DELIVERIES_KEY = 'gitlabWorkspace.deliveryRecords.v1';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer']);
+const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
+const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer', 'git']);
 
 interface DeliveryRecord extends DeliveryPreview { groupId: number; userId: number; instanceScope?: string; }
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
@@ -102,12 +107,15 @@ export class WorkspacePanel implements vscode.Disposable {
   private timerQueue: Promise<unknown> = Promise.resolve();
   private issuePublishQueue: Promise<unknown> = Promise.resolve();
   private readonly issueRelationWritesInFlight = new Set<string>();
+  private selectedGitRepositoryId?: string;
+  private readonly gitMessages: vscode.Disposable;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly session: GitLabSession,
     private readonly issuePanels: IssuePanels,
-    private readonly syncSidebarState?: () => void | Promise<void>
+    private readonly syncSidebarState?: () => void | Promise<void>,
+    private readonly gitRepositories?: GitRepositoryService
   ) {
     this.timer = new IssueTimeTracker(context.globalState);
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
@@ -123,6 +131,9 @@ export class WorkspacePanel implements vscode.Disposable {
       String(context.extension.packageJSON.version)
     );
     this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
+    this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
+    this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
+    context.subscriptions.push(this.gitMessages);
     this.issuePanels.setWorkspace({
       post: (message) => this.post(message),
       show: () => this.show('developer'),
@@ -179,15 +190,28 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.webviewReady) await this.refresh({ forceRepositories: true });
   }
 
-  async navigateTo(mode?: WorkspaceMode): Promise<void> {
+  async navigateTo(mode?: WorkspaceMode, repositoryId?: string): Promise<void> {
     this.issueOpenGeneration++;
     this.issuePanels.close();
     if (mode && ALLOWED_MODES.has(mode)) {
+      if (repositoryId && this.gitRepositories) {
+        const state = await this.gitRepositories.getSummaryState();
+        if (!state.repositories.some((repository) => repository.id === repositoryId)) {
+          throw new Error('找不到這個工作區 Repo，請重新整理側欄清單。');
+        }
+        this.selectedGitRepositoryId = repositoryId;
+        await this.context.globalState.update(SELECTED_GIT_REPOSITORY_KEY, repositoryId);
+      }
       this.activeMode = mode;
       await this.context.globalState.update(SELECTED_MODE_KEY, mode);
     }
     await this.show();
+    if (this.activeMode === 'git') void this.sendGitRepositories();
   }
+
+  getActiveMode(): WorkspaceMode { return this.activeMode; }
+  getSelectedGitRepositoryId(): string | undefined { return this.selectedGitRepositoryId; }
+  getGitLabProjects(): readonly GitLabProject[] { return this.projects; }
 
   async refreshFromSidebar(): Promise<void> {
     this.issueOpenGeneration++;
@@ -263,11 +287,75 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.panel) void this.panel.webview.postMessage(message);
   }
 
+  private async sendGitRepositories(): Promise<void> {
+    if (!this.panel || !this.gitRepositories) return;
+    try {
+      const state = await this.gitRepositories.getSummaryState();
+      this.post({
+        type: 'gitRepositories',
+        repositories: state.repositories,
+        available: state.available,
+        message: state.message,
+        revision: state.revision,
+        selectedRepositoryId: this.selectedGitRepositoryId
+      });
+    } catch (error) {
+      this.post({ type: 'gitError', message: readableError(error) });
+    }
+  }
+
+  private async handleGitPanelRequest(request: import('../git/gitProtocol').GitPanelRequest): Promise<void> {
+    if (!this.gitRepositories) {
+      this.post({ type: 'gitError', message: 'Git 版控服務尚未載入。' });
+      return;
+    }
+    if (request.type === 'gitReady') {
+      await this.sendGitRepositories();
+      if (this.selectedGitRepositoryId) {
+        try {
+          const snapshot = await this.gitRepositories.getSnapshot(this.selectedGitRepositoryId);
+          this.post({ type: 'gitSnapshot', snapshot });
+        } catch { /* A workspace may no longer contain its last selected Repo. */ }
+      }
+      return;
+    }
+    if (request.type === 'gitOpenRepository') {
+      const repositoryId = await this.gitRepositories.openRepositoryPath(request.path);
+      if (!repositoryId) throw new Error('這個 Group Repo 尚未由 VS Code Git 偵測到，請先重新開啟此 Repo。');
+      await this.navigateTo('git', repositoryId);
+      return;
+    }
+    if (request.type === 'gitOpenMergeEditor' || request.type === 'gitOpenFile' || request.type === 'gitOpenDiff') {
+      try {
+        if (request.type === 'gitOpenDiff') await this.gitRepositories.openNativeDiff(request.repositoryId, request.path, request.staged, request.ref, request.parent);
+        else await this.gitRepositories.openRepositoryFile(request.repositoryId, request.path, request.type === 'gitOpenMergeEditor');
+      }
+      catch (error) { this.post({ type: 'gitError', message: readableError(error) }); }
+      return;
+    }
+    try {
+      const snapshot = await this.gitRepositories.handleAction(request.repoId, request.action);
+      if (snapshot) this.post({ type: 'gitSnapshot', snapshot, requestId: request.requestId });
+      this.post({ type: 'gitActionResult', requestId: request.requestId });
+      if (request.repoId === this.selectedGitRepositoryId) await this.syncSidebarState?.();
+    } catch (error) {
+      this.post({ type: 'gitActionResult', requestId: request.requestId, error: readableError(error) });
+    }
+  }
+
   private async handleMessage(value: unknown): Promise<void> {
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
+    if (isGitPanelRequest(value)) {
+      await this.handleGitPanelRequest(value);
+      return;
+    }
     const request = value as WorkspaceRequest;
     switch (request.type) {
-      case 'ready': this.webviewReady = true; await this.refresh({ forceRepositories: true }); break;
+      case 'ready':
+        this.webviewReady = true;
+        if (this.activeMode === 'git') this.sendSnapshot();
+        await this.refresh({ forceRepositories: true });
+        break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
       case 'toggleFullDisplay': await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup'); break;
       case 'setMode':
@@ -275,6 +363,7 @@ export class WorkspacePanel implements vscode.Disposable {
         this.activeMode = request.mode;
         await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
         this.sendSnapshot();
+        if (request.mode === 'git') void this.sendGitRepositories();
         if (request.mode === 'sa' && this.groupRoot && this.actualRepositoryScanStatus !== 'scanning') {
           void this.refreshActualRepositories(this.groupRoot, this.connectedScopeKey() ?? 'offline');
         }
@@ -1912,7 +2001,16 @@ export class WorkspacePanel implements vscode.Disposable {
       args.push('--writer', writer, '--message-file', messageFile!);
     }
     try {
-      const result = await execFileAsync(python.executable, args, { cwd: root, env: { ...python.env, GIT_TERMINAL_PROMPT: '0' }, timeout: 3 * 60_000, maxBuffer: 12 * 1024 * 1024, windowsHide: true });
+      const registered = await this.gitRepositories?.listRepositories().catch(() => []) ?? [];
+      const roots = registered.map((repository) => repository.path).filter((repositoryPath) => {
+        const relative = path.relative(root, repositoryPath);
+        return relative === '' || relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+      });
+      const lockRoots = roots.length ? roots : [root];
+      const result = await withGitDirectoryLocks(lockRoots, () => execFileAsync(python.executable, args, {
+        cwd: root, env: { ...python.env, GIT_TERMINAL_PROMPT: '0' }, timeout: 3 * 60_000,
+        maxBuffer: 12 * 1024 * 1024, windowsHide: true
+      }));
       return parseMeginHandoff(JSON.parse(result.stdout), workId);
     } catch (error) { throw new Error(`Megin 交接檢查未通過；已保留工作現場。${readableError(error)}`); }
   }
@@ -1957,7 +2055,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const commit = value.delivery?.repositories.find((r) => r.repo_path === item.repo_path)?.feature_commit;
       const ref = value.state === 'complete' ? commit! : undefined;
       const diffArgs = ['diff', '--no-ext-diff', '--binary', ...(ref ? [item.base_commit, ref] : ['--cached', item.base_commit]), '--'];
-      const rawDiff = await git(repoPath, diffArgs, { maxBuffer: 12 * 1024 * 1024 });
+      const rawDiff = await withGitDirectoryLock(repoPath, () => git(repoPath, diffArgs, { maxBuffer: 12 * 1024 * 1024 }));
       const id = createHash('sha256').update(`${this.deliveryInstanceScope()}:${request.workId}:${project.id}:${value.handoff_sha256}`).digest('hex');
       const previous = this.deliveryRecords().find((r) => r.id === id);
       const delivery: DeliveryRecord = {
@@ -2081,11 +2179,17 @@ export class WorkspacePanel implements vscode.Disposable {
       const remoteUrl = new URL(remote.trim());
       if (remoteUrl.protocol === 'https:' || remoteUrl.protocol === 'http:') pushEnv = createScopedGitEnvironment(remote.trim(), credentials.token);
     } catch { /* SSH remotes use the user's configured SSH agent. */ }
-    try { await git(record.repoPath, ['push', record.remote!, `${record.headSha}:refs/heads/${record.branch}`], { env: pushEnv }); }
-    catch (error) {
-      const observed = await client.getRepositoryBranch(project.id, record.branch).catch(() => undefined);
-      if (observed?.commit.id !== record.headSha) throw new Error(`Push 結果尚未確認；請先檢查 GitLab 分支 ${record.branch}，系統不會自動重送。${readableError(error)}`);
-    }
+    await withGitDirectoryLock(record.repoPath, async () => {
+      const currentRemote = await git(record.repoPath, ['remote', 'get-url', record.remote!]);
+      if (currentRemote.trim() !== remote.trim() || !projectRemoteMatches(currentRemote.trim(), project)) {
+        throw new Error('Push 前 remote 已變更，請重新檢查交付 Repo 與 GitLab 專案身分。');
+      }
+      try { await git(record.repoPath, ['push', record.remote!, `${record.headSha}:refs/heads/${record.branch}`], { env: pushEnv }); }
+      catch (error) {
+        const observed = await client.getRepositoryBranch(project.id, record.branch).catch(() => undefined);
+        if (observed?.commit.id !== record.headSha) throw new Error(`Push 結果尚未確認；請先檢查 GitLab 分支 ${record.branch}，系統不會自動重送。${readableError(error)}`);
+      }
+    });
     const pushedBranch = await client.getRepositoryBranch(project.id, record.branch);
     if (pushedBranch.commit.id !== record.headSha) throw new Error('GitLab 遠端分支 SHA 與本機交付 SHA 不同；已 Push，請重新整理 GitLab 後再建立 MR。');
     const updated = { ...record, state: 'pushed' as const, updatedAt: Date.now() };
