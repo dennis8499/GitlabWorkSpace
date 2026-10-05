@@ -710,6 +710,7 @@ function App() {
       <div class="brand"><span class="brand-mark">GW</span><strong>GitLab Workspace</strong></div>
       <div class="top-controls">
         {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={!!snapshot.busy} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
+        <button class="quiet" type="button" title="再次按下可還原編輯器配置" onClick={() => post({ type: 'toggleFullDisplay' })}>完整顯示</button>
         <button class="quiet settings-trigger" type="button" disabled={!!snapshot.busy} onClick={() => setToolDrawer(true)}>設定</button>
         {snapshot.connected ? <details class="account-menu"><summary class="connection"><i />{snapshot.currentUser?.name ?? 'GitLab 已連線'}　⌄</summary><div class="account-popover"><span>{snapshot.baseUrl}</span><button class="secondary" type="button" disabled={!!snapshot.busy} onClick={() => { setIssueNavigation(null); post({ type: 'disconnect' }); }}>中斷連線</button></div></details> : <button class="primary" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
       </div>
@@ -727,6 +728,7 @@ function App() {
 
       <section class="page" role="tabpanel">
         {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
+        {snapshot.connected && snapshot.instance?.warnings.length ? <div class="alert subtle" role="status"><strong>GitLab {snapshot.instance.version ?? '版本未知'}</strong><ul>{snapshot.instance.warnings.map((warning) => <li>{warning}</li>)}</ul></div> : null}
         <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
           <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
@@ -847,7 +849,7 @@ function App() {
                     <button class="secondary" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'importMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>核對貼上報告</button>
                     <button class="secondary" disabled={!currentReport.validated || reportOutdated || busy} type="button" onClick={() => post({ type: 'publishMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>發布審查報告</button>
                     {!currentReport.validated && <button class="quiet" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>作一般留言發布</button>}
-                    <button class="secondary" disabled={!currentSha || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>
+                    {snapshot.instance?.enterprise === true && <button class="secondary" disabled={!currentSha || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>}
                     <button class="primary" disabled={!currentSha || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
                   </div>
                 </section>

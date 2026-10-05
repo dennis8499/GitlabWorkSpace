@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { GitLabApiError, GitLabConflictError, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
+import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
 import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
@@ -132,11 +132,13 @@ export class IssuePanels implements vscode.Disposable {
       client.listIssueLinks(projectId, iid),
       capabilities?.hierarchy ? this.loadTasks(client, project.path_with_namespace, iid) : Promise.resolve({ tasks: [] as IssueTask[], parentWorkItemId: undefined, taskTypeId: undefined, permissions: undefined })
     ]);
-    const permissions = hierarchy.permissions;
+    const issuePermissions = capabilities?.issuePermissionFields?.length
+      ? await client.getIssuePermissions(project.path_with_namespace, iid, capabilities.issuePermissionFields)
+      : {};
     return {
       issue, project, links, tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
-      canLink: permissions?.adminWorkItemLink === true,
-      canManageChildren: capabilities?.childMutations === true && permissions?.adminParentLink === true
+      canLink: issuePermissions.updateIssue === true || issuePermissions.adminIssue === true,
+      canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true
     };
   }
 
@@ -148,7 +150,7 @@ export class IssuePanels implements vscode.Disposable {
         if (!relations.canManageChildren || !relations.parentWorkItemId || !relations.taskTypeId) throw new Error('You cannot create child tasks on this issue.');
         const title = requiredString(action.title, 'Task title').trim();
         if (title.length > 1024) throw new Error('Task title is too long.');
-        await client.createChildTask(relations.project.path_with_namespace, relations.parentWorkItemId, relations.taskTypeId, title);
+        await client.createChildTask(relations.project.path_with_namespace, relations.parentWorkItemId, relations.taskTypeId, title, this.session.issueCapabilities?.workItemCreatePathField);
         break;
       }
       case 'addChild': {
@@ -157,7 +159,7 @@ export class IssuePanels implements vscode.Disposable {
         if (taskIid === iid) throw new Error('An issue cannot be its own child task.');
         if (relations.tasks.some((task) => Number(task.iid) === taskIid)) throw new Error('This Task is already a child of the current issue.');
         const capabilities = this.session.issueCapabilities;
-        const item = await client.getWorkItemTypeAndParent(relations.project.path_with_namespace, taskIid, capabilities?.graphHierarchy === true, capabilities?.graphWorkItemTypes === true);
+        const item = await client.getWorkItemTypeAndParent(relations.project.path_with_namespace, taskIid, capabilities?.graphHierarchy === true, capabilities?.graphWorkItemTypes === true, capabilities?.workItemScope);
         if (!item) throw new Error('The selected Task was not found in this project.');
         if (item.type?.toLocaleLowerCase() !== 'task') throw new Error('The selected work item is not a Task.');
         if (item.parentId === relations.parentWorkItemId) throw new Error('This Task is already a child of the current issue.');
@@ -167,6 +169,11 @@ export class IssuePanels implements vscode.Disposable {
       }
       case 'link': {
         if (!relations.canLink) throw new Error('You do not have permission to link issues from this issue.');
+        if ((action.linkType === 'blocks' || action.linkType === 'is_blocked_by') && this.session.metadata?.enterprise !== true) {
+          throw new Error(this.session.metadata?.enterprise === false
+            ? 'Blocking issue links require GitLab Premium or Ultimate and are unavailable on Community Edition.'
+            : 'The GitLab edition could not be verified; blocking issue links are disabled until support is confirmed.');
+        }
         const targetProjectId = requiredId(action.targetProjectId, 'Target project');
         const targetIssueIid = requiredId(action.targetIssueIid, 'Target issue');
         if (!this.session.selectedGroup || !await this.session.cachedRead(`group/${this.session.selectedGroup.id}/projects`, (readClient) => readClient.listGroupProjects(this.session.selectedGroup!.id)).then((items) => items.some((item) => item.id === targetProjectId))) {
@@ -357,24 +364,34 @@ export class IssuePanels implements vscode.Disposable {
     return { reactions, failed };
   }
 
-  private async loadTasks(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<{ tasks: IssueTask[]; parentWorkItemId?: string; taskTypeId?: string; permissions?: { updateWorkItem: boolean; deleteWorkItem: boolean; moveWorkItem: boolean; cloneWorkItem: boolean; createNote: boolean; markNoteAsInternal: boolean; adminWorkItemLink: boolean; adminParentLink: boolean; setWorkItemMetadata: boolean } }> {
-    const query = `query IssueTasks($path: ID!, $iid: String!, $after: String) { namespace(fullPath: $path) { workItem(iid: $iid) { id userPermissions { updateWorkItem deleteWorkItem moveWorkItem cloneWorkItem createNote markNoteAsInternal adminWorkItemLink adminParentLink setWorkItemMetadata } widgets { ... on WorkItemWidgetHierarchy { children(first: 100, after: $after) { nodes { id iid title description descriptionHtml state webUrl userPermissions { updateWorkItem } } pageInfo { hasNextPage endCursor } } } } } workItemTypes(name: TASK) { nodes { id name } } } }`;
-    type TaskPage = { namespace?: { workItem?: { id: string; userPermissions?: { updateWorkItem: boolean; deleteWorkItem: boolean; moveWorkItem: boolean; cloneWorkItem: boolean; createNote: boolean; markNoteAsInternal: boolean; adminWorkItemLink: boolean; adminParentLink: boolean; setWorkItemMetadata: boolean }; widgets?: Array<{ children?: { nodes?: Array<IssueTask & { userPermissions?: { updateWorkItem: boolean } }>; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> }; workItemTypes?: { nodes?: Array<{ id: string; name: string }> } } };
+  private async loadTasks(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<{ tasks: IssueTask[]; parentWorkItemId?: string; taskTypeId?: string; permissions?: Record<string, boolean> }> {
+    const capabilities = this.session.issueCapabilities;
+    const scope: GitLabWorkItemScope = capabilities?.workItemScope ?? 'namespace';
+    const fields = new Set(capabilities?.workItemFields ?? ['id', 'iid', 'title', 'description', 'descriptionHtml', 'state', 'webUrl', 'userPermissions', 'widgets']);
+    const itemFields = ['id', 'iid', 'title', 'description', 'descriptionHtml', 'state', 'webUrl'].filter((field) => fields.has(field));
+    const permissionFields = (capabilities?.workItemPermissionFields ?? []).filter((field) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(field));
+    const permissionSelection = fields.has('userPermissions') && permissionFields.length ? `userPermissions { ${permissionFields.join(' ')} }` : '';
+    const childPermissionSelection = permissionFields.includes('updateWorkItem') ? 'userPermissions { updateWorkItem }' : '';
+    const typeListSelection = capabilities?.workItemTypeList ? 'workItemTypes(name: TASK) { nodes { id name } }' : '';
+    const query = `query IssueTasks($path: ID!, $iid: String!, $after: String) { ${scope}(fullPath: $path) { workItem(iid: $iid) { id ${permissionSelection} widgets { ... on WorkItemWidgetHierarchy { children(first: 100, after: $after) { nodes { ${itemFields.join(' ')} ${childPermissionSelection} } pageInfo { hasNextPage endCursor } } } } } ${typeListSelection} } }`;
+    type TaskItem = IssueTask & { userPermissions?: { updateWorkItem?: boolean } };
+    type TaskPage = { namespace?: { workItem?: { id: string; userPermissions?: Record<string, boolean>; widgets?: Array<{ children?: { nodes?: TaskItem[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> }; workItemTypes?: { nodes?: Array<{ id: string; name: string }> } } | null; project?: { workItem?: { id: string; userPermissions?: Record<string, boolean>; widgets?: Array<{ children?: { nodes?: TaskItem[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> }; workItemTypes?: { nodes?: Array<{ id: string; name: string }> } } | null };
     const tasks: IssueTask[] = [];
     const seen = new Set<string>();
     let after: string | null = null;
     let parentWorkItemId: string | undefined;
     let taskTypeId: string | undefined;
-    let permissions: NonNullable<NonNullable<TaskPage['namespace']>['workItem']>['userPermissions'];
+    let permissions: Record<string, boolean> | undefined;
     for (let page = 0; page < 100; page++) {
       const data: TaskPage = await client.graphql<TaskPage>(query, { path: projectPath, iid: String(iid), after });
-      const workItem: NonNullable<NonNullable<TaskPage['namespace']>['workItem']> | undefined = data.namespace?.workItem;
+      const connectionRoot = scope === 'namespace' ? data.namespace : data.project;
+      const workItem = connectionRoot?.workItem;
       parentWorkItemId = workItem?.id;
-      taskTypeId = data.namespace?.workItemTypes?.nodes?.[0]?.id;
+      taskTypeId = connectionRoot?.workItemTypes?.nodes?.[0]?.id;
       permissions = workItem?.userPermissions;
-      const connection: { nodes?: Array<IssueTask & { userPermissions?: { updateWorkItem: boolean } }>; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } | undefined = workItem?.widgets?.find((widget) => widget.children)?.children;
+      const connection = workItem?.widgets?.find((widget) => widget.children)?.children;
       for (const task of connection?.nodes ?? []) {
-        tasks.push({ ...task, canEdit: this.session.issueCapabilities?.childMutations === true && task.userPermissions?.updateWorkItem === true });
+        tasks.push({ ...task, title: task.title ?? '', state: task.state ?? 'OPEN', canEdit: capabilities?.childMutations === true && task.userPermissions?.updateWorkItem === true });
       }
       if (!connection?.pageInfo?.hasNextPage) return { tasks, parentWorkItemId, taskTypeId, permissions };
       const cursor: string | null | undefined = connection.pageInfo.endCursor;
@@ -425,7 +442,7 @@ export class IssuePanels implements vscode.Disposable {
         patch(section, value);
       } catch (error) {
         if (signal.aborted || version !== this.navigationVersion) return;
-        patch(section, section === 'tasks' ? { sections: { permissions: 'error' } } : {}, 'error', `Could not load ${label}: ${safeError(error)}`);
+        patch(section, {}, 'error', `Could not load ${label}: ${safeError(error)}`);
       }
     };
 
@@ -468,43 +485,60 @@ export class IssuePanels implements vscode.Disposable {
     const datesTask = run('dates', 'start date', async () => {
       await capabilitiesTask;
       const startDate = this.session.issueCapabilities?.startDate
-        ? await client.getIssueStartDate(project.path_with_namespace, issue.iid)
+        ? await client.getIssueStartDate(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope)
         : issue.start_date ?? null;
       return { startDate, hasStartDate: this.session.issueCapabilities?.startDate === true || !!issue.start_date };
     });
     const timelogsTask = run('timelogs', 'time entries', async () => {
       await capabilitiesTask;
       const timelogs: IssueTimelog[] = this.session.issueCapabilities?.timelogReport
-        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid) : [];
+        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope, this.session.issueCapabilities.timelogAdminPermission === true) : [];
       return { timelogs };
     });
-    const tasksTask = run('tasks', 'tasks and permissions', async () => {
+    const tasksTask = run('tasks', 'child tasks', async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
       const hierarchy = capabilities?.hierarchy ? await this.loadTasks(client, project.path_with_namespace, issue.iid) : { tasks: [] as IssueTask[] };
-      const permissions = hierarchy.permissions;
-      if (!permissions) {
-        return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
-          canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
-          canLink: false, canManageChildren: false, canTrackTime: false, canResolveThreads: false, canSetStartDate: false,
-          canLogTime: false, canDeleteTimelog: false,
-          sections: { permissions: 'error' },
-          warnings: [...new Set([...data.warnings, 'GitLab did not expose Issue permissions; editing controls are hidden.'])] };
-      }
       return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
-        sections: { permissions: 'ready' },
-        canEdit: permissions.updateWorkItem === true, canDelete: permissions.deleteWorkItem === true,
-        canMove: permissions.moveWorkItem === true, canClone: permissions.cloneWorkItem === true,
-        canComment: permissions.createNote === true, canInternalComment: permissions.markNoteAsInternal === true,
-        canLink: permissions.adminWorkItemLink === true,
-        canManageChildren: capabilities?.childMutations === true && permissions.adminParentLink === true,
-        canTrackTime: permissions.setWorkItemMetadata === true,
-        canResolveThreads: capabilities?.discussionResolve === true,
-        canSetStartDate: capabilities?.startDate === true && permissions.updateWorkItem === true,
-        canLogTime: capabilities?.timelogCreate === true && permissions.setWorkItemMetadata === true,
-        canDeleteTimelog: capabilities?.timelogDelete === true };
+        canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true };
     });
-    void Promise.all([optionTask, activityTask, reactionTask, linksTask, mergeRequestsTask, todosTask, projectsTask, datesTask, timelogsTask, tasksTask]);
+    const permissionsTask = run('permissions', 'Issue permissions', async () => {
+      await capabilitiesTask;
+      const capabilities = this.session.issueCapabilities;
+      const fields = capabilities?.issuePermissionFields ?? [];
+      if (!fields.length) return {
+        metadata: this.session.metadata,
+        sections: { permissions: 'ready' },
+        warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose Issue-level permissions; permission-dependent actions are disabled.']
+      };
+      const permissions = await client.getIssuePermissions(project.path_with_namespace, issue.iid, fields);
+      const editable = permissions.updateIssue === true || permissions.adminIssue === true;
+      const canComment = permissions.createNote === true;
+      const permissionWarnings = [] as string[];
+      if (!fields.includes('updateIssue') && !fields.includes('adminIssue')) permissionWarnings.push('This GitLab schema does not expose Issue edit permissions; editing, relations, and time writes are disabled.');
+      else if (!editable) permissionWarnings.push('GitLab reports that this account does not have permission to edit this Issue.');
+      if (!fields.includes('createNote')) permissionWarnings.push('This GitLab schema does not expose Issue comment permissions; commenting is disabled.');
+      else if (!canComment) permissionWarnings.push('GitLab reports that this account does not have permission to comment on this Issue.');
+      return {
+        metadata: this.session.metadata,
+        sections: { permissions: 'ready' },
+        warnings: [...this.session.instanceWarnings, ...permissionWarnings],
+        canEdit: editable,
+        canDelete: permissions.deleteIssue === true || permissions.adminIssue === true,
+        canMove: editable,
+        canClone: editable,
+        canComment,
+        canInternalComment: canComment && editable,
+        canLink: editable,
+        canTrackTime: editable,
+        canResolveThreads: capabilities?.discussionResolve === true,
+        canSetStartDate: capabilities?.startDate === true && editable,
+        canLogTime: editable,
+        canLogDatedTime: capabilities?.timelogCreateDated === true && editable,
+        canDeleteTimelog: capabilities?.timelogDelete === true && capabilities.timelogAdminPermission === true
+      };
+    });
+    void Promise.all([optionTask, activityTask, reactionTask, linksTask, mergeRequestsTask, todosTask, projectsTask, datesTask, timelogsTask, tasksTask, permissionsTask]);
   }
 
   private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
@@ -548,7 +582,7 @@ export class IssuePanels implements vscode.Disposable {
         else {
           try {
             const project = await client.getProject(projectId);
-            const workItemId = await client.getWorkItemId(project.path_with_namespace, created.iid);
+            const workItemId = await client.getWorkItemId(project.path_with_namespace, created.iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the new Work Item ID.');
             await client.setIssueStartDate(workItemId, startDate);
           } catch (error) { this.operationWarning = `Issue created, but the start date was not saved: ${safeError(error)}`; }
@@ -652,7 +686,9 @@ export class IssuePanels implements vscode.Disposable {
     }
     const projectId = issue.project_id;
     const iid = issue.iid;
+    const snapshot = this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === issue.id ? this.lastSnapshot.data : undefined;
     if (request.type === 'update') {
+      if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
       const input = updateInput(request.input);
       await client.updateIssueIfUnchanged(projectId, iid, request.expectedUpdatedAt, input);
       const currentDate = this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data.startDate : undefined;
@@ -661,7 +697,7 @@ export class IssuePanels implements vscode.Disposable {
         else {
           try {
             const project = await client.getProject(projectId);
-            const workItemId = await client.getWorkItemId(project.path_with_namespace, iid);
+            const workItemId = await client.getWorkItemId(project.path_with_namespace, iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the Work Item ID.');
             await client.setIssueStartDate(workItemId, input.startDate ?? null);
           } catch (error) { this.operationWarning = `Issue fields saved, but the start date was not saved: ${safeError(error)}`; }
@@ -672,23 +708,27 @@ export class IssuePanels implements vscode.Disposable {
     }
     if (request.type !== 'invoke') return;
     const payload = request.payload ?? {};
-    const snapshot = this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === issue.id ? this.lastSnapshot.data : undefined;
     switch (request.action) {
       case 'close': case 'reopen':
+        if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
         await client.updateIssueIfUnchanged(projectId, iid, issue.updated_at, { stateEvent: request.action }); break;
       case 'subscribe': await client.subscribeToIssue(projectId, iid); break;
       case 'unsubscribe': await client.unsubscribeFromIssue(projectId, iid); break;
       case 'todo': await client.createIssueTodo(projectId, iid); break;
       case 'todoDone': await client.markTodoDone(requiredId(payload.todoId, 'To-do')); break;
       case 'note':
+        if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
         if (payload.internal === true && !snapshot?.canInternalComment) throw new Error('You cannot post internal comments on this issue.');
         await client.addIssueNote(projectId, iid, requiredString(payload.body, 'Comment'), payload.internal === true); break;
       case 'editNote': await client.updateIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment'), requiredString(payload.body, 'Comment')); break;
       case 'deleteNote': await client.deleteIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment')); break;
       case 'thread':
+        if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
         if (payload.internal === true) throw new Error('GitLab cannot create an internal issue thread. Use an internal comment.');
         await client.createIssueThread(projectId, iid, requiredString(payload.body, 'Thread')); break;
-      case 'reply': await client.replyToIssueThread(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredString(payload.body, 'Reply')); break;
+      case 'reply':
+        if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
+        await client.replyToIssueThread(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredString(payload.body, 'Reply')); break;
       case 'resolveThread':
         if (!this.session.issueCapabilities?.discussionResolve) throw new Error('This GitLab instance does not expose discussion resolution.');
         await client.resolveIssueThread(requiredString(payload.discussionId, 'Thread'), payload.resolved === true); break;
@@ -705,45 +745,67 @@ export class IssuePanels implements vscode.Disposable {
         }
         break;
       }
-      case 'link': await client.addIssueLink(projectId, iid, requiredId(payload.targetProjectId, 'Project'), requiredId(payload.targetIssueIid, 'Issue'), payload.linkType === 'blocks' || payload.linkType === 'is_blocked_by' ? payload.linkType : 'relates_to'); break;
-      case 'unlink': await client.removeIssueLink(projectId, iid, requiredId(payload.linkId, 'Link')); break;
-      case 'estimate': await client.setTimeEstimate(projectId, iid, requiredString(payload.duration, 'Duration')); break;
+      case 'link': {
+        if (!snapshot?.canLink) throw new Error('GitLab does not report permission to link Issues.');
+        const linkType = payload.linkType === 'blocks' || payload.linkType === 'is_blocked_by' ? payload.linkType : 'relates_to';
+        if (linkType !== 'relates_to' && this.session.metadata?.enterprise !== true) {
+          throw new Error(this.session.metadata?.enterprise === false
+            ? 'Blocking issue links require GitLab Premium or Ultimate and are unavailable on Community Edition.'
+            : 'The GitLab edition could not be verified; blocking issue links are disabled until support is confirmed.');
+        }
+        await client.addIssueLink(projectId, iid, requiredId(payload.targetProjectId, 'Project'), requiredId(payload.targetIssueIid, 'Issue'), linkType);
+        break;
+      }
+      case 'unlink':
+        if (!snapshot?.canLink) throw new Error('GitLab does not report permission to remove Issue links.');
+        await client.removeIssueLink(projectId, iid, requiredId(payload.linkId, 'Link')); break;
+      case 'estimate':
+        if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to update this Issue time estimate.');
+        await client.setTimeEstimate(projectId, iid, requiredString(payload.duration, 'Duration')); break;
       case 'spend': {
+        if (!snapshot?.canLogTime) throw new Error('GitLab does not report permission to log time on this Issue.');
         const duration = requiredString(payload.duration, 'Duration');
         const spentDate = optionalDate(payload.spentDate);
-        if (this.session.issueCapabilities?.timelogCreate) {
+        const summary = optionalString(payload.summary);
+        const capabilities = this.session.issueCapabilities;
+        if (spentDate && !capabilities?.timelogCreateDated) throw new Error('This GitLab instance does not support dated time entries.');
+        if (spentDate && summary?.trim() && !capabilities?.timelogCreateSummary) throw new Error('This GitLab schema cannot store a summary with dated time entries.');
+        if (capabilities?.timelogCreate && (!summary?.trim() || capabilities.timelogCreateSummary === true)) {
           const spentAt = spentDate ? new Date(`${spentDate}T12:00:00`).toISOString() : undefined;
-          await client.createIssueTimelog(issue.id, duration, optionalString(payload.summary), spentAt);
-        } else if (spentDate) throw new Error('This GitLab instance does not support dated time entries.');
-        else await client.addSpentTime(projectId, iid, duration, optionalString(payload.summary));
+          await client.createIssueTimelog(issue.id, duration, summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
+        } else await client.addSpentTime(projectId, iid, duration, summary);
         break;
       }
       case 'deleteTimelog': {
         const id = requiredString(payload.timelogId, 'Time entry');
-        if (!this.session.issueCapabilities?.timelogDelete || !snapshot?.timelogs.some((entry) => entry.id === id && entry.userPermissions?.adminTimelog)) throw new Error('You cannot delete this time entry.');
+        if (!snapshot?.canDeleteTimelog || !this.session.issueCapabilities?.timelogDelete || !snapshot.timelogs.some((entry) => entry.id === id && entry.userPermissions?.adminTimelog)) throw new Error('You cannot delete this time entry.');
         const confirm = await vscode.window.showWarningMessage('Delete this time entry?', { modal: true }, 'Delete time entry');
         if (confirm !== 'Delete time entry') { this.post({ type: 'cancelled' }); return; }
         await client.deleteIssueTimelog(id);
         break;
       }
       case 'resetEstimate': {
+        if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to reset this Issue time estimate.');
         const confirm = await vscode.window.showWarningMessage('Reset this issue’s entire time estimate?', { modal: true }, 'Reset estimate');
         if (confirm !== 'Reset estimate') { this.post({ type: 'cancelled' }); return; }
         await client.resetTimeEstimate(projectId, iid); break;
       }
       case 'resetSpent': {
+        if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to reset this Issue time.');
         const confirm = await vscode.window.showWarningMessage('Delete all time spent on this issue?', { modal: true }, 'Reset spent');
         if (confirm !== 'Reset spent') { this.post({ type: 'cancelled' }); return; }
         await client.resetSpentTime(projectId, iid); break;
       }
       case 'createChild': {
+        if (!snapshot?.canManageChildren) throw new Error('GitLab does not report permission to manage child tasks.');
         if (!snapshot?.parentWorkItemId || !snapshot.taskTypeId) throw new Error('This GitLab instance did not expose child task creation.');
-        await client.createChildTask(snapshot.project.path_with_namespace, snapshot.parentWorkItemId, snapshot.taskTypeId, requiredString(payload.title, 'Task title'));
+        await client.createChildTask(snapshot.project.path_with_namespace, snapshot.parentWorkItemId, snapshot.taskTypeId, requiredString(payload.title, 'Task title'), this.session.issueCapabilities?.workItemCreatePathField);
         break;
       }
       case 'addChild': {
+        if (!snapshot?.canManageChildren) throw new Error('GitLab does not report permission to manage child tasks.');
         if (!snapshot?.parentWorkItemId) throw new Error('This GitLab instance did not expose child tasks.');
-        const id = await client.getWorkItemId(snapshot.project.path_with_namespace, requiredId(payload.taskIid, 'Task'));
+        const id = await client.getWorkItemId(snapshot.project.path_with_namespace, requiredId(payload.taskIid, 'Task'), this.session.issueCapabilities?.workItemScope);
         if (!id) throw new Error('Task was not found in this project.');
         await client.setChildParent(id, snapshot.parentWorkItemId);
         break;
@@ -762,6 +824,7 @@ export class IssuePanels implements vscode.Disposable {
         break;
       }
       case 'move': {
+        if (!snapshot?.canMove) throw new Error('GitLab does not report permission to move this Issue.');
         const target = requiredId(payload.toProjectId, 'Target project');
         const confirm = await vscode.window.showWarningMessage(`Move issue #${iid} to project ${target}? GitLab closes the original issue.`, { modal: true }, 'Move');
         if (confirm !== 'Move') { this.post({ type: 'cancelled' }); return; }
@@ -771,6 +834,7 @@ export class IssuePanels implements vscode.Disposable {
         return this.load();
       }
       case 'clone': {
+        if (!snapshot?.canClone) throw new Error('GitLab does not report permission to clone this Issue.');
         const target = requiredId(payload.toProjectId, 'Target project');
         this.issue = await client.cloneIssue(projectId, iid, target, payload.withNotes === true);
         this.navigationVersion++;
@@ -778,6 +842,7 @@ export class IssuePanels implements vscode.Disposable {
         return this.load();
       }
       case 'delete': {
+        if (!snapshot?.canDelete) throw new Error('GitLab does not report permission to delete this Issue.');
         const confirm = await vscode.window.showWarningMessage(`Permanently delete issue #${iid}?`, { modal: true }, 'Delete Issue');
         if (confirm !== 'Delete Issue') { this.post({ type: 'cancelled' }); return; }
         await client.deleteIssue(projectId, iid);

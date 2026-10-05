@@ -79,6 +79,7 @@ export interface IssueDetailData extends IssueRelationsData {
   canSetStartDate: boolean;
   hasStartDate: boolean;
   canLogTime: boolean;
+  canLogDatedTime?: boolean;
   canDeleteTimelog: boolean;
   sections?: Partial<Record<IssueDetailSection, IssueDetailSectionStatus>>;
 }

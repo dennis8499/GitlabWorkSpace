@@ -3,6 +3,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
 import type { Memento, SecretStorage } from 'vscode';
+import type { GitLabClient, GitLabIssueCapabilities } from '../../src/api/gitLabClient';
+import type { GitLabMetadata } from '../../src/api/types';
 import { GitLabSession } from '../../src/connection/session';
 
 class MemoryStore implements Memento {
@@ -42,6 +44,30 @@ async function serve(response: (tokenHeader: string | undefined) => { status: nu
 async function stop(server: Server): Promise<void> {
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
+
+async function sessionWithInstance(metadata: Promise<GitLabMetadata>): Promise<GitLabSession> {
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  const capabilities = { hierarchy: false, childMutations: false, discussionResolve: false } as GitLabIssueCapabilities;
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => ({
+    getMetadata: () => metadata,
+    getIssueCapabilities: async () => capabilities
+  } as unknown as GitLabClient);
+  await session.ensureInstanceChecked();
+  return session;
+}
+
+test('recognizes CE 16.11.10 as the minimum and reports edition-only features', async () => {
+  const session = await sessionWithInstance(Promise.resolve({ version: '16.11.10-ee', enterprise: false }));
+  assert.equal(session.issueCapabilities?.hierarchy, false);
+  assert.ok(session.instanceWarnings.some((warning) => /Community Edition does not include.*blocking issue links/i.test(warning)));
+  assert.ok(!session.instanceWarnings.some((warning) => /below the minimum/i.test(warning)));
+});
+
+test('keeps confirmed API capabilities when GitLab version metadata is unavailable', async () => {
+  const session = await sessionWithInstance(Promise.reject(new Error('metadata unavailable')));
+  assert.equal(session.issueCapabilities?.discussionResolve, false);
+  assert.ok(session.instanceWarnings.some((warning) => /version metadata is unavailable.*still load/i.test(warning)));
+});
 
 test('stores the access token in SecretStorage only after the current-user check succeeds', async () => {
   const running = await serve(() => ({ status: 200, body: { id: 1, username: 'tester', name: 'Test User' } }));

@@ -261,6 +261,7 @@ export class WorkspacePanel implements vscode.Disposable {
     switch (request.type) {
       case 'ready': this.webviewReady = true; await this.refresh({ forceRepositories: true }); break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
+      case 'toggleFullDisplay': await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup'); break;
       case 'setMode':
         if (!ALLOWED_MODES.has(request.mode)) return;
         this.activeMode = request.mode;
@@ -438,6 +439,10 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       const client = (await this.session.getClient()).withReadSignal(signal);
       const readOptions = { force: options.forceNetwork === true, signal };
+      const instanceTask = this.session.ensureInstanceChecked().catch(() => undefined);
+      void instanceTask.then(() => {
+        if (generation === this.requestGeneration && !signal.aborted) this.sendSnapshot();
+      });
       const [user, groups] = await Promise.all([
         this.session.cachedRead('current-user', (readClient) => readClient.getCurrentUser(), readOptions),
         this.session.cachedRead('groups', (readClient) => readClient.listGroups(), readOptions)
@@ -494,7 +499,7 @@ export class WorkspacePanel implements vscode.Disposable {
           `group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), readOptions
         ),
         this.session.cachedRead(
-          `group/${group.id}/merge-requests`, (readClient) => readClient.listGroupMergeRequests(group.id), readOptions
+          `group/${group.id}/merge-requests`, (readClient) => readClient.listGroupMergeRequests(group.id, this.currentUser?.id), readOptions
         ).catch(() => []),
         groupMilestonesPromise,
         groupIssueBoardsPromise
@@ -1008,6 +1013,11 @@ export class WorkspacePanel implements vscode.Disposable {
     const snapshot: WorkspaceSnapshot = {
       connected: !!this.session.baseUrl,
       baseUrl: this.session.baseUrl,
+      instance: this.session.baseUrl ? {
+        version: this.session.metadata?.version,
+        enterprise: this.session.metadata?.enterprise,
+        warnings: [...this.session.instanceWarnings]
+      } : undefined,
       currentUser: this.currentUser,
       group,
       groups: this.groups,
@@ -1524,12 +1534,20 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!entry) throw new Error('找不到待送出的工時。');
     const client = await this.session.getClient();
     const issue = await client.getIssue(entry.projectId, entry.issueIid);
+    await this.session.ensureInstanceChecked();
+    const permissionFields = this.session.issueCapabilities?.issuePermissionFields ?? [];
+    if (!permissionFields.length) throw new Error('GitLab did not expose Issue permissions, so the time entry was not sent.');
+    const permissions = await client.getIssuePermissions(entry.projectPath, entry.issueIid, permissionFields);
+    if (permissions.updateIssue !== true && permissions.adminIssue !== true) throw new Error('GitLab reports that this account cannot log time on this Issue.');
     const submitting = await this.enqueueTimer(() => this.timer.beginSubmit(id));
     this.publishTimers();
     try {
-      if (this.session.issueCapabilities?.timelogCreate && issue.id) {
+      const capabilities = this.session.issueCapabilities;
+      if (submitting.spentAt && !capabilities?.timelogCreateDated) throw new Error('GitLab does not support dated time entries.');
+      if (submitting.spentAt && submitting.summary.trim() && !capabilities?.timelogCreateSummary) throw new Error('This GitLab schema cannot store a summary with dated time entries.');
+      if (capabilities?.timelogCreate && issue.id && (!submitting.summary.trim() || capabilities.timelogCreateSummary === true)) {
         const spentAt = submitting.spentAt ? new Date(`${submitting.spentAt}T12:00:00`).toISOString() : undefined;
-        await client.createIssueTimelog(issue.id, gitLabDuration(submitting.elapsedSeconds), submitting.summary, spentAt);
+        await client.createIssueTimelog(issue.id, gitLabDuration(submitting.elapsedSeconds), submitting.summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
       } else if (submitting.spentAt) {
         throw new Error('此 GitLab 版本不支援指定日期的工時紀錄。');
       } else {
@@ -1749,6 +1767,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private async approveMergeRequest(projectId: number, iid: number, sha: string): Promise<void> {
     this.requireGroupProject(projectId);
     requireIssueIid(iid);
+    if (this.session.metadata?.enterprise !== true) {
+      throw new Error(this.session.metadata?.enterprise === false
+        ? 'Merge request approvals require an edition or tier that supports approvals; they are unavailable on Community Edition.'
+        : 'The GitLab edition could not be verified; merge request approvals are disabled until support is confirmed.');
+    }
     const client = await this.session.getClient();
     const latest = await client.getMergeRequest(projectId, iid);
     if (!sha || latest.diff_refs?.head_sha !== sha) throw new Error('MR head SHA 已變更，請重新整理審查結果。');

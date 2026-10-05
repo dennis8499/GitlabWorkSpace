@@ -2,6 +2,12 @@
 
 GitLab Workspace 將專案、Codebase LLM Wiki 功能指南、Issue 討論與交付集中在同一個工作台。第一次使用只需連線 GitLab 並選擇群組；閱讀或討論 Issue 不需要設定本機工作目錄。
 
+## 視窗與 GitLab 相容版本
+
+工作台會限制在 VS Code Webview 的可用視窗內；內容較長時可在主要區域捲動，清單、圖譜與設定面板也各自保留捲動列。按頂部的 **完整顯示** 可放大目前編輯器群組；再按一次會還原原本的分割配置，工作中的草稿、選取項目與捲動位置會留在同一個工作台中。
+
+最低支援版本為 **GitLab Community Edition 16.11.10**。連線後工作台會讀取版本資訊與 GraphQL Schema，逐項檢查功能；即使版本資訊無法取得，仍會載入可確認支援的功能並顯示提示。Issue 編輯、留言、一般相關 Issue、REST 工時與 Board 會依帳號權限提供；子工作、開始日期、討論解決、日期工時與個別工時紀錄會依伺服器 Schema 啟用。Community Edition 不提供 Premium／Ultimate 的阻擋關聯與 MR 核准控制，工作台會說明原因並停用這些操作。權限不足、版本或 Schema 不支援、以及單一區塊載入失敗會分別顯示原因，不會因此停用其他已載入功能。
+
 ## 連線與選擇群組
 
 1. 在 VS Code 活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**。

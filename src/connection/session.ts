@@ -62,12 +62,29 @@ export class GitLabSession {
         this.currentMetadata = metadata.status === 'fulfilled' ? metadata.value : undefined;
         this.currentIssueCapabilities = capabilities.status === 'fulfilled' ? capabilities.value : undefined;
         this.currentInstanceWarnings = [];
-        if (metadata.status === 'rejected') this.currentInstanceWarnings.push('GitLab did not provide its version metadata.');
-        if (capabilities.status === 'rejected') this.currentInstanceWarnings.push('GitLab GraphQL capabilities could not be verified; child tasks and thread resolution are unavailable.');
+        if (metadata.status === 'rejected' || !this.currentMetadata?.version) this.currentInstanceWarnings.push('GitLab version metadata is unavailable. The 16.11.10 minimum cannot be verified; confirmed supported features will still load.');
         else {
-          if (!capabilities.value.hierarchy) this.currentInstanceWarnings.push('This GitLab version does not expose the required child task hierarchy fields.');
-          else if (!capabilities.value.childMutations) this.currentInstanceWarnings.push('This GitLab version does not expose child task mutations.');
-          if (!capabilities.value.discussionResolve) this.currentInstanceWarnings.push('This GitLab version does not expose discussion resolution.');
+          const version = this.currentMetadata.version.match(/^(\d+)\.(\d+)\.(\d+)/);
+          if (!version) this.currentInstanceWarnings.push('GitLab returned an unrecognized version. The 16.11.10 minimum cannot be verified; confirmed supported features will still load.');
+          else {
+            const actual = version.slice(1).map(Number);
+            if (actual[0] < 16 || (actual[0] === 16 && actual[1] < 11) || (actual[0] === 16 && actual[1] === 11 && actual[2] < 10)) {
+              this.currentInstanceWarnings.push(`GitLab ${this.currentMetadata.version} is below the minimum supported version, Community Edition 16.11.10. Available APIs will still be loaded.`);
+            }
+          }
+          if (this.currentMetadata.enterprise === false) {
+            this.currentInstanceWarnings.push('Community Edition does not include Premium/Ultimate blocking issue links or merge request approval controls.');
+          } else if (this.currentMetadata.enterprise !== true) this.currentInstanceWarnings.push('GitLab edition metadata is unavailable; edition-specific controls remain disabled until their support can be verified.');
+        }
+        if (capabilities.status === 'rejected') this.currentInstanceWarnings.push('GitLab GraphQL capabilities could not be verified; confirmed REST features will still load.');
+        else {
+          if (!capabilities.value.hierarchy) this.currentInstanceWarnings.push('Child tasks are unavailable because this GitLab GraphQL schema does not expose the required hierarchy fields.');
+          else if (!capabilities.value.childMutations) this.currentInstanceWarnings.push('Child tasks are read-only because this GitLab GraphQL schema does not expose the required mutations.');
+          if (!capabilities.value.discussionResolve) this.currentInstanceWarnings.push('Discussion resolution is unavailable on this GitLab GraphQL schema.');
+          if (!capabilities.value.startDate) this.currentInstanceWarnings.push('Issue start-date editing is unavailable on this GitLab GraphQL schema.');
+          if (!capabilities.value.timelogReport) this.currentInstanceWarnings.push('Individual time-entry reports are unavailable on this GitLab GraphQL schema; REST time totals and logging remain available.');
+          if (!capabilities.value.timelogCreateDated) this.currentInstanceWarnings.push('Date-specific time entry logging is unavailable on this GitLab GraphQL schema; undated time logging remains available through REST.');
+          if (capabilities.value.timelogReport && capabilities.value.timelogDelete && !capabilities.value.timelogAdminPermission) this.currentInstanceWarnings.push('Time-entry delete permissions are unavailable on this GitLab GraphQL schema; deletion is disabled.');
         }
       })();
     }

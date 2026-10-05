@@ -7,7 +7,7 @@ type LinkType = Extract<IssueRelationAction, { type: 'link' }>['linkType'];
 type PendingInput = 'childTitle' | 'childIid' | 'targetIssueIid';
 interface RelationIssueIdentity { id: string | number; project_id: number; iid: number; title: string; }
 
-export function IssueRelationsEditor({ issue, data, projects, busy = false, error, mutationApplied = false, onReload, onAction, onOpenLink, showRelations = false, showLinks = showRelations, showTasks = showRelations }: {
+export function IssueRelationsEditor({ issue, data, projects, busy = false, error, mutationApplied = false, onReload, onAction, onOpenLink, showRelations = false, showLinks = showRelations, showTasks = showRelations, blockingRelationsAvailable = true }: {
   issue: RelationIssueIdentity;
   data?: IssueRelationsData;
   projects: GitLabProject[];
@@ -20,6 +20,7 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
   showRelations?: boolean;
   showLinks?: boolean;
   showTasks?: boolean;
+  blockingRelationsAvailable?: boolean;
 }) {
   const [childTitle, setChildTitle] = useState('');
   const [childIid, setChildIid] = useState('');
@@ -98,10 +99,11 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
         </select>
         <input aria-label="關聯 Issue 編號" type="number" min="1" placeholder="Issue 編號" value={targetIssueIid} onInput={(event) => setTargetIssueIid(event.currentTarget.value)} />
         <select aria-label="關聯類型" value={linkType} onChange={(event) => setLinkType(event.currentTarget.value as LinkType)}>
-          <option value="relates_to">相關</option><option value="blocks">阻擋</option><option value="is_blocked_by">被阻擋</option>
+          <option value="relates_to">相關</option>{blockingRelationsAvailable && <><option value="blocks">阻擋</option><option value="is_blocked_by">被阻擋</option></>}
         </select>
         <button type="button" disabled={!target || !/^\d+$/.test(targetIssueIid) || Number(targetIssueIid) < 1 || selfLink || duplicateLink || busy} onClick={() => submit({ type: 'link', targetProjectId: Number(targetProjectId), targetIssueIid: Number(targetIssueIid), linkType }, 'targetIssueIid')}>建立關聯</button>
       </div>
+      {!blockingRelationsAvailable && <span class="subtle small">阻擋關聯需要 GitLab Premium 或 Ultimate；Community Edition 不提供。</span>}
       {selfLink && <span class="subtle small">不能將 Issue 關聯到自身。</span>}
       {duplicateLink && <span class="subtle small">這張 Issue 已經有此關聯。</span>}
     </div>}

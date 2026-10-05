@@ -25,12 +25,16 @@ test('loads assigned and review-requested Group MRs, then deduplicates by projec
 });
 
 test('keeps assigned MRs when an older GitLab does not support review-requested scope', async () => {
+  const requested: string[] = [];
   const client = new GitLabClient('https://gitlab.example', 'token', async (input) => {
     const url = new URL(String(input));
+    requested.push(url.toString());
     if (url.searchParams.get('scope') === 'reviews_for_me') return new Response(JSON.stringify({ message: 'scope is unsupported' }), { status: 400 });
+    if (url.searchParams.has('reviewer_id')) return new Response(JSON.stringify([mergeRequest(4, 8, 'Reviewer fallback')]), { status: 200, headers: { 'content-type': 'application/json' } });
     return new Response(JSON.stringify([mergeRequest(4, 7, 'Assigned')]), { status: 200, headers: { 'content-type': 'application/json' } });
   });
-  assert.deepEqual((await client.listGroupMergeRequests(21)).map((item) => item.iid), [7]);
+  assert.deepEqual((await client.listGroupMergeRequests(21, 9)).map((item) => item.iid), [7, 8]);
+  assert.ok(requested.some((url) => new URL(url).searchParams.get('reviewer_id') === '9'));
 });
 
 test('encodes source branches and pins approvals and merges to the reviewed MR SHA', async () => {

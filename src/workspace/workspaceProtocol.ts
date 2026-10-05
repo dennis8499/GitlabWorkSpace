@@ -115,6 +115,7 @@ export interface WorkflowKitPackageSummary {
 export interface WorkspaceSnapshot {
   connected: boolean;
   baseUrl?: string;
+  instance?: { version?: string; enterprise?: boolean; warnings: string[] };
   currentUser?: GitLabUser;
   group?: GitLabGroup;
   groups: GitLabGroup[];
@@ -174,6 +175,7 @@ export interface CloneOperationState {
 export type WorkspaceRequest =
   | { type: 'ready' }
   | { type: 'refresh' }
+  | { type: 'toggleFullDisplay' }
   | { type: 'setMode'; mode: WorkspaceMode }
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }

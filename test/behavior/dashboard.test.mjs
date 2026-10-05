@@ -5,6 +5,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
 const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
+const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
 function project(id, path) {
   return {
@@ -116,6 +117,29 @@ async function mount(initialState, initialSnapshot) {
     }
   };
 }
+
+test('bounds the dashboard to the VS Code viewport and sends the full-display toggle', async (t) => {
+  const data = snapshot('developer');
+  data.instance = { version: '16.11.10', enterprise: false, warnings: ['Community Edition feature note'] };
+  const view = await mount({ mode: 'developer' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const shell = document.querySelector('.app-shell');
+  const fullDisplayButton = [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === '完整顯示');
+  assert.ok(shell);
+  assert.ok(fullDisplayButton);
+  assert.match(document.querySelector('.page > .alert[role="status"]').textContent, /16\.11\.10.*Community Edition feature note/s);
+  fullDisplayButton.click();
+  await view.tick();
+  assert.ok(view.requests.some((request) => request.type === 'toggleFullDisplay'));
+  assert.equal(document.querySelector('.app-shell'), shell, 'the click leaves the mounted workbench and its local view state in place');
+  assert.match(dashboardCss, /\.app-shell\s*\{[^}]*height:\s*100dvh/s);
+  assert.match(dashboardCss, /\.topbar\s*\{[^}]*flex:\s*0\s+0\s+auto/s);
+  assert.match(dashboardCss, /\.page\s*\{[^}]*overflow:\s*auto/s);
+  assert.match(dashboardCss, /\.issue-list-panel\s*\{[^}]*overflow:\s*auto/s);
+  assert.match(dashboardCss, /\.tool-drawer\s*\{[^}]*overflow:\s*auto/s);
+  assert.match(dashboardCss, /\.statusbar\s*\{[^}]*flex:\s*0\s+0\s+auto/s);
+});
 
 test('renders and uses the installed Group Wiki guide with validated prompts and saved inputs', async (t) => {
   const selectedGroup = snapshot('sa');
@@ -689,6 +713,7 @@ test('shows the sanitized Git error details in the repository operation results'
 
 test('binds imported reports to both SHAs without adding approval or merge gates', async (t) => {
   const current = snapshot('reviewer');
+  current.instance = { enterprise: true, warnings: [] };
   const sourceSha = 'a'.repeat(40), targetSha = 'b'.repeat(40);
   const request = { id: 41, iid: 4, project_id: 1, source_project_id: 2, target_project_id: 1,
     title: 'Fork change', state: 'opened', source_branch: 'feature', target_branch: 'main',

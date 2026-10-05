@@ -10,6 +10,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
   const project: GitLabProject = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project', http_url_to_repo: 'https://gitlab.example.test/group/project.git' };
   const issue = { id: 401, iid: 7, project_id: 42, title: 'Parent issue', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7' };
   let canLink = true;
+  let issueCanLink = true;
   let canManageChildren = true;
   let links: Array<Record<string, unknown>> = [];
   const children = [{ id: 'gid://gitlab/WorkItem/412', iid: '12', title: 'Existing Task', state: 'OPEN' }];
@@ -27,6 +28,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     listGroupProjects: async () => [project],
     getIssue: async (_projectId: number, iid: number) => ({ ...issue, iid, id: 400 + iid }),
     listIssueLinks: async () => links,
+    getIssuePermissions: async () => ({ updateIssue: issueCanLink, adminIssue: false }),
     graphql: async () => ({ namespace: { workItem: {
       id: 'gid://gitlab/WorkItem/401',
       userPermissions: { adminWorkItemLink: canLink, adminParentLink: canManageChildren },
@@ -44,7 +46,8 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
   } as unknown as GitLabClient;
   const session = {
     selectedGroup: { id: 1, full_path: 'group' },
-    issueCapabilities: { hierarchy: true, childMutations: true, graphHierarchy: true, graphWorkItemTypes: true },
+    metadata: { version: '16.11.10', enterprise: true },
+    issueCapabilities: { hierarchy: true, childMutations: true, graphHierarchy: true, graphWorkItemTypes: true, issuePermissionFields: ['updateIssue', 'adminIssue'], workItemCreatePathField: 'namespacePath', workItemScope: 'namespace' },
     ensureInstanceChecked: async () => undefined,
     getClient: async () => client,
     cachedRead: async (_key: string, load: (readClient: GitLabClient, signal: AbortSignal) => Promise<unknown>) => load(client, new AbortController().signal)
@@ -67,7 +70,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     assert.equal(relations.parentWorkItemId, 'gid://gitlab/WorkItem/401');
 
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: '  New Task  ' });
-    assert.deepEqual(createdChildren, [['group/project', 'gid://gitlab/WorkItem/401', 'gid://gitlab/WorkItems::Type/5', 'New Task']]);
+    assert.deepEqual(createdChildren, [['group/project', 'gid://gitlab/WorkItem/401', 'gid://gitlab/WorkItems::Type/5', 'New Task', 'namespacePath']]);
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'addChild', taskIid: 12 }), /already a child/i);
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'addChild', taskIid: 13 }), /not a Task/i);
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'addChild', taskIid: 14 }), /another parent/i);
@@ -82,6 +85,11 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 9, linkType: 'relates_to' }), /already linked/i);
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 10, linkType: 'blocks' });
     assert.equal(createdLinks.at(-1)?.[4], 'blocks');
+    (session as unknown as { metadata: { enterprise: boolean } }).metadata.enterprise = false;
+    const beforeBlockedLink = createdLinks.length;
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'blocks' }), /unavailable on Community Edition/i);
+    assert.equal(createdLinks.length, beforeBlockedLink, 'unsupported CE blocking relationships never send a write request');
+    (session as unknown as { metadata: { enterprise: boolean } }).metadata.enterprise = true;
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 10, linkType: 'invalid' } as unknown as IssueRelationAction), /unsupported issue link type/i);
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'unlink', linkId: 99 }), /does not belong/i);
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'unlink', linkId: 55 });
@@ -89,7 +97,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
 
     canManageChildren = false;
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: 'Denied' }), /cannot create child/i);
-    canLink = false;
+    issueCanLink = false;
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'relates_to' }), /permission/i);
   } finally { panels.dispose(); }
 });

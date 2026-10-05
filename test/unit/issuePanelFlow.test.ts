@@ -16,6 +16,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     listGroupProjects: async () => [project], canCreateIssue: async () => true, createIssue: async () => issue,
     getIssue: async () => issue, getProject: async () => project,
+    getIssuePermissions: async () => ({ updateIssue: true, adminIssue: false, deleteIssue: true, createNote: true }),
     getProjectByPath: async () => { internalIssueNavigations++; return project; },
     getCurrentUser: async () => ({ id: 9, username: 'tester', name: 'Tester' }),
     listProjectMembers: async () => [], listProjectLabels: async () => [],
@@ -32,7 +33,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   const session = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     selectedGroup: { id: 1, full_path: 'group' }, metadata: { version: '18.4.0' },
-    instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true },
+    instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true, issuePermissionFields: ['updateIssue', 'adminIssue', 'createNote'] },
     getClient: async () => signalClient, ensureInstanceChecked: async () => undefined,
     cachedRead: async (_key: string, load: (readClient: GitLabClient, signal: AbortSignal) => Promise<unknown>) => load(signalClient, new AbortController().signal)
   } as unknown as GitLabSession;
@@ -97,6 +98,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     releaseDiscussions?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.activity === 'ready'));
+    assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.canEdit === true && message.patch.canComment === true), 'Issue edit and comment permissions load independently of unavailable child tasks');
     assert.equal(reads, 2);
     let taskPages = 0;
     client.graphql = async (_query, variables) => {
@@ -172,5 +174,29 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     externalOpenResult = false;
     await assert.rejects(host.handle({ type: 'openIssueInGitLab', issueId: issue.id }), /could not open.*browser/i);
     assert.equal(externalUrls.at(-1), issue.web_url);
+
+    const permissionFailureIssue = { ...issue, id: 406, iid: 11, title: 'Issue with permission lookup failure' };
+    client.getIssue = async () => permissionFailureIssue;
+    client.getIssuePermissions = async () => { throw new Error('GitLab API request failed (HTTP 403).'); };
+    await panels.showIssue(permissionFailureIssue);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(messages.some((message) => message.type === 'detailData' && message.data.issue.iid === 11), 'the Issue body remains visible when the permissions query is forbidden');
+    assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === permissionFailureIssue.id && message.patch.sections?.permissions === 'error'));
+    let deniedWrites = 0;
+    client.updateIssueIfUnchanged = async () => { deniedWrites++; return permissionFailureIssue; };
+    await assert.rejects(host.handle({ type: 'update', issueId: permissionFailureIssue.id, input: { title: 'Denied' } }), /permission to edit/i);
+    assert.equal(deniedWrites, 0, 'a failed permission lookup never sends an Issue write');
+
+    const childLoadFailureIssue = { ...issue, id: 407, iid: 12, title: 'Issue with unavailable child tasks' };
+    session.issueCapabilities!.hierarchy = true;
+    client.getIssue = async () => childLoadFailureIssue;
+    client.getIssuePermissions = async () => ({ updateIssue: true, adminIssue: false, deleteIssue: false, createNote: true });
+    client.graphql = async () => { throw new Error('GitLab API request failed (HTTP 403).'); };
+    await panels.showIssue(childLoadFailureIssue);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const childFailurePatches = messages.filter((message) => message.type === 'detailPatch' && message.issueId === childLoadFailureIssue.id);
+    assert.ok(childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.tasks === 'error'));
+    assert.ok(childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.permissions === 'ready' && message.patch.canEdit === true));
+    assert.ok(!childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.permissions === 'error'), 'a child task API failure never changes Issue permission state');
   } finally { panels.dispose(); }
 });

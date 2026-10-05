@@ -76,34 +76,137 @@ test('includes ancestor milestones and checks the GitLab GraphQL issue capabilit
     const url = new URL(String(input));
     paths.push(url.pathname + url.search);
     if (url.pathname.endsWith('/graphql')) return new Response(JSON.stringify({ data: { __schema: { types: [
-      { name: 'Namespace', ...names('workItem workItemTypes') },
+      { name: 'Namespace', fields: [{ name: 'workItem', args: [{ name: 'iid' }] }, { name: 'workItemTypes' }] },
       { name: 'WorkItem', ...names('id iid userPermissions widgets') },
       { name: 'WorkItemWidgetHierarchy', ...names('children') },
       { name: 'WorkItemPermissions', ...names('updateWorkItem deleteWorkItem moveWorkItem cloneWorkItem createNote markNoteAsInternal adminWorkItemLink adminParentLink setWorkItemMetadata') },
-      { name: 'Mutation', ...names('workItemCreate workItemUpdate discussionToggleResolve timelogCreate timelogDelete') },
+      { name: 'Mutation', fields: [
+        { name: 'workItemCreate', args: [{ name: 'input', type: { name: 'WorkItemCreateInput' } }] },
+        { name: 'workItemUpdate', args: [{ name: 'input', type: { name: 'WorkItemUpdateInput' } }] },
+        { name: 'discussionToggleResolve' },
+        { name: 'timelogCreate', args: [{ name: 'input', type: { name: 'TimelogCreateInput' } }] },
+        { name: 'timelogDelete', args: [{ name: 'input', type: { name: 'TimelogDeleteInput' } }] }
+      ] },
       { name: 'Project', ...names('userPermissions') }, { name: 'ProjectPermissions', ...names('createIssue') },
       { name: 'WorkItemUpdateInput', inputFields: [{ name: 'startAndDueDateWidget' }] },
+      { name: 'WorkItemCreateInput', inputFields: [] },
+      { name: 'TimelogCreateInput', inputFields: names('issuableId timeSpent summary spentAt').fields },
+      { name: 'TimelogDeleteInput', inputFields: [{ name: 'id' }] },
       { name: 'WorkItemWidgetStartAndDueDateUpdateInput', inputFields: [{ name: 'startDate' }] },
       { name: 'WorkItemWidgetStartAndDueDate', ...names('startDate') },
       { name: 'WorkItemWidgetTimeTracking', ...names('timelogs') },
-      { name: 'WorkItemTimelog', ...names('id timeSpent spentAt summary user userPermissions') }
+      { name: 'WorkItemTimelog', fields: [...names('id timeSpent spentAt summary user').fields, { name: 'userPermissions', type: { name: 'TimelogPermissions' } }] },
+      { name: 'TimelogPermissions', ...names('adminTimelog') }
     ] } } }));
     return new Response(JSON.stringify([{ id: 8, title: 'Parent group milestone' }]));
   };
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
   assert.equal((await client.listProjectMilestones(42))[0].title, 'Parent group milestone');
-  assert.deepEqual(await client.getIssueCapabilities(), {
-    hierarchy: true, childMutations: true, graphWorkItems: false, graphHierarchy: false,
-    graphLinkedItems: false, graphLabels: false, graphAssignees: false, graphWorkItemTypes: false,
-    discussionResolve: true, startDate: true, timelogReport: true, timelogCreate: true, timelogDelete: true, createPermission: true
-  });
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(capabilities.workItemScope, 'namespace');
+  assert.equal(capabilities.hierarchy, true);
+  assert.equal(capabilities.childMutations, false, 'child writes stay disabled without a supported input shape');
+  assert.equal(capabilities.graphWorkItems, true);
+  assert.equal(capabilities.graphHierarchy, false);
+  assert.equal(capabilities.discussionResolve, true);
+  assert.equal(capabilities.startDate, true);
+  assert.equal(capabilities.timelogReport, true);
+  assert.equal(capabilities.timelogCreate, true);
+  assert.equal(capabilities.timelogCreateDated, true);
+  assert.equal(capabilities.timelogCreateSummary, true);
+  assert.equal(capabilities.timelogAdminPermission, true);
+  assert.equal(capabilities.timelogDelete, true);
+  assert.equal(capabilities.createPermission, true);
   assert.match(paths[0], /include_ancestors=true/);
+});
+
+test('matches the GitLab CE 16.11.10 GraphQL compatibility contract using Project and projectPath', async () => {
+  const names = (value: string) => value.split(' ').map((name) => ({ name }));
+  const field = (name: string, args?: Array<{ name: string; type: { name: string } }>) => ({ name, ...(args ? { args } : {}) });
+  const schema = [
+    { name: 'Project', fields: [field('workItem', [{ name: 'iid', type: { name: 'String' } }]), field('workItemTypes', [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }]), field('userPermissions')] },
+    { name: 'WorkItem', fields: names('id iid title state webUrl userPermissions widgets') },
+    { name: 'WorkItemPermissions', fields: names('updateWorkItem adminParentLink') },
+    { name: 'WorkItemWidgetHierarchy', fields: names('parent children') },
+    { name: 'Issue', fields: names('userPermissions') },
+    { name: 'IssuePermissions', fields: names('updateIssue adminIssue createNote') },
+    { name: 'ProjectPermissions', fields: names('createIssue') },
+    { name: 'Mutation', fields: [
+      field('workItemCreate', [{ name: 'input', type: { name: 'WorkItemCreateInput' } }]),
+      field('workItemUpdate', [{ name: 'input', type: { name: 'WorkItemUpdateInput' } }])
+    ] },
+    { name: 'WorkItemCreateInput', inputFields: names('projectPath workItemTypeId title hierarchyWidget') },
+    { name: 'WorkItemUpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') }
+  ];
+  let requestBody = '';
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    requestBody = String(init?.body);
+    return new Response(JSON.stringify({ data: { __schema: { types: schema } } }));
+  });
+  const capabilities = await client.getIssueCapabilities();
+  assert.match(requestBody, /__schema/);
+  assert.equal(capabilities.workItemScope, 'project');
+  assert.equal(capabilities.workItemCreatePathField, 'projectPath');
+  assert.equal(capabilities.workItemTypeList, true);
+  assert.deepEqual(capabilities.issuePermissionFields, ['updateIssue', 'adminIssue', 'createNote']);
+  assert.equal(capabilities.hierarchy, true);
+  assert.equal(capabilities.childMutations, true);
+  assert.equal(capabilities.graphHierarchy, true);
+});
+
+test('keeps the Namespace and namespacePath GraphQL shape for newer GitLab schemas', async () => {
+  const names = (value: string) => value.split(' ').map((name) => ({ name }));
+  const scope = { fields: [{ name: 'workItem', args: [{ name: 'iid', type: { name: 'String' } }] }, { name: 'workItemTypes', args: [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }] }] };
+  const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(JSON.stringify({ data: { __schema: { types: [
+    { name: 'Namespace', ...scope },
+    { name: 'WorkItem', fields: names('id iid title state webUrl widgets') },
+    { name: 'WorkItemWidgetHierarchy', fields: names('parent children') },
+    { name: 'Mutation', fields: [
+      { name: 'workItemCreate', args: [{ name: 'input', type: { name: 'CreateInput' } }] },
+      { name: 'workItemUpdate', args: [{ name: 'input', type: { name: 'UpdateInput' } }] }
+    ] },
+    { name: 'CreateInput', inputFields: names('namespacePath hierarchyWidget workItemTypeId title') },
+    { name: 'UpdateInput', inputFields: names('hierarchyWidget stateEvent title descriptionWidget') }
+  ] } } })));
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(capabilities.workItemScope, 'namespace');
+  assert.equal(capabilities.workItemCreatePathField, 'namespacePath');
+  assert.equal(capabilities.childMutations, true);
+});
+
+test('queries only Issue permissions confirmed by the instance schema', async () => {
+  let body: { query: string; variables: Record<string, unknown> } | undefined;
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    return new Response(JSON.stringify({ data: { project: { issue: { userPermissions: { updateIssue: true, createNote: false } } } } }));
+  });
+  const permissions = await client.getIssuePermissions('group/project', 7, ['updateIssue', 'createNote']);
+  assert.deepEqual(permissions, { updateIssue: true, createNote: false });
+  assert.match(body?.query ?? '', /issue\(iid: \$iid\)/);
+  assert.match(body?.query ?? '', /userPermissions\s*\{\s*updateIssue createNote\s*\}/);
+  assert.deepEqual(body?.variables, { path: 'group/project', iid: '7' });
+});
+
+test('uses the legacy Project root and projectPath when creating a child task', async () => {
+  let body: { query: string; variables: Record<string, unknown> } | undefined;
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    const data = body.query.includes('mutation CreateChildTask')
+      ? { workItemCreate: { errors: [] } }
+      : { project: { workItem: { id: 'gid://gitlab/WorkItem/401' } } };
+    return new Response(JSON.stringify({ data }));
+  });
+  assert.equal(await client.getWorkItemId('group/project', 7, 'project'), 'gid://gitlab/WorkItem/401');
+  assert.match(body?.query ?? '', /project\(fullPath: \$path\)/);
+  await client.createChildTask('group/project', 'gid://gitlab/WorkItem/401', 'gid://gitlab/WorkItems::Type/5', 'Task', 'projectPath');
+  assert.match(body?.query ?? '', /workItemCreate\(input: \{ projectPath: \$path/);
+  assert.doesNotMatch(body?.query ?? '', /namespacePath/);
 });
 
 test('detects read-only Issue graph fields without requiring WorkItem edit permissions', async () => {
   const names = (value: string) => ({ fields: value.split(' ').map((name) => ({ name })) });
   const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(JSON.stringify({ data: { __schema: { types: [
-    { name: 'Namespace', ...names('workItem') },
+    { name: 'Namespace', fields: [{ name: 'workItem', args: [{ name: 'iid' }] }] },
     { name: 'WorkItem', ...names('id iid title state webUrl namespace project widgets workItemType') },
     { name: 'WorkItemWidgetHierarchy', ...names('parent children') },
     { name: 'WorkItemWidgetLinkedItems', ...names('linkedItems') },
@@ -117,7 +220,7 @@ test('detects read-only Issue graph fields without requiring WorkItem edit permi
   assert.equal(capabilities.graphLabels, true);
   assert.equal(capabilities.graphAssignees, true);
   assert.equal(capabilities.graphWorkItemTypes, true);
-  assert.equal(capabilities.hierarchy, false);
+  assert.equal(capabilities.hierarchy, true, 'hierarchy reads do not depend on WorkItem mutation permissions');
   assert.equal(capabilities.childMutations, false);
 });
 
@@ -163,6 +266,22 @@ test('paginates WorkItem parents, child items, linked items, and reads label met
   assert.equal(result.children.length, 2);
   assert.equal(result.links.length, 2);
   assert.deepEqual(result.links.map((entry) => entry.type), ['RELATED', 'BLOCKS']);
+});
+
+test('loads Work Item relations from the legacy Project query root', async () => {
+  let request: { query: string; variables: Record<string, unknown> } | undefined;
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    request = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    return new Response(JSON.stringify({ data: { project: { workItem: { id: 'gid://gitlab/WorkItem/401', iid: '7', title: 'Issue' } } } }));
+  });
+  const result = await client.loadIssueGraphRelations('group/project', 7, {
+    workItemScope: 'project', workItemGraphFields: ['title'], graphWorkItems: true,
+    graphHierarchy: false, graphLinkedItems: false, graphLabels: false, graphAssignees: false, graphWorkItemTypes: false
+  });
+  assert.match(request?.query ?? '', /project\(fullPath: \$path\)/);
+  assert.doesNotMatch(request?.query ?? '', /namespace\(fullPath/);
+  assert.deepEqual(request?.variables, { path: 'group/project', iid: '7' });
+  assert.equal(result.root?.id, 'gid://gitlab/WorkItem/401');
 });
 
 test('updates one CE assignee and edits a note through its discussion', async () => {
