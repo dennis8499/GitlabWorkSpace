@@ -24,6 +24,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
   const assignedParents: unknown[][] = [];
   const createdLinks: unknown[][] = [];
   const removedLinks: unknown[][] = [];
+  const blockingCapability: { id: string; status: 'supported' | 'unsupported' | 'unknown'; reason?: string } = { id: 'blockingLinks', status: 'supported' };
   const client = {
     listGroupProjects: async () => [project],
     getIssue: async (_projectId: number, iid: number) => ({ ...issue, iid, id: 400 + iid }),
@@ -47,6 +48,7 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
   const session = {
     selectedGroup: { id: 1, full_path: 'group' },
     metadata: { version: '16.11.10', enterprise: true },
+    capabilityDiagnostics: [blockingCapability],
     issueCapabilities: { hierarchy: true, childMutations: true, graphHierarchy: true, graphWorkItemTypes: true, issuePermissionFields: ['updateIssue', 'adminIssue'], workItemCreatePathField: 'namespacePath', workItemScope: 'namespace' },
     ensureInstanceChecked: async () => undefined,
     getClient: async () => client,
@@ -86,10 +88,16 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 10, linkType: 'blocks' });
     assert.equal(createdLinks.at(-1)?.[4], 'blocks');
     (session as unknown as { metadata: { enterprise: boolean } }).metadata.enterprise = false;
+    blockingCapability.status = 'unsupported';
+    blockingCapability.reason = 'GitLab Community Edition does not include blocking issue links.';
     const beforeBlockedLink = createdLinks.length;
-    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'blocks' }), /unavailable on Community Edition/i);
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'blocks' }), /Community Edition/i);
     assert.equal(createdLinks.length, beforeBlockedLink, 'unsupported CE blocking relationships never send a write request');
     (session as unknown as { metadata: { enterprise: boolean } }).metadata.enterprise = true;
+    blockingCapability.status = 'unknown';
+    blockingCapability.reason = 'Premium/Ultimate tier support is not confirmed.';
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'blocks' }), /not confirmed/i);
+    assert.equal(createdLinks.length, beforeBlockedLink, 'unknown tier support never sends a blocking-link write');
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 10, linkType: 'invalid' } as unknown as IssueRelationAction), /unsupported issue link type/i);
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'unlink', linkId: 99 }), /does not belong/i);
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'unlink', linkId: 55 });

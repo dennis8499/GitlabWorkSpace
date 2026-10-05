@@ -2,9 +2,20 @@ import type { GraphQLSchemaType } from '../../src/api/graphqlCapabilities';
 
 /** Emulates the selective __type aliases requested by GitLabClient.getIssueCapabilities. */
 export function selectedCapabilityData(query: string, input: readonly GraphQLSchemaType[]): Record<string, GraphQLSchemaType | null> {
-  const types = new Map(input.map((type) => [type.name, structuredClone(type)]));
+  // Test schemas omit boilerplate metadata for readability. Real __type and
+  // __schema responses always include `kind` and the applicable field list.
+  const normalize = (type: GraphQLSchemaType): GraphQLSchemaType => {
+    const normalized = structuredClone(type);
+    normalized.kind ??= Array.isArray(normalized.inputFields)
+      ? 'INPUT_OBJECT'
+      : Array.isArray(normalized.possibleTypes) ? 'INTERFACE' : 'OBJECT';
+    if ((normalized.kind === 'OBJECT' || normalized.kind === 'INTERFACE') && !Array.isArray(normalized.fields)) normalized.fields = [];
+    if (normalized.kind === 'INPUT_OBJECT' && !Array.isArray(normalized.inputFields)) normalized.inputFields = [];
+    return normalized;
+  };
+  const types = new Map(input.map((type) => [type.name, normalize(type)]));
   const field = (owner: string, name: string) => types.get(owner)?.fields?.find((item) => item.name === name);
-  const ensure = (name: string, value: GraphQLSchemaType): void => { if (!types.has(name)) types.set(name, value); };
+  const ensure = (name: string, value: GraphQLSchemaType): void => { if (!types.has(name)) types.set(name, normalize(value)); };
   for (const [owner, permissions] of [['Issue', 'IssuePermissions'], ['Project', 'ProjectPermissions'], ['WorkItem', 'WorkItemPermissions'], ['WorkItemTimelog', 'TimelogPermissions']]) {
     const item = field(owner, 'userPermissions');
     if (item && !item.type) item.type = { name: permissions, kind: 'OBJECT' };

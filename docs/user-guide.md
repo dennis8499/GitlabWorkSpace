@@ -4,9 +4,9 @@ GitLab Workspace 將專案、Codebase LLM Wiki 功能指南、Issue 討論與交
 
 ## 視窗與 GitLab 相容版本
 
-工作台會限制在 VS Code Webview 的可用視窗內；內容較長時可在主要區域捲動，清單、圖譜與設定面板也各自保留捲動列。按頂部的 **完整顯示** 可放大目前編輯器群組；再按一次會還原原本的分割配置，工作中的草稿、選取項目與捲動位置會留在同一個工作台中。
+工作台會限制在 VS Code Webview 的可用視窗內；內容較長時可在主要區域捲動，清單、圖譜與設定面板也各自保留捲動列。工作台右上方的放大圖示可放大目前編輯器群組；再按一次會還原原本的分割配置，工作中的草稿、選取項目與捲動位置會留在同一個工作台中。
 
-最低支援版本為 **GitLab Community Edition 16.11.10**。連線後工作台會讀取版本資訊與 GraphQL Schema，逐項檢查功能；即使版本資訊無法取得，仍會載入可確認支援的功能並顯示提示。Issue 編輯、留言、一般相關 Issue、REST 工時與 Board 會依帳號權限提供；子工作、開始日期、討論解決、日期工時與個別工時紀錄會依伺服器 Schema 啟用。Community Edition 不提供 Premium／Ultimate 的阻擋關聯與 MR 核准控制，工作台會說明原因並停用這些操作。權限不足、版本或 Schema 不支援、以及單一區塊載入失敗會分別顯示原因，不會因此停用其他已載入功能。
+最低支援版本為 **GitLab Community Edition 16.11.10**。連線後工作台會依版本和 GraphQL Schema 偵測功能；可在 **設定 → GitLab 執行個體與功能支援** 查看版本、支援方式和限制，並重新偵測。Issue 工時明細會依 Schema 使用 Work Item 工時 Widget 或 `Issue.timelogs`，完整讀取分頁。開始日期依 Issue 類型的原生日期 Widget 啟用；GitLab 17.10 新版 Issue 介面開始提供開始日期，17.11 正式推出。指定日期的舊版工時登錄會使用 GitLab `/spend` 快捷指令，工時摘要會留下 Issue 討論留言。Community Edition 不提供阻擋關聯，但 GitLab Free 支援由有權限的使用者核准 Merge Request；伺服器會檢查實際核准權限。Schema 尚未確認時會標示「未確認」，不會當作功能不存在。Issue 欄位錯誤會顯示在對應區段並可單獨重試。
 
 ## 連線與選擇群組
 
@@ -89,7 +89,7 @@ Group 開發規格、驗收證據、鎖接手、固定版本審查與恢復步�
 
 The minimum supported server version is **GitLab Community Edition 16.11.10**. Version metadata and GraphQL capabilities are checked separately. If the version endpoint is unavailable, confirmed APIs still work and the interface explains that the minimum version could not be verified. Missing schema fields or account permissions affect only the corresponding feature; sections show when they are not loaded, loading, unsupported, or failed, and failed sections can be retried.
 
-CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. Optional Work Item, child-task, and time-report features are enabled from the server's actual schema. Both the legacy Project/projectPath and newer Namespace/namespacePath shapes are supported. Merge Request review uses the 16.11 scope=all&reviewer_id filter and paginated /diffs.
+Community Edition does not provide blocking Issue links. Premium/Ultimate tier support is not inferred from Enterprise Edition metadata; blocking links stay disabled until that support can be confirmed, while ordinary related-Issue links remain available. GitLab Free supports the basic Merge Request approval API for users with permission; protected approval rules may still depend on the server tier. Individual time reports use the Work Item time-tracking widget or `Issue.timelogs`, with schema-selected fields and complete pagination. Both legacy Project/projectPath and newer Namespace/namespacePath shapes are supported. Older instances record date-specific time through the native `/spend` quick action, which leaves an Issue note. Merge Request review uses the 16.11 scope=all&reviewer_id filter and paginated /diffs.
 
 The workspace initially loads projects, assigned Issues, and the current user. The review list loads in reviewer mode; Issue edit options load when editing starts; relations, development data, and time data load when their tabs open; the graph refreshes only while visible. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
 

@@ -755,7 +755,7 @@ function App() {
       <div class="brand"><span class="brand-mark">GW</span><strong>GitLab Workspace</strong></div>
       <div class="top-controls">
         {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={!!snapshot.busy} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
-        <button class="quiet" type="button" title="再次按下可還原編輯器配置" onClick={() => post({ type: 'toggleFullDisplay' })}>完整顯示</button>
+        <button class="quiet maximize-button" type="button" title="放大／還原工作台" aria-label="放大／還原工作台" onClick={() => post({ type: 'toggleFullDisplay' })}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
         <button class="quiet settings-trigger" type="button" disabled={!!snapshot.busy} onClick={() => setToolDrawer(true)}>設定</button>
         {snapshot.connected ? <details class="account-menu"><summary class="connection"><i />{snapshot.currentUser?.name ?? 'GitLab 已連線'}　⌄</summary><div class="account-popover"><span>{snapshot.baseUrl}</span><button class="secondary" type="button" disabled={!!snapshot.busy} onClick={() => { setIssueNavigation(null); post({ type: 'disconnect' }); }}>中斷連線</button></div></details> : <button class="primary" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
       </div>
@@ -764,7 +764,6 @@ function App() {
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" role="tabpanel">
         {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
-        {snapshot.connected && snapshot.instance?.warnings.length ? <div class="alert subtle" role="status"><strong>GitLab {snapshot.instance.version ?? '版本未知'}</strong><ul>{snapshot.instance.warnings.map((warning) => <li>{warning}</li>)}</ul></div> : null}
         {snapshot.connectedScope && mode === 'clone' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
         {snapshot.connectedScope && mode === 'developer' && <>
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
@@ -893,7 +892,7 @@ function App() {
                     <button class="secondary" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'importMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>核對貼上報告</button>
                     <button class="secondary" disabled={!currentReport.validated || reportOutdated || busy} type="button" onClick={() => post({ type: 'publishMergeReviewReport', projectId: mr.project_id, iid: mr.iid, text: currentReport.text })}>發布審查報告</button>
                     {!currentReport.validated && <button class="quiet" disabled={!currentReport.text.trim() || busy} type="button" onClick={() => post({ type: 'postMergeRequestNote', projectId: mr.project_id, iid: mr.iid, body: currentReport.text })}>作一般留言發布</button>}
-                    {snapshot.instance?.enterprise === true && <button class="secondary" disabled={!currentSha || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>}
+                    <button class="secondary" disabled={!currentSha || busy} type="button" onClick={() => post({ type: 'approveMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>核准</button>
                     <button class="primary" disabled={!currentSha || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
                   </div>
                 </section>
@@ -906,6 +905,7 @@ function App() {
     <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : snapshot.workspaceRootError ?? '請在 VSCode 開啟 GitLab Group 工作區'}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
     {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} source={workflowKitSource}
       selectedPackageId={selectedWorkflowKitPackageId}
+      onRetryInstance={() => post({ type: 'retryInstanceCheck' })}
       onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
       onSelectPackage={setSelectedWorkflowKitPackageId}
       onInstall={(packageId) => post({ type: 'installWorkflowKit', packageId })}
@@ -926,11 +926,11 @@ function Discussion({ discussion, onReply }: { discussion: NonNullable<Workspace
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => setReply(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); setReply(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onSelectGroup, onConnect, onClose }: {
+function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onRetryInstance, onSelectGroup, onConnect, onClose }: {
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
   onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
   onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
-  onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void;
+  onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void; onRetryInstance: () => void;
   onSelectGroup: () => void; onConnect: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'work-in-progress': '工作進行中', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
@@ -951,9 +951,16 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
+  const capabilityStatus: Record<string, string> = { supported: '支援', unsupported: '不支援', unknown: '未確認' };
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">VSCode 工作區：{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
+    <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
+      <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
+      {snapshot.instance?.warnings.map((warning) => <p class="warning" role="status">{warning}</p>)}
+      <ul class="capability-list">{(snapshot.instance?.capabilities ?? []).map((item) => <li><div class="capability-heading"><strong>{item.label}</strong><span class={`capability-status ${item.status}`}>{capabilityStatus[item.status] ?? item.status}</span></div>{item.source && <small>方式：{item.source}</small>}{item.reason && <p class="subtle">{item.reason}</p>}</li>)}</ul>
+      <button class="secondary small" type="button" disabled={operationBusy || snapshot.instanceChecking} onClick={onRetryInstance}>{snapshot.instanceChecking ? '正在重新偵測…' : '重新偵測功能支援'}</button>
+    </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>工作流程組合包</h3>
     <label class="field">套件來源<select value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
     <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>

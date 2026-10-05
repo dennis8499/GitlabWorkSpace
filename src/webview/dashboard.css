@@ -28,6 +28,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .brand { white-space: nowrap; gap: 9px; font-size: 14px; }
 .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: white; background: #fc6d26; font-size: 10px; font-weight: 750; letter-spacing: -.7px; }
 .top-controls { min-width: 0; justify-content: flex-end; }
+.maximize-button { display: inline-grid; width: 32px; height: 32px; place-items: center; padding: 5px; }
+.maximize-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .control-inline { gap: 7px; color: var(--muted); }
 .control-inline select { max-width: 230px; }
 .root-button { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -42,6 +44,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-error span { flex: 1; white-space: pre-wrap; }
 .section-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 6px; margin: 4px 0; padding: 7px 10px; color: var(--muted); font-size: 11px; }
 .section-status.error { border-color: color-mix(in srgb, var(--danger), transparent 55%); color: var(--danger); }
+.instance-capabilities { border: 1px solid var(--border); border-radius: 8px; padding: 13px; margin: 12px 0 18px; }
+.instance-capabilities h3 { margin: 0 0 9px; }
+.capability-list { display: grid; gap: 7px; padding: 0; list-style: none; }
+.capability-list > li { border-top: 1px solid var(--border); padding: 8px 0 2px; }
+.capability-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.capability-status { border-radius: 99px; padding: 2px 8px; background: var(--surface-raised, color-mix(in srgb, var(--border), transparent 50%)); color: var(--muted); font-size: 11px; }
+.capability-status.supported { color: var(--success); }
+.capability-status.unsupported { color: var(--danger); }
+.capability-list small { display: block; margin-top: 3px; color: var(--muted); }
 .virtual-list-row { min-width: 0; }
 .issue-embed { flex: 1; min-width: 0; min-height: 0; width: 100%; }
 .page pre { max-width: 100%; overflow: auto; }

@@ -1,6 +1,6 @@
 import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
 import { GitLabReadGate } from './gitLabReadGate';
-import { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, detectIssueCapabilities, mergeCapabilityTypes, type GraphQLSchemaType } from './graphqlCapabilities';
+import { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, detectIssueCapabilities, mergeCapabilityTypes, parseCapabilityTypes, type GraphQLSchemaType } from './graphqlCapabilities';
 import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
@@ -53,6 +53,7 @@ export interface GitLabIssueCapabilities {
   workItemCreatePathField?: 'projectPath' | 'namespacePath';
   issuePermissionFields?: string[];
   workItemPermissionFields?: string[];
+  issuePermissionSource?: 'issue' | 'workItem';
   workItemFields?: string[];
   workItemGraphFields?: string[];
   workItemTypeList?: boolean;
@@ -67,6 +68,9 @@ export interface GitLabIssueCapabilities {
   discussionResolve: boolean;
   startDate: boolean;
   timelogReport: boolean;
+  timelogSource?: 'workItem' | 'issue';
+  timelogSummary?: boolean;
+  timelogUserFields?: string[];
   timelogCreate: boolean;
   timelogCreateDated?: boolean;
   timelogCreateSummary?: boolean;
@@ -130,23 +134,40 @@ export class GitLabClient {
   }
 
   async getIssueCapabilities(): Promise<GitLabIssueCapabilities> {
-    const readTypes = async (names: readonly string[]): Promise<GraphQLSchemaType[]> => {
+    const readTypes = async (names: readonly string[], requireAll = false): Promise<GraphQLSchemaType[]> => {
       if (!names.length) return [];
-      const response = await this.graphql<Record<string, GraphQLSchemaType | null>>(
+      const response = await this.graphql<Record<string, unknown>>(
         buildCapabilityQuery(names), {}
       );
-      return names.flatMap((_name, index) => {
-        const type = response[`type${index}`];
-        return type ? [type] : [];
-      });
+      if (!('__schema' in response) && names.some((_name, index) => {
+        const alias = `type${index}`;
+        const value = response[alias];
+        return !(alias in response) || (value !== null && (!value || typeof value !== 'object' || typeof (value as { name?: unknown }).name !== 'string')) || (requireAll && value === null);
+      })) throw new GitLabApiError('GitLab returned an incomplete GraphQL capability response.');
+      const types = parseCapabilityTypes(response);
+      if ('__schema' in response) {
+        const schema = mergeCapabilityTypes(types);
+        const rootsAreComplete = ['Query', 'Mutation', 'Issue'].every((name) =>
+          (schema.get(name)?.fields?.length ?? 0) > 0);
+        const missing = buildFollowupTypeNames(schema).filter((name) => !schema.has(name));
+        if (!rootsAreComplete || missing.length) throw new GitLabApiError('GitLab returned an incomplete GraphQL schema introspection response.');
+      }
+      return types;
     };
     const base = await readTypes(buildInitialTypeNames());
-    const baseSchema = mergeCapabilityTypes(base);
-    const followup = await readTypes(buildFollowupTypeNames(baseSchema));
-    const secondSchema = mergeCapabilityTypes(base, followup);
-    const nestedNames = buildFollowupTypeNames(secondSchema).filter((name) => !secondSchema.has(name));
-    const nested = await readTypes(nestedNames);
-    return detectIssueCapabilities(mergeCapabilityTypes(base, followup, nested));
+    let schema = mergeCapabilityTypes(base);
+    // Some GitLab deployments and intermediaries return a complete __schema for a
+    // selective __type query. Reuse it in full instead of querying its types again.
+    if (schema.has('Query') && schema.has('Mutation') && schema.has('Issue')) {
+      return detectIssueCapabilities(schema);
+    }
+    for (let pass = 0; pass < 8; pass++) {
+      const missing = buildFollowupTypeNames(schema).filter((name) => !schema.has(name));
+      if (!missing.length) break;
+      schema = mergeCapabilityTypes([...schema.values()], await readTypes(missing, true));
+    }
+    if (buildFollowupTypeNames(schema).some((name) => !schema.has(name))) throw new GitLabApiError('GitLab returned an incomplete GraphQL schema capability response.');
+    return detectIssueCapabilities(schema);
   }
 
   async canCreateIssue(projectPath: string): Promise<boolean> {
@@ -167,6 +188,19 @@ export class GitLabClient {
     );
     const userPermissions = data.project?.issue?.userPermissions;
     if (!userPermissions) throw new GitLabApiError('GitLab did not return Issue user permissions.');
+    return Object.fromEntries(requested.map((field) => [field, userPermissions[field] === true]));
+  }
+
+  async getWorkItemPermissions(projectPath: string, issueIid: number, fields: string[], scope: GitLabWorkItemScope): Promise<Record<string, boolean>> {
+    const requested = [...new Set(fields)].filter((field) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(field));
+    if (!requested.length) return {};
+    const selection = requested.join(' ');
+    const data = await this.graphql<{ namespace?: { workItem?: { userPermissions?: Record<string, boolean | null> | null } | null } | null; project?: { workItem?: { userPermissions?: Record<string, boolean | null> | null } | null } | null }>(
+      `query WorkItemIssuePermissions($path: ID!, $iid: String!) { ${scope}(fullPath: $path) { workItem(iid: $iid) { userPermissions { ${selection} } } } }`,
+      { path: projectPath, iid: String(issueIid) }
+    );
+    const userPermissions = (scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem)?.userPermissions;
+    if (!userPermissions) throw new GitLabApiError('GitLab did not return Work Item user permissions.');
     return Object.fromEntries(requested.map((field) => [field, userPermissions[field] === true]));
   }
 
@@ -683,26 +717,38 @@ export class GitLabClient {
   }
 
   async getIssueStartDate(projectPath: string, iid: number, scope: GitLabWorkItemScope = 'namespace'): Promise<string | null> {
+    return (await this.getIssueStartDateDetails(projectPath, iid, scope)).startDate;
+  }
+
+  async getIssueStartDateDetails(projectPath: string, iid: number, scope: GitLabWorkItemScope = 'namespace'): Promise<{ supported: boolean; startDate: string | null }> {
     const data = await this.graphql<{ namespace?: { workItem?: { widgets?: Array<{ startDate?: string | null }> } } | null; project?: { workItem?: { widgets?: Array<{ startDate?: string | null }> } } | null }>(
       `query IssueStartDate($path: ID!, $iid: String!) { ${scope}(fullPath: $path) { workItem(iid: $iid) { widgets { ... on WorkItemWidgetStartAndDueDate { startDate } } } } }`,
       { path: projectPath, iid: String(iid) }
     );
     const item = (scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem);
-    return item?.widgets?.find((widget) => widget.startDate !== undefined)?.startDate ?? null;
+    const dateWidget = item?.widgets?.find((widget) => widget.startDate !== undefined);
+    return { supported: !!dateWidget, startDate: dateWidget?.startDate ?? null };
   }
 
-  async listIssueTimelogs(projectPath: string, iid: number, scope: GitLabWorkItemScope = 'namespace', includeAdminPermission = true): Promise<Array<{ id: string; timeSpent: number; spentAt: string; summary?: string | null; user: GitLabUser; userPermissions?: { adminTimelog: boolean } }>> {
-    type Timelog = { id: string; timeSpent: number; spentAt: string; summary?: string | null; user: GitLabUser; userPermissions?: { adminTimelog: boolean } };
+  async listIssueTimelogs(projectPath: string, iid: number, scope: GitLabWorkItemScope = 'namespace', includeAdminPermission = true, source: 'workItem' | 'issue' = 'workItem', includeSummary = true, userFields: string[] = ['id', 'name', 'username']): Promise<Array<{ id: string; timeSpent: number; spentAt: string; summary?: string | null; user: { id: string | number; name: string; username?: string }; userPermissions?: { adminTimelog: boolean } }>> {
+    type Timelog = { id: string; timeSpent: number; spentAt: string; summary?: string | null; user: { id: string | number; name: string; username?: string }; userPermissions?: { adminTimelog: boolean } };
+    type Connection = { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } };
+    type IssueTimePage = TimePage & { project?: TimePage['project'] & { issue?: { timelogs?: Connection } | null } };
     type TimePage = { namespace?: { workItem?: { widgets?: Array<{ timelogs?: { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> } } | null; project?: { workItem?: { widgets?: Array<{ timelogs?: { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } }> } } | null };
     const permissionSelection = includeAdminPermission ? 'userPermissions { adminTimelog }' : '';
-    const query = `query IssueTimelogs($path: ID!, $iid: String!, $after: String) { ${scope}(fullPath: $path) { workItem(iid: $iid) { widgets { ... on WorkItemWidgetTimeTracking { timelogs(first: 100, after: $after) { nodes { id timeSpent spentAt summary user { id name username } ${permissionSelection} } pageInfo { hasNextPage endCursor } } } } } } }`;
+    const summarySelection = includeSummary ? 'summary' : '';
+    const userSelection = [...new Set(userFields)].filter((field) => ['id', 'name', 'username'].includes(field)).join(' ');
+    if (!userSelection.includes('name') || !userSelection.includes('id')) throw new GitLabApiError('GitLab did not expose the time entry user fields required for a report.');
+    const query = source === 'issue'
+      ? `query IssueTimelogs($path: ID!, $iid: String!, $after: String) { project(fullPath: $path) { issue(iid: $iid) { timelogs(first: 100, after: $after) { nodes { id timeSpent spentAt ${summarySelection} user { ${userSelection} } ${permissionSelection} } pageInfo { hasNextPage endCursor } } } } }`
+      : `query IssueTimelogs($path: ID!, $iid: String!, $after: String) { ${scope}(fullPath: $path) { workItem(iid: $iid) { widgets { ... on WorkItemWidgetTimeTracking { timelogs(first: 100, after: $after) { nodes { id timeSpent spentAt ${summarySelection} user { ${userSelection} } ${permissionSelection} } pageInfo { hasNextPage endCursor } } } } } } }`;
     const entries: Timelog[] = [];
     const seen = new Set<string>();
     let after: string | null = null;
     for (let page = 0; page < 100; page++) {
-      const data: TimePage = await this.graphql<TimePage>(query, { path: projectPath, iid: String(iid), after });
+      const data: IssueTimePage = await this.graphql<IssueTimePage>(query, { path: projectPath, iid: String(iid), after });
       const item = scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem;
-      const connection: { nodes?: Timelog[]; pageInfo?: { hasNextPage: boolean; endCursor?: string | null } } | undefined = item?.widgets?.find((widget) => widget.timelogs)?.timelogs;
+      const connection = source === 'issue' ? data.project?.issue?.timelogs : item?.widgets?.find((widget) => widget.timelogs)?.timelogs;
       entries.push(...(connection?.nodes ?? []));
       if (!connection?.pageInfo?.hasNextPage) return entries;
       const cursor: string | null | undefined = connection.pageInfo.endCursor;

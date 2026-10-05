@@ -18,6 +18,14 @@ export interface GraphQLSchemaType {
   possibleTypes?: Array<{ name: string }> | null;
 }
 
+export interface GitLabCapabilityDiagnostic {
+  id: string;
+  label: string;
+  status: 'supported' | 'unsupported' | 'unknown';
+  reason?: string;
+  source?: 'GraphQL' | 'REST' | 'GraphQL / REST' | 'GitLab /spend';
+}
+
 export type GraphQLSchema = ReadonlyMap<string, GraphQLSchemaType>;
 
 const BASE_TYPES = [
@@ -31,9 +39,13 @@ function namedType(ref?: GraphQLTypeRef | null): string | undefined {
   return ref?.name ?? (ref?.ofType ? namedType(ref.ofType) : undefined);
 }
 
+function namedKind(ref?: GraphQLTypeRef | null): string | undefined {
+  return ref?.kind ?? (ref?.ofType ? namedKind(ref.ofType) : undefined);
+}
+
 function inputObjectNames(type: GraphQLSchemaType | undefined): string[] {
   return (type?.inputFields ?? [])
-    .filter((field) => field.type?.kind === 'INPUT_OBJECT' || field.type?.ofType?.kind === 'INPUT_OBJECT')
+    .filter((field) => namedKind(field.type) === 'INPUT_OBJECT')
     .flatMap((field) => {
       const name = namedType(field.type);
       return name ? [name] : [];
@@ -42,7 +54,7 @@ function inputObjectNames(type: GraphQLSchemaType | undefined): string[] {
 
 export function buildCapabilityQuery(typeNames: readonly string[]): string {
   const uniqueNames = [...new Set(typeNames)].filter((name) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name));
-  const typeSelection = 'name kind fields { name type { name kind ofType { name kind ofType { name kind } } } args { name type { name kind ofType { name kind ofType { name kind } } } } } inputFields { name type { name kind ofType { name kind ofType { name kind } } } }';
+  const typeSelection = 'name kind fields(includeDeprecated: true) { name type { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } } args { name type { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } } } } inputFields { name type { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind ofType { name kind } } } } } } }';
   const aliases = uniqueNames.map((name, index) =>
     `type${index}: __type(name: "${name}") { ...CapabilityType ${name === 'WorkItemWidget' ? 'possibleTypes { name }' : ''} }`).join(' ');
   return `query IssueCapabilities { ${aliases} } fragment CapabilityType on __Type { ${typeSelection} }`;
@@ -61,11 +73,33 @@ export function getFollowupCapabilityTypeNames(schema: GraphQLSchema): string[] 
   const addInputArg = (owner: string, fieldName: string): void => {
     addNamed(schema.get(owner)?.fields?.find((field) => field.name === fieldName)?.args?.find((arg) => arg.name === 'input'));
   };
+  const addConnectionTypes = (owner: string, fieldName: string): void => {
+    const connectionName = namedType(schema.get(owner)?.fields?.find((field) => field.name === fieldName)?.type);
+    if (!connectionName) return;
+    names.add(connectionName);
+    const connection = schema.get(connectionName);
+    for (const name of ['nodes', 'edges', 'pageInfo']) {
+      const nestedName = namedType(connection?.fields?.find((field) => field.name === name)?.type);
+      if (nestedName) names.add(nestedName);
+      if (name === 'edges' && nestedName) {
+        const nodeName = namedType(schema.get(nestedName)?.fields?.find((field) => field.name === 'node')?.type);
+        if (nodeName) names.add(nodeName);
+      }
+    }
+  };
 
   addNamed(schema.get('Issue')?.fields?.find((field) => field.name === 'userPermissions'));
   addNamed(schema.get('Project')?.fields?.find((field) => field.name === 'userPermissions'));
   addNamed(schema.get('WorkItem')?.fields?.find((field) => field.name === 'userPermissions'));
   addNamed(schema.get('WorkItemTimelog')?.fields?.find((field) => field.name === 'userPermissions'));
+  addConnectionTypes('Issue', 'timelogs');
+  addConnectionTypes('WorkItemWidgetTimeTracking', 'timelogs');
+  const issueTimelogType = connectionNodeType(schema, 'Issue', 'timelogs');
+  const workItemTimelogType = connectionNodeType(schema, 'WorkItemWidgetTimeTracking', 'timelogs') ?? (schema.has('WorkItemTimelog') ? 'WorkItemTimelog' : undefined);
+  for (const field of ['user', 'userPermissions']) {
+    addNamed(schema.get(issueTimelogType ?? '')?.fields?.find((item) => item.name === field));
+    addNamed(schema.get(workItemTimelogType ?? '')?.fields?.find((item) => item.name === field));
+  }
   for (const fieldName of ['workItemCreate', 'workItemUpdate', 'timelogCreate', 'timelogDelete']) addInputArg('Mutation', fieldName);
 
   for (const typeName of ['WorkItemCreateInput', 'WorkItemUpdateInput', 'TimelogCreateInput', 'TimelogDeleteInput']) {
@@ -80,6 +114,32 @@ export function getFollowupCapabilityTypeNames(schema: GraphQLSchema): string[] 
 export function mergeCapabilityTypes(...batches: readonly GraphQLSchemaType[][]): GraphQLSchema {
   const types = new Map<string, GraphQLSchemaType>();
   for (const batch of batches) for (const type of batch) types.set(type.name, type);
+  return types;
+}
+
+export function parseCapabilityTypes(data: Record<string, unknown>): GraphQLSchemaType[] {
+  const validate = (types: unknown[]): GraphQLSchemaType[] => {
+    if (types.some((item) => !item || typeof item !== 'object' || typeof (item as { name?: unknown }).name !== 'string' || typeof (item as { kind?: unknown }).kind !== 'string')) {
+      throw new Error('GitLab returned a malformed GraphQL capability type.');
+    }
+    const validTypes = types as GraphQLSchemaType[];
+    if (validTypes.some((type) =>
+      ((type.kind === 'OBJECT' || type.kind === 'INTERFACE') && !Array.isArray(type.fields)) ||
+      (type.kind === 'INPUT_OBJECT' && !Array.isArray(type.inputFields)) ||
+      (type.name === 'WorkItemWidget' && !Array.isArray(type.possibleTypes)))) {
+      throw new Error('GitLab returned an incomplete GraphQL capability type.');
+    }
+    return validTypes;
+  };
+  const schema = data.__schema as { types?: unknown } | undefined;
+  if (schema !== undefined) {
+    if (!schema || !Array.isArray(schema.types)) throw new Error('GitLab returned an invalid GraphQL schema introspection response.');
+    const types = validate(schema.types);
+    if (!types.length) throw new Error('GitLab returned an empty GraphQL schema introspection response.');
+    return types;
+  }
+  const types = validate(Object.values(data).filter((item) => item !== null));
+  if (!types.length) throw new Error('GitLab returned no GraphQL capability types.');
   return types;
 }
 
@@ -104,11 +164,21 @@ function isWorkItemWidget(schema: GraphQLSchema, name: string): boolean {
   return !!schema.get(widgets ?? '')?.possibleTypes?.some((type) => type.name === name);
 }
 
+function connectionNodeType(schema: GraphQLSchema, owner: string, fieldName: string): string | undefined {
+  const connectionName = namedType(namedField(schema, owner, fieldName)?.type);
+  const connection = schema.get(connectionName ?? '');
+  const nodeName = namedType(namedField(schema, connectionName ?? '', 'nodes')?.type);
+  if (nodeName) return nodeName;
+  const edgeName = namedType(namedField(schema, connectionName ?? '', 'edges')?.type);
+  return namedType(namedField(schema, edgeName ?? '', 'node')?.type);
+}
+
 export function detectIssueCapabilities(schema: GraphQLSchema): {
   workItemScope?: 'namespace' | 'project';
   workItemCreatePathField?: 'projectPath' | 'namespacePath';
   issuePermissionFields: string[];
   workItemPermissionFields: string[];
+  issuePermissionSource?: 'issue' | 'workItem';
   workItemFields: string[];
   workItemGraphFields: string[];
   workItemTypeList: boolean;
@@ -123,6 +193,9 @@ export function detectIssueCapabilities(schema: GraphQLSchema): {
   discussionResolve: boolean;
   startDate: boolean;
   timelogReport: boolean;
+  timelogSource?: 'workItem' | 'issue';
+  timelogSummary?: boolean;
+  timelogUserFields?: string[];
   timelogCreate: boolean;
   timelogCreateDated: boolean;
   timelogCreateSummary: boolean;
@@ -145,6 +218,8 @@ export function detectIssueCapabilities(schema: GraphQLSchema): {
   const workItemPermissions = fieldsFor(schema, workItemPermissionsType ?? '');
   const issuePermissionFields = fieldsFor(schema, 'Issue').includes('userPermissions')
     ? ['updateIssue', 'adminIssue', 'deleteIssue', 'createNote'].filter((name) => fieldsFor(schema, issuePermissionsType ?? '').includes(name)) : [];
+  const issuePermissionSource = issuePermissionFields.length ? 'issue'
+    : workItemScope && (workItemPermissions.includes('updateWorkItem') || workItemPermissions.includes('adminWorkItem')) ? 'workItem' : undefined;
   const createInput = namedInputArg(schema, 'workItemCreate');
   const updateInput = namedInputArg(schema, 'workItemUpdate');
   const timelogCreateInput = namedInputArg(schema, 'timelogCreate');
@@ -154,7 +229,21 @@ export function detectIssueCapabilities(schema: GraphQLSchema): {
   const createPathField = createInputFields.includes('namespacePath') ? 'namespacePath'
     : createInputFields.includes('projectPath') ? 'projectPath' : undefined;
   const timelogCreateFields = inputFieldsFor(schema, timelogCreateInput);
-  const timelogPermissionType = namedType(namedField(schema, 'WorkItemTimelog', 'userPermissions')?.type);
+  const workItemTimelogType = connectionNodeType(schema, 'WorkItemWidgetTimeTracking', 'timelogs')
+    ?? (schema.has('WorkItemTimelog') ? 'WorkItemTimelog' : undefined);
+  const issueTimelogType = connectionNodeType(schema, 'Issue', 'timelogs');
+  const workItemTimelogUserType = namedType(namedField(schema, workItemTimelogType ?? '', 'user')?.type);
+  const issueTimelogUserType = namedType(namedField(schema, issueTimelogType ?? '', 'user')?.type);
+  const workItemTimelogUserFields = ['id', 'name', 'username'].filter((name) => fieldsFor(schema, workItemTimelogUserType ?? '').includes(name));
+  const issueTimelogUserFields = ['id', 'name', 'username'].filter((name) => fieldsFor(schema, issueTimelogUserType ?? '').includes(name));
+  const workItemTimelogReport = isWorkItemWidget(schema, 'WorkItemWidgetTimeTracking') && fieldsFor(schema, 'WorkItemWidgetTimeTracking').includes('timelogs')
+    && ['id', 'timeSpent', 'spentAt', 'user'].every((name) => fieldsFor(schema, workItemTimelogType ?? '').includes(name))
+    && ['id', 'name'].every((name) => workItemTimelogUserFields.includes(name));
+  const issueTimelogReport = fieldsFor(schema, 'Issue').includes('timelogs') && ['id', 'timeSpent', 'spentAt', 'user'].every((name) => fieldsFor(schema, issueTimelogType ?? '').includes(name))
+    && ['id', 'name'].every((name) => issueTimelogUserFields.includes(name));
+  const timelogType = workItemTimelogReport ? workItemTimelogType : issueTimelogReport ? issueTimelogType : undefined;
+  const timelogFields = fieldsFor(schema, timelogType ?? '');
+  const timelogPermissionType = namedType(namedField(schema, timelogType ?? '', 'userPermissions')?.type);
   const workItemFields = fieldsFor(schema, 'WorkItem');
   const graphWorkItems = !!workItemScope && ['id', 'iid', 'widgets'].every((name) => workItemFields.includes(name));
   const hierarchyWidget = isWorkItemWidget(schema, 'WorkItemWidgetHierarchy') && fieldsFor(schema, 'WorkItemWidgetHierarchy').includes('children');
@@ -175,6 +264,7 @@ export function detectIssueCapabilities(schema: GraphQLSchema): {
     workItemCreatePathField: createPathField,
     issuePermissionFields,
     workItemPermissionFields: workItemPermissions,
+    issuePermissionSource,
     workItemFields,
     workItemGraphFields,
     workItemTypeList: !!workItemScope && !!namedField(schema, workItemScope === 'namespace' ? 'Namespace' : 'Project', 'workItemTypes')?.args?.some((arg) => arg.name === 'name'),
@@ -190,8 +280,10 @@ export function detectIssueCapabilities(schema: GraphQLSchema): {
     startDate: !!namedField(schema, 'Mutation', 'workItemUpdate') && updateInputFields.includes('startAndDueDateWidget') &&
       inputFieldsFor(schema, startDateInput).includes('startDate') &&
       isWorkItemWidget(schema, 'WorkItemWidgetStartAndDueDate') && fieldsFor(schema, 'WorkItemWidgetStartAndDueDate').includes('startDate'),
-    timelogReport: isWorkItemWidget(schema, 'WorkItemWidgetTimeTracking') && fieldsFor(schema, 'WorkItemWidgetTimeTracking').includes('timelogs') &&
-      ['id', 'timeSpent', 'spentAt', 'summary', 'user'].every((name) => fieldsFor(schema, 'WorkItemTimelog').includes(name)),
+    timelogReport: workItemTimelogReport || issueTimelogReport,
+    timelogSource: workItemTimelogReport ? 'workItem' : issueTimelogReport ? 'issue' : undefined,
+    timelogSummary: timelogFields.includes('summary'),
+    timelogUserFields: workItemTimelogReport ? workItemTimelogUserFields : issueTimelogReport ? issueTimelogUserFields : undefined,
     timelogCreate: !!namedField(schema, 'Mutation', 'timelogCreate') && ['issuableId', 'timeSpent'].every((name) => timelogCreateFields.includes(name)),
     timelogCreateDated: !!namedField(schema, 'Mutation', 'timelogCreate') && ['issuableId', 'timeSpent', 'spentAt'].every((name) => timelogCreateFields.includes(name)),
     timelogCreateSummary: !!namedField(schema, 'Mutation', 'timelogCreate') && ['issuableId', 'timeSpent', 'summary'].every((name) => timelogCreateFields.includes(name)),

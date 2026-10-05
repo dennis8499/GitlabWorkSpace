@@ -29,7 +29,7 @@ export interface IssueTimelog {
   timeSpent: number;
   spentAt: string;
   summary?: string | null;
-  user: GitLabUser;
+  user: { id: string | number; name: string; username?: string };
   userPermissions?: { adminTimelog: boolean };
 }
 
@@ -68,6 +68,10 @@ export interface IssueDetailData extends IssueRelationsData {
   timelogs: IssueTimelog[];
   startDate: string | null;
   warnings: string[];
+  notices?: string[];
+  loadErrors?: Partial<Record<IssueDetailSection, string>>;
+  permissionNotice?: string;
+  startDateSupported?: boolean;
   canEdit: boolean;
   canDelete: boolean;
   canMove: boolean;

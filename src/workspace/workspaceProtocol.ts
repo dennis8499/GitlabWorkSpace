@@ -3,6 +3,7 @@ import type { GitLabIssueDiscussion } from '../api/types';
 import type { IssueGraphPatch, IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
 import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
+import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git';
 export type AnalysisIntent = 'requirements' | 'audit';
@@ -119,7 +120,8 @@ export interface WorkflowKitPackageSummary {
 export interface WorkspaceSnapshot {
   connected: boolean;
   baseUrl?: string;
-  instance?: { version?: string; enterprise?: boolean; warnings: string[] };
+  instanceChecking?: boolean;
+  instance?: { version?: string; enterprise?: boolean; warnings: string[]; capabilities?: GitLabCapabilityDiagnostic[] };
   currentUser?: GitLabUser;
   group?: GitLabGroup;
   groups: GitLabGroup[];
@@ -186,6 +188,7 @@ export type WorkspaceRequest =
   | { type: 'ready' }
   | GitPanelRequest
   | { type: 'refresh' }
+  | { type: 'retryInstanceCheck' }
   | { type: 'toggleFullDisplay' }
   | { type: 'setMode'; mode: WorkspaceMode }
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }

@@ -16,6 +16,8 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   let issueLinkReads = 0;
   let relatedMergeRequestReads = 0;
   let todoReads = 0;
+  let failNextLabels = false;
+  const postedTimeNotes: string[] = [];
   const client = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     listGroupProjects: async () => [project], canCreateIssue: async () => true, createIssue: async () => issue,
@@ -23,13 +25,14 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     getIssuePermissions: async () => ({ updateIssue: true, adminIssue: false, deleteIssue: true, createNote: true }),
     getProjectByPath: async () => { internalIssueNavigations++; return project; },
     getCurrentUser: async () => ({ id: 9, username: 'tester', name: 'Tester' }),
-    listProjectMembers: async () => { optionReads++; return []; }, listProjectLabels: async () => [],
+    listProjectMembers: async () => { optionReads++; return []; }, listProjectLabels: async () => { if (failNextLabels) { failNextLabels = false; throw new Error('labels temporarily unavailable'); } return []; },
     listProjectMilestones: async () => [], listProjectIssueTemplates: async () => [],
     listIssueDiscussions: async (_projectId: number, iid: number) => { if (iid === 9) await discussionGate; return []; },
     listIssueNoteReactions: async (_projectId: number, _iid: number, _noteId: number) => [], listIssueLinks: async () => { issueLinkReads++; return []; },
     listRelatedMergeRequests: async () => { relatedMergeRequestReads++; return []; }, listIssueReactions: async () => [],
     listTodos: async () => { todoReads++; return []; }, graphql: async (_query: string, _variables: Record<string, unknown>): Promise<unknown> => ({}),
     updateIssueIfUnchanged: async (_projectId: number, _iid: number) => issue,
+    addIssueNote: async (_projectId: number, _iid: number, body: string) => { postedTimeNotes.push(body); return { id: 1, body } as never; },
     deleteIssue: async (_projectId: number, _iid: number) => undefined
   };
   const signalClient = client as unknown as GitLabClient;
@@ -37,7 +40,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   const session = {
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     selectedGroup: { id: 1, full_path: 'group' }, metadata: { version: '18.4.0' },
-    instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true, issuePermissionFields: ['updateIssue', 'adminIssue', 'createNote'] },
+    instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true, issuePermissionSource: 'issue', issuePermissionFields: ['updateIssue', 'adminIssue', 'createNote'] },
     getClient: async () => signalClient, ensureInstanceChecked: async () => undefined,
     cachedRead: async (_key: string, load: (readClient: GitLabClient, signal: AbortSignal) => Promise<unknown>) => load(signalClient, new AbortController().signal)
   } as unknown as GitLabSession;
@@ -66,6 +69,14 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     navigate: (navigation) => navigations.push(navigation), show: async () => undefined
   });
   try {
+    const originalCapabilities = { ...session.issueCapabilities! };
+    Object.assign(session.issueCapabilities!, { issuePermissionFields: [], issuePermissionSource: 'workItem', workItemScope: 'project', workItemPermissionFields: ['updateWorkItem', 'adminWorkItem', 'deleteWorkItem', 'createNote'] });
+    Object.assign(client, { getWorkItemPermissions: async () => ({ updateWorkItem: true, adminWorkItem: false, deleteWorkItem: false, createNote: true }) });
+    const readPermissions = (panels as unknown as { readIssuePermissions(client: GitLabClient, projectPath: string, iid: number): Promise<Record<string, boolean>> }).readIssuePermissions.bind(panels);
+    assert.deepEqual(await readPermissions(signalClient, 'group/project', 7), { updateIssue: true, adminIssue: false, deleteIssue: false, createNote: true });
+    Object.assign(session.issueCapabilities!, originalCapabilities);
+    delete session.issueCapabilities!.workItemScope;
+    delete session.issueCapabilities!.workItemPermissionFields;
     await panels.showCreate();
     assert.equal(navigations.at(-1)?.mode, 'create');
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'ready' });
@@ -110,12 +121,18 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.activity === 'ready'));
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.canEdit === true && message.patch.canComment === true), 'Issue edit and comment permissions load independently of unavailable child tasks');
     assert.equal(reads, 2);
+    failNextLabels = true;
     await host.handle({ type: 'loadSection', sections: ['options', 'links', 'mergeRequests', 'todos'] });
     assert.equal(optionReads, optionsAfterCreate + 1);
     assert.equal(issueLinkReads, 1);
     assert.equal(relatedMergeRequestReads, 1);
     assert.equal(todoReads, 1);
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.links === 'ready'));
+    const optionFailure = [...messages].reverse().find((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.options === 'error');
+    assert.equal(optionFailure?.type === 'detailPatch' ? optionFailure.patch.loadErrors?.options : undefined, 'Could not load labels: labels temporarily unavailable');
+    await host.handle({ type: 'loadSection', sections: ['options'] });
+    assert.equal(optionReads, optionsAfterCreate + 2);
+    assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.options === 'ready' && message.patch.loadErrors && !('options' in message.patch.loadErrors)), 'a successful section retry clears only its error');
     let taskPages = 0;
     client.graphql = async (_query, variables) => {
       taskPages++;
@@ -214,5 +231,13 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.ok(childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.tasks === 'error'));
     assert.ok(childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.permissions === 'ready' && message.patch.canEdit === true));
     assert.ok(!childFailurePatches.some((message) => message.type === 'detailPatch' && message.patch.sections?.permissions === 'error'), 'a child task API failure never changes Issue permission state');
+    session.issueCapabilities!.timelogCreate = false;
+    session.issueCapabilities!.timelogCreateDated = false;
+    session.issueCapabilities!.timelogCreateSummary = false;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await host.handle({ type: 'invoke', issueId: childLoadFailureIssue.id, action: 'spend', payload: { duration: '1h 30m', summary: '/close\nreview', spentDate: '2026-10-03' } });
+    assert.deepEqual(postedTimeNotes, ['review\n\n/spend 1h 30m 2026-10-03']);
+    await assert.rejects(host.handle({ type: 'invoke', issueId: childLoadFailureIssue.id, action: 'spend', payload: { duration: '1h', spentDate: '2026-02-31' } }), /valid calendar date/i);
+    assert.equal(postedTimeNotes.length, 1, 'invalid dates are rejected without submitting or retrying a write');
   } finally { panels.dispose(); }
 });

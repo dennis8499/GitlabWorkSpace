@@ -32,8 +32,20 @@ function optionalId(value: unknown): number | undefined {
 
 function optionalDate(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T12:00:00Z`))) throw new Error('Date must use YYYY-MM-DD.');
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Date must use YYYY-MM-DD.');
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error('Enter a valid calendar date in YYYY-MM-DD format.');
   return value;
+}
+
+function quickActionDuration(value: string): string {
+  const duration = requiredString(value, 'Duration').trim();
+  if (duration.length > 80 || !/^(?:\d+(?:\.\d+)?\s*(?:mo|w|d|h|m|s)\s*)+$/i.test(duration)) {
+    throw new Error('Use a GitLab time duration such as 45m, 1h, or 1h 30m.');
+  }
+  const amounts = [...duration.matchAll(/(\d+(?:\.\d+)?)\s*(?:mo|w|d|h|m|s)/gi)].map((match) => Number(match[1]));
+  if (!amounts.some((amount) => amount > 0)) throw new Error('Time duration must be greater than zero.');
+  return duration;
 }
 
 function safeLinkUrl(value: unknown, baseUrl: string): URL {
@@ -133,14 +145,30 @@ export class IssuePanels implements vscode.Disposable {
       client.listIssueLinks(projectId, iid),
       capabilities?.hierarchy ? this.loadTasks(client, project.path_with_namespace, iid) : Promise.resolve({ tasks: [] as IssueTask[], parentWorkItemId: undefined, taskTypeId: undefined, permissions: undefined })
     ]);
-    const issuePermissions = capabilities?.issuePermissionFields?.length
-      ? await client.getIssuePermissions(project.path_with_namespace, iid, capabilities.issuePermissionFields)
-      : {};
+    const issuePermissions = await this.readIssuePermissions(client, project.path_with_namespace, iid);
     return {
       issue, project, links, tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
       canLink: issuePermissions.updateIssue === true || issuePermissions.adminIssue === true,
       canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true
     };
+  }
+
+  private async readIssuePermissions(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<Record<string, boolean>> {
+    const capabilities = this.session.issueCapabilities;
+    if (capabilities?.issuePermissionFields?.length) {
+      return client.getIssuePermissions(projectPath, iid, capabilities.issuePermissionFields);
+    }
+    if (capabilities?.issuePermissionSource !== 'workItem' || !capabilities.workItemScope || !capabilities.workItemPermissionFields?.length) return {};
+    const fields = new Set(capabilities.workItemPermissionFields);
+    const workItem = await client.getWorkItemPermissions(projectPath, iid, capabilities.workItemPermissionFields, capabilities.workItemScope);
+    const mapped: Record<string, boolean> = {};
+    if (fields.has('updateWorkItem') || fields.has('adminWorkItem')) {
+      mapped.updateIssue = workItem.updateWorkItem === true || workItem.adminWorkItem === true;
+      mapped.adminIssue = workItem.adminWorkItem === true;
+    }
+    if (fields.has('deleteWorkItem') || fields.has('adminWorkItem')) mapped.deleteIssue = workItem.deleteWorkItem === true || workItem.adminWorkItem === true;
+    if (fields.has('createNote')) mapped.createNote = workItem.createNote === true;
+    return mapped;
   }
 
   async mutateIssueRelations(projectId: number, iid: number, action: IssueRelationAction): Promise<void> {
@@ -170,10 +198,8 @@ export class IssuePanels implements vscode.Disposable {
       }
       case 'link': {
         if (!relations.canLink) throw new Error('You do not have permission to link issues from this issue.');
-        if ((action.linkType === 'blocks' || action.linkType === 'is_blocked_by') && this.session.metadata?.enterprise !== true) {
-          throw new Error(this.session.metadata?.enterprise === false
-            ? 'Blocking issue links require GitLab Premium or Ultimate and are unavailable on Community Edition.'
-            : 'The GitLab edition could not be verified; blocking issue links are disabled until support is confirmed.');
+        if ((action.linkType === 'blocks' || action.linkType === 'is_blocked_by') && this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.status !== 'supported') {
+          throw new Error(this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.reason ?? '尚未確認此 GitLab 方案是否支援阻擋關聯。');
         }
         const targetProjectId = requiredId(action.targetProjectId, 'Target project');
         const targetIssueIid = requiredId(action.targetIssueIid, 'Target issue');
@@ -242,6 +268,10 @@ export class IssuePanels implements vscode.Disposable {
     await this.openWorkspace(issue, navigationVersion, tab);
     if (navigationVersion !== this.navigationVersion) return;
     await this.load();
+  }
+
+  async refreshActive(): Promise<void> {
+    if (this.hasNavigation) await this.load(true);
   }
 
   private async openWorkspace(issue: GitLabIssue | undefined, navigationVersion: number, tab?: IssueDetailTab): Promise<void> {
@@ -338,8 +368,6 @@ export class IssuePanels implements vscode.Disposable {
     await capabilitiesTask;
     const canCreateIssue = first && this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(first.path_with_namespace).catch(() => false) : false;
     if (version !== this.navigationVersion || signal.aborted) return;
-    if (options) options.warnings = [...this.session.instanceWarnings, ...(options.warnings ?? [])];
-    if (options && !canCreateIssue) options.warnings?.push('This account cannot create issues in the selected project, or its permission could not be verified.');
     this.post({ type: 'createData', projects, selectedProjectId: first?.id, options, metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
   }
 
@@ -425,22 +453,24 @@ export class IssuePanels implements vscode.Disposable {
       issue, project, projects: [project], user, metadata: this.session.metadata,
       options: { members: [], labels: [], milestones: [], templates: [] },
       discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [],
-      startDate: issue.start_date ?? null,
-      warnings: [...this.session.instanceWarnings], sections,
+      startDate: issue.start_date ?? null, startDateSupported: false,
+      warnings: [], notices: [], loadErrors: {}, sections,
       canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
       canLink: false, canManageChildren: false, canTrackTime: false, canResolveThreads: false, canSetStartDate: false,
       hasStartDate: !!issue.start_date, canLogTime: false, canDeleteTimelog: false
     };
-    if (this.operationWarning) { data.warnings.push(this.operationWarning); this.operationWarning = undefined; }
+    if (this.operationWarning) { data.notices?.push(this.operationWarning); this.operationWarning = undefined; }
     this.post({ type: 'detailData', data });
     const capabilitiesTask = this.session.ensureInstanceChecked();
     const current = (): boolean => version === this.navigationVersion && !signal.aborted && this.navigationReadController?.signal === signal;
     const patch = (section: IssueDetailSection, value: Partial<IssueDetailData>, status: IssueDetailSectionStatus = value.sections?.[section] ?? 'ready', warning?: string): void => {
       if (!current()) return;
       const nextSections = { ...(data.sections ?? {}), ...(value.sections ?? {}), [section]: status };
-      const warnings = [...new Set([...data.warnings, ...(value.warnings ?? []), ...(warning ? [warning] : [])])];
-      const next: Partial<IssueDetailData> = { ...value, sections: nextSections, warnings };
-      data = { ...data, ...value, sections: nextSections, warnings };
+      const loadErrors = { ...(data.loadErrors ?? {}), ...(value.loadErrors ?? {}) };
+      if (warning) loadErrors[section] = warning;
+      else if (status === 'ready') delete loadErrors[section];
+      const next: Partial<IssueDetailData> = { ...value, sections: nextSections, loadErrors };
+      data = { ...data, ...value, sections: nextSections, loadErrors };
       this.post({ type: 'detailPatch', issueId: issue.id, patch: next });
     };
     const loaders: Partial<Record<IssueDetailSection, () => Promise<Partial<IssueDetailData>>>> = {};
@@ -462,9 +492,10 @@ export class IssuePanels implements vscode.Disposable {
         client.listIssueReactions(issue.project_id, issue.iid),
         this.loadNoteReactions(client, issue.project_id, issue.iid, data.discussions, signal)
       ]);
-      const warnings = noteResults.failed ? [...new Set([...data.warnings, `Could not load reactions for ${noteResults.failed} comment(s).`])] : data.warnings;
-      if (noteResults.failed) data = { ...data, warnings };
-      return { reactions, noteReactions: noteResults.reactions, ...(noteResults.failed ? { warnings } : {}) };
+      return { reactions, noteReactions: noteResults.reactions, ...(noteResults.failed ? {
+        sections: { reactions: 'error' as const },
+        loadErrors: { reactions: `無法載入 ${noteResults.failed} 則留言的反應。` }
+      } : {}) };
     };
     loaders.links = async () => ({ links: await client.listIssueLinks(issue.project_id, issue.iid) });
     loaders.mergeRequests = async () => ({ mergeRequests: await client.listRelatedMergeRequests(issue.project_id, issue.iid) });
@@ -474,23 +505,28 @@ export class IssuePanels implements vscode.Disposable {
     });
     loaders.dates = async () => {
       await capabilitiesTask;
-      const startDate = this.session.issueCapabilities?.startDate
-        ? await client.getIssueStartDate(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope)
-        : issue.start_date ?? null;
-      return { startDate, hasStartDate: this.session.issueCapabilities?.startDate === true || !!issue.start_date };
+      const details = this.session.issueCapabilities?.startDate
+        ? await client.getIssueStartDateDetails(project.path_with_namespace, issue.iid, this.session.issueCapabilities.workItemScope)
+        : { supported: false, startDate: issue.start_date ?? null };
+      return {
+        startDate: details.startDate, startDateSupported: details.supported,
+        hasStartDate: details.supported || !!issue.start_date,
+        canSetStartDate: details.supported && data.canEdit === true && this.session.issueCapabilities?.startDate === true
+      };
     };
     loaders.timelogs = async () => {
       await capabilitiesTask;
-      const supported = this.session.issueCapabilities?.timelogReport === true;
+      const capabilities = this.session.issueCapabilities;
+      const supported = capabilities?.timelogReport === true;
       const timelogs: IssueTimelog[] = supported
-        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid, this.session.issueCapabilities!.workItemScope, this.session.issueCapabilities!.timelogAdminPermission === true) : [];
-      if (!supported) return { timelogs, sections: { timelogs: 'unsupported' }, warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose the time entry report; time logging controls remain available.'] };
+        ? await client.listIssueTimelogs(project.path_with_namespace, issue.iid, capabilities.workItemScope, capabilities.timelogAdminPermission === true, capabilities.timelogSource, capabilities.timelogSummary === true, capabilities.timelogUserFields) : [];
+      if (!supported) return { timelogs, sections: { timelogs: 'unsupported' } };
       return { timelogs };
     };
     loaders.tasks = async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
-      if (!capabilities?.hierarchy) return { tasks: [], sections: { tasks: 'unsupported' }, warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose Issue child tasks.'] };
+      if (!capabilities?.hierarchy) return { tasks: [], sections: { tasks: 'unsupported' } };
       const hierarchy = await this.loadTasks(client, project.path_with_namespace, issue.iid);
       return { tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
         canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true };
@@ -498,23 +534,30 @@ export class IssuePanels implements vscode.Disposable {
     loaders.permissions = async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
+      if (capabilities?.startDate) await runSection('dates');
       const fields = capabilities?.issuePermissionFields ?? [];
-      if (!fields.length) return {
+      const workItemFields = capabilities?.workItemPermissionFields ?? [];
+      const permissionSource = capabilities?.issuePermissionSource;
+      if (!permissionSource) return {
         metadata: this.session.metadata,
         sections: { permissions: 'unsupported' },
-        warnings: [...this.session.instanceWarnings, 'This GitLab schema does not expose Issue-level permissions; permission-dependent actions are disabled.']
+        permissionNotice: '此 GitLab Schema 未提供 Issue 權限資料，因此不能確認這個帳號可執行哪些操作。'
       };
-      const permissions = await client.getIssuePermissions(project.path_with_namespace, issue.iid, fields);
+      const hasEditField = permissionSource === 'issue'
+        ? fields.includes('updateIssue') || fields.includes('adminIssue')
+        : workItemFields.includes('updateWorkItem') || workItemFields.includes('adminWorkItem');
+      const hasCommentField = permissionSource === 'issue' ? fields.includes('createNote') : workItemFields.includes('createNote');
+      const permissions = await this.readIssuePermissions(client, project.path_with_namespace, issue.iid);
       const editable = permissions.updateIssue === true || permissions.adminIssue === true;
       const canComment = permissions.createNote === true;
       const permissionWarnings = [] as string[];
-      if (!fields.includes('updateIssue') && !fields.includes('adminIssue')) permissionWarnings.push('This GitLab schema does not expose Issue edit permissions; editing, relations, and time writes are disabled.');
-      else if (!editable) permissionWarnings.push('GitLab reports that this account does not have permission to edit this Issue.');
-      if (!fields.includes('createNote')) permissionWarnings.push('This GitLab schema does not expose Issue comment permissions; commenting is disabled.');
-      else if (!canComment) permissionWarnings.push('GitLab reports that this account does not have permission to comment on this Issue.');
+      if (!hasEditField) permissionWarnings.push('此 GitLab Schema 未提供 Issue 編輯權限欄位，因此編輯、關聯與工時寫入已停用。');
+      else if (!editable) permissionWarnings.push('GitLab 回報目前帳號沒有編輯此 Issue 的權限。');
+      if (!hasCommentField) permissionWarnings.push('此 GitLab Schema 未提供 Issue 留言權限欄位，因此留言功能已停用。');
+      else if (!canComment) permissionWarnings.push('GitLab 回報目前帳號沒有在此 Issue 留言的權限。');
       return {
         metadata: this.session.metadata,
-        warnings: [...this.session.instanceWarnings, ...permissionWarnings],
+        permissionNotice: permissionWarnings.join(' '),
         canEdit: editable,
         canDelete: permissions.deleteIssue === true || permissions.adminIssue === true,
         canMove: editable,
@@ -524,9 +567,9 @@ export class IssuePanels implements vscode.Disposable {
         canLink: editable,
         canTrackTime: editable,
         canResolveThreads: capabilities?.discussionResolve === true,
-        canSetStartDate: capabilities?.startDate === true && editable,
+        canSetStartDate: capabilities?.startDate === true && data.startDateSupported === true && editable,
         canLogTime: editable,
-        canLogDatedTime: capabilities?.timelogCreateDated === true && editable,
+        canLogDatedTime: editable,
         canDeleteTimelog: capabilities?.timelogDelete === true && capabilities.timelogAdminPermission === true
       };
     };
@@ -544,7 +587,10 @@ export class IssuePanels implements vscode.Disposable {
         try {
           const value = await loader();
           if (!current()) return;
-          patch(section, value, value.sections?.[section] ?? 'ready');
+          const optionErrors = section === 'options' ? value.options?.warnings : undefined;
+          const loadWarning = value.loadErrors?.[section] ?? (optionErrors?.length ? optionErrors.join(' ') : undefined);
+          const status = value.sections?.[section] ?? (loadWarning ? 'error' : 'ready');
+          patch(section, value, status, loadWarning);
         } catch (error) {
           if (!current()) return;
           patch(section, {}, 'error', `Could not load ${section === 'options' ? 'fields' : section === 'mergeRequests' ? 'merge requests' : section === 'timelogs' ? 'time entries' : section === 'dates' ? 'start date' : section === 'tasks' ? 'child tasks' : section === 'todos' ? 'to-dos' : section}` + `: ${safeError(error)}`);
@@ -557,7 +603,10 @@ export class IssuePanels implements vscode.Disposable {
     };
     this.detailSectionLoader = async (requested, force = false) => {
       if (!current()) return;
-      if (force) for (const section of requested) if (data.sections?.[section] === 'error') data = { ...data, sections: { ...(data.sections ?? {}), [section]: 'idle' } };
+      if (force) for (const section of requested) if (data.sections?.[section] === 'error') {
+        const loadErrors = { ...(data.loadErrors ?? {}) }; delete loadErrors[section];
+        data = { ...data, loadErrors, sections: { ...(data.sections ?? {}), [section]: 'idle' } };
+      }
       await Promise.all(requested.map((section) => runSection(section)));
     };
     void this.detailSectionLoader(['activity', 'permissions']);
@@ -611,8 +660,6 @@ export class IssuePanels implements vscode.Disposable {
       const options = await this.formOptions(projectId);
       const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
       if (version !== this.navigationVersion || this.mode !== 'create') return;
-      options.warnings = [...this.session.instanceWarnings, ...(options.warnings ?? [])];
-      if (!canCreateIssue) options.warnings.push('This account cannot create issues in the selected project, or its permission could not be verified.');
       this.post({ type: 'projectData', projectId, options, canCreateIssue });
       return;
     }
@@ -625,10 +672,12 @@ export class IssuePanels implements vscode.Disposable {
       const created = await client.createIssue(projectId, createInput(request.input));
       const startDate = optionalDate(request.input.startDate);
       if (startDate) {
-        if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue created, but this GitLab version does not support editing its start date.';
+        if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue 已建立，但此 GitLab 版本沒有原生 Issue 開始日期欄位。';
         else {
           try {
             const project = await client.getProject(projectId);
+            const details = await client.getIssueStartDateDetails(project.path_with_namespace, created.iid, this.session.issueCapabilities?.workItemScope);
+            if (!details.supported) throw new Error('這個 Issue 類型沒有可用的開始日期 Widget。');
             const workItemId = await client.getWorkItemId(project.path_with_namespace, created.iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the new Work Item ID.');
             await client.setIssueStartDate(workItemId, startDate);
@@ -740,7 +789,8 @@ export class IssuePanels implements vscode.Disposable {
       await client.updateIssueIfUnchanged(projectId, iid, request.expectedUpdatedAt, input);
       const currentDate = this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data.startDate : undefined;
       if (input.startDate !== undefined && input.startDate !== currentDate) {
-        if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue fields saved, but this GitLab version does not support editing its start date.';
+        if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue 欄位已儲存，但此 GitLab 版本沒有原生 Issue 開始日期欄位。';
+        else if (snapshot?.startDateSupported !== true) this.operationWarning = 'Issue 欄位已儲存，但這個 Issue 類型沒有可用的開始日期 Widget。';
         else {
           try {
             const project = await client.getProject(projectId);
@@ -795,10 +845,8 @@ export class IssuePanels implements vscode.Disposable {
       case 'link': {
         if (!snapshot?.canLink) throw new Error('GitLab does not report permission to link Issues.');
         const linkType = payload.linkType === 'blocks' || payload.linkType === 'is_blocked_by' ? payload.linkType : 'relates_to';
-        if (linkType !== 'relates_to' && this.session.metadata?.enterprise !== true) {
-          throw new Error(this.session.metadata?.enterprise === false
-            ? 'Blocking issue links require GitLab Premium or Ultimate and are unavailable on Community Edition.'
-            : 'The GitLab edition could not be verified; blocking issue links are disabled until support is confirmed.');
+        if (linkType !== 'relates_to' && this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.status !== 'supported') {
+          throw new Error(this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.reason ?? '尚未確認此 GitLab 方案是否支援阻擋關聯。');
         }
         await client.addIssueLink(projectId, iid, requiredId(payload.targetProjectId, 'Project'), requiredId(payload.targetIssueIid, 'Issue'), linkType);
         break;
@@ -815,9 +863,14 @@ export class IssuePanels implements vscode.Disposable {
         const spentDate = optionalDate(payload.spentDate);
         const summary = optionalString(payload.summary);
         const capabilities = this.session.issueCapabilities;
-        if (spentDate && !capabilities?.timelogCreateDated) throw new Error('This GitLab instance does not support dated time entries.');
-        if (spentDate && summary?.trim() && !capabilities?.timelogCreateSummary) throw new Error('This GitLab schema cannot store a summary with dated time entries.');
-        if (capabilities?.timelogCreate && (!summary?.trim() || capabilities.timelogCreateSummary === true)) {
+        const datedQuickAction = !!spentDate && (!capabilities?.timelogCreateDated || (!!summary?.trim() && !capabilities.timelogCreateSummary));
+        if (datedQuickAction) {
+          if (summary && summary.length > 1000) throw new Error('Time entry summary is too long (maximum 1,000 characters).');
+          const safeDuration = quickActionDuration(duration);
+          const safeSummary = summary?.trim().replace(/[\r\n]+/g, ' ').replace(/^\s*\/[A-Za-z][A-Za-z0-9_-]*(?:\s|$)/, ' ').trim();
+          const body = [safeSummary, `/spend ${safeDuration} ${spentDate}`].filter(Boolean).join('\n\n');
+          await client.addIssueNote(projectId, iid, body);
+        } else if (capabilities?.timelogCreate && (!summary?.trim() || capabilities.timelogCreateSummary === true)) {
           const spentAt = spentDate ? new Date(`${spentDate}T12:00:00`).toISOString() : undefined;
           await client.createIssueTimelog(issue.id, duration, summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
         } else await client.addSpentTime(projectId, iid, duration, summary);

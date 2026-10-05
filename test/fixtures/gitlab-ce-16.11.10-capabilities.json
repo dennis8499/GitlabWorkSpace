@@ -21,7 +21,7 @@
       { "name": "widgets", "type": { "name": "WorkItemWidget", "kind": "INTERFACE" } }
     ] },
     { "name": "WorkItemPermissions", "kind": "OBJECT", "fields": [{ "name": "updateWorkItem" }, { "name": "adminParentLink" }] },
-    { "name": "WorkItemWidget", "kind": "INTERFACE", "possibleTypes": [
+    { "name": "WorkItemWidget", "kind": "INTERFACE", "fields": [], "possibleTypes": [
       { "name": "WorkItemWidgetHierarchy" }, { "name": "WorkItemWidgetLinkedItems" },
       { "name": "WorkItemWidgetLabels" }, { "name": "WorkItemWidgetAssignees" },
       { "name": "WorkItemWidgetStartAndDueDate" }, { "name": "WorkItemWidgetTimeTracking" }
@@ -33,9 +33,10 @@
     { "name": "WorkItemWidgetStartAndDueDate", "kind": "OBJECT", "fields": [{ "name": "startDate" }] },
     { "name": "WorkItemWidgetTimeTracking", "kind": "OBJECT", "fields": [{ "name": "timelogs" }] },
     { "name": "WorkItemTimelog", "kind": "OBJECT", "fields": [
-      { "name": "id" }, { "name": "timeSpent" }, { "name": "spentAt" }, { "name": "summary" }, { "name": "user" },
+      { "name": "id" }, { "name": "timeSpent" }, { "name": "spentAt" }, { "name": "summary" }, { "name": "user", "type": { "name": "User", "kind": "OBJECT" } },
       { "name": "userPermissions", "type": { "name": "TimelogPermissions", "kind": "OBJECT" } }
     ] },
+    { "name": "User", "kind": "OBJECT", "fields": [{ "name": "id" }, { "name": "name" }, { "name": "username" }] },
     { "name": "TimelogPermissions", "kind": "OBJECT", "fields": [{ "name": "adminTimelog" }] },
     { "name": "Mutation", "kind": "OBJECT", "fields": [
       { "name": "workItemCreate", "args": [{ "name": "input", "type": { "name": "WorkItemCreateInput", "kind": "INPUT_OBJECT" } }] },

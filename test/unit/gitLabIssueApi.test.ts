@@ -100,7 +100,8 @@ test('includes ancestor milestones and checks the GitLab GraphQL issue capabilit
       { name: 'WorkItemWidgetStartAndDueDateUpdateInput', inputFields: [{ name: 'startDate' }] },
       { name: 'WorkItemWidgetStartAndDueDate', ...names('startDate') },
       { name: 'WorkItemWidgetTimeTracking', ...names('timelogs') },
-      { name: 'WorkItemTimelog', fields: [...names('id timeSpent spentAt summary user').fields, { name: 'userPermissions', type: { name: 'TimelogPermissions' } }] },
+      { name: 'WorkItemTimelog', fields: [...names('id timeSpent spentAt summary').fields, { name: 'user', type: { name: 'User', kind: 'OBJECT' } }, { name: 'userPermissions', type: { name: 'TimelogPermissions' } }] },
+      { name: 'User', fields: names('id name username').fields },
       { name: 'TimelogPermissions', ...names('adminTimelog') }
       ];
       const query = (JSON.parse(String(init?.body)) as { query: string }).query;
@@ -190,6 +191,91 @@ test('runs the pinned CE 16.11.10 selective-introspection fixture and checks its
   assert.ok(requests.flatMap((query) => [...query.matchAll(/__type\(name: "([^"]+)"\)/g)].map((match) => match[1])).length < 40);
 });
 
+test('reuses a complete raw __schema response without alias repair or follow-up downloads', async () => {
+  const fixture = JSON.parse(readFileSync(path.join(process.cwd(), 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8')) as {
+    types: GraphQLSchemaType[];
+  };
+  const requests: string[] = [];
+  const fullSchema = [...fixture.types, { name: 'Query', kind: 'OBJECT', fields: [{ name: 'currentUser', type: { name: 'User', kind: 'OBJECT' } }] }];
+  const client = new GitLabClient('https://gitlab-schema.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    requests.push(query);
+    return new Response(JSON.stringify({ data: { __schema: { types: fullSchema } } }));
+  });
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(requests.length, 1);
+  assert.match(requests[0], /fields\(includeDeprecated: true\)/);
+  assert.equal(capabilities.issuePermissionFields?.includes('updateIssue'), true);
+  assert.equal(capabilities.hierarchy, true);
+  assert.equal(capabilities.childMutations, true);
+  assert.equal(capabilities.discussionResolve, true);
+  assert.equal(capabilities.startDate, true);
+  assert.equal(capabilities.timelogReport, true);
+  assert.equal(capabilities.timelogSource, 'workItem');
+});
+
+test('treats empty and malformed complete schema responses as failed detection', async () => {
+  const fixture = JSON.parse(readFileSync(path.join(process.cwd(), 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8')) as {
+    types: GraphQLSchemaType[];
+  };
+  const truncatedSchema = [
+    ...fixture.types.filter((type) => type.name !== 'WorkItemPermissions'),
+    { name: 'Query', kind: 'OBJECT', fields: [{ name: 'currentUser', type: { name: 'User', kind: 'OBJECT' } }] }
+  ];
+  for (const response of [
+    { __schema: { types: [] } },
+    { __schema: { types: null } },
+    { __schema: { types: [
+      { name: 'Query', kind: 'OBJECT', fields: [] },
+      { name: 'Mutation', kind: 'OBJECT', fields: [] },
+      { name: 'Issue', kind: 'OBJECT', fields: [] }
+    ] } },
+    { __schema: { types: truncatedSchema } }
+  ]) {
+    const client = new GitLabClient('https://gitlab-schema.example.test', token, async () =>
+      new Response(JSON.stringify({ data: response })));
+    await assert.rejects(client.getIssueCapabilities(), /schema introspection response/i);
+  }
+});
+
+test('treats a truncated selective __type response as a probe failure instead of unsupported capabilities', async () => {
+  const client = new GitLabClient('https://gitlab-schema.example.test', token, async () => new Response(JSON.stringify({
+    data: { type0: { name: 'Project', kind: 'OBJECT', fields: [] } }
+  })));
+  await assert.rejects(client.getIssueCapabilities(), /incomplete GraphQL capability response/i);
+});
+
+test('discovers paginated Issue.timelogs through wrapped schema types when Work Item widgets are absent', async () => {
+  const schema: GraphQLSchemaType[] = [
+    { name: 'Project', fields: [{ name: 'fullPath', type: { name: 'ID', kind: 'SCALAR' } }, { name: 'issue', args: [{ name: 'iid', type: { name: 'String', kind: 'SCALAR' } }] }] },
+    { name: 'Issue', fields: [{ name: 'timelogs', type: { kind: 'NON_NULL', ofType: { name: 'IssueTimelogConnection', kind: 'OBJECT' } } }] },
+    { name: 'IssueTimelogConnection', fields: [
+      { name: 'nodes', type: { kind: 'NON_NULL', ofType: { kind: 'LIST', ofType: { kind: 'NON_NULL', ofType: { name: 'IssueTimelog', kind: 'OBJECT' } } } } },
+      { name: 'pageInfo', type: { name: 'PageInfo', kind: 'OBJECT' } }
+    ] },
+    { name: 'IssueTimelog', fields: [
+      { name: 'id' }, { name: 'timeSpent' }, { name: 'spentAt' }, { name: 'summary' }, { name: 'user', type: { name: 'User', kind: 'OBJECT' } },
+      { name: 'userPermissions', type: { name: 'TimelogPermissions', kind: 'OBJECT' } }
+    ] },
+    { name: 'User', fields: [{ name: 'id' }, { name: 'name' }] },
+    { name: 'PageInfo', fields: [{ name: 'hasNextPage' }, { name: 'endCursor' }] },
+    { name: 'TimelogPermissions', fields: [{ name: 'adminTimelog' }] }
+  ];
+  const queries: string[] = [];
+  const client = new GitLabClient('https://gitlab-schema.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    queries.push(query);
+    return new Response(JSON.stringify({ data: selectedCapabilityData(query, schema) }));
+  });
+  const capabilities = await client.getIssueCapabilities();
+  assert.ok(queries.length >= 3, 'nested connection and node types are queried without guessing wrappers');
+  assert.equal(capabilities.timelogReport, true);
+  assert.equal(capabilities.timelogSource, 'issue');
+  assert.equal(capabilities.timelogSummary, true);
+  assert.deepEqual(capabilities.timelogUserFields, ['id', 'name']);
+  assert.equal(capabilities.timelogAdminPermission, true);
+});
+
 test('keeps the Namespace and namespacePath GraphQL shape for newer GitLab schemas', async () => {
   const names = (value: string) => value.split(' ').map((name) => ({ name }));
   const scope = { fields: [{ name: 'workItem', args: [{ name: 'iid', type: { name: 'String' } }] }, { name: 'workItemTypes', args: [{ name: 'name', type: { name: 'WorkItemsTypeEnum' } }] }] };
@@ -226,6 +312,39 @@ test('queries only Issue permissions confirmed by the instance schema', async ()
   assert.match(body?.query ?? '', /issue\(iid: \$iid\)/);
   assert.match(body?.query ?? '', /userPermissions\s*\{\s*updateIssue createNote\s*\}/);
   assert.deepEqual(body?.variables, { path: 'group/project', iid: '7' });
+});
+
+test('reads mapped Work Item permissions only when the instance exposes that schema', async () => {
+  let body: { query: string; variables: Record<string, unknown> } | undefined;
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    body = JSON.parse(String(init?.body)) as { query: string; variables: Record<string, unknown> };
+    return new Response(JSON.stringify({ data: { project: { workItem: { userPermissions: { updateWorkItem: true, createNote: false } } } } }));
+  });
+  assert.deepEqual(await client.getWorkItemPermissions('group/project', 7, ['updateWorkItem', 'createNote'], 'project'), { updateWorkItem: true, createNote: false });
+  assert.match(body?.query ?? '', /project\(fullPath: \$path\)\s*\{\s*workItem\(iid: \$iid\)/);
+  assert.match(body?.query ?? '', /userPermissions\s*\{\s*updateWorkItem createNote\s*\}/);
+  assert.deepEqual(body?.variables, { path: 'group/project', iid: '7' });
+});
+
+test('selects Work Item permission fields when Issue.userPermissions is absent', async () => {
+  const schema: GraphQLSchemaType[] = [
+    { name: 'Query', kind: 'OBJECT', fields: [{ name: 'currentUser' }] },
+    { name: 'Mutation', kind: 'OBJECT', fields: [{ name: 'workItemUpdate' }] },
+    { name: 'Project', kind: 'OBJECT', fields: [
+      { name: 'fullPath', type: { name: 'ID', kind: 'SCALAR' } },
+      { name: 'workItem', args: [{ name: 'iid', type: { name: 'String', kind: 'SCALAR' } }] }
+    ] },
+    { name: 'Issue', kind: 'OBJECT', fields: [{ name: 'id' }] },
+    { name: 'WorkItem', kind: 'OBJECT', fields: [
+      { name: 'id' }, { name: 'iid' }, { name: 'widgets' }, { name: 'userPermissions', type: { name: 'WorkItemPermissions', kind: 'OBJECT' } }
+    ] },
+    { name: 'WorkItemPermissions', kind: 'OBJECT', fields: [{ name: 'updateWorkItem' }, { name: 'adminWorkItem' }, { name: 'createNote' }] }
+  ];
+  const client = new GitLabClient('https://gitlab-schema.example.test', token, async () =>
+    new Response(JSON.stringify({ data: { __schema: { types: schema } } })));
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(capabilities.issuePermissionSource, 'workItem');
+  assert.deepEqual(capabilities.workItemPermissionFields, ['updateWorkItem', 'adminWorkItem', 'createNote']);
 });
 
 test('uses the legacy Project root and projectPath when creating a child task', async () => {
@@ -471,6 +590,25 @@ test('time entries load every GraphQL cursor page', async () => {
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
   assert.deepEqual((await client.listIssueTimelogs('group/project', 7)).map((entry) => entry.id), ['time-1', 'time-2']);
   assert.deepEqual(cursors, [null, 'next-time']);
+});
+
+test('loads paginated Issue.timelogs with only schema-confirmed entry fields', async () => {
+  const requests: Array<{ query: string; variables: { after: string | null } }> = [];
+  const fetcher: FetchLike = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as { query: string; variables: { after: string | null } };
+    requests.push(body);
+    const second = body.variables.after === 'next-issue-time';
+    const entry = { id: second ? 'issue-time-2' : 'issue-time-1', timeSpent: 60, spentAt: '2026-10-01T12:00:00Z', user: { id: 9, name: 'Tester', username: 'tester' } };
+    return new Response(JSON.stringify({ data: { project: { issue: { timelogs: {
+      nodes: [entry], pageInfo: { hasNextPage: !second, endCursor: second ? null : 'next-issue-time' }
+    } } } } }));
+  };
+  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
+  const entries = await client.listIssueTimelogs('group/project', 7, 'project', false, 'issue', false, ['id', 'name']);
+  assert.deepEqual(entries.map((entry) => entry.id), ['issue-time-1', 'issue-time-2']);
+  assert.deepEqual(requests.map((request) => request.variables.after), [null, 'next-issue-time']);
+  assert.match(requests[0].query, /project\(fullPath: \$path\)\s*\{\s*issue\(iid: \$iid\)/);
+  assert.doesNotMatch(requests[0].query, /summary|userPermissions|username/);
 });
 
 test('attachment reads stay on the configured GitLab uploads path and keep authentication in the host', async () => {

@@ -99,6 +99,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitPackages: WorkflowKitPackage[] = [];
   private meginWorkItems: MeginWorkSummary[] = [];
   private busy = false;
+  private instanceCheckBusy = false;
   private repositoryOperationInProgress = false;
   private cloneOperation?: CloneOperationState;
   private webviewReady = false;
@@ -365,6 +366,18 @@ export class WorkspacePanel implements vscode.Disposable {
         await this.refresh({ forceRepositories: true });
         break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
+      case 'retryInstanceCheck':
+        if (this.instanceCheckBusy) break;
+        this.instanceCheckBusy = true;
+        this.sendSnapshot();
+        try {
+          await this.session.ensureInstanceChecked({ force: true });
+          await this.issuePanels.refreshActive();
+        } finally {
+          this.instanceCheckBusy = false;
+          this.sendSnapshot();
+        }
+        break;
       case 'toggleFullDisplay': await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup'); break;
       case 'setMode':
         if (!ALLOWED_MODES.has(request.mode)) return;
@@ -1351,7 +1364,8 @@ export class WorkspacePanel implements vscode.Disposable {
       instance: this.session.baseUrl ? {
         version: this.session.metadata?.version,
         enterprise: this.session.metadata?.enterprise,
-        warnings: [...this.session.instanceWarnings]
+        warnings: [...this.session.instanceWarnings],
+        capabilities: [...this.session.capabilityDiagnostics]
       } : undefined,
       currentUser: this.currentUser,
       group,
@@ -1405,7 +1419,8 @@ export class WorkspacePanel implements vscode.Disposable {
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
       cloneOperation: this.cloneOperation,
-      busy: this.busy || this.repositoryOperationInProgress
+      busy: this.busy || this.repositoryOperationInProgress,
+      instanceChecking: this.instanceCheckBusy
     };
     this.post({ type: 'snapshot', snapshot });
   }
@@ -2133,11 +2148,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private async approveMergeRequest(projectId: number, iid: number, sha: string): Promise<void> {
     this.requireGroupProject(projectId);
     requireIssueIid(iid);
-    if (this.session.metadata?.enterprise !== true) {
-      throw new Error(this.session.metadata?.enterprise === false
-        ? 'Merge request approvals require an edition or tier that supports approvals; they are unavailable on Community Edition.'
-        : 'The GitLab edition could not be verified; merge request approvals are disabled until support is confirmed.');
-    }
     const client = await this.session.getClient();
     const latest = await client.getMergeRequest(projectId, iid);
     if (!sha || latest.diff_refs?.head_sha !== sha) throw new Error('MR head SHA 已變更，請重新整理審查結果。');

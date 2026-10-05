@@ -56,17 +56,28 @@ async function sessionWithInstance(metadata: Promise<GitLabMetadata>): Promise<G
   return session;
 }
 
-test('recognizes CE 16.11.10 as the minimum and reports edition-only features', async () => {
+test('recognizes CE 16.11.10 as the minimum and keeps edition limits in capability diagnostics', async () => {
   const session = await sessionWithInstance(Promise.resolve({ version: '16.11.10-ee', enterprise: false }));
   assert.equal(session.issueCapabilities?.hierarchy, false);
-  assert.ok(session.instanceWarnings.some((warning) => /Community Edition does not include.*blocking issue links/i.test(warning)));
-  assert.ok(!session.instanceWarnings.some((warning) => /below the minimum/i.test(warning)));
+  assert.ok(!session.instanceWarnings.some((warning) => /blocking issue links/i.test(warning)));
+  const blockingLinks = session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks');
+  assert.equal(blockingLinks?.status, 'unsupported');
+  assert.match(blockingLinks?.reason ?? '', /Community Edition/);
+  assert.ok(!session.instanceWarnings.some((warning) => /低於最低支援版本/));
+  assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'mergeRequestApprovals')?.status, 'supported');
+});
+
+test('does not infer Premium or Ultimate blocking-link support from Enterprise Edition metadata', async () => {
+  const session = await sessionWithInstance(Promise.resolve({ version: '19.4.1-ee', enterprise: true }));
+  const blockingLinks = session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks');
+  assert.equal(blockingLinks?.status, 'unknown');
+  assert.match(blockingLinks?.reason ?? '', /Premium 或 Ultimate/);
 });
 
 test('keeps confirmed API capabilities when GitLab version metadata is unavailable', async () => {
   const session = await sessionWithInstance(Promise.reject(new Error('metadata unavailable')));
   assert.equal(session.issueCapabilities?.discussionResolve, false);
-  assert.ok(session.instanceWarnings.some((warning) => /version metadata is unavailable.*still load/i.test(warning)));
+  assert.ok(session.instanceWarnings.some((warning) => /不能確認是否符合最低支援版本.*仍可使用/));
 });
 
 test('backs failed version and capability probes off for 60 seconds but lets a manual check retry immediately', async () => {
@@ -95,6 +106,24 @@ test('backs failed version and capability probes off for 60 seconds but lets a m
     await session.ensureInstanceChecked({ force: true });
     assert.deepEqual([metadataRequests, versionRequests, capabilityRequests], [3, 3, 3]);
   } finally { Date.now = originalNow; }
+});
+
+test('a manual schema recheck clears an unknown diagnostic after a successful retry', async () => {
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  let capabilityRequests = 0;
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => ({
+    getMetadata: async () => ({ version: '16.11.10', enterprise: false }),
+    getIssueCapabilities: async () => {
+      capabilityRequests++;
+      if (capabilityRequests === 1) throw new Error('temporary schema failure');
+      return { issuePermissionSource: 'issue', issuePermissionFields: ['updateIssue', 'createNote'] } as GitLabIssueCapabilities;
+    }
+  } as unknown as GitLabClient);
+  await session.ensureInstanceChecked();
+  assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.status, 'unknown');
+  await session.ensureInstanceChecked({ force: true });
+  assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.status, 'supported');
+  assert.equal(capabilityRequests, 2);
 });
 
 test('discards version and capability probe results from an earlier connection epoch', async () => {
@@ -143,7 +172,8 @@ test('stores the access token in SecretStorage only after the current-user check
     assert.equal(secrets.values.get('gitlabWorkspace.accessToken'), 'unit-session-token-do-not-use');
     assert.equal(state.get('gitlabWorkspace.baseUrl'), running.baseUrl);
     assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
-    assert.match(session.instanceWarnings.join(' '), /capabilities could not be verified/);
+    assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.status, 'unknown');
+    assert.match(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.reason ?? '', /無法讀取 GitLab GraphQL Schema/);
   } finally {
     await stop(running.server);
   }

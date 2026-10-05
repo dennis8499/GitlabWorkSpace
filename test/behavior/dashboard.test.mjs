@@ -122,21 +122,26 @@ async function mount(initialState, initialSnapshot) {
   };
 }
 
-test('bounds the dashboard to the VS Code viewport and sends the full-display toggle', async (t) => {
+test('bounds the dashboard, exposes the maximize icon, and keeps GitLab support details in settings', async (t) => {
   const data = snapshot('developer');
-  data.instance = { version: '16.11.10', enterprise: false, warnings: ['Community Edition feature note'] };
+  data.instance = { version: '16.11.10', enterprise: false, warnings: ['Minimum version note'], capabilities: [{ id: 'timelogReport', label: '個別工時紀錄', status: 'supported', source: 'GraphQL' }] };
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const shell = document.querySelector('.app-shell');
-  const fullDisplayButton = [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === '完整顯示');
+  const fullDisplayButton = document.querySelector('button[aria-label="放大／還原工作台"]');
   assert.ok(shell);
   assert.ok(fullDisplayButton);
-  assert.match(document.querySelector('.page > .alert[role="status"]').textContent, /16\.11\.10.*Community Edition feature note/s);
+  assert.equal(document.querySelector('.page > .alert[role="status"]'), null, 'instance diagnostics do not take space in the main dashboard');
+  assert.match(fullDisplayButton.getAttribute('title'), /放大／還原工作台/);
   fullDisplayButton.click();
   await view.tick();
   assert.ok(view.requests.some((request) => request.type === 'toggleFullDisplay'));
   assert.equal(document.querySelector('.app-shell'), shell, 'the click leaves the mounted workbench and its local view state in place');
+  document.querySelector('.settings-trigger').click();
+  await view.tick();
+  assert.match(document.querySelector('.instance-capabilities').textContent, /GitLab 16\.11\.10.*Minimum version note/s);
+  assert.match(document.querySelector('.instance-capabilities').textContent, /個別工時紀錄.*支援.*GraphQL/s);
   assert.match(dashboardCss, /\.app-shell\s*\{[^}]*height:\s*100dvh/s);
   assert.match(dashboardCss, /\.topbar\s*\{[^}]*flex:\s*0\s+0\s+auto/s);
   assert.match(dashboardCss, /\.page\s*\{[^}]*overflow:\s*auto/s);

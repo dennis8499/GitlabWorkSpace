@@ -7,7 +7,7 @@ type LinkType = Extract<IssueRelationAction, { type: 'link' }>['linkType'];
 type PendingInput = 'childTitle' | 'childIid' | 'targetIssueIid';
 interface RelationIssueIdentity { id: string | number; project_id: number; iid: number; title: string; }
 
-export function IssueRelationsEditor({ issue, data, projects, busy = false, error, mutationApplied = false, onReload, onAction, onOpenLink, showRelations = false, showLinks = showRelations, showTasks = showRelations, blockingRelationsAvailable = true }: {
+export function IssueRelationsEditor({ issue, data, projects, busy = false, error, mutationApplied = false, onReload, onAction, onOpenLink, showRelations = false, showLinks = showRelations, showTasks = showRelations, blockingRelationsAvailable = false, blockingRelationsStatus = 'unknown', blockingRelationsReason }: {
   issue: RelationIssueIdentity;
   data?: IssueRelationsData;
   projects: GitLabProject[];
@@ -21,6 +21,8 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
   showLinks?: boolean;
   showTasks?: boolean;
   blockingRelationsAvailable?: boolean;
+  blockingRelationsStatus?: 'supported' | 'unsupported' | 'unknown';
+  blockingRelationsReason?: string;
 }) {
   const [childTitle, setChildTitle] = useState('');
   const [childIid, setChildIid] = useState('');
@@ -103,7 +105,7 @@ export function IssueRelationsEditor({ issue, data, projects, busy = false, erro
         </select>
         <button type="button" disabled={!target || !/^\d+$/.test(targetIssueIid) || Number(targetIssueIid) < 1 || selfLink || duplicateLink || busy} onClick={() => submit({ type: 'link', targetProjectId: Number(targetProjectId), targetIssueIid: Number(targetIssueIid), linkType }, 'targetIssueIid')}>建立關聯</button>
       </div>
-      {!blockingRelationsAvailable && <span class="subtle small">阻擋關聯需要 GitLab Premium 或 Ultimate；Community Edition 不提供。</span>}
+      {!blockingRelationsAvailable && <span class="subtle small">{blockingRelationsReason ?? (blockingRelationsStatus === 'unsupported' ? 'GitLab Community Edition 不提供阻擋關聯。' : '尚未確認此 GitLab 方案是否支援阻擋關聯；一般關聯仍可使用。')}</span>}
       {selfLink && <span class="subtle small">不能將 Issue 關聯到自身。</span>}
       {duplicateLink && <span class="subtle small">這張 Issue 已經有此關聯。</span>}
     </div>}
