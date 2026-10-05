@@ -1,35 +1,34 @@
 /** @jsxImportSource preact */
 import type { JSX } from 'preact';
 import {
-  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, wikiGuideCards,
+  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, DEFAULT_WIKI_GUIDE_CARD_ID, wikiGuideCards,
   type WikiGuideInputValues
 } from './codebaseWikiGuideData';
 
-export function CodebaseWikiGuide({ inputs, onInput, onCopy, onOpenSettings, groupRoot, repositories, workflowKitVersion, kitInstalled }: {
+export function CodebaseWikiGuide({ inputs, selectedCardId, onInput, onSelectCard, onCopy, onOpenSettings, groupRoot, repositories, workflowKitVersion, repositoryScanStatus, repositoryScanError, kitInstalled }: {
   inputs: WikiGuideInputValues;
+  selectedCardId: string;
   onInput: (key: string, value: string) => void;
+  onSelectCard: (id: string) => void;
   onCopy: (text: string) => void;
   onOpenSettings: () => void;
   groupRoot?: string;
-  repositories: Array<{ namespace: string; localPath?: string }>;
+  repositories: Array<{ name: string; path: string }>;
   workflowKitVersion?: string;
+  repositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
+  repositoryScanError?: string;
   kitInstalled: boolean;
 }) {
-  const context = buildWikiGuideContext({ groupRoot, repositories, workflowKitVersion });
+  const context = buildWikiGuideContext({ groupRoot, repositories, workflowKitVersion, repositoryScanStatus, repositoryScanError });
+  const card = wikiGuideCards.find((item) => item.id === selectedCardId) ?? wikiGuideCards.find((item) => item.id === DEFAULT_WIKI_GUIDE_CARD_ID)!;
+  const prompt = `${context}\n\n${buildWikiGuidePrompt(card.id, inputs, { groupRoot, repositories, workflowKitVersion, repositoryScanStatus, repositoryScanError })}`;
+  const ready = !!groupRoot && kitInstalled && repositoryScanStatus === 'ready' && canCopyWikiPrompt(card, inputs);
   return <div class="wiki-guide">
-    <section class="wiki-guide-intro" aria-labelledby="wiki-guide-intro-title">
-      <div>
-        <h2 id="wiki-guide-intro-title">Group 分析與共用 Wiki</h2>
-        <p>提示詞會帶入目前 Group、Repo 路徑與組合包版本。知識集中於 Group/wiki/；分析仍透過複製提示詞交給 Codex CLI，查證時回到實際 Repo 檔案。</p>
-        <p class="wiki-guide-notice">Wiki、Megin 與 MergeReviewer 使用同一組 Group 規則。開始 AI 任務前，工作台會檢查完整工作流程包已安裝。</p>
-      </div>
-      <button class="secondary" type="button" onClick={onOpenSettings}>管理完整工作流程包</button>
-    </section>
+    <label class="field wiki-guide-selector"><span>分析功能</span><select aria-label="分析功能" value={card.id} onChange={(event) => onSelectCard(event.currentTarget.value)}>
+      {wikiGuideCards.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+    </select></label>
     <div class="wiki-guide-grid">
-      {wikiGuideCards.map((card) => {
-        const prompt = `${context}\n\n${buildWikiGuidePrompt(card.id, inputs)}`;
-        const ready = !!groupRoot && kitInstalled && canCopyWikiPrompt(card, inputs);
-        return <section class="wiki-guide-card" key={card.id} aria-labelledby={`wiki-card-title-${card.id}`}>
+        <section class="wiki-guide-card" key={card.id} aria-labelledby={`wiki-card-title-${card.id}`}>
           <header class="wiki-guide-card-header">
             <div><span class="eyebrow">GitLab Workspace · {workflowKitVersion ?? '未安裝'}</span><h2 id={`wiki-card-title-${card.id}`}>{card.title}</h2></div>
           </header>
@@ -59,8 +58,7 @@ export function CodebaseWikiGuide({ inputs, onInput, onCopy, onOpenSettings, gro
             <pre class="wiki-prompt-preview">{prompt}</pre>
           </details>
           {card.id !== 'install' && <button class="primary wiki-copy-button" type="button" disabled={!ready} aria-label={`複製${card.title}提示詞`} onClick={() => onCopy(prompt)}>複製提示詞</button>}
-        </section>;
-      })}
+        </section>
     </div>
   </div>;
 }

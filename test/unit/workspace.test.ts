@@ -1,24 +1,29 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { Memento } from 'vscode';
 import type { GitLabProject } from '../../src/api/types';
 import { parseIssueDraftBundle } from '../../src/workspace/issueDrafts';
-import { groupRepositoryPath, GroupWorkspaceRegistry, localRepositoryState, localRepositoryStateAsync, projectFolderNames, sameLocalPath } from '../../src/workspace/workspacePaths';
+import { groupRepositoryPath, inspectWorkspaceFolder, localRepositoryState, localRepositoryStateAsync, projectFolderNames, resolveGroupWorkspaceRoot, sameLocalPath, scanLocalGroupRepositories } from '../../src/workspace/workspacePaths';
 import { IssueTimeTracker, parseTimeEntryDuration } from '../../src/workspace/timeTracker';
 
 function project(id: number, localPath: string, fullPath = `group/${localPath}`): GitLabProject {
   return { id, name: localPath, path: localPath, path_with_namespace: fullPath, web_url: `https://gitlab.example/${fullPath}`, http_url_to_repo: `https://gitlab.example/${fullPath}.git`, default_branch: 'main' };
 }
 
-function memory(initial: Record<string, unknown> = {}): Memento {
-  const values = new Map(Object.entries(initial));
+function memory() {
+  const values = new Map<string, unknown>();
   return {
     keys: () => [...values.keys()],
-    get: <T>(key: string, defaultValue?: T) => (values.has(key) ? values.get(key) : defaultValue) as T,
-    update: async (key: string, value: unknown) => { if (value === undefined) values.delete(key); else values.set(key, value); }
+    get<T>(key: string, defaultValue?: T): T | undefined {
+      return (values.has(key) ? values.get(key) : defaultValue) as T | undefined;
+    },
+    async update(key: string, value: unknown): Promise<void> {
+      if (value === undefined) values.delete(key);
+      else values.set(key, value);
+    }
   };
 }
 
@@ -71,13 +76,82 @@ test('checks repository folders asynchronously while retaining safe, missing, an
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('stores Group roots by GitLab instance and Group ID', async () => {
-  const registry = new GroupWorkspaceRegistry(memory());
-  await registry.setRoot('https://gitlab.example', 4, 'C:/workspace/group-a');
-  await registry.setRoot('https://gitlab.example', 5, 'C:/workspace/group-b');
-  assert.equal(registry.getRoot('https://gitlab.example', 4), path.resolve('C:/workspace/group-a'));
-  assert.equal(registry.getRoot('https://gitlab.example', 5), path.resolve('C:/workspace/group-b'));
-  assert.equal(registry.getRoot('https://other.example', 4), undefined);
+test('resolves workspace roots from the current Group Repo and reports ambiguity', () => {
+  const resolved = resolveGroupWorkspaceRoot([
+    { kind: 'group-repository', path: 'C:/group/service', groupRoot: 'C:/group' },
+    { kind: 'group-repository', path: 'C:/group/docs', groupRoot: 'C:/group' }
+  ], 'win32');
+  assert.equal(resolved.root, path.resolve('C:/group'));
+
+  const ambiguous = resolveGroupWorkspaceRoot([
+    { kind: 'group-repository', path: 'C:/one/service', groupRoot: 'C:/one' },
+    { kind: 'group-repository', path: 'C:/two/service', groupRoot: 'C:/two' }
+  ], 'win32');
+  assert.equal(ambiguous.root, undefined);
+  assert.match(ambiguous.error ?? '', /多個 Group Repo/);
+
+  const multipleFolders = resolveGroupWorkspaceRoot([
+    { kind: 'directory', path: 'C:/one' }, { kind: 'directory', path: 'C:/two' }
+  ], 'win32');
+  assert.equal(multipleFolders.root, undefined);
+  assert.match(multipleFolders.error ?? '', /多個可能/);
+  assert.match(resolveGroupWorkspaceRoot([]).error ?? '', /請在 VSCode 開啟/);
+});
+
+test('inspects VS Code folders using their actual Git remotes and selects the matching Group root', async () => {
+  const parent = mkdtempSync(path.join(os.tmpdir(), 'workspace-detection-'));
+  try {
+    const groupRoot = path.join(parent, 'team');
+    const servicePath = path.join(groupRoot, 'renamed-service');
+    const docsPath = path.join(groupRoot, 'docs');
+    mkdirSync(servicePath, { recursive: true });
+    mkdirSync(docsPath);
+    const service = project(21, 'service', 'team/service');
+    const docs = project(22, 'docs', 'team/docs');
+    const initWithRemote = (folder: string, remote: string) => {
+      execFileSync('git', ['init', '--quiet', folder]);
+      execFileSync('git', ['-C', folder, 'remote', 'add', 'origin', remote]);
+    };
+    initWithRemote(servicePath, service.http_url_to_repo);
+    initWithRemote(docsPath, docs.http_url_to_repo);
+    const matchesGroup = (remote: string, item: GitLabProject) => remote === item.http_url_to_repo;
+
+    const matchedService = await inspectWorkspaceFolder(servicePath, [service], matchesGroup);
+    assert.deepEqual(matchedService, { kind: 'group-repository', path: realpathSync.native(servicePath), groupRoot: realpathSync.native(groupRoot) });
+    assert.equal(resolveGroupWorkspaceRoot([matchedService]).root, realpathSync.native(groupRoot));
+
+    const unrelatedRepo = await inspectWorkspaceFolder(servicePath, [docs], matchesGroup);
+    assert.equal(unrelatedRepo.kind, 'repository', 'a Repo from a different Group cannot supply the local root');
+    assert.equal(resolveGroupWorkspaceRoot([unrelatedRepo]).root, undefined);
+
+    const [firstRoot, secondRoot] = await Promise.all([
+      inspectWorkspaceFolder(servicePath, [service, docs], matchesGroup),
+      inspectWorkspaceFolder(docsPath, [service, docs], matchesGroup)
+    ]);
+    assert.equal(resolveGroupWorkspaceRoot([firstRoot, secondRoot]).root, realpathSync.native(groupRoot), 'multiple matching Group Repos share one unambiguous parent');
+
+    const directFolder = await inspectWorkspaceFolder(groupRoot, [service, docs], matchesGroup);
+    assert.equal(directFolder.kind, 'directory', 'a single non-Git VS Code folder is adopted directly');
+    assert.equal(resolveGroupWorkspaceRoot([directFolder]).root, realpathSync.native(groupRoot));
+  } finally { rmSync(parent, { recursive: true, force: true }); }
+});
+
+test('scans real direct-child repositories and includes Git worktrees without inferring missing GitLab folders', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'workspace-local-repositories-'));
+  try {
+    const normal = path.join(root, 'actual-repo');
+    const worktree = path.join(root, 'linked-worktree');
+    mkdirSync(normal);
+    mkdirSync(path.join(root, 'ordinary-folder'));
+    execFileSync('git', ['init', '--quiet', normal]);
+    execFileSync('git', ['-C', normal, '-c', 'user.name=Workspace Test', '-c', 'user.email=workspace@example.invalid', 'commit', '--allow-empty', '-m', 'baseline']);
+    execFileSync('git', ['-C', normal, 'worktree', 'add', '--quiet', '--detach', worktree, 'HEAD']);
+
+    assert.deepEqual(await scanLocalGroupRepositories(root), [
+      { name: 'actual-repo', path: realpathSync.native(normal) },
+      { name: 'linked-worktree', path: realpathSync.native(worktree) }
+    ]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test('compares Windows repository paths case-insensitively after normalization', () => {

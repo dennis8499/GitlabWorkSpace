@@ -87,6 +87,7 @@ export interface IssueDetailData extends IssueRelationsData {
 export type IssuePanelRequest =
   | { type: 'ready' }
   | { type: 'refresh' }
+  | { type: 'copyDescription'; requestId: string; issueId: number }
   | { type: 'selectProject'; projectId: number }
   | { type: 'create'; projectId: number; input: IssueCreateInput }
   | { type: 'update'; issueId: number; input: IssueUpdateInput; expectedUpdatedAt?: string }

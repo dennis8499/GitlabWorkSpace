@@ -22,9 +22,13 @@ export interface WikiGuideCard {
 
 export interface WikiGuideContext {
   groupRoot?: string;
-  repositories: Array<{ namespace: string; localPath?: string }>;
+  repositories: Array<{ name: string; path: string }>;
   workflowKitVersion?: string;
+  repositoryScanStatus?: 'idle' | 'scanning' | 'ready' | 'error';
+  repositoryScanError?: string;
 }
+
+export const DEFAULT_WIKI_GUIDE_CARD_ID = 'development-spec';
 
 const field = (id: string, label: string, options: Partial<Omit<WikiGuideField, 'id' | 'label'>> = {}): WikiGuideField => ({ id, label, ...options });
 
@@ -35,7 +39,6 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
     output: '五段獨立規格、SCN 驗收情境與 draft／ready 狀態。',
     behavior: '必要問題逐題詢問；未回答保持草稿。Issue 由使用者自行建立與指派。',
     fields: [field('scope', '功能名稱', { required: true }),
-      field('repos', '適用 Repo（選填）', { placeholder: 'Group 下的實際 Repo 資料夾名稱' }),
       field('requirement', '功能敘述', { required: true, kind: 'textarea', rows: 4 })]
   },
   {
@@ -149,15 +152,22 @@ export function canCopyWikiPrompt(card: WikiGuideCard, inputs: WikiGuideInputVal
 }
 
 export function buildWikiGuideContext(context: WikiGuideContext): string {
+  const repositoryLines = context.repositoryScanStatus === 'scanning'
+    ? ['本機 Repo 掃描中…']
+    : context.repositoryScanStatus === 'error'
+      ? [`本機 Repo 掃描失敗：${context.repositoryScanError ?? '請重新整理後重試。'}`]
+      : context.repositories.length
+        ? context.repositories.map((item) => `- ${item.name} → ${item.path}`)
+        : ['（目前工作區尚未找到 Git Repo）'];
   return [
     `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
-    `實際 Group 工作區：${context.groupRoot ?? '尚未選擇；先從工作區設定選擇 Group 路徑'}`,
-    'Group Repo 對照：',
-    ...context.repositories.map((item) => `- ${item.namespace}${item.localPath ? ` → ${item.localPath}` : '（尚未 Clone）'}`)
+    `實際 Group 工作區：${context.groupRoot ?? '尚未開啟符合目前 GitLab Group 的 VSCode 工作區'}`,
+    '本機實際 Git Repo：',
+    ...repositoryLines
   ].join('\n');
 }
 
-export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValues): string {
+export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
   const card = wikiGuideCards.find((candidate) => candidate.id === cardId);
   if (!card) throw new Error(`未知的 Codebase LLM Wiki 功能：${cardId}`);
 
@@ -191,7 +201,7 @@ export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValue
     case 'synthesis':
       return `請使用 $codebase-wiki 將主題「${promptValue(card, 'topic', inputs)}」整理成持續維護的 Synthesis 頁面，寫入 wiki/synthesis/。以目前 Wiki 和可查證來源為依據，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'development-spec':
-      return `請使用 $codebase-wiki 的 development_spec 流程，為「${promptValue(card, 'scope', inputs)}」產生可直接貼入 Issue 給另一位 Megin 開發者的精簡獨立規格。適用 Repo：${inputValue(card, 'repos', inputs).trim() || '先從 Group 確認'}。功能敘述：${promptValue(card, 'requirement', inputs)}。先唯讀確認來源事實，再逐題詢問影響範圍、行為、權限或驗收的必要決策；未回答保持 draft，不得猜測。依五段模板產出，包含 SCN、spec_revision 與 spec_status，不另產出 BA／SA／SD。Issue 由我自行建立與指派。`;
+      return `請使用 $codebase-wiki 的 development_spec 流程，為「${promptValue(card, 'scope', inputs)}」產生可直接貼入 Issue 給另一位 Megin 開發者的精簡獨立規格。適用 Repo（依目前本機 Group 工作區實際掃描結果）：\n${context?.repositories.length ? context.repositories.map((repository) => `- ${repository.name} → ${repository.path}`).join('\n') : '（目前尚未找到本機 Git Repo）'}。功能敘述：${promptValue(card, 'requirement', inputs)}。先唯讀確認來源事實，再逐題詢問影響範圍、行為、權限或驗收的必要決策；未回答保持 draft，不得猜測。依五段模板產出，包含 SCN、spec_revision 與 spec_status，不另產出 BA／SA／SD。Issue 由我自行建立與指派。`;
     case 'business-analysis':
       return `請使用 $codebase-wiki，以目前 Wiki 與可查證來源產出「${promptValue(card, 'scope', inputs)}」的標準 BA 業務分析文件；依 Business Analysis 標準建立功能涵蓋、BA IDs 與 gaps，保留人工 notes，寫入 wiki/synthesis/，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'system-analysis':

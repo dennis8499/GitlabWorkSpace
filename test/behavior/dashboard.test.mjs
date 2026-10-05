@@ -28,6 +28,10 @@ function snapshot(activeMode = 'developer') {
       { id: 8, name: 'Child', full_path: 'team/child', web_url: 'https://gitlab.example.test/groups/team/child' }
     ],
     groupRoot: 'C:/workspace/team',
+    workspaceRootError: undefined,
+    groupRepositories: [{ name: 'alpha', path: 'C:/workspace/team/alpha' }],
+    groupRepositoryScanStatus: 'ready',
+    groupRepositoryScanError: undefined,
     projects: [project(1, 'alpha'), project(2, 'beta'), project(3, 'gamma')],
     groupMilestones: [
       { id: 21, group_id: 3, title: 'Unused release', state: 'active' },
@@ -141,88 +145,95 @@ test('bounds the dashboard to the VS Code viewport and sends the full-display to
   assert.match(dashboardCss, /\.statusbar\s*\{[^}]*flex:\s*0\s+0\s+auto/s);
 });
 
-test('renders and uses the installed Group Wiki guide with validated prompts and saved inputs', async (t) => {
+test('shows one selected Wiki feature and builds prompts from the actual local Repo inventory', async (t) => {
   const selectedGroup = snapshot('sa');
-  selectedGroup.localRepositories = { 1: { state: 'ready', path: 'C:/workspace/team/alpha' } };
+  selectedGroup.groupRepositories = [
+    { name: 'renamed-alpha', path: 'C:/workspace/team/renamed-alpha' },
+    { name: 'unmapped-tools', path: 'C:/workspace/team/unmapped-tools' }
+  ];
   const view = await mount({ mode: 'sa' }, selectedGroup);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.page-heading h1').textContent, 'Codebase LLM Wiki');
-  assert.equal(document.querySelectorAll('.wiki-guide-card').length, 13);
-  assert.ok(document.querySelector('.wiki-guide-notice'));
-  assert.equal(document.querySelector('[aria-label="複製安裝／設定提示詞"]'), null);
-  assert.match(document.querySelector('[id="wiki-card-title-install"]').closest('.wiki-guide-card').textContent, /開啟整包安裝與更新/);
+  assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
+  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-development-spec');
+  assert.equal(document.querySelector('.wiki-guide-intro'), null);
+  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 13);
 
+  const selector = document.querySelector('.wiki-guide-selector select');
+  assert.equal(selector.value, 'development-spec');
+  const devPreview = document.querySelector('.wiki-prompt-preview');
+  assert.ok(devPreview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
+  assert.ok(devPreview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
+  assert.equal(devPreview.textContent.includes('team/alpha'), false);
+
+  selector.value = 'query';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
+  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-query');
   const query = document.querySelector('[id="wiki-input-query.question"]');
-  const copy = document.querySelector('[aria-label="複製查詢 Wiki提示詞"]');
+  const copy = document.querySelector('.wiki-copy-button');
   assert.ok(query);
-  assert.ok(copy);
   assert.equal(copy.disabled, true);
 
-  const ingestMode = document.querySelector('[id="wiki-input-ingest.mode"]');
-  ingestMode.value = '批次';
-  ingestMode.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  await view.tick();
-  const ingestCard = document.querySelector('[id="wiki-card-title-ingest"]').closest('.wiki-guide-card');
-  const ingestPreview = ingestCard.querySelector('details');
-  ingestPreview.open = true;
-  assert.match(ingestPreview.textContent, /Batch Ingest/);
-  assert.doesNotMatch(ingestPreview.textContent, /等待我確認/);
-  const lintOperation = document.querySelector('[id="wiki-input-lint.operation"]');
-  lintOperation.value = '重建索引';
-  lintOperation.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  await view.tick();
-  const lintCard = document.querySelector('[id="wiki-card-title-lint"]').closest('.wiki-guide-card');
-  assert.match(lintCard.querySelector('details').textContent, /重建 wiki\/index\.md/);
-
-  query.value = '退款 API 如何處理逾時？\n請列出設定檔與呼叫路徑。';
+  query.value = ['How does retry work?', 'Which Repo owns the retry policy?'].join(String.fromCharCode(10));
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
   assert.equal(copy.disabled, false);
-  const preview = document.querySelector('[id="wiki-card-title-query"]')?.closest('.wiki-guide-card')?.querySelector('details');
-  assert.ok(preview);
-  preview.open = true;
+  const preview = document.querySelector('.wiki-prompt-preview');
   assert.ok(preview.textContent.includes(query.value));
-  assert.match(preview.textContent, /實際 Group 工作區：C:\/workspace\/team/);
-  assert.match(preview.textContent, /工作流程包版本：0\.9\.0/);
-  assert.match(preview.textContent, /team\/alpha → C:\/workspace\/team\/alpha/);
-
-  document.querySelector('.wiki-guide-intro button').click();
-  await view.tick();
-  assert.ok(document.querySelector('[role="dialog"]'));
+  assert.ok(preview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
+  assert.ok(preview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
 
   copy.click();
   await view.tick();
   const request = view.requests.at(-1);
   assert.equal(request.type, 'copy');
   assert.ok(request.text.includes(query.value));
-  assert.match(request.text, /team\/alpha → C:\/workspace\/team\/alpha/);
-  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: { type: 'message', message: '已複製到剪貼簿，可貼入 Codex CLI。' } }));
+  assert.ok(request.text.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
+  view.send({ type: 'message', message: 'Prompt copied' });
   await view.tick();
-  assert.match(document.querySelector('.toast').textContent, /已複製到剪貼簿/);
+  assert.match(document.querySelector('.toast').textContent, /Prompt copied/);
 
-  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: { type: 'error', message: 'Clipboard unavailable' } }));
+  selector.value = 'audit';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   await view.tick();
-  assert.match(document.querySelector('[role="alert"]').textContent, /Clipboard unavailable/);
-
-  document.querySelectorAll('.mode-button')[0].click();
+  const auditScope = document.querySelector('[id="wiki-input-audit.scope"]');
+  auditScope.value = 'src/payments';
+  auditScope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
-  document.querySelectorAll('.mode-button')[2].click();
+  selector.value = 'query';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, query.value);
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
   assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], query.value);
+  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['audit.scope'], 'src/payments');
 
   const reopened = await mount(view.savedState, selectedGroup);
   t.after(() => reopened.dom.window.close());
+  assert.equal(reopened.dom.window.document.querySelector('.wiki-guide-selector select').value, 'query');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-query.question"]').value, query.value);
+
+  selector.value = 'install';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  document.querySelector('.wiki-guide-fields button').click();
+  await view.tick();
+  assert.ok(document.querySelector('[role="dialog"]'));
 });
 
-test('keeps Wiki guide inputs separate for each selected Group', async (t) => {
+test('keeps Wiki guide selection and inputs separate for each selected Group', async (t) => {
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope' }, snapshot('sa'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
+  const selector = document.querySelector('.wiki-guide-selector select');
+  selector.value = 'query';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
   const query = document.querySelector('[id="wiki-input-query.question"]');
-  query.value = 'Team A 的問題';
+  query.value = 'Team A query';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
 
@@ -231,31 +242,96 @@ test('keeps Wiki guide inputs separate for each selected Group', async (t) => {
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   view.sendSnapshot(groupB);
   await view.tick();
-  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '');
-  query.value = 'Team B 的問題';
+  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'development-spec');
+  selector.value = 'query';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  query.value = 'Team B query';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
 
   view.sendSnapshot(snapshot('sa'));
   await view.tick();
-  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A 的問題');
-  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], 'Team A 的問題');
-  assert.equal(view.savedState.wikiGuideInputsByScope['another-group-scope']['query.question'], 'Team B 的問題');
+  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'query');
+  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['another-group-scope'], 'query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], 'Team A query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['another-group-scope']['query.question'], 'Team B query');
 });
 
-test('blocks copied Wiki tasks until the Group directory and complete workflow kit are ready', async (t) => {
+test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready', async (t) => {
   const state = snapshot('sa');
   state.groupRoot = undefined;
+  state.groupRepositoryScanStatus = 'idle';
   state.workflowKit = { status: 'missing' };
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const query = document.querySelector('[id="wiki-input-query.question"]');
-  query.value = 'How does retry work?';
+  const query = document.querySelector('[id="wiki-input-development-spec.scope"]');
+  query.value = 'Retry behavior';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
-  assert.equal(document.querySelector('[aria-label="複製查詢 Wiki提示詞"]').disabled, true);
-  assert.match(document.querySelector('.wiki-guide-intro').textContent, /檢查完整工作流程包已安裝/);
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  assert.ok(document.querySelector('.wiki-guide-selector select'));
+  assert.equal(document.querySelector('.wiki-guide-intro'), null);
+});
+test('copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes', async (t) => {
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, snapshot());
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const issue = {
+    ...snapshot().issues[0],
+    description: '## Reproduction\n\n![trace](https://gitlab.example.test/uploads/trace.png)\n\n- preserve this line'
+  };
+  const project = snapshot().projects[0];
+  const openIssue = async (currentIssue, revision) => {
+    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: currentIssue.project_id, issueIid: currentIssue.iid, revision } });
+    await view.tick();
+    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: issueDetailData(currentIssue, project) } });
+    await view.tick();
+  };
+
+  await openIssue(issue, 10);
+  const copy = document.querySelector('button[aria-label="複製 Issue 描述"]');
+  assert.ok(copy);
+  assert.equal(copy.disabled, false, 'copy remains available when editing permissions are false');
+  copy.click();
+  await view.tick();
+  const request = view.requests.filter((item) => item.type === 'issueRequest').at(-1);
+  assert.equal(request.revision, 10);
+  assert.equal(request.request.type, 'copyDescription');
+  assert.equal(request.request.issueId, issue.id);
+  assert.match(request.request.requestId, /^copy-description-/);
+  assert.equal(Object.hasOwn(request.request, 'description'), false);
+
+  const emptyIssue = { ...snapshot().issues[1], description: [' ', String.fromCharCode(10), String.fromCharCode(9), ' '].join('') };
+  await openIssue(emptyIssue, 11);
+  assert.equal(document.querySelector('button[aria-label="複製 Issue 描述"]').disabled, true);
+  view.send({ type: 'issueResponse', revision: 10, response: { type: 'reply', requestId: request.request.requestId, error: 'stale failure' } });
+  await view.tick();
+  assert.equal(document.querySelector('[role="alert"]'), null, 'a delayed response from the prior Issue is discarded');
+
+  await openIssue(issue, 12);
+  const copyAgain = document.querySelector('button[aria-label="複製 Issue 描述"]');
+  copyAgain.click();
+  await view.tick();
+  const failedRequest = view.requests.filter((item) => item.type === 'issueRequest').at(-1);
+  view.send({ type: 'issueResponse', revision: 12, response: { type: 'reply', requestId: failedRequest.request.requestId, error: 'Clipboard denied' } });
+  await view.tick();
+  assert.match(document.querySelector('[role="alert"]').textContent, /Clipboard denied/);
+});
+test('uses only the VS Code workspace for clone destinations and disables local Repo actions when unresolved', async (t) => {
+  const state = snapshot('clone');
+  state.groupRoot = undefined;
+  state.workspaceRootError = 'Open a matching VS Code Group folder';
+  const view = await mount({ mode: 'clone' }, state);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelector('.clone-submit').disabled, true);
+  assert.match(document.querySelector('.clone-root-line').textContent, /Open a matching VS Code Group folder/);
+  assert.equal([...document.querySelectorAll('button')].some((button) => /選擇工作目錄|設定工作目錄|變更工作目錄/.test(button.textContent)), false);
+  assert.equal(view.requests.some((request) => request.type === 'selectWorkspace'), false);
 });
 
 test('shows every assigned Issue by default and keeps the list usable when Board loading fails', async (t) => {

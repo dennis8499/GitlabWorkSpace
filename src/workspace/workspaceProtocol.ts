@@ -120,6 +120,10 @@ export interface WorkspaceSnapshot {
   group?: GitLabGroup;
   groups: GitLabGroup[];
   groupRoot?: string;
+  workspaceRootError?: string;
+  groupRepositories: Array<{ name: string; path: string }>;
+  groupRepositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
+  groupRepositoryScanError?: string;
   projects: GitLabProject[];
   groupMilestones: GitLabMilestone[];
   groupMilestonesError?: string;
@@ -186,7 +190,6 @@ export type WorkspaceRequest =
   | { type: 'loadIssueGraph'; connectedScope: string }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
-  | { type: 'selectWorkspace' }
   | { type: 'openLocalWorkspace' }
   | { type: 'openCodexTerminal' }
   | { type: 'copyAndOpenCodex'; text: string; returnTo: string }

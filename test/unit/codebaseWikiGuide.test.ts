@@ -65,21 +65,26 @@ test('preserves the selected Wiki authorization policy in generated prompts', ()
   assert.match(buildWikiGuidePrompt('system-design', inputs), /architecture views/);
 });
 
-test('adds the selected Group, spaced Windows paths, Repo mapping and installed kit version to copied prompts', () => {
+test('adds the selected Group and actual local Repo names and paths to copied prompts', () => {
+  const root = 'C:\\workspace with spaces\\皜祈岫 Group';
+  const repositories = [
+    { name: 'renamed-service', path: root + '\\renamed-service' },
+    { name: 'unmapped-tools', path: root + '\\unmapped-tools' }
+  ];
   const context = buildWikiGuideContext({
-    groupRoot: 'C:\\workspace with spaces\\測試 Group',
-    workflowKitVersion: '0.9.0',
-    repositories: [
-      { namespace: 'team/付款服務', localPath: '付款 服務' },
-      { namespace: 'team/未 Clone', localPath: undefined }
-    ]
+    groupRoot: root, workflowKitVersion: '0.9.0', repositories, repositoryScanStatus: 'ready'
   });
-  assert.match(context, /C:\\workspace with spaces\\測試 Group/);
-  assert.match(context, /工作流程包版本：0\.9\.0/);
-  assert.match(context, /team\/付款服務 → 付款 服務/);
-  assert.match(context, /team\/未 Clone（尚未 Clone）/);
-});
+  assert.ok(context.includes(root));
+  assert.ok(context.includes('0.9.0'));
+  assert.ok(context.includes('renamed-service → ' + root + '\\renamed-service'));
+  assert.ok(context.includes('unmapped-tools → ' + root + '\\unmapped-tools'));
+  assert.equal(context.includes('team/renamed-service'), false);
 
+  const inputs = { ...createDefaultWikiGuideInputs(), 'development-spec.scope': 'Retry', 'development-spec.requirement': 'Retry failed requests' };
+  const prompt = buildWikiGuidePrompt('development-spec', inputs, { groupRoot: root, repositories, repositoryScanStatus: 'ready' });
+  assert.match(prompt, /適用 Repo.*實際掃描結果/s);
+  assert.ok(prompt.includes('renamed-service → ' + root + '\\renamed-service'));
+});
 test('rejects unknown guide cards instead of copying an empty prompt', () => {
   assert.throws(() => buildWikiGuidePrompt('missing', {}), /未知的 Codebase LLM Wiki 功能/);
 });
@@ -87,6 +92,7 @@ test('rejects unknown guide cards instead of copying an empty prompt', () => {
 
 test('development specifications require the feature and description, then clarify instead of creating Issues', () => {
   const card = wikiGuideCards.find((item) => item.id === 'development-spec')!;
+  assert.equal(card.fields.some((item) => item.id === 'repos'), false, 'the Repo section comes from the scanned local inventory');
   const defaults = createDefaultWikiGuideInputs();
   assert.equal(canCopyWikiPrompt(card, defaults), false);
   const input = { ...defaults, 'development-spec.scope': '退款', 'development-spec.requirement': '客服可發起退款。' };

@@ -4,11 +4,25 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.3.0
 
 ## 一次安裝整包
 
-在工作台設定 Group 工作目錄後，打開 **開發工具**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
+在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **開發工具**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
 
 安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的已核准工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 
 更新會驗證目前受管理檔案未被本機修改。既有 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 與 `review-reports/` 會保留。舊版分開安裝採人工清除後重裝，請按錯誤訊息提供的精確路徑清單，並依套件中的 `legacy-cleanup.md` 移除舊 Skills、工具紀錄及 Wiki managed block；保留 Wiki、工作紀錄、報告與其他 Skills。不要移除進行中的 Megin 鎖或工作紀錄來繞過安裝阻擋。
+
+## 整包版與分開安裝
+
+下表比較 GitLab Workspace v0.10.0 整包版與 v0.8.0 分開安裝方式。兩種方式所附上游版本相同：Codebase LLM Wiki 0.3.0、Megin 0.2.0、MergeReviewer 0.5.0。
+
+| 項目 | 整包版 v0.10.0 | 分開安裝 v0.8.0 |
+|---|---|---|
+| 管理方式 | Wiki、Megin、MergeReviewer 一次管理 | 每個工具分別管理 |
+| 版本選擇 | 整包版本須與擴充功能一致 | 各工具可個別選版 |
+| Group 規則 | 整包提供統一規則與設定 | 分別管理各工具的安裝與設定 |
+| 更新 | 整包預檢、套用及失敗回復 | 以單一工具為更新單位 |
+| 離線使用 | 內附完整工作流程包 | 內附各工具離線包 |
+
+由舊版分開安裝改用整包時，請依安裝檢查列出的路徑及 `legacy-cleanup.md` 清理舊 Skills、工具紀錄與 Wiki managed block，再重試安裝。保留既有 Wiki、工作紀錄、審查報告及其他 Skills；不要刪除進行中的 Megin 鎖或工作紀錄。
 
 ## 共用 Group 知識
 
@@ -18,7 +32,7 @@ Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `revie
 
 ## 分析、規格與 Issue
 
-在 **分析** 選擇 Wiki 功能後，工作台提示詞會帶入實際 Group 範圍、其下 Repo 名稱與本機相對路徑，以及目前 Manifest 版本。AI 任務入口會先確認整包已安裝或目前存在 Megin 工作；尚未安裝時，會導向整包管理卡。
+在 **分析** 的功能選單選擇 Wiki 功能後，頁面只顯示該功能區塊。提示詞會帶入目前 Group、Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑（包含未對應 GitLab 的 Repo），以及目前 Manifest 版本；掃描完成前不提供複製。AI 任務入口會先確認整包已安裝或目前存在 Megin 工作；尚未安裝時，會導向整包管理卡。
 
 開發規格保留 `draft`／`ready` 狀態、blocking questions 與 SCN 情境驗證。只有需求問題都處理完、規格驗證通過後，才由使用者手動建立 GitLab Issue；規格流程不會自動建立 Issue。
 

@@ -269,8 +269,13 @@ export class IssuePanels implements vscode.Disposable {
 
   private async handleRequest(raw: unknown, revision?: number): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
-    if (revision !== undefined && revision !== this.revision) return;
     const request = raw as IssuePanelRequest;
+    if (revision !== undefined && revision !== this.revision) {
+      if (request.type === 'copyDescription' && typeof request.requestId === 'string') {
+        this.post({ type: 'reply', requestId: request.requestId, error: 'The displayed issue changed. Try copying the current issue again.' });
+      }
+      return;
+    }
     if (request.type === 'ready') {
       this.ready = true;
       if (this.loadingTask) {
@@ -543,6 +548,25 @@ export class IssuePanels implements vscode.Disposable {
 
   private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
     if (request.type === 'refresh') return this.load(true);
+    if (request.type === 'copyDescription') {
+      const requestId = requiredString(request.requestId, 'Request ID');
+      const issue = this.issue;
+      const revision = this.revision;
+      try {
+        if (!issue || this.mode !== 'detail') throw new Error('Open an issue first.');
+        if (requiredId(request.issueId, 'Issue') !== issue.id) throw new Error('The displayed issue changed. Refresh before trying this action.');
+        const description = issue.description ?? '';
+        if (!description.trim()) throw new Error('此 Issue 沒有可複製的描述。');
+        await vscode.env.clipboard.writeText(description);
+        if (revision === this.revision && this.mode === 'detail' && this.issue?.id === issue.id) {
+          this.workspace?.post({ type: 'message', message: 'Issue 描述已複製到剪貼簿。' });
+        }
+        this.post({ type: 'reply', requestId, result: true });
+      } catch (error) {
+        this.post({ type: 'reply', requestId, error: safeError(error) });
+      }
+      return;
+    }
     if (request.type === 'openIssueInGitLab') {
       const issue = this.issue;
       if (!issue || this.mode !== 'detail') throw new Error('Open an issue first.');

@@ -10,7 +10,7 @@ import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, G
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
-import { GroupWorkspaceRegistry, groupRepositoryPath, localRepositoryState, localRepositoryStateAsync, projectFolderNames, sameRealLocalPath } from './workspacePaths';
+import { groupRepositoryPath, inspectWorkspaceFolder, localRepositoryState, localRepositoryStateAsync, projectFolderNames, resolveGroupWorkspaceRoot, sameRealLocalPath, scanLocalGroupRepositories, type LocalGroupRepository } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
@@ -39,7 +39,6 @@ interface PendingMrWrite { key: string; marker: string; groupId: number; userId:
 
 export class WorkspacePanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
-  private readonly roots: GroupWorkspaceRegistry;
   private readonly timer: IssueTimeTracker;
   private readonly packages: WorkflowKitPackageManager;
   private interval?: NodeJS.Timeout;
@@ -49,6 +48,15 @@ export class WorkspacePanel implements vscode.Disposable {
   private localRepositoryStates: WorkspaceSnapshot['localRepositories'] = {};
   private localRepositoriesKey?: string;
   private localRepositoryScanGeneration = 0;
+  private actualRepositories: LocalGroupRepository[] = [];
+  private actualRepositoriesRoot?: string;
+  private actualRepositoryScanStatus: WorkspaceSnapshot['groupRepositoryScanStatus'] = 'idle';
+  private actualRepositoryScanError?: string;
+  private actualRepositoryScanGeneration = 0;
+  private groupRoot?: string;
+  private workspaceRootError?: string;
+  private workspaceFoldersGeneration = 0;
+  private pendingWorkspaceRefresh = false;
   private groups: WorkspaceSnapshot['groups'] = [];
   private projects: GitLabProject[] = [];
   private groupMilestones: GitLabMilestone[] = [];
@@ -80,7 +88,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private meginWorkItems: MeginWorkSummary[] = [];
   private busy = false;
   private repositoryOperationInProgress = false;
-  private workspaceSelectionInProgress = false;
   private cloneOperation?: CloneOperationState;
   private webviewReady = false;
   private readonly cloneSelectionWaiters = new Map<string, { resolve: (projectIds: number[]) => void; timeout: NodeJS.Timeout }>();
@@ -102,8 +109,8 @@ export class WorkspacePanel implements vscode.Disposable {
     private readonly issuePanels: IssuePanels,
     private readonly syncSidebarState?: () => void | Promise<void>
   ) {
-    this.roots = new GroupWorkspaceRegistry(context.globalState);
     this.timer = new IssueTimeTracker(context.globalState);
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
     const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
     if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
       void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'bundled')).catch(() => undefined);
@@ -132,6 +139,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.issueOpenAbort?.abort();
     if (this.issueGraphPublishTimer) clearTimeout(this.issueGraphPublishTimer);
     this.localRepositoryScanGeneration++;
+    this.actualRepositoryScanGeneration++;
     if (this.interval) clearInterval(this.interval);
     this.webviewReady = false;
     for (const waiter of this.cloneSelectionWaiters.values()) {
@@ -267,6 +275,9 @@ export class WorkspacePanel implements vscode.Disposable {
         this.activeMode = request.mode;
         await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
         this.sendSnapshot();
+        if (request.mode === 'sa' && this.groupRoot && this.actualRepositoryScanStatus !== 'scanning') {
+          void this.refreshActualRepositories(this.groupRoot, this.connectedScopeKey() ?? 'offline');
+        }
         break;
       case 'issueRequest':
         try { await this.issuePanels.handle(request.request, request.revision); }
@@ -317,7 +328,6 @@ export class WorkspacePanel implements vscode.Disposable {
         }
         break;
       }
-      case 'selectWorkspace': await this.selectWorkspace(); break;
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
       case 'openCodexTerminal': await this.openCodexTerminal(); break;
       case 'copyAndOpenCodex':
@@ -389,11 +399,13 @@ export class WorkspacePanel implements vscode.Disposable {
       const currentTask = this.refreshTask;
       if (!options.forceRepositories) return currentTask;
       return currentTask.then(async () => {
-        const group = this.session.selectedGroup;
-        const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+        const root = this.groupRoot;
         const connectedScope = this.connectedScopeKey();
         const repositoryKey = connectedScope && root ? this.repositoryStateKey(connectedScope, root, this.projects) : undefined;
-        if (root && connectedScope && repositoryKey) await this.refreshLocalRepositoryStates(root, this.projects, connectedScope, repositoryKey);
+        if (root && connectedScope && repositoryKey) await Promise.all([
+          this.refreshLocalRepositoryStates(root, this.projects, connectedScope, repositoryKey),
+          this.refreshActualRepositories(root, connectedScope)
+        ]);
       });
     }
     this.refreshAbort?.abort();
@@ -427,12 +439,15 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       if (!this.session.baseUrl) {
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
+        this.groupRoot = undefined; this.workspaceRootError = undefined;
+        this.actualRepositories = []; this.actualRepositoriesRoot = undefined; this.actualRepositoryScanStatus = 'idle'; this.actualRepositoryScanError = undefined;
         this.meginWorkItems = [];
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
         this.localRepositoryScanGeneration++;
+        this.actualRepositoryScanGeneration++;
         await this.refreshWorkflowKit(false);
         this.sendSnapshot();
         return;
@@ -459,6 +474,9 @@ export class WorkspacePanel implements vscode.Disposable {
         this.localRepositoryStates = {};
         this.localRepositoriesKey = undefined;
         this.localRepositoryScanGeneration++;
+        this.groupRoot = undefined; this.workspaceRootError = undefined;
+        this.actualRepositories = []; this.actualRepositoriesRoot = undefined; this.actualRepositoryScanStatus = 'idle'; this.actualRepositoryScanError = undefined;
+        this.actualRepositoryScanGeneration++;
         this.issueGraphGeneration++;
         this.issueGraphAbort?.abort();
         this.issueBoardAbort?.abort();
@@ -474,16 +492,18 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (!group) {
         this.projects = []; this.issues = []; this.mergeRequests = [];
+        this.groupRoot = undefined; this.workspaceRootError = undefined;
+        this.actualRepositories = []; this.actualRepositoriesRoot = undefined; this.actualRepositoryScanStatus = 'idle'; this.actualRepositoryScanError = undefined;
         this.meginWorkItems = [];
         this.groupMilestones = []; this.groupMilestonesError = undefined;
         this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
         this.localRepositoryStates = {}; this.localRepositoriesKey = undefined;
         this.localRepositoryScanGeneration++;
+        this.actualRepositoryScanGeneration++;
         await this.refreshWorkflowKit(false);
         return;
       }
-      const root = this.roots.getRoot(this.session.baseUrl, group.id);
       const groupMilestonesPromise = this.session.cachedRead(
         `group/${group.id}/milestones`, (readClient) => readClient.listGroupMilestones(group.id), readOptions
       )
@@ -511,10 +531,40 @@ export class WorkspacePanel implements vscode.Disposable {
       this.groupMilestonesError = milestoneResult.error;
       this.groupIssueBoards = boardResult.boards;
       this.groupIssueBoardsError = boardResult.error;
+      const workspaceGeneration = this.workspaceFoldersGeneration;
+      const resolution = await this.resolveWorkspaceRoot(projects);
+      if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
+      if (workspaceGeneration !== this.workspaceFoldersGeneration) {
+        this.pendingWorkspaceRefresh = true;
+        return;
+      }
+      const root = resolution.root;
+      if (this.repositoryOperationInProgress && (!root || !this.groupRoot || !sameRealLocalPath(root, this.groupRoot))) {
+        this.pendingWorkspaceRefresh = true;
+        return;
+      }
+      const rootChanged = !root || !this.groupRoot || !sameRealLocalPath(root, this.groupRoot);
+      if (rootChanged) {
+        this.localRepositoryStates = {};
+        this.localRepositoriesKey = undefined;
+        this.localRepositoryScanGeneration++;
+        this.actualRepositories = [];
+        this.actualRepositoriesRoot = undefined;
+        this.actualRepositoryScanStatus = root ? 'scanning' : 'idle';
+        this.actualRepositoryScanError = undefined;
+        this.actualRepositoryScanGeneration++;
+      }
+      this.groupRoot = root;
+      this.workspaceRootError = resolution.error;
       const repositoryKey = this.repositoryStateKey(scopeKey, root, projects);
       if (root && repositoryKey && (options.forceRepositories || repositoryKey !== this.localRepositoriesKey)) {
         void this.refreshLocalRepositoryStates(root, projects, scopeKey, repositoryKey);
       }
+      if (root && scopeKey && (options.forceRepositories || rootChanged || this.actualRepositoryScanStatus === 'idle' ||
+        (this.actualRepositoryScanStatus === 'error' && this.activeMode === 'sa'))) {
+        void this.refreshActualRepositories(root, scopeKey);
+      }
+      this.sendSnapshot();
       const projectIds = new Set(projects.map((project) => project.id));
       this.issues = await this.session.cachedRead(
         `group/${group.id}/assigned-issues/${[...projectIds].sort((a, b) => a - b).join(',')}`,
@@ -569,12 +619,80 @@ export class WorkspacePanel implements vscode.Disposable {
         this.busy = false;
         this.post({ type: 'busy', value: false });
         this.sendSnapshot();
+        this.schedulePendingWorkspaceRefresh();
         if (reloadIssueGraphScope && reloadIssueGraphScope === this.connectedScopeKey()) {
           const scope = this.connectedScopeKey();
           if (scope) void this.loadIssueGraph(scope, options.forceNetwork === true);
         }
       }
     }
+  }
+
+  private async resolveWorkspaceRoot(projects: readonly GitLabProject[]): Promise<{ root?: string; error?: string }> {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length) return resolveGroupWorkspaceRoot([]);
+    const inspections = await Promise.all(folders.map(async (folder) => {
+      if (folder.uri.scheme !== 'file') {
+        return { kind: 'unavailable' as const, path: folder.uri.toString(), error: 'GitLab Workspace 需要 VSCode 的本機資料夾才能辨識 Group。' };
+      }
+      try { return await inspectWorkspaceFolder(folder.uri.fsPath, projects, projectRemoteMatches); }
+      catch (error) {
+        return { kind: 'unavailable' as const, path: folder.uri.fsPath, error: readableError(error) };
+      }
+    }));
+    return resolveGroupWorkspaceRoot(inspections);
+  }
+
+  private async refreshActualRepositories(root: string, connectedScope: string): Promise<void> {
+    const generation = ++this.actualRepositoryScanGeneration;
+    const workspaceGeneration = this.workspaceFoldersGeneration;
+    this.actualRepositories = [];
+    this.actualRepositoriesRoot = root;
+    this.actualRepositoryScanStatus = 'scanning';
+    this.actualRepositoryScanError = undefined;
+    this.sendSnapshot();
+    try {
+      const repositories = await scanLocalGroupRepositories(root);
+      if (this.disposed || generation !== this.actualRepositoryScanGeneration || workspaceGeneration !== this.workspaceFoldersGeneration ||
+        connectedScope !== this.connectedScopeKey() || !this.groupRoot || !sameRealLocalPath(root, this.groupRoot)) return;
+      this.actualRepositories = repositories;
+      this.actualRepositoryScanStatus = 'ready';
+    } catch (error) {
+      if (this.disposed || generation !== this.actualRepositoryScanGeneration || workspaceGeneration !== this.workspaceFoldersGeneration ||
+        connectedScope !== this.connectedScopeKey() || !this.groupRoot || !sameRealLocalPath(root, this.groupRoot)) return;
+      this.actualRepositories = [];
+      this.actualRepositoryScanStatus = 'error';
+      this.actualRepositoryScanError = readableError(error);
+    }
+    this.sendSnapshot();
+  }
+
+  private onWorkspaceFoldersChanged(): void {
+    this.workspaceFoldersGeneration++;
+    this.localRepositoryScanGeneration++;
+    this.actualRepositoryScanGeneration++;
+    this.pendingWorkspaceRefresh = true;
+    if (this.busy || this.repositoryOperationInProgress) return;
+    this.groupRoot = undefined;
+    this.workspaceRootError = '正在辨識目前 VSCode 工作區…';
+    this.localRepositoryStates = {};
+    this.localRepositoriesKey = undefined;
+    this.actualRepositories = [];
+    this.actualRepositoriesRoot = undefined;
+    this.actualRepositoryScanStatus = 'idle';
+    this.actualRepositoryScanError = undefined;
+    this.sendSnapshot();
+    this.schedulePendingWorkspaceRefresh();
+  }
+
+  private schedulePendingWorkspaceRefresh(): void {
+    if (!this.pendingWorkspaceRefresh || this.disposed || this.busy || this.repositoryOperationInProgress) return;
+    setTimeout(() => {
+      if (!this.pendingWorkspaceRefresh || this.disposed) return;
+      if (this.busy || this.repositoryOperationInProgress) return;
+      this.pendingWorkspaceRefresh = false;
+      void this.refresh({ forceRepositories: true }).catch((error: unknown) => this.post({ type: 'error', message: readableError(error) }));
+    }, 0);
   }
 
   private repositoryStateKey(
@@ -602,8 +720,7 @@ export class WorkspacePanel implements vscode.Disposable {
         return [project.id, { path: '', state: 'unsafe' as const }] as const;
       }
     });
-    const group = this.session.selectedGroup;
-    const currentRoot = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    const currentRoot = this.groupRoot;
     if (this.disposed || generation !== this.localRepositoryScanGeneration || connectedScope !== this.connectedScopeKey() ||
       repositoryKey !== this.repositoryStateKey(connectedScope, currentRoot, this.projects)) return;
     this.localRepositoryStates = Object.fromEntries(states);
@@ -1006,7 +1123,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private sendSnapshot(): void {
     if (!this.panel || this.disposed) return;
     const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
+    const root = this.groupRoot;
     const deliveryScope = this.deliveryInstanceScope();
     const localRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', root, this.projects);
     const localRepositories = localRepositoryKey === this.localRepositoriesKey ? this.localRepositoryStates : {};
@@ -1022,6 +1139,13 @@ export class WorkspacePanel implements vscode.Disposable {
       group,
       groups: this.groups,
       groupRoot: root,
+      workspaceRootError: this.workspaceRootError,
+      groupRepositories: this.actualRepositoryScanStatus === 'ready' && this.actualRepositoriesRoot && root && sameRealLocalPath(this.actualRepositoriesRoot, root)
+        ? this.actualRepositories : [],
+      groupRepositoryScanStatus: root && this.actualRepositoriesRoot && sameRealLocalPath(this.actualRepositoriesRoot, root)
+        ? this.actualRepositoryScanStatus : 'idle',
+      groupRepositoryScanError: root && this.actualRepositoriesRoot && sameRealLocalPath(this.actualRepositoriesRoot, root) && this.actualRepositoryScanStatus === 'error'
+        ? this.actualRepositoryScanError : undefined,
       projects: this.projects,
       groupMilestones: this.groupMilestones,
       groupMilestonesError: this.groupMilestonesError,
@@ -1054,7 +1178,7 @@ export class WorkspacePanel implements vscode.Disposable {
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
       cloneOperation: this.cloneOperation,
-      busy: this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress
+      busy: this.busy || this.repositoryOperationInProgress
     };
     this.post({ type: 'snapshot', snapshot });
   }
@@ -1068,7 +1192,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async connect(): Promise<void> {
-    if (this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('Repo 操作或工作目錄選擇完成後才能切換連線或 Group。');
+    if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
     const baseUrl = await vscode.window.showInputBox({ title: '連線至 GitLab', prompt: '輸入 GitLab 網址', value: this.session.baseUrl, placeHolder: 'https://gitlab.example.com', ignoreFocusOut: true });
     if (!baseUrl) return;
     const token = await vscode.window.showInputBox({ title: 'GitLab Personal Access Token', prompt: 'Token 儲存在 VS Code SecretStorage。', password: true, ignoreFocusOut: true });
@@ -1095,7 +1219,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async disconnect(): Promise<void> {
-    if (this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('Repo 操作或工作目錄選擇完成後才能切換連線或 Group。');
+    if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
     const confirm = await vscode.window.showWarningMessage('中斷 GitLab 連線？本機 Repo、草稿及計時紀錄會保留。', { modal: true }, '中斷連線');
     if (confirm !== '中斷連線') return;
     this.refreshAbort?.abort();
@@ -1108,6 +1232,10 @@ export class WorkspacePanel implements vscode.Disposable {
     this.issueOpenAbort?.abort();
     this.issuePanels.close();
     await this.session.disconnect();
+    this.groupRoot = undefined; this.workspaceRootError = undefined;
+    this.actualRepositories = []; this.actualRepositoriesRoot = undefined;
+    this.actualRepositoryScanStatus = 'idle'; this.actualRepositoryScanError = undefined;
+    this.actualRepositoryScanGeneration++; this.workspaceFoldersGeneration++;
     this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
     this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
     this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
@@ -1117,7 +1245,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async selectGroup(groupId?: number): Promise<boolean> {
-    if (this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('Repo 操作或工作目錄選擇完成後才能切換連線或 Group。');
+    if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
     const groups = this.session.baseUrl ? await this.session.cachedRead('groups', (client) => client.listGroups()) : [];
     const selected = groupId ? groups.find((item) => item.id === groupId) : await vscode.window.showQuickPick(
       groups.map((group) => ({ label: group.full_path, description: group.name, group })),
@@ -1138,41 +1266,13 @@ export class WorkspacePanel implements vscode.Disposable {
     return true;
   }
 
-  private async selectWorkspace(allowDuringRepositoryOperation = false): Promise<void> {
-    if (this.workspaceSelectionInProgress || this.busy || (this.repositoryOperationInProgress && !allowDuringRepositoryOperation)) {
-      throw new Error('目前有操作進行中，完成後才能變更工作目錄。');
-    }
-    this.workspaceSelectionInProgress = true;
-    this.sendSnapshot();
-    try {
-      const selected = await vscode.window.showOpenDialog({
-        canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
-        openLabel: '選擇 Group 工作目錄',
-        defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri
-      });
-      const group = this.session.selectedGroup;
-      if (!selected?.[0] || !group || !this.session.baseUrl) return;
-      const root = selected[0].fsPath;
-      if (await exists(path.join(root, '.git'))) throw new Error('Group 工作目錄不可直接選擇 Git Repo；請選擇上層資料夾。');
-      await this.roots.setRoot(this.session.baseUrl, group.id, root);
-      await this.refresh();
-    } finally {
-      this.workspaceSelectionInProgress = false;
-      this.sendSnapshot();
-    }
-  }
-
   private async openLocalWorkspace(): Promise<void> {
-    const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!root) throw new Error('請先選擇 Group 工作目錄。');
+    const root = this.requireGroupRoot();
     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), false);
   }
 
   private async openCodexTerminal(): Promise<void> {
-    const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!root) throw new Error('請先選擇 Group 工作目錄。');
+    const root = this.requireGroupRoot();
     if (process.platform === 'win32') {
       const options = windowsCodexTerminalOptions();
       if (!options) {
@@ -1190,19 +1290,13 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async clone(projectIds: number[], cloneAll: boolean): Promise<void> {
     const group = this.session.selectedGroup;
-    let root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
-    if (this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    if (this.busy || this.repositoryOperationInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    const root = this.requireGroupRoot();
     this.repositoryOperationInProgress = true;
     this.sendSnapshot();
     let operation: CloneOperationState | undefined;
     try {
-      if (!root) {
-        this.post({ type: 'message', message: '請選擇這個 Group 的下載位置，完成後即可繼續。' });
-        await this.selectWorkspace(true);
-        root = this.session.baseUrl ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-        if (!root) return;
-      }
       if (this.session.selectedGroup?.id !== group.id) throw new Error('Group 已變更，請重新選取專案。');
       const client = await this.session.getClient();
       const projects = this.projects.length ? this.projects : await this.session.cachedRead(
@@ -1279,15 +1373,15 @@ export class WorkspacePanel implements vscode.Disposable {
       throw error;
     } finally {
       try { await this.refresh({ forceRepositories: true }); }
-      finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); }
+      finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); this.schedulePendingWorkspaceRefresh(); }
     }
   }
 
   private async syncRepos(): Promise<void> {
     const group = this.session.selectedGroup;
-    let root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
-    if (this.busy || this.repositoryOperationInProgress || this.workspaceSelectionInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    if (this.busy || this.repositoryOperationInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    const root = this.requireGroupRoot();
     this.repositoryOperationInProgress = true;
     this.sendSnapshot();
     let operation: CloneOperationState | undefined;
@@ -1297,12 +1391,6 @@ export class WorkspacePanel implements vscode.Disposable {
       this.post({ type: 'cloneOperation', ...this.cloneOperation });
     };
     try {
-      if (!root) {
-        this.post({ type: 'message', message: '請選擇這個 Group 的工作目錄，才能更新本機預設分支。' });
-        await this.selectWorkspace(true);
-        root = this.session.baseUrl ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-        if (!root) return;
-      }
       const groupProjects = this.projects;
       const folderNames = projectFolderNames(groupProjects);
       const localStates = await mapWithConcurrency(groupProjects, 8, async (project) => {
@@ -1361,7 +1449,7 @@ export class WorkspacePanel implements vscode.Disposable {
       throw error;
     } finally {
       try { await this.refresh({ forceRepositories: true }); }
-      finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); }
+      finally { this.repositoryOperationInProgress = false; this.sendSnapshot(); this.schedulePendingWorkspaceRefresh(); }
     }
   }
 
@@ -1801,10 +1889,12 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private meginGroupRoot(): string {
-    const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!root) throw new Error('請先選擇 Group 工作目錄。');
-    return root;
+    return this.requireGroupRoot();
+  }
+
+  private requireGroupRoot(): string {
+    if (this.groupRoot) return this.groupRoot;
+    throw new Error(this.workspaceRootError ?? '請在 VSCode 開啟此 GitLab Group 的本機資料夾，或該 Group 對應的 Repo。');
   }
 
   private async runMeginHandoff(action: 'inspect' | 'commit' | 'completed', workId: string, digest?: string, messageFile?: string): Promise<MeginHandoff> {
@@ -2122,8 +2212,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async refreshWorkflowKit(publish = true, selectedRoot?: string): Promise<void> {
-    const group = this.session.selectedGroup;
-    const root = selectedRoot ?? (this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined);
+    const root = selectedRoot ?? this.groupRoot;
     this.workflowKitPackages = await this.packages.listPackages();
     if (!root) {
       this.workflowKitState = { status: 'missing' };
@@ -2173,9 +2262,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private async installWorkflowKit(packageId: string): Promise<void> {
     if (typeof packageId !== 'string' || !packageId) throw new Error('Select a workflow kit version first.');
-    const group = this.session.selectedGroup;
-    const root = this.session.baseUrl && group ? this.roots.getRoot(this.session.baseUrl, group.id) : undefined;
-    if (!root) throw new Error('Select a non-Git Group workspace first.');
+    const root = this.requireGroupRoot();
     this.workflowKitState = { ...this.workflowKitState, status: 'installing' };
     this.sendSnapshot();
     try {
