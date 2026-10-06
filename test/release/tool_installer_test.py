@@ -170,7 +170,7 @@ class ToolInstallerTests(unittest.TestCase):
         sources = Path(__file__).resolve().parents[2] / "resources" / "offline-tools" / "sources"
         expected = {
             "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.3.0", "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07"),
-            "megin": ("megin-skills.zip", "0.2.0", "7d0323f0f8d97a90adee8eca980c3b929c4d22130e2422cf729b35a4673347a4"),
+            "megin": ("megin-skills.zip", "0.3.0", "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5"),
             "merge-reviewer": ("merge-reviewer-0.5.0.zip", "0.5.0", "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f"),
         }
         for tool, (filename, version, sha256) in expected.items():

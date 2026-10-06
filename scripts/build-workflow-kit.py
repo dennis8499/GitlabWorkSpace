@@ -38,8 +38,8 @@ PINNED_SOURCES = (
         "id": "megin",
         "repository": "Megin",
         "asset": "megin-skills.zip",
-        "version": "0.2.0",
-        "sha256": "7d0323f0f8d97a90adee8eca980c3b929c4d22130e2422cf729b35a4673347a4",
+        "version": "0.3.0",
+        "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5",
     },
     {
         "id": "merge-reviewer",
@@ -212,7 +212,7 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "sourceSummary": [
             "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
-            "Megin Skills 0.2.0; preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
+            "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
             "MergeReviewer 0.5.0; pin Merge Request source and target SHAs before findings or report publication."
         ],
         "customProfile": {

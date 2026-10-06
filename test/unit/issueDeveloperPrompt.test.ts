@@ -21,6 +21,9 @@ test('developer tasks include Group, Repo, GitLab identity, Issue discussions, a
   assert.match(prompt, /C:\\workspace with spaces\\付款 Group/);
   assert.match(prompt, /本機 Repo 路徑：付款 Repo/);
   assert.match(prompt, /delivery_mode: gitlab_mr/);
+  assert.match(prompt, /完整盤點 Group 下所有有效的直屬本機 Git Repo/);
+  assert.match(prompt, /Issue 所屬 Repo 是需求線索，不是探索範圍/);
+  assert.match(prompt, /無需改動的 Repo 保留在需求清單/);
   const contract = prompt.match(/^GitLab 契約：(.*)$/m)?.[1];
   assert.ok(contract);
   assert.deepEqual(JSON.parse(contract), { origin: 'https://gitlab.example.test', issue_project_id: 481, issue_iid: 27 });

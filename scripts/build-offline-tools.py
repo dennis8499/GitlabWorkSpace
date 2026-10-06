@@ -60,9 +60,9 @@ RELEASES = (
     ReleaseSource(
         "megin",
         "Megin",
-        "0.2.0",
+        "0.3.0",
         "megin-skills.zip",
-        "7d0323f0f8d97a90adee8eca980c3b929c4d22130e2422cf729b35a4673347a4",
+        "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5",
     ),
     ReleaseSource(
         "merge-reviewer",

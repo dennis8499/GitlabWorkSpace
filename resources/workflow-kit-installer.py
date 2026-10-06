@@ -25,7 +25,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = "0.11.0"
+VERSION = "0.11.1"
 WORKSPACE_CONTRACT = 1
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
@@ -46,17 +46,17 @@ LEGACY_MARKERS = (
 )
 UPSTREAM = {
     "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex.zip", "version": "0.3.0", "sha256": "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07", "root": "codebase-llm-wiki-codex-0.3.0"},
-    "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.2.0", "sha256": "7d0323f0f8d97a90adee8eca980c3b929c4d22130e2422cf729b35a4673347a4", "root": ""},
+    "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.3.0", "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5", "root": ""},
     "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.5.0.zip", "version": "0.5.0", "sha256": "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f", "root": ""},
 }
 PROFILE_HASHES = {
-    "profile.md": "098cfca094e05410efbf77bc699902e757fe61b7c1a138ac72b89e9d77556009",
+    "profile.md": "4ecc186f14ef5a2cb206eb0e99371995a7c11539ca76ddf3d94da197f2c3ade3",
     "group-instructions.md": "faa44b1d25f372f311c5e0d4277e4e55fba54a38e85030516d76e2a342feaee5",
     "legacy-cleanup.md": "94cf39440fa211f72036c524ecdc56a36df971ef2cdc6e4deefb9768fa9ad29a",
 }
 SOURCE_SUMMARY = [
     "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
-    "Megin Skills 0.2.0; preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
+    "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
     "MergeReviewer 0.5.0; pin Merge Request source and target SHAs before findings or report publication.",
 ]
 SPECIAL_RULES = {

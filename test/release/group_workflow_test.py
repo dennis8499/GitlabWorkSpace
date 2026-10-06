@@ -32,7 +32,7 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
             group.mkdir()
             bundle = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
             digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
-            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.11.0", "bundled",
+            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.11.1", "bundled",
                                     "--format", "tar.xz", "--entry-root", "workflow-kit", "--archive-sha256", digest)
             self.assertTrue(installed["ok"])
             self.assertEqual(14, installed["skills"])
