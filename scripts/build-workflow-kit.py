@@ -46,7 +46,7 @@ PINNED_SOURCES = (
         "repository": "MergeReviewer",
         "asset": "merge-reviewer-0.6.0.zip",
         "version": "0.6.0",
-        "sha256": "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf",
+        "sha256": "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0",
     },
 )
 

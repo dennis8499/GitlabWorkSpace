@@ -171,7 +171,7 @@ class ToolInstallerTests(unittest.TestCase):
         expected = {
             "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.3.0", "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07"),
             "megin": ("megin-skills.zip", "0.3.0", "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5"),
-            "merge-reviewer": ("merge-reviewer-0.6.0.zip", "0.6.0", "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf"),
+            "merge-reviewer": ("merge-reviewer-0.6.0.zip", "0.6.0", "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0"),
         }
         for tool, (filename, version, sha256) in expected.items():
             with self.subTest(tool=tool):

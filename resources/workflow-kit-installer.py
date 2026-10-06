@@ -47,7 +47,7 @@ LEGACY_MARKERS = (
 UPSTREAM = {
     "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex.zip", "version": "0.3.0", "sha256": "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07", "root": "codebase-llm-wiki-codex-0.3.0"},
     "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.3.0", "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5", "root": ""},
-    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.6.0.zip", "version": "0.6.0", "sha256": "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf", "root": ""},
+    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.6.0.zip", "version": "0.6.0", "sha256": "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0", "root": ""},
 }
 PROFILE_HASHES = {
     "profile.md": "4ecc186f14ef5a2cb206eb0e99371995a7c11539ca76ddf3d94da197f2c3ade3",
