@@ -1,1 +1,3 @@
 resources/workflow-kit/*.md text eol=lf
+resources/workflow-kit/overlays/** text eol=lf
+resources/workflow-kit/overlays/sources/*.zip binary !eol
