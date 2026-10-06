@@ -126,6 +126,55 @@ test('a manual schema recheck clears an unknown diagnostic after a successful re
   assert.equal(capabilityRequests, 2);
 });
 
+test('persists validated capabilities for one hour per GitLab account and instance revision', async () => {
+  const state = new MemoryStore();
+  await state.update('gitlabWorkspace.baseUrl', 'https://gitlab.example.test');
+  await state.update('gitlabWorkspace.currentUserId', 7);
+  const capabilities = {
+    workItemScope: 'project', workItemCreatePathField: 'projectPath', issuePermissionSource: 'issue',
+    issuePermissionFields: ['updateIssue', 'createNote'], workItemPermissionFields: [], workItemFields: [], workItemGraphFields: [],
+    hierarchy: true, childMutations: true, graphWorkItems: true, graphHierarchy: true, graphLinkedItems: true,
+    graphLabels: true, graphAssignees: true, graphWorkItemTypes: true, discussionResolve: true, startDate: true,
+    timelogReport: true, timelogSource: 'issue', timelogUserFields: ['username'], timelogCreate: true,
+    timelogCreateDated: true, timelogCreateSummary: true, timelogAdminPermission: true, timelogDelete: true, createPermission: true
+  } satisfies GitLabIssueCapabilities;
+  let metadata: GitLabMetadata = { version: '16.11.10', revision: 'revision-a', enterprise: false };
+  let capabilityRequests = 0;
+  const client = {
+    getMetadata: async () => metadata,
+    getIssueCapabilities: async () => { capabilityRequests++; return capabilities; }
+  } as unknown as GitLabClient;
+  const createSession = (): GitLabSession => {
+    const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, state);
+    (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => client;
+    return session;
+  };
+  const originalNow = Date.now;
+  let now = 1_800_000_000_000;
+  Date.now = () => now;
+  try {
+    await createSession().ensureInstanceChecked();
+    assert.equal(capabilityRequests, 1);
+    await createSession().ensureInstanceChecked();
+    assert.equal(capabilityRequests, 1, 'the next session reuses the same account and revision snapshot');
+
+    await createSession().ensureInstanceChecked({ force: true });
+    assert.equal(capabilityRequests, 2, 'manual detection bypasses the persistent snapshot');
+
+    await state.update('gitlabWorkspace.currentUserId', 8);
+    await createSession().ensureInstanceChecked();
+    assert.equal(capabilityRequests, 3, 'a different account gets an independent snapshot');
+
+    metadata = { ...metadata, revision: 'revision-b' };
+    await createSession().ensureInstanceChecked();
+    assert.equal(capabilityRequests, 4, 'a server upgrade invalidates the earlier snapshot');
+
+    now += 60 * 60 * 1000 + 1;
+    await createSession().ensureInstanceChecked();
+    assert.equal(capabilityRequests, 5, 'snapshots expire after one hour');
+  } finally { Date.now = originalNow; }
+});
+
 test('discards version and capability probe results from an earlier connection epoch', async () => {
   let releaseOldMetadata: ((value: GitLabMetadata) => void) | undefined;
   let releaseOldCapabilities: ((value: GitLabIssueCapabilities) => void) | undefined;
@@ -231,4 +280,29 @@ test('keeps the selected group when reconnecting to the same normalized GitLab s
   } finally {
     await stop(running.server);
   }
+});
+
+test('clears the selected Group when the account changes on the same GitLab server', async () => {
+  const server = createServer(async (request, responseStream) => {
+    const supplied = request.headers['private-token'];
+    const token = Array.isArray(supplied) ? supplied[0] : supplied;
+    const result = request.url === '/api/v4/user'
+      ? { status: 200, body: { id: token === 'unit-account-one' ? 1 : 2, username: `user-${token === 'unit-account-one' ? 1 : 2}`, name: 'Test User' } }
+      : request.url === '/api/v4/metadata'
+        ? { status: 200, body: { version: '19.4.1', revision: 'test' } }
+        : { status: 200, body: { data: {} } };
+    responseStream.writeHead(result.status, { 'Content-Type': 'application/json' });
+    responseStream.end(JSON.stringify(result.body));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  const state = new MemoryStore();
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, state);
+  try {
+    await session.connect(`http://127.0.0.1:${address.port}`, 'unit-account-one');
+    await session.setSelectedGroup({ id: 55, name: 'First account group', full_path: 'first/group', web_url: '' });
+    await session.connect(`http://127.0.0.1:${address.port}`, 'unit-account-two');
+    assert.equal(session.selectedGroup, undefined);
+    assert.equal(state.get('gitlabWorkspace.currentUserId'), 2);
+  } finally { await stop(server); }
 });

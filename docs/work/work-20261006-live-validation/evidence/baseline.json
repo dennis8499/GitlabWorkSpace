@@ -1,0 +1,38 @@
+{
+  "schema": "GitLabWorkspaceLiveBaseline/v1",
+  "capturedDuring": "2026-10-06 live-validation setup, before isolated fixture creation",
+  "scope": "grp-sn-maint before this work created any fixtures",
+  "environments": [
+    {
+      "environment": "ce19",
+      "baseUrl": "http://127.0.0.1:8929",
+      "version": "19.4.1",
+      "revision": "191678a3764",
+      "currentUserId": 35,
+      "groupId": 38,
+      "projectCount": 18,
+      "childGroupCount": 0,
+      "issueCount": 0,
+      "mergeRequestCount": 0,
+      "preflightApiRequests": 8,
+      "preflightResponseBytes": 174086,
+      "preflightApiLatencyMs": { "median": 109.63, "p95": 611.72 }
+    },
+    {
+      "environment": "ce16",
+      "baseUrl": "http://127.0.0.1:8930",
+      "version": "16.11.10",
+      "revision": "47403677d65",
+      "currentUserId": 2,
+      "groupId": 3,
+      "projectCount": 18,
+      "childGroupCount": 0,
+      "issueCount": 0,
+      "mergeRequestCount": 0,
+      "preflightApiRequests": 8,
+      "preflightResponseBytes": 157128,
+      "preflightApiLatencyMs": { "median": 204.04, "p95": 539.03 }
+    }
+  ],
+  "credentialEvidence": "owner membership verified via the GitLab group-member API; tokens omitted"
+}

@@ -17,8 +17,9 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openRepository: 'gitlabWorkspace.openGitMode'
 };
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const session = new GitLabSession(context.secrets, context.globalState);
+export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
+  const testMode = context.extensionMode === vscode.ExtensionMode.Test;
+  const session = new GitLabSession(context.secrets, context.globalState, testMode);
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
   const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange());
   let workspacePanel: WorkspacePanel | undefined;
@@ -86,6 +87,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.registerCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),
     vscode.commands.registerCommand('gitlabWorkspace.openRepository', (repoId?: string) => getWorkspace().navigateTo('git', repoId))
   );
+  if (testMode) return {
+    session,
+    setFetchForTesting: (fetcher: typeof fetch) => session.setFetchForTesting(fetcher),
+    getGitRepositoryState: () => gitRepositories.getSummaryState(),
+    setGitWarningPromptHandlerForTesting: (handler: (message: string, options: vscode.MessageOptions, ...items: string[]) => Thenable<string | undefined>) =>
+      gitRepositories.setWarningPromptHandlerForTesting(handler),
+    setGitActionTraceHandlerForTesting: (handler: (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void) =>
+      gitRepositories.setActionTraceHandlerForTesting(handler)
+  };
 }
 
 export function deactivate(): void {}

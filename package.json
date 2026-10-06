@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.13.1",
+  "version": "0.13.2",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -156,6 +156,10 @@
     "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
     "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs test/behavior/dashboard.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
     "test:extension": "npm run compile && vscode-test",
+    "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
+    "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
+    "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
+    "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
     "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/merge-reviewer/test_group_review.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
@@ -173,6 +177,7 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
     "jsdom": "^30.1.1",
+    "playwright-core": "1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.1"

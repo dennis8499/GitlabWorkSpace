@@ -1,0 +1,206 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-06T16:26:01.982Z",
+  "environment": "ce19",
+  "baseUrl": "http://127.0.0.1:8929",
+  "version": "19.4.1",
+  "revision": "191678a3764",
+  "vscodeVersion": "1.140.0",
+  "currentUserId": 35,
+  "selectedGroup": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+  "projects": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+  "visibleRepoCount": "3 個 Repo",
+  "schemaBytes": {
+    "initial": 8175375,
+    "afterManualDetection": 8175436
+  },
+  "schemaGraphQlRequests": 3,
+  "api": [
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 401,
+      "bytes": 30,
+      "elapsedMs": 220.78
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1339,
+      "elapsedMs": 92.16
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 96.86
+    },
+    {
+      "path": "graphql",
+      "method": "POST",
+      "status": 200,
+      "bytes": 8175375,
+      "elapsedMs": 2744.58
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1339,
+      "elapsedMs": 148.56
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 130.29
+    },
+    {
+      "path": "groups",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5172,
+      "elapsedMs": 408.59
+    },
+    {
+      "path": "groups",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5172,
+      "elapsedMs": 339.84
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1339,
+      "elapsedMs": 126.54
+    },
+    {
+      "path": "groups/58/issues",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 204.09
+    },
+    {
+      "path": "groups/58/projects",
+      "method": "GET",
+      "status": 200,
+      "bytes": 15624,
+      "elapsedMs": 370.27
+    },
+    {
+      "path": "groups/58/boards",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 171.37
+    },
+    {
+      "path": "groups/58/milestones",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 173.58
+    },
+    {
+      "path": "projects/22/templates/issues",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 262.1
+    },
+    {
+      "path": "projects/22/milestones",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 361.21
+    },
+    {
+      "path": "projects/22/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 392.79
+    },
+    {
+      "path": "projects/22/members/all",
+      "method": "GET",
+      "status": 200,
+      "bytes": 360,
+      "elapsedMs": 394.24
+    },
+    {
+      "path": "graphql",
+      "method": "POST",
+      "status": 200,
+      "bytes": 61,
+      "elapsedMs": 173.17
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 175.2
+    },
+    {
+      "path": "graphql",
+      "method": "POST",
+      "status": 200,
+      "bytes": 8175375,
+      "elapsedMs": 2132.53
+    }
+  ],
+  "webview": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "frameBytes": 4692
+  },
+  "warmNavigationMs": {
+    "samples": [
+      147.58,
+      245.9,
+      222.78,
+      245.39,
+      198.67,
+      245.07,
+      248.59,
+      265.7,
+      206.38,
+      388.06,
+      233.24,
+      275.4,
+      403.98,
+      190.33,
+      210.22,
+      287.88,
+      264.73,
+      209.78,
+      249.01,
+      258.58,
+      283.35,
+      323.22,
+      266.57,
+      233.43,
+      260.61,
+      236.79,
+      370.79,
+      227.49,
+      328.39,
+      244.91
+    ],
+    "median": 245.9,
+    "p95": 388.06
+  },
+  "screenshots": [
+    "screenshots\\ce19-clone.png"
+  ]
+}

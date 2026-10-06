@@ -1,0 +1,25 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-06T18:10:00.872Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "a9c824df5933e60aaa56deafd49bb20c3d96470e75f629baa144032228b4e180"
+  },
+  "mode": "live-smoke",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "BLOCKED",
+      "error": "GitLab read timed out after 30 seconds; CE 19.4.1 did not respond within the client timeout."
+    },
+    {
+      "environment": "ce16",
+      "round": 1,
+      "status": "BLOCKED",
+      "error": "GitLab read timed out after 30 seconds; CE 16.11.10 did not respond within the client timeout."
+    }
+  ]
+}

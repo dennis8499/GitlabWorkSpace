@@ -1,5 +1,5 @@
 import type { Memento, SecretStorage } from 'vscode';
-import { GitLabClient, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
+import { GitLabClient, type FetchLike, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
 import { GitLabReadCache } from '../api/gitLabReadCache';
 import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
@@ -7,8 +7,44 @@ import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 
 const TOKEN_SECRET_KEY = 'gitlabWorkspace.accessToken';
 const BASE_URL_KEY = 'gitlabWorkspace.baseUrl';
+const CURRENT_USER_ID_KEY = 'gitlabWorkspace.currentUserId';
 const GROUP_ID_KEY = 'gitlabWorkspace.selectedGroupId';
 const GROUP_LABEL_KEY = 'gitlabWorkspace.selectedGroupLabel';
+const ISSUE_CAPABILITIES_CACHE_KEY = 'gitlabWorkspace.issueCapabilities.v1';
+const ISSUE_CAPABILITIES_CACHE_TTL_MS = 60 * 60 * 1000;
+
+interface CachedIssueCapabilities {
+  scope: string;
+  expiresAt: number;
+  capabilities: GitLabIssueCapabilities;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isCachedIssueCapabilities(value: unknown): value is CachedIssueCapabilities {
+  if (!isRecord(value) || typeof value.scope !== 'string' || value.scope.length > 2048 || typeof value.expiresAt !== 'number' || !Number.isFinite(value.expiresAt) || !isRecord(value.capabilities)) return false;
+  const capabilities = value.capabilities;
+  const booleanFields = [
+    'hierarchy', 'childMutations', 'graphWorkItems', 'graphHierarchy', 'graphLinkedItems', 'graphLabels',
+    'graphAssignees', 'graphWorkItemTypes', 'discussionResolve', 'startDate', 'timelogReport',
+    'timelogCreate', 'timelogCreateDated', 'timelogCreateSummary', 'timelogAdminPermission', 'timelogDelete', 'createPermission'
+  ];
+  if (!booleanFields.every((field) => typeof capabilities[field] === 'boolean')) return false;
+  const optionalBooleanFields = ['workItemTypeList', 'timelogSummary'];
+  if (!optionalBooleanFields.every((field) => capabilities[field] === undefined || typeof capabilities[field] === 'boolean')) return false;
+  const stringLists = ['issuePermissionFields', 'workItemPermissionFields', 'workItemFields', 'workItemGraphFields', 'timelogUserFields'];
+  const validLists = stringLists.every((field) => {
+    const item = capabilities[field];
+    return item === undefined || Array.isArray(item) && item.length <= 128 && item.every((entry) => typeof entry === 'string' && entry.length <= 256);
+  });
+  return validLists &&
+    (capabilities.workItemScope === undefined || capabilities.workItemScope === 'namespace' || capabilities.workItemScope === 'project') &&
+    (capabilities.workItemCreatePathField === undefined || capabilities.workItemCreatePathField === 'projectPath' || capabilities.workItemCreatePathField === 'namespacePath') &&
+    (capabilities.issuePermissionSource === undefined || capabilities.issuePermissionSource === 'issue' || capabilities.issuePermissionSource === 'workItem') &&
+    (capabilities.timelogSource === undefined || capabilities.timelogSource === 'workItem' || capabilities.timelogSource === 'issue');
+}
 
 export class GitLabSession {
   private readonly readCache = new GitLabReadCache(60_000, 256);
@@ -23,13 +59,20 @@ export class GitLabSession {
   private currentInstanceWarnings: string[] = [];
   private instanceProbeRevision = 0;
   private capabilityProbeError?: string;
+  private testFetcher?: FetchLike;
   private metadataCheck?: Promise<void>;
   private capabilitiesCheck?: Promise<void>;
   private metadataRetryAt = 0;
   private capabilitiesRetryAt = 0;
   private readonly groupProjectIds = new Map<number, Set<number>>();
 
-  constructor(private readonly secrets: SecretStorage, private readonly state: Memento) {}
+  constructor(private readonly secrets: SecretStorage, private readonly state: Memento, private readonly testMode = false) {}
+
+  setFetchForTesting(fetcher: FetchLike): void {
+    if (!this.testMode) throw new Error('Test request instrumentation is available only in the VS Code Extension Host test mode.');
+    this.testFetcher = fetcher;
+    this.cachedClient = undefined;
+  }
 
   get baseUrl(): string | undefined {
     const value = this.state.get<string>(BASE_URL_KEY);
@@ -141,7 +184,7 @@ export class GitLabSession {
       this.capabilitiesCheck = undefined;
       this.currentInstanceWarnings = [];
     }
-    await Promise.all([this.checkMetadata(epoch), this.checkCapabilities(epoch)]);
+    await Promise.all([this.checkMetadata(epoch), this.checkCapabilities(epoch, options.force)]);
     if (epoch === this.connectionEpochValue) this.updateInstanceWarnings();
   }
 
@@ -170,18 +213,35 @@ export class GitLabSession {
     return task.finally(() => { if (this.metadataCheck === task) this.metadataCheck = undefined; });
   }
 
-  private checkCapabilities(epoch: number): Promise<void> {
+  private checkCapabilities(epoch: number, force = false): Promise<void> {
     if (this.currentIssueCapabilities) return Promise.resolve();
     if (this.capabilitiesCheck) return this.capabilitiesCheck;
     if (Date.now() < this.capabilitiesRetryAt) return Promise.resolve();
     const task = (async () => {
       const revision = this.instanceProbeRevision;
       try {
-        const capabilities = await (await this.getClient()).getIssueCapabilities();
+        await this.checkMetadata(epoch);
+        const client = await this.getClient();
+        const cacheScope = this.capabilityCacheScope();
+        if (!force && cacheScope) {
+          const cached = this.state.get<unknown>(ISSUE_CAPABILITIES_CACHE_KEY);
+          if (isCachedIssueCapabilities(cached) && cached.scope === cacheScope && cached.expiresAt > Date.now() && cached.expiresAt - Date.now() <= ISSUE_CAPABILITIES_CACHE_TTL_MS) {
+            if (epoch !== this.connectionEpochValue || revision !== this.instanceProbeRevision) return;
+            this.currentIssueCapabilities = cached.capabilities;
+            this.capabilityProbeError = undefined;
+            this.capabilitiesRetryAt = 0;
+            return;
+          }
+        }
+        const capabilities = await client.getIssueCapabilities();
         if (epoch !== this.connectionEpochValue || revision !== this.instanceProbeRevision) return;
         this.currentIssueCapabilities = capabilities;
         this.capabilityProbeError = undefined;
         this.capabilitiesRetryAt = 0;
+        if (cacheScope && isCachedIssueCapabilities({ scope: cacheScope, expiresAt: Date.now() + ISSUE_CAPABILITIES_CACHE_TTL_MS, capabilities })) {
+          const snapshot: CachedIssueCapabilities = { scope: cacheScope, expiresAt: Date.now() + ISSUE_CAPABILITIES_CACHE_TTL_MS, capabilities };
+          try { await this.state.update(ISSUE_CAPABILITIES_CACHE_KEY, snapshot); } catch { /* capability detection remains usable when persistence is unavailable */ }
+        }
       } catch (error) {
         if (epoch === this.connectionEpochValue && revision === this.instanceProbeRevision) {
           this.capabilityProbeError = error instanceof Error ? error.message : 'Schema 偵測失敗。';
@@ -191,6 +251,20 @@ export class GitLabSession {
     })();
     this.capabilitiesCheck = task;
     return task.finally(() => { if (this.capabilitiesCheck === task) this.capabilitiesCheck = undefined; });
+  }
+
+  private capabilityCacheScope(): string | undefined {
+    const baseUrl = this.baseUrl;
+    const metadata = this.currentMetadata;
+    const currentUserId = this.state.get<number>(CURRENT_USER_ID_KEY);
+    if (!baseUrl || !metadata?.version || !Number.isSafeInteger(currentUserId) || (currentUserId ?? 0) <= 0) return undefined;
+    return JSON.stringify([
+      baseUrl,
+      currentUserId,
+      metadata.version,
+      metadata.revision ?? null,
+      metadata.enterprise ?? null
+    ]);
   }
 
   private updateInstanceWarnings(): void {
@@ -221,7 +295,7 @@ export class GitLabSession {
       const token = await this.secrets.get(TOKEN_SECRET_KEY);
       if (!token) throw new Error('Connect to GitLab first.');
       if (epoch !== this.connectionEpochValue || this.connectionTransition || baseUrl !== this.baseUrl) throw staleConnectionError();
-      const client = new GitLabClient(baseUrl, token, undefined, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
+      const client = new GitLabClient(baseUrl, token, this.testFetcher, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
       this.cachedClient = client;
       return client;
     })();
@@ -239,10 +313,12 @@ export class GitLabSession {
   async connect(baseUrl: string, token: string): Promise<GitLabUser> {
     const normalizedUrl = normalizeGitLabBaseUrl(baseUrl);
     const attempt = ++this.connectionAttempt;
-    const probeClient = new GitLabClient(normalizedUrl, token);
+    const probeClient = new GitLabClient(normalizedUrl, token, this.testFetcher);
     const user = await probeClient.getCurrentUser();
     if (attempt !== this.connectionAttempt) throw staleConnectionError();
     const serverChanged = this.baseUrl !== normalizedUrl;
+    const previousUserId = this.state.get<number>(CURRENT_USER_ID_KEY);
+    const accountChanged = previousUserId !== undefined && previousUserId !== user.id;
     this.connectionTransition = true;
     this.connectionEpochValue++;
     this.connectionAbort.abort(staleConnectionError());
@@ -264,11 +340,12 @@ export class GitLabSession {
       await this.secrets.store(TOKEN_SECRET_KEY, token);
       if (attempt !== this.connectionAttempt) throw staleConnectionError();
       await this.state.update(BASE_URL_KEY, normalizedUrl);
-      if (serverChanged) {
+      await this.state.update(CURRENT_USER_ID_KEY, user.id);
+      if (serverChanged || accountChanged) {
         await this.state.update(GROUP_ID_KEY, undefined);
         await this.state.update(GROUP_LABEL_KEY, undefined);
       }
-      this.cachedClient = new GitLabClient(normalizedUrl, token, undefined, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
+      this.cachedClient = new GitLabClient(normalizedUrl, token, this.testFetcher, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
     } finally {
       if (attempt === this.connectionAttempt) this.connectionTransition = false;
     }
@@ -299,6 +376,7 @@ export class GitLabSession {
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
     await this.state.update(BASE_URL_KEY, undefined);
+    await this.state.update(CURRENT_USER_ID_KEY, undefined);
     await this.state.update(GROUP_ID_KEY, undefined);
     await this.state.update(GROUP_LABEL_KEY, undefined);
     await this.secrets.delete(TOKEN_SECRET_KEY);

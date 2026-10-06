@@ -191,6 +191,40 @@ test('runs the pinned CE 16.11.10 selective-introspection fixture and checks its
   assert.ok(requests.flatMap((query) => [...query.matchAll(/__type\(name: "([^"]+)"\)/g)].map((match) => match[1])).length < 40);
 });
 
+test('recovers from the GitLab 16.11 authenticated complexity limit without exceeding six concurrent reads', async () => {
+  const fixture = JSON.parse(readFileSync(path.join(process.cwd(), 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8')) as {
+    types: GraphQLSchemaType[];
+  };
+  const requests: string[] = [];
+  let active = 0;
+  let maxActive = 0;
+  const client = new GitLabClient('https://gitlab-ce-16-11-10.example.test', token, async (_input, init) => {
+    const query = (JSON.parse(String(init?.body)) as { query: string }).query;
+    requests.push(query);
+    const aliases = [...query.matchAll(/__type\(name: "([^"]+)"\)/g)];
+    if (aliases.length > 3) {
+      return new Response(JSON.stringify({ errors: [{ message: 'Query has complexity of 899, which exceeds max complexity of 250' }] }));
+    }
+    active++;
+    maxActive = Math.max(maxActive, active);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      return new Response(JSON.stringify({ data: selectedCapabilityData(query, fixture.types) }));
+    } finally { active--; }
+  });
+
+  const capabilities = await client.getIssueCapabilities();
+  assert.equal(requests[0].match(/__type\(name: "/g)?.length, 13, 'retain the efficient one-query GitLab 19 introspection path');
+  assert.ok(requests.some((query) => (query.match(/__type\(name: "/g)?.length ?? 0) <= 3));
+  const oversizedRetries = requests.slice(1).map((query) => query.match(/__type\(name: "/g)?.length ?? 0).filter((count) => count > 3);
+  assert.deepEqual(oversizedRetries, [], `recovery queries contained too many types: ${oversizedRetries.join(', ')}`);
+  assert.ok(maxActive > 1 && maxActive <= 6, 'parallel recovery stays within the session read limit');
+  assert.equal(capabilities.workItemScope, 'project');
+  assert.equal(capabilities.hierarchy, true);
+  assert.equal(capabilities.childMutations, true);
+  assert.equal(capabilities.timelogReport, true);
+});
+
 test('reuses a complete raw __schema response without alias repair or follow-up downloads', async () => {
   const fixture = JSON.parse(readFileSync(path.join(process.cwd(), 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8')) as {
     types: GraphQLSchemaType[];

@@ -50,6 +50,12 @@ interface GitRef {
   remote?: string;
 }
 
+function gitRefName(ref: GitRef): string | undefined {
+  if (!ref.name) return undefined;
+  if (ref.type !== 1 || !ref.remote || ref.name.startsWith(ref.remote + '/')) return ref.name;
+  return ref.remote + '/' + ref.name;
+}
+
 interface GitChangeEntry {
   uri: vscode.Uri;
   originalUri?: vscode.Uri;
@@ -106,6 +112,8 @@ interface GitExtension {
 }
 
 interface GitCommandOutput { stdout: string; stderr: string; }
+type GitWarningPromptHandler = (message: string, options: vscode.MessageOptions, ...items: string[]) => Thenable<string | undefined>;
+type GitActionTraceHandler = (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void;
 
 export class GitRepositoryService implements vscode.Disposable {
   private api?: GitApi;
@@ -117,6 +125,7 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly selectedCommits = new Map<string, { commit: GitCommitSummary; files: string[]; parent?: string }>();
   private readonly rebasePlans = new Map<string, GitRebasePlan>();
   private readonly emitter = new vscode.EventEmitter<void>();
+  private readonly repositoryListEmitter = new vscode.EventEmitter<void>();
   private readonly panelEmitter = new vscode.EventEmitter<GitPanelMessage>();
   private readonly pendingRequests = new Set<string>();
   private repositoriesRevision = 0;
@@ -126,6 +135,8 @@ export class GitRepositoryService implements vscode.Disposable {
   private summaryRefresh?: Promise<GitRepositorySummary[]>;
   private dirtySummaryRefresh?: Promise<void>;
   private readonly dirtySummaryIds = new Set<string>();
+  private warningPromptHandler?: GitWarningPromptHandler;
+  private actionTraceHandler?: GitActionTraceHandler;
   private projectSource: () => readonly GitLabProject[] = () => [];
   private readonly gitlabSession: GitLabSession;
   private initialization: Promise<void>;
@@ -133,6 +144,7 @@ export class GitRepositoryService implements vscode.Disposable {
   private error?: string;
 
   readonly onDidChangeRepositories = this.emitter.event;
+  readonly onDidChangeRepositoryList = this.repositoryListEmitter.event;
   readonly onDidMessage = this.panelEmitter.event;
 
   constructor(private readonly extensionUri: vscode.Uri, private readonly storageUri: vscode.Uri, session: GitLabSession) {
@@ -142,6 +154,15 @@ export class GitRepositoryService implements vscode.Disposable {
 
   setGitLabProjects(source: () => readonly GitLabProject[]): void { this.projectSource = source; }
 
+  setWarningPromptHandlerForTesting(handler: GitWarningPromptHandler): void { this.warningPromptHandler = handler; }
+  setActionTraceHandlerForTesting(handler: GitActionTraceHandler): void { this.actionTraceHandler = handler; }
+
+  private showWarningMessage(message: string, options: vscode.MessageOptions, ...items: string[]): Thenable<string | undefined> {
+    return this.warningPromptHandler
+      ? this.warningPromptHandler(message, options, ...items)
+      : vscode.window.showWarningMessage(message, options, ...items);
+  }
+
   async refresh(): Promise<GitRepositorySummary[]> {
     await this.initialization;
     if (!this.api || !this.enabled) {
@@ -150,7 +171,15 @@ export class GitRepositoryService implements vscode.Disposable {
       this.dirtySummaryIds.clear();
       return [];
     }
-    if (this.summaryRefresh) return this.summaryRefresh;
+    if (this.summaryRefresh) {
+      const pending = this.summaryRefresh;
+      await pending;
+      if (this.cachedSummariesListRevision !== this.repositoryListRevision) {
+        if (this.summaryRefresh === pending) this.summaryRefresh = undefined;
+        return this.refresh();
+      }
+      return this.cachedSummaries;
+    }
     const listRevision = this.repositoryListRevision;
     const task = mapWithConcurrency([...this.api.repositories], 4, async (repository) => {
       const id = this.repositoryId(repository.rootUri.fsPath);
@@ -186,7 +215,7 @@ export class GitRepositoryService implements vscode.Disposable {
 
   async getSummaryState(): Promise<{ repositories: GitRepositorySummary[]; available: boolean; message?: string; revision: number }> {
     await this.initialization;
-    if (this.cachedSummariesListRevision !== this.repositoryListRevision) await this.refresh();
+    while (this.cachedSummariesListRevision !== this.repositoryListRevision) await this.refresh();
     if (this.dirtySummaryIds.size) await this.refreshDirtySummaries();
     return {
       repositories: this.cachedSummaries,
@@ -214,7 +243,7 @@ export class GitRepositoryService implements vscode.Disposable {
     const uri = vscode.Uri.file(path.join(repository.rootUri.fsPath, relative));
     const openDocument = vscode.workspace.textDocuments.find((document) => this.pathKey(document.uri.fsPath) === this.pathKey(uri.fsPath));
     if (openDocument?.isDirty) {
-      const choice = await vscode.window.showWarningMessage('檔案有尚未儲存的編輯內容。先儲存後開啟？', { modal: true }, '儲存並開啟', '取消');
+      const choice = await this.showWarningMessage('檔案有尚未儲存的編輯內容。先儲存後開啟？', { modal: true }, '儲存並開啟', '取消');
       if (choice !== '儲存並開啟') return;
       if (!await openDocument.save()) throw new Error('檔案尚未儲存，已取消開啟。');
     }
@@ -238,7 +267,7 @@ export class GitRepositoryService implements vscode.Disposable {
     let before: Buffer;
     let after: Buffer;
     if (ref) {
-      this.assertRef(repository, ref);
+      await this.assertRef(repository, ref);
       await this.assertObjectId(repository, ref);
       const parents = (await this.runGit(repository, ['show', '-s', '--format=%P', ref])).stdout.trim().split(/\s+/).filter(Boolean);
       if (parent && !parents.includes(parent)) throw new Error('選擇的比較 parent 不屬於這筆提交。');
@@ -304,6 +333,7 @@ export class GitRepositoryService implements vscode.Disposable {
   async handleAction(repositoryId: string, action: GitAction): Promise<GitRepositorySnapshot | undefined> {
     await this.initialization;
     const repository = await this.requireRepository(repositoryId);
+    this.actionTraceHandler?.({ phase: 'start', repositoryId, action: action.type });
     if (action.type === 'readDiff') return withGitDirectoryLock(repository.rootUri.fsPath, () => this.readDiff(repository, repositoryId, action));
     if (action.type === 'history') return withGitDirectoryLock(repository.rootUri.fsPath, () => this.loadHistory(repository, repositoryId, action));
     if (action.type === 'readCommit') return withGitDirectoryLock(repository.rootUri.fsPath, () => this.readCommit(repository, repositoryId, action));
@@ -338,7 +368,12 @@ export class GitRepositoryService implements vscode.Disposable {
       try {
         await this.performAction(repository, repositoryId, action);
         await repository.status();
-        return await this.readSnapshot(repository, repositoryId);
+        const snapshot = await this.readSnapshot(repository, repositoryId);
+        this.actionTraceHandler?.({ phase: 'complete', repositoryId, action: action.type });
+        return snapshot;
+      } catch (error) {
+        this.actionTraceHandler?.({ phase: 'error', repositoryId, action: action.type, error: readableGitError(error) });
+        throw error;
       } finally {
         this.activeOperations.delete(repositoryId);
         this.bump(repositoryId);
@@ -354,6 +389,7 @@ export class GitRepositoryService implements vscode.Disposable {
     for (const subscription of this.repositorySubscriptions.values()) subscription.dispose();
     this.repositorySubscriptions.clear();
     this.emitter.dispose();
+    this.repositoryListEmitter.dispose();
     this.panelEmitter.dispose();
   }
 
@@ -513,6 +549,7 @@ export class GitRepositoryService implements vscode.Disposable {
   private publishRepositories(): void {
     this.repositoriesRevision++;
     this.repositoryListRevision++;
+    this.repositoryListEmitter.fire();
     this.emitter.fire();
   }
   private publishRepositoryState(repositoryId: string): void {
@@ -553,13 +590,25 @@ export class GitRepositoryService implements vscode.Disposable {
 
   private async buildSummary(repository: GitRepository, id: string): Promise<GitRepositorySummary> {
     const head = repository.state.HEAD;
-    const currentName = head?.name;
-    const rawBranches = repository.state.refs;
-    const branches: GitBranchSummary[] = rawBranches.flatMap<GitBranchSummary>((ref) => {
-      if (!ref.name) return [];
-      if (ref.type === 0) return [{ name: ref.name, kind: 'local' as const, current: !!currentName && ref.name === currentName, commit: ref.commit }];
-      if (ref.type === 1) return [{ name: ref.remote ? ref.remote + '/' + ref.name : ref.name, kind: 'remote' as const, current: false, commit: ref.commit }];
-      if (ref.type === 2) return [{ name: ref.name, kind: 'tag' as const, current: false, commit: ref.commit }];
+    const currentName = await this.runGit(repository, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+      .then(({ stdout }) => stdout.trim() || undefined, () => undefined) ?? head?.name;
+    const [rawBranches, tagOutput] = await Promise.all([
+      repository.getBranches({ remote: true, count: 1200 }),
+      this.runGit(repository, ['for-each-ref', '--format=%(refname:short)%00%(objectname)', 'refs/tags'])
+    ]);
+    const tagRefs: GitRef[] = tagOutput.stdout.split(/\r?\n/).flatMap((line) => {
+      const [name, commit] = line.split('\0');
+      return name ? [{ name, commit, type: 2 }] : [];
+    });
+    const branches: GitBranchSummary[] = [...rawBranches, ...tagRefs].flatMap<GitBranchSummary>((ref) => {
+      const name = gitRefName(ref);
+      if (!name) return [];
+      if (ref.type === 0) return [{ name, kind: 'local' as const, current: !!currentName && name === currentName, commit: ref.commit }];
+      if (ref.type === 1) {
+        if (ref.remote && name === ref.remote + '/HEAD') return [];
+        return [{ name, kind: 'remote' as const, current: false, commit: ref.commit }];
+      }
+      if (ref.type === 2) return [{ name, kind: 'tag' as const, current: false, commit: ref.commit }];
       return [];
     }).slice(0, 1200);
     const changes = this.changes(repository);
@@ -630,7 +679,7 @@ export class GitRepositoryService implements vscode.Disposable {
     const targetPath = this.safeRelativePath(repository, action.path);
     let diff: string;
     if (action.ref) {
-      this.assertRef(repository, action.ref);
+      await this.assertRef(repository, action.ref);
       await this.assertObjectId(repository, action.ref);
       const parentOutput = (await this.runGit(repository, ['show', '-s', '--format=%P', action.ref])).stdout.trim();
       const parents = parentOutput ? parentOutput.split(/\s+/) : [];
@@ -663,7 +712,7 @@ export class GitRepositoryService implements vscode.Disposable {
     action: Extract<GitAction, { type: 'history' }>
   ): Promise<GitRepositorySnapshot> {
     const args = ['log', '--all', '--date=iso-strict', '--format=%H%x00%P%x00%an%x00%aI%x00%s'];
-    if (action.ref) { this.assertRef(repository, action.ref); args.push(action.ref); }
+    if (action.ref) { await this.assertRef(repository, action.ref); args.push(action.ref); }
     args.push('-n', String(HISTORY_PAGE_SIZE + 1));
     if (action.skip) args.push('--skip=' + String(action.skip));
     const history = parseGitHistory((await this.runGit(repository, args)).stdout);
@@ -696,7 +745,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async loadRebasePlan(repository: GitRepository, repositoryId: string, target: string): Promise<GitRepositorySnapshot> {
-    this.assertRef(repository, target);
+    await this.assertRef(repository, target);
     if (!repository.state.HEAD?.commit) throw new Error('目前 Repo 尚無提交，無法建立 Rebase 預覽。');
     const targetHash = (await this.runGit(repository, ['rev-parse', '--verify', target])).stdout.trim();
     const output = await this.runGit(repository, ['log', '--reverse', '--date=iso-strict',
@@ -723,7 +772,7 @@ export class GitRepositoryService implements vscode.Disposable {
     switch (action.type) {
       case 'stageFile': {
         const file = this.safeRelativePath(repository, action.path);
-        if (action.staged) await repository.add([file]);
+        if (action.staged) await this.runGit(repository, ['add', '--', file]);
         else if (repository.state.HEAD?.commit) await this.runGit(repository, ['reset', '--quiet', 'HEAD', '--', file]);
         else await this.runGit(repository, ['rm', '--cached', '--force', '--', file]);
         return;
@@ -744,7 +793,7 @@ export class GitRepositoryService implements vscode.Disposable {
         if (action.amend && !repository.state.HEAD?.commit) throw new Error('目前 Repo 尚無提交，無法 Amend。');
         const verb = action.amend ? 'Amend 最近一次 Commit' : 'Commit 已暫存的變更';
         const stagedPaths = this.changes(repository).filter((change) => change.section === 'staged').map((change) => change.path);
-        const confirmed = await vscode.window.showWarningMessage(
+        const confirmed = await this.showWarningMessage(
           verb + ' 至 ' + repository.rootUri.fsPath + '？' +
           (action.amend ? '\n原提交：' + (repository.state.HEAD?.commit ?? '').slice(0, 12) + '\n這會改寫目前分支歷史。' : '') +
           '\n暫存檔案：\n' + stagedPaths.join('\n'),
@@ -765,14 +814,14 @@ export class GitRepositoryService implements vscode.Disposable {
         return;
       }
       case 'checkout': {
-        this.assertRef(repository, action.name);
+        await this.assertRef(repository, action.name);
         await repository.checkout(action.name);
         return;
       }
       case 'deleteBranch': {
         checkedGitRef(action.name);
         if (repository.state.HEAD?.name === action.name) throw new Error('無法刪除目前選取的分支。');
-        const yes = await vscode.window.showWarningMessage('刪除本機分支 ' + action.name + '？', { modal: true }, '刪除分支');
+        const yes = await this.showWarningMessage('刪除本機分支 ' + action.name + '？', { modal: true }, '刪除分支');
         if (yes) await repository.deleteBranch(action.name, false);
         return;
       }
@@ -790,7 +839,7 @@ export class GitRepositoryService implements vscode.Disposable {
         await repository.status();
         const pullTarget = (await this.runGit(repository, ['rev-parse', '--verify', target])).stdout.trim();
         const plan = describePull(repository.rootUri.fsPath, remote, branch, config, pullTarget);
-        const yes = await vscode.window.showWarningMessage(plan, { modal: true }, 'Pull');
+        const yes = await this.showWarningMessage(plan, { modal: true }, 'Pull');
         if (!yes) return;
         if (config === 'rebase' || config === 'rebase-merges') {
           const flags = config === 'rebase-merges' ? ['--rebase-merges'] : [];
@@ -806,10 +855,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const remote = this.checkedRemoteName(repository, action.remote);
         const branch = checkedGitRef(action.branch);
         const target = 'refs/heads/' + branch;
-        await repository.fetch({ remote, ref: target }).catch((error: unknown) => {
-          if (/couldn't find remote ref|remote ref does not exist|no such ref/i.test(readableGitError(error))) return;
-          throw error;
-        });
+        // Query the server directly: some VS Code Git API versions turn a missing new branch into an opaque fetch failure.
         const expected = await this.remoteBranchSha(repository, remote, target);
         const current = await this.runGit(repository, ['rev-parse', 'HEAD']);
         const outgoing = await this.runGit(repository, expected
@@ -818,7 +864,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const replaced = action.force && expected
           ? await this.runGit(repository, ['log', '--reverse', '--format=%h %s', 'HEAD..' + expected])
           : undefined;
-        const yes = await vscode.window.showWarningMessage(
+        const yes = await this.showWarningMessage(
           (action.force ? 'Force Push' : 'Push') + ' ' + current.stdout.trim().slice(0, 12) +
           ' 至 ' + remote + ':' + branch + (expected ? '（遠端目前 ' + expected.slice(0, 12) + '）' : '（建立新遠端分支）') +
           '\nRepo：' + repository.rootUri.fsPath + '\n將傳送的提交：\n' + (outgoing.stdout.trim() || '沒有新提交。') +
@@ -847,12 +893,12 @@ export class GitRepositoryService implements vscode.Disposable {
         return;
       }
       case 'merge': {
-        this.assertRef(repository, action.ref);
+        await this.assertRef(repository, action.ref);
         await this.runGit(repository, ['merge', '--no-edit', action.ref]);
         return;
       }
       case 'rebase': {
-        this.assertRef(repository, action.ref);
+        await this.assertRef(repository, action.ref);
         let plan: GitRebasePlan | undefined;
         if (action.interactive) {
           plan = await this.readRebasePlan(repository, action.ref);
@@ -862,7 +908,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const heads = await this.runGit(repository, ['rev-parse', 'HEAD']);
         const mergeNotice = plan?.containsMerge ? '\n預覽範圍含 Merge Commit；互動式 Rebase 會採標準線性歷史並展平合併結構。' : '';
         const pullNotice = action.pullSource ? '\n將先 Fetch ' + action.pullSource.remote + '/' + action.pullSource.branch + '。' : '';
-        const yes = await vscode.window.showWarningMessage(
+        const yes = await this.showWarningMessage(
           '將 ' + (repository.state.HEAD?.name ?? '目前的 detached HEAD') + ' Rebase 到 ' + action.ref +
           '。新的提交 SHA 會取代原提交（目前 HEAD：' + heads.stdout.trim().slice(0, 12) + '）。' + mergeNotice + pullNotice,
           { modal: true }, action.interactive ? '開始互動式 Rebase' : 'Rebase'
@@ -880,7 +926,8 @@ export class GitRepositoryService implements vscode.Disposable {
         if (action.interactive) {
           const editor = await this.prepareInteractiveRebase(repository, action.todo ?? []);
           await this.runGit(repository, ['rebase', '--interactive', '--no-autosquash', action.ref], undefined, editor);
-          await this.clearInteractiveRebase(repository);
+          await repository.status();
+          if (this.operationFor(repository) !== 'rebase') await this.clearInteractiveRebase(repository);
         } else {
           await this.runGit(repository, ['rebase', '--merge', action.ref]);
         }
@@ -889,7 +936,7 @@ export class GitRepositoryService implements vscode.Disposable {
       case 'cherryPick': {
         await this.assertObjectId(repository, action.hash);
         await this.assertMainline(repository, action.hash, action.mainline);
-        const yes = await vscode.window.showWarningMessage('Cherry-pick ' + action.hash.slice(0, 12) +
+        const yes = await this.showWarningMessage('Cherry-pick ' + action.hash.slice(0, 12) +
           (action.mainline ? '，保留 Parent ' + action.mainline : '') + ' 到目前分支？', { modal: true }, 'Cherry-pick');
         if (!yes) return;
         await this.runGit(repository, ['cherry-pick', '--no-edit', ...(action.mainline ? ['-m', String(action.mainline)] : []), action.hash]);
@@ -898,7 +945,7 @@ export class GitRepositoryService implements vscode.Disposable {
       case 'revert': {
         await this.assertObjectId(repository, action.hash);
         await this.assertMainline(repository, action.hash, action.mainline);
-        const yes = await vscode.window.showWarningMessage('Revert 提交 ' + action.hash.slice(0, 12) +
+        const yes = await this.showWarningMessage('Revert 提交 ' + action.hash.slice(0, 12) +
           (action.mainline ? '，保留 Parent ' + action.mainline : '') + '？', { modal: true }, 'Revert');
         if (!yes) return;
         await this.runGit(repository, ['revert', '--no-edit', ...(action.mainline ? ['-m', String(action.mainline)] : []), action.hash]);
@@ -913,7 +960,10 @@ export class GitRepositoryService implements vscode.Disposable {
       }
       case 'stashApply': {
         await this.assertObjectId(repository, action.hash);
-        await this.runGit(repository, ['stash', action.pop ? 'pop' : 'apply', action.hash]);
+        const stashes = parseStashes((await this.runGit(repository, ['stash', 'list', '--format=%H%x00%gd%x00%s'])).stdout);
+        const selected = stashes.find((stash) => stash.oid === action.hash);
+        if (!selected) throw new Error('這筆 Stash 已不存在，請重新整理清單。');
+        await this.runGit(repository, ['stash', action.pop ? 'pop' : 'apply', stashReference(selected)]);
         return;
       }
       case 'stashDrop': {
@@ -921,15 +971,15 @@ export class GitRepositoryService implements vscode.Disposable {
         const stashes = parseStashes((await this.runGit(repository, ['stash', 'list', '--format=%H%x00%gd%x00%s'])).stdout);
         const selected = stashes.find((stash) => stash.oid === action.hash);
         if (!selected) throw new Error('這筆 Stash 已不存在，請重新整理清單。');
-        const yes = await vscode.window.showWarningMessage('刪除 Stash ' + selected.message + '？', { modal: true }, '刪除 Stash');
-        if (yes) await this.runGit(repository, ['stash', 'drop', selected.message.split(' · ', 1)[0]]);
+        const yes = await this.showWarningMessage('刪除 Stash ' + selected.message + '？', { modal: true }, '刪除 Stash');
+        if (yes) await this.runGit(repository, ['stash', 'drop', stashReference(selected)]);
         return;
       }
       case 'reset': {
         await this.assertObjectId(repository, action.hash);
         const preview = await this.runGit(repository, ['diff', '--stat', 'HEAD', action.hash]);
         const workingChanges = this.changes(repository).map((change) => change.section.toLocaleUpperCase('en-US') + ' ' + change.path);
-        const yes = await vscode.window.showWarningMessage(
+        const yes = await this.showWarningMessage(
           action.mode.toLocaleUpperCase('en-US') + ' Reset Repo ' + repository.rootUri.fsPath + '\n目標：' + action.hash.slice(0, 12) +
           '\n' + (preview.stdout.trim() || '提交與目前 HEAD 相同，或沒有檔案差異。') +
           (workingChanges.length ? '\n目前工作目錄變更：\n' + workingChanges.join('\n') : '') +
@@ -949,7 +999,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const file = this.safeRelativePath(repository, action.path);
         const change = this.changes(repository).find((item) => item.path === file && item.section !== 'staged');
         if (!change) throw new Error('找不到這筆未暫存變更，請重新整理清單。');
-        const yes = await vscode.window.showWarningMessage('將變更 ' + file + ' 存入復原 Stash，並還原目前檔案？', { modal: true }, '備份並還原');
+        const yes = await this.showWarningMessage('將變更 ' + file + ' 存入復原 Stash，並還原目前檔案？', { modal: true }, '備份並還原');
         if (!yes) return;
         await this.runGit(repository, ['stash', 'push', '--include-untracked', '--keep-index', '--message',
           'GitLab Workspace 復原點 ' + new Date().toISOString(), '--', file]);
@@ -995,7 +1045,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async readRebasePlan(repository: GitRepository, target: string): Promise<GitRebasePlan> {
-    this.assertRef(repository, target);
+    await this.assertRef(repository, target);
     const targetHash = (await this.runGit(repository, ['rev-parse', '--verify', target])).stdout.trim();
     const output = await this.runGit(repository, ['log', '--reverse', '--date=iso-strict',
       '--format=%H%x00%P%x00%an%x00%aI%x00%s', target + '..HEAD']);
@@ -1105,7 +1155,7 @@ export class GitRepositoryService implements vscode.Disposable {
     });
     if (!dirty.length) return true;
     const names = dirty.map((document) => path.relative(root, document.uri.fsPath)).slice(0, 5).join(', ');
-    const choice = await vscode.window.showWarningMessage(
+    const choice = await this.showWarningMessage(
       'Repo 有尚未儲存的編輯內容：' + names + (dirty.length > 5 ? ' 等 ' + dirty.length + ' 個檔案' : '') + '。',
       { modal: true }, '儲存並繼續', '取消操作'
     );
@@ -1236,20 +1286,22 @@ export class GitRepositoryService implements vscode.Disposable {
     return relative.split(path.sep).join('/');
   }
 
-  private assertRef(repository: GitRepository, reference: string): void {
+  private async assertRef(repository: GitRepository, reference: string): Promise<void> {
     if (!reference || reference.length > 1024 || /[\x00-\x20~^:?*[\\]/.test(reference)) {
       throw new Error('Git 分支或提交參照無效。');
     }
     if (reference.startsWith('-') || reference.includes('..')) throw new Error('Git 分支或提交參照無效。');
-    const listed = repository.state.refs.some((ref) => ref.name === reference || (ref.remote ? ref.remote + '/' + ref.name === reference : false));
+    const listedBranch = (await repository.getBranches({ remote: true, count: 1200 })).some((ref) => gitRefName(ref) === reference);
+    const listedTag = !listedBranch && await this.runGit(repository, ['show-ref', '--verify', '--quiet', 'refs/tags/' + reference])
+      .then(() => true, () => false);
+    const listed = listedBranch || listedTag;
     if (!listed && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(reference)) throw new Error('請從此 Repo 的分支或提交清單選擇目標。');
   }
 
   private async assertObjectId(repository: GitRepository, value: string): Promise<void> {
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value)) throw new Error('Git 提交識別碼無效。');
-    const match = repository.state.refs.some((ref) => ref.commit?.toLocaleLowerCase('en-US') === value.toLocaleLowerCase('en-US'));
     const head = repository.state.HEAD?.commit?.toLocaleLowerCase('en-US') === value.toLocaleLowerCase('en-US');
-    if (!match && !head) {
+    if (!head) {
       await execFileAsync(this.api!.git.path, ['-C', repository.rootUri.fsPath, 'cat-file', '-e', value + '^{commit}'], {
         windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
       }).catch(() => { throw new Error('找不到這筆 Repo Commit，請重新載入歷史。'); });
@@ -1286,6 +1338,12 @@ function parseStashes(output: string): GitStashSummary[] {
     const [oid, ref, message] = line.split('\0');
     return oid && /^[a-f0-9]{40,64}$/i.test(oid) ? [{ oid, message: ref + ' · ' + (message ?? '') }] : [];
   });
+}
+
+function stashReference(stash: GitStashSummary): string {
+  const reference = stash.message.split(' · ', 1)[0];
+  if (!/^stash@\{\d+\}$/.test(reference)) throw new Error('無法識別這筆 Stash 的 Git 參照，請重新整理清單。');
+  return reference;
 }
 
 function parseRecoveryRefs(output: string): GitRecoveryRefSummary[] {

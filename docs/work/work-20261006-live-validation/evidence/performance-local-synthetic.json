@@ -1,0 +1,180 @@
+{
+  "environment": {
+    "platform": "win32",
+    "node": "v24.21.0",
+    "gcExposed": true,
+    "measuredAt": "2026-10-06T19:40:57.322Z"
+  },
+  "methodology": "Synthetic benchmark of production helpers; no live GitLab requests, VS Code webview, or real repository folders are included.",
+  "workloads": {
+    "small": {
+      "repos": 50,
+      "issues": 100,
+      "graphNodes": 50
+    },
+    "primary": {
+      "repos": 500,
+      "issues": 1000,
+      "graphNodes": 500
+    },
+    "stress": {
+      "repos": 2000,
+      "issues": 10000,
+      "graphNodes": 2000
+    }
+  },
+  "repositoryPathNaming": [
+    {
+      "projects": 50,
+      "samples": 5,
+      "legacyMedianMs": 3.09,
+      "productionMedianMs": 0.3,
+      "elapsedReductionPercent": 90.19,
+      "legacyRunsMs": [
+        5.66,
+        2.86,
+        2.63,
+        3.09,
+        3.1
+      ],
+      "productionRunsMs": [
+        0.54,
+        0.3,
+        0.31,
+        0.21,
+        0.3
+      ]
+    },
+    {
+      "projects": 500,
+      "samples": 5,
+      "legacyMedianMs": 1955.59,
+      "productionMedianMs": 1.55,
+      "elapsedReductionPercent": 99.92,
+      "legacyRunsMs": [
+        1798.09,
+        1955.59,
+        1824.08,
+        2036.44,
+        2105.53
+      ],
+      "productionRunsMs": [
+        2.33,
+        2.25,
+        1.35,
+        1.42,
+        1.55
+      ]
+    },
+    {
+      "projects": 2000,
+      "samples": 3,
+      "legacyMedianMs": null,
+      "productionMedianMs": 7.06,
+      "elapsedReductionPercent": null,
+      "legacyComparisonSkipped": "The legacy per-repository full remap is cubic for this workload; current production path is still measured at 2,000 Repos.",
+      "legacyRunsMs": [],
+      "productionRunsMs": [
+        7.06,
+        11.6,
+        6.38
+      ]
+    }
+  ],
+  "sharedReadCache": {
+    "concurrentConsumers": 8,
+    "legacyUnsharedApiRequests": 8,
+    "productionApiRequests": 1,
+    "coldLatencyMs": 0.983,
+    "warmLatencyMs": 0.145,
+    "responsePayloadBytes": 144454,
+    "warmNetworkBytes": 0
+  },
+  "graphAndVirtualList": [
+    {
+      "nodes": 50,
+      "issues": 100,
+      "updates": 30,
+      "fullGraphTransportBytes": 770422,
+      "incrementalGraphTransportBytes": 19538,
+      "graphTransportReductionPercent": 97.46,
+      "averageChangedNodesPerUpdate": 1,
+      "patchBuildMedianMs": 0.17,
+      "issueRowsAtMidScroll": {
+        "total": 100,
+        "mounted": 100,
+        "range": [
+          0,
+          100
+        ]
+      },
+      "heapUsedBeforeBytes": 5217464,
+      "heapUsedAfterBytes": 9313664,
+      "peakSampledHeapBytes": 9309848,
+      "peakSampledHeapDeltaBytes": 4092384
+    },
+    {
+      "nodes": 500,
+      "issues": 1000,
+      "updates": 30,
+      "fullGraphTransportBytes": 7952812,
+      "incrementalGraphTransportBytes": 19538,
+      "graphTransportReductionPercent": 99.75,
+      "averageChangedNodesPerUpdate": 1,
+      "patchBuildMedianMs": 1.626,
+      "issueRowsAtMidScroll": {
+        "total": 1000,
+        "mounted": 32,
+        "range": [
+          490,
+          522
+        ]
+      },
+      "heapUsedBeforeBytes": 5755528,
+      "heapUsedAfterBytes": 40716456,
+      "peakSampledHeapBytes": 40706360,
+      "peakSampledHeapDeltaBytes": 34950832
+    },
+    {
+      "nodes": 2000,
+      "issues": 10000,
+      "updates": 30,
+      "fullGraphTransportBytes": 33513202,
+      "incrementalGraphTransportBytes": 19538,
+      "graphTransportReductionPercent": 99.94,
+      "averageChangedNodesPerUpdate": 1,
+      "patchBuildMedianMs": 6.273,
+      "issueRowsAtMidScroll": {
+        "total": 10000,
+        "mounted": 32,
+        "range": [
+          4990,
+          5022
+        ]
+      },
+      "heapUsedBeforeBytes": 6892528,
+      "heapUsedAfterBytes": 35780232,
+      "peakSampledHeapBytes": 41515360,
+      "peakSampledHeapDeltaBytes": 34622832
+    }
+  ],
+  "capabilityProbe": {
+    "sourceFixture": "v16.11.10-ee",
+    "targetedTypesPerInitialProbe": 13,
+    "legacyRequestBytes": 316,
+    "targetedProbeBatches": 3,
+    "targetedTypesRequested": 24,
+    "targetedRequestBytesByBatch": [
+      1466,
+      1182,
+      752
+    ],
+    "targetedRequestBytesTotal": 3400,
+    "fullSchemaResponseBytes": null,
+    "targetedResponseBytes": null,
+    "responseReductionPercent": null,
+    "measurementLimit": "The pinned fixture is a minimal capability contract, not a full schema export. An authenticated CE 16.11.10 instance is required to measure response transfer reduction; request bytes alone are not a substitute."
+  },
+  "heapUsedBeforeBytes": 5000960,
+  "heapUsedAfterBytes": 5387528
+}

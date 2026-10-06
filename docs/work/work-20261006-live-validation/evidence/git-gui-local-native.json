@@ -1,0 +1,25 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-06T22:22:18.124Z",
+  "mode": "local-only-native-confirmation",
+  "vscodeVersion": "1.140.0",
+  "status": "BLOCKED",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "f0ed4bdf59629afab890f71f2909f1eaf0f6a2a77f05f68b67a52ef1a5452693"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791325298506-30444\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "error": "Commit confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics={\"title\":\"GitLab Workspace - service - Visual Studio Code\",\"visibleLayers\":[],\"bodyTextEnd\":\"File\\nEdit\\nSelection\\nView\\nGo\\nRun\\nTerminal\\nHelp\\nservice\\nOpen in Agents\\nSign In\\n1\\nExplorer\\nservice\\nREADME.md\\nservice.ts\\nOutline\\nTimeline\\nGitLab Workspace\\nChat\\nBuild with Agent\\n\\nAI responses may be inaccurate\\n\\nGenerate Agent Instructions to onboard AI onto your codebase.\\n\\nAgent\\nModels\\nLocal\\nDefault permissions\\n validation/native-gui/mux8u7zj+\\n 0 \\n 0\\nOpen Quick Access\"}",
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.13.2.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.13.2",
+  "processOutput": "\r\n[17784:1007/062141.298:ERROR:components\\os_crypt\\sync\\os_crypt_win.cc:78] Failed to encrypt: 系統找不到指定的檔案。 (0x2)\r\n\r\nDevTools listening on ws://127.0.0.1:9393/devtools/browser/56610c45-ab5b-4560-8f58-4ddd57a2c73d\r\nWarning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.\nWarning: 'disable-hardware-acceleration' is not in the list of known options, but still passed to Electron/Chromium.\n[main 2026-10-06T22:21:41.500Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\07f806f999\\resources\\app\\node-compile-cache\\main, active: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\07f806f999\\resources\\app\\node-compile-cache\\main\\v24.21.0-x64-2d60bbc0)\n[main 2026-10-06T22:21:41.569Z] StorageMainService: creating application shared storage\n[main 2026-10-06T22:21:41.676Z] Error: Error mutex already exists\n    at Js.installMutex (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/07f806f999/resources/app/out/mainImpl.js:158:30658)\n[main 2026-10-06T22:21:41.738Z] [shared storage] Creating shared storage database at 'c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitLabWorkSpace\\.vscode-test\\live-native-git-gui-30444-1791325298978\\system-profile\\.vscode-shared\\sharedStorage\\state.vscdb' (wasCreated: true)\n[main 2026-10-06T22:21:41.739Z] [shared storage] Initializing fallback application storage (path: c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitLabWorkSpace\\.vscode-test\\live-native-git-gui-30444-1791325298978\\User\\globalStorage\\state.vscdb)\n[main 2026-10-06T22:21:41.746Z] [shared storage] Fallback application storage initialized with 3 items\n[main 2026-10-06T22:21:43.564Z] update#disable - updates are disabled by user preference\n[main 2026-10-06T22:21:43.565Z] update#setState disabled\n[main 2026-10-06T22:21:43.604Z] AgentHostProcessManager: agent host started\n[17784:1007/062144.179:ERROR:electron\\shell\\browser\\api\\electron_api_app.cc:1397] Failed to begin Jump List transaction.\r\n[main 2026-10-06T22:21:44.182Z] updateWindowsJumpList#setJumpList unexpected result: error\n[main 2026-10-06T22:21:44.413Z] [AgentHost:stderr] (node:12044) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.\n(Use `Code --trace-deprecation ...` to show where the warning was created)\n\nUnknown channel: agentHostClientByokLm\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\n",
+  "cleanup": {
+    "status": "PASS",
+    "runnerStatus": "BLOCKED",
+    "runnerErrors": [
+      "EPERM, Permission denied: \\\\?\\C:\\Users\\denni\\OneDrive\\Desktop\\·s¼W¸ê®Æ§¨\\GitLabWorkSpace\\.vscode-test\\live-native-git-gui-30444-1791325298978 '\\\\?\\C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitLabWorkSpace\\.vscode-test\\live-native-git-gui-30444-1791325298978'"
+    ],
+    "removedProfile": ".vscode-test/live-native-git-gui-30444-1791325298978",
+    "resolution": "Removed after the VS Code process exited, after verifying the exact run ID and that the resolved directory was a direct child of this project’s .vscode-test directory."
+  }
+}

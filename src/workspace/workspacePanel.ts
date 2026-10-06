@@ -117,6 +117,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private readonly issueRelationWritesInFlight = new Set<string>();
   private selectedGitRepositoryId?: string;
   private readonly gitMessages: vscode.Disposable;
+  private readonly gitRepositoryChanges: vscode.Disposable;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -141,7 +142,10 @@ export class WorkspacePanel implements vscode.Disposable {
     this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
     this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
-    context.subscriptions.push(this.gitMessages);
+    this.gitRepositoryChanges = gitRepositories?.onDidChangeRepositoryList(() => {
+      if (this.activeMode === 'git') void this.sendGitRepositories();
+    }) ?? { dispose: () => undefined };
+    context.subscriptions.push(this.gitMessages, this.gitRepositoryChanges);
     this.issuePanels.setWorkspace({
       post: (message) => this.post(message),
       show: () => this.show('developer'),

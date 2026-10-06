@@ -8,7 +8,7 @@ import './git-control-panel.css';
 interface Props { post: (message: WorkspaceRequest) => void; }
 type Tab = 'changes' | 'history';
 interface RepoUi { tab: Tab; draft: string; selectedPath?: string; }
-interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; pullSource?: { remote: string; branch: string }; }
+interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
 
 const STORAGE_KEY = 'gitlab-workspace.git-ui.v1';
 const EMPTY_UI: RepoUi = { tab: 'changes', draft: '' };
@@ -197,13 +197,17 @@ export function GitControlPanel({ post }: Props) {
   const historyEnd = Math.min(changedCommits.length, historyStart + commitVisibleCount);
   const visibleCommits = changedCommits.slice(historyStart, historyEnd);
 
-  function startDialog(kind: DialogState['kind'], value?: string): void { setDialogError(''); setDialog({ kind, value }); }
+  function startDialog(kind: DialogState['kind'], value?: string): void {
+    setDialogError('');
+    setDialog({ kind, value, operation: kind === 'pick' && value?.split('|')[1] === 'revert' ? 'revert' : kind === 'pick' ? 'cherryPick' : undefined });
+  }
   function confirmDialog(event: Event): void {
     event.preventDefault();
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const text = (name: string): string => String(data.get(name) ?? '').trim();
     const required = (name: string, label: string): string => { const value = text(name); if (!value) throw new Error(label + '不可空白。'); return value; };
+    let keepDialogOpen = false;
     try {
       switch (dialog?.kind) {
         case 'branch': send({ type: 'branch', name: required('name', '分支名稱') }); break;
@@ -214,6 +218,7 @@ export function GitControlPanel({ post }: Props) {
           const strategy = text('strategy') as 'configured' | 'merge' | 'rebase' | 'rebase-merges' | 'ff-only' | 'interactive';
           if (strategy === 'interactive' || strategy === 'configured' && snapshot.configuredPullStrategy === 'interactive') {
             const value = JSON.stringify({ ref: remote + '/' + branch, pullSource: { remote, branch } });
+            keepDialogOpen = true;
             setDialog({ kind: 'rebaseEditor', value, pullSource: { remote, branch } });
             send({ type: 'rebasePreview', ref: remote + '/' + branch, pullSource: { remote, branch } });
           } else send({ type: 'pull', remote, branch, strategy });
@@ -224,6 +229,7 @@ export function GitControlPanel({ post }: Props) {
         case 'rebase': {
           const ref = required('ref', '目標分支');
           if (data.get('interactive') === 'on') {
+            keepDialogOpen = true;
             setDialog({ kind: 'rebaseEditor', value: JSON.stringify({ ref }) });
             send({ type: 'rebasePreview', ref });
           } else send({ type: 'rebase', ref, interactive: false });
@@ -249,7 +255,7 @@ export function GitControlPanel({ post }: Props) {
           break;
         }
       }
-      setDialog(undefined);
+      if (!keepDialogOpen) setDialog(undefined);
     } catch (caught) { setDialogError(caught instanceof Error ? caught.message : String(caught)); }
   }
 
@@ -327,9 +333,9 @@ export function GitControlPanel({ post }: Props) {
             {snapshot.historyHasMore && <button class="secondary git-load-more" onClick={() => { const skip = snapshot.history.length; send({ type: 'history', skip }); }}>載入較舊提交</button>}
           </div>
         </div>
-        <aside class="git-commit-detail"><h3>提交內容</h3>{snapshot.selectedCommit ? <><strong>{snapshot.selectedCommit.subject}</strong><p>{snapshot.selectedCommit.author} · {new Date(snapshot.selectedCommit.date).toLocaleString()}</p><code>{snapshot.selectedCommit.hash}</code>{snapshot.selectedCommit.parents.length > 1 && <label class="git-field"><span>比較 Parent</span><select value={snapshot.selectedCommitParent ?? snapshot.selectedCommit.parents[0]} onChange={(event) => send({ type: 'readCommit', hash: snapshot.selectedCommit!.hash, parent: event.currentTarget.value })}>{snapshot.selectedCommit.parents.map((parent, index) => <option value={parent}>Parent {index + 1} · {parent.slice(0, 12)}</option>)}</select></label>}<div class="git-commit-files"><h4>變更檔案 ({snapshot.commitFiles?.length ?? 0})</h4>{snapshot.commitFiles?.map((file) => <button onClick={() => { setUi({ selectedPath: file }); send({ type: 'readDiff', path: file, staged: false, ref: snapshot.selectedCommit!.hash, parent: snapshot.selectedCommitParent }); }}>{file}</button>)}</div><div class="git-commit-actions"><button class="secondary" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash)}>Cherry-pick…</button><button class="quiet" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash + '|revert')}>Revert…</button><button class="quiet" onClick={() => startDialog('reset', snapshot.selectedCommit!.hash)}>Reset…</button></div></> : <p>選取提交以檢視訊息、變更檔案及 Diff。</p>}</aside>
+        <aside class="git-commit-detail"><h3>提交內容</h3>{snapshot.selectedCommit ? <><strong>{snapshot.selectedCommit.subject}</strong><p>{snapshot.selectedCommit.author} · {new Date(snapshot.selectedCommit.date).toLocaleString()}</p><code>{snapshot.selectedCommit.hash}</code>{snapshot.selectedCommit.parents.length > 1 && <label class="git-field"><span>比較 Parent</span><select value={snapshot.selectedCommitParent ?? snapshot.selectedCommit.parents[0]} onChange={(event) => send({ type: 'readCommit', hash: snapshot.selectedCommit!.hash, parent: event.currentTarget.value })}>{snapshot.selectedCommit.parents.map((parent, index) => <option value={parent}>Parent {index + 1} · {parent.slice(0, 12)}</option>)}</select></label>}<div class="git-commit-files"><h4>變更檔案 ({snapshot.commitFiles?.length ?? 0})</h4>{snapshot.commitFiles?.map((file) => <button onClick={() => { setUi({ selectedPath: file }); send({ type: 'readDiff', path: file, staged: false, ref: snapshot.selectedCommit!.hash, parent: snapshot.selectedCommitParent }); }}>{file}</button>)}</div>{snapshot.diffRef === snapshot.selectedCommit.hash && snapshot.diffPath && <section class="git-commit-diff-preview" aria-label="提交差異"><header><h4>{snapshot.diffPath}</h4><span>{snapshot.diffParent ? `Parent ${snapshot.selectedCommit.parents.indexOf(snapshot.diffParent) + 1}` : '初始提交'}</span></header>{BufferByteLength(snapshot.diffText ?? '') > 1_048_576 ? <div class="git-large-diff"><p>此 Diff 超過 1 MiB。</p><button class="secondary" onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>在 VS Code 開啟原生 Diff</button></div> : <pre class="git-diff-view">{diffLines.map((line) => <code class={'git-diff-line ' + line.kind}>{line.text}</code>)}</pre>}</section>}<div class="git-commit-actions"><button class="secondary" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash)}>Cherry-pick…</button><button class="quiet" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash + '|revert')}>Revert…</button><button class="quiet" onClick={() => startDialog('reset', snapshot.selectedCommit!.hash)}>Reset…</button></div></> : <p>選取提交以檢視訊息、變更檔案及 Diff。</p>}</aside>
       </div>}
-    </> : <div class="git-empty-state"><div class="git-empty-icon">⑂</div><h2>{repositories.length ? '選擇要管理的 Repo' : '找不到本機 Git Repo'}</h2><p>{repositories.length ? '使用上方選單，或直接從 VS Code 側欄切換 Repo。' : 'VS Code 內建 Git 會自動偵測目前工作區與多資料夾工作區中的 Repo。請先開啟本機 Repo 資料夾。'}</p>{serviceMessage && <p>{serviceMessage}</p>}</div>}
+    </> : <div class="git-empty-state"><div class="git-empty-icon">⑂</div><h2>{repositories.length ? '選擇要管理的 Repo' : '找不到本機 Git Repo'}</h2><p>{repositories.length ? '使用上方選單，或直接從 VS Code 側欄切換 Repo。' : 'VS Code 內建 Git 會自動偵測目前工作區與多資料夾工作區中的 Repo。請先開啟本機 Repo 資料夾。'}</p>{serviceMessage && <p>{serviceMessage}</p>}<button class="secondary" onClick={() => post({ type: 'gitReady' })}>重新整理</button></div>}
 
     {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
       {dialog.kind === 'branch' && <Field name="name" label="新分支名稱" placeholder="feature/my-change" autoFocus />}
@@ -349,7 +355,7 @@ export function GitControlPanel({ post }: Props) {
       {dialog.kind === 'merge' && <><SelectField name="ref" label="來源分支／提交" values={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><p class="subtle">來源會合併至目前分支：{snapshot.branch ?? 'Detached HEAD'}。</p></>}
       {dialog.kind === 'reset' && <><Field name="hash" label="目標提交 SHA" defaultValue={(dialog.value ?? snapshot.history[0]?.hash ?? '').split('|')[0]} /><SelectField name="mode" label="Reset 類型" values={['soft', 'mixed', 'hard']} labels={['Soft：保留暫存與工作檔', 'Mixed：保留工作檔，清除暫存', 'Hard：復原備份未提交變更，再重設']} defaultValue="mixed" /><p class="subtle">操作前會再次顯示 Repo、目標提交及影響內容；Hard Reset 會先建立 Stash 備份。</p></>}
       {dialog.kind === 'commit' && <><label class="git-field"><span>提交訊息</span><textarea name="message" rows={4} defaultValue={ui.draft} placeholder="描述這次變更…" autoFocus /></label><label class="git-checkbox"><input type="checkbox" name="amend" defaultChecked={dialog.value === 'amend'} />Amend 最近一次提交（改寫歷史，執行前會確認並建立復原點）</label><div class="git-staged-preview"><strong>將提交的暫存內容</strong>{snapshot.changes.filter((change) => change.section === 'staged').map((change) => <span>{change.kind}　{change.path}</span>)}{!snapshot.changes.some((change) => change.section === 'staged') && <span>目前沒有已暫存檔案。</span>}</div></>}
-      {dialog.kind === 'pick' && <><SelectField name="operation" label="操作" values={['cherryPick', 'revert']} labels={['Cherry-pick', 'Revert']} defaultValue={(dialog.value ?? '').split('|')[1] === 'revert' ? 'revert' : 'cherryPick'} /><Field name="hash" label="提交 SHA" defaultValue={(dialog.value ?? snapshot.selectedCommit?.hash ?? '').split('|')[0]} /><label class="git-field"><span>Merge Commit mainline parent（一般提交留空）</span><select name="mainline"><option value="">一般提交</option><option value="1">Parent 1</option><option value="2">Parent 2</option><option value="3">Parent 3</option></select></label><p class="subtle">Merge Commit 請選擇要保留的 mainline parent。</p></>}
+      {dialog.kind === 'pick' && <><label class="git-field"><span>操作</span><select name="operation" value={dialog.operation ?? 'cherryPick'} onChange={(event) => setDialog((current) => current?.kind === 'pick' ? { ...current, operation: event.currentTarget.value as 'cherryPick' | 'revert' } : current)}><option value="cherryPick">Cherry-pick</option><option value="revert">Revert</option></select></label><Field name="hash" label="提交 SHA" defaultValue={(dialog.value ?? snapshot.selectedCommit?.hash ?? '').split('|')[0]} /><label class="git-field"><span>Merge Commit mainline parent（一般提交留空）</span><select name="mainline"><option value="">一般提交</option><option value="1">Parent 1</option><option value="2">Parent 2</option><option value="3">Parent 3</option></select></label><p class="subtle">Merge Commit 請選擇要保留的 mainline parent。</p></>}
       {dialogError && <p class="warning" role="alert">{dialogError}</p>}
     </div><footer><button type="button" class="quiet" onClick={() => setDialog(undefined)}>取消</button><button type="submit" class="primary">{dialog.kind === 'commit' ? dialog.value === 'amend' ? 'Amend' : '提交' : '檢視並執行'}</button></footer></form></div>}
   </section>;

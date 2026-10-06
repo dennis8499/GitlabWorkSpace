@@ -97,6 +97,11 @@ export class GitLabConflictError extends Error {
   }
 }
 
+function isGraphqlComplexityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /complexity.{0,120}(?:exceed|maximum|\blimit\b)|(?:exceed|maximum|\blimit\b).{0,120}complexity/i.test(message);
+}
+
 export class GitLabClient {
   readonly baseUrl: string;
   private readonly apiRoot: URL;
@@ -134,31 +139,54 @@ export class GitLabClient {
   }
 
   async getIssueCapabilities(): Promise<GitLabIssueCapabilities> {
+    let returnedFullSchema = false;
+    let complexityLimitObserved = false;
     const readTypes = async (names: readonly string[], requireAll = false): Promise<GraphQLSchemaType[]> => {
       if (!names.length) return [];
-      const response = await this.graphql<Record<string, unknown>>(
-        buildCapabilityQuery(names), {}
-      );
-      if (!('__schema' in response) && names.some((_name, index) => {
-        const alias = `type${index}`;
-        const value = response[alias];
-        return !(alias in response) || (value !== null && (!value || typeof value !== 'object' || typeof (value as { name?: unknown }).name !== 'string')) || (requireAll && value === null);
-      })) throw new GitLabApiError('GitLab returned an incomplete GraphQL capability response.');
-      const types = parseCapabilityTypes(response);
-      if ('__schema' in response) {
-        const schema = mergeCapabilityTypes(types);
-        const rootsAreComplete = ['Query', 'Mutation', 'Issue'].every((name) =>
-          (schema.get(name)?.fields?.length ?? 0) > 0);
-        const missing = buildFollowupTypeNames(schema).filter((name) => !schema.has(name));
-        if (!rootsAreComplete || missing.length) throw new GitLabApiError('GitLab returned an incomplete GraphQL schema introspection response.');
+      const readBatch = async (batch: readonly string[]): Promise<GraphQLSchemaType[]> => {
+        const response = await this.graphql<Record<string, unknown>>(
+          buildCapabilityQuery(batch), {}
+        );
+        if ('__schema' in response) returnedFullSchema = true;
+        if (!('__schema' in response) && batch.some((_name, index) => {
+          const alias = `type${index}`;
+          const value = response[alias];
+          return !(alias in response) || (value !== null && (!value || typeof value !== 'object' || typeof (value as { name?: unknown }).name !== 'string')) || (requireAll && value === null);
+        })) throw new GitLabApiError('GitLab returned an incomplete GraphQL capability response.');
+        return parseCapabilityTypes(response);
+      };
+      const readInSmallBatches = async (): Promise<GraphQLSchemaType[]> => {
+        const batches: string[][] = [];
+        for (let offset = 0; offset < names.length; offset += 3) batches.push(names.slice(offset, offset + 3));
+        return (await Promise.all(batches.map((batch) => readBatch(batch)))).flat();
+      };
+
+      if (complexityLimitObserved && names.length > 3) return readInSmallBatches();
+      try {
+        return await readBatch(names);
+      } catch (error) {
+        if (names.length <= 3 || !isGraphqlComplexityError(error)) throw error;
+        complexityLimitObserved = true;
+
+        // GitLab 16.11 enforces its complexity limit even for introspection. Keep
+        // the common GitLab 19 path to one request: it returns its full cached
+        // __schema for any __type query, so parallel probing would transfer and
+        // parse that multi-megabyte response repeatedly.
+        return readInSmallBatches();
       }
-      return types;
     };
+
     const base = await readTypes(buildInitialTypeNames());
     let schema = mergeCapabilityTypes(base);
     // Some GitLab deployments and intermediaries return a complete __schema for a
     // selective __type query. Reuse it in full instead of querying its types again.
-    if (schema.has('Query') && schema.has('Mutation') && schema.has('Issue')) {
+    if (returnedFullSchema) {
+      const rootsAreComplete = ['Query', 'Mutation', 'Issue'].every((name) => (schema.get(name)?.fields?.length ?? 0) > 0);
+      if (!rootsAreComplete || !schema.has('Project')) {
+        throw new GitLabApiError('GitLab returned an incomplete GraphQL schema introspection response.');
+      }
+      const missing = buildFollowupTypeNames(schema).filter((name) => !schema.has(name));
+      if (missing.length) throw new GitLabApiError('GitLab returned an incomplete GraphQL schema introspection response.');
       return detectIssueCapabilities(schema);
     }
     for (let pass = 0; pass < 8; pass++) {

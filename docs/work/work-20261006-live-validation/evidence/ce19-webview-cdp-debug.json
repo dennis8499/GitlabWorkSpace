@@ -1,0 +1,16 @@
+[
+  {
+    "targetId": "3E434482E742663111E52EFE0123B7D6",
+    "firstInspection": {
+      "href": "vscode-webview://0kl5v9tcjh670jdjn4nrisgvjoeruu2ensigl989k78nhpquetkt/index.html?id=87d23c68-ee24-45c8-b6dd-9c966d4ed89e&parentId=1&origin=6b1ad53a-5744-4ac5-8b97-14bb967d68e7&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "readyState": "complete",
+      "title": "",
+      "body": "",
+      "bodyHtml": "\n\t<script async=\"\" type=\"module\">\n\t\t// @ts-check\n\t\t/// <reference lib=\"dom\" />\n\n\t\tconst isSafari = (\n\t\t\tnavigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&\n\t\t\tnavigator.userAgent &&\n\t\t\tnavigator.userAgent.indexOf('CriOS') === -1 &&\n\t\t\tnavigator.userAgent.indexOf('FxiOS') === -1\n\t\t);\n\n\t\tconst isFirefox = (\n\t\t\tnavigator.userAgent &&\n\t\t\tnavigator.userAgent.indexOf('Firefox') >= 0\n\t\t);\n\n\t\tconst searchParams = new URL(location.toString()).searchParams;\n\t\tconst ID = searchParams.get('id');\n\t\tconst webviewOrigin = searchParams.get('origin');\n\t\tconst onElectron = searchParams.get('platform') === 'electron';\n\t\tconst disableServiceWorker = searchParams.has('disableServiceWorker');\n\t\tconst expectedWorkerVersion = parseInt(searchParams.get('swVersion'));\n\n\t\t/**\n\t\t * @param {string} name\n\t\t * @param {Record<string, string>} [options]\n\t\t */\n\t\tconst perfMark = (name, options = {}) => {\n\t\t\tperformance.mark(`webview/index.html/${name}`, {\n\t\t\t\tdetail: {\n\t\t\t\t\tid: ID,\n\t\t\t\t\t...options\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\n\t\tperfMark('scriptStart');\n\n\t\t/**\n\t\t * Use polling to track focus of main webview and iframes within the webview\n\t\t *\n\t\t * @param {Object} handlers\n\t\t * @param {() => void} handlers.onFocus\n\t\t * @param {() => void} handlers.onBlur\n\t\t */\n\t\tconst trackFocus = ({ onFocus, onBlur }) => {\n\t\t\tconst interval = 250;\n\t\t\tlet isFocused = document.hasFocus();\n\t\t\tsetInterval(() => {\n\t\t\t\tconst target = getActiveFrame();\n\t\t\t\tconst isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));\n\t\t\t\tif (isCurrentlyFocused === isFocused) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tisFocused = isCurrentlyFocused;\n\t\t\t\tif (isCurrentlyFocused) {\n\t\t\t\t\tonFocus();\n\t\t\t\t} else {\n\t\t\t\t\tonBlur();\n\t\t\t\t}\n\t\t\t}, interval);\n\t\t};\n\n\t\tconst ",
+      "frames": [
+        "vscode-webview://0kl5v9tcjh670jdjn4nrisgvjoeruu2ensigl989k78nhpquetkt/fake.html?id=87d23c68-ee24-45c8-b6dd-9c966d4ed89e"
+      ],
+      "clone": false
+    }
+  }
+]

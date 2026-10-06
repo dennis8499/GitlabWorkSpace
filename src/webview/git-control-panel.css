@@ -93,6 +93,11 @@
 .git-commit-files h4 { margin: 0 0 3px; font-size: 10px; }
 .git-commit-files button { overflow: hidden; border: 0; border-radius: 3px; padding: 5px 3px; color: var(--vscode-textLink-foreground, #65a9ef); background: transparent; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .git-commit-files button:hover { background: var(--vscode-list-hoverBackground); }
+.git-commit-diff-preview { display: flex; min-height: 0; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 9px; }
+.git-commit-diff-preview > header { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; }
+.git-commit-diff-preview h4 { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.git-commit-diff-preview > header > span { flex: 0 0 auto; color: var(--muted); font-size: 9px; }
+.git-commit-diff-preview > .git-diff-view { max-height: 32vh; flex: 0 1 auto; overflow: auto; }
 .git-commit-actions { display: flex; flex-wrap: wrap; gap: 5px; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 9px; }
 .git-empty-state { display: grid; min-height: 280px; flex: 1; align-content: center; justify-items: center; gap: 8px; padding: 20px; text-align: center; }
 .git-empty-state h2 { margin: 0; font-size: 15px; }

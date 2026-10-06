@@ -1,0 +1,37 @@
+{
+  "schema": "GitLabWorkspaceLiveSourceSmoke/v1",
+  "generatedAt": "2026-10-06T16:26:36.016Z",
+  "build": "0.13.1 working-tree Extension Development Host, before 0.13.2 VSIX packaging",
+  "vscodeVersion": "1.140.0",
+  "scope": "Real Extension Host and Webview smoke for SecretStorage authentication, capability detection, retained demo-group selection, clone-list rendering, manual capability redetection, and 30 warm mode switches.",
+  "environments": [
+    {
+      "environment": "ce19",
+      "status": "PASS",
+      "gitLabVersion": "19.4.1",
+      "selectedGroup": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+      "visibleRepositoryCount": 3,
+      "schemaBytes": { "initial": 8175375, "afterManualDetection": 8175436 },
+      "schemaGraphQlRequests": 3,
+      "apiRequests": 20,
+      "coldStartMs": 383.42,
+      "warmNavigationMs": { "median": 245.9, "p95": 388.06 },
+      "detail": "ce19-source-smoke.json",
+      "screenshot": "screenshots/ce19-clone.png"
+    },
+    {
+      "environment": "ce16",
+      "status": "PASS",
+      "gitLabVersion": "16.11.10",
+      "selectedGroup": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+      "visibleRepositoryCount": 3,
+      "schemaBytes": { "initial": 159239, "afterManualDetection": 159239 },
+      "schemaGraphQlRequests": 34,
+      "apiRequests": 51,
+      "coldStartMs": 681.34,
+      "warmNavigationMs": { "median": 279.94, "p95": 393.56 },
+      "detail": "ce16-source-smoke.json",
+      "screenshot": "screenshots/ce16-clone.png"
+    }
+  ]
+}

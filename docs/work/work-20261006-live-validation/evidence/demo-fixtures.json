@@ -1,0 +1,39 @@
+{
+  "schema": "GitLabWorkspaceLiveDemoEvidence/v1",
+  "group": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+  "environments": [
+    {
+      "environment": "ce19",
+      "gitLabVersion": "19.4.1",
+      "groupId": 58,
+      "projects": [
+        { "id": 20, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/contracts", "initialSha": "4412f58aaf3afa7de81ceeaf0c2b81bb39cb8d49" },
+        { "id": 21, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/service", "initialSha": "2f0181ecee7f73d473bcb5a450bfb974842da7b1" },
+        { "id": 22, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/client", "initialSha": "b620476ff3cf01b045234b2197785d3f3134140e" }
+      ],
+      "issues": [
+        { "projectId": 20, "iid": 1, "title": "Workspace demo ce19 contract review" },
+        { "projectId": 21, "iid": 1, "title": "Workspace demo ce19 service handoff" }
+      ],
+      "relatedIssues": { "source": "20#1", "target": "21#1", "type": "relates_to", "linkId": 1 },
+      "mergeRequest": { "projectId": 21, "iid": 1, "title": "Workspace demo ce19 handoff", "sourceBranch": "validation/work-20261006-livevalidation/demo/service/work" }
+    },
+    {
+      "environment": "ce16",
+      "gitLabVersion": "16.11.10",
+      "groupId": 23,
+      "projects": [
+        { "id": 19, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/contracts", "initialSha": "4412f58aaf3afa7de81ceeaf0c2b81bb39cb8d49" },
+        { "id": 20, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/service", "initialSha": "2f0181ecee7f73d473bcb5a450bfb974842da7b1" },
+        { "id": 21, "path": "grp-sn-maint/gitlab-workspace-live-validation/demo/client", "initialSha": "b620476ff3cf01b045234b2197785d3f3134140e" }
+      ],
+      "issues": [
+        { "projectId": 19, "iid": 1, "title": "Workspace demo ce16 contract review" },
+        { "projectId": 20, "iid": 1, "title": "Workspace demo ce16 service handoff" }
+      ],
+      "relatedIssues": { "source": "19#1", "target": "20#1", "type": "relates_to", "linkId": null },
+      "mergeRequest": { "projectId": 20, "iid": 1, "title": "Workspace demo ce16 handoff", "sourceBranch": "validation/work-20261006-livevalidation/demo/service/work" }
+    }
+  ],
+  "fixturePolicy": "The 3 projects, 2 issues, one issue relation and one MR per server are retained for replays. The source fixture files and initial commit SHAs match across versions."
+}

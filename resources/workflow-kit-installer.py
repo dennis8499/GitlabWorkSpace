@@ -25,7 +25,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = "0.13.1"
+VERSION = "0.13.2"
 WORKSPACE_CONTRACT = 2
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
