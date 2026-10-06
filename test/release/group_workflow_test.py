@@ -1,6 +1,7 @@
 """Install the pinned offline tools into a non-Git Group and exercise native delivery."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -32,7 +33,7 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
             group.mkdir()
             bundle = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
             digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
-            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.11.1", "bundled",
+            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.12.0", "bundled",
                                     "--format", "tar.xz", "--entry-root", "workflow-kit", "--archive-sha256", digest)
             self.assertTrue(installed["ok"])
             self.assertEqual(14, installed["skills"])
@@ -184,10 +185,9 @@ Q-001: requester must confirm access behavior.
                     "sourceProjectId": 10, "targetProjectId": 10, "sourceBranch": f"feature/{WORK}", "targetBranch": "main",
                     "sourceSha": first, "targetSha": repositories[0]["base_commit"], "repoPath": str(group / "Alpha"),
                     "sourceRemoteUrl": repositories[0]["remote_url"], "targetRemoteUrl": repositories[0]["remote_url"], "mode": "direct"}
-            task_file = base / "mr-task.json"
-            task_file.write_text(json.dumps(task), encoding="utf-8")
             mr_context = base / "mr-context"
-            fixed = self.helper(reviewer / "git_review_context.py", "--mr-context", task_file, "--context-dir", mr_context)
+            task_base64 = base64.b64encode(json.dumps(task).encode("utf-8")).decode("ascii")
+            fixed = self.helper(reviewer / "git_review_context.py", "--mr-context-base64", task_base64, "--context-dir", mr_context)
             draft = {"schema_version": 1, "summary": "Incomplete static fixture review", "coverage": [
                 {"path": c["path"], "status": "metadata-only", "reason": "Semantic review is outside this fixture."}
                 for c in fixed["changed_files"]], "findings": [],
@@ -197,12 +197,15 @@ Q-001: requester must confirm access behavior.
             result_file.write_text(json.dumps(draft), encoding="utf-8")
             published = self.helper(reviewer / "review_report.py", "--context-dir", mr_context, "--result", result_file,
                                     "--report-dir", group / "review-reports/mr")
-            # Pass the real portable output to the compiled workspace parser and identity validator.
-            json_path = published["json_report"]
-            portable = json.loads(Path(json_path).read_text(encoding="utf-8"))
-            self.assertFalse(portable["report_metadata"]["reviewComplete"])
+            # Pass the Markdown-only portable report to the compiled workspace parser and validator.
+            markdown_path = published["markdown_report"]
+            markdown = Path(markdown_path).read_text(encoding="utf-8")
+            self.assertIn("merge-review-report:", markdown)
+            self.assertIsNone(published["json_report"])
+            self.assertFalse(mr_context.exists())
+            self.assertFalse((group / "review-reports/tasks").exists())
             node = "const fs=require('fs'),r=require(process.argv[1]);const text=fs.readFileSync(process.argv[2],'utf8');const report=r.parseMergeReviewReport(text);r.validateReportIdentity(report,JSON.parse(process.argv[3]));process.stdout.write(report.metadata.sourceSha);"
-            parsed = self.run_command(["node", "-e", node, str(ROOT / "out/src/workspace/mergeReviewReport.js"), json_path, json.dumps(task)])
+            parsed = self.run_command(["node", "-e", node, str(ROOT / "out/src/workspace/mergeReviewReport.js"), markdown_path, json.dumps(task)])
             self.assertEqual(first, parsed)
             self.git(group / "Alpha", "switch", "main")
             self.assertEqual("complete", self.helper(megin / "gitlab_delivery.py", "completed", "--group-root", group, "--work-id", WORK)["state"])

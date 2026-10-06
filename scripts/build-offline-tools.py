@@ -67,9 +67,9 @@ RELEASES = (
     ReleaseSource(
         "merge-reviewer",
         "MergeReviewer",
-        "0.5.0",
-        "merge-reviewer-0.5.0.zip",
-        "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f",
+        "0.6.0",
+        "merge-reviewer-0.6.0.zip",
+        "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf",
     ),
 )
 

@@ -25,7 +25,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = "0.11.1"
+VERSION = "0.12.0"
 WORKSPACE_CONTRACT = 1
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
@@ -47,17 +47,17 @@ LEGACY_MARKERS = (
 UPSTREAM = {
     "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex.zip", "version": "0.3.0", "sha256": "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07", "root": "codebase-llm-wiki-codex-0.3.0"},
     "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.3.0", "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5", "root": ""},
-    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.5.0.zip", "version": "0.5.0", "sha256": "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f", "root": ""},
+    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.6.0.zip", "version": "0.6.0", "sha256": "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf", "root": ""},
 }
 PROFILE_HASHES = {
     "profile.md": "4ecc186f14ef5a2cb206eb0e99371995a7c11539ca76ddf3d94da197f2c3ade3",
-    "group-instructions.md": "faa44b1d25f372f311c5e0d4277e4e55fba54a38e85030516d76e2a342feaee5",
+    "group-instructions.md": "3641177df6c3755a8199457f3325fdc31f1d9927d285f662753dae86b1f6aa68",
     "legacy-cleanup.md": "94cf39440fa211f72036c524ecdc56a36df971ef2cdc6e4deefb9768fa9ad29a",
 }
 SOURCE_SUMMARY = [
     "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
     "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
-    "MergeReviewer 0.5.0; pin Merge Request source and target SHAs before findings or report publication.",
+    "MergeReviewer 0.6.0; pin Merge Request source and target SHAs, keep report contexts in owned system temporary storage, and default to Markdown-only portable reports.",
 ]
 SPECIAL_RULES = {
     "sourceReferences": "Repo/path",

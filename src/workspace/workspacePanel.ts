@@ -2037,12 +2037,9 @@ export class WorkspacePanel implements vscode.Disposable {
     const urls = await Promise.all(remotes.map((remote) => git(repoPath, ['remote', 'get-url', remote])));
     if (!urls.some((url) => projectRemoteMatches(url.trim(), target))) throw new Error('本機 Repo remote 與 MR 目標專案不一致。');
     if (!isAllowedGitRemote(identity.origin, source.http_url_to_repo) || !isAllowedGitRemote(identity.origin, target.http_url_to_repo)) throw new Error('MR remote 不屬於目前 GitLab。');
-    const directory = path.join(root, 'review-reports', 'tasks');
-    await mkdir(directory, { recursive: true });
-    const taskFile = path.join(directory, `mr-${projectId}-${iid}-${randomUUID()}.json`);
-    await writeFile(taskFile, JSON.stringify({ schema: 'MergeReviewTask/v1', ...identity, repoPath,
-      sourceRemoteUrl: source.http_url_to_repo, targetRemoteUrl: target.http_url_to_repo, mode: 'merge' }, null, 2) + '\n', 'utf8');
-    const prompt = buildReviewerPrompt(target, request, root, source, { repoPath, taskFile, sourceSha: identity.sourceSha, targetSha: identity.targetSha });
+    const taskBase64 = Buffer.from(JSON.stringify({ schema: 'MergeReviewTask/v1', ...identity, repoPath,
+      sourceRemoteUrl: source.http_url_to_repo, targetRemoteUrl: target.http_url_to_repo, mode: 'merge' }), 'utf8').toString('base64');
+    const prompt = buildReviewerPrompt(target, request, root, source, { repoPath, taskBase64, sourceSha: identity.sourceSha, targetSha: identity.targetSha });
     await vscode.env.clipboard.writeText(prompt);
     await this.openCodexTerminal();
     this.post({ type: 'message', message: '已固定實際 Repo 與來源／目標 SHA。請貼上任務審查，完成後匯入報告。' });
@@ -2052,7 +2049,7 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.assertWorkflowKitReady();
     const root = this.meginGroupRoot();
     const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'git_review_context.py');
-    if (!await exists(script) || !(await readFile(script, 'utf8')).includes('--group-root')) throw new Error('請先安裝支援 Group 審查的 MergeReviewer 0.5.0 以上。');
+    if (!await exists(script) || !(await readFile(script, 'utf8')).includes('--mr-context-base64')) throw new Error('請先安裝支援 Group 與 MR 快速審查的 MergeReviewer 0.6.0 以上。');
     const prompt = `$merge-reviewer 請審查 Group「${root}」下一層所有 Repo 的未提交內容。使用 git_review_context.py --group-root "${root}" --quick，分別審查固定的暫存區與工作檔快照，保留版本證據，輸出 Group 總覽與各 Repo 報告。`;
     await vscode.env.clipboard.writeText(prompt);
     await this.openCodexTerminal();

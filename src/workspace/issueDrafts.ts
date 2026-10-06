@@ -136,12 +136,12 @@ export function buildPostDeliveryWikiUpdatePrompt(input: PostDeliveryWikiPromptI
 }
 
 export function buildReviewerPrompt(project: GitLabProject, request: GitLabMergeRequest, workspacePath?: string, sourceProject?: GitLabProject,
-  binding?: { repoPath: string; taskFile: string; sourceSha: string; targetSha: string }): string {
+  binding?: { repoPath: string; taskBase64: string; sourceSha: string; targetSha: string }): string {
   const ref = request.diff_refs;
   const sourceSha = binding?.sourceSha ?? ref?.head_sha ?? request.sha ?? '';
   const targetSha = binding?.targetSha ?? '';
   return [
-    binding ? `$merge-reviewer 請使用固定 MR 任務：git_review_context.py --mr-context "${binding.taskFile}"` : '$merge-reviewer 請先由工作台建立固定 MR 任務；缺少實際 Repo 與目標目前 SHA 時不能開始審查。',
+    binding ? `$merge-reviewer 請使用固定 MR 任務：git_review_context.py --mr-context-base64 "${binding.taskBase64}"` : '$merge-reviewer 請先由工作台建立固定 MR 任務；缺少實際 Repo 與目標目前 SHA 時不能開始審查。',
     `MR：${request.web_url}`,
     `Group Workspace：${workspacePath ?? '請使用目前已開啟的 Group 工作區'}`,
     `本機 Repo 路徑：${binding?.repoPath ?? '請由 project ID 對應實際 Repo，不能使用 namespace 猜測資料夾'}`,
@@ -149,7 +149,7 @@ export function buildReviewerPrompt(project: GitLabProject, request: GitLabMerge
     `來源 SHA：${sourceSha || '重新查詢 GitLab MR 最新 head'}`,
     `目標基準 SHA：${targetSha || '重新查詢 GitLab MR 最新 target'}`,
     '',
-    '請確認 GitLab Workspace 的分支同步狀態後，再依 MergeReviewer Skill 產生以繁體中文撰寫的 Markdown 審查報告。',
+    '請依 MergeReviewer Skill 產生以繁體中文撰寫、含 MR 與來源／目標 SHA 驗證中繼資料的 Markdown 審查報告。預設只產生 Markdown，只有明確要求 JSON 才附加 JSON。審查 context 和草稿暫存於系統暫存目錄；成功產生報告或中止時都要清除本次受管理的暫存資料。',
     '報告結論、Finding、證據、觸發情境及未檢查項目都要清楚分開。審查完成後讓使用者匯入或貼上報告；不要自行發布 MR 評論、核准或合併。'
   ].join('\n');
 }

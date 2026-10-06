@@ -44,9 +44,9 @@ PINNED_SOURCES = (
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.5.0.zip",
-        "version": "0.5.0",
-        "sha256": "664888d7bf8292384710b4246e669ae446d9269823029d05659206f4b3e3784f",
+        "asset": "merge-reviewer-0.6.0.zip",
+        "version": "0.6.0",
+        "sha256": "a8865e6e825bc47f457182a17b515dd2ec572901b6933d10c85c888350cdbbbf",
     },
 )
 
@@ -213,7 +213,7 @@ def build() -> dict[str, object]:
         "sourceSummary": [
             "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
             "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
-            "MergeReviewer 0.5.0; pin Merge Request source and target SHAs before findings or report publication."
+            "MergeReviewer 0.6.0; pin Merge Request source and target SHAs, keep report contexts in owned system temporary storage, and default to Markdown-only portable reports."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",

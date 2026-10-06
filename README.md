@@ -58,7 +58,7 @@
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-GitLab Workspace v0.11.1 的 VSIX 與組合包共用版本，內附 Wiki 0.3.0、Megin 0.3.0、MergeReviewer 0.5.0 與 14 個 Skills。Issue 開發任務會要求 Megin 評估 Group 下的全部直屬 Repo，將未變更的 Repo 排除於分支與交付。套件以三個固定來源封裝，並記錄來源摘要、工作流程規則和逐檔 SHA-256。安裝器將 Skills、Group 規則、Wiki 起始內容、Codex 設定與安裝紀錄作為單一交易套用；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
+GitLab Workspace v0.12.0 的 VSIX 與組合包共用版本，內附 Wiki 0.3.0、Megin 0.3.0、MergeReviewer 0.6.0 與 14 個 Skills。MR 審查透過提示詞攜帶固定任務，預設只保留含 SHA 中繼資料的 Markdown 報告；審查證據及草稿位於受管理的系統暫存目錄。Issue 開發任務會要求 Megin 評估 Group 下的全部直屬 Repo，將未變更的 Repo 排除於分支與交付。套件以三個固定來源封裝，並記錄來源摘要、工作流程規則和逐檔 SHA-256。安裝器將 Skills、Group 規則、Wiki 起始內容、Codex 設定與安裝紀錄作為單一交易套用；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 
