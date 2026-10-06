@@ -15,8 +15,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "resources/workflow-kit-installer.py"
 ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
-RELEASE_ZIP = ROOT / "dist/gitlab-workspace-kit-0.12.0.zip"
-VERSION = "0.12.0"
+RELEASE_ZIP = ROOT / "dist/gitlab-workspace-kit-0.13.0.zip"
+VERSION = "0.13.0"
 SKILLS = (
     "codebase-wiki", "megin", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
     "megin-finishing-delivery", "megin-human-acceptance", "megin-implementation-execution",
@@ -83,6 +83,29 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             result[relative] = path.read_bytes()
         return result
 
+    def assert_group_overlays(self, group: Path) -> None:
+        wiki = group / ".agents/skills/codebase-wiki"
+        megin = group / ".agents/skills/megin"
+        reviewer = group / ".agents/skills/merge-reviewer"
+        workflow = wiki / "references/development-spec-workflow.md"
+        self.assertIn("Group", workflow.read_text(encoding="utf-8"))
+        for path in (megin / "scripts/group_workspace.py", megin / "scripts/group_quality_gate.py",
+                     megin / "scripts/gitlab_delivery.py", reviewer / "scripts/group_review.py",
+                     reviewer / "scripts/mr_contract.py"):
+            with self.subTest(path=path):
+                self.assertTrue(path.is_file())
+
+        state_path = wiki / "install-state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        overlay = json.loads((group / MARKER).read_text(encoding="utf-8"))["overlays"]["codebase-wiki"]
+        for relative in (*overlay["added"], *overlay["replaced"]):
+            with self.subTest(wiki_overlay_path=relative):
+                self.assertEqual(hashlib.sha256((group / relative).read_bytes()).hexdigest(),
+                                 state["files"][relative]["sha256"])
+        installed = json.loads((group / MARKER).read_text(encoding="utf-8"))
+        self.assertEqual(2, installed["workspaceContract"])
+        self.assertEqual(64, len(installed["payloadSha256"]))
+
     def test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths(self) -> None:
         for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):
             result, data = self.execute("inspect", archive, "--format", archive_format, "--expected-version", VERSION)
@@ -111,6 +134,36 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             traversal_result, _ = self.execute("inspect", traversal, "--format", "zip", "--expected-version", VERSION)
             self.assertNotEqual(0, traversal_result.returncode)
 
+            for mutation in ("overlay-payload", "overlay-manifest", "undeclared-file"):
+                with self.subTest(mutation=mutation):
+                    damaged_overlay = Path(temporary) / f"{mutation}.zip"
+                    with zipfile.ZipFile(RELEASE_ZIP) as source:
+                        entries = {item.filename: source.read(item.filename) for item in source.infolist()}
+                    manifest_path = "workflow-kit/manifest.json"
+                    manifest = json.loads(entries[manifest_path].decode("utf-8"))
+                    if mutation == "overlay-payload":
+                        relative = next(iter(manifest["overlays"]["megin"]["replaced"]))
+                        archive_path = f"workflow-kit/payload/{relative}"
+                        entries[archive_path] += b"\nchanged after overlay pinning\n"
+                        manifest["files"][relative] = hashlib.sha256(entries[archive_path]).hexdigest()
+                    elif mutation == "overlay-manifest":
+                        manifest["overlays"]["megin"]["added"][".agents/skills/megin/unlisted.md"] = "0" * 64
+                    else:
+                        relative = ".agents/skills/megin/unlisted.md"
+                        content = b"not declared by any overlay\n"
+                        entries[f"workflow-kit/payload/{relative}"] = content
+                        manifest["files"][relative] = hashlib.sha256(content).hexdigest()
+                    if mutation != "overlay-manifest":
+                        canonical_files = json.dumps(manifest["files"], ensure_ascii=False, sort_keys=True,
+                                                     separators=(",", ":")).encode("utf-8")
+                        manifest["payloadSha256"] = hashlib.sha256(canonical_files).hexdigest()
+                    entries[manifest_path] = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+                    with zipfile.ZipFile(damaged_overlay, "w", zipfile.ZIP_DEFLATED) as target:
+                        for name, content in entries.items():
+                            target.writestr(name, content)
+                    rejected, _ = self.execute("inspect", damaged_overlay, "--format", "zip", "--expected-version", VERSION)
+                    self.assertNotEqual(0, rejected.returncode)
+
     def test_manifest_pins_all_sources_and_the_workspace_profile(self) -> None:
         result, data = self.execute("inspect", ARCHIVE, "--format", "tar.xz", "--expected-version", VERSION)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
@@ -122,8 +175,13 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"codebase-wiki": "0.3.0", "megin": "0.3.0", "merge-reviewer": "0.6.0"},
+        self.assertEqual({"codebase-wiki": "0.4.0", "megin": "0.4.0", "merge-reviewer": "0.7.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
+        self.assertEqual(2, manifest["workspaceContract"])
+        self.assertEqual({"codebase-wiki", "megin", "merge-reviewer"}, set(manifest["overlays"]))
+        self.assertTrue(all(overlay["added"] or overlay["replaced"]
+                            for overlay in manifest["overlays"].values()))
+        self.assertEqual(64, len(manifest["payloadSha256"]))
         self.assertEqual(64, len(manifest["customProfile"]["files"]["profile.md"]))
         self.assertTrue(manifest["sourceSummary"])
         self.assertEqual(14, data["skills"])
@@ -143,6 +201,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             self.assertEqual("- status: complete\n", (group / "docs/work/previous-work/workflow.md").read_text(encoding="utf-8"))
             self.assertEqual("old report\n", (group / "review-reports/previous/report.md").read_text(encoding="utf-8"))
             self.assertEqual("installed", self.status(group)["status"])
+            self.assert_group_overlays(group)
 
         with tempfile.TemporaryDirectory(prefix="kit-existing-wiki-") as temporary:
             group = self.create_group(Path(temporary), wiki="# Existing Group Wiki\nCustom notes stay here.\n")
@@ -158,6 +217,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             self.assertEqual(0, update.returncode, update.stderr or update.stdout)
             self.assertEqual("added after install\n", (group / "wiki/new-note.md").read_text(encoding="utf-8"))
             self.assertEqual("# Existing Group Wiki\nCustom notes stay here.\n", (group / "wiki/index.md").read_text(encoding="utf-8"))
+            self.assert_group_overlays(group)
 
     def test_install_failure_at_first_middle_and_final_operation_rolls_back(self) -> None:
         for point in ("1", "8", "last"):

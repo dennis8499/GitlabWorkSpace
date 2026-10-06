@@ -1,0 +1,18 @@
+{
+  "schema": "megin-requirements-discovery-cases/v1",
+  "feature": "docs/work/work-20260922-research-driven-discovery/features/requirements-discovery.feature",
+  "requirements": "docs/work/work-20260922-research-driven-discovery/requirements.md",
+  "cases": [
+    {"id": "REQ-DISC-001", "class": "quartz-broad", "fixture": "quartz", "sources": ["SRC-QUARTZ-001", "SRC-QUARTZ-002"], "manual_acceptance": true},
+    {"id": "REQ-DISC-002", "class": "source-unavailable", "fixture": "quartz", "sources": ["SRC-QUARTZ-001"], "manual_acceptance": true},
+    {"id": "REQ-DISC-003", "class": "explicit-small", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-004", "class": "multi-answer", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-005", "class": "conflict-deferred", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-006", "class": "persistent-unknown", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-007", "class": "resume-revision", "fixture": "resume", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-008", "class": "redis-broad", "fixture": "redis", "sources": ["SRC-REDIS-001", "SRC-REDIS-002"], "manual_acceptance": true},
+    {"id": "REQ-DISC-009", "class": "read-only-routing", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-010", "class": "material-checker", "fixture": "explicit-small", "sources": [], "manual_acceptance": true},
+    {"id": "REQ-DISC-011", "class": "unknown-research-target", "fixture": "unknown-target", "sources": [], "manual_acceptance": true}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "megin-requirements-discovery-sources/v1",
+  "sources": [
+    {"id": "SRC-001", "snapshot": "repository-contract.md", "url": "repository://.agents/skills/megin", "applicable_version": "main@6afd0e817bb22894aac8d801df60a81cfdd7ff4c", "locator": "Megin entry Skill, workflow record, branch policy and packaging validator", "retrieved_at": "2026-09-22", "sha256": "974CFC2F89CF90EC1E3EEA372B334F98C202658FAA1564BCD439E3D4F582A0FE"},
+    {"id": "SRC-002", "snapshot": "approved-plan.md", "url": "work://work-20260922-research-driven-discovery/plan-1", "applicable_version": "plan-1", "locator": "docs/work/work-20260922-research-driven-discovery/plan-1/plan.md", "retrieved_at": "2026-09-22", "sha256": "7205B5EF0C9DB80AF346BEECC896585E8431E79FC009508CC16339EE18EA1E64"},
+    {"id": "SRC-QUARTZ-001", "snapshot": "quartz-net-3x.md", "url": "https://www.quartz-scheduler.net/documentation/quartz-3.x/", "applicable_version": "Quartz.NET 3.x", "locator": "Quartz.NET 3.x landing page", "retrieved_at": "2026-09-22", "sha256": "88282752AA974AF1043D35EFFDA3D211261A92D37B595671090574DD8BFD9291"},
+    {"id": "SRC-QUARTZ-002", "snapshot": "quartz-quick-start.md", "url": "https://www.quartz-scheduler.net/documentation/quartz-3.x/quick-start", "applicable_version": "Quartz.NET 3.x", "locator": "Creating and initializing database", "retrieved_at": "2026-09-22", "sha256": "DC45ECD0E5AA9E881CE1A05A3D706B68042BC7D63BF2BF67A210C54DC2E67F0F"},
+    {"id": "SRC-REDIS-001", "snapshot": "redis-data-types.md", "url": "https://redis.io/docs/latest/develop/data-types/", "applicable_version": "Redis Open Source current documentation", "locator": "Data types overview", "retrieved_at": "2026-09-22", "sha256": "FACA5B9E31AE643827302C432A8A67A0072BDE058C796006C3DAA0459C08009C"},
+    {"id": "SRC-REDIS-002", "snapshot": "redis-streams.md", "url": "https://redis.io/docs/latest/develop/data-types/streams/", "applicable_version": "Redis Open Source current documentation", "locator": "Streams basics", "retrieved_at": "2026-09-22", "sha256": "F4C081AF3F5C85BF9ECFC6FA87EC9323B5F99EE578FF66E67C505E3ED06CFDE0"}
+  ]
+}

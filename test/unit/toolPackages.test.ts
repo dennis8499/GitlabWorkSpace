@@ -10,7 +10,7 @@ const sha256 = (value: Uint8Array): string => createHash('sha256').update(value)
 const createIndex = (archive: Buffer, zip: Buffer) => ({
   schema: 'gitlab-workspace-kit-bundle/v1', package: 'gitlab-workspace-kit', version: '0.10.0',
   archive: 'workflow-kit.tar.xz', format: 'tar.xz', archiveSha256: sha256(archive),
-  releaseZip: 'gitlab-workspace-kit-0.10.0.zip', releaseZipSha256: sha256(zip), workspaceContract: 1, payloadFiles: 141
+  releaseZip: 'gitlab-workspace-kit-0.10.0.zip', releaseZipSha256: sha256(zip), workspaceContract: 2, payloadFiles: 141
 });
 
 test('lists a single bundled kit first, then Gitea and GitHub imports for the extension version', async () => {

@@ -1,0 +1,57 @@
+{
+  "schema": "megin-requirements-discovery-repo-scope/v1",
+  "fixture": "tests/requirements-discovery/fixtures/all-local-repos",
+  "feature": "tests/requirements-discovery/features/all-local-repos.feature",
+  "rubric": "tests/requirements-discovery/repo-scope-rubric.md",
+  "results": "tests/requirements-discovery/results/repo-scope-template.md",
+  "repositories": [
+    "admin-ui",
+    "orders-api",
+    "shared-contracts",
+    "invoice-worker"
+  ],
+  "cases": [
+    {
+      "id": "REPO-SCOPE-001",
+      "class": "all-local-repos",
+      "prompt": "在管理員訂單清單加入 CSV 匯出；使用目前所有篩選結果，不限於畫面這一頁。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-002",
+      "class": "no-change-evidence",
+      "prompt": "繼續同一項訂單 CSV 匯出需求，記錄每個 Repo 是否需要改動及其證據。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-003",
+      "class": "reuse-existing-capability",
+      "prompt": "判斷如何實作訂單 CSV 匯出，並比較重用現有介面與另建 API 的方向。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-004",
+      "class": "source-conflict-cross-repo",
+      "prompt": "核對各 Repo 的文件、程式與測試是否一致，並說明訂單 UI、API、共用契約及發票工作程序的影響。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-005",
+      "class": "resume-inventory-change",
+      "prompt": "恢復該需求後，新增一個已初始化的 Group 直屬 Repo 並更新 API 測試。重新盤點後指出 revision 和舊規劃是否仍適用。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-006",
+      "class": "resume-inventory-removal",
+      "prompt": "續作時原需求主檔記錄了所有 Repo；其中一個有效直屬 Repo 已移除，且仍存在的共用契約來源有所變動。重新盤點目前 Repo 清單與相關來源，判斷 revision 與舊規劃是否仍適用。",
+      "manual_acceptance": true
+    },
+    {
+      "id": "REPO-SCOPE-007",
+      "class": "insufficient-repo-source-blocks-planning",
+      "prompt": "繼續同一功能探索：一份決定性跨 Repo 契約目前無法讀取，且沒有等價程式或測試證據。記錄該 Repo 的狀態、缺口與下一步，判斷能否進入技術規劃。",
+      "manual_acceptance": true
+    }
+  ]
+}

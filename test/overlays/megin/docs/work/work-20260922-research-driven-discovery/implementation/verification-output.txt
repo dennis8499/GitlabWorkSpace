@@ -1,0 +1,17 @@
+python -X utf8 -B tests/requirements-discovery/check_materials.py
+validated requirements-discovery materials: 11 cases, 6 source snapshots, and fixtures
+
+python -X utf8 -B tests/requirements-discovery/test_materials.py
+material checker regression tests passed: canonical, isolated references, duplicate IDs, bad-reference, and result-template cases
+
+python -X utf8 -B tests/requirements-discovery/test_rules.py
+discovery rule regression tests passed: language, routing, protocol, workflow, and scenario contracts
+
+python -X utf8 -B .agents/skills/megin/scripts/validate_skills.py --archive megin-skills.zip
+validated 12 Megin Skills
+
+python -X utf8 -B docs/work/work-20260921-requirements-language/implementation/verify_language_policy.py
+validated language policy references for 12 Skills
+
+git diff --check
+exit status: 0

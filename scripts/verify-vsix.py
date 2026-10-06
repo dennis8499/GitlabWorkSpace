@@ -77,7 +77,7 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     if manifest.get("schema") != "gitlab-workspace-kit-bundle/v1" or manifest.get("package") != "gitlab-workspace-kit" or \
        manifest.get("version") != MANIFEST["version"] or manifest.get("archive") != "workflow-kit.tar.xz" or \
        manifest.get("format") != "tar.xz" or manifest.get("releaseZip") != KIT_ZIP_PATH.name or \
-       manifest.get("workspaceContract") != 1 or not isinstance(manifest.get("upstream"), dict) or \
+       manifest.get("workspaceContract") != 2 or not isinstance(manifest.get("upstream"), dict) or \
        not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("archiveSha256", ""))) or \
        not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("releaseZipSha256", ""))):
         raise ValueError("Workflow kit package index is invalid or has the wrong extension version")

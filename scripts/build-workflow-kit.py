@@ -29,24 +29,24 @@ PINNED_SOURCES = (
     {
         "id": "codebase-wiki",
         "repository": "code-base-llm-wiki",
-        "asset": "codebase-llm-wiki-codex.zip",
-        "version": "0.3.0",
-        "sha256": "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07",
-        "root": "codebase-llm-wiki-codex-0.3.0",
+        "asset": "codebase-llm-wiki-codex-0.4.0.zip",
+        "version": "0.4.0",
+        "sha256": "ffe57ce4bc513d13610c98e4d31eadd87d03440e373e5ca7827ed2e978c52b1a",
+        "root": "codebase-llm-wiki-codex-0.4.0",
     },
     {
         "id": "megin",
         "repository": "Megin",
-        "asset": "megin-skills.zip",
-        "version": "0.3.0",
-        "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5",
+        "asset": "megin-skills-0.4.0.zip",
+        "version": "0.4.0",
+        "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92",
     },
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.6.0.zip",
-        "version": "0.6.0",
-        "sha256": "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0",
+        "asset": "merge-reviewer-0.7.0.zip",
+        "version": "0.7.0",
+        "sha256": "71dde84d57d45521eabf671e0d9764085ec780288d4e94edb8e05e398f2ea697",
     },
 )
 
@@ -146,6 +146,39 @@ def atomic_write(target: Path, content: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
+                  destination_prefix: str = "") -> dict[str, object]:
+    if overlay_root.is_symlink() or not overlay_root.is_dir():
+        raise ValueError(f"Missing or unsafe {overlay_id} overlay directory: {overlay_root}")
+    added: dict[str, str] = {}
+    replaced: dict[str, dict[str, str]] = {}
+    count = 0
+    for path in sorted(overlay_root.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"Overlay resources cannot be symlinks: {path}")
+        if not path.is_file():
+            continue
+        relative = path.relative_to(overlay_root).as_posix()
+        destination = f"{destination_prefix}{relative}" if destination_prefix else relative
+        safe = checked_path(destination)
+        payload_path = f"payload/{safe.as_posix()}"
+        data = path.read_bytes()
+        count += 1
+        if count > MAX_FILES or len(data) > MAX_FILE_BYTES:
+            raise ValueError(f"Overlay file limit exceeded: {destination}")
+        if payload_path in files:
+            replaced[destination] = {
+                "upstream_sha256": digest(files[payload_path]),
+                "overlay_sha256": digest(data),
+            }
+        else:
+            added[destination] = digest(data)
+        files[payload_path] = data
+    if not added and not replaced:
+        raise ValueError(f"Overlay contains no files: {overlay_id}")
+    return {"added": added, "replaced": replaced}
+
+
 def build() -> dict[str, object]:
     files: dict[str, bytes] = {}
     upstream: dict[str, dict[str, str]] = {}
@@ -192,6 +225,18 @@ def build() -> dict[str, object]:
                 files[f"payload/.agents/skills/merge-reviewer/{name}"] = data
         files[f"sources/{source['asset']}"] = archive_path.read_bytes()
 
+    overlay_root = PROFILE / "overlays"
+    overlays = {
+        "codebase-wiki": apply_overlay(
+            files, "codebase-wiki", overlay_root / "codebase-wiki",
+        ),
+        "megin": apply_overlay(files, "megin", overlay_root / "megin"),
+        "merge-reviewer": apply_overlay(
+            files, "merge-reviewer", overlay_root / "merge-reviewer",
+            ".agents/skills/merge-reviewer/",
+        ),
+    }
+
     for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md"):
         source_path = PROFILE / name
         if not source_path.is_file() or source_path.is_symlink():
@@ -208,12 +253,13 @@ def build() -> dict[str, object]:
         "schema": "gitlab-workspace-kit/v1",
         "package": PACKAGE_ID,
         "version": KIT_VERSION,
-        "workspaceContract": 1,
+        "workspaceContract": 2,
         "upstream": upstream,
+        "overlays": overlays,
         "sourceSummary": [
-            "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
-            "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
-            "MergeReviewer 0.6.0; pin Merge Request source and target SHAs, keep report contexts in owned system temporary storage, and default to Markdown-only portable reports."
+            "Native Codebase LLM Wiki 0.4.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
+            "Native Megin 0.4.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
+            "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",
@@ -230,6 +276,9 @@ def build() -> dict[str, object]:
         "skills": skill_names,
         "files": {name[len("payload/"):]: digest(data) for name, data in sorted(files.items()) if name.startswith("payload/")},
     }
+    manifest["payloadSha256"] = digest(json.dumps(
+        manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8"))
     entries = {f"{ROOT_NAME}/{name}": data for name, data in files.items()}
     entries[f"{ROOT_NAME}/manifest.json"] = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -260,10 +309,12 @@ def build() -> dict[str, object]:
             "archiveSha256": archive_sha,
             "releaseZip": external_zip.name,
             "releaseZipSha256": zip_sha,
-            "workspaceContract": 1,
+            "workspaceContract": 2,
             "upstream": upstream,
+            "overlays": overlays,
             "skills": skill_names,
             "payloadFiles": len(manifest["files"]),
+            "payloadSha256": manifest["payloadSha256"],
         }
         atomic_write(OUTPUT / "manifest.json", (json.dumps(index, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"))
     finally:

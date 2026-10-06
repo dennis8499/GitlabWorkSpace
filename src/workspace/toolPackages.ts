@@ -177,7 +177,7 @@ export class WorkflowKitPackageManager {
     if (manifest.schema !== BUNDLE_SCHEMA || manifest.package !== 'gitlab-workspace-kit' || manifest.version !== this.expectedVersion ||
       manifest.archive !== 'workflow-kit.tar.xz' || manifest.format !== 'tar.xz' || manifest.releaseZip !== `gitlab-workspace-kit-${this.expectedVersion}.zip` ||
       !/^[a-f0-9]{64}$/i.test(manifest.archiveSha256) || !/^[a-f0-9]{64}$/i.test(manifest.releaseZipSha256) ||
-      manifest.workspaceContract !== 1 || !Number.isSafeInteger(manifest.payloadFiles)) throw new Error('內附組合包索引無效或版本不符。');
+      manifest.workspaceContract !== 2 || !Number.isSafeInteger(manifest.payloadFiles)) throw new Error('內附組合包索引無效或版本不符。');
     manifest.archiveSha256 = manifest.archiveSha256.toLowerCase();
     return manifest;
   }

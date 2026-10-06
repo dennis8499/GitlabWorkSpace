@@ -25,8 +25,8 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = "0.12.0"
-WORKSPACE_CONTRACT = 1
+VERSION = "0.13.0"
+WORKSPACE_CONTRACT = 2
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
 FILE_LIMIT = 64 * 1024 * 1024
@@ -45,9 +45,9 @@ LEGACY_MARKERS = (
     ".gitlab-workspace/tool-manifests/merge-reviewer.json",
 )
 UPSTREAM = {
-    "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex.zip", "version": "0.3.0", "sha256": "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07", "root": "codebase-llm-wiki-codex-0.3.0"},
-    "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.3.0", "sha256": "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5", "root": ""},
-    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.6.0.zip", "version": "0.6.0", "sha256": "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0", "root": ""},
+    "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex-0.4.0.zip", "version": "0.4.0", "sha256": "ffe57ce4bc513d13610c98e4d31eadd87d03440e373e5ca7827ed2e978c52b1a", "root": "codebase-llm-wiki-codex-0.4.0"},
+    "megin": {"repository": "Megin", "asset": "megin-skills-0.4.0.zip", "version": "0.4.0", "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92", "root": ""},
+    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.7.0.zip", "version": "0.7.0", "sha256": "71dde84d57d45521eabf671e0d9764085ec780288d4e94edb8e05e398f2ea697", "root": ""},
 }
 PROFILE_HASHES = {
     "profile.md": "4ecc186f14ef5a2cb206eb0e99371995a7c11539ca76ddf3d94da197f2c3ade3",
@@ -55,10 +55,15 @@ PROFILE_HASHES = {
     "legacy-cleanup.md": "94cf39440fa211f72036c524ecdc56a36df971ef2cdc6e4deefb9768fa9ad29a",
 }
 SOURCE_SUMMARY = [
-    "Codebase LLM Wiki Codex Skill 0.3.0; use the pinned archive SHA-256 recorded above.",
-    "Megin Skills 0.3.0; discover all direct-child Group repositories while delivering changes only for approved repositories, and preserve its approval, independent review, verification, acceptance, and gitlab_mr handoff contracts.",
-    "MergeReviewer 0.6.0; pin Merge Request source and target SHAs, keep report contexts in owned system temporary storage, and default to Markdown-only portable reports.",
+    "Native Codebase LLM Wiki 0.4.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
+    "Native Megin 0.4.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
+    "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
 ]
+OVERLAY_HASHES = {
+    "codebase-wiki": "88d89bbc04d47320ddf7230cdc6e493310b5316513a09ed4ca7f6dc8a1618d87",
+    "megin": "ca04ffd227dd4333ea73c070c6cb192415972c38f390b93aa228dcb104d75860",
+    "merge-reviewer": "6d7b35df749f99da33a8f7c699f29c4c8cd2ab08eaa96b29ff8c4f87193cb33a",
+}
 SPECIAL_RULES = {
     "sourceReferences": "Repo/path",
     "analysisIssueFlow": "draft-ready-scn-manual-issue",
@@ -274,12 +279,24 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
     }
     if manifest.get("customProfile") != expected_profile or manifest.get("sourceSummary") != SOURCE_SUMMARY:
         fail("組合包 Group 專用規則或來源摘要與目前工作台契約不符。")
+    overlays = manifest.get("overlays")
+    if not isinstance(overlays, dict) or set(overlays) != {"codebase-wiki", "megin", "merge-reviewer"}:
+        fail("Declared overlay set is missing or invalid.")
+    for overlay_id, overlay in overlays.items():
+        overlay_digest = digest(json.dumps(overlay, ensure_ascii=False, sort_keys=True,
+                                           separators=(",", ":")).encode("utf-8"))
+        if overlay_digest != OVERLAY_HASHES[overlay_id]:
+            fail(f"Pinned {overlay_id} overlay manifest digest does not match.")
     skill_names = manifest.get("skills")
     files = manifest.get("files")
     if not isinstance(skill_names, list) or len(skill_names) != 14 or len(set(skill_names)) != 14:
         fail("組合包未保留原有十四個 Skills。")
     if not isinstance(files, dict) or not files:
         fail("組合包缺少逐檔 SHA-256 清單。")
+    payload_digest = digest(json.dumps(files, ensure_ascii=False, sort_keys=True,
+                                       separators=(",", ":")).encode("utf-8"))
+    if manifest.get("payloadSha256") != payload_digest:
+        fail("Final payload digest does not match its manifest.")
     payload: dict[str, bytes] = {}
     prefix = f"{ROOT}/payload/"
     for name, content in entries.items():
@@ -313,7 +330,7 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
     original_wiki = _read_pinned_zip(sources[UPSTREAM["codebase-wiki"]["asset"]], UPSTREAM["codebase-wiki"])
     if framework != original_wiki:
         fail("Codebase LLM Wiki framework 內容與固定 Release ZIP 不一致。")
-    _verify_upstream_payload(payload, original_wiki, sources, skill_names)
+    _verify_upstream_payload(payload, original_wiki, sources, skill_names, overlays)
     return manifest, payload
 
 
@@ -333,7 +350,8 @@ def _read_pinned_zip(data: bytes, source: dict[str, str]) -> dict[str, bytes]:
     return result
 
 
-def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], sources: dict[str, bytes], skill_names: list[str]) -> None:
+def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], sources: dict[str, bytes],
+                              skill_names: list[str], overlays: dict[str, Any]) -> None:
     expected: dict[str, bytes] = {}
     for relative, content in wiki.items():
         skill = ".agents/skills/codebase-wiki/"
@@ -352,29 +370,55 @@ def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], 
                     destination = f".agents/skills/{name.as_posix()}"
                 else:
                     if not name.as_posix().startswith("merge-reviewer/"):
-                        fail("MergeReviewer ZIP 根目錄無效。")
+                        fail("MergeReviewer archive has an unexpected root.")
                     destination = f".agents/skills/{name.as_posix()}"
                 expected[destination] = archive.read(member)
+
     all_upstream_paths = set(expected)
-    for relative, content in payload.items():
-        if relative in expected:
-            if expected[relative] != content:
-                fail(f"組合包修改了固定上游 Skill 檔案：{relative}")
-            del expected[relative]
+    added_paths: set[str] = set()
+    replaced_paths: dict[str, dict[str, str]] = {}
+    for overlay_id, overlay in overlays.items():
+        if not isinstance(overlay, dict) or set(overlay) != {"added", "replaced"}:
+            fail(f"Invalid {overlay_id} overlay declaration.")
+        added, replaced = overlay.get("added"), overlay.get("replaced")
+        if not isinstance(added, dict) or not isinstance(replaced, dict):
+            fail(f"Invalid {overlay_id} overlay file maps.")
+        for relative, expected_digest in added.items():
+            safe = safe_relative(relative).as_posix()
+            if (not safe.startswith(".agents/skills/") or safe in expected or safe in added_paths
+                    or not isinstance(expected_digest, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_digest)
+                    or safe not in payload or digest(payload[safe]) != expected_digest):
+                fail(f"Undeclared or invalid overlay addition: {safe}")
+            added_paths.add(safe)
+        for relative, record in replaced.items():
+            safe = safe_relative(relative).as_posix()
+            if (not safe.startswith(".agents/skills/") or safe not in expected or safe in replaced_paths
+                    or not isinstance(record, dict) or set(record) != {"upstream_sha256", "overlay_sha256"}
+                    or digest(expected[safe]) != record.get("upstream_sha256")
+                    or safe not in payload or digest(payload[safe]) != record.get("overlay_sha256")):
+                fail(f"Undeclared or invalid overlay replacement: {safe}")
+            replaced_paths[safe] = record
+
+    allowed_paths = all_upstream_paths | added_paths
+    actual_skill_paths = {name for name in payload if name.startswith(".agents/skills/")}
+    if actual_skill_paths != allowed_paths:
+        fail("Payload includes missing upstream files or undeclared overlay files.")
+    for relative, original in expected.items():
+        if relative not in replaced_paths and payload.get(relative) != original:
+            fail(f"Undeclared upstream file difference: {relative}")
+
     expected_profiles = {
         ".agents/gitlab-workspace-kit/profile.md",
         ".agents/gitlab-workspace-kit/group-instructions.md",
         ".agents/gitlab-workspace-kit/legacy-cleanup.md",
     }
-    actual_skill_paths = {name for name in payload if name.startswith(".agents/skills/")}
     expected_skill_names = sorted({PurePosixPath(name).parts[2] for name in actual_skill_paths})
-    if expected or set(payload) != expected_profiles | actual_skill_paths or actual_skill_paths != all_upstream_paths or not expected_profiles.issubset(payload):
-        fail("組合包 Skills 不完整，或缺少 GitLab Workspace Group profile。")
+    if set(payload) != expected_profiles | actual_skill_paths or not expected_profiles.issubset(payload):
+        fail("Payload contains undeclared files outside the Skills and workspace profile.")
     if skill_names != expected_skill_names or len(expected_skill_names) != 14:
-        fail("組合包 Skill 名稱與三份固定來源不一致。")
+        fail("Skill names differ from the exact upstream and overlay composition.")
     if any(not payload.get(f".agents/skills/{name}/SKILL.md") for name in expected_skill_names):
-        fail("組合包包含缺少 SKILL.md 的來源 Skill。")
-
+        fail("A Skill entry point is missing.")
 
 def import_package(archive: Path, archive_format: str, expected_version: str) -> tuple[dict[str, Any], dict[str, bytes]]:
     if not re.fullmatch(r"\d+\.\d+\.\d+", expected_version):
@@ -538,8 +582,19 @@ def replace_managed_block(text: str, body: str) -> str:
 
 
 def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
-    if raw.get("schema") != "gitlab-workspace-kit-installed/v1" or raw.get("package") != PACKAGE or raw.get("workspaceContract") != WORKSPACE_CONTRACT:
+    if (raw.get("schema") != "gitlab-workspace-kit-installed/v1" or raw.get("package") != PACKAGE
+            or raw.get("workspaceContract") not in (1, WORKSPACE_CONTRACT)):
         fail("Group 組合包安裝紀錄契約無效。")
+    if raw.get("workspaceContract") == WORKSPACE_CONTRACT:
+        overlays = raw.get("overlays")
+        if not isinstance(overlays, dict) or set(overlays) != set(OVERLAY_HASHES):
+            fail("Installed overlay manifest is missing or invalid.")
+        for overlay_id, overlay in overlays.items():
+            if digest(json.dumps(overlay, ensure_ascii=False, sort_keys=True,
+                                 separators=(",", ":")).encode("utf-8")) != OVERLAY_HASHES[overlay_id]:
+                fail(f"Installed {overlay_id} overlay manifest was changed.")
+        if not isinstance(raw.get("payloadSha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", raw["payloadSha256"]):
+            fail("Installed final payload digest is invalid.")
     version = raw.get("version")
     source = raw.get("source")
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version) or source not in ("gitea", "github", "bundled"):
@@ -727,6 +782,39 @@ def prepare_native_wiki(root: Path, stage: Path, entries: dict[str, bytes], has_
     if applied.get("applied") is not True or applied.get("guard_mode") not in (None, "coexist"):
         fail("Codebase LLM Wiki 官方 installer 未確認完整安裝。")
     return applied, target
+
+
+def _apply_wiki_overlay(candidate: Path, payload: dict[str, bytes], overlay: dict[str, Any]) -> str:
+    """Apply the declared Wiki overlay after native installation and sync Wiki ownership state."""
+    paths: set[str] = set()
+    for key in ("added", "replaced"):
+        values = overlay.get(key)
+        if not isinstance(values, dict):
+            fail("Wiki overlay file map is invalid.")
+        paths.update(values)
+    skill_prefix = ".agents/skills/codebase-wiki/"
+    state_path = candidate / ".agents/skills/codebase-wiki/install-state.json"
+    try:
+        state = json.loads(read_regular(state_path).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        fail("Wiki install state is unreadable before overlay application.")
+    state_files = state.get("files") if isinstance(state, dict) else None
+    if not isinstance(state_files, dict):
+        fail("Wiki install state has no file map.")
+    for relative in sorted(paths):
+        if not relative.startswith(skill_prefix) or relative not in payload:
+            fail(f"Wiki overlay file is outside the Wiki Skill or missing from payload: {relative}")
+        target = candidate / safe_relative(relative)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(payload[relative])
+        previous = state_files.get(relative)
+        kind = previous.get("kind") if isinstance(previous, dict) else "file"
+        state_files[relative] = {"kind": kind if kind in ("file", "managed_block") else "file",
+                                 "sha256": digest(payload[relative])}
+    state_bytes = (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    state_path.write_bytes(state_bytes)
+    _verify_native_wiki_state(candidate, state_path)
+    return digest(state_bytes)
 
 
 def _copy_extracted_payload(payload: dict[str, bytes], destination: Path) -> None:
@@ -1128,6 +1216,9 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
                 target_path = candidate_payload / safe_relative(relative)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source_path, target_path)
+            native_state_sha = _apply_wiki_overlay(
+                candidate_payload, payload, manifest["overlays"]["codebase-wiki"],
+            )
             if not has_wiki:
                 copy_safe_tree(native_target / "wiki", candidate_payload / "wiki")
             agent_candidate = candidate_payload / "AGENTS.md"
@@ -1154,6 +1245,8 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
                 "source": source,
                 "archiveSha256": archive_sha256.lower(),
                 "upstream": manifest["upstream"],
+                "overlays": manifest["overlays"],
+                "payloadSha256": manifest["payloadSha256"],
                 "skills": manifest["skills"],
                 "files": installed_files,
                 "agentBlockSha256": digest((native_block or "").encode("utf-8")),
