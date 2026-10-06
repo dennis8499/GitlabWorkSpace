@@ -58,7 +58,7 @@
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-GitLab Workspace v0.13.0 的 VSIX 與組合包共用版本，先安裝原生 Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0，再套用 Group 專用覆層，最後以工作台安裝紀錄驗證完整 payload。原生發行包各自可在單一 Codebase／Repo／ref 使用；Group 掃描、共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、`gitlab_mr`、MR 任務與版本綁定報告由工作台覆層提供。MR 審查保留固定來源與目標 SHA、Markdown 報告中繼資料及受管理的暫存證據。Issue 開發任務仍會探索 Group 全部直屬 Repo，只交付核准且有變更的 Repo，並在驗收後交接。安裝器把原生 Wiki 安裝、Group 覆層、Wiki 安裝狀態、Codex 設定與紀錄放在同一交易；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
+GitLab Workspace v0.13.1 的 VSIX 與組合包共用版本，先安裝原生 Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0，再套用 Group 專用覆層，最後以工作台安裝紀錄驗證完整 payload。原生發行包各自可在單一 Codebase／Repo／ref 使用；Group 掃描、共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、`gitlab_mr`、MR 任務與版本綁定報告由工作台覆層提供。MR 審查保留固定來源與目標 SHA、Markdown 報告中繼資料及受管理的暫存證據。Issue 開發任務仍會探索 Group 全部直屬 Repo，只交付核准且有變更的 Repo，並在驗收後交接。安裝器把原生 Wiki 安裝、Group 覆層、Wiki 安裝狀態、Codex 設定與紀錄放在同一交易；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 

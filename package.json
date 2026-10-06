@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {

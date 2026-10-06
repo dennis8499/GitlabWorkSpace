@@ -25,7 +25,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = "0.13.0"
+VERSION = "0.13.1"
 WORKSPACE_CONTRACT = 2
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
@@ -45,9 +45,9 @@ LEGACY_MARKERS = (
     ".gitlab-workspace/tool-manifests/merge-reviewer.json",
 )
 UPSTREAM = {
-    "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex-0.4.0.zip", "version": "0.4.0", "sha256": "ffe57ce4bc513d13610c98e4d31eadd87d03440e373e5ca7827ed2e978c52b1a", "root": "codebase-llm-wiki-codex-0.4.0"},
-    "megin": {"repository": "Megin", "asset": "megin-skills-0.4.0.zip", "version": "0.4.0", "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92", "root": ""},
-    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.7.0.zip", "version": "0.7.0", "sha256": "71dde84d57d45521eabf671e0d9764085ec780288d4e94edb8e05e398f2ea697", "root": ""},
+    "codebase-wiki": {"repository": "code-base-llm-wiki", "asset": "codebase-llm-wiki-codex.zip", "version": "0.4.0", "sha256": "6b29e9135d4f504a336d7fdc90227039b9b6866a12f503913020c3fd722197f0", "root": "codebase-llm-wiki-codex-0.4.0"},
+    "megin": {"repository": "Megin", "asset": "megin-skills.zip", "version": "0.4.0", "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92", "root": ""},
+    "merge-reviewer": {"repository": "MergeReviewer", "asset": "merge-reviewer-0.7.0.zip", "version": "0.7.0", "sha256": "0ccc6b47b4e75d5f3c1fe5a02134916362ad2e052e0e6063b732734a65a7dbd3", "root": ""},
 }
 PROFILE_HASHES = {
     "profile.md": "4ecc186f14ef5a2cb206eb0e99371995a7c11539ca76ddf3d94da197f2c3ade3",
