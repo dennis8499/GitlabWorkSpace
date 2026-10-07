@@ -6,6 +6,7 @@ import type { Memento, SecretStorage } from 'vscode';
 import type { GitLabClient, GitLabIssueCapabilities } from '../../src/api/gitLabClient';
 import type { GitLabMetadata } from '../../src/api/types';
 import { GitLabSession } from '../../src/connection/session';
+import { accountTokenKey } from '../../src/connection/accountStore';
 
 class MemoryStore implements Memento {
   private readonly values = new Map<string, unknown>();
@@ -303,8 +304,9 @@ test('stores the access token in SecretStorage only after the current-user check
     const session = new GitLabSession(secrets as unknown as SecretStorage, state);
     const user = await session.connect(running.baseUrl, 'unit-session-token-do-not-use');
     assert.equal(user.username, 'tester');
-    assert.equal(secrets.values.get('gitlabWorkspace.accessToken'), 'unit-session-token-do-not-use');
-    assert.equal(state.get('gitlabWorkspace.baseUrl'), running.baseUrl);
+    assert.equal(secrets.values.get(accountTokenKey(session.activeAccountId!)), 'unit-session-token-do-not-use');
+    assert.equal(session.baseUrl, running.baseUrl);
+    assert.equal(state.get('gitlabWorkspace.baseUrl'), undefined);
     assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
     assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.status, 'unknown');
     assert.match(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.reason ?? '', /無法讀取 GitLab GraphQL Schema/);
@@ -388,6 +390,6 @@ test('clears the selected Group when the account changes on the same GitLab serv
     await session.setSelectedGroup({ id: 55, name: 'First account group', full_path: 'first/group', web_url: '' });
     await session.connect(`http://127.0.0.1:${address.port}`, 'unit-account-two');
     assert.equal(session.selectedGroup, undefined);
-    assert.equal(state.get('gitlabWorkspace.currentUserId'), 2);
+    assert.equal(session.accounts.find(account => account.id === session.activeAccountId)?.userId, 2);
   } finally { await stop(server); }
 });

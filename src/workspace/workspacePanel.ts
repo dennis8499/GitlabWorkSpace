@@ -30,6 +30,9 @@ import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
 import { isGitPanelRequest } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
+import type { LogContext, LogQuery } from '../logging/logProtocol';
+import { logGitCommand } from '../git/gitCommandLog';
+import { localPathKey, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from '../git/repositoryScanner';
 
 const execFileAsync = promisify(execFile);
 const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
@@ -37,12 +40,23 @@ const DELIVERIES_KEY = 'gitlabWorkspace.deliveryRecords.v1';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer', 'git']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer', 'git', 'admin']);
 
 interface DeliveryRecord extends DeliveryPreview { groupId: number; userId: number; instanceScope?: string; }
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 
 export class WorkspacePanel implements vscode.Disposable {
+  private issuePreview?: WorkspaceSnapshot['issuePreview'];
+  private previewGeneration = 0;
+  private previewAbort?: AbortController;
+  private writesInFlight = 0;
+  private accountTransitionBusy = false;
+  private localWorkspaceRepositories: ScannedRepository[] = [];
+  private repositoryScan: RepositoryScanState = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
+  private repositoryScanAbort?: AbortController;
+  private inventoryGeneration = 0;
+  private logsVisible = false;
+  private logNotificationTimer?: ReturnType<typeof setTimeout>;
   private panel?: vscode.WebviewPanel;
   private readonly timer: IssueTimeTracker;
   private readonly packages: WorkflowKitPackageManager;
@@ -132,6 +146,22 @@ export class WorkspacePanel implements vscode.Disposable {
     private readonly gitRepositories?: GitRepositoryService
   ) {
     this.timer = new IssueTimeTracker(context.globalState);
+    session.setBeforeTransition(async () => {
+      this.assertAccountTransitionAllowed();
+      const pause = () => this.enqueueTimer(async () => {
+        for (const entry of this.timer.list()) if (entry.phase === 'running') await this.timer.pause(entry.id);
+      });
+      if (this.timer.list().some(entry => entry.phase === 'running') && session.log) await session.log.run('time', 'pauseForAccountChange', this.logContext(), pause);
+      else await pause();
+      this.previewAbort?.abort(); this.previewGeneration++;
+    });
+    if (session.log) context.subscriptions.push(session.log.onDidChange(() => {
+      if (!this.logsVisible || this.logNotificationTimer) return;
+      this.logNotificationTimer = setTimeout(() => {
+        this.logNotificationTimer = undefined;
+        if (this.logsVisible) this.post({ type: 'logsChanged' });
+      }, 500);
+    }));
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
     const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
     if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
@@ -150,6 +180,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.gitRepositoryChanges = gitRepositories?.onDidChangeRepositoryList(() => {
       this.gitRepositoryListDirty = true;
       this.scheduleGitRepositoryListSend();
+      void this.refreshInventory();
     }) ?? { dispose: () => undefined };
     context.subscriptions.push(this.gitMessages, this.gitRepositoryChanges);
     this.issuePanels.setWorkspace({
@@ -161,6 +192,8 @@ export class WorkspacePanel implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.repositoryScanAbort?.abort(); this.previewAbort?.abort();
+    if (this.logNotificationTimer) clearTimeout(this.logNotificationTimer);
     this.issueGraphGeneration++;
     this.issueGraphAbort?.abort();
     this.issueBoardAbort?.abort();
@@ -203,7 +236,13 @@ export class WorkspacePanel implements vscode.Disposable {
       const messageListener = panel.webview.onDidReceiveMessage((message: unknown) => {
         void this.handleMessage(message).catch((error: unknown) => this.post({ type: 'error', message: readableError(error) }));
       });
-      panel.onDidDispose(() => { messageListener.dispose(); if (this.panel === panel) { this.panel = undefined; this.webviewReady = false; } });
+      panel.onDidDispose(() => {
+        messageListener.dispose();
+        if (this.panel === panel) {
+          this.panel = undefined; this.webviewReady = false; this.logsVisible = false;
+          if (this.logNotificationTimer) { clearTimeout(this.logNotificationTimer); this.logNotificationTimer = undefined; }
+        }
+      });
     } else {
       this.panel.reveal(vscode.ViewColumn.Active);
     }
@@ -243,6 +282,8 @@ export class WorkspacePanel implements vscode.Disposable {
   getWebviewMessageCountsForTesting(): { sent: number; received: number } {
     return { sent: this.webviewMessagesSent, received: this.webviewMessagesReceived };
   }
+  private logQueryCount = 0;
+  getLogQueryCountForTesting(): number { return this.logQueryCount; }
 
   async refreshFromSidebar(): Promise<void> {
     this.issueOpenGeneration++;
@@ -255,11 +296,36 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async disconnectFromSidebar(): Promise<void> {
-    await this.disconnect();
+    await this.runLogged('disconnect', () => this.disconnect());
   }
 
   async connectFromSidebar(): Promise<void> {
-    await this.connect();
+    await this.runLogged('connect', () => this.connect());
+  }
+
+  async accountFromSidebar(action: 'addAccount' | 'switchAccount' | 'removeAccount', accountId?: string): Promise<void> {
+    await this.runLogged(action, () => action === 'addAccount' ? this.connect(accountId) : action === 'switchAccount'
+      ? this.switchAccount(accountId) : this.removeAccount(accountId));
+  }
+
+  async scanFromSidebar(): Promise<void> { await this.runLogged('scanRepositories', () => this.scanRepositories()); }
+
+  private assertAccountTransitionAllowed(): void {
+    if (this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites || this.writesInFlight ||
+      this.mrWritesInFlight.size || this.issueRelationWritesInFlight.size || this.timer.list().some(entry => entry.phase === 'sending')) {
+      throw new Error('目前有 GitLab 寫入或 Repo 操作，完成後才能切換帳號或登出。');
+    }
+  }
+
+  private logContext(): LogContext {
+    return { accountId: this.session.activeAccountId, baseUrl: this.session.baseUrl, groupId: this.session.selectedGroup?.id };
+  }
+  private runLogged<T>(action: string, task: () => Promise<T>, context: LogContext = {}): Promise<T> {
+    const feature = /Account|connect|disconnect/i.test(action) ? 'account' : /timer|Time/i.test(action) ? 'time'
+      : /Issue|issue/i.test(action) ? 'issue' : /Merge|Review|Delivery/i.test(action) ? 'workflow'
+      : /Kit|Package/i.test(action) ? 'tools' : /scan|clone|syncRepos/i.test(action) ? 'projects' : /Group/i.test(action) ? 'group'
+      : this.activeMode === 'sa' ? 'analysis' : 'workspace';
+    return this.session.log?.run(feature, action, { ...this.logContext(), ...context }, task) ?? task();
   }
 
   async cloneFromSidebar(
@@ -315,6 +381,10 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private post(message: unknown): void {
+    if (message && typeof message === 'object' && 'type' in message && 'message' in message &&
+      (message.type === 'error' || message.type === 'gitError') && typeof message.message === 'string') {
+      this.session.log?.record({ feature: message.type === 'gitError' ? 'git' : 'workspace', action: 'operationError', result: 'error', message: message.message });
+    }
     if (this.panel) {
       this.webviewMessagesSent++;
       void this.panel.webview.postMessage(message);
@@ -350,6 +420,11 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async handleGitPanelRequest(request: import('../git/gitProtocol').GitPanelRequest): Promise<void> {
+    if (request.type === 'gitAction' && this.accountTransitionBusy &&
+      !['open', 'refresh', 'diff', 'history', 'showCommit', 'rebasePlan'].includes(request.action.type)) {
+      this.post({ type: 'gitActionResult', requestId: request.requestId, error: '帳號正在切換，請稍後再執行版控操作。' });
+      return;
+    }
     if (!this.gitRepositories) {
       this.post({ type: 'gitError', message: 'Git 版控服務尚未載入。' });
       return;
@@ -397,6 +472,23 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async handleMessage(value: unknown): Promise<void> {
+    if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
+    const request = value as WorkspaceRequest;
+    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan'].includes(request.type);
+    const issueWrite = request.type === 'issueRequest' && ['create', 'update', 'invoke', 'upload'].includes(request.request?.type);
+    const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'publishMergeReviewReport', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
+    if (write && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
+    if (write) this.writesInFlight++;
+    const task = () => this.dispatchMessage(value);
+    try {
+      if (quiet) await task();
+      else await this.runLogged(issueWrite ? 'issue.' + request.request.type + (request.request.type === 'invoke' ? '.' + request.request.action : '') : request.type, task,
+        { projectId: 'projectId' in request && typeof request.projectId === 'number' ? request.projectId : undefined,
+          issueIid: 'issueIid' in request && typeof request.issueIid === 'number' ? request.issueIid : undefined });
+    } finally { if (write) this.writesInFlight--; }
+  }
+
+  private async dispatchMessage(value: unknown): Promise<void> {
     this.webviewMessagesReceived++;
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
     if (isGitPanelRequest(value)) {
@@ -409,6 +501,7 @@ export class WorkspacePanel implements vscode.Disposable {
         this.webviewReady = true;
         if (this.activeMode === 'git') this.sendSnapshot();
         await this.refresh({ forceRepositories: true });
+        await this.refreshInventory();
         break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
       case 'retryInstanceCheck':
@@ -443,7 +536,30 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
-      case 'disconnect': await this.disconnect(); break;
+      case 'disconnect': await this.disconnect(request.accountId); break;
+      case 'addAccount': await this.connect(request.accountId); break;
+      case 'switchAccount': await this.switchAccount(request.accountId); break;
+      case 'removeAccount': await this.removeAccount(request.accountId); break;
+      case 'scanRepositories': await this.scanRepositories(); break;
+      case 'cancelRepositoryScan': this.repositoryScanAbort?.abort(); break;
+      case 'setLogVisibility': this.logsVisible = request.visible === true; break;
+      case 'queryLogs': {
+        if (typeof request.requestId !== 'string' || request.requestId.length > 128) return;
+        this.logQueryCount++;
+        const page = await this.session.log?.query(validateLogQuery(request.query));
+        if (page) this.post({ type: 'logsPage', requestId: request.requestId, page });
+        break;
+      }
+      case 'exportLogs': {
+        const destination = await vscode.window.showSaveDialog({ title: '匯出 GitLab Workspace Log', filters: { JSONL: ['jsonl'] }, defaultUri: vscode.Uri.file(path.join(os.homedir(), 'gitlab-workspace-logs.jsonl')) });
+        if (destination && this.session.log) { await this.session.log.exportTo(destination.fsPath, validateLogQuery(request.query)); this.post({ type: 'message', message: 'Log 已匯出。' }); }
+        break;
+      }
+      case 'clearLogs': {
+        const choice = await vscode.window.showWarningMessage('清除本機所有帳號的 GitLab Workspace Log？', { modal: true }, '清除全部 Log');
+        if (choice === '清除全部 Log') { await this.session.log?.clear(); this.post({ type: 'logsChanged' }); }
+        break;
+      }
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
       case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope); break;
@@ -698,9 +814,16 @@ export class WorkspacePanel implements vscode.Disposable {
       if (generation !== this.requestGeneration) return;
       this.currentUser = user;
       this.groups = groups;
+      await this.session.updateCurrentUser(user);
       await this.timer.setScope(this.session.baseUrl, user.id);
       this.syncTimerPolling();
-      const group = this.session.selectedGroup;
+      let group = this.session.selectedGroup;
+      const selectedGroupId = group?.id;
+      if (group && !groups.some(item => item.id === selectedGroupId)) {
+        await this.session.setSelectedGroup(undefined);
+        this.post({ type: 'message', message: '上次選取的 Group 已無法存取，請重新選擇。' });
+        group = undefined;
+      }
       const scopeKey = `${this.session.baseUrl}|${user.id}|${group?.id ?? 'none'}`;
       if (scopeKey !== this.loadedScopeKey) {
         this.loadedScopeKey = scopeKey;
@@ -878,6 +1001,11 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private onWorkspaceFoldersChanged(): void {
+    this.repositoryScanAbort?.abort();
+    this.repositoryScanAbort = undefined;
+    this.repositoryScan = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
+    this.inventoryGeneration++;
+    void this.refreshInventory();
     this.workspaceFoldersGeneration++;
     this.localRepositoryScanGeneration++;
     this.actualRepositoryScanGeneration++;
@@ -903,6 +1031,45 @@ export class WorkspacePanel implements vscode.Disposable {
       this.pendingWorkspaceRefresh = false;
       void this.refresh({ forceRepositories: true }).catch((error: unknown) => this.post({ type: 'error', message: readableError(error) }));
     }, 0);
+  }
+
+  private async refreshInventory(): Promise<void> {
+    if (!this.gitRepositories || this.disposed) return;
+    const generation = ++this.inventoryGeneration;
+    try {
+      const registered = await this.gitRepositories.getInventory();
+      if (generation !== this.inventoryGeneration || this.disposed) return;
+      const inventory = new Map(this.repositoryScan.repositories.map(repository => [localPathKey(repository.path), repository]));
+      for (const repository of registered) inventory.set(localPathKey(repository.path), repository);
+      this.localWorkspaceRepositories = [...inventory.values()].sort((a, b) => a.path.localeCompare(b.path));
+      this.sendSnapshot();
+    } catch (error) { this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(error) }); }
+  }
+
+  private async scanRepositories(): Promise<void> {
+    if (!this.gitRepositories) throw new Error('Git 版控服務尚未載入。');
+    if (this.repositoryScanAbort && !this.repositoryScanAbort.signal.aborted && this.repositoryScan.status === 'scanning') return;
+    const controller = new AbortController();
+    this.repositoryScanAbort = controller;
+    const workspaceGeneration = this.workspaceFoldersGeneration;
+    let lastProgress = 0;
+    this.repositoryScan = { status: 'scanning', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
+    this.sendSnapshot();
+    try {
+      const result = await this.gitRepositories.scanWorkspace(controller.signal, state => {
+        if (this.disposed || this.repositoryScanAbort !== controller || workspaceGeneration !== this.workspaceFoldersGeneration) return;
+        this.repositoryScan = state;
+        if (Date.now() - lastProgress > 200 || state.status !== 'scanning') { lastProgress = Date.now(); this.sendSnapshot(); }
+      });
+      if (this.disposed || this.repositoryScanAbort !== controller || workspaceGeneration !== this.workspaceFoldersGeneration) return;
+      this.repositoryScan = result;
+      await this.refreshInventory();
+      await this.syncSidebarState?.();
+      this.session.log?.record({ feature: 'projects', action: 'repositoryScanResult', result: result.status === 'cancelled' ? 'cancelled' : result.status === 'error' ? 'error' : 'success', message: `找到 ${result.repositories.length} 個 Repo，${result.errors.length} 個掃描錯誤。` });
+    } catch (error) {
+      if (this.repositoryScanAbort !== controller || workspaceGeneration !== this.workspaceFoldersGeneration) return;
+      this.repositoryScan = { ...this.repositoryScan, status: controller.signal.aborted ? 'cancelled' : 'error', errors: [...this.repositoryScan.errors, { path: '', message: readableError(error) }] };
+    } finally { if (this.repositoryScanAbort === controller) { this.repositoryScanAbort = undefined; this.sendSnapshot(); } }
   }
 
   private repositoryStateKey(
@@ -1405,6 +1572,11 @@ export class WorkspacePanel implements vscode.Disposable {
     const localRepositories = localRepositoryKey === this.localRepositoriesKey ? this.localRepositoryStates : {};
     const snapshot: WorkspaceSnapshot = {
       connected: !!this.session.baseUrl,
+      accounts: this.session.accounts,
+      activeAccountId: this.session.activeAccountId,
+      issuePreview: this.issuePreview,
+      repositoryScan: this.repositoryScan,
+      localWorkspaceRepositories: this.localWorkspaceRepositories.map(repository => ({ ...repository, projectIds: this.projects.filter(project => repository.remotes.some(remote => projectRemoteMatches(remote, project))).map(project => project.id) })),
       baseUrl: this.session.baseUrl,
       instance: this.session.baseUrl ? {
         version: this.session.metadata?.version,
@@ -1464,7 +1636,7 @@ export class WorkspacePanel implements vscode.Disposable {
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
       cloneOperation: this.cloneOperation,
-      busy: this.busy || this.repositoryOperationInProgress,
+      busy: this.busy || this.repositoryOperationInProgress || this.accountTransitionBusy,
       instanceChecking: this.instanceCheckBusy
     };
     this.post({ type: 'snapshot', snapshot });
@@ -1478,27 +1650,51 @@ export class WorkspacePanel implements vscode.Disposable {
     return createHash('sha256').update(`${baseUrl}\0${userId}\0${groupId}`).digest('hex').slice(0, 24);
   }
 
-  private async connect(): Promise<void> {
-    if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
-    const baseUrl = await vscode.window.showInputBox({ title: '連線至 GitLab', prompt: '輸入 GitLab 網址', value: this.session.baseUrl, placeHolder: 'https://gitlab.example.com', ignoreFocusOut: true });
+  private async connect(accountId?: string): Promise<void> {
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
+    const saved = accountId ? this.session.accounts.find(account => account.id === accountId) : undefined;
+    if (accountId && !saved) throw new Error('找不到此 GitLab 帳號。');
+    const baseUrl = saved?.baseUrl ?? await vscode.window.showInputBox({ title: '新增 GitLab 帳號', prompt: '輸入 GitLab 網址', value: this.session.baseUrl, placeHolder: 'https://gitlab.example.com', ignoreFocusOut: true });
     if (!baseUrl) return;
     const token = await vscode.window.showInputBox({ title: 'GitLab Personal Access Token', prompt: 'Token 儲存在 VS Code SecretStorage。', password: true, ignoreFocusOut: true });
     if (!token) return;
-    const previousBaseUrl = this.session.baseUrl;
-    const previousUserId = this.currentUser?.id;
-    const user = await this.session.connect(baseUrl, token);
+    this.accountTransitionBusy = true; this.sendSnapshot();
+    try {
+      const user = await this.session.connect(baseUrl, token, accountId);
+      await this.connectedUserChanged(user);
+    } finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+  }
+
+  private async switchAccount(accountId?: string): Promise<void> {
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
+    const selected = accountId ?? (await vscode.window.showQuickPick(this.session.accounts.map(account => ({ label: account.name || account.username, description: account.baseUrl, account })), { title: '切換 GitLab 帳號' }))?.account.id;
+    if (!selected) return;
+    const account = this.session.accounts.find(item => item.id === selected);
+    if (!account) throw new Error('找不到此 GitLab 帳號。');
+    if (account.needsLogin) return this.connect(account.id);
+    this.accountTransitionBusy = true; this.sendSnapshot();
+    try { await this.connectedUserChanged(await this.session.switchAccount(selected)); }
+    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+  }
+
+  private async connectedUserChanged(user: GitLabUser): Promise<void> {
     this.refreshAbort?.abort();
+    this.requestGeneration++;
+    this.previewAbort?.abort(); this.previewGeneration++; this.issuePreview = undefined;
     this.issueGraphAbort?.abort();
     this.issueBoardAbort?.abort();
     this.mergeRequestAbort?.abort();
     this.cancelMergeRequestSectionReads();
     this.issueOpenAbort?.abort();
     this.currentUser = user;
-    if (previousBaseUrl !== this.session.baseUrl || previousUserId !== user.id) {
-      this.issueOpenGeneration++;
-      this.issuePanels.close();
-    }
-    const selected = await this.selectGroup();
+    this.issueOpenGeneration++;
+    this.issuePanels.close();
+    this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
+    this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
+    await this.refresh();
+    const selected = this.session.selectedGroup ? true : await this.selectGroup();
     if (!selected) {
       await this.refresh();
       await this.syncSidebarState?.();
@@ -1506,10 +1702,34 @@ export class WorkspacePanel implements vscode.Disposable {
     this.post({ type: 'message', message: `已連線：${user.name}` });
   }
 
-  private async disconnect(): Promise<void> {
-    if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
-    const confirm = await vscode.window.showWarningMessage('中斷 GitLab 連線？本機 Repo、草稿及計時紀錄會保留。', { modal: true }, '中斷連線');
-    if (confirm !== '中斷連線') return;
+  private async disconnect(accountId?: string): Promise<void> {
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
+    const account = this.session.accounts.find(item => item.id === (accountId ?? this.session.activeAccountId));
+    if (!account) return;
+    const active = this.session.activeAccountId === account.id;
+    const confirm = await vscode.window.showWarningMessage(`登出 ${account.name || account.username}（${account.baseUrl}）？將清除 Token 並保留帳號名單、草稿及工時。`, { modal: true }, '登出');
+    if (confirm !== '登出') return;
+    this.accountTransitionBusy = true; this.sendSnapshot();
+    try { await this.session.logoutAccount(account.id); if (active) await this.disconnectedView(); }
+    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+  }
+
+  private async removeAccount(accountId?: string): Promise<void> {
+    const id = accountId ?? (await vscode.window.showQuickPick(this.session.accounts.map(account => ({ label: account.name || account.username, description: account.baseUrl, account })), { title: '移除 GitLab 帳號' }))?.account.id;
+    const account = this.session.accounts.find(item => item.id === id);
+    if (!account) return;
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
+    const choice = await vscode.window.showWarningMessage(`移除 ${account.name || account.username}（${account.baseUrl}）？草稿與工時仍保留。`, { modal: true }, '移除帳號');
+    if (choice !== '移除帳號') return;
+    const active = this.session.activeAccountId === account.id;
+    this.accountTransitionBusy = true;
+    try { await this.session.removeAccount(account.id); if (active) await this.disconnectedView(); }
+    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+  }
+
+  private async disconnectedView(): Promise<void> {
     this.refreshAbort?.abort();
     this.requestGeneration++;
     this.issueOpenGeneration++;
@@ -1520,7 +1740,8 @@ export class WorkspacePanel implements vscode.Disposable {
     this.cancelMergeRequestSectionReads();
     this.issueOpenAbort?.abort();
     this.issuePanels.close();
-    await this.session.disconnect();
+    this.previewAbort?.abort(); this.previewGeneration++; this.issuePreview = undefined;
+    await this.timer.detachScope(); this.syncTimerPolling();
     this.groupRoot = undefined; this.workspaceRootError = undefined;
     this.actualRepositories = []; this.actualRepositoriesRoot = undefined;
     this.actualRepositoryScanStatus = 'idle'; this.actualRepositoryScanError = undefined;
@@ -1543,6 +1764,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!selected) return false;
     this.issueOpenGeneration++;
     this.issuePanels.close();
+    this.previewAbort?.abort(); this.previewGeneration++; this.issuePreview = undefined;
     this.issueGraphAbort?.abort();
     this.issueBoardAbort?.abort();
     this.mergeRequestAbort?.abort();
@@ -1746,19 +1968,34 @@ export class WorkspacePanel implements vscode.Disposable {
   private async selectIssue(projectId: number, issueIid: number): Promise<void> {
     requireIssueIid(issueIid);
     const project = this.requireGroupProject(projectId);
-    const client = await this.session.getClient();
-    const [issue, projectMembers] = await Promise.all([
-      client.getIssue(projectId, issueIid),
-      this.session.cachedRead(`project/${projectId}/members`, (readClient) => readClient.listProjectMembers(projectId)).catch(() => [])
-    ]);
-    this.selectedIssue = { project, issue };
+    this.previewAbort?.abort();
+    this.issueOpenAbort?.abort(); this.issueOpenGeneration++;
+    const controller = new AbortController();
+    this.previewAbort = controller;
+    const generation = ++this.previewGeneration;
+    const scope = this.connectedScopeKey();
+    const current = (): boolean => !this.disposed && !controller.signal.aborted && generation === this.previewGeneration && scope === this.connectedScopeKey();
+    const listed = this.issues.find(issue => issue.project_id === projectId && issue.iid === issueIid);
+    this.selectedIssue = listed ? { project, issue: listed } : undefined;
     this.selectedProjectId = projectId;
-    this.projectMembers = projectMembers;
-    await this.context.globalState.update(this.selectedIssueKey(), { projectId, issueIid });
+    this.issuePreview = { projectId, issueIid, status: 'loading' };
     this.sendSnapshot();
+    try {
+      const issue = await this.session.cachedRead(`project/${projectId}/issue/${issueIid}`, client => client.getIssue(projectId, issueIid), { signal: controller.signal, force: true });
+      if (!current()) return;
+      this.selectedIssue = { project, issue };
+      this.issuePreview = { projectId, issueIid, status: 'ready' };
+      await this.context.globalState.update(this.selectedIssueKey(), { projectId, issueIid });
+    } catch (error) {
+      if (!current()) return;
+      this.issuePreview = { projectId, issueIid, status: 'error', error: readableError(error) };
+      this.session.log?.record({ feature: 'issue', action: 'selectIssue', result: 'error', projectId, issueIid, message: readableError(error) });
+    }
+    if (current()) this.sendSnapshot();
   }
 
   private async openIssue(projectId: number, issueIid: number, tab?: IssueDetailTab): Promise<void> {
+    this.previewAbort?.abort(); this.previewGeneration++;
     this.issueOpenAbort?.abort();
     const controller = new AbortController();
     this.issueOpenAbort = controller;
@@ -2702,7 +2939,7 @@ function requireIssueIid(value: number): void {
 }
 
 async function git(cwd: string, args: string[], options: { maxBuffer?: number; env?: NodeJS.ProcessEnv } = {}): Promise<string> {
-  const result = await execFileAsync('git', args, { cwd, env: options.env, windowsHide: true, timeout: 60_000, maxBuffer: options.maxBuffer ?? 2 * 1024 * 1024, encoding: 'utf8' });
+  const result = await logGitCommand(args, cwd, () => execFileAsync('git', args, { cwd, env: options.env, windowsHide: true, timeout: 60_000, maxBuffer: options.maxBuffer ?? 2 * 1024 * 1024, encoding: 'utf8' }));
   return result.stdout;
 }
 
@@ -2711,6 +2948,18 @@ async function git(cwd: string, args: string[], options: { maxBuffer?: number; e
 function checkedText(value: string, label: string, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\0\r]/.test(value)) throw new Error(`${label} 請填寫 1 到 ${max} 個字元。`);
   return value.trim();
+}
+
+export function validateLogQuery(value: unknown): LogQuery {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const input = value as Record<string, unknown>;
+  const query: LogQuery = {};
+  if (typeof input.page === 'number' && Number.isSafeInteger(input.page) && input.page >= 0) query.page = Math.min(input.page, 1000000);
+  for (const key of ['feature', 'accountId', 'search'] as const) if (typeof input[key] === 'string') query[key] = input[key].slice(0, 256);
+  if (input.level === 'info' || input.level === 'warn' || input.level === 'error') query.level = input.level;
+  if (['started', 'success', 'error', 'cancelled'].includes(String(input.result))) query.result = input.result as LogQuery['result'];
+  for (const key of ['from', 'to'] as const) if (typeof input[key] === 'string' && Number.isFinite(Date.parse(input[key]))) query[key] = new Date(input[key]).toISOString();
+  return query;
 }
 
 function readableError(error: unknown): string {

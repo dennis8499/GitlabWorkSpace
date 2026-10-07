@@ -5,6 +5,7 @@ import { resolve, relative, isAbsolute, sep } from 'node:path';
 import path from 'node:path';
 import type { GitLabProject } from '../api/types';
 import { promisify } from 'node:util';
+import { logGitCommand } from '../git/gitCommandLog';
 
 const execFileAsync = promisify(execFile);
 
@@ -78,9 +79,9 @@ export async function scanLocalGroupRepositories(root: string): Promise<LocalGro
       const index = nextCandidate++;
       const candidate = candidates[index];
       try {
-        const result = await execFileAsync("git", ["-C", candidate.path, "rev-parse", "--show-toplevel"], {
+        const result = await logGitCommand(['rev-parse'], candidate.path, () => execFileAsync("git", ["-C", candidate.path, "rev-parse", "--show-toplevel"], {
           windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-        });
+        }));
         const gitRoot = await realpath(result.stdout.trim());
         const actualPath = await realpath(candidate.path);
         if (sameLocalPath(gitRoot, actualPath)) repositories[index] = { name: candidate.name, path: actualPath };
@@ -108,9 +109,9 @@ export async function inspectWorkspaceFolder(
 
   let topLevel: string;
   try {
-    const result = await execFileAsync('git', ['-C', absolutePath, 'rev-parse', '--show-toplevel'], {
+    const result = await logGitCommand(['rev-parse'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'rev-parse', '--show-toplevel'], {
       windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-    });
+    }));
     topLevel = await realpath(result.stdout.trim());
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error) {
@@ -137,9 +138,9 @@ export async function inspectWorkspaceFolder(
   const parent = path.dirname(absolutePath);
   let parentIsRepository = false;
   try {
-    const result = await execFileAsync('git', ['-C', parent, 'rev-parse', '--show-toplevel'], {
+    const result = await logGitCommand(['rev-parse'], parent, () => execFileAsync('git', ['-C', parent, 'rev-parse', '--show-toplevel'], {
       windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-    });
+    }));
     parentIsRepository = !!result.stdout.trim();
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -150,18 +151,18 @@ export async function inspectWorkspaceFolder(
 
   let remotes: string[];
   try {
-    const result = await execFileAsync('git', ['-C', absolutePath, 'remote'], {
+    const result = await logGitCommand(['remote'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'remote'], {
       windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-    });
+    }));
     remotes = result.stdout.split(/\r?\n/).filter(Boolean);
   } catch {
     return { kind: 'unavailable', path: absolutePath, error: '無法讀取 Group Repo 的 remote。' };
   }
   for (const remote of remotes) {
     try {
-      const result = await execFileAsync('git', ['-C', absolutePath, 'remote', 'get-url', remote], {
+      const result = await logGitCommand(['remote'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'remote', 'get-url', remote], {
         windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-      });
+      }));
       if (projects.some((project) => matchesRemote(result.stdout.trim(), project))) {
         return { kind: 'group-repository', path: absolutePath, groupRoot: parent };
       }

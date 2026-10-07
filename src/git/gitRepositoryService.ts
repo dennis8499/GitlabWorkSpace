@@ -11,6 +11,8 @@ import { projectRemoteMatches, createScopedGitEnvironment } from './cloneService
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import { gitDirectoryForRepository, withGitDirectoryLock } from './repositoryOperationLock';
 import { makeSelectedPatch } from './gitDiffSelection';
+import { logGitCommand } from './gitCommandLog';
+import { scanWorkspaceRepositories, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from './repositoryScanner';
 import type {
   GitAction, GitBranchSummary, GitChange, GitCommitSummary, GitPanelMessage, GitPullStrategy,
   GitRefKind, GitRecoveryRefSummary, GitRepositorySnapshot, GitRepositorySummary, GitStashSummary
@@ -103,6 +105,7 @@ interface GitApi {
   readonly repositories: GitRepository[];
   readonly onDidOpenRepository: vscode.Event<GitRepository>;
   readonly onDidCloseRepository: vscode.Event<GitRepository>;
+  openRepository(root: vscode.Uri): Promise<GitRepository | null>;
 }
 
 interface GitExtension {
@@ -116,6 +119,57 @@ type GitWarningPromptHandler = (message: string, options: vscode.MessageOptions,
 type GitActionTraceHandler = (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void;
 
 export class GitRepositoryService implements vscode.Disposable {
+  private pendingActions = 0;
+  get hasActiveOperations(): boolean { return this.activeOperations.size > 0 || this.pendingActions > 0; }
+
+  async getInventory(): Promise<ScannedRepository[]> {
+    await this.initialization;
+    return (this.api?.repositories ?? []).map(repository => {
+      const remotes = repository.state.remotes.flatMap(remote => [remote.fetchUrl, remote.pushUrl]).filter((url): url is string => !!url)
+        .map(remote => { try { const url = new URL(remote); url.username = ''; url.password = ''; url.search = ''; url.hash = ''; return url.toString(); } catch { return remote; } });
+      let canonical = repository.rootUri.fsPath;
+      try { canonical = realpathSync(canonical); } catch { /* Retain an unavailable native Repo for its error state. */ }
+      return { path: canonical, name: path.basename(canonical), remotes,
+        repositoryId: this.repositoryId(repository.rootUri.fsPath) };
+    });
+  }
+
+  async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void): Promise<RepositoryScanState> {
+    const task = () => this.scanWorkspaceInternal(signal, onProgress);
+    return this.gitlabSession.log?.run('projects', 'scanWorkspace', {}, task) ?? task();
+  }
+
+  private async scanWorkspaceInternal(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void): Promise<RepositoryScanState> {
+    await this.initialization;
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const state = await scanWorkspaceRepositories(folders.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath), {
+      signal, onProgress: progress => onProgress({ ...progress, status: progress.status === 'completed' ? 'scanning' : progress.status }), gitPath: this.api?.git.path,
+      excludes: vscode.workspace.getConfiguration('gitlabWorkspace').get<string[]>('repositoryScan.excludeDirectories', DEFAULT_SCAN_EXCLUDES),
+      log: this.gitlabSession.log
+    });
+    for (const folder of folders.filter(folder => folder.uri.scheme !== 'file')) state.errors.push({ path: folder.uri.toString(), message: '此工作區不是本機檔案資料夾，無法掃描。' });
+    for (const repository of state.repositories) {
+      if (signal.aborted) { state.status = 'cancelled'; break; }
+      const started = Date.now();
+      try {
+        if (!this.api || !this.enabled) throw new Error('請啟用 VS Code 內建 Git。');
+        const opened = this.api.repositories.find(item => this.pathKey(item.rootUri.fsPath) === this.pathKey(repository.path)) ??
+          await this.api.openRepository(vscode.Uri.file(repository.path));
+        if (!opened) throw new Error('VS Code Git 未登錄此 Repo；請檢查工作區信任、Git 權限或忽略設定。');
+        repository.repositoryId = this.repositoryId(opened.rootUri.fsPath);
+        this.reconcileRepositorySubscription(opened);
+        this.gitlabSession.log?.record({ feature: 'projects', action: 'registerRepository', result: 'success', repositoryPath: repository.path, durationMs: Date.now() - started });
+      } catch (error) {
+        repository.registrationError = readableGitError(error);
+        state.errors.push({ path: repository.path, message: repository.registrationError });
+        this.gitlabSession.log?.record({ feature: 'projects', action: 'registerRepository', result: 'error', repositoryPath: repository.path, durationMs: Date.now() - started, message: repository.registrationError });
+      }
+      onProgress({ ...state, status: 'scanning', repositories: state.repositories.map(item => ({ ...item })) });
+    }
+    if (!signal.aborted) { this.cachedSummariesListRevision = -1; await this.refresh(); }
+    onProgress(state);
+    return state;
+  }
   private api?: GitApi;
   private repositoryExtension?: vscode.Extension<GitExtension>;
   private readonly subscriptions: vscode.Disposable[] = [];
@@ -340,6 +394,27 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   async handleAction(repositoryId: string, action: GitAction): Promise<GitRepositorySnapshot | undefined> {
+    const write = !['open', 'refresh', 'diff', 'history', 'showCommit', 'rebasePlan'].includes(action.type);
+    if (write && this.gitlabSession.isTransitioning) throw new Error('帳號正在切換，請稍後再執行版控操作。');
+    if (write) this.pendingActions++;
+    const repositoryPath = this.api?.repositories.find(repository => this.repositoryId(repository.rootUri.fsPath) === repositoryId)?.rootUri.fsPath;
+    const task = async () => {
+      const started = Date.now();
+      try {
+        const result = await this.handleActionInternal(repositoryId, action);
+        if (write) this.gitlabSession.log?.record({ feature: 'git', action: action.type, result: 'success', repositoryPath, exitCode: 0, durationMs: Date.now() - started });
+        return result;
+      } catch (error) {
+        const exitCode = error && typeof error === 'object' && 'exitCode' in error && typeof error.exitCode === 'number' ? error.exitCode : undefined;
+        this.gitlabSession.log?.record({ feature: 'git', action: action.type, result: 'error', repositoryPath, exitCode, durationMs: Date.now() - started, message: '版控操作未完成。' });
+        throw error;
+      }
+    };
+    try { return await (this.gitlabSession.log?.run('git', action.type, { repositoryPath }, task) ?? task()); }
+    finally { if (write) this.pendingActions--; }
+  }
+
+  private async handleActionInternal(repositoryId: string, action: GitAction): Promise<GitRepositorySnapshot | undefined> {
     await this.initialization;
     const repository = await this.requireRepository(repositoryId);
     this.actionTraceHandler?.({ phase: 'start', repositoryId, action: action.type });
@@ -578,9 +653,9 @@ export class GitRepositoryService implements vscode.Disposable {
     const repository = this.findRepository(repositoryId);
     if (!repository) throw new Error('找不到這個 VS Code 工作區 Repo，請重新整理清單。');
     const realRoot = this.pathKey(repository.rootUri.fsPath);
-    const verifiedRoot = this.pathKey(await execFileAsync(api.git.path, ['-C', realRoot, 'rev-parse', '--show-toplevel'], {
+    const verifiedRoot = this.pathKey(await logGitCommand(['rev-parse'], realRoot, () => execFileAsync(api.git.path, ['-C', realRoot, 'rev-parse', '--show-toplevel'], {
       windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-    }).then(({ stdout }) => stdout.trim()));
+    }), this.gitlabSession.log).then(({ stdout }) => stdout.trim()));
     if (realRoot !== verifiedRoot) throw new Error('Repo 路徑已變更，請重新整理清單。');
     return repository;
   }
@@ -1198,6 +1273,14 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async runGit(
+    repository: GitRepository, arguments_: string[], input?: string,
+    environmentOverrides: NodeJS.ProcessEnv = {}, acceptedExitCodes: number[] = []
+  ): Promise<GitCommandOutput & { code: number }> {
+    const task = () => this.runGitCommand(repository, arguments_, input, environmentOverrides, acceptedExitCodes);
+    return this.gitlabSession.log?.run('git', arguments_[0] ?? 'git', { repositoryPath: repository.rootUri.fsPath }, task) ?? task();
+  }
+
+  private async runGitCommand(
     repository: GitRepository,
     arguments_: string[],
     input?: string,
@@ -1207,6 +1290,7 @@ export class GitRepositoryService implements vscode.Disposable {
     const gitPath = this.api?.git.path;
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
     this.executedGitCommandCount++;
+    const logStarted = Date.now();
     const child = spawn(gitPath, ['-c', 'core.quotepath=false', ...arguments_], {
       cwd: repository.rootUri.fsPath,
       env: { ...await this.environmentFor(repository), ...environmentOverrides },
@@ -1224,10 +1308,14 @@ export class GitRepositoryService implements vscode.Disposable {
       child.stderr?.setEncoding('utf8');
       child.stdout?.on('data', (chunk: string) => { if (stdout.length < 8_000_000) stdout += chunk.slice(0, 8_000_000 - stdout.length); });
       child.stderr?.on('data', (chunk: string) => { if (stderr.length < 64_000) stderr += chunk.slice(0, 64_000 - stderr.length); });
-      child.on('error', (error: Error) => settle(() => reject(error)));
+      child.on('error', (error: Error) => settle(() => {
+        this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', result: 'error', repositoryPath: repository.rootUri.fsPath, durationMs: Date.now() - logStarted, message: '無法啟動 Git 指令。' });
+        reject(error);
+      }));
       child.on('close', (code: number | null) => {
         settle(() => {
           const result = { stdout, stderr, code: code ?? -1 };
+          this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', result: result.code === 0 || acceptedExitCodes.includes(result.code) ? 'success' : 'error', repositoryPath: repository.rootUri.fsPath, exitCode: result.code, durationMs: Date.now() - logStarted });
           if (result.code === 0 || acceptedExitCodes.includes(result.code)) resolve(result);
           else reject(new GitCommandError(result.code, sanitizeGitError(stderr)));
         });
@@ -1254,9 +1342,9 @@ export class GitRepositoryService implements vscode.Disposable {
   private async readBlob(repository: GitRepository, objectPath: string): Promise<Buffer> {
     const gitPath = this.api?.git.path;
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
-    const result = await execFileAsync(gitPath, ['-C', repository.rootUri.fsPath, 'show', objectPath], {
+    const result = await logGitCommand(['show'], repository.rootUri.fsPath, () => execFileAsync(gitPath, ['-C', repository.rootUri.fsPath, 'show', objectPath], {
       encoding: 'buffer', windowsHide: true, timeout: 10_000, maxBuffer: 128 * 1024 * 1024
-    }) as unknown as { stdout: Buffer };
+    }), this.gitlabSession.log) as unknown as { stdout: Buffer };
     return Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout as unknown as string);
   }
 
@@ -1313,9 +1401,9 @@ export class GitRepositoryService implements vscode.Disposable {
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value)) throw new Error('Git 提交識別碼無效。');
     const head = repository.state.HEAD?.commit?.toLocaleLowerCase('en-US') === value.toLocaleLowerCase('en-US');
     if (!head) {
-      await execFileAsync(this.api!.git.path, ['-C', repository.rootUri.fsPath, 'cat-file', '-e', value + '^{commit}'], {
+      await logGitCommand(['cat-file'], repository.rootUri.fsPath, () => execFileAsync(this.api!.git.path, ['-C', repository.rootUri.fsPath, 'cat-file', '-e', value + '^{commit}'], {
         windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-      }).catch(() => { throw new Error('找不到這筆 Repo Commit，請重新載入歷史。'); });
+      }), this.gitlabSession.log).catch(() => { throw new Error('找不到這筆 Repo Commit，請重新載入歷史。'); });
     }
   }
 

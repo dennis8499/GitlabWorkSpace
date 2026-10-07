@@ -58,6 +58,13 @@ export class IssueTimeTracker {
     return this.entries.map((entry) => ({ ...entry }));
   }
 
+  async detachScope(): Promise<void> {
+    for (const entry of this.list()) if (entry.phase === 'running') await this.pause(entry.id);
+    await this.persistTask;
+    this.entries = []; this.scopeKey = undefined; this.activeId = undefined;
+    this.lastTickAt = undefined; this.remainderMs = 0;
+  }
+
   async tick(now = Date.now()): Promise<boolean> {
     const active = this.activeEntry();
     if (!active || active.phase !== 'running') {

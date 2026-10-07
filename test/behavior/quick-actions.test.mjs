@@ -31,7 +31,7 @@ test('renders workspace navigation and keeps destinations available before conne
   t.after(() => view.dom.window.close());
 
   assert.deepEqual(hostValues(view.requests), [{ type: 'ready' }]);
-  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '⑂待審查', '⑂版控']);
+  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '⑂待審查', '⑂版控', '≡後臺管理']);
   assert.equal(view.buttons().every((button) => !button.disabled), true);
   assert.equal(view.buttons()[0].classList.contains('workspace-link'), true);
   assert.equal(view.buttons().every((button) => button.type === 'button'), true);
@@ -54,13 +54,13 @@ test('shows connection scope and dispatches each destination with accessible bus
 
   assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, 'team/dotnet');
   assert.equal(view.buttons()[0].classList.contains('active'), true);
-  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', '待審查', '版控']);
+  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', '待審查', '版控', '後臺管理']);
   assert.equal(view.buttons()[5].getAttribute('aria-current'), 'page');
 
-  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit'].entries()) {
+  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit', 'openAdmin'].entries()) {
     view.buttons()[index].click();
   }
-  assert.deepEqual(hostValues(view.requests.slice(1, 7)), ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit'].map((action) => ({ type: 'perform', action })));
+  assert.deepEqual(hostValues(view.requests.slice(1, 8)), ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit', 'openAdmin'].map((action) => ({ type: 'perform', action })));
 
   assert.equal(view.repoButtons().length, 1);
   assert.match(view.repoButtons()[0].textContent, /project.*main.*origin\/main/s);
@@ -88,4 +88,21 @@ test('shows connection scope and dispatches each destination with accessible bus
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.dom.window.document.querySelector('.action-message').textContent, '無法連線');
   assert.equal(view.buttons().every((button) => !button.disabled), true);
+});
+
+test('shows saved account summaries and dispatches supported account management actions', async t => {
+  const view = await mount();
+  t.after(() => view.dom.window.close());
+  view.sendState({ connected: true, activeAccountId: 'a'.repeat(32), accounts: [
+    { id: 'a'.repeat(32), baseUrl: 'https://gitlab.example.test', userId: 7, username: 'tester', name: 'Test User', needsLogin: false },
+    { id: 'b'.repeat(32), baseUrl: 'https://other.example.test', userId: 8, username: 'other', name: 'Other User', needsLogin: true }
+  ] });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const menu = view.dom.window.document.querySelector('.sidebar-account-menu');
+  assert.match(menu.textContent, /tester.*gitlab.example.test.*目前帳號/s);
+  assert.match(menu.textContent, /other.example.test.*已登出/s);
+  for (const [index, action] of ['addAccount', 'switchAccount', 'removeAccount', 'logoutAccount'].entries()) {
+    menu.querySelectorAll('button')[index].click();
+    assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action });
+  }
 });

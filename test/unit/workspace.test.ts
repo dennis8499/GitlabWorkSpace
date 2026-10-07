@@ -213,3 +213,24 @@ test('timer ticks report only displayed changes and persist elapsed time every t
   assert.equal(await tracker.tick(32_000), true);
   assert.equal(tracker.list()[0].elapsedSeconds, 31);
 });
+
+test('pauses and saves timers before account changes and restores only the selected account entries', async () => {
+  const tracker = new IssueTimeTracker(memory());
+  await tracker.setScope('https://gitlab.example', 7);
+  const start = Date.now() - 1000;
+  const first = await tracker.start(project(3, 'service'), { iid: 19, title: 'First account' }, start);
+  await tracker.tick(Date.now());
+  await tracker.detachScope();
+  assert.equal(tracker.list().length, 0);
+  await tracker.setScope('https://gitlab.example', 8);
+  assert.equal(tracker.list().length, 0);
+  await tracker.addManual(project(3, 'service'), { iid: 19, title: 'Second account' }, '2m', 'Second only');
+  await tracker.detachScope();
+  await tracker.setScope('https://gitlab.example', 7);
+  assert.equal(tracker.list()[0].id, first.id);
+  assert.equal(tracker.list()[0].phase, 'paused');
+  await tracker.resume(first.id);
+  await tracker.detachScope();
+  await tracker.setScope('https://different.example', 7);
+  assert.equal(tracker.list().length, 0);
+});

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { currentOperationLog } from '../logging/operationLog';
 import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
@@ -470,6 +471,10 @@ interface GitCaptureResult {
 }
 
 function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = process.env): Promise<GitCaptureResult> {
+  const log = currentOperationLog();
+  const started = Date.now();
+  const action = args[0] === '-C' ? args[2] : args[0];
+  const repositoryPath = cwd ?? (args[0] === '-C' ? args[1] : undefined);
   return new Promise((resolve, reject) => {
     let settled = false;
     let stdout = '';
@@ -483,6 +488,7 @@ function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = pr
         stdio: ['ignore', 'pipe', 'ignore']
       });
     } catch {
+      log?.record({ feature: 'git', action, repositoryPath, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
       reject(new Error('Unable to start Git.'));
       return;
     }
@@ -492,12 +498,14 @@ function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = pr
     child.once('error', () => {
       if (!settled) {
         settled = true;
+        log?.record({ feature: 'git', action, repositoryPath, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
         reject(new Error('Unable to start Git.'));
       }
     });
     child.once('close', (code) => {
       if (settled) return;
       settled = true;
+      log?.record({ feature: 'git', action, repositoryPath, result: code === 0 ? 'success' : 'error', exitCode: code ?? -1, durationMs: Date.now() - started });
       resolve({ code: code ?? -1, stdout });
     });
   });
@@ -734,6 +742,8 @@ function runGitProcess(
   onPercent?: (percent: number) => void,
   operation: GitCommandFailure['command'] = 'fetch'
 ): Promise<GitProcessResult> {
+  const log = currentOperationLog();
+  const started = Date.now();
   return new Promise((resolve, reject) => {
     let settled = false;
     let stderr = '';
@@ -756,12 +766,14 @@ function runGitProcess(
     child.once('error', () => {
       if (!settled) {
         settled = true;
+        log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
         reject(new GitCommandFailure(operation, { code: -1, stderr: 'Unable to start Git.' }));
       }
     });
     child.once('close', (code) => {
       if (settled) return;
       settled = true;
+      log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: code === 0 ? 'success' : 'error', exitCode: code ?? -1, durationMs: Date.now() - started });
       resolve({ code: code ?? -1, stderr });
     });
   });

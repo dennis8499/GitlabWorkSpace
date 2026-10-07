@@ -79,6 +79,8 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     const revision = ++this.stateRevision;
     const state: QuickActionsState = {
       connected: !!this.session.baseUrl,
+      accounts: this.session.accounts,
+      activeAccountId: this.session.activeAccountId,
       groupLabel: this.session.selectedGroup?.full_path,
       busyAction: this.busyAction,
       errorMessage: this.errorMessage

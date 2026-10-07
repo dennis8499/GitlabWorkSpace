@@ -4,6 +4,8 @@ import { GitLabReadCache } from '../api/gitLabReadCache';
 import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
+import { AccountStore, accountId, type GitLabAccount } from './accountStore';
+import type { OperationLog } from '../logging/operationLog';
 
 const TOKEN_SECRET_KEY = 'gitlabWorkspace.accessToken';
 const BASE_URL_KEY = 'gitlabWorkspace.baseUrl';
@@ -67,7 +69,52 @@ export class GitLabSession {
   private capabilitiesRetryAt = 0;
   private readonly groupProjectIds = new Map<number, Set<number>>();
 
-  constructor(private readonly secrets: SecretStorage, private readonly state: Memento, private readonly testMode = false) {}
+  private readonly accountStore: AccountStore;
+  private initialization?: Promise<void>;
+  private beforeTransition?: () => Promise<void>;
+  private transitionQueue: Promise<void> = Promise.resolve();
+  private activeWrites = 0;
+
+  constructor(private readonly secrets: SecretStorage, private readonly state: Memento, private readonly testMode = false,
+    workspaceState: Memento = state, readonly log?: OperationLog) {
+    this.accountStore = new AccountStore(state, secrets, workspaceState);
+  }
+
+  get accounts(): GitLabAccount[] { return this.accountStore.list(); }
+  get activeAccountId(): string | undefined { return this.accountStore.activeId; }
+  get hasActiveWrites(): boolean { return this.activeWrites > 0; }
+  get isTransitioning(): boolean { return this.connectionTransition; }
+  setBeforeTransition(handler: () => Promise<void>): void { this.beforeTransition = handler; }
+  initialize(): Promise<void> {
+    if (this.accountStore.ready) return Promise.resolve();
+    if (this.initialization) return this.initialization;
+    const task = this.accountStore.initialize((url, token) => this.makeClient(url, token).getCurrentUser());
+    this.initialization = task;
+    return task.finally(() => { if (this.initialization === task) this.initialization = undefined; });
+  }
+  async updateCurrentUser(user: GitLabUser): Promise<void> { await this.accountStore.updateUser(user); }
+  private makeClient(url: string, token: string, connected = false): GitLabClient {
+    this.log?.addSecret(token);
+    const fetcher = this.testFetcher ?? fetch;
+    const epoch = this.connectionEpochValue;
+    return new GitLabClient(url, token, this.log?.wrapFetch(fetcher) ?? fetcher,
+      connected ? this.connectionAbort.signal : undefined, connected ? context => this.invalidateAfterWrite(context) : undefined, undefined,
+      connected ? async task => {
+        if (epoch !== this.connectionEpochValue || this.connectionTransition) throw staleConnectionError();
+        this.activeWrites++;
+        try { return await task(); } finally { this.activeWrites--; }
+      } : undefined);
+  }
+
+  private enqueueTransition<T>(task: () => Promise<T>): Promise<T> {
+    const next = this.transitionQueue.then(async () => {
+      if (this.activeWrites) throw new Error('GitLab 寫入尚未完成，請稍後再切換帳號或登出。');
+      this.connectionTransition = true;
+      try { return await task(); } finally { this.connectionTransition = false; }
+    });
+    this.transitionQueue = next.then(() => undefined, () => undefined);
+    return next;
+  }
 
   setFetchForTesting(fetcher: FetchLike): void {
     if (!this.testMode) throw new Error('Test request instrumentation is available only in the VS Code Extension Host test mode.');
@@ -76,6 +123,9 @@ export class GitLabSession {
   }
 
   get baseUrl(): string | undefined {
+    const active = this.accountStore.active;
+    if (active) return active.needsLogin ? undefined : active.baseUrl;
+    if (this.accountStore.ready) return undefined;
     const value = this.state.get<string>(BASE_URL_KEY);
     return value ? normalizeGitLabBaseUrl(value) : undefined;
   }
@@ -83,6 +133,9 @@ export class GitLabSession {
   get connectionEpoch(): number { return this.connectionEpochValue; }
 
   get selectedGroup(): GitLabGroup | undefined {
+    const active = this.accountStore.active;
+    if (active) return active.group ? { id: active.group.id, name: active.group.fullPath.split('/').at(-1) ?? active.group.fullPath, full_path: active.group.fullPath, web_url: '' } : undefined;
+    if (this.accountStore.ready) return undefined;
     const id = this.state.get<number>(GROUP_ID_KEY);
     const fullPath = this.state.get<string>(GROUP_LABEL_KEY);
     if (id === undefined || !fullPath) return undefined;
@@ -260,7 +313,7 @@ export class GitLabSession {
   private capabilityCacheScope(): string | undefined {
     const baseUrl = this.baseUrl;
     const metadata = this.currentMetadata;
-    const currentUserId = this.currentUserIdValue ?? this.state.get<number>(CURRENT_USER_ID_KEY);
+    const currentUserId = this.currentUserIdValue ?? this.accountStore.active?.userId ?? this.state.get<number>(CURRENT_USER_ID_KEY);
     if (!baseUrl || !metadata?.version || !Number.isSafeInteger(currentUserId) || (currentUserId ?? 0) <= 0) return undefined;
     return JSON.stringify([
       baseUrl,
@@ -289,6 +342,7 @@ export class GitLabSession {
   }
 
   async getClient(): Promise<GitLabClient> {
+    await this.initialize();
     if (this.connectionTransition) throw new Error('The GitLab connection is being changed. Retry this read shortly.');
     if (this.cachedClient) return this.cachedClient;
     if (this.clientCheck) return this.clientCheck;
@@ -296,10 +350,10 @@ export class GitLabSession {
     const epoch = this.connectionEpochValue;
     if (!baseUrl) throw new Error('Connect to GitLab first.');
     const task = (async () => {
-      const token = await this.secrets.get(TOKEN_SECRET_KEY);
+      const token = this.activeAccountId ? await this.accountStore.token(this.activeAccountId) : await this.secrets.get(TOKEN_SECRET_KEY);
       if (!token) throw new Error('Connect to GitLab first.');
       if (epoch !== this.connectionEpochValue || this.connectionTransition || baseUrl !== this.baseUrl) throw staleConnectionError();
-      const client = new GitLabClient(baseUrl, token, this.testFetcher, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
+      const client = this.makeClient(baseUrl, token, true);
       this.cachedClient = client;
       return client;
     })();
@@ -308,22 +362,59 @@ export class GitLabSession {
   }
 
   async getCloneCredentials(): Promise<{ baseUrl: string; token: string }> {
+    await this.initialize();
     const baseUrl = this.baseUrl;
-    const token = await this.secrets.get(TOKEN_SECRET_KEY);
+    const epoch = this.connectionEpochValue;
+    const token = this.activeAccountId ? await this.accountStore.token(this.activeAccountId) : undefined;
     if (!baseUrl || !token) throw new Error('Connect to GitLab first.');
+    if (epoch !== this.connectionEpochValue || this.connectionTransition) throw staleConnectionError();
+    this.log?.addSecret(token);
     return { baseUrl, token };
   }
 
-  async connect(baseUrl: string, token: string): Promise<GitLabUser> {
-    const normalizedUrl = normalizeGitLabBaseUrl(baseUrl);
+  async connect(baseUrl: string, token: string, expectedAccountId?: string): Promise<GitLabUser> {
     const attempt = ++this.connectionAttempt;
-    const probeClient = new GitLabClient(normalizedUrl, token, this.testFetcher);
+    await this.initialize();
+    const normalizedUrl = normalizeGitLabBaseUrl(baseUrl);
+    const probeClient = this.makeClient(normalizedUrl, token);
     const user = await probeClient.getCurrentUser();
+    if (expectedAccountId && accountId(normalizedUrl, user.id) !== expectedAccountId) throw new Error('Token 身分與儲存帳號不同，請使用新增帳號登入。');
     if (attempt !== this.connectionAttempt) throw staleConnectionError();
-    const serverChanged = this.baseUrl !== normalizedUrl;
-    const previousUserId = this.state.get<number>(CURRENT_USER_ID_KEY);
-    const accountChanged = previousUserId !== undefined && previousUserId !== user.id;
-    this.connectionTransition = true;
+    await this.activateAccount(normalizedUrl, token, user, attempt);
+    return user;
+  }
+
+  async switchAccount(id: string): Promise<GitLabUser> {
+    const attempt = ++this.connectionAttempt;
+    await this.initialize();
+    const account = this.accounts.find(item => item.id === id);
+    if (!account) throw new Error('找不到此 GitLab 帳號。');
+    const token = await this.accountStore.token(id);
+    if (!token) throw new Error('此帳號已登出，請重新登入。');
+    let user: GitLabUser;
+    try { user = await this.makeClient(account.baseUrl, token).getCurrentUser(); }
+    catch (error) {
+      if (error && typeof error === 'object' && 'status' in error && error.status === 401) await this.accountStore.markNeedsLogin(id);
+      throw error;
+    }
+    if (user.id !== account.userId) throw new Error('Token 身分與儲存帳號不同，請使用新增帳號登入。');
+    if (attempt !== this.connectionAttempt) throw staleConnectionError();
+    await this.activateAccount(account.baseUrl, token, user, attempt);
+    return user;
+  }
+
+  private async activateAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {
+    await this.enqueueTransition(() => this.commitAccount(normalizedUrl, token, user, attempt));
+    if (attempt !== this.connectionAttempt) throw staleConnectionError();
+    await this.ensureInstanceChecked();
+  }
+
+  private async commitAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {
+    if (attempt !== this.connectionAttempt) throw staleConnectionError();
+    await this.beforeTransition?.();
+    if (attempt !== this.connectionAttempt) throw staleConnectionError();
+    // Persist first so a failed credential/state write leaves the previous client usable.
+    await this.accountStore.save(normalizedUrl, user, token);
     this.connectionEpochValue++;
     this.connectionAbort.abort(staleConnectionError());
     this.connectionAbort = new AbortController();
@@ -340,31 +431,47 @@ export class GitLabSession {
     this.metadataRetryAt = 0;
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
-    try {
-      this.currentUserIdValue = user.id;
-      await this.secrets.store(TOKEN_SECRET_KEY, token);
-      if (attempt !== this.connectionAttempt) throw staleConnectionError();
-      await this.state.update(BASE_URL_KEY, normalizedUrl);
-      await this.state.update(CURRENT_USER_ID_KEY, user.id);
-      if (serverChanged || accountChanged) {
-        await this.state.update(GROUP_ID_KEY, undefined);
-        await this.state.update(GROUP_LABEL_KEY, undefined);
-      }
-      this.cachedClient = new GitLabClient(normalizedUrl, token, this.testFetcher, this.connectionAbort.signal, (context) => this.invalidateAfterWrite(context));
-    } finally {
-      if (attempt === this.connectionAttempt) this.connectionTransition = false;
-    }
-    await this.ensureInstanceChecked();
-    return user;
+    this.currentUserIdValue = user.id;
+    this.cachedClient = this.makeClient(normalizedUrl, token, true);
   }
 
   async setSelectedGroup(group: GitLabGroup | undefined): Promise<void> {
+    if (this.accountStore.ready || this.accountStore.active) { await this.accountStore.setGroup(group); return; }
     await this.state.update(GROUP_ID_KEY, group?.id);
     await this.state.update(GROUP_LABEL_KEY, group?.full_path);
   }
 
   async disconnect(): Promise<void> {
     this.connectionAttempt++;
+    await this.initialize();
+    const id = this.activeAccountId;
+    if (id) return this.logoutAccount(id);
+    await this.enqueueTransition(() => this.resetConnection());
+  }
+
+  async logoutAccount(id: string): Promise<void> {
+    await this.initialize();
+    if (this.activeAccountId === id) this.connectionAttempt++;
+    await this.enqueueTransition(async () => {
+      const active = this.activeAccountId === id;
+      if (active) await this.beforeTransition?.();
+      await this.accountStore.logout(id);
+      if (active) await this.resetConnection();
+    });
+  }
+
+  async removeAccount(id: string): Promise<void> {
+    await this.initialize();
+    if (!this.accounts.some(account => account.id === id)) throw new Error('找不到此 GitLab 帳號。');
+    await this.enqueueTransition(async () => {
+      const active = this.activeAccountId === id;
+      if (active) { this.connectionAttempt++; await this.beforeTransition?.(); }
+      await this.accountStore.logout(id, true);
+      if (active) await this.resetConnection();
+    });
+  }
+
+  private async resetConnection(): Promise<void> {
     this.connectionTransition = true;
     this.connectionEpochValue++;
     this.connectionAbort.abort(staleConnectionError());
@@ -381,11 +488,6 @@ export class GitLabSession {
     this.metadataRetryAt = 0;
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
-    await this.state.update(BASE_URL_KEY, undefined);
-    await this.state.update(CURRENT_USER_ID_KEY, undefined);
-    await this.state.update(GROUP_ID_KEY, undefined);
-    await this.state.update(GROUP_LABEL_KEY, undefined);
-    await this.secrets.delete(TOKEN_SECRET_KEY);
     this.connectionTransition = false;
   }
 }

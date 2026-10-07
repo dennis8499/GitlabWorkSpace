@@ -122,6 +122,167 @@ async function mount(initialState, initialSnapshot) {
   };
 }
 
+test('account menu supports selecting saved identities, logging in, adding and removing accounts', async (t) => {
+  const data = snapshot();
+  data.activeAccountId = 'first';
+  data.accounts = [
+    { id: 'first', baseUrl: data.baseUrl, userId: 7, username: 'first-user', name: 'First', needsLogin: false },
+    { id: 'second', baseUrl: data.baseUrl, userId: 8, username: 'second-user', name: 'Second', needsLogin: false },
+    { id: 'third', baseUrl: 'https://other.example.test', userId: 7, username: 'third-user', name: 'Third', needsLogin: true }
+  ];
+  const view = await mount({ mode: 'developer' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const buttons = [...document.querySelectorAll('.saved-account-select')];
+  assert.equal(buttons[0].disabled, true);
+  assert.match(buttons[1].textContent, /second-user.*gitlab.example.test.*切換帳號/s);
+  assert.match(buttons[2].textContent, /other.example.test.*已登出/s);
+  buttons[1].click();
+  assert.equal(view.requests.at(-1).type, 'switchAccount');
+  assert.equal(view.requests.at(-1).accountId, 'second');
+  buttons[2].click();
+  assert.equal(view.requests.at(-1).type, 'addAccount');
+  assert.equal(view.requests.at(-1).accountId, 'third');
+  document.querySelector('button[aria-label="移除 Second 帳號"]').click();
+  assert.equal(view.requests.at(-1).type, 'removeAccount');
+  [...document.querySelectorAll('.account-manager button')].find(button => button.textContent.includes('新增 GitLab 帳號')).click();
+  assert.equal(view.requests.at(-1).type, 'addAccount');
+  assert.equal(view.requests.at(-1).accountId, undefined);
+  [...document.querySelectorAll('.account-manager button')].find(button => button.textContent === '登出目前帳號').click();
+  assert.equal(view.requests.at(-1).type, 'disconnect');
+});
+
+test('offline Log administration filters and pages results, ignores stale replies, and exports the active query', async (t) => {
+  const data = { ...snapshot('admin'), connected: false, baseUrl: undefined, group: undefined };
+  const view = await mount({ mode: 'admin' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const first = view.requests.filter(request => request.type === 'queryLogs').at(-1);
+  assert.ok(first);
+  const search = document.querySelector('input[aria-label="搜尋 Log"]');
+  search.value = 'scan'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  const filtered = view.requests.filter(request => request.type === 'queryLogs').at(-1);
+  assert.equal(filtered.query.search, 'scan');
+  const entry = { id: 'entry', timestamp: '2026-10-07T01:00:00.000Z', operationId: 'operation', feature: 'projects', action: 'scanRepositories', result: 'success', level: 'info', durationMs: 42 };
+  view.send({ type: 'logsPage', requestId: first.requestId, page: { entries: [{ ...entry, action: 'stale' }], total: 1, page: 0, pageSize: 100 } });
+  await view.tick();
+  assert.equal(document.querySelector('.log-table').textContent.includes('stale'), false);
+  view.send({ type: 'logsPage', requestId: filtered.requestId, page: { entries: [entry], total: 101, page: 0, pageSize: 100 } });
+  await view.tick();
+  document.querySelector('.log-table .status-link').click();
+  await view.tick();
+  assert.match(document.querySelector('.log-detail').textContent, /operation/);
+  [...document.querySelectorAll('.log-pagination button')].find(button => button.textContent === '下一頁').click();
+  await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'queryLogs').at(-1).query.page, 1);
+  [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '匯出篩選結果').click();
+  assert.equal(view.requests.at(-1).type, 'exportLogs');
+  assert.equal(view.requests.at(-1).query.search, 'scan');
+  [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '清除全部 Log').click();
+  assert.equal(view.requests.at(-1).type, 'clearLogs');
+  const before = view.requests.filter(request => request.type === 'queryLogs').length;
+  document.querySelector('.log-actions input[type="checkbox"]').click();
+  await view.tick();
+  view.send({ type: 'logsChanged' });
+  await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, before + 1, 'disabling live refresh makes one query and ignores notifications');
+});
+
+test('offline local Repo inventory exposes every copy, scan progress, cancellation and registration errors', async (t) => {
+  const data = { ...snapshot('clone'), connected: false, baseUrl: undefined, group: undefined,
+    localWorkspaceRepositories: [
+      { path: 'C:/workspace/alpha', name: 'alpha', remotes: [], repositoryId: 'registered' },
+      { path: 'C:/workspace/other/alpha', name: 'alpha copy', remotes: [], registrationError: 'Git 未啟用' }
+    ],
+    repositoryScan: { status: 'scanning', checkedDirectories: 12, repositories: [], errors: [{ path: 'C:/private', message: '拒絕存取' }], excludes: ['.git', 'node_modules'] }
+  };
+  const view = await mount({ mode: 'clone' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelectorAll('.local-repo-row').length, 2);
+  assert.match(document.querySelector('.local-repositories-panel').textContent, /12 個資料夾/);
+  assert.match(document.querySelector('.local-repositories-panel').textContent, /Git 未啟用/);
+  assert.equal(document.querySelectorAll('.local-repo-row button')[1].disabled, true);
+  document.querySelector('.local-repo-row button').click();
+  assert.equal(view.requests.at(-1).type, 'gitOpenRepository');
+  assert.equal(view.requests.at(-1).path, 'C:/workspace/alpha');
+  [...document.querySelectorAll('.local-repositories-panel button')].find(button => button.textContent === '取消掃描').click();
+  assert.equal(view.requests.at(-1).type, 'cancelRepositoryScan');
+  view.sendSnapshot({ ...data, repositoryScan: { ...data.repositoryScan, status: 'cancelled' } });
+  await view.tick();
+  [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === '一鍵掃描 Repo').click();
+  assert.equal(view.requests.at(-1).type, 'scanRepositories');
+});
+
+test('Issue preview reports loading and retry states while the work list stays visible', async (t) => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelectorAll('.work-row')[0].click();
+  document.querySelectorAll('.work-row')[1].click();
+  assert.equal(view.requests.filter(request => request.type === 'selectIssue').at(-1).issueIid, 2);
+  assert.equal(view.requests.some(request => request.type === 'openIssue'), false);
+  const selected = { issue: { ...data.issues[1], description: 'Preview body', assignees: [{ id: 7, name: 'Test User', username: 'test-user' }] }, project: data.projects[1] };
+  view.sendSnapshot({ ...data, selectedIssue: selected, issuePreview: { projectId: 2, issueIid: 2, status: 'loading' } });
+  await view.tick();
+  assert.equal(document.querySelectorAll('.work-row').length, 3);
+  assert.match(document.querySelector('.issue-detail').textContent, /Preview body/);
+  assert.equal([...document.querySelectorAll('.issue-detail button')].find(button => button.textContent === '開啟 Issue 詳情').disabled, true);
+  view.sendSnapshot({ ...data, selectedIssue: selected, issuePreview: { projectId: 2, issueIid: 2, status: 'error', error: '連線失敗' } });
+  await view.tick();
+  assert.match(document.querySelector('.issue-detail').textContent, /連線失敗/);
+  [...document.querySelectorAll('.issue-detail button')].find(button => /重試/.test(button.textContent)).click();
+  assert.equal(view.requests.at(-1).type, 'selectIssue');
+  assert.equal(view.requests.at(-1).issueIid, 2);
+});
+
+test('Issue editing drafts remain separate across account changes and are restored when switching back', async (t) => {
+  const first = { ...snapshot(), instanceUserScope: 'account-a' };
+  const second = { ...snapshot(), instanceUserScope: 'account-b', connectedScope: 'second-scope', currentUser: { id: 8, username: 'second', name: 'Second' } };
+  const view = await mount({ mode: 'developer' }, first);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const open = async (data, revision) => {
+    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision } });
+    await view.tick();
+    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canEdit: true } } });
+    await view.tick();
+  };
+  const editor = () => document.querySelector('.issue-embed input[placeholder="簡要描述工作內容"]');
+  const waitForDraft = async (scope, title) => {
+    const deadline = Date.now() + 1500;
+    while (view.savedState.issueEditorDrafts?.[scope]?.issues?.[101]?.title !== title && Date.now() < deadline) await view.tick();
+    assert.equal(view.savedState.issueEditorDrafts?.[scope]?.issues?.[101]?.title, title);
+  };
+  const edit = async title => {
+    if (!editor()) [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '編輯需求').click();
+    await view.tick();
+    editor().value = title;
+    editor().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+    await view.tick();
+  };
+  await open(first, 1); await edit('First account draft');
+  await waitForDraft('account-a', 'First account draft');
+  view.sendSnapshot(second); await view.tick();
+  await open(second, 2);
+  assert.equal(editor(), null, 'another identity begins without the first account edit draft');
+  await edit('Second account draft');
+  await waitForDraft('account-b', 'Second account draft');
+  view.sendSnapshot(first); await view.tick();
+  await open(first, 3);
+  assert.equal(editor().value, 'First account draft');
+  assert.equal(view.savedState.issueEditorDrafts['account-b'].issues[101].title, 'Second account draft');
+  [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '儲存變更').click();
+  await view.tick();
+  view.send({ type: 'issueResponse', revision: 3, response: { type: 'detailData', data: { ...issueDetailData({ ...first.issues[0], title: 'First account draft' }, first.projects[0]), canEdit: true } } });
+  await view.tick();
+  assert.equal(editor(), null, 'a saved form leaves editing mode');
+  await waitForDraft('account-a', undefined);
+  assert.equal(view.savedState.issueEditorDrafts['account-a'].issues[101], undefined, 'a successfully submitted draft is removed');
+});
+
 test('bounds the dashboard, exposes the maximize icon, and keeps GitLab support details in settings', async (t) => {
   const data = snapshot('developer');
   data.instance = { version: '16.11.10', enterprise: false, warnings: ['Minimum version note'], capabilities: [{ id: 'timelogReport', label: '個別工時紀錄', status: 'supported', source: 'GraphQL' }] };
@@ -363,7 +524,8 @@ test('shows every assigned Issue by default and keeps the list usable when Board
 });
 
 test('returning from Issue details preserves list filters and scroll, and drops delayed navigation responses', async (t) => {
-  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, snapshot());
+  const data = snapshot();
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const search = document.querySelector('input[aria-label="搜尋 Issue"]');
@@ -377,6 +539,12 @@ test('returning from Issue details preserves list filters and scroll, and drops 
   workList.scrollTop = 88;
   assert.equal(document.querySelectorAll('.work-row').length, 1);
   document.querySelector('.work-row').click();
+  await view.tick();
+  assert.equal(view.requests.filter((request) => request.type === 'selectIssue').at(-1)?.issueIid, 2);
+  assert.equal(view.requests.filter((request) => request.type === 'openIssue').length, 0);
+  view.sendSnapshot({ ...data, selectedIssue: { issue: data.issues[1], project: data.projects[1] }, issuePreview: { projectId: 2, issueIid: 2, status: 'ready' } });
+  await view.tick();
+  [...document.querySelectorAll('.issue-detail button')].find(button => button.textContent === '開啟 Issue 詳情').click();
   await view.tick();
   assert.equal(view.requests.filter((request) => request.type === 'openIssue').at(-1)?.issueIid, 2);
 

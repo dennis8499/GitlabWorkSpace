@@ -81,7 +81,6 @@ When('I connect with a token', async function () {
 Then('the connection stores the normalized URL {string}', function (url) {
   assert.equal(this.error, undefined);
   assert.equal(this.session.baseUrl, url);
-  assert.equal(this.state.get('gitlabWorkspace.baseUrl'), url);
 });
 
 Then('GitLab receives the token at {string}', function (expectedUrl) {

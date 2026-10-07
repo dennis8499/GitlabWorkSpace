@@ -284,6 +284,10 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private post(message: IssuePanelResponse): void {
+    if (message.type === 'error' || message.type === 'reply' && message.error) {
+      this.session.log?.record({ feature: 'issue', action: 'issueError', result: 'error',
+        projectId: this.issue?.project_id, issueIid: this.issue?.iid, message: message.type === 'error' ? message.message : message.error });
+    }
     if (message.type === 'createData' || message.type === 'detailData') this.lastSnapshot = message;
     else if (message.type === 'detailPatch' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === message.issueId) {
       const previous = this.lastSnapshot.data;
@@ -324,7 +328,9 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private async handleReadyRequest(request: IssuePanelRequest): Promise<void> {
-    return this.handleRequestBody(request);
+    const task = () => this.handleRequestBody(request);
+    return this.session.log?.run('issue', request.type === 'invoke' ? request.action : request.type,
+      { projectId: this.issue?.project_id, issueIid: this.issue?.iid }, task) ?? task();
   }
 
   private async load(forceNetwork = false): Promise<void> {

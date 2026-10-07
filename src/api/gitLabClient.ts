@@ -112,7 +112,8 @@ export class GitLabClient {
     private readonly fetcher: FetchLike = fetch,
     private readonly readSignal?: AbortSignal | readonly (AbortSignal | undefined)[],
     private readonly onSuccessfulWrite?: (context: GitLabWriteContext) => void,
-    private readonly readGate = new GitLabReadGate()
+    private readonly readGate = new GitLabReadGate(),
+    private readonly runWrite?: <T>(task: () => Promise<T>) => Promise<T>
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
@@ -123,7 +124,7 @@ export class GitLabClient {
 
   withReadSignal(signal: AbortSignal): GitLabClient {
     const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate);
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite);
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -913,7 +914,7 @@ export class GitLabClient {
       });
       return { response, result: await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response) };
     };
-    const { response, result } = readOnly ? await this.withReadRequest((signal) => request(signal)) : await request();
+    const { response, result } = readOnly ? await this.withReadRequest((signal) => request(signal)) : await this.withWriteRequest(request);
     if (!readOnly && result.data) this.onSuccessfulWrite?.({ url: url.toString(), method: 'POST' });
     if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
     return result.data;
@@ -944,6 +945,10 @@ export class GitLabClient {
   }
 
   private async noContent(path: string, init: RequestInit): Promise<void> {
+    return this.withWriteRequest(() => this.sendNoContent(path, init));
+  }
+
+  private async sendNoContent(path: string, init: RequestInit): Promise<void> {
     const url = new URL(path.replace(/^\/+/, ''), this.apiRoot);
     if (!this.isSafeApiUrl(url)) throw new GitLabApiError('The request is outside the configured GitLab API.');
     const response = await this.fetcher(url, {
@@ -1004,7 +1009,11 @@ export class GitLabClient {
       if (method !== 'GET' && method !== 'HEAD' && response.ok) this.onSuccessfulWrite?.({ url: url.toString(), method });
       return value;
     };
-    return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : request();
+    return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : this.withWriteRequest(request);
+  }
+
+  private withWriteRequest<T>(operation: () => Promise<T>): Promise<T> {
+    return this.runWrite ? this.runWrite(operation) : operation();
   }
 
   private withReadRequest<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {

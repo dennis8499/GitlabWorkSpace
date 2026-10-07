@@ -34,7 +34,9 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openDeveloperMode',
       'gitlabWorkspace.openReviewerMode',
       'gitlabWorkspace.openGitMode',
-      'gitlabWorkspace.openRepository'
+      'gitlabWorkspace.openRepository',
+      'gitlabWorkspace.addAccount', 'gitlabWorkspace.switchAccount', 'gitlabWorkspace.removeAccount',
+      'gitlabWorkspace.openAdmin', 'gitlabWorkspace.scanRepositories'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }

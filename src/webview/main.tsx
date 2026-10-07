@@ -17,7 +17,7 @@ function postIssueRequest(message: IssuePanelRequest): void {
 const emptyOptions: IssueFormOptions = { members: [], labels: [], milestones: [], templates: [] };
 const stamp = () => Math.random().toString(36).slice(2);
 
-interface FormState {
+export interface FormState {
   title: string;
   description: string;
   assigneeId: string;
@@ -27,6 +27,12 @@ interface FormState {
   startDate: string;
   confidential: boolean;
   discussionLocked: boolean;
+}
+
+export interface IssueEditorDraftState {
+  create: Record<string, FormState>;
+  issues: Record<string, FormState>;
+  conversations: Record<string, { comment: string; reply: Record<string, string> }>;
 }
 
 const blankForm = (): FormState => ({ title: '', description: '', assigneeId: '', labels: [], milestoneId: '', dueDate: '', startDate: '', confidential: false, discussionLocked: false });
@@ -140,7 +146,7 @@ function IssueTimerPanel({ snapshot, issue, onRequest, timeEdits, onTimeEdit }: 
   </>;
 }
 
-export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit }: {
+export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit, draftState, onDraftStateChange }: {
   onBack?: () => void;
   snapshot?: WorkspaceSnapshot;
   navigation?: IssueNavigation;
@@ -158,6 +164,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   onRecoverManualTime?: (projectId: number, issueIid: number) => void;
   timeEdits?: Record<string, TimeEdit>;
   onTimeEdit?: (id: string, edit: TimeEdit) => void;
+  draftState?: IssueEditorDraftState;
+  onDraftStateChange?: (state: IssueEditorDraftState) => void;
 }) {
   const [mode, setMode] = useState<'waiting' | 'create' | 'detail' | 'deleted'>('waiting');
   const [projects, setProjects] = useState<GitLabProject[]>([]);
@@ -184,7 +192,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [form, setForm] = useState<FormState>(blankForm);
   const formRef = useRef(form);
   formRef.current = form;
-  const createDrafts = useRef(new Map<number, FormState>());
+  const createDrafts = useRef(new Map<number, FormState>(Object.entries(draftState?.create ?? {}).map(([id, form]) => [Number(id), form])));
   const createPending = useRef<{ projectId: number; title: string } | null>(null);
   const conflictDraft = useRef<FormState | null>(null);
   const [editing, setEditing] = useState(false);
@@ -208,8 +216,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const latestEditorPreview = useRef<Map<string, string>>(new Map());
   const uploadTargets = useRef<Map<string, string>>(new Map());
   const activeIssueId = useRef<number | null>(null);
-  const issueDrafts = useRef<Map<number, FormState>>(new Map());
-  const conversationDrafts = useRef<Map<number, { comment: string; reply: Record<string, string> }>>(new Map());
+  const issueDrafts = useRef<Map<number, FormState>>(new Map(Object.entries(draftState?.issues ?? {}).map(([id, form]) => [Number(id), form])));
+  const conversationDrafts = useRef<Map<number, { comment: string; reply: Record<string, string> }>>(new Map(Object.entries(draftState?.conversations ?? {}).map(([id, conversation]) => [Number(id), conversation])));
   const routeRevision = useRef<number | undefined>();
   const [editorHtml, setEditorHtml] = useState<Record<string, string>>({});
   const [similar, setSimilar] = useState<GitLabIssue[]>([]);
@@ -228,6 +236,19 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [reply, setReply] = useState<Record<string, string>>({});
   const replyRef = useRef(reply);
   replyRef.current = reply;
+  const saveDrafts = () => {
+    if (!onDraftStateChange) return;
+    if (modeRef.current === 'create' && projectIdRef.current > 0) createDrafts.current.set(projectIdRef.current, formRef.current);
+    if (activeIssueId.current !== null) {
+      if (editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
+      conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current });
+    }
+    onDraftStateChange({ create: Object.fromEntries(createDrafts.current), issues: Object.fromEntries(issueDrafts.current), conversations: Object.fromEntries(conversationDrafts.current) });
+  };
+  const saveDraftsRef = useRef(saveDrafts);
+  saveDraftsRef.current = saveDrafts;
+  useEffect(() => { saveDraftsRef.current(); }, [form, editing, mode, projectId, comment, reply]);
+  useEffect(() => () => saveDraftsRef.current(), []);
   const [duration, setDuration] = useState('');
   const [summary, setSummary] = useState('');
   const [targetProject, setTargetProject] = useState('');
@@ -419,6 +440,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         if (!sameIssue && activeIssueId.current !== null && editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
         const editedAfterSubmit = pendingIssueSave.current && submittedIssueForm.current !== null && JSON.stringify(formRef.current) !== JSON.stringify(submittedIssueForm.current);
         const preserveIssueDraft = sameIssue && editingRef.current && (!pendingIssueSave.current || editedAfterSubmit);
+        if (sameIssue && pendingIssueSave.current && !editedAfterSubmit && !conflictDraft.current) issueDrafts.current.delete(message.data.issue.id);
         latestPreviewRequest.current = null;
         latestSearchRequest.current = null;
         latestProjectSearchRequest.current = null;
@@ -608,7 +630,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
       }} onClick={() => setDetailTab(id)}>{label}</button>)}</nav>
       <div class="layout"><div class="main-column">
-        <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => { if (!editing) post({ type: 'loadSection', sections: ['options'] }); setEditing(!editing); }}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
+        <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => { if (!editing) post({ type: 'loadSection', sections: ['options'] }); else issueDrafts.current.delete(issue.id); setEditing(!editing); }}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
           {editing ? <><IssueFields form={form} setForm={setForm} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
           {!editing && <div class="toolbar wrap"><button class="quiet small" type="button" disabled={busy || !issue.description?.trim()} aria-label="複製 Issue 描述" onClick={() => postReplyRequest({ type: 'copyDescription', requestId: `copy-description-${issue.id}-${stamp()}`, issueId: issue.id })}>複製描述</button></div>}
         </section>
@@ -660,7 +682,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
               <button class="secondary" type="button" onClick={() => postWorkspace({ type: 'openGroupQuickReview' })}>審查 Group 未提交內容</button>
             </> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 Group 的本機資料夾或對應 Repo。' : !kitReady ? '請先安裝或更新 GitLab Workspace 完整工作流程包。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請檢查 VSCode 工作區中的資料夾。' : '此 Repo 尚未下載到本機。'}</strong><p>Issue 內容和討論可繼續查看；Codex 工作任務會先核對工作區與整包安裝狀態。</p>{snapshot?.groupRoot && !kitReady && <button type="button" onClick={onOpenSettings}>前往安裝設定</button>}</div>}
             <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>準備開發交付：檢查差異 → Commit → Push → 建立 MR</summary>
-              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers ?? detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} workflowRecords={snapshot?.deliveryRecords ?? []} onAction={(action, record) => {
+              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers.length ? snapshot.projectMembers : detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} workflowRecords={snapshot?.deliveryRecords ?? []} onAction={(action, record) => {
                 if (action === 'commitDelivery') postWorkspace({ type: 'commitDelivery', deliveryId: record.id });
                 else if (action === 'copyWikiUpdatePrompt') postWorkspace({ type: 'copyWikiUpdatePrompt', deliveryId: record.id });
                 else if (action === 'pushDelivery') postWorkspace({ type: 'pushDelivery', deliveryId: record.id });

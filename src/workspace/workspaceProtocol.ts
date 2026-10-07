@@ -4,8 +4,11 @@ import type { IssueGraphPatch, IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
 import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
+import type { GitLabAccount } from '../connection/accountProtocol';
+import type { LogPage, LogQuery } from '../logging/logProtocol';
+import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
-export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git';
+export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git' | 'admin';
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github' | 'bundled';
@@ -153,6 +156,11 @@ export interface WorkspaceSnapshot {
   connectedScope?: string;
   selectedProjectId?: number;
   selectedIssue?: { project: GitLabProject; issue: GitLabIssue };
+  issuePreview?: { projectId: number; issueIid: number; status: 'loading' | 'ready' | 'error'; error?: string };
+  accounts?: GitLabAccount[];
+  activeAccountId?: string;
+  localWorkspaceRepositories?: ScannedRepository[];
+  repositoryScan?: RepositoryScanState;
   projectMembers: GitLabMember[];
   draftOptions?: { projectId: number; options: IssueFormOptions; canCreateIssue: boolean };
   selectedMergeRequest?: MergeRequestDetail;
@@ -194,7 +202,16 @@ export type WorkspaceRequest =
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }
   | { type: 'connect' }
-  | { type: 'disconnect' }
+  | { type: 'disconnect'; accountId?: string }
+  | { type: 'addAccount'; accountId?: string }
+  | { type: 'switchAccount'; accountId: string }
+  | { type: 'removeAccount'; accountId: string }
+  | { type: 'queryLogs'; requestId: string; query: LogQuery }
+  | { type: 'exportLogs'; query: LogQuery }
+  | { type: 'clearLogs' }
+  | { type: 'setLogVisibility'; visible: boolean }
+  | { type: 'scanRepositories' }
+  | { type: 'cancelRepositoryScan' }
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
   | { type: 'loadIssueGraph'; connectedScope: string }
@@ -249,6 +266,8 @@ export type WorkspaceRequest =
   | { type: 'installWorkflowKit'; packageId: string };
 
 export type WorkspaceResponse =
+  | { type: 'logsPage'; requestId: string; page: LogPage }
+  | { type: 'logsChanged' }
   | GitPanelMessage
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }

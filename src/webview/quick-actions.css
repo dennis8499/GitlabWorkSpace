@@ -54,3 +54,9 @@ body { overflow-x: hidden; overflow-y: auto; }
 @media (forced-colors: active) {
   .action-button:focus-visible, .repo-link:focus-visible, .repo-open-link:focus-visible { outline-color: Highlight; }
 }
+.sidebar-account-menu { margin: 0 0 10px; padding: 6px; border: 1px solid var(--vscode-panel-border, #343b46); border-radius: 5px; }
+.sidebar-account-menu summary { cursor: pointer; }
+.sidebar-account-menu p { overflow-wrap: anywhere; }
+.sidebar-account-menu small { display: block; margin-top: 3px; color: var(--vscode-descriptionForeground, #9ba7b4); }
+.sidebar-account-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.sidebar-account-actions button { color: var(--vscode-button-secondaryForeground, #e6edf3); background: var(--vscode-button-secondaryBackground, #303641); border: 0; border-radius: 4px; padding: 5px 7px; }

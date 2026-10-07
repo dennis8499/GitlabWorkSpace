@@ -17,10 +17,13 @@
 
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
-- VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。
+- 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
+- VS Code 側欄整合「我的工作、專案、分析、待審查、版控、後臺管理」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。
+- 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
+- 後臺管理可篩選、查看及匯出本機操作 Log；預設保留 30 天、最多 50 MB。
 - 在獨立的 Git GUI 管理所有 VS Code 已偵測的本機 Repo；檔案、部分行暫存、Commit／Amend、分支、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset 均由按鈕、選單和表單操作。
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
-- 查看指派給自己的未結案 Issue；建立、編輯、討論及管理 Issue 都在同一工作台完成。
+- 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析」使用整包內附的 Wiki、Megin 與 MergeReviewer 能力；提示詞會帶入 Group、Repo 與套件版本，並可複製到 Codex CLI。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
@@ -53,7 +56,7 @@
 4. 選擇 Group。只在下載 Repo 或本機開發時需要符合該群組的 VS Code 工作區；閱讀與討論 Issue 可先使用。
 5. 在 VS Code 開啟 Group 資料夾，或開啟該 Group 的單一 Repo。擴充功能會依 Git remote 自動辨識；多資料夾工作區須能唯一對應目前 Group。打開 **開發工具** 並安裝「GitLab Workspace 工作流程包」。預設 VSIX 內附版本可離線安裝；也可匯入 Release 的整包 ZIP。安裝前會檢查版本、內容摘要、舊工具與進行中的 Megin 工作。
 6. 開啟 **分析**，從選單選擇一項 Wiki 功能。提示詞會帶入目前 Group、本機實際 Repo 名稱與完整路徑及套件版本；複製到 Group 根目錄的 Codex CLI 執行。規格維持 draft／ready 與 SCN 驗證，再由使用者建立 GitLab Issue。
-7. 從 **我的工作** 開啟 Issue，在 **開發與交付** 複製含 Issue 內容、討論、GitLab 身分與 Repo 範圍的任務。若已有相同 Issue 的 Megin 工作，可選 Work ID 續作。完成 Megin 驗收後，依序建立精確 Commit、Push、建立 MR；MR 審查依固定來源與目標 SHA 產生報告。
+7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**。在 **開發與交付** 複製含 Issue 內容、討論、GitLab 身分與 Repo 範圍的任務。若已有相同 Issue 的 Megin 工作，可選 Work ID 續作。完成 Megin 驗收後，依序建立精確 Commit、Push、建立 MR；MR 審查依固定來源與目標 SHA 產生報告。
 8. 全部 Repo 完成本機交付並保存證據後，複製 **Wiki 更新任務**，由 Codex 回查實際來源並更新 Group Wiki 的 index／log 與人工 notes。任務會分開標示本機交付與 MR 合併狀態。
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。

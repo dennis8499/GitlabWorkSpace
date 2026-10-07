@@ -25,7 +25,8 @@ const destinations: Array<{
   { id: 'openProjects', mode: 'clone', label: '專案', icon: '▣' },
   { id: 'openAnalysis', mode: 'sa', label: '分析', icon: '⌕' },
   { id: 'openReviewer', mode: 'reviewer', label: '待審查', icon: '⑂' },
-  { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' }
+  { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' },
+  { id: 'openAdmin', mode: 'admin', label: '後臺管理', icon: '≡' }
 ];
 
 function GitSidebar() {
@@ -61,6 +62,10 @@ function GitSidebar() {
       <span class={'connection-dot' + (state.connected ? ' connected' : '')} aria-hidden="true" />
       <span>{state.connected ? state.groupLabel ?? 'GitLab 已連線' : 'GitLab 尚未連線'}</span>
     </p>
+    <details class="sidebar-account-menu"><summary>GitLab 帳號（{state.accounts?.length ?? 0}）</summary>
+      {(state.accounts ?? []).map(account => <p key={account.id}><strong>{account.name || account.username}</strong><small>{account.username} · {account.baseUrl}</small><small>{account.id === state.activeAccountId && state.connected ? '目前帳號' : account.needsLogin ? '已登出' : '已保存'}</small></p>)}
+      <div class="sidebar-account-actions"><button type="button" disabled={!!state.busyAction} onClick={() => navigate('addAccount')}>新增帳號</button><button type="button" disabled={!!state.busyAction || !state.accounts?.length} onClick={() => navigate('switchAccount')}>切換帳號</button><button type="button" disabled={!!state.busyAction || !state.accounts?.length} onClick={() => navigate('removeAccount')}>移除帳號</button><button type="button" disabled={!!state.busyAction || !state.connected} onClick={() => navigate('logoutAccount')}>登出目前帳號</button></div>
+    </details>
     <button class={'action-button workspace-link' + (state.activeMode === 'git' ? ' active' : '')}
       type="button" disabled={!!state.busyAction} onClick={() => navigate('openWorkspace')}>
       <span aria-hidden="true">⌂</span><span>工作台</span>

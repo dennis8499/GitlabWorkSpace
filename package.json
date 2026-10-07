@@ -30,7 +30,12 @@
     "onView:gitlabWorkspace.quickActions",
     "onCommand:gitlabWorkspace.connect",
     "onCommand:gitlabWorkspace.selectGroup",
-    "onCommand:gitlabWorkspace.syncLocalDefaultBranches"
+    "onCommand:gitlabWorkspace.syncLocalDefaultBranches",
+    "onCommand:gitlabWorkspace.addAccount",
+    "onCommand:gitlabWorkspace.switchAccount",
+    "onCommand:gitlabWorkspace.removeAccount",
+    "onCommand:gitlabWorkspace.openAdmin",
+    "onCommand:gitlabWorkspace.scanRepositories"
   ],
   "contributes": {
     "viewsContainers": {
@@ -134,6 +139,26 @@
       {
         "command": "gitlabWorkspace.openIssue",
         "title": "GitLab Workspace: 開啟 Issue 詳情"
+      },
+      {
+        "command": "gitlabWorkspace.addAccount",
+        "title": "GitLab Workspace: 新增 GitLab 帳號"
+      },
+      {
+        "command": "gitlabWorkspace.switchAccount",
+        "title": "GitLab Workspace: 切換 GitLab 帳號"
+      },
+      {
+        "command": "gitlabWorkspace.removeAccount",
+        "title": "GitLab Workspace: 移除 GitLab 帳號"
+      },
+      {
+        "command": "gitlabWorkspace.openAdmin",
+        "title": "GitLab Workspace: 後臺管理"
+      },
+      {
+        "command": "gitlabWorkspace.scanRepositories",
+        "title": "GitLab Workspace: 一鍵掃描工作區 Repo"
       }
     ],
     "configuration": {
@@ -143,6 +168,18 @@
           "type": "string",
           "default": "python",
           "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。"
+        },
+        "gitlabWorkspace.repositoryScan.excludeDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            ".git",
+            "node_modules",
+            ".venv"
+          ],
+          "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。"
         }
       }
     }
@@ -155,7 +192,7 @@
     "test:unit": "npm run compile && node --test out/test/unit/*.test.js",
     "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
     "test:behavior": "npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs test/behavior/dashboard.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature",
-    "test:extension": "npm run compile && vscode-test",
+    "test:extension": "npm run compile && node scripts/run-extension-tests.mjs",
     "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
     "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
     "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
