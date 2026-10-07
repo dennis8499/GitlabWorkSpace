@@ -1,0 +1,21 @@
+{
+  "schema": "GitLabWorkspaceLoadCleanup/v1",
+  "generatedAt": "2026-10-07T08:41:20.661Z",
+  "status": "PASS",
+  "runId": "20261007-acceptance",
+  "environments": [
+    {
+      "environment": "ce19",
+      "status": "PASS",
+      "deletedGroup": "grp-sn-maint/performance-20261007-acceptance"
+    },
+    {
+      "environment": "ce16",
+      "status": "PASS",
+      "deletedGroup": "grp-sn-maint/performance-20261007-acceptance"
+    }
+  ],
+  "scope": "deleted only the matching run-owned load group, its 20 recorded projects, and its run checkout for each environment",
+  "demoGroupTouched": false,
+  "manifestEvidence": ".gitlab-workspace-validation/runs/20261007-acceptance/{ce19,ce16}-load.json"
+}

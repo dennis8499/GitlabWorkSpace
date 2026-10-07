@@ -1,0 +1,202 @@
+{
+  "schema": "GitLabWorkspaceLiveBenchmarkSummary/v1",
+  "generatedAt": "2026-10-07T08:32:23.070Z",
+  "status": "BLOCKED",
+  "testedArtifact": {
+    "path": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "436f5aedc1ef84022c5ac01e6877bda8cd947742b5d44258492b520342d0fc9b"
+  },
+  "fixtureStatus": "PASS",
+  "performanceStatus": "PASS",
+  "relativeBaselineComparisonStatus": "BLOCKED",
+  "capabilityProbeStatus": {
+    "ce19": "PASS",
+    "ce16": "PASS",
+    "note": "One first-session CE16 GraphQL capability probe timed out; the following nine CE16 sessions and an additional clean CE16 retry passed."
+  },
+  "environments": {
+    "ce19": {
+      "status": "PASS",
+      "gitLabVersion": "19.4.1",
+      "vscodeVersion": "1.140.0",
+      "fixture": {
+        "kind": "load",
+        "runId": "20261007-acceptance",
+        "projects": 20,
+        "issues": 500,
+        "mergeRequests": 50,
+        "renderedGraphNodesPerSession": 200
+      },
+      "coldStartToInteractiveMs": {
+        "samples": [
+          13597,
+          12832,
+          13883,
+          18240,
+          13799,
+          13936,
+          13971,
+          13107,
+          12124,
+          15265
+        ],
+        "count": 10,
+        "median": 13799,
+        "p95": 18240,
+        "measuredTo": "20 Repo Clone list visible and usable"
+      },
+      "warmNavigationMs": {
+        "samples": 300,
+        "p95": 122.17,
+        "threshold": 1000,
+        "localApiRequests": 0
+      },
+      "localRepoSearchMs": {
+        "samples": 300,
+        "p95": 15.5,
+        "threshold": 100,
+        "localApiRequests": 0
+      },
+      "gitLabApi": {
+        "requests": 257,
+        "responseBytes": 169584275
+      },
+      "gitCommands": 4302,
+      "webviewMessages": {
+        "sent": 1393,
+        "received": 410
+      },
+      "peakMemoryBytes": {
+        "extensionHostRss": 342405120,
+        "extensionHostHeapUsed": 111056644,
+        "rendererHeapUsed": 18170280
+      },
+      "narrowViewportRuns": 2,
+      "allSamplesRecorded": true
+    },
+    "ce16": {
+      "status": "PASS",
+      "gitLabVersion": "16.11.10",
+      "vscodeVersion": "1.140.0",
+      "fixture": {
+        "kind": "load",
+        "runId": "20261007-acceptance",
+        "projects": 20,
+        "issues": 500,
+        "mergeRequests": 50,
+        "renderedGraphNodesPerSession": 200
+      },
+      "coldStartToInteractiveMs": {
+        "samples": [
+          24735,
+          12567,
+          12404,
+          12981,
+          10467,
+          9515,
+          16040,
+          12855,
+          10400,
+          9429
+        ],
+        "count": 10,
+        "median": 12404,
+        "p95": 24735,
+        "measuredTo": "20 Repo Clone list visible and usable"
+      },
+      "warmNavigationMs": {
+        "samples": 300,
+        "p95": 102.67,
+        "threshold": 1000,
+        "localApiRequests": 0
+      },
+      "localRepoSearchMs": {
+        "samples": 300,
+        "p95": 15.4,
+        "threshold": 100,
+        "localApiRequests": 0
+      },
+      "gitLabApi": {
+        "requests": 592,
+        "responseBytes": 8714835
+      },
+      "gitCommands": 4179,
+      "webviewMessages": {
+        "sent": 1402,
+        "received": 410
+      },
+      "peakMemoryBytes": {
+        "extensionHostRss": 328642560,
+        "extensionHostHeapUsed": 112438552,
+        "rendererHeapUsed": 16940308
+      },
+      "narrowViewportRuns": 1,
+      "allSamplesRecorded": true
+    }
+  },
+  "recoveredTransient": {
+    "environment": "ce16",
+    "firstAttempt": "FAIL",
+    "reason": "GraphQL Schema validation timed out before the instance/account-scoped capability snapshot was written.",
+    "recovery": "PASS",
+    "recoveryReport": "benchmark-revision-final-ce16-extra.json",
+    "originalReport": "benchmark-revision-final-10b.json"
+  },
+  "baselineComparison": {
+    "status": "BLOCKED",
+    "report": "benchmark-baseline-probe.json",
+    "reason": "The baseline artifact returned 0 visible Repos where the exact load fixture requires 20; no comparable live samples were recorded."
+  },
+  "sourceReports": [
+    "benchmark-revision-final-10b.json",
+    "benchmark-revision-final-ce16-extra.json",
+    "benchmark-baseline-probe.json"
+  ],
+  "testSuite": {
+    "command": "npm.cmd test",
+    "exitCode": 0,
+    "vscodeTestHostVersion": "1.139.0",
+    "pendingLiveCases": 2,
+    "postFullTestCleanupRegression": {
+      "command": "node --test scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs",
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "minimumVSCode190Status": "BLOCKED",
+  "sshIntegrationStatus": "BLOCKED",
+  "meginHumanApprovalStatus": "BLOCKED",
+  "measuredArtifact": {
+    "sha256": "cf5282c1e15529b119729a4dcbc9a68f473b7790170a1f9b938a7a06b166fd01",
+    "extensionPayloadFiles": 89,
+    "payloadByteForByteIdenticalToDeliveredArtifact": true,
+    "deliverySmokeReport": "live-smoke-revision-final-delivery-smoke.json"
+  },
+  "deliveryArtifactSmoke": {
+    "status": "PASS",
+    "report": "live-smoke-revision-final-delivery-smoke.json",
+    "testedArtifactSha256": "436f5aedc1ef84022c5ac01e6877bda8cd947742b5d44258492b520342d0fc9b",
+    "environments": [
+      {
+        "environment": "ce19",
+        "version": "19.4.1",
+        "status": "PASS",
+        "visibleRepoCount": "20 個 Repo",
+        "capabilitySchemaBytes": {
+          "initial": 8175375,
+          "afterManualDetection": 8175436
+        }
+      },
+      {
+        "environment": "ce16",
+        "version": "16.11.10",
+        "status": "PASS",
+        "visibleRepoCount": "20 個 Repo",
+        "capabilitySchemaBytes": {
+          "initial": 159239,
+          "afterManualDetection": 159300
+        }
+      }
+    ]
+  }
+}

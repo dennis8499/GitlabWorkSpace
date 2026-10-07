@@ -2,11 +2,12 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
-const { projectFolderNames, groupRepositoryPath } = require('../out/src/workspace/workspacePaths.js');
-const { GitLabReadCache } = require('../out/src/api/gitLabReadCache.js');
-const { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, mergeCapabilityTypes } = require('../out/src/api/graphqlCapabilities.js');
-const { createIssueGraphPatch, applyIssueGraphPatch } = require('../out/src/workspace/issueGraph.js');
-const { virtualWindow } = require('../out/src/webview/virtualWindow.js');
+const CODE_ROOT = path.resolve(process.env.GLW_BENCHMARK_CODE_ROOT || path.join(__dirname, '..'));
+const { projectFolderNames, groupRepositoryPath } = require(path.join(CODE_ROOT, 'out/src/workspace/workspacePaths.js'));
+const { GitLabReadCache } = require(path.join(CODE_ROOT, 'out/src/api/gitLabReadCache.js'));
+const { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, mergeCapabilityTypes } = require(path.join(CODE_ROOT, 'out/src/api/graphqlCapabilities.js'));
+const { createIssueGraphPatch, applyIssueGraphPatch } = require(path.join(CODE_ROOT, 'out/src/workspace/issueGraph.js'));
+const { virtualWindow } = require(path.join(CODE_ROOT, 'out/src/webview/virtualWindow.js'));
 
 function legacyProjectFolderNames(projects) {
   const foldedCounts = new Map();
@@ -50,6 +51,11 @@ function median(values) {
   return [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
 }
 
+function percentile(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
+}
+
 function measureFolderPaths(count, samples) {
   const projects = makeProjects(count);
   const root = 'C:/workspace/team';
@@ -80,23 +86,29 @@ function measureFolderPaths(count, samples) {
 async function measureCache(count) {
   const projects = makeProjects(count);
   const responseBytes = Buffer.byteLength(JSON.stringify(projects));
-  const cache = new GitLabReadCache(60_000, 256);
+  const iterations = 1_000;
+  const coldRuns = [];
+  const warmRuns = [];
   let requests = 0;
   const load = async () => { requests++; return projects; };
-  const coldStarted = performance.now();
-  await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
-  const coldMs = performance.now() - coldStarted;
-  const coldRequests = requests;
-  const warmStarted = performance.now();
-  await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
-  const warmMs = performance.now() - warmStarted;
-  assert.equal(requests, 1, 'concurrent and warm reads should share one production cache entry');
+  for (let iteration = 0; iteration < iterations; iteration++) {
+    const cache = new GitLabReadCache(60_000, 256);
+    const coldStarted = performance.now();
+    await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
+    coldRuns.push(performance.now() - coldStarted);
+    const warmStarted = performance.now();
+    await Promise.all(Array.from({ length: 8 }, () => cache.get('group/3/projects', load)));
+    warmRuns.push(performance.now() - warmStarted);
+  }
+  assert.equal(requests, iterations, 'each cold iteration coalesces concurrent readers into one loader call');
   return {
-    concurrentConsumers: 8,
-    legacyUnsharedApiRequests: 8,
-    productionApiRequests: requests,
-    coldLatencyMs: Number(coldMs.toFixed(3)),
-    warmLatencyMs: Number(warmMs.toFixed(3)),
+    iterations, concurrentConsumers: 8,
+    legacyUnsharedApiRequestsPerRead: 8,
+    productionApiRequestsPerRead: requests / iterations,
+    coldLatencyMs: Number((coldRuns.reduce((sum, value) => sum + value, 0) / iterations).toFixed(3)),
+    coldP95Ms: Number(percentile(coldRuns, 0.95).toFixed(3)),
+    warmLatencyMs: Number((warmRuns.reduce((sum, value) => sum + value, 0) / iterations).toFixed(3)),
+    warmP95Ms: Number(percentile(warmRuns, 0.95).toFixed(3)),
     responsePayloadBytes: responseBytes,
     warmNetworkBytes: 0
   };
@@ -187,7 +199,7 @@ async function run() {
     await measureGraph(500, 1_000),
     await measureGraph(2_000, 10_000)
   ];
-  const capabilityFixture = JSON.parse(readFileSync(path.join(__dirname, '../test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8'));
+  const capabilityFixture = JSON.parse(readFileSync(path.join(CODE_ROOT, 'test/fixtures/gitlab-ce-16.11.10-capabilities.json'), 'utf8'));
   const initialNames = buildInitialTypeNames();
   const fixtureTypes = capabilityFixture.types;
   const fixtureTypeMap = new Map(fixtureTypes.map((type) => [type.name, type]));

@@ -1,0 +1,46 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T07:19:39.678Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "4a6f8b30e0220f63b287f1a87555a5556614091d9f5fdb7610b49f72c29fd3b8"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "revision-breakdown",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce16",
+      "round": 1,
+      "status": "FAIL",
+      "error": "Webview element .git-workbench did not become visible. (\n    GWGitLab WorkspaceGroupgrp-sn-maint/gitlab-workspace-live-validationgrp-sn-maint/performance-20261007-acceptancegrp-sn-maint/gitlab-workspace-live-validation/demogrp-sn-maint設定Dennis　⌄http://127.0.0.1:8930中斷連線        Issue正在載入 Issue…重試⑂VS Code 內建 Git 尚未啟用請先在擴充功能中啟用 Git，再重新開啟版控工作台。重新整理目前 VSCode 工作區無法對應所選 GitLab Group；請調整工作區 folders。\n  \n\n)"
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce16",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "navigationApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    }
+  ],
+  "status": "FAIL"
+}

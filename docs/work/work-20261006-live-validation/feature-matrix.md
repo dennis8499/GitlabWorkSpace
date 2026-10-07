@@ -1,26 +1,37 @@
 # 即時功能驗收矩陣
 
-`PASS` 表示所列範圍已驗證；`FAIL` 表示有可重現的產品錯誤；`UNSUPPORTED` 表示版本／方案不支援；`BLOCKED` 表示環境或人工條件阻止驗收；`PENDING` 表示尚未執行。標記 `*` 的結果來自 0.13.1 工作樹 Extension Development Host。0.13.2 的本機 Git GUI 使用最終 VSIX、VS Code 1.140.0 與隔離 bare Repo 驗證；不代表兩個 GitLab 遠端已驗收。程序環境沒有雙版本 Token，故本輪沒有 0.13.2 GitLab live 結果。
+狀態只使用 PASS、FAIL、UNSUPPORTED、BLOCKED。自動測試、官方 API 文件和合成資料不能代替真實 Extension Host／Webview 操作；未操作項目保留 BLOCKED。
 
-| 功能群組 | CE 19.4.1 | CE 16.11.10 | 證據 |
+| 功能 | CE 19.4.1 | CE 16.11.10 | 證據與界線 |
 |---|---|---|---|
-| 有效／錯誤 Token、SecretStorage、重連、能力偵測與快取 | 0.13.1 PASS*；0.13.2 BLOCKED | 0.13.1 PASS*；0.13.2 BLOCKED | `evidence/source-smoke.json`、`evidence/ce19-extension-01-failure.json`、`evidence/ce16-extension-01-failure.json` |
-| Group／子群組搜尋選取與 Clone 清單 UI | 0.13.1 PASS*（只驗清單，未點 Clone）；0.13.2 BLOCKED | 0.13.1 PASS*（只驗清單，未點 Clone）；0.13.2 BLOCKED | `evidence/source-smoke.json`、`evidence/screenshots/ce19-clone.png`、`evidence/screenshots/ce16-clone.png` |
-| Clone／更新、HTTPS／SSH、空 Repo、預設分支同步與路徑辨識 | PENDING | PENDING | `evidence/issues.md` |
-| Issue 建立／編輯／狀態、討論、反應、訂閱、待辦、標籤／里程碑、Board、關聯與子工作 | PENDING | PENDING | `evidence/issues.md` |
-| 200 節點圖譜、部分失敗／重試、計時與工時對帳 | BLOCKED（負載建立中斷；已清除該 run 資料） | BLOCKED（負載未啟動） | `evidence/performance.md`、`scripts/live-validation.mjs` |
-| Git 分支、逐行／整檔暫存、取消暫存、Commit、Push、歷史與延遲 Repo 探索 | 0.13.2 隔離本機 Git PASS；GitLab 遠端 PENDING | 0.13.2 隔離本機 Git PASS；GitLab 遠端 PENDING | `evidence/git-gui-local.json` |
-| Git Amend、Parent 2 Diff、Fetch／Pull／Push、Merge、六種互動式 Rebase、Cherry-pick／Revert | 0.13.2 隔離本機 Git PASS；GitLab 遠端 PENDING | 0.13.2 隔離本機 Git PASS；GitLab 遠端 PENDING | `evidence/git-gui-local.json`、`evidence/git-gui.md` |
-| Stash save／apply／pop／drop、捨棄復原點、Force-with-lease SHA 漂移 | 0.13.2 隔離本機 Git PASS；Reset／衝突恢復 PENDING | 0.13.2 隔離本機 Git PASS；Reset／衝突恢復 PENDING | `evidence/git-gui-local.json`、`evidence/git-gui.md` |
-| 原生 Workbench Commit／Push 確認與取消 | BLOCKED（Workbench 沒有顯示確認對話框） | 同左；尚未連 GitLab | `evidence/git-gui-local-native.json` |
-| 14 Skills／Workflow ZIP 來源摘要、安裝回復與持久化 | PASS（發行安裝器自動測試）；真實 Skills 流程 BLOCKED | PASS（發行安裝器自動測試）；真實 Skills 流程 BLOCKED | `evidence/skills.md`、完整 `npm test` |
-| 窄視窗、鍵盤焦點、高對比、長清單、載入與重試 UX | 自動 Webview 行為測試 PASS；實機外觀 PENDING | 自動 Webview 行為測試 PASS；實機外觀 PENDING | `evidence/ux.md`、`evidence/local-tests.md` |
-| 每情境 10 次冷／30 次暖、API/Git/Webview 次數、記憶體峰值與 b963a28 比較 | BLOCKED（沒有 Token，未量測） | BLOCKED（沒有 Token，未量測） | `evidence/performance.md`、`evidence/performance-local-synthetic.json` |
+| 有效／無效 Token、SecretStorage、同帳號重連、版本／CE 偵測、capability scope cache | PASS | PASS | 真實 VSIX；CE16 首個 cold probe 曾收到 GraphQL validation timeout，後續九輪及額外新 session 通過。timeout 和重試證據保留在效能報告 |
+| 選定隔離子群組並顯示 Repo 清單 | PASS | PASS | 兩版均顯示預期 20 Repo；帳號切換和任意 Group／子群組搜尋未測，仍 BLOCKED |
+| 20 Repo／500 Issue／50 MR／200 圖譜 Issue／199 關聯的伺服器負載 | PASS | PASS | [負載核對報告](evidence/fixture-verification-20261007-acceptance.json)；兩版各 40 次核對 API 請求，0 失敗；負載已清理 |
+| 200 節點圖譜呈現 | PASS | PASS | 20 Repo 負載 session 報告記錄 200 個呈現節點；圖譜篩選、導航、部分失敗後重試尚未完整驗收 |
+| 暖切頁、本機搜尋 | PASS | PASS | 每版各 300 樣本；暖切頁 p95 122.17／102.67 ms，搜尋 p95 15.5／15.4 ms；搜尋和切頁為 0 API 請求 |
+| 窄視窗 Repo 清單 | PASS | PASS | 372 px viewport 下內容寬 332 px；CE19、CE16 各至少一個實機回合通過。高對比、完整鍵盤操作與草稿恢復 BLOCKED |
+| Capability cache 遇到 GraphQL timeout 後恢復 | PASS | PASS | CE16 首次連線失敗留檔；後續新 session probe 和手動重新偵測通過。見 [原始批次](evidence/benchmark-revision-final-10b.json) 與[恢復回合](evidence/benchmark-revision-final-ce16-extra.json) |
+| Blocking Issue 關聯 | UNSUPPORTED | UNSUPPORTED | Community Edition 的 capability 診斷明確回報不支援；一般關聯功能本身未等同驗收 |
+| Issue 建立／編輯／狀態／移動／複製／刪除、Markdown／附件、討論／反應／訂閱／待辦 | BLOCKED | BLOCKED | 本次未在真實 Webview 完成此整組寫入流程 |
+| 標籤、milestone、Board、子工作、一般關聯和失敗重試 | BLOCKED | BLOCKED | 伺服器負載含 Issues 不代表 UI CRUD 驗收；仍需逐項操作及核對實際狀態 |
+| 計時／暫停／恢復／重啟、指定日期工時、估時與提交對帳 | BLOCKED | BLOCKED | 本次沒有完成 Extension Host 工時操作並核對 GitLab 記錄 |
+| MR 篩選、分頁、Review／核准、Diff | BLOCKED | BLOCKED | 已核對[16.11.10 官方 MR API 文件](https://raw.githubusercontent.com/gitlabhq/gitlabhq/v16.11.10/doc/api/merge_requests.md)及離線測試；兩版實機完整 MR 工作流程未操作 |
+| Clone／HTTPS、空 Repo、路徑識別、default branch 同步、Push／Merge／Rebase／Cherry-pick／Revert／Stash／Reset／衝突恢復 | BLOCKED | BLOCKED | 修正版 VSIX 的本機 bare Repo Git GUI 操作另有 PASS 證據；本次未完成兩個 GitLab 的遠端工作流程 |
+| SSH Clone／Push | BLOCKED | BLOCKED | 測試用 SSH 認證未提供 |
+| SHA 漂移保護與遠端寫入結果不明恢復 | BLOCKED | BLOCKED | 離線／單元案例通過；CE 實機遠端操作尚未驗收 |
+| 原生 Workbench 確認與取消 modal | BLOCKED | BLOCKED | 本機 Git GUI 驗收未顯示可互動原生確認 modal |
+| Workflow Kit 安裝／更新／失敗回復 | BLOCKED | BLOCKED | 安裝器／回復測試 PASS；封裝 VS Code 的完整 UI 流程及 Megin 核准未完成 |
+| Codex 終端機、14 個 Skills、13 個分析入口 | BLOCKED | BLOCKED | 目標工作區中的逐項操作尚未執行 |
+| VS Code 1.140.0 | PASS | PASS | 實機 runner 使用 1.140.0 |
+| VS Code 最低 1.90.0 | BLOCKED | BLOCKED | 環境無 1.90.0；一般測試因網路限制使用快取 1.139.0 |
+| 實機效能絕對門檻 | PASS | PASS | 每版 10 次冷啟動及 300 次暖切頁／搜尋；完整數據見[效能報告](evidence/performance.md) |
+| 與基線相比延遲／記憶體退步不超過 10% | BLOCKED | BLOCKED | 基線 VSIX 的同負載探測得到 0 Repo，沒有可比樣本；不得推定通過 |
+| Megin 需要的人工核准 | BLOCKED | BLOCKED | 等待具體驗收資料後由真實 Megin 使用者回覆 |
 
-## 已有的真實介面證據
+## 已完成的離線回歸
 
-0.13.1 工作樹 Extension Host 在兩個環境都曾完成錯誤 Token 拒絕、SecretStorage 連線、能力偵測、同帳號重新連線快取、Group 選取、三 Repo 清單呈現、手動重偵測與 30 次暖切頁。暖切頁 p95 為 CE 19 388.06 ms、CE 16 393.56 ms；只驗證清單介面，沒有點擊 Clone。這是舊版 source smoke，不能當成最終 VSIX 的重測結果。
+- 新增讀取快取取消競態、scope 更新競態、精確 fixture 數量、Issue rerun 去重、429 backoff、manifest／owner cleanup 邊界測試，並修正 Windows 路徑大小寫差異造成的誤拒絕。
+- npm.cmd test 完整執行並 exit 0；包含 22 個 Webview 行為測試、30 個主要 Cucumber 情境／140 步、10 個 UI 情境／35 步、release／workflow／installer／Megin 測試及 6 個 Extension Host case 通過。兩個需要額外環境的即時 case 為 pending。
+- 封裝 VSIX 驗證為 91 個檔案；最終 SHA-256 為 436f5aedc1ef84022c5ac01e6877bda8cd947742b5d44258492b520342d0fc9b。最終包的 CE16／CE19 smoke 均通過。
 
-最終 VSIX SHA-256 為 `f0ed4bdf59629afab890f71f2909f1eaf0f6a2a77f05f68b67a52ef1a5452693`。VS Code 1.140.0 封裝版隔離本機 Git GUI 全流程 PASS：冷啟動至 CDP 564.70 ms，Git Repo 探索 3,648.37 ms；均為單次觀察值，不代表 p95。原生 Workbench 確認流程用相同 SHA 重測，仍未顯示 Commit 確認對話框。完整雙版本 GitLab 操作因環境沒有 Token 而 BLOCKED。
-
-先前負載群組已依 manifest 與 owner marker 清除；本次本機 GUI run 的 VS Code profile 也在核對 run ID 與路徑位於專案 `.vscode-test/` 直屬目錄後移除。詳細操作、GUI 截圖與 SHA 證據見 `evidence/git-gui.md` 及 `evidence/git-gui-local.json`。
+以上是目前證據的界線；整體功能驗收仍為 BLOCKED，直到尚未完成的實機矩陣項目有實際操作和證據。

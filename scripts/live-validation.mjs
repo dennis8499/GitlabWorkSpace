@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildLoadGraphEdges, buildLoadIssueWork, buildLoadMergeRequestBranches } from './live-fixture-plan.mjs';
+import { sameFilesystemPath } from './live-test-paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const STATE_ROOT = path.resolve(ROOT, '..', '.gitlab-workspace-validation');
+const STATE_ROOT = path.join(ROOT, '.gitlab-workspace-validation');
 const ENVIRONMENTS = {
   ce19: { url: 'http://127.0.0.1:8929', tokenName: 'GLW_CE19_TOKEN', version: '19.4.1' },
   ce16: { url: 'http://127.0.0.1:8930', tokenName: 'GLW_CE16_TOKEN', version: '16.11.10' }
@@ -27,7 +29,7 @@ class Semaphore {
   }
 }
 
-class GitLab {
+export class GitLab {
   constructor(key, token) {
     const config = ENVIRONMENTS[key];
     if (!config || !token) throw new Error('A named local GitLab environment and process token are required.');
@@ -42,9 +44,11 @@ class GitLab {
   async request(route, { method = 'GET', body, tolerate404 = false } = {}) {
     if (route.startsWith('/') || route.includes('..')) throw new Error('A safe API-relative route is required.');
     return this.gate.run(async () => {
-      const start = performance.now();
       let response;
+      let attemptStarted;
+      let retryWindowStarted;
       for (let attempt = 0; ; attempt++) {
+        attemptStarted = performance.now();
         try {
           response = await fetch(new URL(`/api/v4/${route}`, this.url), {
             method,
@@ -52,7 +56,6 @@ class GitLab {
             ...(body ? { body: JSON.stringify(body) } : {}),
             redirect: 'manual', signal: AbortSignal.timeout(30_000)
           });
-          break;
         } catch (error) {
           if (method === 'GET' && attempt < 2) {
             await new Promise((resolve) => setTimeout(resolve, 250 * (2 ** attempt)));
@@ -61,11 +64,24 @@ class GitLab {
           const causeCode = error?.cause?.code ?? (error?.name === 'TimeoutError' ? 'timeout' : 'network error');
           throw new Error(`GitLab ${this.key} API ${method} ${route} failed before a response (${causeCode}).`);
         }
+        if (response.status !== 429 || attempt >= 12) break;
+        retryWindowStarted ??= performance.now();
+        const rejectedBytes = Buffer.from(await response.arrayBuffer());
+        this.metrics.requests++;
+        this.metrics.responseBytes += rejectedBytes.byteLength;
+        this.metrics.failures++;
+        this.metrics.apiMs.push(performance.now() - attemptStarted);
+        const retryDelay = retryAfterMilliseconds(response.headers.get('retry-after'), attempt);
+        const elapsedRetryMs = performance.now() - retryWindowStarted;
+        if (retryDelay > 5 * 60_000 || elapsedRetryMs + retryDelay > 5 * 60_000) {
+          throw new Error(`GitLab ${this.key} API ${method} ${route} is rate limited beyond the five-minute retry window.`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       }
       const bytes = Buffer.from(await response.arrayBuffer());
       this.metrics.requests++;
       this.metrics.responseBytes += bytes.byteLength;
-      this.metrics.apiMs.push(performance.now() - start);
+      this.metrics.apiMs.push(performance.now() - attemptStarted);
       if (response.status === 404 && tolerate404) return undefined;
       if (response.status < 200 || response.status >= 300) {
         this.metrics.failures++;
@@ -125,6 +141,14 @@ class GitLab {
   }
 }
 
+function retryAfterMilliseconds(value, attempt) {
+  const fallback = Math.min(30_000, 1_000 * (2 ** attempt));
+  if (!value) return fallback;
+  const seconds = Number(value);
+  const delay = Number.isFinite(seconds) && seconds >= 0 ? seconds * 1_000 : Date.parse(value) - Date.now();
+  return Number.isFinite(delay) && delay > 0 ? delay : fallback;
+}
+
 function getEnvironmentNames(selection) {
   const names = selection === 'both' ? ['ce19', 'ce16'] : [selection];
   if (names.some((name) => !ENVIRONMENTS[name])) throw new Error('Choose --environment ce19, ce16, or both.');
@@ -154,9 +178,13 @@ function sortedPercentile(values, percent) {
 }
 
 async function preflight(client) {
-  const [version, user, parent] = await Promise.all([
-    client.request('version'), client.request('user'), client.group('grp-sn-maint')
+  const [version, metadata, user, parent] = await Promise.all([
+    client.request('version'), client.request('metadata'), client.request('user'), client.group('grp-sn-maint')
   ]);
+  const expectedVersion = ENVIRONMENTS[client.key].version;
+  if (metadata.version !== expectedVersion || metadata.enterprise !== false) {
+    throw new Error(`Expected GitLab CE ${expectedVersion}; received version=${metadata.version ?? version.version ?? 'unknown'}, enterprise=${metadata.enterprise ?? 'unverified'}.`);
+  }
   const membership = parent?.id ? await client.request(`groups/${parent.id}/members/all/${user.id}`, { tolerate404: true }) : undefined;
   const accessLevel = membership?.access_level ?? parent?.permissions?.group_access?.access_level ?? parent?.group_access?.access_level;
   const ownsGroup = parent?.owner?.id === user.id || parent?.owner === true || accessLevel === 50;
@@ -170,8 +198,8 @@ async function preflight(client) {
     client.pages(`groups/${parent.id}/merge_requests`)
   ]);
   return {
-    environment: client.key, baseUrl: client.url.origin, version: version.version,
-    revision: version.revision ?? null, userId: user.id, group: parent.full_path,
+    environment: client.key, baseUrl: client.url.origin, version: metadata.version,
+    revision: metadata.revision ?? version.revision ?? null, enterprise: metadata.enterprise, userId: user.id, group: parent.full_path,
     groupId: parent.id, projectCount: projects.length, childGroupCount: children.length,
     issueCount: issues.length, mergeRequestCount: mergeRequests.length,
     metrics: summarizeMetrics(client.metrics)
@@ -194,37 +222,83 @@ function git(args, cwd, env) {
   }
 }
 
-function createRepository(client, project, root, role, askPass, token, branches = []) {
+function createRepository(client, project, root, role, askPass, token, branches = [], runId = RUN_ID, onProgress = () => undefined) {
   mkdirSync(root, { recursive: true });
-  writeFileSync(path.join(root, 'README.md'), `# ${role}\n\n${MARKER}\n\nRun: ${RUN_ID}\n`, 'utf8');
+  const gitDirectory = path.join(root, '.git');
+  const readmePath = path.join(root, 'README.md');
+  const trackedFile = path.join(root, role === 'contracts' ? 'contract.md' : role === 'service' ? 'service.ts' : 'client.tsx');
+  if (!existsSync(gitDirectory)) {
+    const localFiles = readdirSync(root).sort();
+    const allowedFiles = ['README.md', path.basename(trackedFile)].sort();
+    if (localFiles.length > 0) {
+      const readme = existsSync(readmePath) ? readFileSync(readmePath, 'utf8') : '';
+      if (!readme.includes(MARKER) || !readme.includes(`Run: ${runId}`) || localFiles.some((name, index) => name !== allowedFiles[index]) || localFiles.length !== allowedFiles.length) {
+        throw new Error('Refusing to seed an existing validation workspace whose contents do not match this run ID.');
+      }
+    }
+  }
+  writeFileSync(readmePath, `# ${role}\n\n${MARKER}\n\nRun: ${runId}\n`, 'utf8');
   const roleFile = role === 'contracts' ? 'contract.md' : role === 'service' ? 'service.ts' : 'client.tsx';
   const body = role === 'contracts' ? '# Contract\n\nexport interface Health { ok: boolean }\n' : role === 'service' ? "export const health = () => ({ ok: true });\n" : "export function HealthView() { return <output>ok</output>; }\n";
   writeFileSync(path.join(root, roleFile), body, 'utf8');
-  git(['init', '-b', 'main'], root, process.env);
+  if (!existsSync(gitDirectory)) git(['init', '-b', 'main'], root, process.env);
   git(['config', 'user.name', 'GitLab Workspace Validation'], root, process.env);
   git(['config', 'user.email', 'gitlab-workspace-validation@example.invalid'], root, process.env);
-  git(['add', '--all'], root, process.env);
   const fixedDate = '2024-01-01T00:00:00+00:00';
   const baseEnv = { ...process.env, GIT_AUTHOR_DATE: fixedDate, GIT_COMMITTER_DATE: fixedDate };
-  git(['commit', '-m', 'Add minimal validation fixture'], root, baseEnv);
-  const initialSha = git(['rev-parse', 'HEAD'], root, process.env).trim();
   const remote = project.http_url_to_repo;
   if (!remote || new URL(remote).origin !== client.url.origin) throw new Error('GitLab returned a Repo URL outside the selected localhost environment.');
-  git(['remote', 'add', 'origin', remote], root, process.env);
   const gitEnv = { ...process.env, GIT_ASKPASS: askPass, GIT_ASKPASS_REQUIRE: 'force', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', GLW_GITLAB_WORKSPACE_TEST_TOKEN: token };
-  git(['push', '--set-upstream', 'origin', 'main'], root, gitEnv);
+  if (git(['remote'], root, process.env).split(/\s+/).filter(Boolean).includes('origin')) {
+    if (git(['remote', 'get-url', 'origin'], root, process.env).trim() !== remote) throw new Error(`The existing isolated ${role} workspace points to another GitLab Repo.`);
+  } else {
+    git(['remote', 'add', 'origin', remote], root, process.env);
+  }
+  git(['fetch', 'origin'], root, gitEnv);
+  const remoteMain = git(['ls-remote', '--heads', 'origin', 'refs/heads/main'], root, gitEnv).trim().split(/\s+/)[0];
+  let initialSha;
+  if (remoteMain) {
+    const remoteReadme = git(['show', `${remoteMain}:README.md`], root, process.env);
+    const remoteRoleFile = git(['show', `${remoteMain}:${roleFile}`], root, process.env);
+    if (!remoteReadme.includes(MARKER) || !remoteReadme.includes(`Run: ${runId}`) || !remoteRoleFile.includes('ok')) {
+      throw new Error(`Refusing to resume ${role}; the remote main branch does not match this run's marked fixture.`);
+    }
+    git(['checkout', '-B', 'main', remoteMain], root, process.env);
+    initialSha = remoteMain;
+  } else {
+    git(['checkout', '-B', 'main'], root, process.env);
+    try { git(['rev-parse', '--verify', 'HEAD'], root, process.env); }
+    catch {
+      git(['add', '--all'], root, process.env);
+      git(['commit', '-m', 'Add minimal validation fixture'], root, baseEnv);
+    }
+    initialSha = git(['rev-parse', 'HEAD'], root, process.env).trim();
+    git(['push', '--set-upstream', 'origin', 'main'], root, gitEnv);
+  }
+  onProgress({ initialSha, branchShas: [] });
   const branchShas = [];
   for (const branch of branches) {
-    const localBranch = `validation/${RUN_ID}/${branch}`;
-    git(['switch', '-c', localBranch], root, process.env);
-    const file = `validation/${branch}.md`;
-    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-    writeFileSync(path.join(root, file), `# ${branch}\n\nFixture ${RUN_ID}\n`, 'utf8');
-    git(['add', file], root, process.env);
-    git(['commit', '-m', `Add ${branch} validation change`], root, baseEnv);
-    const sha = git(['rev-parse', 'HEAD'], root, process.env).trim();
-    git(['push', 'origin', `${localBranch}:${localBranch}`], root, gitEnv);
+    const localBranch = `validation/${runId}/${branch}`;
+    const remoteBranch = git(['ls-remote', '--heads', 'origin', `refs/heads/${localBranch}`], root, gitEnv).trim().split(/\s+/)[0];
+    let sha;
+    if (remoteBranch) {
+      const summary = git(['show', '-s', '--format=%s', remoteBranch], root, process.env).trim();
+      if (summary !== `Add ${branch} validation change`) throw new Error(`Refusing to adopt validation branch ${localBranch}; its commit does not match this fixture.`);
+      sha = remoteBranch;
+      git(['branch', '-f', localBranch, sha], root, process.env);
+    } else {
+      git(['checkout', 'main'], root, process.env);
+      git(['checkout', '-B', localBranch, 'main'], root, process.env);
+      const file = `validation/${branch}.md`;
+      mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      writeFileSync(path.join(root, file), `# ${branch}\n\nFixture ${runId}\n`, 'utf8');
+      git(['add', file], root, process.env);
+      git(['commit', '-m', `Add ${branch} validation change`], root, baseEnv);
+      sha = git(['rev-parse', 'HEAD'], root, process.env).trim();
+      git(['push', 'origin', `${localBranch}:${localBranch}`], root, gitEnv);
+    }
     branchShas.push({ branch: localBranch, sha });
+    onProgress({ initialSha, branchShas: [...branchShas] });
     git(['switch', 'main'], root, process.env);
   }
   return { initialSha, branchShas };
@@ -301,7 +375,15 @@ async function ensureDemo(client) {
     await ensureIssueLink(client, contractsProject.id, contractIssue.iid, serviceProject.id, serviceIssue.iid, manifest);
     writeManifest(file, manifest);
   }
-  const serviceBranch = serviceProject.branchShas?.[0]?.branch ?? 'demo/service/work';
+  let serviceBranch = serviceProject.branchShas?.[0]?.branch;
+  if (!serviceBranch) {
+    const branches = await client.pages(`projects/${serviceProject.id}/repository/branches?per_page=100`);
+    const existingDemoBranch = branches.find((branch) => branch.name.startsWith('validation/') && branch.name.endsWith('/demo/service/work'));
+    if (!existingDemoBranch) throw new Error(`The isolated service Repo ${serviceProject.path} has no recorded demo branch for its merge request.`);
+    serviceBranch = existingDemoBranch.name;
+    serviceProject.branchShas = [{ branch: serviceBranch, sha: existingDemoBranch.commit?.id ?? null }];
+    writeManifest(file, manifest);
+  }
   if (!manifest.resources.mergeRequests.length) {
     const existing = await client.pages(`projects/${serviceProject.id}/merge_requests?state=all&source_branch=${encodeURIComponent(serviceBranch)}`);
     const mergeRequest = existing.find((item) => item.source_branch === serviceBranch && item.target_branch === 'main') ?? await client.request(`projects/${serviceProject.id}/merge_requests`, { method: 'POST', body: {
@@ -318,30 +400,39 @@ async function ensureDemo(client) {
   return { path: file, manifest };
 }
 
-async function createIssue(client, projectId, title, description, manifest, bucket) {
+export async function createIssue(client, projectId, title, description, manifest, bucket, options = {}) {
   const recorded = manifest.resources[bucket].find((item) => item.projectId === projectId && item.title === title);
   let issue = recorded ? await client.request(`projects/${projectId}/issues/${recorded.iid}`) : undefined;
   if (!issue) {
     const existing = await client.pages(`projects/${projectId}/issues?state=all&search=${encodeURIComponent(title)}`);
     issue = existing.find((item) => item.title === title);
   }
-  if (!issue) issue = await client.request(`projects/${projectId}/issues`, { method: 'POST', body: { title, description } });
+  if (!issue) issue = await client.request(`projects/${projectId}/issues`, { method: 'POST', body: {
+    title, description, ...(options.assigneeId !== undefined ? { assignee_id: options.assigneeId } : {})
+  } });
+  else if (options.assigneeId !== undefined && !(issue.assignees ?? []).some((assignee) => assignee.id === options.assigneeId)) {
+    issue = await client.request(`projects/${projectId}/issues/${issue.iid}`, { method: 'PUT', body: { assignee_id: options.assigneeId } });
+  }
   if (!manifest.resources[bucket].some((item) => item.projectId === projectId && item.iid === issue.iid)) {
-    manifest.resources[bucket].push({ projectId, iid: issue.iid, id: issue.id, title: issue.title, webUrl: issue.web_url });
+    manifest.resources[bucket].push({ projectId, iid: issue.iid, id: issue.id, title: issue.title, webUrl: issue.web_url, graph: options.graph === true });
+  } else if (options.graph === true) {
+    const recordedIssue = manifest.resources[bucket].find((item) => item.projectId === projectId && item.iid === issue.iid);
+    if (recordedIssue) recordedIssue.graph = true;
   }
   return issue;
 }
 
-async function ensureIssueLink(client, projectId, sourceIid, targetProjectId, targetIid, manifest) {
+export async function ensureIssueLink(client, projectId, sourceIid, targetProjectId, targetIid, manifest) {
   const recorded = manifest.resources.graphLinks.find((item) => item.projectId === projectId && item.sourceIid === sourceIid &&
     (item.targetProjectId ?? projectId) === targetProjectId && item.targetIid === targetIid);
   if (recorded) return recorded;
   const links = await client.pages(`projects/${projectId}/issues/${sourceIid}/links`);
-  const existing = links.find((item) => item.target_project_id === targetProjectId && item.target_issue_iid === targetIid);
+  const existing = links.find((item) => Number(item.target_project_id ?? item.project_id) === Number(targetProjectId) &&
+    Number(item.target_issue_iid ?? item.iid) === Number(targetIid));
   const link = existing ?? await client.request(`projects/${projectId}/issues/${sourceIid}/links`, { method: 'POST', body: {
     target_project_id: targetProjectId, target_issue_iid: targetIid, link_type: 'relates_to'
   } });
-  const entry = { projectId, sourceIid, targetProjectId, targetIid, id: link?.id ?? null };
+  const entry = { projectId, sourceIid, targetProjectId, targetIid, id: link?.id ?? link?.issue_link_id ?? null };
   manifest.resources.graphLinks.push(entry);
   return entry;
 }
@@ -351,21 +442,28 @@ async function setupLoad(client, runId) {
   let manifest;
   try { manifest = readManifest(file); }
   catch { manifest = undefined; }
+  if (manifest && !manifest.cleanedAt && manifest.schema !== 'GitLabWorkspaceLiveFixture/v2') {
+    throw new Error('This run uses the old 21-project fixture. Verify and clean it with cleanup-load, then choose a new run ID.');
+  }
   if (manifest?.cleanedAt) {
+    manifest.schema = 'GitLabWorkspaceLiveFixture/v2';
+    manifest.targetCounts = { projects: 20, issues: 500, mergeRequests: 50, graphNodes: 200 };
+    manifest.ownerMarker = `load-${runId}-${client.key}`;
     manifest.createdAt = new Date().toISOString();
     manifest.resources = { createdGroups: [], projects: [], issues: [], mergeRequests: [], graphLinks: [] };
     delete manifest.group;
-    delete manifest.graphProject;
+    delete manifest.graph;
     delete manifest.cleanedAt;
   }
   if (!manifest) manifest = {
-    schema: 'GitLabWorkspaceLiveFixture/v1', environment: client.key, runId, createdAt: new Date().toISOString(),
+    schema: 'GitLabWorkspaceLiveFixture/v2', environment: client.key, runId, createdAt: new Date().toISOString(),
     ownerMarker: `load-${runId}-${client.key}`, resources: { createdGroups: [], projects: [], issues: [], mergeRequests: [], graphLinks: [] },
     targetCounts: { projects: 20, issues: 500, mergeRequests: 50, graphNodes: 200 }
   };
   if (manifest.environment !== client.key || manifest.runId !== runId) throw new Error('Load manifest identity does not match the selected environment and run ID.');
   const parent = await client.group('grp-sn-maint');
   const load = await ensureValidationGroup(client, parent, 'performance', `performance-${runId}`, `GitLab Workspace Performance ${runId}`, manifest);
+  const currentUser = await client.request('user');
   manifest.group = load;
   manifest.updatedAt = new Date().toISOString();
   writeManifest(file, manifest);
@@ -384,12 +482,13 @@ async function setupLoad(client, runId) {
       writeManifest(file, manifest);
     }
     const fixture = manifest.resources.projects.find((item) => item.id === project.id);
-    if (created || project.empty_repo) {
-      const mrBranches = Array.from({ length: i <= 10 ? 3 : 2 }, (_, n) => `mr-${i}-${n + 1}`);
-      const seeded = createRepository(client, project, path.join(workRoot, name), 'service', askPass, client.token, mrBranches);
-      fixture.initialSha = seeded.initialSha;
-      fixture.branchShas = seeded.branchShas;
-      writeManifest(file, manifest);
+    const mrBranches = buildLoadMergeRequestBranches()[i - 1].branches;
+    if (created || project.empty_repo || !fixture.initialSha || !Array.isArray(fixture.branchShas) ||
+      mrBranches.some((branch) => !fixture.branchShas.some((recorded) => recorded.branch === `validation/${runId}/${branch}`))) {
+      createRepository(client, project, path.join(workRoot, name), 'service', askPass, client.token, mrBranches, runId, (progress) => {
+        Object.assign(fixture, progress);
+        writeManifest(file, manifest);
+      });
     }
     for (const branch of fixture.branchShas ?? []) {
       const recorded = manifest.resources.mergeRequests.find((item) => item.projectId === project.id && item.sourceBranch === branch.branch);
@@ -405,59 +504,69 @@ async function setupLoad(client, runId) {
       writeManifest(file, manifest);
     }
   }
-  const issueWork = [];
-  for (const project of projects) for (let index = 1; index <= 25; index++) {
-    const ordinal = issueWork.length + 1;
-    issueWork.push(() => createIssue(client, project.id, `Validation ${runId} issue ${String(ordinal).padStart(3, '0')}`,
-      `${MARKER}\n\nRun: ${runId}\nFixture issue ${ordinal}.`, manifest, 'issues'));
-  }
-  for (let offset = 0; offset < issueWork.length; offset += MAX_REQUESTS) {
-    await Promise.all(issueWork.slice(offset, offset + MAX_REQUESTS).map((operation) => operation()));
-    writeManifest(file, manifest);
-  }
-  const graphProjectName = `graph-${runId}`;
-  const { project: graphProject, created: graphProjectCreated } = await client.createProject(load.id, graphProjectName, manifest.ownerMarker);
-  if (!manifest.resources.projects.some((item) => item.id === graphProject.id)) manifest.resources.projects.push({ id: graphProject.id, path: graphProject.path_with_namespace, created: graphProjectCreated, graph: true });
+  const issueWork = buildLoadIssueWork(projects.map((project) => project.id));
   const graphIssues = [];
-  for (let offset = 0; offset < 200; offset += MAX_REQUESTS) {
-    const batch = await Promise.all(Array.from({ length: Math.min(MAX_REQUESTS, 200 - offset) }, (_, inner) => {
-      const ordinal = offset + inner + 1;
-      return createIssue(client, graphProject.id, `Graph ${runId} node ${String(ordinal).padStart(3, '0')}`,
-        `${MARKER}\n\nRun: ${runId}\nGraph node ${ordinal}.`, manifest, 'issues');
+  for (let offset = 0; offset < issueWork.length; offset += MAX_REQUESTS) {
+    await Promise.all(issueWork.slice(offset, offset + MAX_REQUESTS).map(async (item) => {
+      const title = item.graph
+        ? `Graph ${runId} node ${String(item.graphOrdinal).padStart(3, '0')}`
+        : `Validation ${runId} issue ${String(item.ordinal).padStart(3, '0')}`;
+      const issue = await createIssue(client, item.projectId, title,
+        `${MARKER}\n\nRun: ${runId}\nFixture issue ${item.ordinal}.${item.graph ? ` Graph node ${item.graphOrdinal}.` : ''}`,
+        manifest, 'issues', { graph: item.graph, assigneeId: item.graph ? currentUser.id : undefined });
+      if (item.graph) graphIssues[item.graphOrdinal - 1] = { projectId: item.projectId, iid: issue.iid, ordinal: item.graphOrdinal };
     }));
-    graphIssues.push(...batch);
     writeManifest(file, manifest);
   }
-  for (let offset = 0; offset < graphIssues.length - 1; offset += MAX_REQUESTS) {
-    const edges = graphIssues.slice(offset, Math.min(graphIssues.length - 1, offset + MAX_REQUESTS)).map((issue, inner) => {
-      const next = graphIssues[offset + inner + 1];
-      return ensureIssueLink(client, graphProject.id, issue.iid, graphProject.id, next.iid, manifest);
-    });
+  const graphEdges = buildLoadGraphEdges(graphIssues);
+  for (let offset = 0; offset < graphEdges.length; offset += MAX_REQUESTS) {
+    const edges = graphEdges.slice(offset, offset + MAX_REQUESTS).map(({ source, target }) =>
+      ensureIssueLink(client, source.projectId, source.iid, target.projectId, target.iid, manifest));
     await Promise.all(edges);
     writeManifest(file, manifest);
   }
   manifest.group = load;
-  manifest.graphProject = { id: graphProject.id, path: graphProject.path_with_namespace, nodeCount: graphIssues.length, edgeCount: manifest.resources.graphLinks.length };
+  manifest.checkoutRoot = workRoot;
+  manifest.graph = { nodeCount: graphIssues.length, edgeCount: graphEdges.length, assignedUserId: currentUser.id };
   manifest.updatedAt = new Date().toISOString();
   manifest.metrics = summarizeMetrics(client.metrics);
   writeManifest(file, manifest);
   return { file, manifest };
 }
 
-async function cleanupLoad(client, runId) {
+export async function cleanupLoad(client, runId) {
   const file = manifestPath(client.key, runId, 'load');
   const manifest = readManifest(file);
   const recordedGroup = manifest.group?.id ? manifest.group : manifest.resources?.createdGroups?.find((item) =>
     item.purpose === 'performance' && item.slug === `performance-${runId}` && item.fullPath === `grp-sn-maint/performance-${runId}`);
-  if (manifest.schema !== 'GitLabWorkspaceLiveFixture/v1' || manifest.environment !== client.key || manifest.runId !== runId || !recordedGroup?.id) {
+  if (!['GitLabWorkspaceLiveFixture/v1', 'GitLabWorkspaceLiveFixture/v2'].includes(manifest.schema) || manifest.environment !== client.key || manifest.runId !== runId || !recordedGroup?.id) {
     throw new Error('The load manifest failed environment, run ID, or ownership validation; nothing was deleted.');
   }
+  const expectedWorkspace = path.resolve(STATE_ROOT, 'workspaces', client.key, runId, 'performance');
+  const workspace = path.resolve(manifest.checkoutRoot ?? expectedWorkspace);
+  if (!sameFilesystemPath(workspace, expectedWorkspace) || !path.relative(path.join(STATE_ROOT, 'workspaces'), workspace).startsWith(`${client.key}${path.sep}`)) {
+    throw new Error('The manifest workspace does not match this environment and run ID; nothing was deleted.');
+  }
   const group = await client.request(`groups/${recordedGroup.id}`, { tolerate404: true });
-  if (!group) { rmSync(file, { force: true }); return { deleted: false, alreadyGone: true, file }; }
+  if (!group) {
+    rmSync(workspace, { recursive: true, force: true });
+    rmSync(file, { force: true });
+    return { deleted: false, alreadyGone: true, workspaceRemoved: true, file };
+  }
   if (group.full_path !== recordedGroup.fullPath || !String(group.description ?? '').includes(`${MARKER}; owner=${manifest.ownerMarker}`)) {
     throw new Error('The live load group no longer matches its exact manifest identity and ownership marker; nothing was deleted.');
   }
+  const [projects, subgroups] = await Promise.all([
+    client.pages(`groups/${group.id}/projects?include_subgroups=false`),
+    client.pages(`groups/${group.id}/subgroups`)
+  ]);
+  const recordedProjectIds = new Set((manifest.resources.projects ?? []).map((project) => project.id));
+  if (subgroups.length || projects.length !== recordedProjectIds.size || projects.some((project) => !recordedProjectIds.has(project.id) ||
+    !String(project.description ?? '').includes(`${MARKER}; owner=${manifest.ownerMarker}`))) {
+    throw new Error('The load Group contains unrecorded or unowned projects; refusing to delete it.');
+  }
   await client.request(`groups/${group.id}`, { method: 'DELETE' });
+  rmSync(workspace, { recursive: true, force: true });
   manifest.group = recordedGroup;
   manifest.cleanedAt = new Date().toISOString();
   writeManifest(file, manifest);
@@ -479,10 +588,43 @@ async function verify(client, kind, runId) {
     const issue = await client.request(`projects/${fixture.projectId}/issues/${fixture.iid}`);
     issues.push({ id: issue.id, iid: issue.iid, state: issue.state });
   }
+  if (kind === 'load') {
+    if (manifest.schema !== 'GitLabWorkspaceLiveFixture/v2') throw new Error('The load manifest predates the exact-count fixture; create a new load run.');
+    const group = await client.request(`groups/${manifest.group?.id}`);
+    if (group.full_path !== manifest.group?.fullPath || !String(group.description ?? '').includes(`${MARKER}; owner=${manifest.ownerMarker}`)) {
+      throw new Error('The live load Group does not match its recorded path and owner marker.');
+    }
+    const [serverProjects, serverIssues, serverMergeRequests] = await Promise.all([
+      client.pages(`groups/${group.id}/projects?include_subgroups=false`),
+      client.pages(`groups/${group.id}/issues?state=all`),
+      client.pages(`groups/${group.id}/merge_requests?scope=all&state=all`)
+    ]);
+    const projectIds = new Set(manifest.resources.projects.map((project) => project.id));
+    const graphIssues = manifest.resources.issues.filter((issue) => issue.graph === true);
+    const mergeRequests = manifest.resources.mergeRequests ?? [];
+    const target = manifest.targetCounts;
+    const graphIssueIds = new Set(graphIssues.map((issue) => issue.id));
+    const assignedGraphIssues = serverIssues.filter((issue) => graphIssueIds.has(issue.id) &&
+      (issue.assignee?.id === manifest.graph?.assignedUserId || issue.assignees?.some((assignee) => assignee.id === manifest.graph?.assignedUserId)));
+    const graphCrossings = manifest.resources.graphLinks.some((edge) => edge.projectId !== (edge.targetProjectId ?? edge.projectId));
+    const incorrectCount = projects.length !== target?.projects || serverProjects.length !== target?.projects ||
+      manifest.resources.issues.length !== target?.issues || serverIssues.length !== target?.issues ||
+      mergeRequests.length !== target?.mergeRequests || serverMergeRequests.length !== target?.mergeRequests ||
+      assignedGraphIssues.length !== target?.graphNodes || graphIssues.length !== target?.graphNodes ||
+      manifest.resources.graphLinks.length !== target?.graphNodes - 1 || graphIssues.some((issue) => !projectIds.has(issue.projectId));
+    if (incorrectCount) throw new Error(`Live load fixture counts do not match the manifest targets: ${JSON.stringify({ projects: serverProjects.length, issues: serverIssues.length, mergeRequests: serverMergeRequests.length, graphNodes: assignedGraphIssues.length, graphEdges: manifest.resources.graphLinks.length, target })}.`);
+    return {
+      environment: client.key, version: manifest.version ?? ENVIRONMENTS[client.key].version,
+      group: manifest.group?.fullPath, projectCount: serverProjects.length, issueCount: serverIssues.length,
+      assignedGraphIssueCount: assignedGraphIssues.length, graphEdgeCount: manifest.resources.graphLinks.length, mergeRequestCount: serverMergeRequests.length,
+      graphCrossesProjects: graphCrossings, verifiedIssueCount: issues.length, projects,
+      metrics: summarizeMetrics(client.metrics)
+    };
+  }
   return {
     environment: client.key, version: manifest.version ?? ENVIRONMENTS[client.key].version,
     group: manifest.group?.fullPath, projects, verifiedIssueCount: issues.length, issueCount: manifest.resources.issues.length,
-    mergeRequestCount: manifest.resources.mergeRequests?.length ?? 0, graph: manifest.graphProject ?? null,
+    mergeRequestCount: manifest.resources.mergeRequests?.length ?? 0, graph: manifest.graph ?? null,
     metrics: summarizeMetrics(client.metrics)
   };
 }
@@ -498,6 +640,13 @@ async function main() {
     const token = process.env[ENVIRONMENTS[key].tokenName];
     if (!token) throw new Error(`Set ${ENVIRONMENTS[key].tokenName} in the test process environment to use ${key}.`);
     const client = new GitLab(key, token);
+    if (command !== 'preflight') {
+      const metadata = await client.request('metadata');
+      const expectedVersion = ENVIRONMENTS[key].version;
+      if (metadata.version !== expectedVersion || metadata.enterprise !== false) {
+        throw new Error(`Expected GitLab CE ${expectedVersion}; received version=${metadata.version ?? 'unknown'}, enterprise=${metadata.enterprise ?? 'unverified'}.`);
+      }
+    }
     let result;
     if (command === 'preflight') result = await preflight(client);
     else if (command === 'setup-demo') result = await ensureDemo(client);
@@ -512,7 +661,7 @@ async function main() {
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 
-main().catch((error) => {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((error) => {
   const message = error instanceof Error ? error.message : 'Live validation failed.';
   const redacted = Object.values(ENVIRONMENTS).reduce((value, config) => {
     const token = process.env[config.tokenName];

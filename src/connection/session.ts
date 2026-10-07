@@ -54,6 +54,7 @@ export class GitLabSession {
   private cachedClient?: GitLabClient;
   private clientCheck?: Promise<GitLabClient>;
   private connectionAbort = new AbortController();
+  private currentUserIdValue?: number;
   private currentMetadata?: GitLabMetadata;
   private currentIssueCapabilities?: GitLabIssueCapabilities;
   private currentInstanceWarnings: string[] = [];
@@ -238,9 +239,12 @@ export class GitLabSession {
         this.currentIssueCapabilities = capabilities;
         this.capabilityProbeError = undefined;
         this.capabilitiesRetryAt = 0;
-        if (cacheScope && isCachedIssueCapabilities({ scope: cacheScope, expiresAt: Date.now() + ISSUE_CAPABILITIES_CACHE_TTL_MS, capabilities })) {
-          const snapshot: CachedIssueCapabilities = { scope: cacheScope, expiresAt: Date.now() + ISSUE_CAPABILITIES_CACHE_TTL_MS, capabilities };
-          try { await this.state.update(ISSUE_CAPABILITIES_CACHE_KEY, snapshot); } catch { /* capability detection remains usable when persistence is unavailable */ }
+        const currentCacheScope = this.capabilityCacheScope();
+        if (currentCacheScope) {
+          const snapshot: CachedIssueCapabilities = { scope: currentCacheScope, expiresAt: Date.now() + ISSUE_CAPABILITIES_CACHE_TTL_MS, capabilities };
+          if (isCachedIssueCapabilities(snapshot)) {
+            try { await this.state.update(ISSUE_CAPABILITIES_CACHE_KEY, snapshot); } catch { /* capability detection remains usable when persistence is unavailable */ }
+          }
         }
       } catch (error) {
         if (epoch === this.connectionEpochValue && revision === this.instanceProbeRevision) {
@@ -256,7 +260,7 @@ export class GitLabSession {
   private capabilityCacheScope(): string | undefined {
     const baseUrl = this.baseUrl;
     const metadata = this.currentMetadata;
-    const currentUserId = this.state.get<number>(CURRENT_USER_ID_KEY);
+    const currentUserId = this.currentUserIdValue ?? this.state.get<number>(CURRENT_USER_ID_KEY);
     if (!baseUrl || !metadata?.version || !Number.isSafeInteger(currentUserId) || (currentUserId ?? 0) <= 0) return undefined;
     return JSON.stringify([
       baseUrl,
@@ -337,6 +341,7 @@ export class GitLabSession {
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
     try {
+      this.currentUserIdValue = user.id;
       await this.secrets.store(TOKEN_SECRET_KEY, token);
       if (attempt !== this.connectionAttempt) throw staleConnectionError();
       await this.state.update(BASE_URL_KEY, normalizedUrl);
@@ -370,6 +375,7 @@ export class GitLabSession {
     this.currentMetadata = undefined;
     this.currentIssueCapabilities = undefined;
     this.currentInstanceWarnings = [];
+    this.currentUserIdValue = undefined;
     this.metadataCheck = undefined;
     this.capabilitiesCheck = undefined;
     this.metadataRetryAt = 0;

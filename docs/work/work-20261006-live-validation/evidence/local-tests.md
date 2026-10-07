@@ -1,14 +1,9 @@
-# 本機驗證與最終封裝
+# 本機驗證與封裝
 
-完整 `npm test` 結束碼為 0：
+完整 `npm test` 結束碼為 0：153 個單元測試、22 個 Webview 行為測試、Issue 30 個 Cucumber 情境／140 步、連線 10 個情境／35 步，以及 release／工具安裝器／Workflow Kit／Group Workflow／Megin 與 Merge Reviewer 測試通過。Extension Host 測試有 6 項通過、2 項因未提供 GitLab 憑證而 BLOCKED。新增的負載規劃、benchmark comparison、重跑去重和清理邊界 8 項 Node 測試另行通過。
 
-- 152 個單元測試及 22 個 Webview 行為測試通過。
-- Issue 30 個 Cucumber 情境／140 步、連線 10 個情境／35 步通過，共 40 情境／175 步。
-- 發行政策 Node 測試 10 項、工具安裝器 18 項、Workflow kit 安裝器 8 項、Group Workflow 安裝 smoke 1 項、Megin／Group hardening 88 項及 Merge Reviewer 8 項通過。
-- Extension Host 6 項通過，兩個需要有效即時 GitLab 憑證的情境為 pending。測試 CLI 無法從網路下載 VS Code，使用快取的 1.139.0；另以 VS Code 1.140.0 重跑封裝版本機 Git GUI，7 項通過、即時 GitLab 情境 1 項 pending。
+`npm run typecheck:webview`、TypeScript 編譯、`npm run benchmark:performance`、`npm run verify:package` 均通過。完整測試使用快取的 VS Code 1.139.0；網路封鎖使測試套件無法下載 VS Code 1.90.0。修正版封裝版由本機 VS Code 1.140.0 Extension Host 載入，離線 Git GUI 7 項通過；真實 GitLab 情境 1 項因缺少 Token 而 BLOCKED。這個實測驗證了功能操作，但 Commit／Push 原生 modal 使用測試介面代答，不能視為原生確認流程通過。
 
-最終 `dist/gitlab-workspace-0.13.2.vsix` 為 5,020,513 bytes，SHA-256 `f0ed4bdf59629afab890f71f2909f1eaf0f6a2a77f05f68b67a52ef1a5452693`。同版 `dist/gitlab-workspace-kit-0.13.2.zip` 為 8,012,277 bytes，SHA-256 `d7665b4ed5894ffdac2ecc2779dc8c09e3b2ce870d1399c5f3c408bb5e26393d`；工作流程 tar.xz SHA-256 為 `897dd1bf3e92731d2bb46cba20b7e7e5418b4f7a092469f4bac2684bdff7a935`。`npm run verify:package` 通過，兩個 release payload 與 `dist/SHA256SUMS` 相符。
+離線 Git GUI 報告的操作狀態為 PASS；VS Code Git extension 在 profile 中建立的 askpass 檔案被目前沙箱拒絕刪除，cleanup 狀態另列 BLOCKED。隔離 Git seed／bare Repo 已清除，profile 目錄仍有該 run 的單一檔案。沒有 GitLab Token 寫入報告。
 
-這份最終 VSIX 由 VS Code 1.140.0 實際載入完成本機 bare Repo Git GUI，冷啟動至 CDP 為 564.70 ms，Git Repo 延遲探索為 3,648.37 ms。這是單次觀察，不代表 p95。相同 SHA 的 Workbench 原生 Commit／Push 確認流程已重跑；因找不到可見的 Commit modal 按鈕而列為 BLOCKED。兩個 GitLab 環境因程序環境沒有 Token，最終封裝版 live 測試未執行。
-
-隔離的本機 Git GUI Repo 在 runner 結束後已清除；VS Code profile 因沙箱 `EPERM` 未能自動移除，之後以 run ID 核對直接子目錄並清除。沒有將 GitLab 認證存入測試證據。
+目前 VSIX 為 `dist/gitlab-workspace-0.13.2.vsix`，SHA-256 `449fe8650e11fea663f033825d77c49ba3da033b3e13fecfc2059c423ff6fc35`。工作流程 ZIP SHA-256 為 `d7665b4ed5894ffdac2ecc2779dc8c09e3b2ce870d1399c5f3c408bb5e26393d`，workflow kit tar.xz SHA-256 為 `897dd1bf3e92731d2bb46cba20b7e7e5418b4f7a092469f4bac2684bdff7a935`。封裝目錄已排除 `.gitlab-workspace-validation/`，不會把本機基線或 live fixture 打進 VSIX。

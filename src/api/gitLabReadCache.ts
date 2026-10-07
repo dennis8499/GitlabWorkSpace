@@ -116,7 +116,10 @@ export class GitLabReadCache {
         active = false;
         signal?.removeEventListener('abort', onAbort);
         pending.subscribers--;
-        if (cancelled && pending.subscribers === 0 && !pending.settled) pending.controller.abort();
+        if (cancelled && pending.subscribers === 0 && !pending.settled) {
+          pending.invalidated = true;
+          pending.controller.abort();
+        }
       };
       const onAbort = (): void => { finish(true); reject(abortedReadError()); };
       if (signal?.aborted) { onAbort(); return; }

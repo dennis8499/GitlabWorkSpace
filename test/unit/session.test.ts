@@ -18,6 +18,19 @@ class MemoryStore implements Memento {
   setKeysForSync(): void {}
 }
 
+class DelayedIdentityStore extends MemoryStore {
+  private hideIdentity = false;
+  override get<T>(key: string, defaultValue?: T): T | undefined {
+    if (this.hideIdentity && key === 'gitlabWorkspace.currentUserId') return defaultValue;
+    return super.get<T>(key, defaultValue);
+  }
+  override async update(key: string, value: unknown): Promise<void> {
+    await super.update(key, value);
+    if (key === 'gitlabWorkspace.currentUserId' && value !== undefined) this.hideIdentity = true;
+  }
+  revealIdentity(): void { this.hideIdentity = false; }
+}
+
 class MemorySecrets {
   readonly values = new Map<string, string>();
   async get(key: string): Promise<string | undefined> { return this.values.get(key); }
@@ -173,6 +186,78 @@ test('persists validated capabilities for one hour per GitLab account and instan
     await createSession().ensureInstanceChecked();
     assert.equal(capabilityRequests, 5, 'snapshots expire after one hour');
   } finally { Date.now = originalNow; }
+});
+
+test('scopes an in-flight capability probe to the account that becomes available before the probe completes', async () => {
+  const state = new MemoryStore();
+  await state.update('gitlabWorkspace.baseUrl', 'https://gitlab.example.test');
+  const capabilities: GitLabIssueCapabilities = {
+    hierarchy: false, childMutations: false, graphWorkItems: false, graphHierarchy: false, graphLinkedItems: false,
+    graphLabels: false, graphAssignees: false, graphWorkItemTypes: false, discussionResolve: false, startDate: false,
+    timelogReport: false, timelogCreate: false, timelogCreateDated: false, timelogCreateSummary: false,
+    timelogAdminPermission: false, timelogDelete: false, createPermission: false
+  };
+  let releaseCapabilities!: (value: GitLabIssueCapabilities) => void;
+  const pendingCapabilities = new Promise<GitLabIssueCapabilities>((resolve) => { releaseCapabilities = resolve; });
+  let notifyProbeStarted!: () => void;
+  const probeStarted = new Promise<void>((resolve) => { notifyProbeStarted = resolve; });
+  let capabilityRequests = 0;
+  const client = {
+    getMetadata: async () => ({ version: '19.4.1', revision: 'revision-a', enterprise: false }),
+    getIssueCapabilities: () => { capabilityRequests++; notifyProbeStarted(); return pendingCapabilities; }
+  } as unknown as GitLabClient;
+  const createSession = (): GitLabSession => {
+    const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, state);
+    (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => client;
+    return session;
+  };
+
+  const firstSession = createSession();
+  const checking = firstSession.ensureInstanceChecked();
+  await probeStarted;
+  await state.update('gitlabWorkspace.currentUserId', 35);
+  releaseCapabilities(capabilities);
+  await checking;
+
+  const snapshot = state.get<{ scope: string }>('gitlabWorkspace.issueCapabilities.v1');
+  assert.equal(snapshot?.scope, JSON.stringify(['https://gitlab.example.test', 35, '19.4.1', 'revision-a', false]));
+  await createSession().ensureInstanceChecked();
+  assert.equal(capabilityRequests, 1, 'the completed probe is reused for the now-known account');
+});
+
+test('persists a live capability probe when global state briefly lags the authenticated account', async () => {
+  const state = new DelayedIdentityStore();
+  const secrets = new MemorySecrets();
+  const capabilities: GitLabIssueCapabilities = {
+    workItemScope: 'project', workItemCreatePathField: 'projectPath', issuePermissionSource: 'issue',
+    issuePermissionFields: ['updateIssue', 'createNote'], workItemPermissionFields: [], workItemFields: [], workItemGraphFields: [],
+    hierarchy: false, childMutations: false, graphWorkItems: false, graphHierarchy: false, graphLinkedItems: false,
+    graphLabels: false, graphAssignees: false, graphWorkItemTypes: false, discussionResolve: false, startDate: false,
+    timelogReport: false, timelogSource: 'issue', timelogUserFields: ['username'], timelogCreate: false,
+    timelogCreateDated: false, timelogCreateSummary: false, timelogAdminPermission: false, timelogDelete: false, createPermission: false
+  };
+  let capabilityRequests = 0;
+  const client = {
+    getMetadata: async () => ({ version: '19.4.1', revision: 'revision-a', enterprise: false }),
+    getIssueCapabilities: async () => { capabilityRequests++; return capabilities; }
+  } as unknown as GitLabClient;
+  const session = new GitLabSession(secrets as unknown as SecretStorage, state, true);
+  session.setFetchForTesting(async () => new Response(JSON.stringify({ id: 35, username: 'validation-user' }), {
+    status: 200, headers: { 'Content-Type': 'application/json' }
+  }));
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => client;
+
+  const user = await session.connect('https://gitlab.example.test', 'test-only-token');
+  assert.equal(user.id, 35);
+  assert.equal(state.get<number>('gitlabWorkspace.currentUserId'), undefined, 'the test store simulates a temporarily stale Memento read');
+  const snapshot = state.get<{ scope: string }>('gitlabWorkspace.issueCapabilities.v1');
+  assert.equal(snapshot?.scope, JSON.stringify(['https://gitlab.example.test', 35, '19.4.1', 'revision-a', false]));
+
+  state.revealIdentity();
+  const nextSession = new GitLabSession(secrets as unknown as SecretStorage, state);
+  (nextSession as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => client;
+  await nextSession.ensureInstanceChecked();
+  assert.equal(capabilityRequests, 1, 'the validated snapshot is reused once the account ID is visible');
 });
 
 test('discards version and capability probe results from an earlier connection epoch', async () => {

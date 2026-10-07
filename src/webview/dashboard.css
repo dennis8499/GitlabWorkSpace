@@ -57,6 +57,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .issue-embed { flex: 1; min-width: 0; min-height: 0; width: 100%; }
 .page pre { max-width: 100%; overflow: auto; }
 .workspace-tasks { display: flex; min-height: min-content; flex: 1 0 auto; flex-direction: column; }
+.git-mode-host { display: flex; min-width: 0; min-height: 0; flex: 1 1 auto; }
+.git-mode-host[hidden] { display: none !important; }
 .issue-workspace-layout { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 14px; min-width: 0; }
 .issue-list-panel { display: flex; min-width: 0; max-height: calc(100dvh - 180px); flex-direction: column; gap: 8px; overflow: auto; border: 1px solid var(--border); border-radius: 7px; padding: 10px; background: var(--surface); }
 .issue-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

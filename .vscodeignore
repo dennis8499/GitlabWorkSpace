@@ -1,5 +1,6 @@
 .gitignore
 .github/**
+.gitlab-workspace-validation/**
 scripts/**
 .vscode/**
 .vscode-test/**

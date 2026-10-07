@@ -1,0 +1,181 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T05:25:25.126Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7bdd679ee357019a91301079b2f82d29e27914d4ef6933a787876361f5b86176"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "revision-live",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 2,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 3,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 4,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 5,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 6,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 7,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 8,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 9,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce19",
+      "round": 10,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 1,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 2,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 3,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 4,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 5,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 6,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 7,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 8,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 9,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    },
+    {
+      "environment": "ce16",
+      "round": 10,
+      "status": "FAIL",
+      "error": "The fixture Group path or workspace does not match this exact environment and run."
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "navigationApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    },
+    {
+      "environment": "ce16",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "navigationApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    }
+  ],
+  "status": "FAIL"
+}

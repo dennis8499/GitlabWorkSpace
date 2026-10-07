@@ -1,0 +1,45 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T04:27:50.638Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "cce4471e612f5e70bcf677463e53be880b8082991c3cf6d6c61631583a7b3cd6"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "revision-probe",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "FAIL",
+      "error": "GitLab's live capability probe was cached under its instance and account scope ({\"metadata\":{\"version\":\"19.4.1\",\"revision\":\"191678a3764\",\"kas\":{\"enabled\":true,\"externalUrl\":\"ws://127.0.0.1:/-/kubernetes-agent/\",\"externalK8sProxyUrl\":\"http://127.0.0.1:8929/-/kubernetes-agent/k8s-proxy/\",\"version\":\"19.4.1\"},\"enterprise\":false}})\n+ actual - expected\n\n+ undefined\n- '[\"http://127.0.0.1:8929\",35,\"19.4.1\",\"191678a3764\",false]'\n"
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    }
+  ],
+  "status": "FAIL"
+}

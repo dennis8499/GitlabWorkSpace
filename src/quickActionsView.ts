@@ -51,6 +51,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   }
 
   refresh(): void {
+    if (!this.view?.visible) return;
     this.errorMessage = undefined;
     this.sendState();
   }

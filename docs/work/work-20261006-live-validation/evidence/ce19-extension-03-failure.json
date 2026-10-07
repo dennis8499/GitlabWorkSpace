@@ -1,0 +1,14 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-07T07:44:24.131Z",
+  "environment": "ce19",
+  "baseUrl": "http://127.0.0.1:8929",
+  "expectedGitLabVersion": "19.4.1",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "cf5282c1e15529b119729a4dcbc9a68f473b7790170a1f9b938a7a06b166fd01"
+  },
+  "status": "FAIL",
+  "error": "Webview element .tool-drawer did not become visible. (\n    GWGitLab WorkspaceGroupdotnetgrp-sn-maint/gitlab-workspace-live-validationgrp-sn-maint/performance-20261007-acceptancegrp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-62grp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-65grp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-67grp-sn-maint/gitlab-workspace-live-validation/demogrp-sn-maint設定Dennis.Liu　⌄http://127.0.0.1:8929中斷連線        Issue正在載入 Issue…重試grp-sn-maint/performance-20261007-acceptance專案查看詳情更新資料⌕20 個 Repo全選grp-sn-maint/performance-20261007-acceptance/load-20261007-acceptance-20預設分支：main　·　本機：尚未 Clone尚未 Clonegrp-sn-maint/performance-20261007-acceptance/load-202610)"
+}

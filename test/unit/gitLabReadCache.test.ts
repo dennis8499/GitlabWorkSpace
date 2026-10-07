@@ -57,6 +57,33 @@ test('coalesces shared reads and cancels the underlying request only after its f
   assert.equal(aborts, 1);
 });
 
+test('starts a fresh read when the final subscriber cancels and ignores the old response', async () => {
+  const cache = new GitLabReadCache();
+  let calls = 0;
+  let finishStale!: (value: string) => void;
+  const loader = (signal: AbortSignal): Promise<string> => {
+    calls++;
+    if (calls === 1) {
+      // Model a transport that completes after its consumer has already cancelled.
+      return new Promise((resolve) => { finishStale = resolve; });
+    }
+    return Promise.resolve('fresh-data');
+  };
+  const controller = new AbortController();
+  const cancelled = cache.get('issue-list', loader, { signal: controller.signal });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  controller.abort();
+  await assert.rejects(cancelled, { name: 'AbortError' });
+
+  assert.equal(await cache.get('issue-list', loader), 'fresh-data');
+  finishStale('stale-data');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.equal(await cache.get('issue-list', loader), 'fresh-data');
+  assert.equal(calls, 2, 'the stale response neither overwrites the new value nor starts another read');
+});
+
 test('successful writes invalidate cached reads without interrupting existing subscribers', async () => {
   const cache = new GitLabReadCache();
   let loads = 0;

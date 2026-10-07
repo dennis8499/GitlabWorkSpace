@@ -2,14 +2,17 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, copyFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import net from 'node:net';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runTests } from '@vscode/test-electron';
 import { fileURLToPath } from 'node:url';
+import { compareLiveBenchmarks } from './live-benchmark-comparison.mjs';
+import { sameFilesystemPath } from './live-test-paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const STATE = path.resolve(ROOT, '..', '.gitlab-workspace-validation');
+const STATE = path.join(ROOT, '.gitlab-workspace-validation');
 const EVIDENCE = path.join(ROOT, 'docs', 'work', 'work-20261006-live-validation', 'evidence');
-const TEST_PROFILE_ROOT = path.join(ROOT, '.vscode-test');
+const TEST_PROFILE_ROOT = path.join(tmpdir(), 'gitlab-workspace-vscode-test');
 const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const ENVS = {
   ce19: { url: 'http://127.0.0.1:8929', tokenName: 'GLW_CE19_TOKEN', group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9341 },
@@ -76,11 +79,11 @@ async function waitForCdpClosed(port, timeoutMs = 10_000) {
   return false;
 }
 
-function preparePackagedExtension() {
-  const vsix = path.join(ROOT, 'dist', `${PACKAGE.name}-${PACKAGE.version}.vsix`);
+function preparePackagedExtension(overridePath) {
+  const vsix = overridePath ? path.resolve(overridePath) : path.join(ROOT, 'dist', `${PACKAGE.name}-${PACKAGE.version}.vsix`);
   if (!existsSync(vsix)) throw new Error(`Build ${path.relative(ROOT, vsix)} before running live Extension Host tests.`);
   const digest = createHash('sha256').update(readFileSync(vsix)).digest('hex');
-  const unpackRoot = path.join(ROOT, '.vscode-test', `live-vsix-${PACKAGE.version}-${digest.slice(0, 12)}-${process.pid}`);
+  const unpackRoot = path.join(TEST_PROFILE_ROOT, `live-vsix-${PACKAGE.version}-${digest.slice(0, 12)}-${process.pid}`);
   const extensionPath = path.join(unpackRoot, 'extension');
   const zipCopy = path.join(unpackRoot, 'package.zip');
   mkdirSync(unpackRoot, { recursive: true });
@@ -110,6 +113,17 @@ function safeError(error) {
   }, error instanceof Error ? error.message : 'Live Extension Host validation failed.');
 }
 
+function classifyLiveStatus(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /timed out|fetch failed|ECONNREFUSED|network error|set GLW_CE(?:16|19)_TOKEN|no (?:demo|load) fixture manifest|fixture manifest.*does not match/i.test(message)
+    ? 'BLOCKED' : 'FAIL';
+}
+
+function percentile(values, fraction) {
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : null;
+}
+
 function removeOwnedTestDirectory(target) {
   const resolved = path.resolve(target);
   const relative = path.relative(TEST_PROFILE_ROOT, resolved);
@@ -117,22 +131,56 @@ function removeOwnedTestDirectory(target) {
   if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !/^(live-|extensions-)/.test(name)) {
     throw new Error('Refusing to remove a path outside this run’s isolated VS Code test directories.');
   }
-  rmSync(resolved, { recursive: true, force: true });
+  try {
+    rmSync(resolved, { recursive: true, force: true });
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error?.code)) throw error;
+    const principal = execFileSync('whoami', [], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim();
+    if (!/^[\w.-]+\\[\w.$-]+$/.test(principal)) throw error;
+    execFileSync('icacls', [resolved, '/grant', `${principal}:(OI)(CI)F`, '/T', '/C'], { stdio: 'ignore', windowsHide: true });
+    rmSync(resolved, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
+  }
 }
 
 async function runOne(key, round, args, executable, packageInfo) {
   const config = ENVS[key];
   const token = process.env[config.tokenName];
   if (!token) throw new Error(`Set ${config.tokenName} in the parent process environment before running live tests.`);
-  const checkoutRoot = path.join(STATE, 'workspaces', key, 'demo');
-  const fixtureManifest = path.join(STATE, 'runs', 'demo', `${key}-retained.json`);
-  try { readFileSync(fixtureManifest); }
-  catch { throw new Error(`Run setup-demo for ${key} first; the retained demonstration Repo workspaces are missing.`); }
+  const demo = args.fixture === 'demo';
+  const fixtureManifest = path.join(STATE, 'runs', demo ? 'demo' : args.runId, `${key}-${demo ? 'retained' : 'load'}.json`);
+  let manifest;
+  try { manifest = JSON.parse(readFileSync(fixtureManifest, 'utf8')); }
+  catch { throw new Error(`No ${args.fixture} fixture manifest exists for ${key}; prepare it with scripts/live-validation.mjs first.`); }
+  if (manifest.environment !== key || (args.fixture === 'load' && (manifest.runId !== args.runId || manifest.schema !== 'GitLabWorkspaceLiveFixture/v2'))) {
+    throw new Error(`The ${args.fixture} fixture manifest for ${key} does not match this run.`);
+  }
+  const expectedGroupPath = demo ? config.group : `grp-sn-maint/performance-${args.runId}`;
+  const expectedWorkspace = path.resolve(STATE, 'workspaces', key, ...(demo ? ['demo'] : [args.runId, 'performance']));
+  const checkoutRoot = path.resolve(manifest.checkoutRoot ?? path.join(STATE, 'workspaces', key, 'demo'));
+  if (!sameFilesystemPath(checkoutRoot, expectedWorkspace) || manifest.group?.fullPath !== expectedGroupPath) {
+    throw new Error('The fixture Group path or workspace does not match this exact environment and run.');
+  }
+  const expectedProjectCount = demo ? 3 : 20;
+  if (manifest.resources?.projects?.length !== expectedProjectCount || (args.fixture === 'load' &&
+    JSON.stringify(manifest.targetCounts) !== JSON.stringify({ projects: 20, issues: 500, mergeRequests: 50, graphNodes: 200 }))) {
+    throw new Error(`The ${args.fixture} manifest does not contain its exact expected fixture inventory.`);
+  }
   const profileId = `${key}-${round}-${process.pid}-${Date.now()}`;
-  const userData = path.join(ROOT, '.vscode-test', `live-${profileId}`);
-  const extensions = path.join(ROOT, '.vscode-test', `extensions-${profileId}`);
+  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
+  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
   mkdirSync(userData, { recursive: true });
   mkdirSync(extensions, { recursive: true });
+  const settingsDirectory = path.join(userData, 'User');
+  mkdirSync(settingsDirectory, { recursive: true });
+  writeFileSync(path.join(settingsDirectory, 'settings.json'), JSON.stringify({
+    'git.enabled': true,
+    'git.autoRepositoryDetection': true,
+    'git.openRepositoryInParentFolders': 'never',
+    'git.useIntegratedAskPass': false,
+    'extensions.autoCheckUpdates': false,
+    'update.mode': 'none',
+    'workbench.startupEditor': 'none'
+  }, null, 2));
   mkdirSync(EVIDENCE, { recursive: true });
   const port = await freePort(config.port);
   const reportFile = path.join(EVIDENCE, `${key}-extension-${String(round).padStart(2, '0')}.json`);
@@ -141,12 +189,17 @@ async function runOne(key, round, args, executable, packageInfo) {
     GLW_LIVE_ENVIRONMENT: key,
     GLW_LIVE_BASE_URL: config.url,
     GLW_LIVE_TOKEN: token,
-    GLW_LIVE_GROUP_PATH: config.group,
+    GLW_LIVE_MANIFEST: fixtureManifest,
+    GLW_LIVE_GROUP_PATH: manifest.group?.fullPath ?? config.group,
+    GLW_LIVE_FIXTURE: args.fixture,
+    GLW_LIVE_RUN_ID: args.runId,
+    GLW_LIVE_COLD_STARTED_AT: String(Date.now()),
     GLW_LIVE_WORKSPACE_ROOT: checkoutRoot,
     GLW_LIVE_CDP_PORT: String(port),
     GLW_LIVE_REPORT: reportFile,
     GLW_LIVE_GIT_GUI: args.gitGui ? '1' : '0',
     GLW_LIVE_BENCHMARK: args.benchmark ? '1' : '0',
+    GLW_LIVE_BENCHMARK_BASELINE: args.baseline ? '1' : '0',
     GLW_LIVE_ROUND: String(round),
     GLW_LIVE_EXPECTED_VERSION: PACKAGE.version,
     GLW_LIVE_VSIX: packageInfo.vsix,
@@ -164,7 +217,7 @@ async function runOne(key, round, args, executable, packageInfo) {
   try {
     const [coldResult] = await Promise.all([cold, launch]);
     const report = readTestReport(reportFile);
-    return { ...report, coldStartMs: coldResult.startedMs, cdpBrowser: coldResult.details.Browser };
+    return { ...report, coldStartToCdpMs: coldResult.startedMs, cdpBrowser: coldResult.details.Browser };
   } catch (error) {
     let recorded;
     try { recorded = JSON.parse(readFileSync(reportFile, 'utf8')); } catch { recorded = undefined; }
@@ -179,6 +232,8 @@ async function runOne(key, round, args, executable, packageInfo) {
     writeFileSync(path.join(EVIDENCE, `${key}-extension-${String(round).padStart(2, '0')}-failure.json`), `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
     throw new Error(message);
   } finally {
+    const cdpClosed = await waitForCdpClosed(port, 15_000);
+    if (!cdpClosed) throw new Error(`VS Code is still serving CDP on port ${port}; preserving its isolated test profile.`);
     removeOwnedTestDirectory(userData);
     removeOwnedTestDirectory(extensions);
   }
@@ -186,14 +241,20 @@ async function runOne(key, round, args, executable, packageInfo) {
 
 function createLocalGitGuiFixture() {
   const fixtureParent = path.join(STATE, 'workspaces', 'local-git-gui');
-  const source = path.join(STATE, 'workspaces', 'ce19', 'demo', 'service');
-  if (!existsSync(path.join(source, '.git'))) {
-    throw new Error('The retained CE 19 demonstration service checkout is required to seed the isolated local Git GUI fixture.');
-  }
   const fixtureRoot = path.join(fixtureParent, `run-${Date.now()}-${process.pid}`);
+  const source = path.join(fixtureRoot, 'seed', 'service');
   const workspaceRoot = path.join(fixtureRoot, 'demo');
   const repository = path.join(workspaceRoot, 'service');
   const bareRemote = path.join(fixtureRoot, 'remote', 'service.git');
+  mkdirSync(source, { recursive: true });
+  execFileSync('git', ['init', '-b', 'main'], { cwd: source, stdio: 'ignore', windowsHide: true });
+  execFileSync('git', ['config', 'user.name', 'GitLab Workspace Validation'], { cwd: source, stdio: 'ignore', windowsHide: true });
+  execFileSync('git', ['config', 'user.email', 'gitlab-workspace-validation@localhost'], { cwd: source, stdio: 'ignore', windowsHide: true });
+  execFileSync('git', ['config', 'commit.gpgSign', 'false'], { cwd: source, stdio: 'ignore', windowsHide: true });
+  writeFileSync(path.join(source, 'README.md'), '# Isolated Git GUI validation fixture\n', 'utf8');
+  writeFileSync(path.join(source, 'service.ts'), 'export const health = () => ({ ok: true });\n', 'utf8');
+  execFileSync('git', ['add', 'README.md', 'service.ts'], { cwd: source, stdio: 'ignore', windowsHide: true });
+  execFileSync('git', ['commit', '-m', 'Add minimal validation fixture'], { cwd: source, stdio: 'ignore', windowsHide: true });
   mkdirSync(path.dirname(repository), { recursive: true });
   mkdirSync(path.dirname(bareRemote), { recursive: true });
   execFileSync('git', ['clone', '--bare', '--no-hardlinks', source, bareRemote], { stdio: 'ignore', windowsHide: true });
@@ -217,8 +278,8 @@ function removeOwnedLocalGitGuiFixture(target) {
 async function runLocalGitGui(executable, packageInfo, nativeConfirmation = false) {
   const fixture = createLocalGitGuiFixture();
   const profileId = `local-git-gui-${process.pid}-${Date.now()}`;
-  const userData = path.join(ROOT, '.vscode-test', `live-${profileId}`);
-  const extensions = path.join(ROOT, '.vscode-test', `extensions-${profileId}`);
+  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
+  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
   const port = await freePort(9343);
   const reportFile = path.join(EVIDENCE, nativeConfirmation ? 'git-gui-local-native.json' : 'git-gui-local.json');
   mkdirSync(userData, { recursive: true });
@@ -228,7 +289,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   writeFileSync(path.join(settingsDirectory, 'settings.json'), JSON.stringify({
     'git.enabled': true,
     'git.autoRepositoryDetection': true,
-    'git.openRepositoryInParentFolders': 'always',
+    'git.openRepositoryInParentFolders': 'never',
     'git.useIntegratedAskPass': false,
     'extensions.autoCheckUpdates': false,
     'update.mode': 'none'
@@ -257,19 +318,20 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   try {
     const [cold] = await Promise.all([waitForCdp(port), launch]);
     const report = readTestReport(reportFile);
-    result = { ...report, sourceRepository: 'grp-sn-maint/gitlab-workspace-live-validation/demo/service', isolatedRemote: 'local bare Repo', coldStartMs: cold.startedMs };
+    result = { ...report, sourceRepository: 'isolated generated Git seed', isolatedRemote: 'local bare Repo', coldStartMs: cold.startedMs };
   } catch (error) {
     let recorded;
     try { recorded = JSON.parse(readFileSync(reportFile, 'utf8')); } catch { recorded = undefined; }
     const message = recorded?.error ?? (error instanceof Error ? error.message : 'Local Git GUI validation failed.');
     const failure = {
       ...recorded, schema: 'GitLabWorkspaceLocalGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
-      mode: 'local-only', status: 'FAIL', sourceRepository: 'grp-sn-maint/gitlab-workspace-live-validation/demo/service',
+      mode: 'local-only', status: 'FAIL', sourceRepository: 'isolated generated Git seed',
       testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 }, error: message
     };
     result = failure;
     writeFileSync(reportFile, `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
   } finally {
+    await waitForCdpClosed(port, 15_000);
     const cleanupErrors = [];
     for (const target of [userData, extensions]) {
       try { removeOwnedTestDirectory(target); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
@@ -286,8 +348,8 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
 async function runNativeGitGuiStandalone(executable, packageInfo) {
   const fixture = createLocalGitGuiFixture();
   const profileId = `native-git-gui-${process.pid}-${Date.now()}`;
-  const userData = path.join(ROOT, '.vscode-test', `live-${profileId}`);
-  const extensions = path.join(ROOT, '.vscode-test', `extensions-${profileId}`);
+  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
+  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
   const systemProfile = path.join(userData, 'system-profile');
   const appData = path.join(systemProfile, 'AppData', 'Roaming');
   const localAppData = path.join(systemProfile, 'AppData', 'Local');
@@ -303,7 +365,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
   writeFileSync(path.join(userData, 'User', 'settings.json'), JSON.stringify({
     'git.enabled': true,
     'git.autoRepositoryDetection': true,
-    'git.openRepositoryInParentFolders': 'always',
+    'git.openRepositoryInParentFolders': 'never',
     'git.useIntegratedAskPass': false,
     'security.workspace.trust.enabled': false,
     'extensions.autoCheckUpdates': false,
@@ -790,12 +852,35 @@ async function main() {
   const nativeConfirmation = process.argv.includes('--native-confirmation');
   if (nativeConfirmation && !localGitGui) throw new Error('--native-confirmation requires --local-git-gui.');
   const keys = localGitGui ? [] : environmentKeys();
-  const rounds = option('--rounds', process.argv.includes('--benchmark') ? '10' : '1');
+  const benchmark = process.argv.includes('--benchmark') || process.env.GLW_LIVE_BENCHMARK === '1';
+  const baseline = process.argv.includes('--baseline');
+  if (baseline && !benchmark) throw new Error('--baseline is only supported in benchmark mode.');
+  const fixture = option('--fixture', benchmark ? 'load' : 'demo');
+  if (!['demo', 'load'].includes(fixture)) throw new Error('Use --fixture demo or --fixture load.');
+  const label = option('--label', '');
+  if (label && !/^[a-z0-9][a-z0-9-]{0,31}$/.test(label)) throw new Error('--label may contain only 1–32 lowercase letters, digits, and hyphens.');
+  const runId = option('--run-id', process.env.GLW_RUN_ID ?? (fixture === 'demo' ? 'demo' : ''));
+  if (!/^[a-z0-9][a-z0-9-]{3,39}$/.test(runId)) throw new Error('Provide --run-id with 4–40 lowercase letters, digits, and hyphens for the selected fixture.');
+  const rounds = option('--rounds', benchmark ? '10' : '1');
   const roundCount = Number(rounds);
   if (!Number.isInteger(roundCount) || roundCount < 1 || roundCount > 10) throw new Error('Cold-start rounds must be 1–10.');
-  const args = { gitGui: process.argv.includes('--git-gui') || process.env.GLW_LIVE_GIT_GUI === '1', benchmark: process.argv.includes('--benchmark') || process.env.GLW_LIVE_BENCHMARK === '1' };
+  const args = { gitGui: process.argv.includes('--git-gui') || process.env.GLW_LIVE_GIT_GUI === '1', benchmark, baseline, fixture, runId };
+  const comparisonPath = option('--compare-with', undefined);
+  let baselineReport;
+  if (comparisonPath) {
+    if (!benchmark) throw new Error('--compare-with is only supported in benchmark mode.');
+    const baselinePath = path.resolve(comparisonPath);
+    const baselineRelative = path.relative(EVIDENCE, baselinePath);
+    if (!baselineRelative || baselineRelative.startsWith(`..${path.sep}`) || path.isAbsolute(baselineRelative)) {
+      throw new Error('--compare-with must point to a report inside this work’s evidence directory.');
+    }
+    baselineReport = JSON.parse(readFileSync(baselinePath, 'utf8'));
+    if (baselineReport.schema !== 'GitLabWorkspaceLiveVerification/v1' || baselineReport.mode !== 'benchmark') {
+      throw new Error('--compare-with must reference a completed live benchmark report.');
+    }
+  }
   const executable = verifyVsCodeExecutable();
-  const packageInfo = preparePackagedExtension();
+  const packageInfo = preparePackagedExtension(option('--vsix', undefined));
   const artifactEvidence = { vsix: packageInfo.vsix, sha256: packageInfo.sha256 };
   if (localGitGui) {
     try {
@@ -818,7 +903,7 @@ async function main() {
       try { results.push(await runOne(key, round, args, executable, packageInfo)); }
       catch (error) {
         const message = safeError(error);
-        const status = /timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL';
+        const status = classifyLiveStatus(error);
         failures.push({ environment: key, round, status, error: message });
         if (status === 'BLOCKED') break;
       }
@@ -827,12 +912,50 @@ async function main() {
   const summary = {
     schema: 'GitLabWorkspaceLiveVerification/v1', generatedAt: new Date().toISOString(),
     vscodeVersion: '1.140.0', testedArtifact: artifactEvidence,
-    mode: args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke',
-    environments: results, failures
+    mode: args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke', fixture: args.fixture, runId: args.runId,
+    ...(label ? { label } : {}),
+    environments: results, failures,
+    ...(args.benchmark ? { performance: keys.map((environment) => {
+      const samples = results.filter((result) => result.environment === environment);
+      const warmNavigation = samples.flatMap((sample) => sample.warmNavigationMs?.samples ?? []);
+      const localSearch = samples.flatMap((sample) => sample.localRepoSearchMs?.samples ?? []);
+      const localSearchApiRequests = samples.reduce((sum, sample) => sum + (Number(sample.localSearchApiRequests) || 0), 0);
+      const navigationApiRequests = samples.reduce((sum, sample) => sum + (Number(sample.navigationApiRequests) || 0), 0);
+      const coldReady = samples.map((sample) => sample.coldInteractiveReadyMs).filter(Number.isFinite);
+      const warmP95Ms = percentile(warmNavigation, 0.95);
+      const localSearchP95Ms = percentile(localSearch, 0.95);
+      const narrowLayoutFailure = !args.baseline && samples.some((sample) => sample.narrowLayout && sample.narrowLayout.content > sample.narrowLayout.viewport + 1);
+      const apiMetrics = samples.flatMap((sample) => sample.api ?? []);
+      const operationCounts = samples.map((sample) => sample.operationCounts ?? { available: false });
+      const operationMetricsAvailable = operationCounts.every((counts) => counts.available !== false &&
+        Number.isFinite(Number(counts.gitCommands)) && Number.isFinite(Number(counts.webviewMessages?.sent)) && Number.isFinite(Number(counts.webviewMessages?.received)));
+      const status = failures.some((failure) => failure.environment === environment && failure.status === 'FAIL') ? 'FAIL' :
+        failures.some((failure) => failure.environment === environment) || samples.length !== roundCount ? 'BLOCKED' :
+          warmP95Ms > 1_000 || localSearchP95Ms > 100 || localSearchApiRequests > 0 || narrowLayoutFailure ? 'FAIL' : 'PASS';
+      return { environment, status, coldSessions: samples.length, coldInteractiveReadyMs: coldReady,
+        warmOperations: warmNavigation.length, warmNavigationP95Ms: warmP95Ms, warmNavigationLimitMs: 1_000,
+        localSearchSamples: localSearch.length, localSearchP95Ms, localSearchLimitMs: 100, localSearchApiRequests,
+        navigationApiRequests,
+        narrowLayoutFailure,
+        apiRequests: apiMetrics.length,
+        apiResponseBytes: apiMetrics.reduce((sum, metric) => sum + (Number(metric.bytes) || 0), 0),
+        operationMetricsStatus: operationMetricsAvailable ? 'PASS' : 'UNSUPPORTED',
+        gitCommands: operationMetricsAvailable ? operationCounts.reduce((sum, counts) => sum + Number(counts.gitCommands), 0) : null,
+        webviewMessagesSent: operationMetricsAvailable ? operationCounts.reduce((sum, counts) => sum + Number(counts.webviewMessages.sent), 0) : null,
+        webviewMessagesReceived: operationMetricsAvailable ? operationCounts.reduce((sum, counts) => sum + Number(counts.webviewMessages.received), 0) : null };
+    }) } : {})
   };
-  const file = path.join(EVIDENCE, `${args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke'}.json`);
+  if (baselineReport) summary.baselineComparison = compareLiveBenchmarks(summary, baselineReport);
+  const summaryStatuses = [
+    ...failures.map((failure) => failure.status),
+    ...(summary.performance?.map((result) => result.status) ?? []),
+    ...(summary.baselineComparison ? [summary.baselineComparison.status] : [])
+  ];
+  summary.status = summaryStatuses.includes('FAIL') ? 'FAIL' : summaryStatuses.includes('BLOCKED') ? 'BLOCKED' : 'PASS';
+  const modeName = args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke';
+  const file = path.join(EVIDENCE, `${modeName}${label ? `-${label}` : ''}.json`);
   writeFileSync(file, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
-  process.stdout.write(`${JSON.stringify({ evidence: path.relative(ROOT, file), mode: summary.mode, testedArtifact: artifactEvidence, environments: results.map(({ environment, version, selectedGroup, projects, schemaBytes, coldStartMs, warmNavigationMs, gitGui }) => ({ environment, version, selectedGroup, projects, schemaBytes, coldStartMs, warmNavigationMs, gitGui })), failures }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ evidence: path.relative(ROOT, file), mode: summary.mode, testedArtifact: artifactEvidence, environments: results.map(({ environment, version, selectedGroup, projects, schemaBytes, coldStartToCdpMs, coldInteractiveReadyMs, warmNavigationMs, localRepoSearchMs, memory, gitGui }) => ({ environment, version, selectedGroup, projects, schemaBytes, coldStartToCdpMs, coldInteractiveReadyMs, warmNavigationMs, localRepoSearchMs, memory, gitGui })), performance: summary.performance, failures }, null, 2)}\n`);
   removeOwnedTestDirectory(packageInfo.unpackRoot);
   if (failures.length) process.exitCode = 1;
 }

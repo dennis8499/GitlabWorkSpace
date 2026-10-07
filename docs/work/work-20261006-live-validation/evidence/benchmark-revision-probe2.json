@@ -1,0 +1,45 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T04:30:01.765Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "cce4471e612f5e70bcf677463e53be880b8082991c3cf6d6c61631583a7b3cd6"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "revision-probe2",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "FAIL",
+      "error": "GitLab's live capability probe was cached under its instance and account scope ({\"metadata\":{\"version\":\"19.4.1\",\"revision\":\"191678a3764\",\"kas\":{\"enabled\":true,\"externalUrl\":\"ws://127.0.0.1:/-/kubernetes-agent/\",\"externalK8sProxyUrl\":\"http://127.0.0.1:8929/-/kubernetes-agent/k8s-proxy/\",\"version\":\"19.4.1\"},\"enterprise\":false},\"capabilities\":{\"workItemScope\":\"namespace\",\"workItemCreatePathField\":\"namespacePath\",\"issuePermissionFields\":[\"updateIssue\",\"adminIssue\",\"createNote\"],\"workItemPermissionFields\":[\"adminParentLink\",\"adminWorkItem\",\"adminWorkItemLink\",\"blockedWorkItems\",\"cloneWorkItem\",\"createNote\",\"deleteWorkItem\",\"markNoteAsInternal\",\"moveWorkItem\",\"readWorkItem\",\"reportSpam\",\"setWorkItemMetadata\",\"summarizeComments\",\"updateWorkItem\"],\"issuePermissionSource\":\"issue\",\"workItemFields\":[\"archived\",\"author\",\"availableQuickActions\",\"closedAt\",\"commentTemplatesPaths\",\"confidential\",\"createNoteEmail\",\"createdAt\",\"description\",\"descriptionHtml\",\"duoWorkflowLinks\",\"duplicatedToWorkItemUrl\",\"externalAuthor\",\"features\",\"hidden\",\"id\",\"iid\",\"imported\",\"lockVersion\",\"movedToWorkItemUrl\",\"name\",\"namespace\",\"project\",\"promotedToEpicUrl\",\"reference\",\"showPlanUpgradePromotion\",\"state\",\"title\",\"titleHtml\",\"updatedAt\",\"userDiscussionsCount\",\"userPermissions\",\"webPath\",\"webUrl\",\"widgets\",\"workItemType\"],\"workItemGraphFields\":[\"title\",\"name\",\"state\",\"webUrl\",\"namespace\",\"project\",\"workItemType\"],\"workItemTypeList\":true,\"hierarchy\":true,\"childMutations\":true,\"graphWorkItems\":true,\"graphHierarchy\":true,\"graphLinkedItems\":true,\"graphLabels\":true,\"graphAssignees\":true,\"graphWorkItemTypes\":true,\"discussionResolve\":true,\"startDate\":true,\"timelogReport\":true,\"timelogSource\":\"workItem\",\"timelogSummary\":true,\"timelogUserFields\":[\"id\",\"name\",\"username\"],\"timelogCreate\":true,\"timelogCreateDated\":true,\"timelogCreateSummary\":true,\"timelogAdminPermission\":true,\"timelogDelete\":true,\"createPermission\":true},\"diagnostics\":[{\"id\":\"permissions\",\"label\":\"Issue 權限與操作\",\"status\":\"supported\",\"source\":\"GraphQL\"},{\"id\":\"tasks\",\"label\":\"子任務\",\"status\":\"supported\",\"source\":\"GraphQL\"},{\"id\":\"discussionResolve\",\"label\":\"解決討論串\",\"status\":\"supported\",\"source\":\"GraphQL\"},{\"id\":\"startDate\",\"label\":\"Issue 開始日期\",\"status\":\"supported\",\"reason\":\"Schema 有此欄位；仍會依每個 Issue 類型的日期 Widget 確認是否可編輯。\",\"source\":\"GraphQL\"},{\"id\":\"timelogReport\",\"label\":\"個別工時紀錄\",\"status\":\"supported\",\"source\":\"GraphQL / REST\"},{\"id\":\"timelogCreateDated\",\"label\":\"指定日期登錄工時\",\"status\":\"supported\",\"source\":\"GraphQL\"},{\"id\":\"blockingLinks\",\"label\":\"阻擋關聯\",\"status\":\"unsupported\",\"reason\":\"GitLab Community Edition 不提供阻擋關聯。\",\"source\":\"REST\"},{\"id\":\"mergeRequestApprovals\",\"label\":\"Merge Request 核准\",\"status\":\"supported\",\"source\":\"REST\"}],\"graphql\":[{\"status\":200,\"elapsedMs\":5985.65}]})\n+ actual - expected\n\n+ undefined\n- '[\"http://127.0.0.1:8929\",35,\"19.4.1\",\"191678a3764\",false]'\n"
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    }
+  ],
+  "status": "FAIL"
+}

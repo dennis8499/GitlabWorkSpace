@@ -1,0 +1,14 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-07T05:51:07.318Z",
+  "environment": "ce19",
+  "baseUrl": "http://127.0.0.1:8929",
+  "expectedGitLabVersion": "19.4.1",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "0fde4cd5618008de320c65b2ad434bdafb12ec3bb037c10671576bae4f4f6b21"
+  },
+  "status": "FAIL",
+  "error": "Webview element .git-workbench did not become visible. (\n    GWGitLab WorkspaceGroupdotnetgrp-sn-maint/gitlab-workspace-live-validationgrp-sn-maint/performance-20261007-acceptancegrp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-62grp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-65grp-sn-maint/performance-work-20261006-livevalidation-deletion_scheduled-67grp-sn-maint/gitlab-workspace-live-validation/demogrp-sn-maint設定Dennis.Liu　⌄http://127.0.0.1:8929中斷連線        Issue正在載入 Issue…重試⑂VS Code 內建 Git 尚未啟用請先在擴充功能中啟用 Git，再重新開啟版控工作台。重新整理目前 VSCode 工作區無法對應所選 GitLab Group；請調整工作區 folders。\n  \n\n)"
+}

@@ -139,9 +139,11 @@ export class GitRepositoryService implements vscode.Disposable {
   private actionTraceHandler?: GitActionTraceHandler;
   private projectSource: () => readonly GitLabProject[] = () => [];
   private readonly gitlabSession: GitLabSession;
+  private activePanelRepositoryId?: string;
   private initialization: Promise<void>;
   private enabled = false;
   private error?: string;
+  private executedGitCommandCount = 0;
 
   readonly onDidChangeRepositories = this.emitter.event;
   readonly onDidChangeRepositoryList = this.repositoryListEmitter.event;
@@ -156,6 +158,13 @@ export class GitRepositoryService implements vscode.Disposable {
 
   setWarningPromptHandlerForTesting(handler: GitWarningPromptHandler): void { this.warningPromptHandler = handler; }
   setActionTraceHandlerForTesting(handler: GitActionTraceHandler): void { this.actionTraceHandler = handler; }
+  getCommandCountForTesting(): number { return this.executedGitCommandCount; }
+
+  setActivePanelRepository(repositoryId?: string, refresh = true): void {
+    const changed = this.activePanelRepositoryId !== repositoryId;
+    this.activePanelRepositoryId = repositoryId;
+    if (changed && repositoryId && refresh) void this.sendRepositoryUpdate(repositoryId);
+  }
 
   private showWarningMessage(message: string, options: vscode.MessageOptions, ...items: string[]): Thenable<string | undefined> {
     return this.warningPromptHandler
@@ -485,11 +494,12 @@ export class GitRepositoryService implements vscode.Disposable {
     this.repositorySubscriptions.set(id, repository.state.onDidChange(() => {
       this.bump(id);
       this.publishRepositoryState(id);
-      void this.sendRepositoryUpdate(id);
+      if (this.activePanelRepositoryId === id) void this.sendRepositoryUpdate(id);
     }));
   }
 
   private async sendRepositoryUpdate(repositoryId: string): Promise<void> {
+    if (this.activePanelRepositoryId !== repositoryId) return;
     if (this.pendingRequests.has(repositoryId)) return;
     const repository = this.findRepository(repositoryId);
     if (!repository) return;
@@ -497,12 +507,12 @@ export class GitRepositoryService implements vscode.Disposable {
     this.pendingRequests.add(repositoryId);
     try {
       const snapshot = await this.getSnapshot(repositoryId);
-      this.panelEmitter.fire({ type: 'gitSnapshot', snapshot });
+      if (this.activePanelRepositoryId === repositoryId) this.panelEmitter.fire({ type: 'gitSnapshot', snapshot });
     } catch {
       // A repository can disappear while a filesystem watcher reports a change.
     } finally {
       this.pendingRequests.delete(repositoryId);
-      if ((this.revisionByRepository.get(repositoryId) ?? 0) !== startRevision) {
+      if (this.activePanelRepositoryId === repositoryId && (this.revisionByRepository.get(repositoryId) ?? 0) !== startRevision) {
         const timer = setTimeout(() => void this.sendRepositoryUpdate(repositoryId), 160);
         timer.unref?.();
       }
@@ -1196,6 +1206,7 @@ export class GitRepositoryService implements vscode.Disposable {
   ): Promise<GitCommandOutput & { code: number }> {
     const gitPath = this.api?.git.path;
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
+    this.executedGitCommandCount++;
     const child = spawn(gitPath, ['-c', 'core.quotepath=false', ...arguments_], {
       cwd: repository.rootUri.fsPath,
       env: { ...await this.environmentFor(repository), ...environmentOverrides },

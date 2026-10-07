@@ -1,0 +1,74 @@
+{
+  "schema": "GitLabWorkspaceFixtureVerification/v1",
+  "generatedAt": "2026-10-07T08:32:23.071Z",
+  "runId": "20261007-acceptance",
+  "status": "PASS",
+  "exactInventory": {
+    "projects": 20,
+    "issues": 500,
+    "mergeRequests": 50,
+    "assignedGraphIssues": 200,
+    "graphEdges": 199
+  },
+  "environments": [
+    {
+      "environment": "ce19",
+      "gitLabVersion": "19.4.1",
+      "group": "grp-sn-maint/performance-20261007-acceptance",
+      "projectCount": 20,
+      "issueCount": 500,
+      "assignedGraphIssueCount": 200,
+      "graphEdgeCount": 199,
+      "mergeRequestCount": 50,
+      "graphCrossesProjects": true,
+      "sampledIssueChecks": 10,
+      "verifyRequests": 40,
+      "verifyResponseBytes": 1456804,
+      "apiLatencyMs": {
+        "median": 157.36,
+        "p95": 641.27
+      },
+      "failures": 0
+    },
+    {
+      "environment": "ce16",
+      "gitLabVersion": "16.11.10",
+      "group": "grp-sn-maint/performance-20261007-acceptance",
+      "projectCount": 20,
+      "issueCount": 500,
+      "assignedGraphIssueCount": 200,
+      "graphEdgeCount": 199,
+      "mergeRequestCount": 50,
+      "graphCrossesProjects": true,
+      "sampledIssueChecks": 10,
+      "verifyRequests": 40,
+      "verifyResponseBytes": 1359720,
+      "apiLatencyMs": {
+        "median": 124.16,
+        "p95": 357.74
+      },
+      "failures": 0
+    }
+  ],
+  "ownership": {
+    "manifestsMatchRunId": true,
+    "cleanupScope": "only the 20261007-acceptance load child group and its recorded checkouts; demo resources excluded"
+  },
+  "preCleanupVerificationStatus": "PASS",
+  "cleanup": {
+    "status": "PASS",
+    "runId": "20261007-acceptance",
+    "deletedGroups": [
+      {
+        "environment": "ce19",
+        "fullPath": "grp-sn-maint/performance-20261007-acceptance"
+      },
+      {
+        "environment": "ce16",
+        "fullPath": "grp-sn-maint/performance-20261007-acceptance"
+      }
+    ],
+    "cleanupEvidence": "load-cleanup-20261007-acceptance.json",
+    "demoGroupExcluded": true
+  }
+}

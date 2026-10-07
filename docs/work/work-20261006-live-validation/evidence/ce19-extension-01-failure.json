@@ -1,14 +1,14 @@
 {
   "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
-  "generatedAt": "2026-10-06T18:08:50.603Z",
+  "generatedAt": "2026-10-07T04:54:11.784Z",
   "environment": "ce19",
   "baseUrl": "http://127.0.0.1:8929",
   "expectedGitLabVersion": "19.4.1",
   "vscodeVersion": "1.140.0",
   "testedArtifact": {
     "vsix": "dist/gitlab-workspace-0.13.2.vsix",
-    "sha256": "a9c824df5933e60aaa56deafd49bb20c3d96470e75f629baa144032228b4e180"
+    "sha256": "e92399f7d0b77521bca58a9240385cfcdc2b6854aa7b049215e298f6b7165713"
   },
-  "status": "BLOCKED",
-  "error": "GitLab read timed out after 30 seconds; the packaged extension host reached the live read but the CE 19.4.1 instance did not respond within the client timeout."
+  "status": "FAIL",
+  "error": "GitLab's live capability probe was cached under its instance and account scope ({\"metadata\":{\"version\":\"19.4.1\",\"revision\":\"191678a3764\",\"kas\":{\"enabled\":true,\"externalUrl\":\"ws://127.0.0.1:/-/kubernetes-agent/\",\"externalK8sProxyUrl\":\"http://127.0.0.1:8929/-/kubernetes-agent/k8s-proxy/\",\"version\":\"19.4.1\"},\"enterprise\":false},\"persistedUserId\":35,\"stateKeys\":[\"gitlabWorkspace.workflowKit.source\",\"gitlabWorkspace.baseUrl\",\"gitlabWorkspace.currentUserId\"],\"sessionCacheScope\":\"[\\\"http://127.0.0.1:8929\\\",35,\\\"19.4.1\\\",\\\"191678a3764\\\",false]\",\"capabilityCacheDiagnostics\":{\"snapshotValid\":false,\"writeAttempted\":false,\"written\":false},\"stateUpdateErrors\":[],\"capabilities\":{\"workItemScope\":\"namespace\",\"workItemCreatePathField\":\"namespacePath\",\"issuePermissionFields\":[\"updateIssue\",\"adminIssue\",\"createNote\"],\"workItemPermissionFields\":[\"adminParentLink\",\"adminWorkItem\",\"adminWorkItemLink\",\"blockedWorkItems\",\"cloneWorkItem\",\"createNote\",\"deleteWorkItem\",\"markNoteAsInternal\",\"moveWorkItem\",\"readWorkItem\",\"reportSpam\",\"setWorkItemMetadata\",\"summarizeComments\",\"updateWorkItem\"],\"issuePermissionSource\":\"issue\",\"workItemFields\":[\"archived\",\"author\",\"availableQuickActions\",\"closedAt\",\"commentTemplatesPaths\",\"confidential\",\"createNoteEmail\",\"createdAt\",\"description\",\"descriptionHtml\",\"duoWorkflowLinks\",\"duplicatedToWorkItemUrl\",\"externalAuthor\",\"features\",\"hidden\",\"id\",\"iid\",\"imported\",\"lockVersion\",\"movedToWorkItemUrl\",\"name\",\"namespace\",\"project\",\"promotedToEpicUrl\",\"reference\",\"showPlanUpgradePromotion\",\"state\",\"title\",\"titleHtml\",\"updatedAt\",\"userDiscussionsCount\",\"userPermissions\",\"webPath\",\"webUrl\",\"widgets\",\"workItemType\"],\"workItemGraphFields\":[\"title\",\"name\",\"state\",\"webUrl\",\"namespace\",\"project\",\"workItemType\"],\"workItemTypeList\":true,\"hierarchy\":true,\"childMutations\":true,\"graphWorkItems\":true,\"graphHierarchy\":true,\"graphLinkedItems\":true,\"graphLabels\":true,\"graphAssignees\":true,\"graphWorkItemTypes\":true,\"discussionResolve\":true,\"startDate\":true,\"timelogReport\":true,\"timelogSource\":\"workItem\",\"timelogSummary\":true,\"timelogUserFields\":[\"id\",\"name\",\"username\"],\"timelogCreate\":true,\"timelogCreateDated\":true,\"timelogCreateSummary\":true,\"timelogAdminPermission\":true,\"timelogDelete\":true,\"createPermission\":true},\"graphql\":[{\"status\":200,\"elapsedMs\":4158.3}]})\n+ actual - expected\n\n+ undefined\n- '[\"http://127.0.0.1:8929\",35,\"19.4.1\",\"191678a3764\",false]'\n"
 }

@@ -1,0 +1,45 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T04:26:56.180Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": ".gitlab-workspace-validation/baseline-v0.13.2-fae6ee9.vsix",
+    "sha256": "b791a3f8ee3fd84f0973e655a65b97004d735be30bee3de6f5006cb6b327ff1b"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "baseline-probe",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "FAIL",
+      "error": "The input did not match the regular expression /^20 個 Repo$/. Input:\n\n'0 個 Repo'\n"
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "FAIL",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 0,
+      "apiResponseBytes": 0,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 0,
+      "webviewMessagesSent": 0,
+      "webviewMessagesReceived": 0
+    }
+  ],
+  "status": "FAIL"
+}

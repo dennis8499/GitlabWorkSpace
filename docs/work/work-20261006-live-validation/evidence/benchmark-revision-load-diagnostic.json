@@ -1,0 +1,671 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T04:40:34.170Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "da036c3391af17d6f3eca3ae3d4e388f74c21d6682dbbfce398c749e0fd2866b"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "label": "revision-load-diagnostic",
+  "environments": [
+    {
+      "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+      "generatedAt": "2026-10-07T04:40:30.025Z",
+      "environment": "ce19",
+      "baseUrl": "http://127.0.0.1:8929",
+      "version": "19.4.1",
+      "revision": "191678a3764",
+      "vscodeVersion": "1.140.0",
+      "currentUserId": 35,
+      "selectedGroup": "grp-sn-maint/performance-20261007-acceptance",
+      "testedArtifact": {
+        "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+        "sha256": "da036c3391af17d6f3eca3ae3d4e388f74c21d6682dbbfce398c749e0fd2866b"
+      },
+      "projects": "grp-sn-maint/performance-20261007-acceptance",
+      "visibleRepoCount": "20 個 Repo",
+      "schemaBytes": {
+        "initial": 8175375,
+        "afterManualDetection": 8175375
+      },
+      "schemaGraphQlRequests": 6,
+      "fixture": {
+        "kind": "load",
+        "runId": "20261007-acceptance",
+        "expectedRepoCount": 20,
+        "renderedGraphNodes": 200
+      },
+      "narrowLayout": {
+        "viewport": 372,
+        "content": 332
+      },
+      "status": "PASS",
+      "coldInteractiveReadyMs": 21117,
+      "api": [
+        {
+          "path": "user",
+          "method": "GET",
+          "status": 401,
+          "bytes": 30,
+          "elapsedMs": 99.65
+        },
+        {
+          "path": "user",
+          "method": "GET",
+          "status": 200,
+          "bytes": 1339,
+          "elapsedMs": 133.14
+        },
+        {
+          "path": "metadata",
+          "method": "GET",
+          "status": 200,
+          "bytes": 234,
+          "elapsedMs": 142.63
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 8175375,
+          "elapsedMs": 5934.89
+        },
+        {
+          "path": "user",
+          "method": "GET",
+          "status": 200,
+          "bytes": 1339,
+          "elapsedMs": 926.95
+        },
+        {
+          "path": "metadata",
+          "method": "GET",
+          "status": 200,
+          "bytes": 234,
+          "elapsedMs": 243.99
+        },
+        {
+          "path": "groups",
+          "method": "GET",
+          "status": 200,
+          "bytes": 11480,
+          "elapsedMs": 794.8
+        },
+        {
+          "path": "groups",
+          "method": "GET",
+          "status": 200,
+          "bytes": 11480,
+          "elapsedMs": 984.15
+        },
+        {
+          "path": "user",
+          "method": "GET",
+          "status": 200,
+          "bytes": 1339,
+          "elapsedMs": 321.94
+        },
+        {
+          "path": "groups/71/projects",
+          "method": "GET",
+          "status": 200,
+          "bytes": 107841,
+          "elapsedMs": 1742.29
+        },
+        {
+          "path": "groups/71/issues",
+          "method": "GET",
+          "status": 200,
+          "bytes": 235969,
+          "elapsedMs": 2367.77
+        },
+        {
+          "path": "groups/71/issues",
+          "method": "GET",
+          "status": 200,
+          "bytes": 235727,
+          "elapsedMs": 2135.87
+        },
+        {
+          "path": "groups/71/boards",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 362.32
+        },
+        {
+          "path": "groups/71/milestones",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 383.42
+        },
+        {
+          "path": "projects/48/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 284.45
+        },
+        {
+          "path": "projects/48/templates/issues",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 428.76
+        },
+        {
+          "path": "projects/48/milestones",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 429.7
+        },
+        {
+          "path": "metadata",
+          "method": "GET",
+          "status": 200,
+          "bytes": 234,
+          "elapsedMs": 122.68
+        },
+        {
+          "path": "projects/48/members/all",
+          "method": "GET",
+          "status": 200,
+          "bytes": 360,
+          "elapsedMs": 785
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 8175375,
+          "elapsedMs": 1677.27
+        },
+        {
+          "path": "projects/44/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 648.1
+        },
+        {
+          "path": "projects/47/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 653
+        },
+        {
+          "path": "projects/46/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 663.49
+        },
+        {
+          "path": "projects/45/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 895.23
+        },
+        {
+          "path": "projects/43/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 611.71
+        },
+        {
+          "path": "projects/41/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 617.85
+        },
+        {
+          "path": "projects/42/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 639.91
+        },
+        {
+          "path": "projects/40/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 602.28
+        },
+        {
+          "path": "projects/39/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 366.56
+        },
+        {
+          "path": "projects/38/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 412.3
+        },
+        {
+          "path": "projects/36/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 616.06
+        },
+        {
+          "path": "projects/34/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 521.22
+        },
+        {
+          "path": "projects/35/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 589.39
+        },
+        {
+          "path": "projects/37/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 1058.09
+        },
+        {
+          "path": "projects/33/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 376.07
+        },
+        {
+          "path": "projects/31/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 297.63
+        },
+        {
+          "path": "projects/32/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 404.09
+        },
+        {
+          "path": "projects/30/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 352.43
+        },
+        {
+          "path": "projects/29/labels",
+          "method": "GET",
+          "status": 200,
+          "bytes": 2,
+          "elapsedMs": 601.79
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 578,
+          "elapsedMs": 519.92
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 578,
+          "elapsedMs": 689.28
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 578,
+          "elapsedMs": 795.32
+        },
+        {
+          "path": "graphql",
+          "method": "POST",
+          "status": 200,
+          "bytes": 578,
+          "elapsedMs": 298.75
+        }
+      ],
+      "webview": {
+        "viewport": {
+          "width": 430,
+          "height": 900
+        },
+        "frameBytes": 125417
+      },
+      "operationCounts": {
+        "available": true,
+        "gitCommands": 758,
+        "webviewMessages": {
+          "sent": 351,
+          "received": 53
+        }
+      },
+      "warmNavigationMs": {
+        "samples": [
+          180.72,
+          260.36,
+          214.07,
+          212.59,
+          206.3,
+          414.68,
+          383.65,
+          696.44,
+          514.73,
+          575.34,
+          688.99,
+          451.15,
+          560.13,
+          1215.24,
+          949.44,
+          714.2,
+          1061.46,
+          1233.63,
+          560.2,
+          539.5,
+          721.73,
+          855.5,
+          624.97,
+          579.62,
+          433.89,
+          599.41,
+          854.46,
+          647.75,
+          491.69,
+          624.91
+        ],
+        "median": 575.34,
+        "p95": 1215.24
+      },
+      "localRepoSearchMs": {
+        "samples": [
+          14.1,
+          9.3,
+          14.7,
+          15,
+          14.7,
+          14.4,
+          11.6,
+          14.6,
+          15.2,
+          14.7,
+          15.3,
+          14.7,
+          7.9,
+          14.6,
+          14.7,
+          13.5,
+          15,
+          14.7,
+          11.9,
+          14.5,
+          15.4,
+          14.3,
+          14.6,
+          14.6,
+          6.7,
+          10.4,
+          15,
+          14.6,
+          15.4,
+          12.3
+        ],
+        "median": 14.6,
+        "p95": 15.4
+      },
+      "localSearchApiRequests": 0,
+      "memory": {
+        "samples": [
+          {
+            "extensionHostRssBytes": 325836800,
+            "extensionHostHeapUsedBytes": 95696688,
+            "rendererHeapUsedBytes": 5173340,
+            "rendererHeapTotalBytes": 13107200
+          },
+          {
+            "extensionHostRssBytes": 329834496,
+            "extensionHostHeapUsedBytes": 91453552,
+            "rendererHeapUsedBytes": 4691364,
+            "rendererHeapTotalBytes": 18923520
+          },
+          {
+            "extensionHostRssBytes": 348745728,
+            "extensionHostHeapUsedBytes": 105043116,
+            "rendererHeapUsedBytes": 12289816,
+            "rendererHeapTotalBytes": 18923520
+          },
+          {
+            "extensionHostRssBytes": 346923008,
+            "extensionHostHeapUsedBytes": 80343524,
+            "rendererHeapUsedBytes": 15320660,
+            "rendererHeapTotalBytes": 30982144
+          },
+          {
+            "extensionHostRssBytes": 352382976,
+            "extensionHostHeapUsedBytes": 93774792,
+            "rendererHeapUsedBytes": 8535144,
+            "rendererHeapTotalBytes": 34390016
+          },
+          {
+            "extensionHostRssBytes": 358813696,
+            "extensionHostHeapUsedBytes": 108868828,
+            "rendererHeapUsedBytes": 16441468,
+            "rendererHeapTotalBytes": 34390016
+          },
+          {
+            "extensionHostRssBytes": 348393472,
+            "extensionHostHeapUsedBytes": 84900568,
+            "rendererHeapUsedBytes": 9370676,
+            "rendererHeapTotalBytes": 32817152
+          },
+          {
+            "extensionHostRssBytes": 353898496,
+            "extensionHostHeapUsedBytes": 100670208,
+            "rendererHeapUsedBytes": 16453028,
+            "rendererHeapTotalBytes": 32817152
+          },
+          {
+            "extensionHostRssBytes": 361701376,
+            "extensionHostHeapUsedBytes": 117248300,
+            "rendererHeapUsedBytes": 23977964,
+            "rendererHeapTotalBytes": 37273600
+          },
+          {
+            "extensionHostRssBytes": 351305728,
+            "extensionHostHeapUsedBytes": 92660476,
+            "rendererHeapUsedBytes": 31029764,
+            "rendererHeapTotalBytes": 44351488
+          },
+          {
+            "extensionHostRssBytes": 345317376,
+            "extensionHostHeapUsedBytes": 88581928,
+            "rendererHeapUsedBytes": 10267264,
+            "rendererHeapTotalBytes": 45662208
+          },
+          {
+            "extensionHostRssBytes": 350912512,
+            "extensionHostHeapUsedBytes": 105315616,
+            "rendererHeapUsedBytes": 17323640,
+            "rendererHeapTotalBytes": 46710784
+          },
+          {
+            "extensionHostRssBytes": 312324096,
+            "extensionHostHeapUsedBytes": 78781784,
+            "rendererHeapUsedBytes": 24805664,
+            "rendererHeapTotalBytes": 54050816
+          },
+          {
+            "extensionHostRssBytes": 331087872,
+            "extensionHostHeapUsedBytes": 96568672,
+            "rendererHeapUsedBytes": 4860272,
+            "rendererHeapTotalBytes": 60342272
+          },
+          {
+            "extensionHostRssBytes": 328646656,
+            "extensionHostHeapUsedBytes": 96389252,
+            "rendererHeapUsedBytes": 12474320,
+            "rendererHeapTotalBytes": 60342272
+          },
+          {
+            "extensionHostRssBytes": 342904832,
+            "extensionHostHeapUsedBytes": 118067496,
+            "rendererHeapUsedBytes": 19587484,
+            "rendererHeapTotalBytes": 60342272
+          },
+          {
+            "extensionHostRssBytes": 342233088,
+            "extensionHostHeapUsedBytes": 82393868,
+            "rendererHeapUsedBytes": 27138380,
+            "rendererHeapTotalBytes": 60342272
+          },
+          {
+            "extensionHostRssBytes": 347836416,
+            "extensionHostHeapUsedBytes": 105902336,
+            "rendererHeapUsedBytes": 6389020,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 339591168,
+            "extensionHostHeapUsedBytes": 74487484,
+            "rendererHeapUsedBytes": 13949036,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 344707072,
+            "extensionHostHeapUsedBytes": 91375212,
+            "rendererHeapUsedBytes": 21070260,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 350220288,
+            "extensionHostHeapUsedBytes": 111018188,
+            "rendererHeapUsedBytes": 28685504,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 342470656,
+            "extensionHostHeapUsedBytes": 80695804,
+            "rendererHeapUsedBytes": 7751068,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 348205056,
+            "extensionHostHeapUsedBytes": 100251852,
+            "rendererHeapUsedBytes": 15349108,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 354635776,
+            "extensionHostHeapUsedBytes": 119321584,
+            "rendererHeapUsedBytes": 22469812,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 345665536,
+            "extensionHostHeapUsedBytes": 89899524,
+            "rendererHeapUsedBytes": 30011148,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 351174656,
+            "extensionHostHeapUsedBytes": 105825940,
+            "rendererHeapUsedBytes": 9151492,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 314441728,
+            "extensionHostHeapUsedBytes": 80918376,
+            "rendererHeapUsedBytes": 16749680,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 332353536,
+            "extensionHostHeapUsedBytes": 105508052,
+            "rendererHeapUsedBytes": 23879820,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 350412800,
+            "extensionHostHeapUsedBytes": 123764716,
+            "rendererHeapUsedBytes": 31447392,
+            "rendererHeapTotalBytes": 60866560
+          },
+          {
+            "extensionHostRssBytes": 339968000,
+            "extensionHostHeapUsedBytes": 89304336,
+            "rendererHeapUsedBytes": 10035472,
+            "rendererHeapTotalBytes": 61128704
+          },
+          {
+            "extensionHostRssBytes": 345501696,
+            "extensionHostHeapUsedBytes": 106700684,
+            "rendererHeapUsedBytes": 17606516,
+            "rendererHeapTotalBytes": 61128704
+          },
+          {
+            "extensionHostRssBytes": 344375296,
+            "extensionHostHeapUsedBytes": 100545928,
+            "rendererHeapUsedBytes": 9575136,
+            "rendererHeapTotalBytes": 71352320
+          }
+        ],
+        "extensionHostPeakRssBytes": 361701376,
+        "extensionHostPeakHeapUsedBytes": 123764716,
+        "rendererPeakHeapUsedBytes": 31447392,
+        "rendererPeakHeapTotalBytes": 71352320
+      },
+      "screenshots": [
+        "screenshots\\ce19-clone.png"
+      ],
+      "coldStartToCdpMs": 267.78,
+      "cdpBrowser": "Chrome/150.0.7871.250"
+    }
+  ],
+  "failures": [],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "FAIL",
+      "coldSessions": 1,
+      "coldInteractiveReadyMs": [
+        21117
+      ],
+      "warmOperations": 30,
+      "warmNavigationP95Ms": 1215.24,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 30,
+      "localSearchP95Ms": 15.4,
+      "localSearchLimitMs": 100,
+      "localSearchApiRequests": 0,
+      "narrowLayoutFailure": false,
+      "apiRequests": 43,
+      "apiResponseBytes": 16960716,
+      "operationMetricsStatus": "PASS",
+      "gitCommands": 758,
+      "webviewMessagesSent": 351,
+      "webviewMessagesReceived": 53
+    }
+  ],
+  "status": "FAIL"
+}

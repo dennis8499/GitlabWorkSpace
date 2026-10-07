@@ -204,6 +204,8 @@ function WorkspaceSectionNotice({ section, label, status, onRetry }: {
 function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
+  const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
+  useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
   const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(null);
   const [issueRelationResponses, setIssueRelationResponses] = useState<Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>>({});
@@ -776,11 +778,14 @@ function App() {
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
+        <div class="git-mode-host" hidden={mode !== 'git'}>
+          {(gitPanelVisited || mode === 'git') && <GitControlPanel post={post} />}
+        </div>
         {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions"><button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? '查看詳情' : '返回清單'}</button><button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button></div></div>}
-        {!snapshot.connected && mode !== 'sa' && mode !== 'git' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
-          : !snapshot.group && mode !== 'sa' && mode !== 'git' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
-            : mode === 'git' ? <GitControlPanel post={post} />
+        {mode !== 'git' && (
+        !snapshot.connected && mode !== 'sa' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
+          : !snapshot.group && mode !== 'sa' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || !!snapshot.busy} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
                 {visibleProjects.length ? <VirtualRows className="repo-list" items={visibleProjects} itemKey={(project) => project.id} estimateHeight={58} renderItem={(project) => {
@@ -897,7 +902,7 @@ function App() {
                   </div>
                 </section>
                 <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
-              </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>}
+              </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>)}
         </div>
       </section>
     </div>

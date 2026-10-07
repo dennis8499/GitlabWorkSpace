@@ -1,0 +1,873 @@
+{
+  "schema": "GitLabWorkspaceSyntheticVariantEvidence/v1",
+  "generatedAt": "2026-10-07T01:29:28.562Z",
+  "baselineCommit": "fae6ee9595c837dc8bba0c5dd483f6984ac9014f",
+  "variant": "baseline",
+  "artifact": ".gitlab-workspace-validation/baseline-v0.13.2-fae6ee9.vsix",
+  "sha256": "b791a3f8ee3fd84f0973e655a65b97004d735be30bee3de6f5006cb6b327ff1b",
+  "environment": {
+    "platform": "win32",
+    "node": "v24.21.0",
+    "gcExposed": true,
+    "measuredAt": "2026-10-07T01:28:20.422Z"
+  },
+  "workloads": {
+    "small": {
+      "repos": 50,
+      "issues": 100,
+      "graphNodes": 50
+    },
+    "primary": {
+      "repos": 500,
+      "issues": 1000,
+      "graphNodes": 500
+    },
+    "stress": {
+      "repos": 2000,
+      "issues": 10000,
+      "graphNodes": 2000
+    }
+  },
+  "rounds": 10,
+  "metrics": {
+    "coldCacheReadMs": 0.006,
+    "warmCacheReadMs": 0.003,
+    "repositoryPathNaming2kMs": 4.59,
+    "graphPatchBuild2kP50Ms": 4.157,
+    "graphPeakHeapBytes": 41580216,
+    "graphPeakHeapDeltaBytes": 34622832,
+    "graphTransportReductionPercent": 99.94
+  },
+  "samples": [
+    {
+      "run": 1,
+      "measuredAt": "2026-10-07T01:27:02.998Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.008,
+        "coldP95Ms": 0.013,
+        "warmLatencyMs": 0.005,
+        "warmP95Ms": 0.007,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.2,
+          "legacyMedianMs": 2.38
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.25,
+          "legacyMedianMs": 1402.87
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.69,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.112,
+          "peakSampledHeapBytes": 9413352,
+          "peakSampledHeapDeltaBytes": 3628288,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.225,
+          "peakSampledHeapBytes": 40778960,
+          "peakSampledHeapDeltaBytes": 34939320,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.443,
+          "peakSampledHeapBytes": 41911440,
+          "peakSampledHeapDeltaBytes": 34626152,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "measuredAt": "2026-10-07T01:27:10.887Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.007,
+        "coldP95Ms": 0.007,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.22,
+          "legacyMedianMs": 2.9
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.33,
+          "legacyMedianMs": 1436.63
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.66,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.106,
+          "peakSampledHeapBytes": 9413288,
+          "peakSampledHeapDeltaBytes": 4099232,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.118,
+          "peakSampledHeapBytes": 40786920,
+          "peakSampledHeapDeltaBytes": 34945960,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.726,
+          "peakSampledHeapBytes": 41580216,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "measuredAt": "2026-10-07T01:27:19.450Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.006,
+        "coldP95Ms": 0.007,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.23,
+          "legacyMedianMs": 2.73
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 2.12,
+          "legacyMedianMs": 1633.51
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.38,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.107,
+          "peakSampledHeapBytes": 9413432,
+          "peakSampledHeapDeltaBytes": 4099296,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.037,
+          "peakSampledHeapBytes": 40787000,
+          "peakSampledHeapDeltaBytes": 34950832,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.157,
+          "peakSampledHeapBytes": 41580296,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 4,
+      "measuredAt": "2026-10-07T01:27:27.425Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.006,
+        "coldP95Ms": 0.008,
+        "warmLatencyMs": 0.004,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.21,
+          "legacyMedianMs": 2.38
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.44,
+          "legacyMedianMs": 1434.66
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 5.17,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.101,
+          "peakSampledHeapBytes": 9413432,
+          "peakSampledHeapDeltaBytes": 4099296,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.096,
+          "peakSampledHeapBytes": 40787000,
+          "peakSampledHeapDeltaBytes": 34950832,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.647,
+          "peakSampledHeapBytes": 41580296,
+          "peakSampledHeapDeltaBytes": 34622704,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 5,
+      "measuredAt": "2026-10-07T01:27:35.070Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.006,
+        "coldP95Ms": 0.007,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.22,
+          "legacyMedianMs": 2.81
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.04,
+          "legacyMedianMs": 1372.29
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.096,
+          "peakSampledHeapBytes": 9413352,
+          "peakSampledHeapDeltaBytes": 4099296,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 0.997,
+          "peakSampledHeapBytes": 40786920,
+          "peakSampledHeapDeltaBytes": 34950832,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 3.953,
+          "peakSampledHeapBytes": 41580216,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 6,
+      "measuredAt": "2026-10-07T01:27:42.534Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.005,
+        "coldP95Ms": 0.007,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.004,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.19,
+          "legacyMedianMs": 2.48
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.45,
+          "legacyMedianMs": 1374.87
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 3.89,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.092,
+          "peakSampledHeapBytes": 9413104,
+          "peakSampledHeapDeltaBytes": 3831560,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 0.984,
+          "peakSampledHeapBytes": 40786880,
+          "peakSampledHeapDeltaBytes": 34945856,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 3.916,
+          "peakSampledHeapBytes": 41580008,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 7,
+      "measuredAt": "2026-10-07T01:27:50.032Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.005,
+        "coldP95Ms": 0.009,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.3,
+          "legacyMedianMs": 2.69
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.53,
+          "legacyMedianMs": 1386.26
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.11,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.091,
+          "peakSampledHeapBytes": 9413504,
+          "peakSampledHeapDeltaBytes": 4099296,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 0.98,
+          "peakSampledHeapBytes": 40787072,
+          "peakSampledHeapDeltaBytes": 34565400,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 3.853,
+          "peakSampledHeapBytes": 41580368,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 8,
+      "measuredAt": "2026-10-07T01:27:57.301Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.006,
+        "coldP95Ms": 0.006,
+        "warmLatencyMs": 0.003,
+        "warmP95Ms": 0.004,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.28,
+          "legacyMedianMs": 3.25
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.02,
+          "legacyMedianMs": 1354.91
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.59,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.09,
+          "peakSampledHeapBytes": 9413352,
+          "peakSampledHeapDeltaBytes": 4101216,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 0.95,
+          "peakSampledHeapBytes": 40786920,
+          "peakSampledHeapDeltaBytes": 34950832,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.088,
+          "peakSampledHeapBytes": 41580216,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 9,
+      "measuredAt": "2026-10-07T01:28:05.024Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.009,
+        "coldP95Ms": 0.017,
+        "warmLatencyMs": 0.004,
+        "warmP95Ms": 0.007,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.2,
+          "legacyMedianMs": 2.44
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.23,
+          "legacyMedianMs": 1410.47
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 5.9,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.111,
+          "peakSampledHeapBytes": 9413352,
+          "peakSampledHeapDeltaBytes": 4099296,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.323,
+          "peakSampledHeapBytes": 40786920,
+          "peakSampledHeapDeltaBytes": 34950832,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 5.301,
+          "peakSampledHeapBytes": 41580216,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "run": 10,
+      "measuredAt": "2026-10-07T01:28:12.976Z",
+      "sharedReadCache": {
+        "iterations": 1000,
+        "concurrentConsumers": 8,
+        "legacyUnsharedApiRequestsPerRead": 8,
+        "productionApiRequestsPerRead": 1,
+        "coldLatencyMs": 0.006,
+        "coldP95Ms": 0.008,
+        "warmLatencyMs": 0.004,
+        "warmP95Ms": 0.005,
+        "responsePayloadBytes": 144454,
+        "warmNetworkBytes": 0
+      },
+      "repositoryPathNaming": [
+        {
+          "projects": 50,
+          "productionMedianMs": 0.27,
+          "legacyMedianMs": 3.12
+        },
+        {
+          "projects": 500,
+          "productionMedianMs": 1.14,
+          "legacyMedianMs": 1430
+        },
+        {
+          "projects": 2000,
+          "productionMedianMs": 4.88,
+          "legacyMedianMs": null
+        }
+      ],
+      "graph": [
+        {
+          "nodes": 50,
+          "issues": 100,
+          "patchBuildMedianMs": 0.099,
+          "peakSampledHeapBytes": 9413432,
+          "peakSampledHeapDeltaBytes": 4101216,
+          "graphTransportReductionPercent": 97.46,
+          "issueRowsAtMidScroll": {
+            "total": 100,
+            "mounted": 100,
+            "range": [
+              0,
+              100
+            ]
+          }
+        },
+        {
+          "nodes": 500,
+          "issues": 1000,
+          "patchBuildMedianMs": 1.051,
+          "peakSampledHeapBytes": 40787000,
+          "peakSampledHeapDeltaBytes": 34947856,
+          "graphTransportReductionPercent": 99.75,
+          "issueRowsAtMidScroll": {
+            "total": 1000,
+            "mounted": 32,
+            "range": [
+              490,
+              522
+            ]
+          }
+        },
+        {
+          "nodes": 2000,
+          "issues": 10000,
+          "patchBuildMedianMs": 4.261,
+          "peakSampledHeapBytes": 41580296,
+          "peakSampledHeapDeltaBytes": 34622832,
+          "graphTransportReductionPercent": 99.94,
+          "issueRowsAtMidScroll": {
+            "total": 10000,
+            "mounted": 32,
+            "range": [
+              4990,
+              5022
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

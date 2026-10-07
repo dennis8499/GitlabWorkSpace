@@ -1,0 +1,54 @@
+{
+  "schema": "GitLabWorkspaceLiveVerification/v1",
+  "generatedAt": "2026-10-07T01:06:14.357Z",
+  "vscodeVersion": "1.140.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "48fb4b948b7a9917231294c347177dd6a0fff1046dd15ddd071a426a69546711"
+  },
+  "mode": "benchmark",
+  "fixture": "load",
+  "runId": "20261007-acceptance",
+  "environments": [],
+  "failures": [
+    {
+      "environment": "ce19",
+      "round": 1,
+      "status": "BLOCKED",
+      "error": "Set GLW_CE19_TOKEN in the parent process environment before running live tests."
+    },
+    {
+      "environment": "ce16",
+      "round": 1,
+      "status": "BLOCKED",
+      "error": "Set GLW_CE16_TOKEN in the parent process environment before running live tests."
+    }
+  ],
+  "performance": [
+    {
+      "environment": "ce19",
+      "status": "BLOCKED",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100
+    },
+    {
+      "environment": "ce16",
+      "status": "BLOCKED",
+      "coldSessions": 0,
+      "coldInteractiveReadyMs": [],
+      "warmOperations": 0,
+      "warmNavigationP95Ms": null,
+      "warmNavigationLimitMs": 1000,
+      "localSearchSamples": 0,
+      "localSearchP95Ms": null,
+      "localSearchLimitMs": 100
+    }
+  ],
+  "status": "BLOCKED"
+}

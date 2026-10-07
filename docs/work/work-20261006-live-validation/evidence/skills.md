@@ -10,4 +10,4 @@
 
 Megin 人工核准尚未進行：本次沒有建立可供簽署的真實 Work ID、acceptance version 或使用者回覆紀錄。Codebase Wiki 更新、Megin 交接、固定 SHA MR 審查及正式 Wiki 回饋均未執行，因此沒有把自動測試結果當成核准紀錄。
 
-0.13.2 VSIX 的真實 GitLab smoke 在 CE 19.4.1 與 CE 16.11.10 都因讀取 30 秒逾時受阻，無法進一步透過擴充套件 UI 啟動 Codex 終端機或安裝包。Extension Host 的 VSIX 載入及非 live 測試通過；Skills 真實工作流程仍列為 BLOCKED／PENDING，待 GitLab 恢復與真實人工回覆後重跑。
+目前程序環境沒有 CE 19.4.1 或 CE 16.11.10 Token，因此無法透過封裝 VSIX 的擴充套件 UI 啟動 Codex 終端機、安裝包或執行 14 個 Skills／13 個分析入口；這些真實工作流程均為 BLOCKED。Megin 人工核准也需要真實 Work ID、acceptance version 與使用者回覆，不會以測試資料代填。

@@ -1,43 +1,43 @@
 {
   "targetInfos": [
     {
-      "targetId": "79B6C277A78E812DFCAD3DC7DD08E0FB",
+      "targetId": "8911491055B6802F63E8F8A06BE8EDA2",
       "type": "service_worker",
-      "title": "Service Worker vscode-webview://0bnmmq5ldjf48hautgr3b570h4lpgugagn657lasiq35chmoer5o/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
-      "url": "vscode-webview://0bnmmq5ldjf48hautgr3b570h4lpgugagn657lasiq35chmoer5o/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "title": "Service Worker vscode-webview://112580ffhi2itm632k9niale7i48u3jl9hbmvp233lqbt4pp6b4a/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "url": "vscode-webview://112580ffhi2itm632k9niale7i48u3jl9hbmvp233lqbt4pp6b4a/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
       "attached": true,
       "canAccessOpener": false,
-      "browserContextId": "0BB6D2D5FCE4237ADB87DD6E50FD62EF"
+      "browserContextId": "B9A4E51DC5B9FBA47BEEF5089B4FD906"
     },
     {
-      "targetId": "CB504F03D76046045A3449CC9472FB92",
+      "targetId": "E24C667D8B6C57717CC2856DE409C6AA",
       "type": "worker",
       "title": "editorWorkerService",
-      "url": "blob:vscode-file://vscode-app/53d1d978-a55f-4d32-b52c-d3bc20810092",
+      "url": "blob:vscode-file://vscode-app/b39ceb0b-9b17-4200-a2a1-299b74c7e740",
       "attached": true,
       "canAccessOpener": false,
-      "parentFrameId": "8DA89715C49398AF0A5B16B55653991D",
-      "browserContextId": "0BB6D2D5FCE4237ADB87DD6E50FD62EF"
+      "parentFrameId": "D6D10596E6B89F2A2FBC26B61F9140DC",
+      "browserContextId": "B9A4E51DC5B9FBA47BEEF5089B4FD906"
     },
     {
-      "targetId": "8DA89715C49398AF0A5B16B55653991D",
+      "targetId": "D6D10596E6B89F2A2FBC26B61F9140DC",
       "type": "page",
-      "title": "[Extension Development Host] GitLab Workspace - demo - Visual Studio Code",
+      "title": "[Extension Development Host] GitLab Workspace - performance - Visual Studio Code",
       "url": "vscode-file://vscode-app/c:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/07f806f999/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
       "attached": true,
       "canAccessOpener": false,
-      "browserContextId": "0BB6D2D5FCE4237ADB87DD6E50FD62EF"
+      "browserContextId": "B9A4E51DC5B9FBA47BEEF5089B4FD906"
     },
     {
-      "targetId": "590A55E1B11EB329DBB093843A45D9E0",
+      "targetId": "E601A2650BE69261313D3EEA52CB8BEE",
       "type": "iframe",
-      "title": "vscode-webview://0bnmmq5ldjf48hautgr3b570h4lpgugagn657lasiq35chmoer5o/index.html?id=10eaa0e9-ba59-4785-b5d6-341088c7911b&parentId=1&origin=37865944-d693-44f0-9747-598996964f91&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
-      "url": "vscode-webview://0bnmmq5ldjf48hautgr3b570h4lpgugagn657lasiq35chmoer5o/index.html?id=10eaa0e9-ba59-4785-b5d6-341088c7911b&parentId=1&origin=37865944-d693-44f0-9747-598996964f91&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "title": "vscode-webview://112580ffhi2itm632k9niale7i48u3jl9hbmvp233lqbt4pp6b4a/index.html?id=7c5bc8b6-186b-4ec5-8087-28dfc8ba7383&parentId=1&origin=3baa8953-4fcd-4bf4-b106-90ec1042e74a&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "url": "vscode-webview://112580ffhi2itm632k9niale7i48u3jl9hbmvp233lqbt4pp6b4a/index.html?id=7c5bc8b6-186b-4ec5-8087-28dfc8ba7383&parentId=1&origin=3baa8953-4fcd-4bf4-b106-90ec1042e74a&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
       "attached": true,
-      "parentId": "8DA89715C49398AF0A5B16B55653991D",
+      "parentId": "D6D10596E6B89F2A2FBC26B61F9140DC",
       "canAccessOpener": false,
-      "parentFrameId": "8DA89715C49398AF0A5B16B55653991D",
-      "browserContextId": "0BB6D2D5FCE4237ADB87DD6E50FD62EF"
+      "parentFrameId": "D6D10596E6B89F2A2FBC26B61F9140DC",
+      "browserContextId": "B9A4E51DC5B9FBA47BEEF5089B4FD906"
     }
   ]
 }

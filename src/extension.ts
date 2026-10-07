@@ -91,6 +91,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     session,
     setFetchForTesting: (fetcher: typeof fetch) => session.setFetchForTesting(fetcher),
     getGitRepositoryState: () => gitRepositories.getSummaryState(),
+    getGitCommandCountForTesting: () => gitRepositories.getCommandCountForTesting(),
+    getWebviewMessageCountsForTesting: () => getWorkspace().getWebviewMessageCountsForTesting(),
     setGitWarningPromptHandlerForTesting: (handler: (message: string, options: vscode.MessageOptions, ...items: string[]) => Thenable<string | undefined>) =>
       gitRepositories.setWarningPromptHandlerForTesting(handler),
     setGitActionTraceHandlerForTesting: (handler: (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void) =>

@@ -10,6 +10,8 @@ interface TestExtensionApi {
   session: GitLabSession;
   setFetchForTesting(fetcher: typeof fetch): void;
   getGitRepositoryState(): Promise<{ repositories: Array<{ path: string; name: string; branches?: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> }>; available: boolean; message?: string }>;
+  getGitCommandCountForTesting(): number;
+  getWebviewMessageCountsForTesting(): { sent: number; received: number };
   setGitWarningPromptHandlerForTesting(handler: (message: string, options: vscode.MessageOptions, ...items: string[]) => Promise<string | undefined>): void;
   setGitActionTraceHandlerForTesting(handler: (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void): void;
 }
@@ -20,7 +22,7 @@ interface TestGitActionTrace { phase: 'start' | 'complete' | 'error'; repository
 const enabled = process.env.GLW_LIVE_ENVIRONMENT === 'ce19' || process.env.GLW_LIVE_ENVIRONMENT === 'ce16';
 const localGitGuiEnabled = process.env.GLW_LOCAL_GIT_GUI === '1';
 suite('Live GitLab Workspace Webview validation', function () {
-  this.timeout(120_000);
+  this.timeout(240_000);
 
   test('exercises the packaged Git GUI against an isolated local bare remote', async function () {
     if (!localGitGuiEnabled) this.skip();
@@ -121,6 +123,12 @@ suite('Live GitLab Workspace Webview validation', function () {
   const groupPath = process.env.GLW_LIVE_GROUP_PATH!;
   const workspaceRoot = process.env.GLW_LIVE_WORKSPACE_ROOT!;
   const reportPath = process.env.GLW_LIVE_REPORT!;
+  const fixture = process.env.GLW_LIVE_FIXTURE ?? 'demo';
+  const runId = process.env.GLW_LIVE_RUN_ID ?? 'demo';
+  assert.ok(fixture === 'demo' || fixture === 'load', 'the selected fixture is recognized');
+  const expectedRepoCount = fixture === 'load' ? 20 : 3;
+  const benchmarkRun = process.env.GLW_LIVE_BENCHMARK === '1';
+  const baselineBenchmark = process.env.GLW_LIVE_BENCHMARK_BASELINE === '1';
   let token = process.env.GLW_LIVE_TOKEN!;
   assert.ok(token && new URL(baseUrl).hostname === '127.0.0.1');
 
@@ -146,6 +154,7 @@ suite('Live GitLab Workspace Webview validation', function () {
 
   let browser;
   let ui: WebviewCdp | undefined;
+  const memorySamples: { extensionHostRssBytes: number; extensionHostHeapUsedBytes: number; rendererHeapUsedBytes: number; rendererHeapTotalBytes: number }[] = [];
   try {
     await assert.rejects(api.session.connect(baseUrl, 'invalid-live-validation-token'), (error: unknown) => {
       assert.ok(error instanceof Error);
@@ -156,19 +165,26 @@ suite('Live GitLab Workspace Webview validation', function () {
     const connected = await api.session.connect(baseUrl, token);
     process.env.GLW_LIVE_TOKEN = '';
     assert.ok(connected.id > 0, 'GitLab validated the token against the requested localhost server');
+    const expectedGitLabVersion = environment === 'ce19' ? '19.4.1' : '16.11.10';
+    assert.equal(api.session.metadata?.version, expectedGitLabVersion, `the live server is the exact ${environment} target version`);
+    assert.equal(api.session.metadata?.enterprise, false, 'the live target identifies itself as GitLab CE');
     const initialSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
     assert.ok(initialSchemaRequests > 0, `the real Schema detection reached the GitLab GraphQL endpoint (requests: ${JSON.stringify(metrics.map(({ path, method, status }) => ({ path, method, status })))})`);
     const schemaByteLengths = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').map((item) => item.bytes).filter((item): item is number => item !== null);
     const firstCapabilitySnapshot = (api.session as unknown as { state: { get<T>(key: string): T } }).state.get<{ scope: string }>('gitlabWorkspace.issueCapabilities.v1');
     const expectedCapabilityScope = JSON.stringify([baseUrl, connected.id, api.session.metadata?.version ?? null, api.session.metadata?.revision ?? null, api.session.metadata?.enterprise ?? null]);
-    assert.equal(firstCapabilitySnapshot?.scope, expectedCapabilityScope, `GitLab's live capability probe was cached under its instance and account scope (${JSON.stringify({ metadata: api.session.metadata, cachedScope: firstCapabilitySnapshot?.scope })})`);
+    if (!baselineBenchmark) {
+      assert.equal(firstCapabilitySnapshot?.scope, expectedCapabilityScope, `GitLab's live capability probe was cached under its instance and account scope (${JSON.stringify({ metadata: api.session.metadata, currentUserId: (api.session as unknown as { state: { get<T>(key: string): T } }).state.get('gitlabWorkspace.currentUserId'), cachedScope: firstCapabilitySnapshot?.scope, capabilities: api.session.issueCapabilities, diagnostics: api.session.capabilityDiagnostics, graphql: metrics.filter((item) => item.path === 'graphql').map(({ status, elapsedMs }) => ({ status, elapsedMs })) })})`);
+    }
 
     await api.session.connect(baseUrl, token);
     token = '';
     const reconnectSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
     const cachedCapabilities = (api.session as unknown as { state: { get<T>(key: string): T } }).state.get('gitlabWorkspace.issueCapabilities.v1');
-    assert.equal(reconnectSchemaRequests, initialSchemaRequests,
-      `same-account reconnect reuses the persistent, version-scoped capability cache (${JSON.stringify({ metadata: api.session.metadata, capabilities: api.session.issueCapabilities, diagnostics: api.session.capabilityDiagnostics, cachedCapabilities, graphql: metrics.filter((item) => item.path === 'graphql') })})`);
+    if (!baselineBenchmark) {
+      assert.equal(reconnectSchemaRequests, initialSchemaRequests,
+        `same-account reconnect reuses the persistent, version-scoped capability cache (${JSON.stringify({ metadata: api.session.metadata, capabilities: api.session.issueCapabilities, diagnostics: api.session.capabilityDiagnostics, cachedCapabilities, graphql: metrics.filter((item) => item.path === 'graphql') })})`);
+    }
     const groups = await api.session.cachedRead('live-validation-groups', (client) => client.listGroups(), { force: true });
     const group = groups.find((candidate) => candidate.full_path === groupPath);
     assert.ok(group, `the isolated ${environment} demo subgroup is visible to the connected user`);
@@ -187,12 +203,26 @@ suite('Live GitLab Workspace Webview validation', function () {
     if (process.env.GLW_LIVE_ROUND === '1') await page.screenshot({ path: path.join(screenshotDir, `${environment}-clone.png`) });
     await ui.waitForVisible('.clone-list-column', 20_000);
     const visibleRepoCount = await ui.text('.clone-list-column .count');
-    assert.match(visibleRepoCount ?? '', /3/);
+    assert.match(visibleRepoCount ?? '', new RegExp(`^${expectedRepoCount} 個 Repo$`));
     const cloneText = await ui.text('body');
-    for (const project of ['contracts', 'service', 'client']) assert.ok(cloneText?.includes(`${groupPath}/${project}`), `the GUI lists the isolated ${project} Repo`);
+    const fixtureManifest = JSON.parse(readFileSync(process.env.GLW_LIVE_MANIFEST!, 'utf8')) as { resources: { projects: Array<{ path: string }> } };
+    const repoPaths = fixtureManifest.resources.projects.map((project) => project.path);
+    const repoSamples = [...new Set([repoPaths[0], repoPaths[Math.floor(repoPaths.length / 2)], repoPaths.at(-1)])].filter((item): item is string => !!item);
+    for (const projectPath of repoSamples) assert.ok(cloneText?.includes(projectPath), `the GUI lists the isolated ${projectPath} Repo`);
+    const coldInteractiveReadyMs = Date.now() - Number(process.env.GLW_LIVE_COLD_STARTED_AT);
+    const captureMemory = async (): Promise<void> => {
+      const host = process.memoryUsage();
+      const renderer = await ui!.memoryUsage();
+      memorySamples.push({
+        extensionHostRssBytes: host.rss, extensionHostHeapUsedBytes: host.heapUsed,
+        rendererHeapUsedBytes: renderer.usedBytes, rendererHeapTotalBytes: renderer.totalBytes
+      });
+    };
+    await captureMemory();
 
+    await ui.waitForProperty('.settings-trigger', 'disabled', false, 30_000);
     await ui.click('.settings-trigger');
-    await ui.waitForVisible('.tool-drawer');
+    await ui.waitForVisible('.tool-drawer', 20_000);
     await ui.click('.instance-capabilities button');
     await ui.waitForProperty('.instance-capabilities button', 'disabled', true, 10_000);
     await ui.waitForProperty('.instance-capabilities button', 'disabled', false, 30_000);
@@ -201,16 +231,92 @@ suite('Live GitLab Workspace Webview validation', function () {
     const refreshedSchemaByteLengths = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').slice(initialSchemaRequests).map((item) => item.bytes).filter((item): item is number => item !== null);
     await ui.click('.drawer-heading button');
 
+    const localSearchMs: number[] = [];
+    let localSearchApiRequests = 0;
+    if (fixture === 'load') {
+      const selectedPath = repoPaths.at(-1);
+      assert.ok(selectedPath, 'the load manifest contains the selected test Repo');
+      const apiRequestsBeforeSearch = metrics.length;
+      for (let index = 0; index < 30; index++) {
+        const expectedCount = index % 2 === 0 ? 1 : 0;
+        const term = expectedCount ? selectedPath : `${runId}-missing-${index}`;
+        const sample = await ui.measureLocalFilter('input[aria-label="搜尋 Repo"]', term, '.clone-list-column .count');
+        assert.match(sample.text, new RegExp(`^${expectedCount} 個 Repo$`), 'Repo search updates local results without a GitLab read');
+        localSearchMs.push(sample.elapsedMs);
+      }
+      localSearchApiRequests = metrics.length - apiRequestsBeforeSearch;
+      if (!benchmarkRun) assert.equal(localSearchApiRequests, 0, 'local Repo filtering makes no GitLab requests');
+      await ui.measureLocalFilter('input[aria-label="搜尋 Repo"]', '', '.clone-list-column .count');
+    }
+
     const latencyMs: number[] = [];
-    const modes = ['gitlabWorkspace.openGitMode', 'gitlabWorkspace.openCloneMode'];
+    const navigationBreakdown: Array<{ index: number; mode: string; commandMs: number; visibleWaitMs: number; gitCommands: number | null; webviewMessages: { sent: number; received: number } | null }> = [];
+    const navigationApiRequestStart = metrics.length;
+    const modes = [
+      { command: 'gitlabWorkspace.openCloneMode', mode: 'clone', selector: '.clone-list-column' },
+      { command: 'gitlabWorkspace.openGitMode', mode: 'git', selector: '.git-workbench' }
+    ];
+    const measuredApi = api as Partial<Pick<TestExtensionApi, 'getGitCommandCountForTesting' | 'getWebviewMessageCountsForTesting'>>;
+    const gitWarmupStarted = performance.now();
+    await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+    await ui.waitForVisible('.git-workbench', 120_000);
+    await ui.waitUntil(`document.querySelectorAll('.git-repo-picker select option').length >= ${expectedRepoCount + 1}`, 120_000,
+      `The Git panel has loaded all ${expectedRepoCount} fixture Repos and the workspace Repo before warm navigation.`);
+    let lastGitCommandCount = measuredApi.getGitCommandCountForTesting?.() ?? null;
+    let quietGitMs = 0;
+    const quietGitStarted = performance.now();
+    while (lastGitCommandCount !== null && quietGitMs < 3_000 && performance.now() - quietGitStarted < 45_000) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const nextGitCommandCount = measuredApi.getGitCommandCountForTesting?.() ?? null;
+      if (nextGitCommandCount === lastGitCommandCount) quietGitMs += 250;
+      else { lastGitCommandCount = nextGitCommandCount; quietGitMs = 0; }
+    }
+    const gitWarmupMs = Number((performance.now() - gitWarmupStarted).toFixed(2));
     for (let index = 0; index < 30; index++) {
-      const started = performance.now();
-      await vscode.commands.executeCommand(modes[index % modes.length]);
-      await ui.waitForVisible(index % modes.length === 0 ? '.git-workbench' : '.clone-list-column', 10_000);
-      latencyMs.push(Number((performance.now() - started).toFixed(2)));
+      const target = modes[index % modes.length];
+      const gitCommandsBefore = measuredApi.getGitCommandCountForTesting?.() ?? null;
+      const messagesBefore = measuredApi.getWebviewMessageCountsForTesting?.() ?? null;
+      const commandStarted = performance.now();
+      await vscode.commands.executeCommand(target.command);
+      const commandMs = Number((performance.now() - commandStarted).toFixed(2));
+      const visibleStarted = performance.now();
+      await ui.waitForVisible(target.selector, 10_000);
+      const visibleWaitMs = Number((performance.now() - visibleStarted).toFixed(2));
+      latencyMs.push(Number((commandMs + visibleWaitMs).toFixed(2)));
+      const gitCommandsAfter = measuredApi.getGitCommandCountForTesting?.() ?? null;
+      const messagesAfter = measuredApi.getWebviewMessageCountsForTesting?.() ?? null;
+      navigationBreakdown.push({
+        index, mode: target.mode, commandMs, visibleWaitMs,
+        gitCommands: gitCommandsBefore === null || gitCommandsAfter === null ? null : gitCommandsAfter - gitCommandsBefore,
+        webviewMessages: messagesBefore === null || messagesAfter === null ? null : {
+          sent: messagesAfter.sent - messagesBefore.sent, received: messagesAfter.received - messagesBefore.received
+        }
+      });
+      await captureMemory();
+    }
+    const navigationApiRequests = metrics.length - navigationApiRequestStart;
+    let renderedGraphNodes = 0;
+    let narrowLayout: { viewport: number; content: number } | undefined;
+    if (fixture === 'load') {
+      await vscode.commands.executeCommand('gitlabWorkspace.openDeveloperMode');
+      await ui.waitForVisible('.developer-view-switch', 20_000);
+      await ui.click('.developer-view-switch button', 1);
+      await ui.waitUntil("document.querySelector('.issue-graph-svg')?.getAttribute('aria-label')?.includes('200 張主要 Issue')", 120_000,
+        'The assigned load fixture did not render all 200 graph nodes.');
+      renderedGraphNodes = await ui.count('.issue-graph-svg .graph-node.primary');
+      assert.equal(renderedGraphNodes, 200, 'the real Webview displays every primary graph node');
+      await captureMemory();
+      await vscode.commands.executeCommand('workbench.action.closeSidebar');
+      await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+      await page.setViewportSize({ width: 430, height: 900 });
+      if (process.env.GLW_LIVE_ROUND === '1') await page.screenshot({ path: path.join(screenshotDir, `${environment}-narrow.png`) });
+      narrowLayout = await ui.evaluate<{ viewport: number; content: number }>(`({ viewport: document.documentElement.clientWidth, content: document.querySelector('.app-shell')?.scrollWidth ?? 0 })`);
+      if (!baselineBenchmark) assert.ok(narrowLayout.content <= narrowLayout.viewport + 1, `the load view fits a narrow 430 px window (${JSON.stringify(narrowLayout)})`);
     }
     const bytes = await ui.htmlBytes();
-    const gitGui = process.env.GLW_LIVE_GIT_GUI === '1' ? await exerciseGitGui(ui, page, workspaceRoot, process.env.GLW_RUN_ID || 'work-20261006-livevalidation') : undefined;
+    const gitGui = process.env.GLW_LIVE_GIT_GUI === '1' ? await exerciseGitGui(ui, page, workspaceRoot, runId) : undefined;
+    const gitCommandCount = typeof measuredApi.getGitCommandCountForTesting === 'function' ? measuredApi.getGitCommandCountForTesting() : null;
+    const webviewMessageCounts = typeof measuredApi.getWebviewMessageCountsForTesting === 'function' ? measuredApi.getWebviewMessageCountsForTesting() : null;
     const screenshotPath = gitGui ? path.join(screenshotDir, `${environment}-git-gui.png`) : undefined;
     if (screenshotPath && process.env.GLW_LIVE_ROUND === '1') await page.screenshot({ path: screenshotPath });
 
@@ -222,8 +328,28 @@ suite('Live GitLab Workspace Webview validation', function () {
       projects: groupPath, visibleRepoCount,
       schemaBytes: { initial: schemaByteLengths.reduce((sum, value) => sum + value, 0), afterManualDetection: refreshedSchemaByteLengths.reduce((sum, value) => sum + value, 0) },
       schemaGraphQlRequests: metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length,
+      fixture: { kind: fixture, runId, expectedRepoCount, renderedGraphNodes },
+      narrowLayout,
+      status: 'PASS', coldInteractiveReadyMs,
       api: metrics, webview: { viewport: await page.evaluate(() => ({ width: innerWidth, height: innerHeight })), frameBytes: bytes },
-      warmNavigationMs: { samples: latencyMs, median: percentile(latencyMs, 0.5), p95: percentile(latencyMs, 0.95) }, gitGui,
+      operationCounts: {
+        available: gitCommandCount !== null && webviewMessageCounts !== null,
+        gitCommands: gitCommandCount,
+        webviewMessages: webviewMessageCounts
+      },
+      warmNavigationMs: { samples: latencyMs, median: percentile(latencyMs, 0.5), p95: percentile(latencyMs, 0.95) },
+      warmNavigationBreakdown: navigationBreakdown,
+      gitWarmupMs, gitWarmupQuietMs: quietGitMs,
+      navigationApiRequests,
+      localRepoSearchMs: { samples: localSearchMs, median: percentile(localSearchMs, 0.5), p95: percentile(localSearchMs, 0.95) },
+      localSearchApiRequests, gitGui,
+      memory: {
+        samples: memorySamples,
+        extensionHostPeakRssBytes: Math.max(0, ...memorySamples.map((sample) => sample.extensionHostRssBytes)),
+        extensionHostPeakHeapUsedBytes: Math.max(0, ...memorySamples.map((sample) => sample.extensionHostHeapUsedBytes)),
+        rendererPeakHeapUsedBytes: Math.max(0, ...memorySamples.map((sample) => sample.rendererHeapUsedBytes)),
+        rendererPeakHeapTotalBytes: Math.max(0, ...memorySamples.map((sample) => sample.rendererHeapTotalBytes))
+      },
       screenshots: [path.relative(path.dirname(reportPath), path.join(screenshotDir, `${environment}-clone.png`)), ...(screenshotPath ? [path.relative(path.dirname(reportPath), screenshotPath)] : [])]
     };
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -439,6 +565,29 @@ class WebviewCdp {
 
   async htmlBytes(): Promise<number> {
     return this.evaluate<number>(`new TextEncoder().encode(document.body.innerHTML).length`);
+  }
+
+  async memoryUsage(): Promise<{ usedBytes: number; totalBytes: number }> {
+    const response = await this.send('Runtime.getHeapUsage') as unknown as { usedSize?: number; totalSize?: number };
+    if (!Number.isFinite(response.usedSize) || !Number.isFinite(response.totalSize)) {
+      throw new Error('Chromium did not return Webview renderer heap metrics.');
+    }
+    return { usedBytes: response.usedSize!, totalBytes: response.totalSize! };
+  }
+
+  async measureLocalFilter(selector: string, value: string, resultSelector: string): Promise<{ elapsedMs: number; text: string }> {
+    return this.evaluate<{ elapsedMs: number; text: string }>(`(async () => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      const view = input?.ownerDocument.defaultView;
+      if (!input || !view || input.tagName !== 'INPUT') throw new Error('The local search input was not found.');
+      const started = view.performance.now();
+      input.focus();
+      Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, 'value')?.set?.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new view.Event('input', { bubbles: true }));
+      await new Promise(view.requestAnimationFrame.bind(view));
+      await new Promise(view.requestAnimationFrame.bind(view));
+      return { elapsedMs: Number((view.performance.now() - started).toFixed(2)), text: document.querySelector(${JSON.stringify(resultSelector)})?.textContent?.trim() ?? '' };
+    })()`);
   }
 
   async waitUntil(expression: string, timeoutMs: number, message: string): Promise<void> {
