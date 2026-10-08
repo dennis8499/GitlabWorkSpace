@@ -31,7 +31,7 @@ test('renders workspace navigation and keeps destinations available before conne
   t.after(() => view.dom.window.close());
 
   assert.deepEqual(hostValues(view.requests), [{ type: 'ready' }]);
-  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '⑂待審查', '⑂版控', '≡後臺管理']);
+  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '⑂待審查', '⑂版控']);
   assert.equal(view.buttons().every((button) => !button.disabled), true);
   assert.equal(view.buttons()[0].classList.contains('workspace-link'), true);
   assert.equal(view.buttons().every((button) => button.type === 'button'), true);
@@ -54,13 +54,13 @@ test('shows connection scope and dispatches each destination with accessible bus
 
   assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, 'team/dotnet');
   assert.equal(view.buttons()[0].classList.contains('active'), true);
-  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', '待審查', '版控', '後臺管理']);
+  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', '待審查', '版控']);
   assert.equal(view.buttons()[5].getAttribute('aria-current'), 'page');
 
-  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit', 'openAdmin'].entries()) {
+  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit'].entries()) {
     view.buttons()[index].click();
   }
-  assert.deepEqual(hostValues(view.requests.slice(1, 8)), ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit', 'openAdmin'].map((action) => ({ type: 'perform', action })));
+  assert.deepEqual(hostValues(view.requests.slice(1, 7)), ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openReviewer', 'openGit'].map((action) => ({ type: 'perform', action })));
 
   assert.equal(view.repoButtons().length, 1);
   assert.match(view.repoButtons()[0].textContent, /project.*main.*origin\/main/s);

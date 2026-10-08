@@ -214,7 +214,7 @@ export type WorkspaceRequest =
   | { type: 'cancelRepositoryScan' }
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
-  | { type: 'loadIssueGraph'; connectedScope: string }
+  | { type: 'loadIssueGraph'; connectedScope: string; forceNetwork?: boolean }
   | { type: 'setIssueGraphVisibility'; visible: boolean; connectedScope: string }
   | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }

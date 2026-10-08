@@ -25,8 +25,7 @@ const destinations: Array<{
   { id: 'openProjects', mode: 'clone', label: '專案', icon: '▣' },
   { id: 'openAnalysis', mode: 'sa', label: '分析', icon: '⌕' },
   { id: 'openReviewer', mode: 'reviewer', label: '待審查', icon: '⑂' },
-  { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' },
-  { id: 'openAdmin', mode: 'admin', label: '後臺管理', icon: '≡' }
+  { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' }
 ];
 
 function GitSidebar() {

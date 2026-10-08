@@ -733,7 +733,7 @@ function App() {
     const connectedScope = snapshot?.connectedScope;
     if (!connectedScope) return;
     issueGraphRequestedScopesRef.current.add(connectedScope);
-    post({ type: 'loadIssueGraph', connectedScope });
+    post({ type: 'loadIssueGraph', connectedScope, forceNetwork: true });
   }
   function addDraftFromMarkdown(): void {
     if (!importText.trim() || !projects.length) return;
@@ -806,7 +806,7 @@ function App() {
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
           {developerView === 'list' && <WorkspaceSectionNotice section="boards" label="Issue Board" status={snapshot.sections?.boards} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'boards', connectedScope: snapshot.connectedScope! })} />}
           {developerView === 'list' && <WorkspaceSectionNotice section="milestones" label="Milestone" status={snapshot.sections?.milestones} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'milestones', connectedScope: snapshot.connectedScope! })} />}
-          {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={() => snapshot.connectedScope && post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope })} />}
+          {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={retryIssueGraph} />}
         </>}
         {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
           <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
@@ -819,7 +819,7 @@ function App() {
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {(gitPanelVisited || mode === 'git') && <GitControlPanel post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
-        {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
+        {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}</div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => setProjectTab('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => setProjectTab('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { setProjectTab('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
@@ -875,7 +875,7 @@ function App() {
               {snapshot.groupMilestonesError && <p class="warning developer-filter-error" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}
               {developerView === 'graph' ? <div class="developer-graph-panel">
                 {issueGraphSnapshot?.status === 'loading' && <div class="graph-load-message" role="status">正在載入圖譜資料；已取得的主要 Issue 會先顯示。</div>}
-                {issueGraphSnapshot && issueGraphSnapshot.errors.length > 0 && <div class="graph-load-message warning" role="alert"><span>{issueGraphSnapshot.errors.length} 項圖譜資料未能完整載入，已保留可用節點與連線。</span><button class="quiet small" type="button" onClick={retryIssueGraph}>重試</button></div>}
+                {issueGraphSnapshot && issueGraphSnapshot.errors.length > 0 && <div class="graph-load-message warning" role="alert"><div class="graph-load-content"><span>{issueGraphSnapshot.errors.length} 項圖譜資料未能完整載入，已保留可用節點與連線。</span><details class="graph-load-errors"><summary>查看失敗原因</summary><ul>{issueGraphSnapshot.errors.map((error) => <li key={error}>{error}</li>)}</ul></details></div><button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading'} onClick={retryIssueGraph}>重試</button></div>}
                 {!issueGraphSnapshot ? <div class="graph-loading-placeholder" role="status">正在準備 Issue 圖譜…</div> : <IssueGraphView
                   key={snapshot.connectedScope ?? 'disconnected'}
                   nodes={graphSelection.nodes} edges={graphSelection.edges} boards={issueBoards} boardStatuses={issueGraphSnapshot.boardStatus} boardLoadError={snapshot.groupIssueBoardsError} projects={projects}
@@ -961,6 +961,7 @@ function App() {
       onImport={(source) => post({ type: 'importWorkflowKitPackage', source })}
       onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
+      onOpenAdmin={() => { setToolDrawer(false); modeChange('admin'); requestAnimationFrame(() => document.querySelector<HTMLHeadingElement>('.page-heading h1')?.focus()); }}
       onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
   </main>;
 }
@@ -973,12 +974,12 @@ function Discussion({ discussion, reply, onReplyChange, onReply }: { discussion:
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => onReplyChange(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); onReplyChange(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onRetryInstance, onSelectGroup, onConnect, onClose }: {
+function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose }: {
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
   onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
   onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
   onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void; onRetryInstance: () => void;
-  onSelectGroup: () => void; onConnect: () => void; onClose: () => void;
+  onSelectGroup: () => void; onConnect: () => void; onOpenAdmin: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'work-in-progress': '工作進行中', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
   const drawerRef = useRef<HTMLElement>(null);
@@ -1002,6 +1003,7 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">VSCode 工作區：{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
+    <section class="workspace-settings"><h3>後臺管理</h3><p>查看、篩選與匯出本機操作紀錄。</p><button type="button" disabled={operationBusy} onClick={onOpenAdmin}>開啟後臺管理</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
       {snapshot.instance?.warnings.map((warning) => <p class="warning" role="status">{warning}</p>)}

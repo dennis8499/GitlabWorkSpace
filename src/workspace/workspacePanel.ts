@@ -627,7 +627,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
-      case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope); break;
+      case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope, request.forceNetwork === true); break;
       case 'setIssueGraphVisibility':
         if (request.connectedScope !== this.connectedScopeKey()) break;
         if (request.visible && this.activeMode === 'developer') {

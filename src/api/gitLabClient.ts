@@ -541,7 +541,7 @@ export class GitLabClient {
       ? '... on WorkItemWidgetLinkedItems { linkedItems(first: 100, after: $linksAfter) @include(if: $includeLinks) { nodes { linkType workItem { ...IssueGraphItem } } pageInfo { hasNextPage endCursor } } }'
       : '';
     const labels = capabilities.graphLabels
-      ? '... on WorkItemWidgetLabels { labels(first: 100) { nodes { name color textColor } } }'
+      ? '... on WorkItemWidgetLabels { labels(first: 100) { nodes { name: title color textColor } } }'
       : '';
     const assignees = capabilities.graphAssignees
       ? '... on WorkItemWidgetAssignees { assignees(first: 100) { nodes { id name username } } }'

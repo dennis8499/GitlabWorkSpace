@@ -25,11 +25,13 @@ const LAYOUT_KEY = 'gitlab-workspace.git-layout.v1';
 function loadUi(): Record<string, RepoGitUi> {
   try { return restoreGitUi(localStorage.getItem(GIT_UI_STORAGE_KEY) ?? localStorage.getItem(LEGACY_GIT_UI_STORAGE_KEY)); } catch { return {}; }
 }
-function loadLayout(): { theme: 'dark' | 'vscode'; left: number; right: number } {
-  try {
-    const value = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? '{}');
-    return { theme: value.theme === 'vscode' ? 'vscode' : 'dark', left: clamp(value.left, 180, 360, 220), right: clamp(value.right, 280, 480, 320) };
-  } catch { return { theme: 'dark', left: 220, right: 320 }; }
+function normalizeLayout(value: unknown): GitPanelUiState['layout'] {
+  const saved = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return { theme: saved.theme === 'dark' ? 'dark' : 'vscode', left: clamp(saved.left, 180, 360, 220), right: clamp(saved.right, 280, 480, 320) };
+}
+function loadLayout(): GitPanelUiState['layout'] {
+  try { return normalizeLayout(JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? '{}')); }
+  catch { return normalizeLayout(undefined); }
 }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback; }
 function callName(action: GitAction): string {
@@ -56,7 +58,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   const [query, setQuery] = useState(initialState?.query ?? '');
   const [historyFilter, setHistoryFilter] = useState(initialState?.historyFilter ?? '');
   const [searchPosition, setSearchPosition] = useState(0);
-  const [layout, setLayout] = useState(initialState?.layout ?? loadLayout());
+  const [layout, setLayout] = useState(() => normalizeLayout(initialState?.layout ?? loadLayout()));
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [hostWidth, setHostWidth] = useState(1200);
@@ -431,7 +433,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
         <button onClick={() => startDialog('reset', selectedCommit?.hash ?? snapshot?.history[0]?.hash)} disabled={!snapshot?.history.length || !!pending}>Reset…</button>
         <button onClick={() => startDialog('pick', selectedCommit?.hash)} disabled={!selectedCommit || !!pending}>Cherry-pick／Revert…</button>
       </div></details>
-      <select class="git-theme-picker" aria-label="Git 介面主題" value={layout.theme} onChange={(event) => setLayout((current) => ({ ...current, theme: event.currentTarget.value === 'vscode' ? 'vscode' : 'dark' }))}><option value="dark">深色</option><option value="vscode">跟隨 VS Code</option></select>
+      <select class="git-theme-picker" aria-label="Git 介面主題" value={layout.theme} onChange={(event) => setLayout((current) => ({ ...current, theme: event.currentTarget.value === 'dark' ? 'dark' : 'vscode' }))}><option value="vscode">跟隨 VS Code</option><option value="dark">深色</option></select>
     </header>
     {error && <div class="git-error dashboard-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>關閉</button></div>}
     {snapshot?.operation && <div class="git-operation-banner" role="status"><div><strong>{snapshot.conflictCount ? '目前有合併衝突' : 'Git 操作暫停中'}</strong><span>{snapshot.operation === 'stash-conflict' ? '解決並暫存衝突檔案即可；原 Stash 會保留。' : '使用 Merge Editor 解決衝突，暫存後繼續作業。'}</span></div>{snapshot.operation !== 'stash-conflict' && <div class="git-operation-actions"><button disabled={!!pending} onClick={() => send({ type: 'continue' })}>繼續</button>{snapshot.operation === 'rebase' && <button disabled={!!pending} onClick={() => send({ type: 'skip' })}>略過</button>}<button class="danger-button" disabled={!!pending} onClick={() => send({ type: 'abort' })}>中止</button></div>}</div>}

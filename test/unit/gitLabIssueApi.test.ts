@@ -466,6 +466,41 @@ test('paginates WorkItem parents, child items, linked items, and reads label met
   assert.deepEqual(result.links.map((entry) => entry.type), ['RELATED', 'BLOCKS']);
 });
 
+for (const scope of ['namespace', 'project'] as const) {
+  test('loads graph relations against the GitLab Label.title contract using the ' + scope + ' root', async () => {
+    // The GraphQL Label contract uses title; REST labels use name.
+    const label: Record<string, string> = { title: 'feature', color: '#AA5500', textColor: '#FFFFFF' };
+    const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+      const { query } = JSON.parse(String(init?.body)) as { query: string };
+      const selections = [...query.matchAll(/on WorkItemWidgetLabels\s*\{\s*labels[^{}]*\{\s*nodes\s*\{([^}]+)\}/g)];
+      assert.ok(selections.length, 'the request includes label metadata');
+      const projected: Record<string, string>[] = [];
+      for (const selection of selections) {
+        const fields = [...selection[1].matchAll(/(?:(\w+)\s*:\s*)?(\w+)/g)];
+        const unknown = fields.find((field) => !Object.hasOwn(label, field[2]));
+        if (unknown) return new Response(JSON.stringify({ errors: [{ message: "Field '" + unknown[2] + "' doesn't exist on type 'Label'" }] }));
+        projected.push(Object.fromEntries(fields.map((field) => [field[1] ?? field[2], label[field[2]]])));
+      }
+      const item = (id: string, iid: string) => ({ id, iid, title: id, widgets: [{ labels: { nodes: [projected.at(-1)] } }] });
+      return new Response(JSON.stringify({ data: { [scope]: { workItem: {
+        ...item('root', '7'), widgets: [
+          { labels: { nodes: [projected[0]] } },
+          { parent: item('parent', '1'), children: { nodes: [item('child', '8')], pageInfo: { hasNextPage: false } } },
+          { linkedItems: { nodes: [{ linkType: 'BLOCKS', workItem: item('linked', '9') }], pageInfo: { hasNextPage: false } } }
+        ]
+      } } } }));
+    });
+    const graph = await client.loadIssueGraphRelations('team/service', 7, {
+      workItemScope: scope, workItemGraphFields: ['title'], graphWorkItems: true, graphHierarchy: true,
+      graphLinkedItems: true, graphLabels: true, graphAssignees: false, graphWorkItemTypes: false
+    });
+    const items = [graph.root!, ...graph.parents, ...graph.children, ...graph.links.map((link) => link.item)];
+    assert.deepEqual(items.map((item) => item.id), ['root', 'parent', 'child', 'linked']);
+    assert.equal(graph.links[0].type, 'BLOCKS');
+    for (const item of items) assert.deepEqual(item.widgets?.[0].labels?.nodes, [{ name: 'feature', color: '#AA5500', textColor: '#FFFFFF' }]);
+  });
+}
+
 test('stops requesting a completed WorkItem connection while another connection paginates', async () => {
   const calls: Array<{ query: string; variables: Record<string, unknown> }> = [];
   const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {

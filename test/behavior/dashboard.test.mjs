@@ -252,7 +252,7 @@ function issueDetailData(issue, project) {
   };
 }
 
-async function mount(initialState, initialSnapshot, storage = {}) {
+async function mount(initialState, initialSnapshot, storage = {}, beforeMount = () => {}) {
   const runtimeErrors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', (error) => runtimeErrors.push(error.stack ?? error.message));
@@ -271,6 +271,7 @@ async function mount(initialState, initialSnapshot, storage = {}) {
     getState: () => state,
     setState: (value) => { state = JSON.parse(JSON.stringify(value)); }
   });
+  beforeMount(dom.window);
   dom.window.eval(script);
   for (let attempt = 0; attempt < 50 && requests.length === 0; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -298,6 +299,111 @@ async function mount(initialState, initialSnapshot, storage = {}) {
     }
   };
 }
+
+test('Git defaults to VS Code when layout storage is missing, invalid or unavailable', async (t) => {
+  const key = 'gitlab-workspace.git-layout.v1';
+  const cases = [
+    { name: 'missing layout' },
+    { name: 'null layout', storage: { [key]: null } },
+    { name: 'invalid theme', storage: { [key]: { theme: 'unknown', left: 230, right: 340 } } },
+    { name: 'malformed JSON', setup: (window) => window.localStorage.setItem(key, '{broken') },
+    { name: 'unavailable storage', setup: (window) => Object.defineProperty(window, 'localStorage', { get() { throw new Error('Storage unavailable'); } }) },
+    { name: 'invalid restored theme', gitUi: { uiByRepo: {}, layout: { theme: 'unknown', left: 230, right: 340 } } },
+    { name: 'invalid restored layout', gitUi: { uiByRepo: {}, layout: [] } }
+  ];
+  for (const item of cases) await t.test(item.name, async (t) => {
+    const view = await mount({ mode: 'git', gitUi: item.gitUi }, snapshot('git'), item.storage, item.setup);
+    t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    assert.equal(document.querySelector('.git-workbench').dataset.theme, 'vscode');
+    assert.equal(document.querySelector('.git-theme-picker').value, 'vscode');
+    await view.tick();
+    assert.equal(view.savedState.gitUi.layout.theme, 'vscode');
+    if (item.name === 'invalid restored theme') {
+      assert.equal(view.savedState.gitUi.layout.left, 230);
+      assert.equal(view.savedState.gitUi.layout.right, 340);
+    }
+  });
+});
+
+test('Git preserves saved themes and restores a manual choice after reopening', async (t) => {
+  const key = 'gitlab-workspace.git-layout.v1';
+  for (const theme of ['dark', 'vscode']) {
+    const view = await mount({ mode: 'git' }, snapshot('git'), { [key]: { theme, left: 240, right: 350 } });
+    t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    const picker = document.querySelector('.git-theme-picker');
+    assert.equal(picker.value, theme);
+    const next = theme === 'dark' ? 'vscode' : 'dark';
+    picker.value = next;
+    picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+    await view.tick();
+    assert.equal(document.querySelector('.git-workbench').dataset.theme, next);
+    assert.equal(JSON.parse(view.dom.window.localStorage.getItem(key)).theme, next);
+    const reopened = await mount(view.savedState, snapshot('git'), { [key]: { theme } });
+    t.after(() => reopened.dom.window.close());
+    assert.equal(reopened.dom.window.document.querySelector('.git-theme-picker').value, next, 'restored view state takes precedence over older local storage');
+    assert.equal(reopened.savedState.gitUi.layout.left, 240);
+    assert.equal(reopened.savedState.gitUi.layout.right, 350);
+  }
+});
+
+test('settings opens the local admin screen with or without a GitLab connection', async (t) => {
+  for (const connected of [true, false]) {
+    const data = { ...snapshot(), connected, ...(connected ? {} : { currentUser: undefined, group: undefined, connectedScope: undefined }) };
+    const view = await mount({ mode: 'developer' }, data);
+    t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    document.querySelector('.settings-trigger').click();
+    await view.tick();
+    const open = [...document.querySelectorAll('.tool-drawer button')].find((button) => button.textContent === '開啟後臺管理');
+    assert.ok(open);
+    assert.equal(open.disabled, false);
+    open.click();
+    await view.tick();
+    assert.equal(document.querySelector('.tool-drawer'), null);
+    assert.equal(document.querySelector('.page-heading h1').textContent, '後臺管理');
+    assert.ok(document.querySelector('.admin-log-panel'));
+    assert.ok(view.requests.some((request) => request.type === 'setMode' && request.mode === 'admin'));
+    assert.ok(view.requests.some((request) => request.type === 'queryLogs'));
+    assert.equal(document.activeElement, document.querySelector('.page-heading h1'));
+    [...document.querySelectorAll('.log-actions button')].find((button) => button.textContent === '匯出篩選結果').click();
+    assert.equal(view.requests.at(-1).type, 'exportLogs');
+  }
+});
+
+test('partial graphs expose escaped failure details, force both retry paths and clear recovered warnings', async (t) => {
+  const root = { id: 'project:1:issue:1', sourceIds: [], kind: 'issue', namespacePath: 'team/alpha', projectPath: 'team/alpha', projectId: 1, iid: '1', title: 'Alpha milestone issue', state: 'opened', labels: [], assignees: [], boardIds: [], assignedToMe: true, isRoot: true, relationsStatus: 'ready' };
+  const context = { ...root, id: 'project:2:issue:4', projectId: 2, iid: '4', title: 'Linked context', assignedToMe: false, isRoot: false };
+  const graph = { connectedScope: 'team-scope', status: 'partial', roots: [root.id], nodes: [root, context], edges: [{ id: 'relation', source: root.id, target: context.id, type: 'relates_to' }], boardIssueIds: {}, boardStatus: {}, errors: ['Issue #2: <b>Permission denied</b>', 'Delivery: connection failed'], updatedAt: Date.now() };
+  const data = { ...snapshot(), issueGraph: graph, issueGraphVersion: 1, sections: { graph: { status: 'ready' } } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelectorAll('.graph-node').length, 2);
+  assert.equal(document.querySelectorAll('.graph-edge').length, 1);
+  assert.match(document.querySelector('.graph-load-message.warning').textContent, /2 項圖譜資料未能完整載入/);
+  const details = document.querySelector('.graph-load-errors');
+  details.querySelector('summary').click();
+  assert.equal(details.open, true);
+  assert.deepEqual([...details.querySelectorAll('li')].map((item) => item.textContent), graph.errors);
+  assert.equal(details.querySelector('b'), null, 'GitLab error text is rendered as text');
+  document.querySelector('.graph-load-message.warning button').click();
+  assert.equal(view.requests.filter((request) => request.type === 'loadIssueGraph').at(-1).forceNetwork, true);
+  view.sendSnapshot({ ...data, issueGraphVersion: 2, issueGraph: { ...graph, status: 'loading' } });
+  await view.tick();
+  assert.equal(document.querySelector('.graph-load-message.warning button').disabled, true);
+  view.sendSnapshot({ ...data, issueGraphVersion: 3, sections: { graph: { status: 'error', error: 'Connection failed' } } });
+  await view.tick();
+  document.querySelector('.section-status.error button').click();
+  assert.equal(view.requests.filter((request) => request.type === 'loadIssueGraph').at(-1).forceNetwork, true);
+  view.sendSnapshot({ ...data, issueGraphVersion: 4, issueGraph: { ...graph, status: 'ready', errors: [] } });
+  await view.tick();
+  assert.equal(document.querySelector('.graph-load-message.warning'), null);
+  assert.equal(document.querySelector('.graph-load-errors'), null);
+  assert.equal(document.querySelectorAll('.graph-node').length, 2);
+  assert.equal(document.querySelectorAll('.graph-edge').length, 1);
+});
 
 test('account menu supports selecting saved identities, logging in, adding and removing accounts', async (t) => {
   const data = snapshot();

@@ -74,6 +74,16 @@ test('a restored view uses the Host snapshot and delivers pending notices withou
   assert.ok(messages.some(message => message.type === 'message' && message.message === 'Completed while hidden'));
 });
 
+test('graph requests force network reads only when explicitly requested', async () => {
+  const { host } = fixture();
+  const calls: Array<{ scope: string; force: boolean }> = [];
+  host.loadIssueGraph = async (scope: string, force: boolean) => { calls.push({ scope, force }); };
+  await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: 'scope' });
+  await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: 'scope', forceNetwork: true });
+  await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: 'scope', forceNetwork: 'true' });
+  assert.deepEqual(calls, [{ scope: 'scope', force: false }, { scope: 'scope', force: true }, { scope: 'scope', force: false }]);
+});
+
 test('an authorized Git write finishes once while hidden and its receipt survives until acknowledged', async () => {
   const { host, messages } = fixture(); host.activeMode = 'git'; host.selectedGitRepositoryId = 'repo';
   let finish!: (value: unknown) => void; let writes = 0;
