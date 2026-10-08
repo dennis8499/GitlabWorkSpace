@@ -233,6 +233,11 @@ export function sameRealLocalPath(first: string, second: string, platform = proc
   }
 }
 
+export async function sameRealLocalPathAsync(first: string, second: string, platform = process.platform): Promise<boolean> {
+  try { const [firstPath, secondPath] = await Promise.all([realpath(first), realpath(second)]); return sameLocalPath(firstPath, secondPath, platform); }
+  catch { return sameLocalPath(first, second, platform); }
+}
+
 export function localRepositoryState(root: string, target: string): 'missing' | 'ready' | 'unsafe' {
   try {
     const rel = relative(resolve(root), resolve(target));

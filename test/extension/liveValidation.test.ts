@@ -68,6 +68,10 @@ suite('Live GitLab Workspace Webview validation', function () {
       const context = browser.contexts()[0];
       assert.ok(context, 'the isolated VS Code Chromium context is available over CDP');
       const page = await waitForWorkbenchPage(context.pages());
+      await page.bringToFront();
+      const focusDeadline = Date.now() + 5000;
+      while (!vscode.window.state.focused && Date.now() < focusDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+      assert.equal(vscode.window.state.focused, true, 'the real VS Code window is focused so its native Git watcher may refresh');
       await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
       await page.locator('iframe.webview').waitFor({ state: 'attached', timeout: 20_000 });
       ui = await connectWorkspaceWebview(browser, port, path.join(path.dirname(reportPath), 'local-git-gui-cdp-targets.json'), path.join(path.dirname(reportPath), 'local-git-gui-webview-debug.json'));
@@ -149,6 +153,40 @@ suite('Live GitLab Workspace Webview validation', function () {
       await ui.selectOptionContaining('.git-repo-picker select', 'service');
       await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && document.querySelector('.git-branch-picker select')?.value === ${JSON.stringify(currentBranch)} && !document.querySelector('.git-progress') && !document.querySelector('.dashboard-error')`, 15_000, 'Rapid switching completes the latest open and renders its actual current branch without stale replies.');
       compatibility.rapidRepoSwitching = 'PASS';
+      const worktreeRoot = path.join(path.dirname(workspaceRoot), 'validation-worktree');
+      execFileSync('git', ['worktree', 'add', '-b', 'validation/worktree', worktreeRoot, 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(worktreeRoot)));
+      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-worktree'))`, 15_000, 'A real linked Worktree appears after native repository discovery.');
+      await ui.selectOptionContaining('.git-repo-picker select', 'validation-worktree');
+      await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === 'validation/worktree' && !!document.querySelector('.git-commit-row:not(.git-wip-row)')`, 15_000, 'The linked Worktree shows its own branch and shared commit history.');
+      compatibility.worktree = 'PASS';
+      const moduleSource = path.join(path.dirname(workspaceRoot), 'module-source');
+      mkdirSync(moduleSource, { recursive: true });
+      execFileSync('git', ['init', '-b', 'main'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+      writeFileSync(path.join(moduleSource, 'README.md'), 'Isolated native submodule fixture', 'utf8');
+      execFileSync('git', ['add', 'README.md'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+      execFileSync('git', ['-c', 'user.name=Native Validation', '-c', 'user.email=native-validation@example.test', 'commit', '-m', 'Submodule fixture'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+      execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', moduleSource, 'validation-module'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      const submoduleRoot = path.join(workspaceRoot, 'validation-module');
+      assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(submoduleRoot)));
+      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-module'))`, 15_000, 'A real Submodule appears after native repository discovery.');
+      await ui.selectOptionContaining('.git-repo-picker select', 'validation-module');
+      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'validation-module' && document.querySelector('.git-commit-list')?.textContent?.includes('Submodule fixture')`, 15_000, 'The Submodule resolves its gitdir file and shows its own commit history.');
+      compatibility.submodule = 'PASS';
+      await ui.selectOptionContaining('.git-repo-picker select', 'service');
+      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && !document.querySelector('.git-progress')`, 15_000, 'The main Repo is selected before hiding the panel.');
+      const lifecycleDraft = 'Hidden panel draft ' + runId;
+      await ui.evaluate(`(() => { globalThis.__glwLifecycleProbe = true; const input = document.querySelector('.git-commit-composer textarea'); if (!input) throw new Error('Commit composer missing'); input.value = ${JSON.stringify(lifecycleDraft)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+      await ui.close();
+      ui = undefined;
+      await checkIdle('hidden');
+      await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+      ui = await connectWorkspaceWebview(browser, port, path.join(path.dirname(reportPath), 'local-git-gui-restored-targets.json'), path.join(path.dirname(reportPath), 'local-git-gui-restored-debug.json'));
+      await ui.waitForVisible('.git-workbench', 20_000);
+      await ui.waitUntil(`document.querySelector('.git-commit-composer textarea')?.value === ${JSON.stringify(lifecycleDraft)}`, 15_000, 'The last commit draft survives native Webview destruction and restoration.');
+      assert.equal(await ui.evaluate(`typeof globalThis.__glwLifecycleProbe`), 'undefined', 'VS Code recreated the Webview instead of retaining its DOM context');
+      compatibility.hiddenRestoredDraft = 'PASS';
       await page.screenshot({ path: path.join(path.dirname(reportPath), 'screenshots', 'local-git-gui.png') });
       const status = gitGui.committed === true && gitGui.pushedWithUpstream === true ? 'PASS' : gitGui.commitUi && typeof gitGui.commitUi === 'object' && 'error' in gitGui.commitUi && Boolean(gitGui.commitUi.error) ? 'FAIL' : 'BLOCKED';
       writeFileSync(reportPath, `${JSON.stringify({
@@ -171,6 +209,8 @@ suite('Live GitLab Workspace Webview validation', function () {
         nativeGitRepositoryState: await api.getGitRepositoryState().catch((stateError: unknown) => ({
           repositories: [], available: false, message: stateError instanceof Error ? stateError.message : String(stateError)
         })),
+        windowFocused: vscode.window.state.focused, nativeGitActivity: api.getGitActivityForTesting(),
+        nativeWorkingChanges: (vscode.extensions.getExtension('vscode.git')?.exports as { getAPI(version: number): { repositories: Array<{ rootUri: vscode.Uri; state: { workingTreeChanges: Array<{ uri: vscode.Uri }> } }> } } | undefined)?.getAPI(1).repositories.map(repository => ({ path: repository.rootUri.fsPath, changes: repository.state.workingTreeChanges.map(change => change.uri.fsPath) })),
         actionTrace, idleChecks
       }, null, 2)}\n`, 'utf8');
       throw error;
@@ -182,7 +222,7 @@ suite('Live GitLab Workspace Webview validation', function () {
 
   test('authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP', async function () {
   if (!enabled) this.skip();
-  assert.equal(vscode.version, '1.140.0', 'the real Extension Host uses the pinned local VS Code version');
+  assert.equal(vscode.version, process.env.GLW_LIVE_VSCODE_VERSION ?? '1.140.0', 'the real Extension Host uses the pinned local VS Code version');
   const environment = process.env.GLW_LIVE_ENVIRONMENT!;
   const baseUrl = process.env.GLW_LIVE_BASE_URL!;
   const groupPath = process.env.GLW_LIVE_GROUP_PATH!;

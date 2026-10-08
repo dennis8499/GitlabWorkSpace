@@ -7,6 +7,7 @@ import type { GitLabClient, GitLabIssueCapabilities } from '../../src/api/gitLab
 import type { GitLabMetadata } from '../../src/api/types';
 import { GitLabSession } from '../../src/connection/session';
 import { accountTokenKey } from '../../src/connection/accountStore';
+import { groupWorkspaceReadKey } from '../../src/api/gitLabReadKeys';
 
 class MemoryStore implements Memento {
   private readonly values = new Map<string, unknown>();
@@ -392,4 +393,38 @@ test('clears the selected Group when the account changes on the same GitLab serv
     assert.equal(session.selectedGroup, undefined);
     assert.equal(session.accounts.find(account => account.id === session.activeAccountId)?.userId, 2);
   } finally { await stop(server); }
+});
+
+
+test('a successful MR write expires its Group review list and leaves unrelated cached reads intact', async (t) => {
+  let reads = 0, writes = 0;
+  const request = { id: 1, project_id: 101, iid: 1, state: 'opened', title: 'Before write' };
+  const server = createServer((incoming, response) => {
+    let body: unknown = { id: 7, username: 'reviewer', name: 'Reviewer' };
+    if (incoming.url?.includes('/groups/42/merge_requests')) { reads++; body = [{ ...request }]; }
+    if (incoming.method === 'POST' && incoming.url?.includes('/projects/101/merge_requests')) {
+      writes++; request.title = 'After write'; body = request;
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(body));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => stop(server));
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  await session.connect('http://127.0.0.1:' + (server.address() as AddressInfo).port, 'unit-only-cache-token');
+  await session.setSelectedGroup({ id: 42, name: 'Group', full_path: 'group', web_url: '' });
+  const key = groupWorkspaceReadKey(42, 'mergeRequests');
+  const read = () => session.cachedRead(key, client => client.listGroupMergeRequests(42, 7));
+  let unrelatedReads = 0;
+  const unrelated = () => session.cachedRead('group/99/boards', async () => { unrelatedReads++; return [99]; });
+  assert.equal((await read())[0].title, 'Before write'); await read(); await unrelated();
+  assert.equal(reads, 1);
+  const changes: unknown[] = [];
+  const subscription = session.onDidInvalidateReads(change => changes.push(change));
+  await (await session.getClient()).createMergeRequest(101, { title: 'New MR', sourceBranch: 'feature', targetBranch: 'main' });
+  assert.equal(writes, 1);
+  assert.equal((await read())[0].title, 'After write');
+  assert.equal(reads, 2, 'the same key used by the Workspace is invalidated after the write');
+  await unrelated(); assert.equal(unrelatedReads, 1);
+  assert.deepEqual(changes, [{ groupIds: [42], projectId: 101, resource: 'mergeRequests' }]);
+  subscription.dispose();
 });

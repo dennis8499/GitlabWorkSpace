@@ -92,7 +92,7 @@ export type GitPullStrategy = 'configured' | 'merge' | 'rebase' | 'rebase-merges
 
 export type GitAction =
   | { type: 'refresh' }
-  | { type: 'open'; repoId: string }
+  | { type: 'open'; repoId: string; refresh?: boolean }
   | { type: 'readDiff'; path: string; staged: boolean; ref?: string; parent?: string }
   | { type: 'readCommit'; hash: string; parent?: string }
   | { type: 'rebasePreview'; ref: string; pullSource?: { remote: string; branch: string } }
@@ -119,6 +119,7 @@ export type GitAction =
 
 export type GitPanelRequest =
   | { type: 'gitReady' }
+  | { type: 'gitAcknowledgeResult'; requestId: string }
   | { type: 'gitOpenRepository'; path: string }
   | { type: 'gitOpenMergeEditor'; repositoryId: string; path: string }
   | { type: 'gitOpenFile'; repositoryId: string; path: string }
@@ -137,7 +138,7 @@ export function isGitWriteAction(action: GitAction): boolean {
 export type GitPanelMessage =
   | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; revision: number }
   | { type: 'gitSnapshot'; snapshot: GitRepositorySnapshot; requestId?: string }
-  | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean }
+  | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean; write?: boolean }
   | { type: 'gitError'; message: string };
 
 const REF_NAME = /^(?!-)(?!\/)(?!.*(?:\.\.|\/\/|@\{|\\|[\x00-\x20~^:?*[)\x7f]))(?!.*\/\.)(?!.*\/$)(?!.*\.lock$).+$/;
@@ -160,6 +161,7 @@ export function isGitPanelRequest(value: unknown): value is GitPanelRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const request = value as Record<string, unknown>;
   if (request.type === 'gitReady') return Object.keys(request).length === 1;
+  if (request.type === 'gitAcknowledgeResult') return typeof request.requestId === 'string' && request.requestId.length > 0 && request.requestId.length <= 128;
   if (request.type === 'gitOpenRepository') return typeof request.path === 'string' && request.path.length <= 32767;
   if (request.type === 'gitOpenMergeEditor' || request.type === 'gitOpenFile' || request.type === 'gitOpenDiff') {
     return typeof request.repositoryId === 'string' && /^[a-f0-9]{32}$/i.test(request.repositoryId) &&
@@ -176,7 +178,8 @@ export function isGitPanelRequest(value: unknown): value is GitPanelRequest {
     case 'refresh': case 'abort': case 'continue': case 'skip':
       return Object.keys(action).length === 1;
     case 'open':
-      return typeof action.repoId === 'string' && action.repoId.length <= 128;
+      return typeof action.repoId === 'string' && action.repoId.length <= 128 &&
+        (action.refresh === undefined || typeof action.refresh === 'boolean');
     case 'readDiff':
       return typeof action.path === 'string' && isSafeGitRelativePath(action.path) && typeof action.staged === 'boolean' &&
         (action.ref === undefined || typeof action.ref === 'string') &&

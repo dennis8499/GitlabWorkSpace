@@ -133,6 +133,15 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     await host.handle({ type: 'loadSection', sections: ['options'] });
     assert.equal(optionReads, optionsAfterCreate + 2);
     assert.ok(messages.some((message) => message.type === 'detailPatch' && message.issueId === selectedIssue.id && message.patch.sections?.options === 'ready' && message.patch.loadErrors && !('options' in message.patch.loadErrors)), 'a successful section retry clears only its error');
+    const readsBeforeHide = reads;
+    panels.suspendReads();
+    await host.handle({ type: 'ready' });
+    assert.equal(reads, readsBeforeHide, 'restoring reuses the Host Issue body');
+    await host.handle({ type: 'loadSection', sections: ['links', 'projects'] });
+    assert.equal(issueLinkReads, 1, 'ready sections remain cached after restoring');
+    const restoredBody = [...messages].reverse().find(message => message.type === 'detailData');
+    assert.equal(restoredBody?.type === 'detailData' ? restoredBody.data.issue.iid : undefined, 9);
+
     let taskPages = 0;
     client.graphql = async (_query, variables) => {
       taskPages++;

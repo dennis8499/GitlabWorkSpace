@@ -8,7 +8,7 @@ import { GitRefreshScheduler, type RefreshClock } from '../../src/git/gitRefresh
 import { withGitDirectoryLock } from '../../src/git/repositoryOperationLock';
 
 const head = 'a'.repeat(40);
-const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); await new Promise(resolve => setTimeout(resolve, 10)); };
 
 class Clock implements RefreshClock {
   time = 0; next = 0;
@@ -65,6 +65,8 @@ async function fixture() {
   await service.initialization;
   const id = service.repositoryId(root);
   service.requireRepository = async () => repository;
+  service.operationFor = async () => undefined;
+  service.repositoryFingerprint = async (repo: typeof repository) => JSON.stringify({ head: repo.state.HEAD, index: repo.state.indexChanges, work: repo.state.workingTreeChanges });
   service.assertObjectId = async () => undefined;
   service.assertRef = async () => undefined;
   service.runGit = async (_repo: unknown, args: string[]) => {
@@ -80,6 +82,8 @@ async function fixture() {
   const clock = new Clock();
   service.refreshScheduler.dispose();
   service.refreshScheduler = new GitRefreshScheduler((repositoryId) => service.sendRepositoryUpdate(repositoryId), clock);
+  service.fingerprintScheduler.dispose();
+  service.fingerprintScheduler = new GitRefreshScheduler((repositoryId) => service.checkRepositoryFingerprint(repositoryId), clock);
   service.setActivePanelRepository(id, false);
   return { service, repository, session, id, counts, clock, emit: () => changes.fire() };
 }
@@ -93,7 +97,7 @@ test('a status-completed event cannot recursively run status; open, reads and st
   await f.clock.advance(250); assert.equal(f.counts.status, 1);
   assert.equal(JSON.stringify(f.counts), before, 'unchanged status-completed notifications do not read Git again');
   Object.assign(f.repository.state.HEAD, { commit: 'd'.repeat(40) });
-  f.emit(); await f.clock.advance(250); assert.equal(f.counts.status, 1);
+  f.emit(); await f.clock.advance(500); assert.equal(f.counts.status, 1);
   before = JSON.stringify(f.counts); await f.clock.advance(60_000); assert.equal(JSON.stringify(f.counts), before);
   const logsBefore = f.counts.commands.filter((args) => args[0] === 'log').length;
   await f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
@@ -159,9 +163,10 @@ test('identical selections share reads, obsolete queued selections are skipped, 
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
   f.session.isTransitioning = true;
-  let release!: () => void;
-  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; }));
-  await flush();
+  let release!: () => void, entered!: () => void;
+  const acquired = new Promise<void>(resolve => { entered = resolve; });
+  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; entered(); }));
+  await acquired;
   const obsolete = f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
   const selected = f.service.handleAction(f.id, { type: 'readCommit', hash: head });
   const duplicate = f.service.handleAction(f.id, { type: 'readCommit', hash: head });
@@ -180,7 +185,7 @@ test('switching away, disposal and failed background reads never leave retry loo
   f.service.setActivePanelRepository(f.id, false);
   f.service.getSnapshot = async () => { throw new Error('Repo disappeared'); };
   Object.assign(f.repository.state.HEAD, { commit: 'd'.repeat(40) });
-  f.emit(); await f.clock.advance(250); assert.equal(f.clock.timers.size, 0);
+  f.emit(); await f.clock.advance(500); assert.equal(f.clock.timers.size, 0);
   f.emit(); f.service.dispose(); await f.clock.advance(60_000);
   assert.equal(f.clock.timers.size, 0);
 });
@@ -188,9 +193,10 @@ test('switching away, disposal and failed background reads never leave retry loo
 test('hiding the panel cancels queued reads while an authorized write still finishes', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
-  let release!: () => void;
-  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; }));
-  await flush();
+  let release!: () => void, entered!: () => void;
+  const acquired = new Promise<void>(resolve => { entered = resolve; });
+  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; entered(); }));
+  await acquired;
   const read = f.service.handleAction(f.id, { type: 'history', skip: 200 });
   const write = f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true });
   await flush();
@@ -206,9 +212,10 @@ test('hiding the panel cancels queued reads while an authorized write still fini
 test('returning to an in-flight selection makes its shared read current again', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
-  let release!: () => void;
-  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; }));
-  await flush();
+  let release!: () => void, entered!: () => void;
+  const acquired = new Promise<void>(resolve => { entered = resolve; });
+  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; entered(); }));
+  await acquired;
   const first = f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
   const obsolete = f.service.handleAction(f.id, { type: 'readCommit', hash: head });
   const again = f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
@@ -232,9 +239,10 @@ test('an unborn Repo opens without running git log against a missing HEAD', asyn
 test('returning to a Repo does not share a cancelled read from its previous panel lifetime', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
-  let release!: () => void;
-  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; }));
-  await flush();
+  let release!: () => void, entered!: () => void;
+  const acquired = new Promise<void>(resolve => { entered = resolve; });
+  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>((resolve) => { release = resolve; entered(); }));
+  await acquired;
   const abandoned = f.service.handleAction(f.id, { type: 'readCommit', hash: head });
   f.service.setActivePanelRepository(undefined);
   f.service.setActivePanelRepository(f.id, false);
@@ -243,4 +251,78 @@ test('returning to a Repo does not share a cancelled read from its previous pane
   assert.equal(await abandoned, undefined);
   assert.equal((await current).selectedCommit.hash, head);
   assert.equal(f.counts.commands.filter((args) => args[0] === 'show').length, 1);
+});
+
+
+test('sidebar summaries exclude snapshots and their size is independent of Diff length', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.getSummaryState();
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  const before = JSON.stringify(await f.service.getSummaryState());
+  f.repository.diffWithHEAD = async () => 'x'.repeat(1_000_000);
+  const original = f.service.runGit;
+  f.service.runGit = async (repo: unknown, args: string[]) => args[0] === 'diff'
+    ? { stdout: 'x'.repeat(1_000_000), stderr: '', code: 0 } : original(repo, args);
+  await f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
+  await f.service.handleAction(f.id, { type: 'readCommit', hash: head });
+  const state = await f.service.getSummaryState();
+  for (const field of ['changes', 'history', 'historyHasMore', 'revision', 'diffText', 'diffPath', 'selectedCommit', 'commitFiles', 'commitCompleted', 'remotes']) {
+    assert.equal(Object.hasOwn(state.repositories[0], field), false, field + ' belongs only to a snapshot');
+  }
+  assert.equal(JSON.stringify(state), before);
+  assert.ok(JSON.stringify(state).length < 2000);
+});
+
+test('an obsolete asynchronous fingerprint cannot invalidate a newer repository generation', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  const baseline = f.service.stateFingerprints.get(f.id);
+  const revision = f.service.revisionByRepository.get(f.id) ?? 0;
+  let resolve!: (value: string) => void;
+  f.service.repositoryFingerprint = () => new Promise<string>(done => { resolve = done; });
+  const pending = f.service.checkRepositoryFingerprint(f.id);
+  f.repository.state.HEAD.commit = 'f'.repeat(40);
+  f.emit();
+  resolve('obsolete'); await pending;
+  assert.equal(f.service.stateFingerprints.get(f.id), baseline);
+  assert.equal(f.service.revisionByRepository.get(f.id) ?? 0, revision);
+});
+
+test('restoring a cached Repo does not issue another native status call', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  f.service.setActivePanelRepository(undefined);
+  f.service.setActivePanelRepository(f.id, false);
+  const counts = JSON.stringify(f.counts);
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id, refresh: false });
+  assert.equal(JSON.stringify(f.counts), counts);
+});
+
+test('a delayed read retains its captured revision and cannot replace a newer summary', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const snapshot = await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  f.service.cachedSummaries = [{ ...f.service.cachedSummaries[0], branch: 'newer-branch' }];
+  f.service.revisionByRepository.set(f.id, snapshot.revision + 1);
+  f.service.handleActionInternal = async () => ({ ...snapshot, branch: 'obsolete-branch' });
+  const result = await f.service.handleAction(f.id, { type: 'history', skip: 0 });
+  assert.equal(result.revision, snapshot.revision, 'completion does not claim the newer revision');
+  assert.equal(f.service.cachedSummaries[0].branch, 'newer-branch');
+});
+
+test('native Git repository wrappers may be recreated without suppressing updates or causing status loops', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  Object.defineProperty(f.service.api, 'repositories', { get: () => [{ ...f.repository, state: { ...f.repository.state } }] });
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  assert.ok(f.service.stateFingerprints.has(f.id), 'a baseline is stored without relying on native wrapper identity');
+  const before = JSON.stringify(f.counts);
+  for (let i = 0; i < 100; i++) f.emit();
+  await f.clock.advance(1000);
+  assert.equal(JSON.stringify(f.counts), before, 'unchanged native events do not read Git again');
+  f.repository.state.HEAD.commit = 'f'.repeat(40);
+  f.repository.state.workingTreeChanges = [];
+  f.emit(); await f.clock.advance(1000);
+  const summary = await f.service.getSummaryState();
+  assert.equal(summary.repositories[0].headCommit, 'f'.repeat(40));
+  assert.equal(summary.repositories[0].unstagedCount, 0);
+  assert.equal(f.counts.status, 1, 'a native change updates the view without requesting native status');
 });

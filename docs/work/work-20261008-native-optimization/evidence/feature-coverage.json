@@ -1,0 +1,185 @@
+{
+  "schema": "GitLabWorkspaceNativeFeatureCoverage/v1",
+  "generatedAt": "2026-10-08T08:52:48.827Z",
+  "minimumVSCode": "1.90.0",
+  "dependenciesChanged": false,
+  "userSettingsAdded": false,
+  "features": [
+    {
+      "feature": "帳號與連線",
+      "nativeApis": [
+        "VS Code SecretStorage / Memento",
+        "Node / Browser fetch",
+        "AbortController"
+      ],
+      "necessaryCustom": "GitLab 多帳號、連線 epoch 與 CE Schema 探測沒有 VS Code 等價服務。",
+      "cacheCancellationCleanup": "帳號分離的讀取快取、1 小時能力快取、連線切換 AbortController、寫入期間禁止切換帳號。",
+      "verification": [
+        "session 單元測試",
+        "accountStore 單元測試",
+        "connect BDD",
+        "Extension Host 帳號流程"
+      ],
+      "sources": [
+        "src/connection/accountStore.ts",
+        "src/connection/session.ts",
+        "src/api/gitLabReadCache.ts"
+      ]
+    },
+    {
+      "feature": "專案掃描／Clone／同步",
+      "nativeApis": [
+        "VS Code Git API openRepository",
+        "Node fs/promises readdir / lstat / realpath",
+        "child_process spawn / execFile"
+      ],
+      "necessaryCustom": "GitLab Group 的遞迴掃描、工作樹／子模組辨識及多 Repo 資料夾映射不等同 VS Code workspace.findFiles。Clone 使用原生 Git CLI 與環境變數認證。",
+      "cacheCancellationCleanup": "掃描排除與去重、AbortSignal、工作區世代檢查；寫入依 Git common directory 排隊，失敗清理先驗證目錄身分及邊界。生產路徑使用非同步 preflight；同步舊 helper 只保留測試相容。",
+      "verification": [
+        "23 項 Clone／同步回歸",
+        "repositoryScanner 測試",
+        "真實 Extension Host 深層 Repo／worktree 註冊"
+      ],
+      "sources": [
+        "src/git/cloneService.ts",
+        "src/git/repositoryScanner.ts",
+        "src/git/repositoryOperationLock.ts",
+        "src/workspace/workspacePaths.ts"
+      ]
+    },
+    {
+      "feature": "Git GUI 與側欄",
+      "nativeApis": [
+        "VS Code Git API state / events / add / commit / fetch / push / merge",
+        "VS Code native Diff / merge editor",
+        "Node fs/promises / crypto",
+        "Browser ResizeObserver / DOM events"
+      ],
+      "necessaryCustom": "1.90 Git API 缺少 topo/all/skip 歷史、annotated tag 解參照、具 --no-ext-diff 及索引/工作樹語意的定向 Diff、互動式 Rebase與精確 recovery refs 等能力，保留受限原生 Git CLI。Preact 虛擬列表與圖譜保留現有介面。",
+      "cacheCancellationCleanup": "明確摘要投影；每 Repo 一次進行中指紋與 trailing event；256 筆 index 分段讓出事件迴圈；有界快取與讀取世代隔離；getState/setState 草稿；128 筆待確認寫入回執；無閒置輪詢。",
+      "verification": [
+        "摘要不含 Snapshot 且不隨 Diff 增長",
+        "過期非同步結果",
+        "索引 v2/v3/v4/SHA-256",
+        "空 Repo／Detached HEAD／worktree／submodule",
+        "Webview 重建不重送 Commit",
+        "真實 Git GUI／五個 60 秒閒置階段通過",
+        "VS Code 自訂 Commit／Push 確認視窗與本機 Bare Remote 通過"
+      ],
+      "sources": [
+        "src/git/gitRepositoryService.ts",
+        "src/git/gitStateFingerprint.ts",
+        "src/webview/GitControlPanel.tsx"
+      ]
+    },
+    {
+      "feature": "Issue／圖譜",
+      "nativeApis": [
+        "fetch REST / GraphQL",
+        "AbortController",
+        "VS Code workspace.fs / openExternal",
+        "Browser SVG / ResizeObserver / requestAnimationFrame"
+      ],
+      "necessaryCustom": "GitLab Issue 表單、關係、跨專案圖譜與按需區段沒有原生 VS Code UI；DOMPurify／d3-force 保留既有必要用途。",
+      "cacheCancellationCleanup": "核心資料先到、可選區段按需；導航及連線世代隔離；隱藏取消讀取、恢復重用核心；圖譜增量更新與暫停模擬；草稿按帳號保存。",
+      "verification": [
+        "issuePanelFlow 回歸",
+        "Issue API／關係／圖譜單元",
+        "30 個 Issue BDD 情境",
+        "帳號切換草稿隔離與虛擬列表行為"
+      ],
+      "sources": [
+        "src/issues/issuePanel.ts",
+        "src/webview/main.tsx",
+        "src/webview/IssueGraph.tsx",
+        "src/workspace/issueGraph.ts"
+      ]
+    },
+    {
+      "feature": "MR／審查",
+      "nativeApis": [
+        "fetch REST API",
+        "AbortController",
+        "VS Code Memento",
+        "VS Code getState/setState"
+      ],
+      "necessaryCustom": "MR 審查、回覆與 SHA 交叉驗證是 GitLab 功能，VS Code Git API 沒有等價能力。",
+      "cacheCancellationCleanup": "共用清單讀取／失效鍵、寫入後使相關區段過期、可見清單立即讀取、隱藏區段延後；Diff／討論按需取消；回覆與報告草稿按 scope 保存；不確定寫入使用 marker 對帳並避免重送。",
+      "verification": [
+        "真實 HTTP MR 寫入後快取失效回歸",
+        "可見立即更新／隱藏維持 lazy",
+        "MR 草稿與分頁跨 Webview 還原",
+        "CE 16／19 前後整合與 10% 效能比較通過"
+      ],
+      "sources": [
+        "src/api/gitLabReadKeys.ts",
+        "src/connection/session.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ]
+    },
+    {
+      "feature": "交付／工時",
+      "nativeApis": [
+        "VS Code Memento / withProgress / confirmation",
+        "Node child_process / fs/promises / crypto",
+        "GitLab REST / GraphQL"
+      ],
+      "necessaryCustom": "多 Repo 交付證據、鎖定、SHA 與冪等對帳沒有單一原生 API；Python helper 保留既有完整證據與安裝能力。",
+      "cacheCancellationCleanup": "共用 Git-directory 鎖；寫入佇列與帳號轉移防護；交付紀錄上限 100；隱藏仍完成已授權寫入；只在工時計時中啟動 interval，停止後清除；恢復不自動送出 uncertain 工時。",
+      "verification": [
+        "timeTracker／deliveryGate 回歸",
+        "Extension Host 交付冪等",
+        "offline-kit Python 交付與鎖定測試"
+      ],
+      "sources": [
+        "src/workspace/timeTracker.ts",
+        "src/workspace/deliveryGate.ts",
+        "src/workspace/workspacePanel.ts"
+      ]
+    },
+    {
+      "feature": "Log",
+      "nativeApis": [
+        "Node AsyncLocalStorage / fs/promises",
+        "VS Code showSaveDialog",
+        "Browser 虛擬列表"
+      ],
+      "necessaryCustom": "結構化操作關聯、篩選及帳號範圍需要應用程式資料模型。",
+      "cacheCancellationCleanup": "2 MB segment、50 MB／30 天留存、單一 append queue；避免 query 自行產生 Log；500 ms 合併通知，隱藏停止通知；世代檢查拒絕舊查詢。",
+      "verification": [
+        "operationLog 留存／遮蔽／並行測試",
+        "Log 分頁及過期回覆行為"
+      ],
+      "sources": [
+        "src/logging/operationLog.ts",
+        "src/webview/AdminLogPanel.tsx",
+        "src/workspace/workspacePanel.ts"
+      ]
+    },
+    {
+      "feature": "工具安裝",
+      "nativeApis": [
+        "VS Code Dialog / Progress / Memento",
+        "Node fs/promises / createReadStream / crypto / child_process"
+      ],
+      "necessaryCustom": "版本／摘要驗證、archive containment、失敗還原由現有 Python installer 執行；Node 沒有等價的完整跨格式 transactional installer。",
+      "cacheCancellationCleanup": "80 MB 上限、串流 SHA-256、temporary file + rename、finally 清理；只在使用者授權後安裝，完成刷新可延後到面板恢復。 Windows Terminal 的少量固定路徑存在檢查僅在使用者開啟終端時執行；不在狀態更新或閒置路徑。",
+      "verification": [
+        "toolPackages 回歸",
+        "VSIX verify",
+        "18 個 package 測試及 installer／overlay Python 套件"
+      ],
+      "sources": [
+        "src/workspace/toolPackages.ts",
+        "src/workspace/workspacePanel.ts",
+        "scripts/verify-vsix.py",
+        "src/workspace/windowsTerminal.ts"
+      ]
+    }
+  ],
+  "limits": [
+    "全功能覆蓋審查不代表對所有未來 VS Code／GitLab 版本或任意大小資料保證零問題。",
+    "未完成或環境受阻的實測會在 verification.json 明確列出。"
+  ]
+}

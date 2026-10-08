@@ -33,6 +33,7 @@ export interface IssueEditorDraftState {
   create: Record<string, FormState>;
   issues: Record<string, FormState>;
   conversations: Record<string, { comment: string; reply: Record<string, string> }>;
+  tabs?: Record<string, { tab: 'content' | 'development' | 'relations' | 'time'; revision: number }>;
 }
 
 const blankForm = (): FormState => ({ title: '', description: '', assigneeId: '', labels: [], milestoneId: '', dueDate: '', startDate: '', confidential: false, discussionLocked: false });
@@ -182,6 +183,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [canCreateIssue, setCanCreateIssue] = useState(false);
   const [spentDate, setSpentDate] = useState('');
   const [detailTab, setDetailTab] = useState<'content' | 'development' | 'relations' | 'time'>('content');
+  const savedDetailTabs = useRef(draftState?.tabs ?? {});
   const [resumeWorkId, setResumeWorkId] = useState('');
   const [recoveryProjectId, setRecoveryProjectId] = useState('');
   const [recoveryIssueIid, setRecoveryIssueIid] = useState('');
@@ -243,10 +245,17 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
       if (editingRef.current) issueDrafts.current.set(activeIssueId.current, formRef.current);
       conversationDrafts.current.set(activeIssueId.current, { comment: commentRef.current, reply: replyRef.current });
     }
-    onDraftStateChange({ create: Object.fromEntries(createDrafts.current), issues: Object.fromEntries(issueDrafts.current), conversations: Object.fromEntries(conversationDrafts.current) });
+    onDraftStateChange({ create: Object.fromEntries(createDrafts.current), issues: Object.fromEntries(issueDrafts.current), conversations: Object.fromEntries(conversationDrafts.current), tabs: { ...savedDetailTabs.current } });
   };
   const saveDraftsRef = useRef(saveDrafts);
   saveDraftsRef.current = saveDrafts;
+  const updateDetailTab = (tab: typeof detailTab): void => {
+    if (navigation?.mode === 'detail') savedDetailTabs.current = { ...savedDetailTabs.current, [navigation.projectId + ':' + navigation.issueIid]: { tab, revision: navigation.revision } };
+    setDetailTab(tab); saveDraftsRef.current();
+  };
+  const updateFormDraft = (next: FormState): void => { formRef.current = next; setForm(next); saveDraftsRef.current(); };
+  const updateCommentDraft = (next: string): void => { commentRef.current = next; setComment(next); saveDraftsRef.current(); };
+  const updateReplyDraft = (next: Record<string, string>): void => { replyRef.current = next; setReply(next); saveDraftsRef.current(); };
   useEffect(() => { saveDraftsRef.current(); }, [form, editing, mode, projectId, comment, reply]);
   useEffect(() => () => saveDraftsRef.current(), []);
   const [duration, setDuration] = useState('');
@@ -346,7 +355,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     if (modeRef.current === 'create' && projectIdRef.current > 0) createDrafts.current.set(projectIdRef.current, formRef.current);
     routeRevision.current = navigation.revision;
     viewEpoch.current++;
-    setDetailTab(navigation.mode === 'detail' ? navigation.tab ?? 'content' : 'content');
+    const savedTab = navigation.mode === 'detail' ? savedDetailTabs.current[navigation.projectId + ':' + navigation.issueIid] : undefined;
+    setDetailTab(navigation.mode === 'detail' ? savedTab?.revision === navigation.revision ? savedTab.tab : navigation.tab ?? savedTab?.tab ?? 'content' : 'content');
     setMode('waiting'); setError(''); setBusy(true); busyRef.current = true;
   }, [navigation?.revision]);
 
@@ -611,7 +621,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
     {mode === 'create' ? <section class="card">
       {!!options.warnings?.length && <div class="warning" role="alert"><span>部分欄位讀取失敗：{options.warnings.join('；')}</span><button class="quiet small" type="button" disabled={busy || !projectId} onClick={() => { setBusy(true); post({ type: 'selectProject', projectId }); }}>重試</button></div>}
       <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); busyRef.current = true; setBusy(true); post({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
-      <IssueFields form={form} setForm={setForm} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
+      <IssueFields form={form} setForm={updateFormDraft} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
       <div class="actions"><button class="primary" type="button" disabled={busy || !canCreateIssue || !projectId || !form.title.trim()} onClick={() => { createDrafts.current.set(projectId, formRef.current); createPending.current = { projectId, title: form.title }; busyRef.current = true; setBusy(true); setError(''); post({ type: 'create', projectId, input: createPayload(form) }); }}>建立 Issue</button></div>
     </section> : issue && detail && <>
       {!!detail.notices?.length && <div class="alert subtle" role="status"><strong>部分欄位未儲存</strong><ul>{detail.notices.map((notice) => <li>{notice}</li>)}</ul></div>}
@@ -626,12 +636,12 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         if (nextIndex < 0) return;
         event.preventDefault();
         const nextTab = (['content', 'development', 'relations', 'time'] as const)[nextIndex];
-        setDetailTab(nextTab);
+        updateDetailTab(nextTab);
         event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
-      }} onClick={() => setDetailTab(id)}>{label}</button>)}</nav>
+      }} onClick={() => updateDetailTab(id)}>{label}</button>)}</nav>
       <div class="layout"><div class="main-column">
         <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={() => { if (!editing) post({ type: 'loadSection', sections: ['options'] }); else issueDrafts.current.delete(issue.id); setEditing(!editing); }}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
-          {editing ? <><IssueFields form={form} setForm={setForm} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
+          {editing ? <><IssueFields form={form} setForm={updateFormDraft} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; busyRef.current = true; setBusy(true); post({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) }); }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
           {!editing && <div class="toolbar wrap"><button class="quiet small" type="button" disabled={busy || !issue.description?.trim()} aria-label="複製 Issue 描述" onClick={() => postReplyRequest({ type: 'copyDescription', requestId: `copy-description-${issue.id}-${stamp()}`, issueId: issue.id })}>複製描述</button></div>}
         </section>
         <section class="card issue-section" hidden={detailTab !== 'content'}><h2>討論與活動</h2>
@@ -649,9 +659,9 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
               })}<input aria-label={`留言表情 ${note.id}`} value={noteEmoji[note.id] ?? ''} onInput={(event) => setNoteEmoji((current) => ({ ...current, [note.id]: event.currentTarget.value }))} /><button disabled={!noteEmoji[note.id]?.trim() || busy} onClick={() => invoke('reactNote', { noteId: note.id, name: noteEmoji[note.id].trim() })}>回應留言</button></div>}
               {deletingNoteId === note.id && <div class="toolbar alert"><span>要永久刪除此留言嗎？</span><button class="danger" disabled={busy} onClick={() => { invoke('deleteNote', { discussionId: discussion.id, noteId: note.id }); setDeletingNoteId(null); }}>刪除</button><button onClick={() => setDeletingNoteId(null)}>取消</button></div>}
             </div>)}
-            {detail.canComment && !discussion.notes[0]?.system && <div class="reply-row"><textarea aria-label="回覆內容" rows={3} placeholder="回覆這則討論" value={reply[discussion.id] ?? ''} onInput={(event) => setReply({ ...reply, [discussion.id]: event.currentTarget.value })} /><div class="toolbar wrap"><button type="button" disabled={!reply[discussion.id]?.trim()} onClick={() => previewEditor(`reply:${discussion.id}`, reply[discussion.id] ?? '')}>預覽 Markdown</button><button type="button" onClick={() => upload(`reply:${discussion.id}`)}>上傳附件</button><button type="button" disabled={!reply[discussion.id]?.trim() || busy} onClick={() => invoke('reply', { discussionId: discussion.id, body: reply[discussion.id] })}>送出回覆</button></div>{editorHtml[`reply:${discussion.id}`] && <Markdown html={editorHtml[`reply:${discussion.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</div>}
+            {detail.canComment && !discussion.notes[0]?.system && <div class="reply-row"><textarea aria-label="回覆內容" rows={3} placeholder="回覆這則討論" value={reply[discussion.id] ?? ''} onInput={(event) => updateReplyDraft({ ...replyRef.current, [discussion.id]: event.currentTarget.value })} /><div class="toolbar wrap"><button type="button" disabled={!reply[discussion.id]?.trim()} onClick={() => previewEditor(`reply:${discussion.id}`, reply[discussion.id] ?? '')}>預覽 Markdown</button><button type="button" onClick={() => upload(`reply:${discussion.id}`)}>上傳附件</button><button type="button" disabled={!reply[discussion.id]?.trim() || busy} onClick={() => invoke('reply', { discussionId: discussion.id, body: reply[discussion.id] })}>送出回覆</button></div>{editorHtml[`reply:${discussion.id}`] && <Markdown html={editorHtml[`reply:${discussion.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</div>}
           </div>)}
-          {detail.canComment && <><label class="field"><span>新增留言或討論（GitLab quick actions 會送至 GitLab）</span><textarea rows={5} value={comment} onInput={(event) => setComment(event.currentTarget.value)} /></label>
+          {detail.canComment && <><label class="field"><span>新增留言或討論（GitLab quick actions 會送至 GitLab）</span><textarea rows={5} value={comment} onInput={(event) => updateCommentDraft(event.currentTarget.value)} /></label>
           {detail.canInternalComment && <label class="check"><input type="checkbox" checked={internal} onChange={(event) => setInternal(event.currentTarget.checked)} /> 內部留言</label>}
           <div class="toolbar wrap"><button disabled={!comment.trim()} onClick={() => previewEditor('comment', comment)}>預覽 Markdown</button><button onClick={() => upload('comment')}>上傳附件</button><button class="primary" disabled={!comment.trim() || busy} onClick={() => invoke('note', { body: comment, internal })}>送出留言</button><button disabled={!comment.trim() || busy || internal} onClick={() => invoke('thread', { body: comment, internal })}>開始討論</button></div>{internal && <p class="muted small">此 GitLab 執行個體的內部留言無法建立討論串。</p>}{editorHtml.comment && <Markdown html={editorHtml.comment} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</>}
         </section>

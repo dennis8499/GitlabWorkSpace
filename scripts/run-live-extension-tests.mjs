@@ -7,11 +7,13 @@ import path from 'node:path';
 import { runTests } from '@vscode/test-electron';
 import { fileURLToPath } from 'node:url';
 import { compareLiveBenchmarks } from './live-benchmark-comparison.mjs';
-import { sameFilesystemPath } from './live-test-paths.mjs';
+import { sameFilesystemPath, createLiveTestProfile } from './live-test-paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = path.join(ROOT, '.gitlab-workspace-validation');
-const EVIDENCE = path.join(ROOT, 'docs', 'work', process.argv.includes('--local-git-gui') ? 'work-20261008-git-gui' : 'work-20261006-live-validation', 'evidence');
+const EVIDENCE = path.resolve(option('--evidence-dir', path.join(ROOT, 'docs', 'work', process.argv.includes('--local-git-gui') ? 'work-20261008-git-gui' : 'work-20261006-live-validation', 'evidence')));
+const evidenceRelative = path.relative(path.join(ROOT, 'docs', 'work'), EVIDENCE);
+if (!evidenceRelative || evidenceRelative.startsWith('..' + path.sep) || evidenceRelative === '..' || path.isAbsolute(evidenceRelative)) throw new Error('--evidence-dir must remain inside docs/work.');
 const TEST_PROFILE_ROOT = path.join(tmpdir(), 'gitlab-workspace-vscode-test');
 const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 let validatedVSCodeVersion;
@@ -46,7 +48,11 @@ function verifyVsCodeExecutable() {
   if (process.argv.includes('--local-git-gui')) {
     const version = /^(\d+)\.(\d+)\.\d+$/.exec(actual);
     if (!version || Number(version[1]) < 1 || Number(version[1]) === 1 && Number(version[2]) < 90) throw new Error(`Local Git GUI tests require VS Code 1.90 or newer; found ${actual || 'no readable installation'}. Set VSCODE_EXECUTABLE_PATH to Code.exe.`);
-  } else if (actual !== '1.140.0') throw new Error(`Live Extension Host tests require VS Code 1.140.0; found ${actual}.`);
+  } else {
+    const expected = option('--vscode-version', '1.140.0');
+    if (!/^1\.(\d+)\.\d+$/.test(expected) || Number(expected.split('.')[1]) < 90) throw new Error('--vscode-version must be an explicit supported VS Code version.');
+    if (actual !== expected) throw new Error(`Live Extension Host tests require VS Code ${expected}; found ${actual}.`);
+  }
   validatedVSCodeVersion = actual;
   return executable;
 }
@@ -171,8 +177,8 @@ async function runOne(key, round, args, executable, packageInfo) {
     throw new Error(`The ${args.fixture} manifest does not contain its exact expected fixture inventory.`);
   }
   const profileId = `${key}-${round}-${process.pid}-${Date.now()}`;
-  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
-  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
+  const profile = createLiveTestProfile(TEST_PROFILE_ROOT, profileId, !!process.env.VSCODE_PORTABLE);
+  const { userData, extensions } = profile;
   mkdirSync(userData, { recursive: true });
   mkdirSync(extensions, { recursive: true });
   const settingsDirectory = path.join(userData, 'User');
@@ -188,8 +194,10 @@ async function runOne(key, round, args, executable, packageInfo) {
   }, null, 2));
   mkdirSync(EVIDENCE, { recursive: true });
   const port = await freePort(config.port);
-  const reportFile = path.join(EVIDENCE, `${key}-extension-${String(round).padStart(2, '0')}.json`);
+  const reportStem = `${key}-extension-${option('--label', '') ? option('--label') + '-' : ''}${String(round).padStart(2, '0')}`;
+  const reportFile = path.join(EVIDENCE, `${reportStem}.json`);
   const env = {
+    ...profile.environment,
     ELECTRON_RUN_AS_NODE: undefined,
     GLW_LIVE_ENVIRONMENT: key,
     GLW_LIVE_BASE_URL: config.url,
@@ -202,6 +210,7 @@ async function runOne(key, round, args, executable, packageInfo) {
     GLW_LIVE_WORKSPACE_ROOT: checkoutRoot,
     GLW_LIVE_CDP_PORT: String(port),
     GLW_LIVE_REPORT: reportFile,
+    GLW_LIVE_VSCODE_VERSION: validatedVSCodeVersion,
     GLW_LIVE_GIT_GUI: args.gitGui ? '1' : '0',
     GLW_LIVE_BENCHMARK: args.benchmark ? '1' : '0',
     GLW_LIVE_BENCHMARK_BASELINE: args.baseline ? '1' : '0',
@@ -231,16 +240,15 @@ async function runOne(key, round, args, executable, packageInfo) {
       ...recorded,
       schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
       environment: key, baseUrl: config.url, expectedGitLabVersion: key === 'ce19' ? '19.4.1' : '16.11.10',
-      vscodeVersion: '1.140.0', testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
+      vscodeVersion: validatedVSCodeVersion, testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
       status: recorded?.status ?? (/timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL'), error: message
     };
-    writeFileSync(path.join(EVIDENCE, `${key}-extension-${String(round).padStart(2, '0')}-failure.json`), `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
+    writeFileSync(path.join(EVIDENCE, `${reportStem}-failure.json`), `${JSON.stringify(failure, null, 2)}\n`, 'utf8');
     throw new Error(message);
   } finally {
     const cdpClosed = await waitForCdpClosed(port, 15_000);
     if (!cdpClosed) throw new Error(`VS Code is still serving CDP on port ${port}; preserving its isolated test profile.`);
-    removeOwnedTestDirectory(userData);
-    removeOwnedTestDirectory(extensions);
+    for (const target of profile.cleanupPaths) removeOwnedTestDirectory(target);
   }
 }
 
@@ -283,8 +291,8 @@ function removeOwnedLocalGitGuiFixture(target) {
 async function runLocalGitGui(executable, packageInfo, nativeConfirmation = false) {
   const fixture = createLocalGitGuiFixture();
   const profileId = `local-git-gui-${process.pid}-${Date.now()}`;
-  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
-  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
+  const profile = createLiveTestProfile(TEST_PROFILE_ROOT, profileId, !!process.env.VSCODE_PORTABLE);
+  const { userData, extensions } = profile;
   const logs = path.join(userData, 'logs');
   const port = await freePort(9343);
   const reportFile = path.join(EVIDENCE, nativeConfirmation ? 'git-gui-local-native.json' : 'git-gui-local.json');
@@ -304,6 +312,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   }, null, 2));
   mkdirSync(path.join(EVIDENCE, 'screenshots'), { recursive: true });
   const env = {
+    ...profile.environment,
     ELECTRON_RUN_AS_NODE: undefined,
     GLW_LOCAL_GIT_GUI: '1',
     GLW_LOCAL_GIT_GUI_NATIVE_CONFIRM: nativeConfirmation ? '1' : undefined,
@@ -343,7 +352,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   } finally {
     await waitForCdpClosed(port, 15_000);
     const cleanupErrors = [];
-    for (const target of [userData, extensions]) {
+    for (const target of profile.cleanupPaths) {
       try { removeOwnedTestDirectory(target); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     }
     try { removeOwnedLocalGitGuiFixture(fixture.fixtureRoot); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
@@ -358,8 +367,8 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
 async function runNativeGitGuiStandalone(executable, packageInfo) {
   const fixture = createLocalGitGuiFixture();
   const profileId = `native-git-gui-${process.pid}-${Date.now()}`;
-  const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
-  const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
+  const profile = createLiveTestProfile(TEST_PROFILE_ROOT, profileId, !!process.env.VSCODE_PORTABLE);
+  const { userData, extensions } = profile;
   const systemProfile = path.join(userData, 'system-profile');
   const appData = path.join(systemProfile, 'AppData', 'Roaming');
   const localAppData = path.join(systemProfile, 'AppData', 'Local');
@@ -380,7 +389,8 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     'security.workspace.trust.enabled': false,
     'extensions.autoCheckUpdates': false,
     'update.mode': 'none',
-    'workbench.startupEditor': 'none'
+    'workbench.startupEditor': 'none',
+    'window.dialogStyle': 'custom'
   }, null, 2));
   let child;
   let cdpConnection;
@@ -391,6 +401,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
   const systemDrive = path.parse(systemProfile).root;
   const nativeEnvironment = {
     ...process.env,
+    ...profile.environment,
     USERPROFILE: systemProfile,
     HOME: systemProfile,
     HOMEDRIVE: systemDrive.slice(0, 2),
@@ -453,7 +464,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     const gitGui = await exerciseNativeGitGui(frame, page, fixture.repository, `native-${Date.now()}`, screenshotDir);
     result = {
       schema: 'GitLabWorkspaceLocalNativeGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
-      mode: 'local-only-native-confirmation', vscodeVersion: '1.140.0', status: 'PASS',
+      mode: 'local-only-native-confirmation', dialogStyle: 'custom', vscodeVersion: validatedVSCodeVersion, status: 'PASS',
       testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
       repository: fixture.repository, remoteKind: 'isolated-local-bare-repository',
       coldStartMs: Number(cdp.startedMs.toFixed(2)), elapsedMs: Number((performance.now() - started).toFixed(2)),
@@ -466,7 +477,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     const status = /confirmation was not exposed as a visible Workbench dialog/i.test(message) ? 'BLOCKED' : 'FAIL';
     result = {
       schema: 'GitLabWorkspaceLocalNativeGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
-      mode: 'local-only-native-confirmation', vscodeVersion: '1.140.0', status,
+      mode: 'local-only-native-confirmation', dialogStyle: 'custom', vscodeVersion: validatedVSCodeVersion, status,
       testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
       repository: fixture.repository, remoteKind: 'isolated-local-bare-repository',
       error: message,
@@ -484,7 +495,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
       catch { child.kill(); }
     }
     const cleanupErrors = [];
-    for (const target of [userData, extensions]) {
+    for (const target of profile.cleanupPaths) {
       try { removeOwnedTestDirectory(target); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
     }
     try { removeOwnedLocalGitGuiFixture(fixture.fixtureRoot); } catch (error) { cleanupErrors.push(error instanceof Error ? error.message : String(error)); }
@@ -634,7 +645,7 @@ class StandaloneCdpTarget {
 
   locator(selector, options = {}) { return new StandaloneCdpLocator(this, selector, options); }
   getByText(text, options = {}) { return this.locator('*').filter({ hasText: text, exact: options.exact }); }
-  getByRole(role, options = {}) { return this.locator(role === 'button' ? 'button' : `[role="${role}"]`).filter({ hasText: options.name ?? '', exact: options.exact }); }
+  getByRole(role, options = {}) { return this.locator(role === 'button' ? ':is(button, [role="button"])' : `[role="${role}"]`).filter({ hasText: options.name ?? '', exact: options.exact }); }
 
   async waitForFunction(callback, argument, options = {}) {
     const expression = `(${callback.toString()})(${JSON.stringify(argument)})`;
@@ -724,7 +735,7 @@ class StandaloneCdpLocator {
   }
 
   async innerText() { return this._query(`return matches[${this.index ?? 0}]?.innerText ?? '';`); }
-  getByRole(role, options = {}) { return this.locator(role === 'button' ? 'button' : role).filter({ hasText: options.name ?? '', exact: options.exact }); }
+  getByRole(role, options = {}) { return this.locator(role === 'button' ? ':is(button, [role="button"])' : role).filter({ hasText: options.name ?? '', exact: options.exact }); }
   getByText(text, options = {}) { return this.locator('*').filter({ hasText: text, exact: options.exact }); }
 }
 
@@ -755,7 +766,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
         const selectors = ${JSON.stringify(selectors)};
         return [...new Set(selectors.flatMap((selector) => [...document.querySelectorAll(selector)]))]
           .filter(visible)
-          .map((element) => ({ selector: selectors.find((selector) => element.matches(selector)), text: (element.innerText ?? element.textContent ?? '').trim().slice(0, 1200), buttons: [...element.querySelectorAll('button')].map((button) => ({ text: (button.innerText ?? button.textContent ?? '').trim(), aria: button.getAttribute('aria-label') })) }));
+          .map((element) => ({ selector: selectors.find((selector) => element.matches(selector)), text: (element.innerText ?? element.textContent ?? '').trim().slice(0, 1200), buttons: [...element.querySelectorAll('button, [role="button"]')].map((button) => ({ text: (button.innerText ?? button.textContent ?? '').trim(), aria: button.getAttribute('aria-label') })) }));
       })()`);
       const matchingSelector = observed.find((candidate) => candidate.text.toLocaleLowerCase('en-US').includes(label.toLocaleLowerCase('en-US')) &&
         candidate.buttons.some((button) => button.text === label || button.aria === label))?.selector;
@@ -795,6 +806,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   const serviceOption = await repoSelect.locator('option').evaluateAll((options) => options.map((option) => ({ value: option.value, text: option.textContent ?? '' })).find((option) => option.text.toLocaleLowerCase('en-US').includes('service')));
   if (!serviceOption) throw new Error('The standalone Git GUI did not discover the service Repo.');
   await repoSelect.selectOption(serviceOption.value);
+  await frame.waitForFunction(() => document.querySelector('.git-repo-heading strong')?.textContent?.toLocaleLowerCase('en-US') === 'service' && document.querySelector('.git-toolbar > button.secondary')?.disabled === false, undefined, { timeout: 20_000 });
   const currentBranch = runGit(['branch', '--show-current']);
   const branch = `validation/native-gui/${Date.now().toString(36)}`;
   await frame.locator('.git-toolbar > button.secondary').click();
@@ -820,32 +832,31 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await frame.locator('.git-diff-actions button').first().click();
   await waitGuiAction();
   const partial = await waitGit(['diff', '--cached', '--numstat'], (value) => /^1\s+0\s+service\.ts$/.test(value), 'Partial staging did not stage exactly one line.');
-  await frame.locator('.git-change-section .git-change-row button.quiet.small').first().click();
+  await frame.locator('.git-change-row button[title="取消暫存整檔"]').first().click();
   await waitGuiAction();
   await waitGit(['diff', '--cached', '--numstat'], (value) => !value, 'Unstage did not clear the index.');
-  await frame.locator('.git-change-section .git-change-row button.quiet.small').first().click();
+  await frame.locator('.git-change-row button[title="暫存整檔"]').first().click();
   await waitGuiAction();
   const whole = await waitGit(['diff', '--cached', '--numstat'], (value) => /^2\s+0\s+service\.ts$/.test(value), 'Whole-file staging did not stage both lines.');
 
-  await frame.locator('.git-commit-launch').click();
   const commitMessage = `GUI native confirmation ${runId}`;
-  await frame.locator('.git-dialog textarea[name="message"]').fill(commitMessage);
-  await frame.locator('.git-dialog button[type="submit"]').click();
+  await frame.locator('.git-commit-composer textarea[name="message"]').fill(commitMessage);
+  await frame.waitForFunction(() => document.querySelector('.git-commit-launch')?.disabled === false, undefined, { timeout: 10_000 });
+  await frame.locator('.git-commit-launch').click();
   await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
   const commitConfirmation = await confirm('Commit');
-  await waitGuiAction();
+  await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
   const commit = await waitGit(['log', '-1', '--format=%s'], (value) => value.includes(commitMessage), 'The confirmed commit did not appear in local Git history.');
 
-  await frame.locator('.git-actions-menu summary').click();
-  await frame.locator('.git-actions-popup button').nth(2).click();
+  await frame.locator('.git-push').click();
   await frame.locator('.git-dialog').waitFor({ state: 'visible' });
   await frame.locator('.git-dialog button[type="submit"]').click();
   await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
   const pushConfirmation = await confirm('Push');
-  await waitGuiAction();
+  await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
   const upstream = await waitGit(['rev-parse', '--abbrev-ref', '@{upstream}'], (value) => value === `origin/${branch}`, 'Push did not set the upstream branch.');
   const remoteBranch = await waitGit(['ls-remote', 'origin', `refs/heads/${branch}`], (value) => /^[a-f0-9]{40,64}\s+refs\/heads\//.test(value), 'Push did not update the isolated bare remote.');
-  await frame.locator('.git-tabbar button[role="tab"]').nth(1).click();
+  await frame.evaluate("(() => { document.querySelector('.git-back-graph')?.click(); })()");
   await frame.locator('.git-commit-list').waitFor({ state: 'visible' });
   await frame.locator('.git-commit-list').getByText(commitMessage, { exact: true }).waitFor({ state: 'visible' });
   const historyRows = await frame.locator('.git-commit-row').count();
@@ -921,7 +932,7 @@ async function main() {
   }
   const summary = {
     schema: 'GitLabWorkspaceLiveVerification/v1', generatedAt: new Date().toISOString(),
-    vscodeVersion: '1.140.0', testedArtifact: artifactEvidence,
+    vscodeVersion: validatedVSCodeVersion, testedArtifact: artifactEvidence,
     mode: args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke', fixture: args.fixture, runId: args.runId,
     ...(label ? { label } : {}),
     environments: results, failures,
@@ -967,7 +978,7 @@ async function main() {
   writeFileSync(file, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
   process.stdout.write(`${JSON.stringify({ evidence: path.relative(ROOT, file), mode: summary.mode, testedArtifact: artifactEvidence, environments: results.map(({ environment, version, selectedGroup, projects, schemaBytes, coldStartToCdpMs, coldInteractiveReadyMs, warmNavigationMs, localRepoSearchMs, memory, gitGui }) => ({ environment, version, selectedGroup, projects, schemaBytes, coldStartToCdpMs, coldInteractiveReadyMs, warmNavigationMs, localRepoSearchMs, memory, gitGui })), performance: summary.performance, failures }, null, 2)}\n`);
   removeOwnedTestDirectory(packageInfo.unpackRoot);
-  if (failures.length) process.exitCode = 1;
+  if (summary.status !== 'PASS') process.exitCode = 1;
 }
 
 main().catch((error) => {

@@ -1,0 +1,585 @@
+
+> gitlab-workspace@0.13.2 test
+> npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension
+
+
+> gitlab-workspace@0.13.2 test:unit
+> npm run compile && node --test out/test/unit/*.test.js
+
+
+> gitlab-workspace@0.13.2 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+✔ stores different servers and users independently and restores each selected Group (37.046ms)
+✔ upserts a duplicate account and keeps the previous connection on failed login or persistence (4.5087ms)
+✔ logout deletes only the selected token, keeps the list and requires login before switching back (4.8163ms)
+✔ active selections belong to a workspace while account metadata is shared (1.2162ms)
+✔ migrates legacy data durably, retries interrupted migration and preserves credentials on failure (0.8603ms)
+✔ failed legacy identity checks leave all original settings and token intact (0.3436ms)
+✔ resumes legacy cleanup after the old URL was removed but another cleanup write failed (0.6994ms)
+✔ logs out inactive accounts without changing the active client and rejects mismatched relogin identities (2.5604ms)
+✔ blocks transitions until API writes complete and prevents writes through an old client after switching (4.9419ms)
+✔ logout cancels a pending token validation so it cannot restore a connection afterwards (2.4096ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ clones a repository and keeps credentials out of args and remote URL (1092.6919ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ shows sanitized Git diagnostics when a clone is rejected by the server (366.3867ms)
+✔ sanitizes credentials and bounds Git diagnostic text (0.4227ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ updates an existing repository through a Windows short-path Group alias (2229.0296ms)
+warning: in the working copy of 'latest.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-update-xclRDo\remote-3-release.git
+   97e906c..b9abe58  release -> release
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'latest.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-ssh-kjHZtN\remote-4-main.git
+   11b5d3f..e34ff75  main -> main
+✔ fast-forwards the GitLab default branch and switches from a feature branch (2611.4122ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'latest.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-new-branch-8RolVz\remote-5-main.git
+   b716922..402de71  main -> main
+✔ accepts an SSH origin and leaves it unchanged after an update (1871.6547ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'local.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'remote.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-skip-OU0c1v\remote-7-main.git
+   383d0cb..e3f141d  main -> main
+✔ creates a local tracking branch when the GitLab default branch is not present locally (1594.922ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'local.txt', LF will be replaced by CRLF the next time Git touches it
+✔ skips dirty and divergent repositories while continuing with later clones (2693.7355ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ treats a local branch ahead of GitLab as synchronized (1455.4393ms)
+✔ resolves a missing default branch and skips when project details still have none (909.9485ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ preflights all destinations and rejects ordinary folders or a different origin (688.1731ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'latest.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-local-sync-4XAvAV\remote-12-release.git
+   9894103..ce50a7e  release -> release
+✔ does not delete an existing repository after update failure and skips the rest of the batch (789.6527ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ fetches and fast-forwards only the current GitLab default branch (2323.0758ms)
+✔ synchronizes same-named repositories using the complete group folder mapping (1129.4736ms)
+warning: You appear to have cloned an empty repository.
+✔ syncs no repositories when the Group workspace contains no existing project folder (1.9164ms)
+warning: You appear to have cloned an empty repository.
+✔ refreshes project metadata and skips a repository the remote reports as empty (414.1294ms)
+warning: You appear to have cloned an empty repository.
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ surfaces the fetch error when project metadata reports a missing default branch (547.9635ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'remote.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-local-sync-feature-jVdGhj\remote-14-main.git
+   921cabe..83bbf36  main -> main
+✔ fast-forwards the current unborn default branch after its first remote commit (2072.8329ms)
+✔ matches SSH pushes to the selected GitLab project identity (0.4674ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'local.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'remote.txt', LF will be replaced by CRLF the next time Git touches it
+To C:\Users\denni\AppData\Local\Temp\gitlab-workspace-local-sync-skip-e55TVy\remote-16-main.git
+   5bfd346..8a43690  main -> main
+✔ skips a repository on a feature branch without fetching or switching branches (1356.8538ms)
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+✔ skips dirty and divergent local default branches while continuing the batch (2627.1306ms)
+✔ skips invalid destinations, ignores missing repositories, and continues after a per-repository failure (1549.1243ms)
+✔ rejects unsafe local names, gives same-named projects stable ID folders, and rejects foreign clone URLs (1.297ms)
+✔ defines the complete offline Codebase LLM Wiki guide and working default selections (2.6369ms)
+✔ builds prompts from required values while retaining Unicode, spaced paths, and multiline questions (0.8515ms)
+✔ preserves the selected Wiki authorization policy in generated prompts (1.5557ms)
+✔ adds the selected Group and actual local Repo names and paths to copied prompts (0.6954ms)
+✔ rejects unknown guide cards instead of copying an empty prompt (0.7219ms)
+✔ development specifications require the feature and description, then clarify instead of creating Issues (0.4023ms)
+✔ v2 manual time draft is retained for explicit recovery without guessing its Issue (2.1907ms)
+✔ v3 manual time drafts stay attached to their scoped Issue keys (0.4895ms)
+✔ an already recovered draft survives further state migrations (0.4477ms)
+✔ allows an accepted working diff only when the local target matches GitLab (4.1738ms)
+✔ blocks absent Megin acceptance, unstaged files and content-free delivery previews (0.6732ms)
+✔ builds and applies partial cached patches for spaced Unicode paths and CRLF files (1273.8913ms)
+✔ rejects partial patches whose headers point at a different file (0.3488ms)
+✔ draws linear ancestry, roots and an unborn working directory without invented edges (2.3234ms)
+✔ joins actual merge parents and keeps colors and lanes stable when another page arrives (2.2186ms)
+✔ carries disconnected tips and a detached HEAD working node to their real parents (0.4685ms)
+✔ migrates legacy drafts and separates staged and unstaged selections (1.9216ms)
+✔ paginates groups using GitLab Link headers and keeps authorization on the configured API (52.9225ms)
+✔ includes subgroup projects and filters assigned group issues to those project IDs (2.2961ms)
+✔ paginates Group Issue Boards and retains their names and hidden-list settings (2.2158ms)
+✔ loads assigned Issues from every visible Group Board list with pagination and deduplicates list membership (8.1154ms)
+✔ loads complete Issue Board membership so related unassigned Issues can inherit Board colors (6.653ms)
+✔ retains empty repository metadata from the project details API (1.1397ms)
+✔ paginates group milestones and includes closed milestones from descendant groups (1.5236ms)
+✔ creates an issue with an optional description and one assignee (2.982ms)
+✔ creates an unassigned issue without sending an assignee_id field (0.9716ms)
+✔ does not expose the token or response body in authentication errors (2.0477ms)
+✔ rejects pagination links outside the configured GitLab API path (0.9512ms)
+✔ passes cancellation signals to read requests and never to GraphQL mutations (2.2117ms)
+✔ creates an issue with all CE creation fields and reads its live details (34.1749ms)
+✔ updates an issue and rejects a stale local snapshot before writing (1.2054ms)
+✔ loads discussions and related issues with pagination (2.8296ms)
+✔ handles a successful issue deletion with no JSON response (3.2096ms)
+✔ loads inherited issue templates through the project template API (1.666ms)
+✔ includes ancestor milestones and checks the GitLab GraphQL issue capabilities (14.0039ms)
+✔ matches the GitLab CE 16.11.10 GraphQL compatibility contract using Project and projectPath (3.5467ms)
+✔ runs the pinned CE 16.11.10 selective-introspection fixture and checks its generated query (3.5843ms)
+✔ recovers from the GitLab 16.11 authenticated complexity limit without exceeding six concurrent reads (38.2459ms)
+✔ reuses a complete raw __schema response without alias repair or follow-up downloads (2.1985ms)
+✔ treats empty and malformed complete schema responses as failed detection (3.9663ms)
+✔ treats a truncated selective __type response as a probe failure instead of unsupported capabilities (0.9673ms)
+✔ discovers paginated Issue.timelogs through wrapped schema types when Work Item widgets are absent (3.4792ms)
+✔ keeps the Namespace and namespacePath GraphQL shape for newer GitLab schemas (1.8824ms)
+✔ queries only Issue permissions confirmed by the instance schema (0.9273ms)
+✔ reads mapped Work Item permissions only when the instance exposes that schema (0.9987ms)
+✔ selects Work Item permission fields when Issue.userPermissions is absent (0.7298ms)
+✔ uses the legacy Project root and projectPath when creating a child task (1.1532ms)
+✔ detects read-only Issue graph fields without requiring WorkItem edit permissions (1.4102ms)
+✔ paginates WorkItem parents, child items, linked items, and reads label metadata using read-only capabilities (2.9225ms)
+✔ stops requesting a completed WorkItem connection while another connection paginates (1.4193ms)
+✔ loads Work Item relations from the legacy Project query root (0.7155ms)
+✔ updates one CE assignee and edits a note through its discussion (1.4813ms)
+✔ checks per-project creation permission and manages a note reaction (1.5695ms)
+✔ GraphQL child task mutation keeps the token in the host and reports mutation errors (0.8123ms)
+✔ verifies a selected child item is a Task and reads its current parent before adding it (1.1142ms)
+✔ child task title and description use the work item description widget (0.8638ms)
+✔ start dates and individual time entries use the supported GraphQL contracts (3.0841ms)
+✔ time entries load every GraphQL cursor page (2.318ms)
+✔ loads paginated Issue.timelogs with only schema-confirmed entry fields (2.0395ms)
+✔ attachment reads stay on the configured GitLab uploads path and keep authentication in the host (1.7257ms)
+✔ expires cached values, refreshes failures, and keeps the least-recently-used entries within capacity (1.8121ms)
+✔ coalesces shared reads and cancels the underlying request only after its final subscriber leaves (6.6666ms)
+✔ starts a fresh read when the final subscriber cancels and ignores the old response (2.0636ms)
+✔ successful writes invalidate cached reads without interrupting existing subscribers (2.8029ms)
+✔ limits reads to six shared slots and releases each slot after completion (38.8389ms)
+✔ aborts an in-flight read on timeout and does not hold a slot afterward (27.0224ms)
+✔ cancels queued reads when their connection signal changes (1.4549ms)
+✔ classifies reads consistently while treating a fetching rebase preview as a write (2.3132ms)
+✔ accepts GUI Git requests only when their Repo, action, refs, and paths are valid (1.4333ms)
+✔ validates Git refs and full object IDs without accepting option-like names (0.9074ms)
+✔ the GUI sequence and message editor applies reword and squash messages without opening a terminal editor (3703.1269ms)
+✔ coalesces event bursts and reaches a maximum wait of one second (1.9654ms)
+✔ keeps one running refresh and one trailing refresh, without retrying errors (0.6446ms)
+✔ cancels queued and trailing work on hide, switch or disposal (0.6513ms)
+✔ a status-completed event cannot recursively run status; open, reads and staging settle for 60 seconds (211.6233ms)
+✔ annotated and lightweight tags both point graph labels and selections at their commit (14.2798ms)
+✔ only a completed Commit acknowledges draft submission, even if HEAD changes during cancellation (7.8343ms)
+✔ a detached HEAD named after a tag by the native API is not treated as a branch (4.0119ms)
+✔ identical selections share reads, obsolete queued selections are skipped, and account transitions permit reads (11.2954ms)
+✔ switching away, disposal and failed background reads never leave retry loops (112.5015ms)
+✔ hiding the panel cancels queued reads while an authorized write still finishes (63.4654ms)
+✔ returning to an in-flight selection makes its shared read current again (7.4022ms)
+✔ an unborn Repo opens without running git log against a missing HEAD (3.4361ms)
+✔ returning to a Repo does not share a cancelled read from its previous panel lifetime (6.4372ms)
+✔ sidebar summaries exclude snapshots and their size is independent of Diff length (17.2049ms)
+✔ an obsolete asynchronous fingerprint cannot invalidate a newer repository generation (7.8471ms)
+✔ restoring a cached Repo does not issue another native status call (8.2772ms)
+✔ a delayed read retains its captured revision and cannot replace a newer summary (6.2505ms)
+✔ native Git repository wrappers may be recreated without suppressing updates or causing status loops (94.4284ms)
+✔ Git index stat/checksum refreshes do not change staged identity for versions 2, 3, 4 or SHA-256 (3.2697ms)
+✔ compressed version 4 paths preserve the same staged identity and unknown formats remain conservative (3.2774ms)
+✔ file and staged-content changes invalidate a Repo while a status-only index rewrite does not (33.1705ms)
+✔ large semantic index reads yield to the event loop without changing identity (29.7651ms)
+✔ simultaneous fingerprint reads share one in-flight result (5.593ms)
+✔ copies the loaded Issue Markdown without edit permission and correlates failures and stale navigation (22.3447ms)
+✔ developer tasks include Group, Repo, GitLab identity, Issue discussions, and Work ID continuation context (3.825ms)
+✔ new Issue tasks tell Megin to reuse an unfinished project and Issue Work ID (0.6987ms)
+✔ uses a shared identity for REST and WorkItem Issue records across projects (1.4126ms)
+✔ deduplicates undirected links while keeping separate directed block and hierarchy relationships (16.0476ms)
+✔ preserves deterministic Board colors (0.6145ms)
+✔ applies graph deltas with only changed nodes and edges (1.6144ms)
+✔ filters primary Issues but retains only their directly connected context (1.4196ms)
+✔ limits concurrent API work and keeps results in their original order (21.9544ms)
+✔ an unassigned creation opens detail and a later issue selection wins a pending load (185.604ms)
+✔ Issue relationship actions validate permissions, Group scope, Task type, and existing parents (19.7166ms)
+✔ accepts a native staged-file handoff with the approved non-origin remote and target (2.7781ms)
+✔ an acceptance checkbox, wrong Work ID or mismatched staged digest cannot authorize delivery (0.4312ms)
+✔ loads the paginated 16.11 review list with scope=all and reviewer_id (38.2443ms)
+✔ paginates Merge Request diffs without truncating at 200 files (4.4974ms)
+✔ encodes source branches and pins approvals and merges to the reviewed MR SHA (5.9624ms)
+✔ embeds the pinned MergeReview MR task in the copied prompt without a task file (3.7523ms)
+✔ imports the same bound Markdown or JSON, allowing incomplete reports and CRLF clipboard text (1.819ms)
+✔ rejects edited report bodies and unverified legacy text (0.5019ms)
+✔ binds instance, MR, source/target projects and both current branch SHAs (0.3371ms)
+✔ persists successful and failed operations, captures their original account and correlates API requests (68.9233ms)
+✔ redacts secrets and credentials, paginates and exports the complete filtered result (204.537ms)
+✔ correlates Git exit codes while preserving command results and excluding arguments and output (18.1055ms)
+✔ rotates bounded segments, prunes expired files and tolerates a partial final append (47.876ms)
+✔ log storage failures report a warning without failing business operations (3.6716ms)
+✔ post-delivery Wiki task carries fixed local evidence and keeps merge state distinct (1.3885ms)
+✔ discovers Windows Python command and launcher candidates without parsing shell arguments (3.5616ms)
+✔ enables UTF-8 for helper and nested Python installer output (0.8166ms)
+✔ resolves the Python launcher fallback and rejects unsupported interpreter versions (1.7824ms)
+✔ accepts only the navigation initialization and supported destinations (3.1409ms)
+✔ rejects unknown commands and malformed webview messages (0.6958ms)
+✔ native async Git-directory detection handles normal repos, worktrees, submodules and missing paths (47.7581ms)
+✔ discovers deep repositories and workspace ancestors, deduplicates overlapping roots and honors configurable exclusions (1702.9693ms)
+✔ recognizes linked worktrees and submodules through .git files and strips credentials from remote URLs (2605.174ms)
+✔ does not recurse through junctions or symbolic links (143.7776ms)
+✔ reports unavailable roots and missing Git, supports cancellation and retains partial results (732.5305ms)
+✔ keeps only current project IDs and removes duplicates after refresh (1.141ms)
+✔ selecting or clearing the search results preserves checked hidden projects (0.1869ms)
+✔ counts selected projects outside the current search without changing the selection (0.1648ms)
+✔ recognizes CE 16.11.10 as the minimum and keeps edition limits in capability diagnostics (2.773ms)
+✔ does not infer Premium or Ultimate blocking-link support from Enterprise Edition metadata (0.2763ms)
+✔ keeps confirmed API capabilities when GitLab version metadata is unavailable (1.0523ms)
+✔ backs failed version and capability probes off for 60 seconds but lets a manual check retry immediately (2.8354ms)
+✔ a manual schema recheck clears an unknown diagnostic after a successful retry (1.6427ms)
+✔ persists validated capabilities for one hour per GitLab account and instance revision (3.3514ms)
+✔ scopes an in-flight capability probe to the account that becomes available before the probe completes (1.8955ms)
+✔ persists a live capability probe when global state briefly lags the authenticated account (35.673ms)
+✔ discards version and capability probe results from an earlier connection epoch (14.2566ms)
+✔ stores the access token in SecretStorage only after the current-user check succeeds (111.7527ms)
+✔ does not persist an access token rejected by GitLab (15.0599ms)
+✔ clears the previously selected group after connecting to a different GitLab server (40.0979ms)
+✔ keeps the selected group when reconnecting to the same normalized GitLab server URL (20.2667ms)
+✔ clears the selected Group when the account changes on the same GitLab server (31.9755ms)
+✔ a successful MR write expires its Group review list and leaves unrelated cached reads intact (32.3339ms)
+✔ lists a single bundled kit first, then Gitea and GitHub imports for the extension version (85.1186ms)
+✔ keeps imported kit ZIPs in extension storage and detects tampering before installation (46.972ms)
+✔ normalizes HTTPS GitLab base URLs and keeps installation paths (1.0282ms)
+✔ allows the configured local GitLab CE HTTP endpoint (0.2334ms)
+✔ allows custom HTTP hosts, IP addresses, ports, and installation paths (0.1678ms)
+✔ rejects URL schemes other than HTTP and HTTPS (0.4654ms)
+✔ rejects URLs containing credentials, query strings, or fragments (1.2334ms)
+✔ clone URLs must use the configured origin and scheme without embedded credentials (0.4203ms)
+✔ keeps lists of 200 or fewer rows mounted and windows larger lists with ten-row overscan (3.1079ms)
+✔ uses measured row offsets for wrapped and variable-height rows (0.2819ms)
+✔ starts the installed Windows Codex executable under cmd while preserving the Group path (1.7436ms)
+✔ starts codex.cmd when the executable is unavailable and reports missing launchers (0.2726ms)
+✔ assigns stable local folders to same-named repositories and keeps every path inside the Group root (5.1009ms)
+✔ preserves case-insensitive collision suffixes, reserved-name rejection, and unsafe-path rejection (0.8754ms)
+✔ assigns every one of 500 repositories one stable case-insensitive folder name (2.3228ms)
+✔ checks repository folders asynchronously while retaining safe, missing, and outside-root results (6.3257ms)
+✔ resolves workspace roots from the current Group Repo and reports ambiguity (0.6169ms)
+✔ inspects VS Code folders using their actual Git remotes and selects the matching Group root (1506.0726ms)
+✔ scans real direct-child repositories and includes Git worktrees without inferring missing GitLab folders (453.3365ms)
+✔ compares Windows repository paths case-insensitively after normalization (0.3324ms)
+✔ validates IssueDraftBundle/v1 IDs, evidence paths, and required acceptance criteria (1.1085ms)
+✔ tracks one Issue at a time and turns a running timer into a confirmation after restart (1.8623ms)
+✔ timer ticks report only displayed changes and persist elapsed time every ten seconds (0.3783ms)
+✔ pauses and saves timers before account changes and restores only the selected account entries (0.4441ms)
+✔ hidden panels abort reads, stop notifications and retain MR data and timer state (38.7893ms)
+✔ MR invalidation reloads a visible review list and leaves hidden sections lazy (1.5876ms)
+✔ a restored view uses the Host snapshot and delivers pending notices without a new scan (2.5011ms)
+✔ an authorized Git write finishes once while hidden and its receipt survives until acknowledged (1.3555ms)
+ℹ tests 209
+ℹ suites 0
+ℹ pass 209
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 28493.167
+
+> gitlab-workspace@0.13.2 test:behavior
+> npm run compile && npm run build:webview && vite build --config vite.issue-test.config.mjs && node --test test/behavior/quick-actions.test.mjs test/behavior/dashboard.test.mjs && cucumber-js --require test/behavior/steps.cjs --tags @automated test/behavior/issues.feature && cucumber-js --require test/behavior/connect.steps.cjs --tags @automated test/behavior/connect.feature
+
+
+> gitlab-workspace@0.13.2 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+> gitlab-workspace@0.13.2 build:webview
+> npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs
+
+
+> gitlab-workspace@0.13.2 typecheck:webview
+> tsc -p tsconfig.webview.json
+
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 64 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/dashboard.html    0.44 kB │ gzip:  0.27 kB
+resources/issue-webview/dashboard.css    68.08 kB │ gzip: 13.01 kB
+resources/issue-webview/dashboard.js    265.17 kB │ gzip: 86.32 kB
+
+[32m✓ built in 97ms[39m
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/sidebar-webview/sidebar.html   0.45 kB │ gzip: 0.30 kB
+resources/sidebar-webview/sidebar.css    5.70 kB │ gzip: 1.57 kB
+resources/sidebar-webview/sidebar.js    19.40 kB │ gzip: 7.82 kB
+
+[32m✓ built in 52ms[39m
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 15 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/issue-test.html    0.39 kB │ gzip:  0.25 kB
+resources/issue-webview/issue-test.css     6.59 kB │ gzip:  1.88 kB
+resources/issue-webview/issue-test.js    104.36 kB │ gzip: 36.12 kB
+
+[32m✓ built in 64ms[39m
+✔ Git refs read commit details; historical files open central Diff and merge parents remain explicit (1085.2078ms)
+✔ Git repeated selection shares reads, staged/unstaged paths differ, and stale replies cannot replace the latest selection (1087.6984ms)
+✔ Git Repo reopening sends a fresh request after switching away from a pending open (601.4725ms)
+✔ Git drafts migrate and remain per Repo; failed or cancelled commits preserve them and successful commits clear only submitted text (1087.8618ms)
+✔ Git restores historical file context, paginates with bounded rows, and handles unborn and detached HEAD (732.5811ms)
+✔ account menu supports selecting saved identities, logging in, adding and removing accounts (194.9991ms)
+✔ offline Log administration filters and pages results, ignores stale replies, and exports the active query (597.9753ms)
+✔ offline local Repo inventory exposes every copy, scan progress, cancellation and registration errors (263.9819ms)
+✔ Issue preview reports loading and retry states while the work list stays visible (318.7438ms)
+✔ Issue editing drafts remain separate across account changes and are restored when switching back (956.6181ms)
+✔ bounds the dashboard, exposes the maximize icon, and keeps GitLab support details in settings (283.9888ms)
+✔ shows one selected Wiki feature and builds prompts from the actual local Repo inventory (870.2335ms)
+✔ keeps Wiki guide selection and inputs separate for each selected Group (557.0541ms)
+✔ blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready (252.2967ms)
+✔ copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes (781.4702ms)
+✔ uses only the VS Code workspace for clone destinations and disables local Repo actions when unresolved (182.7982ms)
+✔ shows every assigned Issue by default and keeps the list usable when Board loading fails (249.1315ms)
+✔ returning from Issue details preserves list filters and scroll, and drops delayed navigation responses (658.0053ms)
+✔ filters by the selected Issue Board, saves its ID, and hides previous Board content during a switch (316.8618ms)
+✔ windows a long Issue list and moves keyboard focus across virtualized rows (375.5372ms)
+✔ opens the Issue graph on demand, applies shared filters with one-hop context, and keeps its Board separate from the list (815.4511ms)
+✔ graph relation forms use scoped requests, retry reads without repeating writes, and ignore stale node responses (557.4414ms)
+✔ falls back to all assigned Issues after a saved Board is removed and survives Board API failures (373.3119ms)
+✔ a new Group starts on all assigned Issues and ignores Board content for another scope (289.6911ms)
+✔ applies scoped timer and Issue graph deltas while rejecting stale versions (318.1498ms)
+✔ filters selected Board Issues by Repo and Group Milestone IDs while retaining unmatched and duplicate-title options (359.7417ms)
+✔ restores a Group-scoped Milestone filter and resets it after the selected milestone is removed (274.3489ms)
+✔ selects only visible Repo search results, preserves hidden selections, and reports partial selection (525.0161ms)
+✔ shows the sanitized Git error details in the repository operation results (215.4926ms)
+✔ binds imported reports to both SHAs without adding approval or merge gates (719.2143ms)
+✔ Webview reconstruction restores Git drafts and selections and acknowledges a completed write without resending it (841.7113ms)
+✔ MR discussion drafts and the selected tab survive Webview reconstruction and remain account scoped (527.9598ms)
+✔ the selected Issue tab survives Webview reconstruction without changing its host navigation (506.5881ms)
+✔ renders workspace navigation and keeps destinations available before connecting (136.7989ms)
+✔ shows connection scope and dispatches each destination with accessible busy and error feedback (102.1019ms)
+✔ shows saved account summaries and dispatches supported account management actions (64.0254ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18489.1726
+............................................................................................................................................
+
+30 scenarios (30 passed)
+140 steps (140 passed)
+0m 27.826s (0m 27.720s executing your code)
+...................................
+
+10 scenarios (10 passed)
+35 steps (35 passed)
+0m 0.68s (0m 0.40s executing your code)
+
+> gitlab-workspace@0.13.2 package
+> npm run compile && npm run build:webview && node scripts/package-extension.mjs && node scripts/run-python.mjs scripts/verify-vsix.py
+
+
+> gitlab-workspace@0.13.2 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+> gitlab-workspace@0.13.2 build:webview
+> npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs
+
+
+> gitlab-workspace@0.13.2 typecheck:webview
+> tsc -p tsconfig.webview.json
+
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 64 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/dashboard.html    0.44 kB │ gzip:  0.27 kB
+resources/issue-webview/dashboard.css    68.08 kB │ gzip: 13.01 kB
+resources/issue-webview/dashboard.js    265.17 kB │ gzip: 86.32 kB
+
+[32m✓ built in 159ms[39m
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/sidebar-webview/sidebar.html   0.45 kB │ gzip: 0.30 kB
+resources/sidebar-webview/sidebar.css    5.70 kB │ gzip: 1.57 kB
+resources/sidebar-webview/sidebar.js    19.40 kB │ gzip: 7.82 kB
+
+[32m✓ built in 61ms[39m
+{"ok": true, "archive": "resources\\offline-tools\\workflow-kit.tar.xz", "releaseZip": "dist\\gitlab-workspace-kit-0.13.2.zip", "bytes": 4578276, "sha256": "897dd1bf3e92731d2bb46cba20b7e7e5418b4f7a092469f4bac2684bdff7a935", "releaseZipSha256": "d7665b4ed5894ffdac2ecc2779dc8c09e3b2ce870d1399c5f3c408bb5e26393d", "files": 250}
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> gitlab-workspace@0.13.2 vscode:prepublish
+> npm run compile && npm run build:webview
+
+
+> gitlab-workspace@0.13.2 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+> gitlab-workspace@0.13.2 build:webview
+> npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs
+
+
+> gitlab-workspace@0.13.2 typecheck:webview
+> tsc -p tsconfig.webview.json
+
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 64 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/dashboard.html    0.44 kB │ gzip:  0.27 kB
+resources/issue-webview/dashboard.css    68.08 kB │ gzip: 13.01 kB
+resources/issue-webview/dashboard.js    265.17 kB │ gzip: 86.32 kB
+
+[32m✓ built in 127ms[39m
+[36mvite v8.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 8 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/sidebar-webview/sidebar.html   0.45 kB │ gzip: 0.30 kB
+resources/sidebar-webview/sidebar.css    5.70 kB │ gzip: 1.57 kB
+resources/sidebar-webview/sidebar.js    19.40 kB │ gzip: 7.82 kB
+
+[32m✓ built in 78ms[39m
+ INFO  Files included in the VSIX:
+gitlab-workspace-0.13.2.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ package.json [8.7 KB]
+   ├─ readme.md [10.31 KB]
+   ├─ docs/
+   │  ├─ group-workflow.md [7.02 KB]
+   │  ├─ troubleshooting.md [6.58 KB]
+   │  ├─ user-guide.md [19.53 KB]
+   │  └─ windows-acceptance.md [3.91 KB]
+   ├─ out/
+   │  └─ src/ (45 files) [669.1 KB]
+   └─ resources/
+      ├─ git-rebase-editor.cjs [1.1 KB]
+      ├─ gitlab-workspace.svg [0.33 KB]
+      ├─ workflow-kit-installer.py [72.62 KB]
+      ├─ issue-webview/ (3 files) [325.87 KB]
+      ├─ offline-tools/ (2 files) [4.38 MB]
+      ├─ sidebar-webview/ (3 files) [24.97 KB]
+      └─ workflow-kit/ (39 files) [492.35 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\dist\gitlab-workspace-0.13.2.vsix (103 files, 4.84 MB)
+Optimized dist\gitlab-workspace-0.13.2.vsix with per-file STORE/DEFLATE-9 selection (5065155 bytes)
+Wrote deterministic SHA256SUMS for 2 release assets.
+Verified dist\gitlab-workspace-0.13.2.vsix and dist\gitlab-workspace-kit-0.13.2.zip v0.13.2 (5065155 bytes; matching payloads and SHA256SUMS)
+
+> gitlab-workspace@0.13.2 test:release
+> node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/merge-reviewer/test_group_review.py
+
+✔ compares 10 cold sessions and 300 warm/search samples within the 10 percent budget (3.7254ms)
+✔ fails when a latency or memory sample regresses by more than 10 percent (0.4155ms)
+✔ compares complete baseline samples even when the baseline misses an absolute performance threshold (0.2901ms)
+✔ blocks a baseline with Extension Host test failures even when it has complete samples (0.1762ms)
+✔ blocks incomplete, mismatched or identical-artifact comparisons (0.3496ms)
+✔ the managed load plan creates exactly 20 projects, 500 issues, 50 merge requests and 200 graph nodes (3.8617ms)
+✔ load-plan helpers reject incomplete project inventories and preserve graph ordering across repositories (1.0562ms)
+✔ fixture paths on Windows compare case-insensitively after normalization (1.5645ms)
+✔ fixture paths still reject a different run or checkout directory (0.5293ms)
+✔ an interrupted load rerun reuses the existing Issue and records it only once (2.0643ms)
+✔ a two-way REST issue link found in GitLab response fields is recorded without a duplicate POST (0.5374ms)
+✔ the live API client backs off across repeated 429 responses with a zero Retry-After header (30.4206ms)
+✔ load cleanup refuses an unrecorded project and preserves its manifest and workspace (8.2342ms)
+✔ load cleanup accepts Windows path case changes and deletes only an exactly owned fixture (6.575ms)
+✔ finds Python and Python launcher commands on Windows (1.3827ms)
+✔ selects only Python 3.11 or newer and sets explicit UTF-8 streams (0.4719ms)
+✔ [BDD-REL-001] accepts a tag when manifest, lockfile, and main ancestry agree (2.2299ms)
+✔ [BDD-REL-001] rejects malformed tags and mismatched manifests (1.663ms)
+✔ [BDD-REL-002] derives the VSIX filename from package name and version (0.3587ms)
+✔ [BDD-REL-004] marks only v0.1.0 and semantic prerelease versions as prereleases (0.2472ms)
+✔ [BDD-REL-003] verifies Linux and Windows releases before gated publication (1.0138ms)
+✔ keeps the build read-only and grants write access only to the release job (0.2513ms)
+✔ runs Xvfb only on Linux and runs the full suite directly on Windows (0.228ms)
+✔ fails on an existing release and chooses prerelease only for v0.1.0 or a SemVer prerelease suffix (0.2898ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 308.1773
+{"ok": true, "archive": "resources\\offline-tools\\workflow-kit.tar.xz", "releaseZip": "dist\\gitlab-workspace-kit-0.13.2.zip", "bytes": 4578276, "sha256": "897dd1bf3e92731d2bb46cba20b7e7e5418b4f7a092469f4bac2684bdff7a935", "releaseZipSha256": "d7665b4ed5894ffdac2ecc2779dc8c09e3b2ce870d1399c5f3c408bb5e26393d", "files": 250}
+discovery rule regression tests passed: language, routing, protocol, workflow, and scenario contracts
+material checker regression tests passed: source snapshots, historical cases, Repo fixture references, and duplicate IDs
+all-local-Repo fixture passed: four clean direct roots, one nested root, one ordinary folder
+
+> gitlab-workspace@0.13.2 test:extension
+> npm run compile && node scripts/run-extension-tests.mjs
+
+
+> gitlab-workspace@0.13.2 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+[main 2026-10-08T08:06:54.274Z] StorageMainService: creating application shared storage
+[main 2026-10-08T08:06:54.336Z] [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+[main 2026-10-08T08:06:54.336Z] [shared storage] Initializing fallback application storage (path: in-memory)
+[main 2026-10-08T08:06:54.369Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-08T08:06:54.370Z] update#setState disabled
+[main 2026-10-08T08:06:54.370Z] update#ctor - updates are disabled by the environment
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[AgentHost:renderer] Acquiring MessagePort to agent host...
+[main 2026-10-08T08:06:55.128Z] AgentHostProcessManager: agent host started
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost:renderer] MessagePort acquired, creating client...
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Loading development extension at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace
+Started local extension host with pid 15200.
+[AgentHost:renderer] Protocol connection established; clientId=d4f21b8c-fa21-4cfa-a459-35cc63b47c85
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Settings Sync: Account status changed from uninitialized to unavailable
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+
+  Account, preview and workspace Repo integration
+    √ late Git reads are dropped after hiding, closing or leaving the panel while accepted writes finish
+    √ only the latest preview request can update selection, without loading Issue edit options
+    √ workspace changes cancel the old scan and reject late progress and results
+    √ a pending delivery operation blocks account transitions until it finishes
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+    √ scanning registers deep Repos and worktrees with native VS Code Git and reconciles inventories (2010ms)
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/N2I4ZjRkN2YtZDMwMy00M2Y4LTg2NDYtMjdkNWU5NzVmZThk" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+    √ opens the real offline administration Webview and handles its Log page request (372ms)
+  Live GitLab Workspace Webview validation
+    - exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Group delivery and version-bound report controller
+    √ publishes a valid incomplete report after rechecking the target immediately before writing
+    √ stops publication when the target changes during reconciliation and leaves no uncertain write
+    √ reconciles an uncertain report response without creating a duplicate note
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available
+  12 passing (2s)
+  2 pending
+[main 2026-10-08T08:06:59.406Z] Extension host with pid 15200 exited with code: 0, signal: unknown.
+Exit code:   0

@@ -1,0 +1,340 @@
+{
+  "schema": "GitLabWorkspaceNativeVerification/v1",
+  "generatedAt": "2026-10-08T08:52:48.827Z",
+  "baselineCommit": "fb8340c3bb0d1b348e40ff916f4812b941fb2630",
+  "minimumVSCode": "1.90.0",
+  "testedVSCode": "1.139.0",
+  "userSettingsAdded": false,
+  "dependenciesChanged": false,
+  "fixtures": [
+    {
+      "environment": "ce19",
+      "version": "19.4.1",
+      "group": "grp-sn-maint/performance-20261008-native",
+      "projectCount": 20,
+      "issueCount": 500,
+      "assignedGraphIssueCount": 200,
+      "graphEdgeCount": 199,
+      "mergeRequestCount": 50,
+      "graphCrossesProjects": true,
+      "verifiedIssueCount": 10
+    },
+    {
+      "environment": "ce16",
+      "version": "16.11.10",
+      "group": "grp-sn-maint/performance-20261008-native",
+      "projectCount": 20,
+      "issueCount": 500,
+      "assignedGraphIssueCount": 200,
+      "graphEdgeCount": 199,
+      "mergeRequestCount": 50,
+      "graphCrossesProjects": true,
+      "verifiedIssueCount": 10
+    }
+  ],
+  "checks": {
+    "typechecks": {
+      "status": "PASS",
+      "count": 2,
+      "description": "Extension Host 與 Webview 兩份型別檢查通過。"
+    },
+    "nativeRegression": {
+      "status": "PASS",
+      "cases": 15,
+      "description": "15 項 Git 更新回歸，包含原生 Repo 包裝物件重建、過期 revision、事件合併與閒置行為。"
+    },
+    "dashboardRegression": {
+      "status": "PASS",
+      "cases": 33,
+      "description": "33 項工作台行為案例通過；涵蓋立即保存草稿、帳號隔離、Issue 分頁及 Git／MR Webview 重建。"
+    },
+    "npmTest": {
+      "status": "PASS",
+      "unitCases": 209,
+      "behaviorCases": 36,
+      "issueBdd": {
+        "scenarios": 30,
+        "steps": 140
+      },
+      "connectionBdd": {
+        "scenarios": 10,
+        "steps": 35
+      },
+      "releaseJavaScriptCases": 24,
+      "extensionHostCases": 12,
+      "extensionHostPending": 2,
+      "description": "完整 npm test 通過：209 項單元、36 項行為、40 個 BDD 情境、發行／Python／VSIX 驗證及 12 項 Extension Host 測試；2 項需環境的整合測試已另外實測。"
+    },
+    "localGitGui": {
+      "status": "PASS",
+      "description": "五個 60 秒閒置階段的擴充功能 Git 指令／Git API 呼叫均為 0；含真實 Worktree、Submodule、Detached HEAD、空 Repo、快速切換與 Webview 重建草稿還原。",
+      "idleChecks": [
+        {
+          "phase": "open",
+          "idleMs": 60006,
+          "extensionDelta": {
+            "commands": 0,
+            "auxiliaryCommands": 0,
+            "nativeApiCalls": 0
+          },
+          "vscodeGitLog": {
+            "before": 40,
+            "after": 40,
+            "backgroundDelta": 0
+          }
+        },
+        {
+          "phase": "select-file",
+          "idleMs": 60011,
+          "extensionDelta": {
+            "commands": 0,
+            "auxiliaryCommands": 0,
+            "nativeApiCalls": 0
+          },
+          "vscodeGitLog": {
+            "before": 81,
+            "after": 81,
+            "backgroundDelta": 0
+          }
+        },
+        {
+          "phase": "stage",
+          "idleMs": 60004,
+          "extensionDelta": {
+            "commands": 0,
+            "auxiliaryCommands": 0,
+            "nativeApiCalls": 0
+          },
+          "vscodeGitLog": {
+            "before": 117,
+            "after": 117,
+            "backgroundDelta": 0
+          }
+        },
+        {
+          "phase": "commit",
+          "idleMs": 60015,
+          "extensionDelta": {
+            "commands": 0,
+            "auxiliaryCommands": 0,
+            "nativeApiCalls": 0
+          },
+          "vscodeGitLog": {
+            "before": 139,
+            "after": 139,
+            "backgroundDelta": 0
+          }
+        },
+        {
+          "phase": "hidden",
+          "idleMs": 60023,
+          "extensionDelta": {
+            "commands": 0,
+            "auxiliaryCommands": 0,
+            "nativeApiCalls": 0
+          },
+          "vscodeGitLog": {
+            "before": 649,
+            "after": 661,
+            "backgroundDelta": 12
+          }
+        }
+      ],
+      "compatibility": {
+        "tags": "PASS",
+        "detachedHead": "PASS",
+        "emptyRepo": "PASS",
+        "rapidRepoSwitching": "PASS",
+        "worktree": "PASS",
+        "submodule": "PASS",
+        "hiddenRestoredDraft": "PASS"
+      },
+      "artifactSha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+    },
+    "ce16ce19": {
+      "status": "PASS",
+      "description": "前後各 20 個乾淨冷啟動（每個 CE 環境各 10 次），每次 30 次導覽與 30 次搜尋；功能、10% 延遲／記憶體比較均通過。",
+      "baselineSessions": 20,
+      "currentSessions": 20,
+      "warmSamplesPerSide": 600,
+      "searchSamplesPerSide": 600,
+      "tolerancePercent": 10,
+      "baselineArtifact": {
+        "vsix": ".gitlab-workspace-validation/native-optimization/baseline-fb8340c.vsix",
+        "sha256": "057fc01b0a588909b488c46729e2531e8d33233313be8d18853ac918024086be"
+      },
+      "currentArtifact": {
+        "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+        "sha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+      }
+    },
+    "testProfile": {
+      "status": "PASS",
+      "description": "Portable 模式每次使用獨立資料與擴充功能根目錄；基準與清理路徑回歸通過。",
+      "releaseJavaScriptCases": 26
+    },
+    "nativeConfirmation": {
+      "status": "PASS",
+      "dialogStyle": "custom",
+      "artifactSha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7",
+      "description": "打包後的真實 Webview 與 VS Code showWarningMessage 確認流程通過：分支、局部／整檔暫存、Commit、Push 與本機 Bare Remote。獨立測試設定使用 window.dialogStyle=custom；產品設定未更動。"
+    }
+  },
+  "pending": [
+    "Windows 系統原生確認視窗的外觀待驗證：現有工具無法操作 OS 視窗。VS Code 自訂確認視窗及同一個原生 API 的操作流程已通過。"
+  ],
+  "sourceFiles": [
+    "src/api/gitLabReadKeys.ts",
+    "src/connection/session.ts",
+    "src/git/cloneService.ts",
+    "src/git/gitProtocol.ts",
+    "src/git/gitRepositoryService.ts",
+    "src/git/gitStateFingerprint.ts",
+    "src/git/repositoryOperationLock.ts",
+    "src/issues/issuePanel.ts",
+    "src/webview/GitControlPanel.tsx",
+    "src/webview/dashboard.tsx",
+    "src/webview/main.tsx",
+    "src/workspace/workspacePanel.ts",
+    "src/workspace/workspacePaths.ts"
+  ],
+  "sourceSha256": "063e3395f110f11606b1f04805ecbead3e88c37eb05bbaba4def3e2d9acdf504",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+  },
+  "limits": [
+    "實測使用 VS Code 1.139.0；VS Code 1.90 保持 API／manifest 相容，未另外執行 1.90 實機測試。",
+    "同步 Clone／路徑 helper 僅保留測試相容；Windows Terminal 的有限 existsSync 檢查保留於明確開啟終端的動作。",
+    "每個負載環境的 50 個 MR 未指定目前測試帳號為 reviewer，因此此負載基準不能代表大型待審查 MR 清單的延遲。",
+    "有限測試與資料規模不能保證所有未來 VS Code／GitLab 版本或任意大小資料都沒有問題。",
+    "冷啟動指新的 VS Code／Extension Host／使用者資料狀態；GitLab 伺服器與作業系統快取未在每次執行前重置。差異只能代表本輪測量，不能單獨歸因於特定修正。"
+  ],
+  "liveComparison": {
+    "status": "PASS",
+    "limitPercent": 10,
+    "environments": [
+      {
+        "environment": "ce19",
+        "status": "PASS",
+        "metrics": {
+          "coldInteractiveP95": {
+            "current": 13680,
+            "baseline": 16987,
+            "increasePercent": -19.47,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "warmNavigationP95": {
+            "current": 97.28,
+            "baseline": 95.96,
+            "increasePercent": 1.38,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "localSearchP95": {
+            "current": 32,
+            "baseline": 32.2,
+            "increasePercent": -0.62,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "extensionHostPeakRss": {
+            "current": 343437312,
+            "baseline": 344887296,
+            "increasePercent": -0.42,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "extensionHostPeakHeap": {
+            "current": 124647128,
+            "baseline": 123733788,
+            "increasePercent": 0.74,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "rendererPeakHeap": {
+            "current": 34653512,
+            "baseline": 34256276,
+            "increasePercent": 1.16,
+            "limitPercent": 10,
+            "status": "PASS"
+          }
+        }
+      },
+      {
+        "environment": "ce16",
+        "status": "PASS",
+        "metrics": {
+          "coldInteractiveP95": {
+            "current": 12285,
+            "baseline": 26671,
+            "increasePercent": -53.94,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "warmNavigationP95": {
+            "current": 85.87,
+            "baseline": 99.26,
+            "increasePercent": -13.49,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "localSearchP95": {
+            "current": 15.5,
+            "baseline": 32.1,
+            "increasePercent": -51.71,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "extensionHostPeakRss": {
+            "current": 306495488,
+            "baseline": 304062464,
+            "increasePercent": 0.8,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "extensionHostPeakHeap": {
+            "current": 122540540,
+            "baseline": 125326132,
+            "increasePercent": -2.22,
+            "limitPercent": 10,
+            "status": "PASS"
+          },
+          "rendererPeakHeap": {
+            "current": 34516096,
+            "baseline": 33378124,
+            "increasePercent": 3.41,
+            "limitPercent": 10,
+            "status": "PASS"
+          }
+        }
+      }
+    ]
+  },
+  "sourceFileHashes": {
+    "src/api/gitLabReadKeys.ts": "e2453b8ab286a4491c3282c7a3b13a059afdcfe5826781fa72e26be433a2b035",
+    "src/connection/session.ts": "f69a51b344e29e8be8751b663c6a2023761cd998c3030fb2af490feb28070706",
+    "src/git/cloneService.ts": "994253196566c06afb69f37af67f305207e25361c81fad9605e5e314b100e5de",
+    "src/git/gitProtocol.ts": "c3e9cc2a01c17cf4681bc7ad0c21c0aac60012ba400dc332eb20e7b0416f0db1",
+    "src/git/gitRepositoryService.ts": "523adc0e7f00e1504597ce38a789760cb1d8b28a1ec091017fc8a3af50b6cbf3",
+    "src/git/gitStateFingerprint.ts": "cbaace772c87c5557bd60caf4ac35a86fce03dc36f608648e569e4bc2363e2f4",
+    "src/git/repositoryOperationLock.ts": "441ac9468ca865eeb3fb5c61cf11e3ca9452462db45dfe6f9ccfd14630a73882",
+    "src/issues/issuePanel.ts": "d6a80c243d4dbfcdaf8ac64f922edf67bb594a08e8154b59aa5bfd331dbeeef6",
+    "src/webview/GitControlPanel.tsx": "a764e760f2233af76d4dd8b43269e32cad39a98bdce0173f9ac1c59f0dc19f26",
+    "src/webview/dashboard.tsx": "18943dd88277191b781382a2136591630c0fbfc95c556e562e8dd0f4179f209e",
+    "src/webview/main.tsx": "8a685c39bcdf7f9030b0e61ef9b662850ecda274d04d88f72a91ca5741724906",
+    "src/workspace/workspacePanel.ts": "eea71269c832a708b92dd37fd62661cbc0464385a1b5c0f388d5a18b870d262e",
+    "src/workspace/workspacePaths.ts": "c734ca04af5d5b8cc4d5c812c5c5b966cf46ae7ba231ec00e13ee3e3a5e6c2ae"
+  },
+  "sourceHashFormat": "SHA-256 of sorted path + newline + file SHA-256 + newline records (UTF-8)",
+  "finalAudit": {
+    "checkedAt": "2026-10-08T08:56:12.164Z",
+    "textFilesChecked": 88,
+    "liveTokenMatches": 0,
+    "artifactSha256Matches": true,
+    "gitDiffCheck": "PASS",
+    "finalTypechecks": "PASS",
+    "finalReleaseJavaScriptCases": 26
+  }
+}

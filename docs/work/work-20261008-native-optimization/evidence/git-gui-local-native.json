@@ -1,0 +1,35 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-08T08:51:32.588Z",
+  "mode": "local-only-native-confirmation",
+  "dialogStyle": "custom",
+  "vscodeVersion": "1.139.0",
+  "status": "PASS",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791449476303-17316\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "coldStartMs": 321.37,
+  "elapsedMs": 15532.98,
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.13.2.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.13.2",
+  "interactiveConfirmationUI": "PASS",
+  "gitGui": {
+    "branch": "validation/native-gui/muzarnhp",
+    "previousBranch": "main",
+    "stagedPartial": "1\t0\tservice.ts",
+    "stagedWholeFile": "2\t0\tservice.ts",
+    "commitMessage": "GUI native confirmation native-1791449481317",
+    "pushUpstream": "origin/validation/native-gui/muzarnhp",
+    "remoteBranch": "ae4ae102c0ad0ab1f478334e8f655b1f7d8a3277",
+    "commitConfirmation": "workbench-dom",
+    "pushConfirmation": "workbench-dom",
+    "historyRows": 3
+  },
+  "screenshots": [
+    "screenshots/native-commit-confirmation.png",
+    "screenshots/native-push-confirmation.png",
+    "screenshots/local-git-gui-native.png"
+  ]
+}

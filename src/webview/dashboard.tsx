@@ -16,7 +16,7 @@ import { IssueView, type IssueEditorDraftState } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import { createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, type WikiGuideInputValues } from './codebaseWikiGuideData';
 import { CodebaseWikiGuide } from './CodebaseWikiGuide';
-import { GitControlPanel } from './GitControlPanel';
+import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
 import { AdminLogPanel } from './AdminLogPanel';
 import { LocalRepositoriesPanel } from './LocalRepositoriesPanel';
 import './workspace-management.css';
@@ -25,6 +25,10 @@ import './dashboard.css';
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
 interface SavedState {
+  gitUi?: GitPanelUiState;
+  issueNavigation?: IssueNavigation | null;
+  reviewerTab?: 'changes' | 'discussion' | 'report';
+  mrReplyDrafts?: Record<string, string>;
   issueEditorDrafts?: Record<string, IssueEditorDraftState>;
   mode: WorkspaceMode;
   filters: Partial<Record<WorkspaceMode, string>>;
@@ -214,7 +218,7 @@ function App() {
   useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
   const [projectTab, setProjectTab] = useState<'gitlab' | 'local'>('gitlab');
-  const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(null);
+  const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(initial?.issueNavigation ?? null);
   const [issueRelationResponses, setIssueRelationResponses] = useState<Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>>({});
   const [graphRelations, setGraphRelations] = useState<{ requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; busy: boolean; error?: string; mutationApplied?: boolean }>();
   const graphRelationRequest = useRef<{ requestId: string; connectedScope: string; nodeId: string; projectId: number; issueIid: number }>();
@@ -255,7 +259,8 @@ function App() {
   const [reports, setReports] = useState<Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>>(initial?.reports ?? {});
   const [similarIssues, setSimilarIssues] = useState<Record<string, Array<{ iid: number; title: string; webUrl: string }>>>({});
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
-  const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>('changes');
+  const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>(initial?.reviewerTab ?? 'changes');
+  const [mrReplyDrafts, setMrReplyDrafts] = useState<Record<string, string>>(initial?.mrReplyDrafts ?? {});
   const [toolDrawer, setToolDrawer] = useState(false);
   const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'bundled');
   const [selectedWorkflowKitPackageId, setSelectedWorkflowKitPackageId] = useState<string>(initial?.selectedWorkflowKitPackageId ?? '');
@@ -298,6 +303,28 @@ function App() {
   };
   const currentScopeStateRef = useRef(scopedState);
   currentScopeStateRef.current = scopedState;
+  const saveStatePatch = (patch: Partial<SavedState>): void => vscode.setState({ ...emptySaved(), ...vscode.getState(), ...patch });
+  const updateReviewerTab = (tab: NonNullable<SavedState['reviewerTab']>): void => { saveStatePatch({ reviewerTab: tab }); setReviewerTab(tab); };
+  const updateIssueDrafts = (scope: string, state: IssueEditorDraftState): void => {
+    setIssueEditorDrafts(current => {
+      if (JSON.stringify(current[scope]) === JSON.stringify(state)) return current;
+      const next = { ...current, [scope]: state };
+      saveStatePatch({ issueEditorDrafts: next });
+      return next;
+    });
+  };
+  const updateMrReplyDraft = (key: string, value: string): void => {
+    setMrReplyDrafts(current => { const next = { ...current, [key]: value }; saveStatePatch({ mrReplyDrafts: next }); return next; });
+  };
+  const updateReportDraft = (key: string, text: string): void => {
+    setReports(current => {
+      const next = { ...current, [key]: { text, sha: '', targetSha: '', validated: false } };
+      const saved = vscode.getState();
+      const scope = scopeRef.current;
+      saveStatePatch({ reports: next, ...(scope ? { scopedData: { ...savedScopesRef.current, ...saved?.scopedData, [scope]: { ...currentScopeStateRef.current, reports: next } } } : {}) });
+      return next;
+    });
+  };
   const projectsRef = useRef<GitLabProject[]>([]);
 
   useEffect(() => {
@@ -529,6 +556,7 @@ function App() {
 
   useEffect(() => {
     const state: SavedState = {
+      ...vscode.getState(), issueNavigation, reviewerTab, mrReplyDrafts,
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
@@ -539,7 +567,7 @@ function App() {
       selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, wikiGuideSelection, snapshot?.workflowKitSource, issueEditorDrafts]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, wikiGuideSelection, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -783,13 +811,13 @@ function App() {
         {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
           <IssueView snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
             const scope = snapshot.instanceUserScope;
-            if (scope) setIssueEditorDrafts(current => JSON.stringify(current[scope]) === JSON.stringify(state) ? current : { ...current, [scope]: state });
+            if (scope) updateIssueDrafts(scope, state);
           }} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
             onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {(gitPanelVisited || mode === 'git') && <GitControlPanel post={post} />}
+          {(gitPanelVisited || mode === 'git') && <GitControlPanel post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}</div></div>}
@@ -896,14 +924,14 @@ function App() {
                   if (nextIndex < 0) return;
                   event.preventDefault();
                   const nextTab = (['changes', 'discussion', 'report'] as const)[nextIndex];
-                  setReviewerTab(nextTab);
+                  updateReviewerTab(nextTab);
                   event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
-                }} onClick={() => setReviewerTab(tab)}>{label}</button>)}</nav>
+                }} onClick={() => updateReviewerTab(tab)}>{label}</button>)}</nav>
                 <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.diffs.status === 'ready' && <><VirtualRows className="diff-list" items={selectedMr.diffs} itemKey={(change) => change.new_path} estimateHeight={48} renderItem={(change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>} />{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}</>}</section>
                 <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3>
                   <label class="field">貼上 MergeReviewer Markdown 或 JSON 報告<textarea rows={8} value={currentReport.text} onInput={(event) => {
                     const text = event.currentTarget.value;
-                    setReports((current) => ({ ...current, [currentMrKey]: { text, sha: '', targetSha: '', validated: false } }));
+                    updateReportDraft(currentMrKey, text);
                   }} placeholder="貼上完整報告後，先核對版本。" /></label>
                   {reportOutdated && <p class="warning">報告的來源或目標版本已變更，請重新審查後再發布報告。</p>}
                   {!currentReport.validated && currentReport.text && <p class="subtle">尚未核對報告版本；舊純文字可作一般留言。</p>}
@@ -916,7 +944,7 @@ function App() {
                     <button class="primary" disabled={!currentSha || busy || !!mr.merge_commit_sha} type="button" onClick={() => post({ type: 'mergeMergeRequest', projectId: mr.project_id, iid: mr.iid, sha: currentSha })}>合併 MR</button>
                   </div>
                 </section>
-                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion discussion={discussion} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
+                <section class="section-card" hidden={reviewerTab !== 'discussion'}><h3>討論串</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 討論串" status={selectedMr.sections.discussions} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'discussions', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.discussions.status === 'ready' && selectedMr.discussions.map((discussion) => <Discussion key={discussion.id} discussion={discussion} reply={mrReplyDrafts[snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id] ?? ''} onReplyChange={value => updateMrReplyDraft(snapshot.instanceUserScope + ':' + mr.project_id + ':' + mr.iid + ':' + discussion.id, value)} onReply={(body) => post({ type: 'replyMergeRequest', projectId: mr.project_id, iid: mr.iid, discussionId: discussion.id, body })} />)}</section>
               </> : <Empty title="選取一張指派給你的 MR" detail="查看分支同步、變更與討論，再將審查交給 Codex CLI。" />}</article></div>)}
         </div>
       </section>
@@ -941,9 +969,8 @@ function Empty({ title, detail, action, onAction }: { title: string; detail: str
   return <div class="empty"><div class="empty-mark">◇</div><h2>{title}</h2><p>{detail}</p>{action && onAction && <button class="primary" type="button" onClick={onAction}>{action}</button>}</div>;
 }
 
-function Discussion({ discussion, onReply }: { discussion: NonNullable<WorkspaceSnapshot['selectedMergeRequest']>['discussions'][number]; onReply: (body: string) => void }) {
-  const [reply, setReply] = useState('');
-  return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => setReply(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); setReply(''); }}>回覆</button></div></div>;
+function Discussion({ discussion, reply, onReplyChange, onReply }: { discussion: NonNullable<WorkspaceSnapshot['selectedMergeRequest']>['discussions'][number]; reply: string; onReplyChange: (value: string) => void; onReply: (body: string) => void }) {
+  return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => onReplyChange(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); onReplyChange(''); }}>回覆</button></div></div>;
 }
 
 function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onRetryInstance, onSelectGroup, onConnect, onClose }: {

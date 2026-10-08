@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { gitDirectoryForRepository, withGitDirectoryLock, withGitDirectoryLocks } from '../../src/git/repositoryOperationLock';
+
+test('native async Git-directory detection handles normal repos, worktrees, submodules and missing paths', async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'glw-git-lock-'));
+  t.after(async () => { if (!path.basename(parent).startsWith('glw-git-lock-')) throw new Error('Unsafe fixture cleanup'); await rm(parent, { recursive: true, force: true }); });
+  const main = path.join(parent, 'main'), worktree = path.join(parent, 'worktree'), submodule = path.join(parent, 'submodule');
+  const common = path.join(main, '.git'), worktreeGit = path.join(common, 'worktrees', 'linked'), submoduleGit = path.join(common, 'modules', 'sub');
+  await Promise.all([mkdir(worktreeGit, { recursive: true }), mkdir(submoduleGit, { recursive: true }), mkdir(worktree), mkdir(submodule)]);
+  await writeFile(path.join(worktree, '.git'), 'gitdir: ../main/.git/worktrees/linked');
+  await writeFile(path.join(worktreeGit, 'commondir'), '../..');
+  await writeFile(path.join(submodule, '.git'), 'gitdir: ../main/.git/modules/sub');
+  assert.equal(path.normalize((await gitDirectoryForRepository(main))!), path.normalize(common));
+  assert.equal(path.normalize((await gitDirectoryForRepository(worktree))!), path.normalize(worktreeGit));
+  assert.equal(path.normalize((await gitDirectoryForRepository(submodule))!), path.normalize(submoduleGit));
+  assert.equal(await gitDirectoryForRepository(path.join(parent, 'missing')), undefined);
+  let release!: () => void, enter!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  const held = withGitDirectoryLock(main, () => new Promise<void>(resolve => { release = resolve; enter(); }));
+  await entered;
+  const events: string[] = [];
+  const linked = withGitDirectoryLock(worktree, async () => { events.push('worktree'); });
+  await withGitDirectoryLock(submodule, async () => { events.push('submodule'); });
+  assert.deepEqual(events, ['submodule'], 'the submodule owns a separate Git directory');
+  release(); await Promise.all([held, linked]);
+  assert.deepEqual(events, ['submodule', 'worktree'], 'a linked worktree waits for its common repository lock');
+  await withGitDirectoryLocks([worktree, main, submodule, main], async () => { events.push('batch'); });
+  assert.equal(events.at(-1), 'batch', 'aliases are deduplicated before acquiring multiple locks');
+});

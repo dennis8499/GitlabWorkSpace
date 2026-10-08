@@ -16,7 +16,7 @@ suite('Account, preview and workspace Repo integration', () => {
     const actions: string[] = [], replies: Array<Record<string, unknown>> = [];
     let inventories = 0;
     const view: Harness = Object.assign(Object.create(WorkspacePanel.prototype), {
-      panel: { visible: false }, activeMode: 'git', accountTransitionBusy: false,
+      panel: { visible: false }, activeMode: 'git', accountTransitionBusy: false, gitWriteReceipts: new Map(),
       gitRepositories: { handleAction: async (_id: string, action: { type: string }) => { actions.push(action.type); }, setActivePanelRepository: () => undefined },
       post: (message: Record<string, unknown>) => { replies.push(message); }, sendGitRepositories: async () => { inventories++; }
     });
@@ -31,6 +31,9 @@ suite('Account, preview and workspace Repo integration', () => {
     assert.equal(replies.length, 3);
     await view.handleGitPanelRequest({ type: 'gitAction', repoId: 'repo', requestId: 'accepted-write', action: { type: 'commit', message: 'Keep working' } });
     assert.deepEqual(actions, ['commit']);
+    assert.equal(view.gitWriteReceipts.get('accepted-write').write, true);
+    await view.handleGitPanelRequest({ type: 'gitAcknowledgeResult', requestId: 'accepted-write' });
+    assert.equal(view.gitWriteReceipts.size, 0);
     view.activeMode = 'git'; await read();
     assert.deepEqual(actions, ['commit', 'readDiff']);
   });

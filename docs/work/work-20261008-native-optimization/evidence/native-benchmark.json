@@ -1,0 +1,180 @@
+{
+  "schema": "GitLabWorkspaceNativeOptimizationBenchmark/v1",
+  "measuredAt": "2026-10-08T06:55:02.947Z",
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "win32"
+  },
+  "methodology": "Same process, temporary repository and 20,000-entry index; ten cold fingerprint samples per version. Completion time includes cooperative yields and is reported separately from event-loop blocking. Summary bytes use the production rememberSummary method.",
+  "summary": {
+    "baseline": [
+      {
+        "diffBytes": 0,
+        "summaryBytes": 623,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs",
+          "changes",
+          "remotes",
+          "history",
+          "historyHasMore",
+          "selectedCommit",
+          "commitFiles",
+          "diffPath",
+          "diffText",
+          "revision"
+        ]
+      },
+      {
+        "diffBytes": 1000,
+        "summaryBytes": 1623,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs",
+          "changes",
+          "remotes",
+          "history",
+          "historyHasMore",
+          "selectedCommit",
+          "commitFiles",
+          "diffPath",
+          "diffText",
+          "revision"
+        ]
+      },
+      {
+        "diffBytes": 1000000,
+        "summaryBytes": 1000623,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs",
+          "changes",
+          "remotes",
+          "history",
+          "historyHasMore",
+          "selectedCommit",
+          "commitFiles",
+          "diffPath",
+          "diffText",
+          "revision"
+        ]
+      }
+    ],
+    "current": [
+      {
+        "diffBytes": 0,
+        "summaryBytes": 239,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "tracking",
+          "ahead",
+          "behind",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs"
+        ]
+      },
+      {
+        "diffBytes": 1000,
+        "summaryBytes": 239,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "tracking",
+          "ahead",
+          "behind",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs"
+        ]
+      },
+      {
+        "diffBytes": 1000000,
+        "summaryBytes": 239,
+        "keys": [
+          "id",
+          "name",
+          "path",
+          "branch",
+          "headCommit",
+          "tracking",
+          "ahead",
+          "behind",
+          "stagedCount",
+          "unstagedCount",
+          "conflictCount",
+          "busy",
+          "branches",
+          "stashes",
+          "recoveryRefs"
+        ]
+      }
+    ]
+  },
+  "fingerprint": {
+    "baseline": {
+      "samples": 10,
+      "indexEntries": 20000,
+      "initialCallP95Ms": 19.474099999999993,
+      "completionP95Ms": 19.482299999999995,
+      "nativeCallbackLatencyP95Ms": 19.59429999999999,
+      "readsAllowingCallbackBeforeCompletion": 0
+    },
+    "current": {
+      "samples": 10,
+      "indexEntries": 20000,
+      "initialCallP95Ms": 0.3871000000000038,
+      "completionP95Ms": 21.01910000000001,
+      "nativeCallbackLatencyP95Ms": 0.4064999999999941,
+      "readsAllowingCallbackBeforeCompletion": 10
+    }
+  },
+  "limits": [
+    "This targeted benchmark complements the real Extension Host/GitLab benchmarks; it does not establish an end-to-end performance guarantee."
+  ]
+}

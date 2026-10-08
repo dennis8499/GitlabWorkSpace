@@ -1,0 +1,830 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-08T08:34:28.076Z",
+  "environment": "ce19",
+  "baseUrl": "http://127.0.0.1:8929",
+  "version": "19.4.1",
+  "revision": "191678a3764",
+  "vscodeVersion": "1.139.0",
+  "currentUserId": 35,
+  "selectedGroup": "grp-sn-maint/performance-20261008-native",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+  },
+  "projects": "grp-sn-maint/performance-20261008-native",
+  "visibleRepoCount": "20 個 Repo",
+  "schemaBytes": {
+    "initial": 8175375,
+    "afterManualDetection": 8175375
+  },
+  "schemaGraphQlRequests": 2,
+  "fixture": {
+    "kind": "load",
+    "runId": "20261008-native",
+    "expectedRepoCount": 20,
+    "renderedGraphNodes": 200
+  },
+  "narrowLayout": {
+    "viewport": 1085,
+    "content": 1045
+  },
+  "status": "PASS",
+  "coldInteractiveReadyMs": 10095,
+  "api": [
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 401,
+      "bytes": 30,
+      "elapsedMs": 45.88
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1338,
+      "elapsedMs": 52.02
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 73.17
+    },
+    {
+      "path": "graphql",
+      "method": "POST",
+      "status": 200,
+      "bytes": 8175375,
+      "elapsedMs": 1846.17
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1338,
+      "elapsedMs": 119.58
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 114.4
+    },
+    {
+      "path": "groups",
+      "method": "GET",
+      "status": 200,
+      "bytes": 13022,
+      "elapsedMs": 233.64
+    },
+    {
+      "path": "groups",
+      "method": "GET",
+      "status": 200,
+      "bytes": 13022,
+      "elapsedMs": 351.16
+    },
+    {
+      "path": "user",
+      "method": "GET",
+      "status": 200,
+      "bytes": 1338,
+      "elapsedMs": 106.12
+    },
+    {
+      "path": "groups/92/projects",
+      "method": "GET",
+      "status": 200,
+      "bytes": 106241,
+      "elapsedMs": 868.63
+    },
+    {
+      "path": "groups/92/issues",
+      "method": "GET",
+      "status": 200,
+      "bytes": 233137,
+      "elapsedMs": 1066.55
+    },
+    {
+      "path": "groups/92/issues",
+      "method": "GET",
+      "status": 200,
+      "bytes": 232964,
+      "elapsedMs": 1168.74
+    },
+    {
+      "path": "groups/92/boards",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 302.84
+    },
+    {
+      "path": "groups/92/milestones",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 359.97
+    },
+    {
+      "path": "projects/68/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 363.37
+    },
+    {
+      "path": "projects/68/milestones",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 363.7
+    },
+    {
+      "path": "projects/68/templates/issues",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 363.88
+    },
+    {
+      "path": "metadata",
+      "method": "GET",
+      "status": 200,
+      "bytes": 234,
+      "elapsedMs": 101.95
+    },
+    {
+      "path": "projects/68/members/all",
+      "method": "GET",
+      "status": 200,
+      "bytes": 360,
+      "elapsedMs": 871.26
+    },
+    {
+      "path": "graphql",
+      "method": "POST",
+      "status": 200,
+      "bytes": 8175375,
+      "elapsedMs": 3321.37
+    },
+    {
+      "path": "projects/66/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 98.88
+    },
+    {
+      "path": "projects/67/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 103.92
+    },
+    {
+      "path": "projects/65/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 109.41
+    },
+    {
+      "path": "projects/64/labels",
+      "method": "GET",
+      "status": 200,
+      "bytes": 2,
+      "elapsedMs": 123.86
+    }
+  ],
+  "webview": {
+    "viewport": {
+      "width": 430,
+      "height": 900
+    },
+    "frameBytes": 143176
+  },
+  "operationCounts": {
+    "available": true,
+    "gitCommands": 85,
+    "webviewMessages": {
+      "sent": 89,
+      "received": 41
+    }
+  },
+  "warmNavigationMs": {
+    "samples": [
+      82.27,
+      66.15,
+      75.97,
+      92.41,
+      89.48,
+      90.39,
+      76.24,
+      102.79,
+      97.7,
+      83.35,
+      84.53,
+      80.55,
+      83.88,
+      119.79,
+      86.85,
+      88.48,
+      90.49,
+      95.51,
+      66.34,
+      85.64,
+      80.75,
+      96.08,
+      73.72,
+      99.68,
+      58.63,
+      86.46,
+      85.84,
+      93.85,
+      84.97,
+      89.3
+    ],
+    "median": 85.84,
+    "p95": 102.79
+  },
+  "warmNavigationBreakdown": [
+    {
+      "index": 0,
+      "mode": "clone",
+      "commandMs": 16.79,
+      "visibleWaitMs": 65.48,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 1,
+      "mode": "git",
+      "commandMs": 13.46,
+      "visibleWaitMs": 52.69,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 2,
+      "mode": "clone",
+      "commandMs": 16.43,
+      "visibleWaitMs": 59.54,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 3,
+      "mode": "git",
+      "commandMs": 34.16,
+      "visibleWaitMs": 58.25,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 4,
+      "mode": "clone",
+      "commandMs": 23.48,
+      "visibleWaitMs": 66,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 5,
+      "mode": "git",
+      "commandMs": 27.08,
+      "visibleWaitMs": 63.31,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 6,
+      "mode": "clone",
+      "commandMs": 20.41,
+      "visibleWaitMs": 55.83,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 7,
+      "mode": "git",
+      "commandMs": 34.84,
+      "visibleWaitMs": 67.95,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 8,
+      "mode": "clone",
+      "commandMs": 29.59,
+      "visibleWaitMs": 68.11,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 9,
+      "mode": "git",
+      "commandMs": 23.24,
+      "visibleWaitMs": 60.11,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 10,
+      "mode": "clone",
+      "commandMs": 20.34,
+      "visibleWaitMs": 64.19,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 11,
+      "mode": "git",
+      "commandMs": 23.9,
+      "visibleWaitMs": 56.65,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 12,
+      "mode": "clone",
+      "commandMs": 20.55,
+      "visibleWaitMs": 63.33,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 13,
+      "mode": "git",
+      "commandMs": 36.65,
+      "visibleWaitMs": 83.14,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 14,
+      "mode": "clone",
+      "commandMs": 20.43,
+      "visibleWaitMs": 66.42,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 15,
+      "mode": "git",
+      "commandMs": 19.09,
+      "visibleWaitMs": 69.39,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 16,
+      "mode": "clone",
+      "commandMs": 26.39,
+      "visibleWaitMs": 64.1,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 17,
+      "mode": "git",
+      "commandMs": 32.98,
+      "visibleWaitMs": 62.53,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 18,
+      "mode": "clone",
+      "commandMs": 29.75,
+      "visibleWaitMs": 36.59,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 0
+      }
+    },
+    {
+      "index": 19,
+      "mode": "git",
+      "commandMs": 31.34,
+      "visibleWaitMs": 54.3,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 2
+      }
+    },
+    {
+      "index": 20,
+      "mode": "clone",
+      "commandMs": 26.55,
+      "visibleWaitMs": 54.2,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 21,
+      "mode": "git",
+      "commandMs": 27.46,
+      "visibleWaitMs": 68.62,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 22,
+      "mode": "clone",
+      "commandMs": 17.98,
+      "visibleWaitMs": 55.74,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 23,
+      "mode": "git",
+      "commandMs": 20.6,
+      "visibleWaitMs": 79.08,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 24,
+      "mode": "clone",
+      "commandMs": 35.2,
+      "visibleWaitMs": 23.43,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 0
+      }
+    },
+    {
+      "index": 25,
+      "mode": "git",
+      "commandMs": 22.12,
+      "visibleWaitMs": 64.34,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 26,
+      "mode": "clone",
+      "commandMs": 22.89,
+      "visibleWaitMs": 62.95,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 27,
+      "mode": "git",
+      "commandMs": 31.86,
+      "visibleWaitMs": 61.99,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 28,
+      "mode": "clone",
+      "commandMs": 17.95,
+      "visibleWaitMs": 67.02,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    },
+    {
+      "index": 29,
+      "mode": "git",
+      "commandMs": 35.76,
+      "visibleWaitMs": 53.54,
+      "gitCommands": 0,
+      "webviewMessages": {
+        "sent": 2,
+        "received": 1
+      }
+    }
+  ],
+  "gitWarmupMs": 5229.36,
+  "gitWarmupQuietMs": 3000,
+  "navigationApiRequests": 0,
+  "localRepoSearchMs": {
+    "samples": [
+      16.6,
+      30.7,
+      31.2,
+      30.3,
+      30.5,
+      31.4,
+      21.2,
+      30.7,
+      30.8,
+      31.3,
+      29.7,
+      31.5,
+      32.1,
+      29.6,
+      31,
+      31.1,
+      31.9,
+      31.2,
+      32,
+      31.8,
+      32.2,
+      31.4,
+      30.4,
+      30.9,
+      32.2,
+      31.8,
+      29.8,
+      32.1,
+      32.8,
+      31.1
+    ],
+    "median": 31.1,
+    "p95": 32.2
+  },
+  "localSearchApiRequests": 0,
+  "memory": {
+    "samples": [
+      {
+        "extensionHostRssBytes": 272076800,
+        "extensionHostHeapUsedBytes": 67336792,
+        "rendererHeapUsedBytes": 6860208,
+        "rendererHeapTotalBytes": 15126528
+      },
+      {
+        "extensionHostRssBytes": 283951104,
+        "extensionHostHeapUsedBytes": 94283856,
+        "rendererHeapUsedBytes": 7182144,
+        "rendererHeapTotalBytes": 18149376
+      },
+      {
+        "extensionHostRssBytes": 285048832,
+        "extensionHostHeapUsedBytes": 98325720,
+        "rendererHeapUsedBytes": 8882472,
+        "rendererHeapTotalBytes": 18411520
+      },
+      {
+        "extensionHostRssBytes": 288747520,
+        "extensionHostHeapUsedBytes": 102341224,
+        "rendererHeapUsedBytes": 11007200,
+        "rendererHeapTotalBytes": 18411520
+      },
+      {
+        "extensionHostRssBytes": 292507648,
+        "extensionHostHeapUsedBytes": 106777876,
+        "rendererHeapUsedBytes": 5016936,
+        "rendererHeapTotalBytes": 19197952
+      },
+      {
+        "extensionHostRssBytes": 296091648,
+        "extensionHostHeapUsedBytes": 110417120,
+        "rendererHeapUsedBytes": 7172020,
+        "rendererHeapTotalBytes": 19197952
+      },
+      {
+        "extensionHostRssBytes": 256942080,
+        "extensionHostHeapUsedBytes": 65786232,
+        "rendererHeapUsedBytes": 8865796,
+        "rendererHeapTotalBytes": 19197952
+      },
+      {
+        "extensionHostRssBytes": 260464640,
+        "extensionHostHeapUsedBytes": 69825720,
+        "rendererHeapUsedBytes": 10991404,
+        "rendererHeapTotalBytes": 19197952
+      },
+      {
+        "extensionHostRssBytes": 263720960,
+        "extensionHostHeapUsedBytes": 73841828,
+        "rendererHeapUsedBytes": 12689872,
+        "rendererHeapTotalBytes": 19197952
+      },
+      {
+        "extensionHostRssBytes": 266477568,
+        "extensionHostHeapUsedBytes": 77855888,
+        "rendererHeapUsedBytes": 14783932,
+        "rendererHeapTotalBytes": 20508672
+      },
+      {
+        "extensionHostRssBytes": 270286848,
+        "extensionHostHeapUsedBytes": 81869960,
+        "rendererHeapUsedBytes": 6791980,
+        "rendererHeapTotalBytes": 23392256
+      },
+      {
+        "extensionHostRssBytes": 274108416,
+        "extensionHostHeapUsedBytes": 85886108,
+        "rendererHeapUsedBytes": 8937764,
+        "rendererHeapTotalBytes": 23392256
+      },
+      {
+        "extensionHostRssBytes": 277913600,
+        "extensionHostHeapUsedBytes": 89900272,
+        "rendererHeapUsedBytes": 10617384,
+        "rendererHeapTotalBytes": 23392256
+      },
+      {
+        "extensionHostRssBytes": 281747456,
+        "extensionHostHeapUsedBytes": 93917004,
+        "rendererHeapUsedBytes": 12712792,
+        "rendererHeapTotalBytes": 24702976
+      },
+      {
+        "extensionHostRssBytes": 277032960,
+        "extensionHostHeapUsedBytes": 65773604,
+        "rendererHeapUsedBytes": 14386608,
+        "rendererHeapTotalBytes": 26275840
+      },
+      {
+        "extensionHostRssBytes": 277598208,
+        "extensionHostHeapUsedBytes": 69818480,
+        "rendererHeapUsedBytes": 16480020,
+        "rendererHeapTotalBytes": 28372992
+      },
+      {
+        "extensionHostRssBytes": 278913024,
+        "extensionHostHeapUsedBytes": 73832960,
+        "rendererHeapUsedBytes": 18154324,
+        "rendererHeapTotalBytes": 30208000
+      },
+      {
+        "extensionHostRssBytes": 279175168,
+        "extensionHostHeapUsedBytes": 77848748,
+        "rendererHeapUsedBytes": 20247392,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 280489984,
+        "extensionHostHeapUsedBytes": 81862488,
+        "rendererHeapUsedBytes": 15628708,
+        "rendererHeapTotalBytes": 33878016
+      },
+      {
+        "extensionHostRssBytes": 281804800,
+        "extensionHostHeapUsedBytes": 85865996,
+        "rendererHeapUsedBytes": 5501080,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 283119616,
+        "extensionHostHeapUsedBytes": 89888232,
+        "rendererHeapUsedBytes": 7223860,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 284434432,
+        "extensionHostHeapUsedBytes": 93902532,
+        "rendererHeapUsedBytes": 9318792,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 285745152,
+        "extensionHostHeapUsedBytes": 97916804,
+        "rendererHeapUsedBytes": 10994488,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 289554432,
+        "extensionHostHeapUsedBytes": 101933076,
+        "rendererHeapUsedBytes": 13088024,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 293376000,
+        "extensionHostHeapUsedBytes": 105946280,
+        "rendererHeapUsedBytes": 14767600,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 297213952,
+        "extensionHostHeapUsedBytes": 109948704,
+        "rendererHeapUsedBytes": 16857176,
+        "rendererHeapTotalBytes": 32305152
+      },
+      {
+        "extensionHostRssBytes": 300953600,
+        "extensionHostHeapUsedBytes": 113967740,
+        "rendererHeapUsedBytes": 5035528,
+        "rendererHeapTotalBytes": 30994432
+      },
+      {
+        "extensionHostRssBytes": 304783360,
+        "extensionHostHeapUsedBytes": 117987744,
+        "rendererHeapUsedBytes": 7179236,
+        "rendererHeapTotalBytes": 30994432
+      },
+      {
+        "extensionHostRssBytes": 290177024,
+        "extensionHostHeapUsedBytes": 68420668,
+        "rendererHeapUsedBytes": 8855352,
+        "rendererHeapTotalBytes": 30994432
+      },
+      {
+        "extensionHostRssBytes": 291491840,
+        "extensionHostHeapUsedBytes": 72435744,
+        "rendererHeapUsedBytes": 10949956,
+        "rendererHeapTotalBytes": 30994432
+      },
+      {
+        "extensionHostRssBytes": 291758080,
+        "extensionHostHeapUsedBytes": 76451360,
+        "rendererHeapUsedBytes": 12624464,
+        "rendererHeapTotalBytes": 30994432
+      },
+      {
+        "extensionHostRssBytes": 295436288,
+        "extensionHostHeapUsedBytes": 96360024,
+        "rendererHeapUsedBytes": 21116040,
+        "rendererHeapTotalBytes": 32305152
+      }
+    ],
+    "extensionHostPeakRssBytes": 304783360,
+    "extensionHostPeakHeapUsedBytes": 117987744,
+    "rendererPeakHeapUsedBytes": 21116040,
+    "rendererPeakHeapTotalBytes": 33878016
+  },
+  "screenshots": [
+    "screenshots\\ce19-clone.png"
+  ]
+}

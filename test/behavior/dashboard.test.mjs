@@ -164,6 +164,8 @@ test('Git restores historical file context, paginates with bounded rows, and han
   await finishGit(view, gitActions(view, 'readCommit').at(-1), { revision: 2, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'] });
   assert.equal(gitActions(view, 'readDiff').at(-1).action.ref, gitHead);
   await finishGit(view, gitActions(view, 'readDiff').at(-1), { revision: 3, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'], diffPath: 'service.ts', diffRef: gitHead, diffParent: gitParent, diffStaged: false, diffText: '+restored' });
+  const renderedDeadline = Date.now() + 1500;
+  while (!document.querySelector('.git-diff-view')?.textContent?.includes('restored') && Date.now() < renderedDeadline) await view.tick();
   assert.match(document.querySelector('.git-diff-view').textContent, /restored/);
   document.querySelector('.git-back-graph').click(); await view.tick();
   const many = Array.from({ length: 200 }, (_, i) => ({ hash: i.toString(16).padStart(40, '0'), parents: i < 199 ? [(i + 1).toString(16).padStart(40, '0')] : [], author: 'Tester', date: '2026-10-08T00:00:00Z', subject: `Commit ${i}` }));
@@ -274,7 +276,8 @@ async function mount(initialState, initialSnapshot, storage = {}) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   const tick = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve)));
+    await new Promise((resolve) => setTimeout(resolve, 0));
   };
   await tick();
   assert.equal(requests[0]?.type, 'ready');
@@ -435,6 +438,7 @@ test('Issue editing drafts remain separate across account changes and are restor
     await view.tick();
     editor().value = title;
     editor().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+    assert.equal(view.savedState.issueEditorDrafts[view.savedState.instanceUserScope].issues[101].title, title, 'the last keystroke is persisted before the next render');
     await view.tick();
   };
   await open(first, 1); await edit('First account draft');
@@ -1187,6 +1191,7 @@ test('binds imported reports to both SHAs without adding approval or merge gates
   const textarea = document.querySelector('.reviewer-detail textarea');
   textarea.value = 'Legacy plain text';
   textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  assert.equal(view.savedState.scopedData['team-scope'].reports['1!4'].text, 'Legacy plain text', 'the report draft is saved before the next render');
   await view.tick();
   assert.equal(button('發布審查報告').disabled, true);
   button('作一般留言發布').click();
@@ -1211,4 +1216,85 @@ test('binds imported reports to both SHAs without adding approval or merge gates
   button('合併 MR').click();
   await view.tick();
   assert.equal(view.requests.at(-1).type, 'mergeMergeRequest');
+});
+
+
+test('Webview reconstruction restores Git drafts and selections and acknowledges a completed write without resending it', async (t) => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  const textarea = document.querySelector('.git-commit-composer textarea');
+  textarea.value = 'Saved commit draft';
+  textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  document.querySelector('.git-change-name').click(); await view.tick();
+  const read = gitActions(view, 'readDiff').at(-1);
+  await finishGit(view, read, { revision: 2, diffPath: 'service.ts', diffStaged: false, diffText: '+Large diff content' });
+  document.querySelector('.git-commit-composer form')?.dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  if (!gitActions(view, 'commit').length) document.querySelector('.git-commit-composer').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  await view.tick();
+  const commit = gitActions(view, 'commit').at(-1); assert.ok(commit);
+  const saved = view.savedState;
+  assert.equal(saved.gitUi.uiByRepo['repo-a'].draft, 'Saved commit draft');
+  assert.equal(saved.gitUi.uiByRepo['repo-a'].selectedPath, 'service.ts');
+  assert.equal(saved.gitUi.pendingWrites[0].id, commit.requestId);
+  assert.equal(JSON.stringify(saved).includes('diffText'), false, 'VS Code state contains UI state rather than snapshots');
+  view.dom.window.close();
+  const restored = await mount(saved, snapshot('git'));
+  t.after(() => restored.dom.window.close());
+  restored.send({ type: 'gitRepositories', available: true, revision: 2, repositories: [gitSnapshot()] });
+  await restored.tick();
+  const open = gitActions(restored, 'open').at(-1); assert.ok(open);
+  assert.equal(open.action.refresh, false);
+  restored.send({ type: 'gitSnapshot', requestId: open.requestId, snapshot: gitSnapshot('repo-a', { revision: 3, diffPath: 'service.ts', diffStaged: false, diffText: '+Restored diff' }) });
+  restored.send({ type: 'gitActionResult', requestId: open.requestId });
+  restored.send({ type: 'gitActionResult', requestId: commit.requestId, commitCompleted: true });
+  await restored.tick();
+  assert.equal(gitActions(restored, 'commit').length, 0, 'restoring never submits an authorized write again');
+  assert.ok(restored.requests.some(request => request.type === 'gitAcknowledgeResult' && request.requestId === commit.requestId));
+  assert.equal(restored.dom.window.document.querySelector('.git-commit-composer textarea').value, '');
+  assert.equal(restored.savedState.gitUi.pendingWrites.length, 0);
+  assert.match(restored.dom.window.document.querySelector('.git-diff-view').textContent, /Restored diff/);
+});
+
+
+test('MR discussion drafts and the selected tab survive Webview reconstruction and remain account scoped', async (t) => {
+  const data = snapshot('reviewer');
+  const request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead } };
+  data.mergeRequests = [request];
+  data.selectedMergeRequest = { request, diffs: [], discussions: [{ id: 'thread-1', notes: [{ id: 1, body: 'Review comment', author: { name: 'Reviewer' } }] }], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, warnings: [], freshness: { state: 'current', checkedAt: Date.now() }, sourceSha: gitHead, targetSha: gitParent };
+  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  [...view.dom.window.document.querySelectorAll('button')].find(button => button.textContent === '討論').click();
+  await view.tick();
+  const input = view.dom.window.document.querySelector('input[aria-label="討論回覆"]');
+  input.value = 'Unsubmitted discussion reply'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  assert.equal(view.savedState.mrReplyDrafts['instance-user:1:4:thread-1'], input.value, 'the reply is saved before the next render');
+  await view.tick();
+  const restored = await mount(view.savedState, data); t.after(() => restored.dom.window.close());
+  assert.equal(restored.dom.window.document.querySelector('input[aria-label="討論回覆"]').value, input.value);
+  assert.equal(restored.dom.window.document.querySelector('[role="tab"][aria-selected="true"]').textContent, '討論');
+  assert.equal(restored.requests.some(request => request.type === 'replyMergeRequest'), false);
+  restored.sendSnapshot({ ...data, instanceUserScope: 'another-account', connectedScope: 'another-scope' });
+  await restored.tick();
+  assert.equal(restored.dom.window.document.querySelector('input[aria-label="討論回覆"]').value, '');
+});
+
+test('the selected Issue tab survives Webview reconstruction without changing its host navigation', async (t) => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const navigation = { mode: 'detail', projectId: 1, issueIid: 1, tab: 'content', revision: 7 };
+  view.send({ type: 'issueNavigation', navigation }); await view.tick();
+  const response = { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) };
+  view.send({ type: 'issueResponse', revision: 7, response }); await view.tick();
+  const tab = [...view.dom.window.document.querySelectorAll('.issue-embed [role=tab]')].find(button => button.textContent === '工時');
+  assert.ok(tab); tab.click();
+  assert.equal(view.savedState.issueEditorDrafts['instance-user'].tabs['1:1'].tab, 'time');
+  const restored = await mount(view.savedState, data); t.after(() => restored.dom.window.close());
+  restored.send({ type: 'issueNavigation', navigation });
+  restored.send({ type: 'issueResponse', revision: 7, response });
+  await restored.tick();
+  const deadline = Date.now() + 1500;
+  while (restored.dom.window.document.querySelector('.issue-embed [role=tab][aria-selected=true]')?.textContent !== '工時' && Date.now() < deadline) await restored.tick();
+  assert.equal(restored.dom.window.document.querySelector('.issue-embed [role=tab][aria-selected=true]').textContent, '工時');
+  assert.equal(restored.savedState.issueNavigation.revision, 7);
 });

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { currentOperationLog } from '../logging/operationLog';
-import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, statSync } from 'node:fs';
+import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
@@ -100,6 +101,23 @@ export function planClones(
     throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.');
   }
 
+  return buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, target => isPathPresent(target, exists));
+}
+
+async function planClonesAsync(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
+  groupProjects: readonly GitLabProject[] = projects, folders = projectFolderNames(groupProjects)): Promise<ClonePlan[]> {
+  const root = path.resolve(workspacePath);
+  try { if (!(await stat(root)).isDirectory()) throw new Error('not a directory'); }
+  catch { throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.'); }
+  const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, () => false);
+  for (let offset = 0; offset < plans.length; offset += 4) await Promise.all(plans.slice(offset, offset + 4).map(async plan => {
+    plan.action = await isPathPresentAsync(plan.targetPath) ? 'update' : 'clone';
+  }));
+  return plans;
+}
+
+function buildClonePlans(root: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
+  groupProjects: readonly GitLabProject[], folders: ReadonlyMap<number, string>, present: (target: string) => boolean): ClonePlan[] {
   const foldedPaths = new Set<string>();
   return projects.map((project) => {
     let targetPath: string;
@@ -120,7 +138,7 @@ export function planClones(
     return {
       project,
       targetPath,
-      action: isPathPresent(targetPath, exists) ? 'update' : 'clone'
+      action: present(targetPath) ? 'update' : 'clone'
     };
   });
 }
@@ -135,7 +153,7 @@ export async function cloneProjects(
 ): Promise<CloneBatchResult> {
   // Validate every existing destination and remote before the first clone or fetch.
   const plans = await preflightExistingPlans(
-    planClones(workspacePath, projects, gitLabBaseUrl, existsSync, dependencies.groupProjects ?? projects),
+    await planClonesAsync(workspacePath, projects, gitLabBaseUrl, dependencies.groupProjects ?? projects),
     workspacePath,
     gitLabBaseUrl,
     dependencies.resolveProject ?? (async (project) => project)
@@ -169,14 +187,14 @@ export async function cloneProjects(
         if (plan.action === 'clone') {
           // Reserve the previously absent path atomically so cleanup can never remove a
           // destination created by another process after preflight.
-          mkdirSync(plan.targetPath);
-          const createdStat = lstatSync(plan.targetPath);
+          await mkdir(plan.targetPath);
+          const createdStat = await lstat(plan.targetPath);
           ownedCloneDirectory = { dev: createdStat.dev, ino: createdStat.ino, birthtimeMs: createdStat.birthtimeMs };
           await cloneRunner(plan, gitLabBaseUrl, token, (percent) =>
             onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
           cloned.push(plan.project);
         } else {
-          if (!isPathPresent(plan.targetPath, existsSync)) throw new Error('The repository disappeared before synchronization started.');
+          if (!await isPathPresentAsync(plan.targetPath)) throw new Error('The repository disappeared before synchronization started.');
           const outcome = await updateRunner(plan, token, (percent) =>
             onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
           if (outcome.state === 'skipped') {
@@ -199,7 +217,7 @@ export async function cloneProjects(
       onProgress({ project: plan.project, action: plan.action, state: 'failed', message: failureReason });
       // Existing repositories are never removed after an update failure.
       if (plan.action === 'clone' && ownedCloneDirectory) {
-        removeFailedCloneDirectory(plan.targetPath, workspacePath, ownedCloneDirectory);
+        await removeFailedCloneDirectory(plan.targetPath, workspacePath, ownedCloneDirectory);
       }
     }
   }
@@ -216,7 +234,7 @@ export async function syncLocalDefaultBranches(
   dependencies: LocalSyncDependencies = {}
 ): Promise<LocalSyncBatchResult> {
   // Validate the chosen workspace once, including when the group has no projects.
-  planClones(workspacePath, [], gitLabBaseUrl);
+  await planClonesAsync(workspacePath, [], gitLabBaseUrl);
   const result: LocalSyncBatchResult = { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
   const resolveProject = dependencies.resolveProject ?? (async (project) => project);
   const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;
@@ -238,11 +256,11 @@ export async function syncLocalDefaultBranches(
 
     // Missing repositories are outside this command's scope, so their clone URLs
     // do not need to be inspected.
-    if (!isPathPresent(targetPath, existsSync)) continue;
+    if (!await isPathPresentAsync(targetPath)) continue;
 
     let plan: ClonePlan;
     try {
-      plan = planClones(workspacePath, [project], gitLabBaseUrl, existsSync, groupProjects, folders)[0];
+      plan = (await planClonesAsync(workspacePath, [project], gitLabBaseUrl, groupProjects, folders))[0];
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -374,12 +392,11 @@ async function inspectExistingRepository(
   includeBatchContext = true
 ): Promise<string> {
   try {
-    const stat = lstatSync(targetPath);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    const info = await lstat(targetPath);
+    if (!info.isDirectory() || info.isSymbolicLink()) {
       throw new Error('not a plain directory');
     }
-    const workspaceRealPath = realpathSync.native(workspacePath);
-    const targetRealPath = realpathSync.native(targetPath);
+    const [workspaceRealPath, targetRealPath] = await Promise.all([realpath(workspacePath), realpath(targetPath)]);
     if (!samePath(path.dirname(targetRealPath), workspaceRealPath)) {
       throw new Error('outside the selected folder');
     }
@@ -509,6 +526,11 @@ function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = pr
       resolve({ code: code ?? -1, stdout });
     });
   });
+}
+
+async function isPathPresentAsync(target: string): Promise<boolean> {
+  try { await lstat(target); return true; }
+  catch (error) { return !error || typeof error !== 'object' || !('code' in error) || error.code !== 'ENOENT'; }
 }
 
 function isPathPresent(target: string, exists: (target: string) => boolean): boolean {
@@ -779,22 +801,22 @@ function runGitProcess(
   });
 }
 
-function removeFailedCloneDirectory(
+async function removeFailedCloneDirectory(
   targetPath: string,
   workspacePath: string,
   identity: { dev: number; ino: number; birthtimeMs: number }
-): void {
+): Promise<void> {
   try {
-    if (!existsSync(targetPath)) return;
-    const root = realpathSync.native(workspacePath);
-    const stat = lstatSync(targetPath);
+    if (!await isPathPresentAsync(targetPath)) return;
+    const root = await realpath(workspacePath);
+    const stat = await lstat(targetPath);
     if (stat.isSymbolicLink()) return;
     if (!stat.isDirectory()) return;
     if (stat.dev !== identity.dev || stat.ino !== identity.ino || stat.birthtimeMs !== identity.birthtimeMs) return;
-    const realTarget = realpathSync.native(targetPath);
+    const realTarget = await realpath(targetPath);
     if (!samePath(path.dirname(realTarget), root)) return;
-    if (!existsSync(path.join(realTarget, '.git')) && readdirSync(realTarget).length > 0) return;
-    rmSync(realTarget, { recursive: true, force: true });
+    if (!await isPathPresentAsync(path.join(realTarget, '.git')) && (await readdir(realTarget)).length > 0) return;
+    await rm(realTarget, { recursive: true, force: true });
   } catch {
     // Cleanup is best effort; clone failure must remain visible even if cleanup is not safe.
   }

@@ -1,0 +1,34 @@
+✔ compares 10 cold sessions and 300 warm/search samples within the 10 percent budget (4.4596ms)
+✔ fails when a latency or memory sample regresses by more than 10 percent (0.9127ms)
+✔ compares complete baseline samples even when the baseline misses an absolute performance threshold (0.6183ms)
+✔ blocks a baseline with Extension Host test failures even when it has complete samples (0.4328ms)
+✔ blocks incomplete, mismatched or identical-artifact comparisons (0.325ms)
+✔ the managed load plan creates exactly 20 projects, 500 issues, 50 merge requests and 200 graph nodes (3.6913ms)
+✔ load-plan helpers reject incomplete project inventories and preserve graph ordering across repositories (1.0557ms)
+✔ fixture paths on Windows compare case-insensitively after normalization (1.2155ms)
+✔ fixture paths still reject a different run or checkout directory (0.3499ms)
+✔ portable cold sessions have distinct roots matching the environment override (3.9192ms)
+✔ normal profiles preserve CLI paths and unsafe profile IDs are rejected (1.4057ms)
+✔ an interrupted load rerun reuses the existing Issue and records it only once (1.2738ms)
+✔ a two-way REST issue link found in GitLab response fields is recorded without a duplicate POST (0.9245ms)
+✔ the live API client backs off across repeated 429 responses with a zero Retry-After header (27.218ms)
+✔ load cleanup refuses an unrecorded project and preserves its manifest and workspace (7.2806ms)
+✔ load cleanup accepts Windows path case changes and deletes only an exactly owned fixture (4.9573ms)
+✔ finds Python and Python launcher commands on Windows (2.4969ms)
+✔ selects only Python 3.11 or newer and sets explicit UTF-8 streams (0.8354ms)
+✔ [BDD-REL-001] accepts a tag when manifest, lockfile, and main ancestry agree (2.1921ms)
+✔ [BDD-REL-001] rejects malformed tags and mismatched manifests (0.9161ms)
+✔ [BDD-REL-002] derives the VSIX filename from package name and version (0.283ms)
+✔ [BDD-REL-004] marks only v0.1.0 and semantic prerelease versions as prereleases (0.2255ms)
+✔ [BDD-REL-003] verifies Linux and Windows releases before gated publication (0.8285ms)
+✔ keeps the build read-only and grants write access only to the release job (0.2138ms)
+✔ runs Xvfb only on Linux and runs the full suite directly on Windows (0.208ms)
+✔ fails on an existing release and chooses prerelease only for v0.1.0 or a SemVer prerelease suffix (0.1743ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 200.8813

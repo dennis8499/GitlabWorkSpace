@@ -7,7 +7,15 @@ import { makeDiffLines, makeSelectedPatch, type GitDiffLine } from '../git/gitDi
 import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitUi, type RepoGitUi } from './gitUiState';
 import './git-control-panel.css';
 
-interface Props { post: (message: WorkspaceRequest) => void; }
+export interface GitPanelUiState {
+  selectedId: string;
+  uiByRepo: Record<string, RepoGitUi>;
+  layout: { theme: 'dark' | 'vscode'; left: number; right: number };
+  query: string;
+  historyFilter: string;
+  pendingWrites: Array<{ id: string; repoId: string; label: string; commitMessage?: string }>;
+}
+interface Props { post: (message: WorkspaceRequest) => void; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
 interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
 interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; }
 const COMMIT_ROW_HEIGHT = 36;
@@ -29,25 +37,26 @@ function callName(action: GitAction): string {
   return names[action.type] ?? action.type;
 }
 
-export function GitControlPanel({ post }: Props) {
+export function GitControlPanel({ post, initialState, onStateChange }: Props) {
+  const restoredWrites = initialState?.pendingWrites ?? [];
   const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(initialState?.selectedId ?? '');
   const [available, setAvailable] = useState<boolean | undefined>();
   const [serviceMessage, setServiceMessage] = useState('');
-  const [uiByRepo, setUiByRepo] = useState<Record<string, RepoGitUi>>(loadUi);
+  const [uiByRepo, setUiByRepo] = useState<Record<string, RepoGitUi>>(() => initialState ? restoreGitUi(JSON.stringify(initialState.uiByRepo)) : loadUi());
   const [snapshotByRepo, setSnapshotByRepo] = useState<Record<string, GitRepositorySnapshot>>({});
   const [diffLines, setDiffLines] = useState<GitDiffLine[]>([]);
   const [selectedDiffLines, setSelectedDiffLines] = useState<number[]>([]);
   const [dialog, setDialog] = useState<DialogState>();
   const [dialogError, setDialogError] = useState('');
-  const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>({});
+  const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>(() => Object.fromEntries(restoredWrites.map(write => [write.repoId, write.label])));
   const [readingByRepo, setReadingByRepo] = useState<Record<string, string>>({});
   const [errorsByRepo, setErrorsByRepo] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
-  const [query, setQuery] = useState('');
-  const [historyFilter, setHistoryFilter] = useState('');
+  const [query, setQuery] = useState(initialState?.query ?? '');
+  const [historyFilter, setHistoryFilter] = useState(initialState?.historyFilter ?? '');
   const [searchPosition, setSearchPosition] = useState(0);
-  const [layout, setLayout] = useState(loadLayout);
+  const [layout, setLayout] = useState(initialState?.layout ?? loadLayout());
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [hostWidth, setHostWidth] = useState(1200);
@@ -58,10 +67,15 @@ export function GitControlPanel({ post }: Props) {
   const resizeCleanup = useRef<() => void>();
   const rebaseTargetByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
+  const requestPrefix = useRef(crypto.randomUUID());
+  const restoring = useRef(!!initialState);
   const latestReadByRepo = useRef(new Map<string, string>());
-  const requests = useRef(new Map<string, RequestContext>());
+  const requests = useRef(new Map<string, RequestContext>(restoredWrites.map(write => [write.id, {
+    repoId: write.repoId, key: write.id, write: true,
+    action: write.commitMessage === undefined ? { type: 'branch', name: '' } : { type: 'commit', message: write.commitMessage }
+  }])));
   const inFlight = useRef(new Map<string, string>());
-  const writes = useRef(new Set<string>());
+  const writes = useRef(new Set(restoredWrites.map(write => write.repoId)));
   const restoreSelections = useRef(new Set<string>());
   const latestRevision = useRef(new Map<string, number>());
   const repositoryListRevision = useRef(-1);
@@ -71,6 +85,18 @@ export function GitControlPanel({ post }: Props) {
   selectedIdRef.current = selectedId;
   snapshotsRef.current = snapshotByRepo;
   uiRef.current = uiByRepo;
+  const stateChange = useRef(onStateChange);
+  stateChange.current = onStateChange;
+  const savedView = useRef({ layout, query, historyFilter });
+  savedView.current = { layout, query, historyFilter };
+  function persist(): void {
+    stateChange.current?.({ ...savedView.current, selectedId: selectedIdRef.current, uiByRepo: uiRef.current,
+      pendingWrites: [...requests.current].filter(([, context]) => context.write).map(([id, context]) => ({
+        id, repoId: context.repoId, label: callName(context.action),
+        ...(context.action.type === 'commit' ? { commitMessage: context.action.message } : {})
+      })) });
+  }
+  useEffect(persist, [selectedId, uiByRepo, layout, query, historyFilter, pendingByRepo]);
   const ui = uiByRepo[selectedId] ?? EMPTY_GIT_UI;
   const snapshot = snapshotByRepo[selectedId];
   const pending = pendingByRepo[selectedId] ?? '';
@@ -80,7 +106,6 @@ export function GitControlPanel({ post }: Props) {
   const rebaseDialogDetails = dialog?.kind === 'rebaseEditor' ? parseRebaseDialog(dialog.value) : undefined;
 
   useEffect(() => {
-    post({ type: 'gitReady' });
     const receive = (event: MessageEvent<GitPanelMessage>): void => {
       const message = event.data;
       if (!message || typeof message !== 'object') return;
@@ -120,25 +145,34 @@ export function GitControlPanel({ post }: Props) {
         setErrorsByRepo((current) => ({ ...current, [incoming.id]: incoming.error ?? '' }));
       } else if (message.type === 'gitActionResult') {
         const context = requests.current.get(message.requestId);
-        if (!context) return;
+        if (!context) {
+          if (message.write) {
+            setNotice(message.error ?? '先前的 Git 操作已完成。');
+            post({ type: 'gitAcknowledgeResult', requestId: message.requestId });
+          }
+          return;
+        }
         requests.current.delete(message.requestId);
         if (inFlight.current.get(context.key) === message.requestId) inFlight.current.delete(context.key);
         if (message.error) restoreSelections.current.delete(context.repoId);
         if (context.write) {
+          post({ type: 'gitAcknowledgeResult', requestId: message.requestId });
           writes.current.delete(context.repoId);
           setPendingByRepo((current) => ({ ...current, [context.repoId]: '' }));
           if (!message.error && message.commitCompleted === true && context.action.type === 'commit') {
             const messageText = context.action.message;
             setUiByRepo((current) => current[context.repoId]?.draft.trim() === messageText
-              ? { ...current, [context.repoId]: { ...current[context.repoId], draft: '' } } : current);
+              ? (uiRef.current = { ...current, [context.repoId]: { ...current[context.repoId], draft: '' } }) : current);
           }
         } else if (latestReadByRepo.current.get(context.repoId) === message.requestId) {
           setReadingByRepo((current) => ({ ...current, [context.repoId]: '' }));
         }
+        persist();
         if (context.write || latestReadByRepo.current.get(context.repoId) === message.requestId) setErrorsByRepo((current) => ({ ...current, [context.repoId]: message.error ?? '' }));
       } else if (message.type === 'gitError') setErrorsByRepo((current) => ({ ...current, [selectedIdRef.current]: message.message }));
     };
     window.addEventListener('message', receive);
+    post({ type: 'gitReady' });
     return () => { window.removeEventListener('message', receive); resizeCleanup.current?.(); };
   }, []);
 
@@ -158,10 +192,14 @@ export function GitControlPanel({ post }: Props) {
   }, [ui.view, selectedId]);
 
   useEffect(() => {
-    setDialog(undefined); setLeftOpen(false); setRightOpen(false); setHistoryFilter('');
+    setDialog(undefined); setLeftOpen(false); setRightOpen(false);
+    if (!restoring.current) setHistoryFilter('');
     setHistoryViewport((current) => ({ ...current, top: 0 }));
     if (historyListRef.current) historyListRef.current.scrollTop = 0;
-    if (selectedId) send({ type: 'open', repoId: selectedId });
+    if (selectedId) {
+      send({ type: 'open', repoId: selectedId, ...(restoring.current ? { refresh: false } : {}) });
+      restoring.current = false;
+    }
   }, [selectedId]);
 
   useEffect(() => { try { localStorage.setItem(GIT_UI_STORAGE_KEY, JSON.stringify(uiByRepo)); } catch { /* Storage may be unavailable. */ } }, [uiByRepo]);
@@ -190,13 +228,14 @@ export function GitControlPanel({ post }: Props) {
     const key = selectedId + ':' + JSON.stringify(action);
     const shared = inFlight.current.get(key);
     if (shared && action.type !== 'open' && (write || latestReadByRepo.current.get(selectedId) === shared)) return;
-    const id = 'git-ui-' + (++requestId.current);
+    const id = 'git-ui-' + requestPrefix.current + '-' + (++requestId.current);
     if (write) { writes.current.add(selectedId); setPendingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
     else { latestReadByRepo.current.set(selectedId, id); setReadingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
     requests.current.set(id, { repoId: selectedId, action, key, write });
     inFlight.current.set(key, id);
     closeMenus();
     setNotice('');
+    persist();
     post({ type: 'gitAction', repoId: selectedId, requestId: id, action });
   }
   function setUi(patch: Partial<RepoGitUi>): void {
@@ -204,6 +243,7 @@ export function GitControlPanel({ post }: Props) {
     setUiByRepo((current) => {
       const next = { ...current, [selectedId]: { ...(current[selectedId] ?? EMPTY_GIT_UI), ...patch } };
       uiRef.current = next;
+      persist();
       return next;
     });
   }

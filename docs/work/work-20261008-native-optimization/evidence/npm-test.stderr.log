@@ -1,0 +1,157 @@
+ WARNING  LICENSE, LICENSE.md, or LICENSE.txt not found
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.440s
+
+OK
+test_failed_update_and_process_crash_restore_the_previous_install (__main__.WorkflowKitInstallerTests.test_failed_update_and_process_crash_restore_the_previous_install) ... ok
+test_fresh_and_existing_wiki_installations_preserve_user_state (__main__.WorkflowKitInstallerTests.test_fresh_and_existing_wiki_installations_preserve_user_state) ... ok
+test_install_failure_at_first_middle_and_final_operation_rolls_back (__main__.WorkflowKitInstallerTests.test_install_failure_at_first_middle_and_final_operation_rolls_back) ... ok
+test_manifest_pins_all_sources_and_the_workspace_profile (__main__.WorkflowKitInstallerTests.test_manifest_pins_all_sources_and_the_workspace_profile) ... ok
+test_megin_lock_and_approved_work_block_install_and_update (__main__.WorkflowKitInstallerTests.test_megin_lock_and_approved_work_block_install_and_update) ... ok
+test_modified_install_and_legacy_tools_block_updates_with_repair_paths (__main__.WorkflowKitInstallerTests.test_modified_install_and_legacy_tools_block_updates_with_repair_paths) ... ok
+test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths (__main__.WorkflowKitInstallerTests.test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths) ... ok
+test_unicode_space_and_windows_parent_alias_resolve_to_same_group (__main__.WorkflowKitInstallerTests.test_unicode_space_and_windows_parent_alias_resolve_to_same_group) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 32.241s
+
+OK
+test_installed_spec_group_review_handoff_commits_and_portable_mr_report (__main__.InstalledGroupWorkflowTests.test_installed_spec_group_review_handoff_commits_and_portable_mr_report) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 32.107s
+
+OK
+test_group_root_alias_is_resolved_before_evidence_containment (test_gitlab_delivery.GitLabDeliveryTests.test_group_root_alias_is_resolved_before_evidence_containment) ... ok
+test_group_root_alias_supports_contract_snapshot_and_completed_delivery (test_gitlab_delivery.GitLabDeliveryTests.test_group_root_alias_supports_contract_snapshot_and_completed_delivery) ... ok
+test_index_or_evidence_drift_stops_without_commit (test_gitlab_delivery.GitLabDeliveryTests.test_index_or_evidence_drift_stops_without_commit) ... ok
+test_missing_or_modified_evidence_scope_revision_remote_and_content_are_rejected (test_gitlab_delivery.GitLabDeliveryTests.test_missing_or_modified_evidence_scope_revision_remote_and_content_are_rejected) ... ok
+test_native_planning_validation_requires_frozen_ids_and_predeclared_handoff (test_gitlab_delivery.GitLabDeliveryTests.test_native_planning_validation_requires_frozen_ids_and_predeclared_handoff) ... ok
+test_partial_commit_save_failure_recovers_without_duplicate (test_gitlab_delivery.GitLabDeliveryTests.test_partial_commit_save_failure_recovers_without_duplicate) ... ok
+test_saved_completion_with_failed_workflow_write_recovers_without_recommit (test_gitlab_delivery.GitLabDeliveryTests.test_saved_completion_with_failed_workflow_write_recovers_without_recommit) ... ok
+test_single_repo_staged_new_file_completes_without_local_merge (test_gitlab_delivery.GitLabDeliveryTests.test_single_repo_staged_new_file_completes_without_local_merge) ... ok
+test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes) ... ok
+test_bundle_builder_rejects_skill_file_symlinks (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_builder_rejects_skill_file_symlinks) ... ok
+test_claim_blocks_unupgraded_active_v1_group_work (test_workspace_hardening.WorkspaceHardeningTests.test_claim_blocks_unupgraded_active_v1_group_work) ... ok
+test_claim_refuses_a_different_active_group_work_record (test_workspace_hardening.WorkspaceHardeningTests.test_claim_refuses_a_different_active_group_work_record) ... ok
+test_completion_record_alone_cannot_release_the_group_lock (test_workspace_hardening.WorkspaceHardeningTests.test_completion_record_alone_cannot_release_the_group_lock) ... ok
+test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits (test_workspace_hardening.WorkspaceHardeningTests.test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits) ... ok
+test_completion_release_requires_complete_workflow_status (test_workspace_hardening.WorkspaceHardeningTests.test_completion_release_requires_complete_workflow_status) ... ok
+test_dangling_group_config_symlink_is_not_treated_as_missing (test_workspace_hardening.WorkspaceHardeningTests.test_dangling_group_config_symlink_is_not_treated_as_missing) ... ok
+test_delivery_gate_rejects_a_failed_compatibility_check (test_workspace_hardening.WorkspaceHardeningTests.test_delivery_gate_rejects_a_failed_compatibility_check) ... ok
+test_fingerprint_changes_when_a_skill_resource_changes (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint_changes_when_a_skill_resource_changes) ... ok
+test_fingerprint_is_stable_and_ignores_python_caches (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint_is_stable_and_ignores_python_caches) ... ok
+test_gate_must_match_the_workflow_phase (test_workspace_hardening.WorkspaceHardeningTests.test_gate_must_match_the_workflow_phase) ... ok
+test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot (test_workspace_hardening.WorkspaceHardeningTests.test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot) ... ok
+test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting (test_workspace_hardening.WorkspaceHardeningTests.test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting) ... ok
+test_group_settings_reject_invalid_git_branch_components (test_workspace_hardening.WorkspaceHardeningTests.test_group_settings_reject_invalid_git_branch_components) ... ok
+test_group_snapshot_distinguishes_lf_and_crlf_bytes (test_workspace_hardening.WorkspaceHardeningTests.test_group_snapshot_distinguishes_lf_and_crlf_bytes) ... ok
+test_interrupted_lock_write_never_publishes_a_partial_lock (test_workspace_hardening.WorkspaceHardeningTests.test_interrupted_lock_write_never_publishes_a_partial_lock) ... ok
+test_invalid_group_settings_fail_with_a_clear_error (test_workspace_hardening.WorkspaceHardeningTests.test_invalid_group_settings_fail_with_a_clear_error) ... ok
+test_lock_blocks_other_writer_and_is_not_automatically_released (test_workspace_hardening.WorkspaceHardeningTests.test_lock_blocks_other_writer_and_is_not_automatically_released) ... ok
+test_missing_group_settings_preserve_existing_repo_discovery (test_workspace_hardening.WorkspaceHardeningTests.test_missing_group_settings_preserve_existing_repo_discovery) ... ok
+test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order (test_workspace_hardening.WorkspaceHardeningTests.test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order) ... ok
+test_only_one_concurrent_writer_can_claim_the_group (test_workspace_hardening.WorkspaceHardeningTests.test_only_one_concurrent_writer_can_claim_the_group) ... ok
+test_record_validation_rejects_handoff_cycles_and_wrong_merge_order (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_rejects_handoff_cycles_and_wrong_merge_order) ... ok
+test_record_validation_rejects_malformed_configuration_source_type (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_rejects_malformed_configuration_source_type) ... ok
+test_record_validation_stops_when_installed_skills_drift (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_stops_when_installed_skills_drift) ... ok
+test_release_requires_explicit_stopped_writer_and_reason (test_workspace_hardening.WorkspaceHardeningTests.test_release_requires_explicit_stopped_writer_and_reason) ... ok
+test_review_gate_reports_malformed_check_status_without_crashing (test_workspace_hardening.WorkspaceHardeningTests.test_review_gate_reports_malformed_check_status_without_crashing) ... ok
+test_review_skill_documents_the_source_maintenance_v1_exception (test_workspace_hardening.WorkspaceHardeningTests.test_review_skill_documents_the_source_maintenance_v1_exception) ... ok
+test_single_repo_completion_checks_no_ff_merge_parents_and_tree (test_workspace_hardening.WorkspaceHardeningTests.test_single_repo_completion_checks_no_ff_merge_parents_and_tree) ... ok
+test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers (test_workspace_hardening.WorkspaceHardeningTests.test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers) ... ok
+test_workflow_cannot_mark_complete_before_completion_gate_passes (test_workspace_hardening.WorkspaceHardeningTests.test_workflow_cannot_mark_complete_before_completion_gate_passes) ... ok
+test_writer_transfer_requires_stopped_owner_and_records_the_reason (test_workspace_hardening.WorkspaceHardeningTests.test_writer_transfer_requires_stopped_owner_and_records_the_reason) ... ok
+test_check_rejects_feature_branch_from_a_different_base (test_group_workflow.GroupWorkflowTests.test_check_rejects_feature_branch_from_a_different_base) ... ok
+test_check_requires_an_explicit_repo_working_directory (test_group_workflow.GroupWorkflowTests.test_check_requires_an_explicit_repo_working_directory) ... ok
+test_contract_binds_each_remote_url (test_group_workflow.GroupWorkflowTests.test_contract_binds_each_remote_url) ... ok
+test_contract_cannot_select_a_repo_outside_the_group (test_group_workflow.GroupWorkflowTests.test_contract_cannot_select_a_repo_outside_the_group) ... ok
+test_delivery_stops_when_remote_base_advanced (test_group_workflow.GroupWorkflowTests.test_delivery_stops_when_remote_base_advanced) ... ok
+test_group_root_inside_a_git_repo_is_rejected (test_group_workflow.GroupWorkflowTests.test_group_root_inside_a_git_repo_is_rejected) ... ok
+test_group_snapshot_and_delivery_digest_include_file_mode (test_group_workflow.GroupWorkflowTests.test_group_snapshot_and_delivery_digest_include_file_mode) ... ok
+test_group_snapshot_covers_each_repo_and_group_plan (test_group_workflow.GroupWorkflowTests.test_group_snapshot_covers_each_repo_and_group_plan) ... ok
+test_group_snapshot_rejects_a_repo_path_that_is_not_a_direct_child (test_group_workflow.GroupWorkflowTests.test_group_snapshot_rejects_a_repo_path_that_is_not_a_direct_child) ... ok
+test_multi_repo_delivery_commits_feature_branches_without_merging_base (test_group_workflow.GroupWorkflowTests.test_multi_repo_delivery_commits_feature_branches_without_merging_base) ... ok
+test_new_record_validator_requires_v3_without_changing_v2_snapshot_support (test_group_workflow.GroupWorkflowTests.test_new_record_validator_requires_v3_without_changing_v2_snapshot_support) ... ok
+test_partial_multi_repo_feature_commit_is_preserved_while_remaining_repo_resumes (test_group_workflow.GroupWorkflowTests.test_partial_multi_repo_feature_commit_is_preserved_while_remaining_repo_resumes) ... ok
+test_remote_credentials_are_omitted_from_approved_work_record (test_group_workflow.GroupWorkflowTests.test_remote_credentials_are_omitted_from_approved_work_record) ... ok
+test_review_rejects_staged_product_changes (test_group_workflow.GroupWorkflowTests.test_review_rejects_staged_product_changes) ... ok
+test_single_repo_delivery_gate_and_no_ff_merge (test_group_workflow.GroupWorkflowTests.test_single_repo_delivery_gate_and_no_ff_merge) ... ok
+test_submodule_gitlink_mode_and_commit_match_delivery_index (test_group_workflow.GroupWorkflowTests.test_submodule_gitlink_mode_and_commit_match_delivery_index) ... ok
+test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes) ... ok
+test_bundle_builder_rejects_skill_file_symlinks (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_builder_rejects_skill_file_symlinks) ... ok
+test_claim_blocks_unupgraded_active_v1_group_work (test_workspace_hardening.WorkspaceHardeningTests.test_claim_blocks_unupgraded_active_v1_group_work) ... ok
+test_claim_refuses_a_different_active_group_work_record (test_workspace_hardening.WorkspaceHardeningTests.test_claim_refuses_a_different_active_group_work_record) ... ok
+test_completion_record_alone_cannot_release_the_group_lock (test_workspace_hardening.WorkspaceHardeningTests.test_completion_record_alone_cannot_release_the_group_lock) ... ok
+test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits (test_workspace_hardening.WorkspaceHardeningTests.test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits) ... ok
+test_completion_release_requires_complete_workflow_status (test_workspace_hardening.WorkspaceHardeningTests.test_completion_release_requires_complete_workflow_status) ... ok
+test_dangling_group_config_symlink_is_not_treated_as_missing (test_workspace_hardening.WorkspaceHardeningTests.test_dangling_group_config_symlink_is_not_treated_as_missing) ... ok
+test_delivery_gate_rejects_a_failed_compatibility_check (test_workspace_hardening.WorkspaceHardeningTests.test_delivery_gate_rejects_a_failed_compatibility_check) ... ok
+test_fingerprint_changes_when_a_skill_resource_changes (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint_changes_when_a_skill_resource_changes) ... ok
+test_fingerprint_is_stable_and_ignores_python_caches (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint_is_stable_and_ignores_python_caches) ... ok
+test_gate_must_match_the_workflow_phase (test_workspace_hardening.WorkspaceHardeningTests.test_gate_must_match_the_workflow_phase) ... ok
+test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot (test_workspace_hardening.WorkspaceHardeningTests.test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot) ... ok
+test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting (test_workspace_hardening.WorkspaceHardeningTests.test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting) ... ok
+test_group_settings_reject_invalid_git_branch_components (test_workspace_hardening.WorkspaceHardeningTests.test_group_settings_reject_invalid_git_branch_components) ... ok
+test_group_snapshot_distinguishes_lf_and_crlf_bytes (test_workspace_hardening.WorkspaceHardeningTests.test_group_snapshot_distinguishes_lf_and_crlf_bytes) ... ok
+test_interrupted_lock_write_never_publishes_a_partial_lock (test_workspace_hardening.WorkspaceHardeningTests.test_interrupted_lock_write_never_publishes_a_partial_lock) ... ok
+test_invalid_group_settings_fail_with_a_clear_error (test_workspace_hardening.WorkspaceHardeningTests.test_invalid_group_settings_fail_with_a_clear_error) ... ok
+test_lock_blocks_other_writer_and_is_not_automatically_released (test_workspace_hardening.WorkspaceHardeningTests.test_lock_blocks_other_writer_and_is_not_automatically_released) ... ok
+test_missing_group_settings_preserve_existing_repo_discovery (test_workspace_hardening.WorkspaceHardeningTests.test_missing_group_settings_preserve_existing_repo_discovery) ... ok
+test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order (test_workspace_hardening.WorkspaceHardeningTests.test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order) ... ok
+test_only_one_concurrent_writer_can_claim_the_group (test_workspace_hardening.WorkspaceHardeningTests.test_only_one_concurrent_writer_can_claim_the_group) ... ok
+test_record_validation_rejects_handoff_cycles_and_wrong_merge_order (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_rejects_handoff_cycles_and_wrong_merge_order) ... ok
+test_record_validation_rejects_malformed_configuration_source_type (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_rejects_malformed_configuration_source_type) ... ok
+test_record_validation_stops_when_installed_skills_drift (test_workspace_hardening.WorkspaceHardeningTests.test_record_validation_stops_when_installed_skills_drift) ... ok
+test_release_requires_explicit_stopped_writer_and_reason (test_workspace_hardening.WorkspaceHardeningTests.test_release_requires_explicit_stopped_writer_and_reason) ... ok
+test_review_gate_reports_malformed_check_status_without_crashing (test_workspace_hardening.WorkspaceHardeningTests.test_review_gate_reports_malformed_check_status_without_crashing) ... ok
+test_review_skill_documents_the_source_maintenance_v1_exception (test_workspace_hardening.WorkspaceHardeningTests.test_review_skill_documents_the_source_maintenance_v1_exception) ... ok
+test_single_repo_completion_checks_no_ff_merge_parents_and_tree (test_workspace_hardening.WorkspaceHardeningTests.test_single_repo_completion_checks_no_ff_merge_parents_and_tree) ... ok
+test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers (test_workspace_hardening.WorkspaceHardeningTests.test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers) ... ok
+test_workflow_cannot_mark_complete_before_completion_gate_passes (test_workspace_hardening.WorkspaceHardeningTests.test_workflow_cannot_mark_complete_before_completion_gate_passes) ... ok
+test_writer_transfer_requires_stopped_owner_and_records_the_reason (test_workspace_hardening.WorkspaceHardeningTests.test_writer_transfer_requires_stopped_owner_and_records_the_reason) ... ok
+
+----------------------------------------------------------------------
+Ran 88 tests in 427.512s
+
+OK
+........
+----------------------------------------------------------------------
+Ran 8 tests in 30.498s
+
+OK
+[9528:1008/160654.099:ERROR:components\os_crypt\sync\os_crypt_win.cc:78] Failed to encrypt: 系統找不到指定的檔案。 (0x2)
+[main 2026-10-08T08:06:55.763Z] [AgentHost:stderr] (node:5240) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+EPERM: operation not permitted, scandir 'C:\Users\denni\AppData\Local\Microsoft\WindowsApps': Error: EPERM: operation not permitted, scandir 'C:\Users\denni\AppData\Local\Microsoft\WindowsApps'
+    at async readdir (node:internal/fs/promises:1662:18)
+    at async i1 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:31:98550)
+    at async Object.lm (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:31:98416)
+    at async a0 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:38425)
+    at async a4 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:39021)
+    at async Eb (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:39294)
+    at async x7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:10373)
+    at async Promise.all (index 1)
+    at async b7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:9565)
+    at async S7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:7215)
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+Unknown channel: agentHostClientProxy
+(node:15200) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+EPERM: operation not permitted, scandir 'C:\Users\denni\AppData\Local\Microsoft\WindowsApps': Error: EPERM: operation not permitted, scandir 'C:\Users\denni\AppData\Local\Microsoft\WindowsApps'
+    at async readdir (node:internal/fs/promises:1662:18)
+    at async i1 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:31:98550)
+    at async Object.lm (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:31:98416)
+    at async a0 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:38425)
+    at async a4 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:39021)
+    at async Eb (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:71:39294)
+    at async x7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:10373)
+    at async Promise.all (index 1)
+    at async b7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:9565)
+    at async S7 (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.139.0/2242ebbb54/resources/app/out/main.js:109:7215)
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Unknown channel: agentHostClientProxy

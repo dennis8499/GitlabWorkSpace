@@ -1,0 +1,290 @@
+[
+  {
+    "environment": "ce19",
+    "version": "19.4.1",
+    "group": "grp-sn-maint/performance-20261008-native",
+    "projectCount": 20,
+    "issueCount": 500,
+    "assignedGraphIssueCount": 200,
+    "graphEdgeCount": 199,
+    "mergeRequestCount": 50,
+    "graphCrossesProjects": true,
+    "verifiedIssueCount": 10,
+    "projects": [
+      {
+        "id": 49,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-01",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 50,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-02",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 51,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-03",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 52,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-04",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 53,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-05",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 54,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-06",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 55,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-07",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 56,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-08",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 57,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-09",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 58,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-10",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 59,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-11",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 60,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-12",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 61,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-13",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 62,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-14",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 63,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-15",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 64,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-16",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 65,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-17",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 66,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-18",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 67,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-19",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 68,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-20",
+        "empty": false,
+        "defaultBranch": "main"
+      }
+    ],
+    "metrics": {
+      "requests": 40,
+      "responseBytes": 1436271,
+      "failures": 0,
+      "apiLatencyMs": {
+        "median": 134.38,
+        "p95": 588.72
+      }
+    },
+    "command": "verify-load"
+  },
+  {
+    "environment": "ce16",
+    "version": "16.11.10",
+    "group": "grp-sn-maint/performance-20261008-native",
+    "projectCount": 20,
+    "issueCount": 500,
+    "assignedGraphIssueCount": 200,
+    "graphEdgeCount": 199,
+    "mergeRequestCount": 50,
+    "graphCrossesProjects": true,
+    "verifiedIssueCount": 10,
+    "projects": [
+      {
+        "id": 42,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-01",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 43,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-02",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 44,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-03",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 45,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-04",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 46,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-05",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 47,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-06",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 48,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-07",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 49,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-08",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 50,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-09",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 51,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-10",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 52,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-11",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 53,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-12",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 54,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-13",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 55,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-14",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 56,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-15",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 57,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-16",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 58,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-17",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 59,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-18",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 60,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-19",
+        "empty": false,
+        "defaultBranch": "main"
+      },
+      {
+        "id": 61,
+        "path": "grp-sn-maint/performance-20261008-native/load-20261008-native-20",
+        "empty": false,
+        "defaultBranch": "main"
+      }
+    ],
+    "metrics": {
+      "requests": 40,
+      "responseBytes": 1339188,
+      "failures": 0,
+      "apiLatencyMs": {
+        "median": 138.76,
+        "p95": 564.77
+      }
+    },
+    "command": "verify-load"
+  }
+]

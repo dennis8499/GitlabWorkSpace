@@ -104,6 +104,8 @@ export class IssuePanels implements vscode.Disposable {
   private loadingVersion?: number;
   private navigationReadController?: AbortController;
   private ready = false;
+  private suspended = false;
+  private refreshAfterWrite = false;
   private lastSnapshot?: IssuePanelResponse;
   private operationWarning?: string;
   private navigationVersion = 0;
@@ -131,14 +133,16 @@ export class IssuePanels implements vscode.Disposable {
     this.workspace = workspace;
   }
 
-  async loadIssueRelations(projectId: number, iid: number): Promise<IssueRelationsData> {
+  async loadIssueRelations(projectId: number, iid: number, signal?: AbortSignal): Promise<IssueRelationsData> {
     const group = this.session.selectedGroup;
     if (!group) throw new Error('Choose a GitLab Group first.');
     await this.session.ensureInstanceChecked();
-    const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id));
+    const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal });
     const project = projects.find((item) => item.id === requiredId(projectId, 'Project'));
     if (!project) throw new Error('The Issue is outside the selected Group.');
-    const client = await this.session.getClient();
+    const baseClient = await this.session.getClient();
+    const client = signal ? baseClient.withReadSignal(signal) : baseClient;
+    if (signal?.aborted) throw new Error('The Issue view request was cancelled.');
     const capabilities = this.session.issueCapabilities;
     const [issue, links, hierarchy] = await Promise.all([
       client.getIssue(projectId, requiredId(iid, 'Issue')),
@@ -232,6 +236,17 @@ export class IssuePanels implements vscode.Disposable {
     this.close();
   }
 
+  suspendReads(): void {
+    this.suspended = true;
+    this.ready = false;
+    this.cancelNavigationReads();
+    if (this.lastSnapshot?.type === 'detailData') {
+      const sections = { ...this.lastSnapshot.data.sections };
+      for (const section of Object.keys(sections) as IssueDetailSection[]) if (sections[section] === 'loading') sections[section] = 'idle';
+      this.lastSnapshot = { ...this.lastSnapshot, data: { ...this.lastSnapshot.data, sections } };
+    }
+  }
+
   private cancelNavigationReads(): void {
     this.navigationReadController?.abort();
     this.navigationReadController = undefined;
@@ -249,6 +264,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   async showCreate(): Promise<void> {
+    this.suspended = false; this.refreshAfterWrite = false;
     this.cancelNavigationReads();
     const navigationVersion = ++this.navigationVersion;
     this.issue = undefined;
@@ -260,6 +276,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   async showIssue(issue: GitLabIssue, tab?: IssueDetailTab): Promise<void> {
+    this.suspended = false; this.refreshAfterWrite = false;
     this.cancelNavigationReads();
     const navigationVersion = ++this.navigationVersion;
     this.issue = issue;
@@ -297,7 +314,7 @@ export class IssuePanels implements vscode.Disposable {
         sections: { ...(previous.sections ?? {}), ...(message.patch.sections ?? {}) }
       } };
     }
-    if (!this.ready) return;
+    if (!this.ready && message.type !== 'reply' && message.type !== 'error') return;
     this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: message });
   }
 
@@ -314,12 +331,18 @@ export class IssuePanels implements vscode.Disposable {
     }
     if (request.type === 'ready') {
       this.ready = true;
+      this.suspended = false;
+      if (this.refreshAfterWrite) { this.refreshAfterWrite = false; return this.load(true); }
       if (this.loadingTask) {
         await this.loadingTask;
-        if (this.lastSnapshot) return;
+        if (this.lastSnapshot && this.navigationReadController && !this.navigationReadController.signal.aborted) return;
       }
       if (this.lastSnapshot) {
-        this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: this.lastSnapshot });
+        if (this.lastSnapshot.type === 'detailData' && !this.navigationReadController) {
+          const controller = new AbortController();
+          this.navigationReadController = controller;
+          await this.loadDetail(this.navigationVersion, controller.signal, false, this.lastSnapshot.data);
+        } else this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: this.lastSnapshot });
         return;
       }
       return this.load();
@@ -334,6 +357,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private async load(forceNetwork = false): Promise<void> {
+    if (this.suspended) { this.refreshAfterWrite ||= forceNetwork; return; }
     const version = this.navigationVersion;
     if (this.loadingTask && this.loadingVersion === version && !forceNetwork) return this.loadingTask;
     this.cancelNavigationReads();
@@ -443,11 +467,11 @@ export class IssuePanels implements vscode.Disposable {
     throw new Error('GitLab returned too many child task pages to load safely.');
   }
 
-  private async loadDetail(version: number, signal: AbortSignal, forceNetwork: boolean): Promise<void> {
+  private async loadDetail(version: number, signal: AbortSignal, forceNetwork: boolean, restoredData?: IssueDetailData): Promise<void> {
     const seed = this.issue;
     if (!seed) return;
     const client = (await this.session.getClient()).withReadSignal(signal);
-    const [issue, project, user] = await Promise.all([
+    const [issue, project, user] = restoredData ? [restoredData.issue, restoredData.project, restoredData.user] : await Promise.all([
       client.getIssue(seed.project_id, seed.iid), client.getProject(seed.project_id), client.getCurrentUser()
     ]);
     if (version !== this.navigationVersion || signal.aborted) return;
@@ -455,7 +479,7 @@ export class IssuePanels implements vscode.Disposable {
     const group = this.session.selectedGroup;
     const sectionNames: IssueDetailSection[] = ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'];
     const sections = Object.fromEntries(sectionNames.map((name) => [name, 'idle'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
-    let data: IssueDetailData = {
+    let data: IssueDetailData = restoredData ? { ...restoredData } : {
       issue, project, projects: [project], user, metadata: this.session.metadata,
       options: { members: [], labels: [], milestones: [], templates: [] },
       discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [],

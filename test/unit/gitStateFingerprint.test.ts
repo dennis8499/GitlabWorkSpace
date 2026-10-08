@@ -3,7 +3,7 @@ import test from 'node:test';
 import { mkdtemp, mkdir, rm, writeFile, utimes } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { gitIndexContentKey, GitStateFingerprint } from '../../src/git/gitStateFingerprint';
+import { gitIndexContentKey, gitIndexContentKeyAsync, GitStateFingerprint } from '../../src/git/gitStateFingerprint';
 
 function indexFixture(version: number, names = ['dir/example.txt'], hashBytes: 20 | 32 = 20): Buffer {
   const header = Buffer.alloc(12); header.write('DIRC'); header.writeUInt32BE(version, 4); header.writeUInt32BE(names.length, 8);
@@ -58,12 +58,30 @@ test('file and staged-content changes invalidate a Repo while a status-only inde
   await mkdir(gitDir); await writeFile(file, 'old'); await writeFile(indexPath, indexFixture(2));
   const fingerprint = new GitStateFingerprint();
   const read = () => fingerprint.read(parent, { head: 'a', working: ['example.txt'] }, [file]);
-  const original = read();
+  const original = await read();
   const refreshed = indexFixture(2); refreshed.writeUInt32BE(123, 12);
   await writeFile(indexPath, refreshed); await utimes(indexPath, new Date(), new Date(Date.now() + 1000));
-  assert.equal(read(), original);
+  assert.equal(await read(), original);
   refreshed[52] = 2; await writeFile(indexPath, refreshed);
-  assert.notEqual(read(), original);
-  const staged = read(); await writeFile(file, 'edited again with the same Git status');
-  assert.notEqual(read(), staged);
+  assert.notEqual(await read(), original);
+  const staged = await read(); await writeFile(file, 'edited again with the same Git status');
+  assert.notEqual(await read(), staged);
+});
+
+
+test('large semantic index reads yield to the event loop without changing identity', async () => {
+  const index = indexFixture(4, Array.from({ length: 4096 }, (_, i) => 'src/file-' + i + '.ts'));
+  let yielded = false;
+  setImmediate(() => { yielded = true; });
+  const value = await gitIndexContentKeyAsync(index);
+  assert.equal(yielded, true, 'native callbacks run during index parsing');
+  assert.equal(value, gitIndexContentKey(index));
+});
+
+test('simultaneous fingerprint reads share one in-flight result', async () => {
+  const fingerprint = new GitStateFingerprint();
+  const first = fingerprint.read(process.cwd(), { head: 'a' }, []);
+  const second = fingerprint.read(process.cwd(), { head: 'a' }, []);
+  assert.equal(first, second);
+  assert.equal(await first, await second);
 });

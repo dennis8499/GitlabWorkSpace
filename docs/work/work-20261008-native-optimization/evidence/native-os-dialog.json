@@ -1,0 +1,18 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-08T08:45:00.238Z",
+  "mode": "local-only-native-confirmation",
+  "vscodeVersion": "1.139.0",
+  "status": "BLOCKED",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7b648ad7a633225cdc773a020b8e876ac7d14e1b86888130bb90628d386719d7"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791449072463-29052\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "error": "Commit confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics={\"title\":\"GitLab Workspace - service - Visual Studio Code\",\"visibleLayers\":[],\"bodyTextEnd\":\"File\\nEdit\\nSelection\\nView\\nGo\\nRun\\nTerminal\\nHelp\\nservice\\nOpen in Agents\\nSign In\\n1\\nExplorer\\nservice\\nREADME.md\\nservice.ts\\nOutline\\nTimeline\\nGitLab Workspace\\nChat\\nBuild with Agent\\n\\nAI responses may be inaccurate\\n\\nGenerate Agent Instructions to onboard AI onto your codebase.\\n\\nAgent\\nModels\\nLocal\\nDefault permissions\\n validation/native-gui/muzaizxh+\\n 0 \\n 0\\nOpen Quick Access\"}",
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.13.2.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.13.2",
+  "processOutput": "\r\n[27736:1008/164434.333:ERROR:components\\os_crypt\\sync\\os_crypt_win.cc:78] Failed to encrypt: 系統找不到指定的檔案。 (0x2)\r\n\r\nDevTools listening on ws://127.0.0.1:9393/devtools/browser/5e9c2bfb-0c62-4b4d-8b4f-62324c1cf84c\r\nWarning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.\nWarning: 'disable-hardware-acceleration' is not in the list of known options, but still passed to Electron/Chromium.\n[main 2026-10-08T08:44:34.522Z] StorageMainService: creating application shared storage\n[main 2026-10-08T08:44:34.606Z] [shared storage] Creating shared storage database at 'c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-29052-1791449073200\\portable\\shared-data\\sharedStorage\\state.vscdb' (wasCreated: true)\n[main 2026-10-08T08:44:34.607Z] [shared storage] Initializing fallback application storage (path: c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-29052-1791449073200\\portable\\user-data\\User\\globalStorage\\state.vscdb)\n[main 2026-10-08T08:44:34.608Z] [shared storage] Fallback application storage initialized with 3 items\n[main 2026-10-08T08:44:35.641Z] update#disable - updates are disabled by user preference\n[main 2026-10-08T08:44:35.641Z] update#setState disabled\n[main 2026-10-08T08:44:35.664Z] AgentHostProcessManager: agent host started\n[main 2026-10-08T08:44:36.129Z] [AgentHost:stderr] (node:7800) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.\n(Use `Code --trace-deprecation ...` to show where the warning was created)\n\nUnknown channel: agentHostClientByokLm\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\n",
+  "dialogStyle": "native",
+  "limitation": "Windows OS dialog is outside Workbench DOM; native computer control is unavailable in this environment."
+}

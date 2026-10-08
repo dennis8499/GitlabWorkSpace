@@ -42,7 +42,7 @@ Git GUI 的本機整合驗證使用獨立的工作目錄、VS Code 設定檔及�
 npm.cmd run test:git-gui:local
 ```
 
-測試會操作打包後的真實 Webview，並在開啟、點選檔案、暫存與提交後各閒置 60 秒，分別記錄擴充功能的 Git 指令／Git API 呼叫與 VS Code Git 輸出。另驗證連點去重、Merge Parent Diff、空 Repo、Detached HEAD 及快速切換 Repo。結果與截圖寫入 `docs/work/work-20261008-git-gui/evidence/`。破壞性操作的原生確認視窗由測試處理器回答；這個測試不驗證原生視窗的版面。
+測試會操作打包後的真實 Webview，並在開啟、點選檔案、暫存、提交及隱藏後各閒置 60 秒，分別記錄擴充功能的 Git 指令／Git API 呼叫與 VS Code Git 輸出。另驗證連點去重、Merge Parent Diff、空 Repo、Detached HEAD、真實 Worktree／Submodule、快速切換 Repo，以及 Webview 銷毀後的草稿還原。結果與截圖寫入 `docs/work/work-20261008-git-gui/evidence/`。破壞性操作的原生確認視窗由測試處理器回答；這個測試不驗證原生視窗的版面。加上 `--native-confirmation` 可另外驗證 Commit／Push 的 VS Code 自訂確認視窗；僅獨立測試設定檔使用 `window.dialogStyle=custom`，不涵蓋 Windows 系統原生視窗外觀。
 
 本機 Git GUI 測試接受已安裝的 VS Code 1.90 或更新版本，並在證據中記錄實際版本。若 VS Code 不在預設安裝位置，可明確指定執行檔；一般 Extension Host 測試也支援相同環境變數：
 
@@ -52,7 +52,17 @@ npm.cmd test
 npm.cmd run test:git-gui:local
 ```
 
-連線真實 GitLab 的 `test:live`、`test:git-gui` 與效能基準仍使用各自固定的 VS Code 版本及環境要求。
+連線真實 GitLab 的測試預設要求 VS Code 1.140.0。可用測試參數 `--vscode-version 1.x.y` 明確指定 1.90 以上的固定版本；前後比較必須使用相同版本、資料與機器。`--evidence-dir docs/work/<工作目錄>/evidence` 可將報告集中到這次工作的目錄；`--label` 也會套用到各次執行報告，避免覆寫既有證據。Portable 模式也會為每次冷啟動建立獨立的 `VSCODE_PORTABLE` 根目錄，避免 CLI 的使用者資料參數被共用資料目錄覆蓋。
+
+工作台使用 VS Code 的 `getState/setState` 保存 Issue、MR、Commit 草稿與選取狀態。隱藏時取消畫面讀取並釋放 Webview；已送出的寫入與工時計時仍繼續。恢復時使用 Host 快取並回傳完成回執，前端不重送寫入。側欄只接收 Repo 摘要，不接收 Diff 或提交歷史。
+
+針對摘要大小與非同步指紋的前後基準，可先解開前版 VSIX，再執行：
+
+```sh
+node scripts/native-optimization-benchmark.cjs --baseline-root <前版 extension 目錄>
+```
+
+報告分別列出呼叫時的事件迴圈阻塞、原生 callback 延遲與完成時間；分段讓出事件迴圈可能增加總完成時間，不能把可回應性改善當成所有操作都更快。
 
 打包本機安裝檔：
 

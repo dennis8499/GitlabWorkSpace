@@ -1,6 +1,7 @@
 import type { Memento, SecretStorage } from 'vscode';
 import { GitLabClient, type FetchLike, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
 import { GitLabReadCache } from '../api/gitLabReadCache';
+import { groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
 import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
@@ -68,6 +69,18 @@ export class GitLabSession {
   private metadataRetryAt = 0;
   private capabilitiesRetryAt = 0;
   private readonly groupProjectIds = new Map<number, Set<number>>();
+  private readonly readInvalidationListeners = new Set<(change: GitLabReadInvalidation) => void>();
+
+  onDidInvalidateReads(listener: (change: GitLabReadInvalidation) => void): { dispose(): void } {
+    this.readInvalidationListeners.add(listener);
+    return { dispose: () => { this.readInvalidationListeners.delete(listener); } };
+  }
+
+  private publishReadInvalidation(change: GitLabReadInvalidation): void {
+    for (const listener of this.readInvalidationListeners) {
+      try { listener(change); } catch { /* A view cannot change the outcome of a completed write. */ }
+    }
+  }
 
   private readonly accountStore: AccountStore;
   private initialization?: Promise<void>;
@@ -205,6 +218,7 @@ export class GitLabSession {
     const groupId = group ? Number(group[1]) : undefined;
     if (groupId !== undefined) {
       this.readCache.invalidateWhere((key) => key.includes(`\0group/${groupId}/`));
+      this.publishReadInvalidation({ groupIds: [groupId], resource: 'group' });
       return;
     }
     if (projectId !== undefined) {
@@ -217,12 +231,15 @@ export class GitLabSession {
         const scoped = key.split('\0').at(-1) ?? key;
         if (scoped.startsWith(`project/${projectId}/`)) return true;
         if (issueWrite && [...groups].some((id) => scoped === `group/${id}/assigned-issues` || scoped.startsWith(`group/${id}/assigned-issues/`) || scoped.startsWith(`group/${id}/graph`))) return true;
-        if (mergeRequestWrite && [...groups].some((id) => scoped === `group/${id}/merge-requests`)) return true;
+        if (issueWrite && this.selectedGroup && scoped.startsWith(`group-board/${this.selectedGroup.full_path}/`)) return true;
+        if (mergeRequestWrite && [...groups].some((id) => scoped === groupWorkspaceReadKey(id, 'mergeRequests'))) return true;
         return false;
       });
+      this.publishReadInvalidation({ groupIds: [...groups], projectId, resource: issueWrite ? 'issues' : mergeRequestWrite ? 'mergeRequests' : 'group' });
       return;
     }
     this.readCache.invalidate();
+    this.publishReadInvalidation({ groupIds: [], resource: 'all' });
   }
 
   async ensureInstanceChecked(options: { force?: boolean } = {}): Promise<void> {
