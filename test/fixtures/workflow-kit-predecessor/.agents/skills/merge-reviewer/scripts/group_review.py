@@ -7,8 +7,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import stat
-import re
 import tempfile
 import uuid
 
@@ -31,69 +29,9 @@ def save(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def is_link(path: Path) -> bool:
-    if path.is_symlink():
-        return True
-    try:
-        return bool(getattr(path.lstat(), 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0))
-    except OSError:
-        return False
-
-
-def validate_repo_root(root: Path, repo: Path, api=None) -> Path:
-    root = root.resolve(strict=True)
-    if repo.parent.resolve(strict=True) != root or is_link(repo):
-        raise ValueError('Repo must be a non-link direct child of the Group')
-    resolved = repo.resolve(strict=True)
-    if resolved.parent != root or not resolved.is_dir():
-        raise ValueError('Repo canonical parent differs from the Group root')
-    if api is None:
-        import git_review_context as api
-    if Path(str(api.run_git(resolved, ['rev-parse', '--show-toplevel'])).strip()).resolve() != resolved:
-        raise ValueError('Repo path must itself be its Git root')
-    return resolved
-
-
-def capture_supporting_sources(root: Path, requests, context: Path, api):
-    if requests is None:
-        return []
-    if not isinstance(requests, list):
-        raise ValueError('supporting sources must be an array')
-    records = []; seen = set()
-    for item in requests:
-        if not isinstance(item, dict) or set(item) != {'repo', 'commit', 'paths'}:
-            raise ValueError('supporting source needs repo, commit and paths')
-        name = item['repo']
-        if not isinstance(name,str) or not name or '/' in name or '\\' in name or ':' in name or name in ('.','..'):
-            raise ValueError('supporting Repo must be a direct child name')
-        repo = validate_repo_root(root, root / name, api)
-        commit = item['commit']
-        if not isinstance(commit,str) or not re.fullmatch(r'[0-9a-f]{40}|[0-9a-f]{64}',commit) or api.verified_commit(repo,commit) != commit:
-            raise ValueError('supporting source needs an available full commit ID')
-        if not isinstance(item['paths'],list) or not item['paths']:
-            raise ValueError('supporting paths must not be empty')
-        for path in item['paths']:
-            safe(context, path)
-            key = name,commit,path
-            if key in seen: raise ValueError('duplicate supporting source')
-            seen.add(key)
-            tree = api.run_git(repo, ['ls-tree','-z',commit,'--',path], binary=True).split(b'\0')
-            if len(tree) != 2 or not tree[0]: raise ValueError('supporting path is absent or ambiguous')
-            metadata, tree_path = tree[0].split(b'\t', 1)
-            mode, kind, blob = metadata.decode().split()
-            if kind != 'blob' or mode not in ('100644','100755') or tree_path.decode() != path:
-                raise ValueError('supporting source must be a regular committed blob')
-            raw = api.run_git(repo, ['cat-file','blob',commit+':'+path], binary=True)
-            file = 'supporting/' + name + '/' + commit + '/' + path
-            destination = safe(context,file); destination.parent.mkdir(parents=True,exist_ok=True); destination.write_bytes(raw)
-            records.append({'repo':name,'source':'supporting','side':'result','path':path,'ref':commit,
-                            'file':file,'sha256':hashlib.sha256(raw).hexdigest(),
-                            'mode':mode,'blob_sha':blob})
-    return records
-
-
 def capture_repo(api, repo: Path, output: Path, key: str) -> dict:
-    repo = validate_repo_root(repo.parent, repo, api)
+    if repo.is_symlink() or Path(str(api.run_git(repo, ["rev-parse", "--show-toplevel"])).strip()).resolve() != repo.resolve():
+        raise ValueError("Repo must be a real direct-child Git root")
     before = api.snapshot(repo)
     if before["dirty_submodules"]:
         raise ValueError("dirty/unavailable submodules prevent a stable Group snapshot")
@@ -181,17 +119,12 @@ def build(args, api) -> dict:
         output = context / key
         output.mkdir()
         try:
-            validate_repo_root(root, repo, api)
             value = capture_repo(api, repo, output, key)
         except (OSError, ValueError, api.ReviewContextError) as exc:
             value = {"repo": repo.name, "repo_path": str(repo), "state": "error",
                      "limitations": [str(exc)], "changed_files": {}, "evidence_files": []}
         value["key"] = key
         result["repositories"].append(value)
-    source_file = getattr(args, 'supporting_sources', None)
-    if source_file:
-        requests = json.loads(Path(source_file).read_text(encoding='utf-8'))
-        result['supporting_sources'] = capture_supporting_sources(root, requests, context, api)
     save(context / "manifest.json", result)
     return result
 
@@ -213,25 +146,19 @@ def validate(draft: dict, manifest: dict, context: Path) -> dict:
 
     def evidence(item):
         key = item.get("repo"), item.get("source"), item.get("path")
-        supporting = item.get('source') == 'supporting'
-        if supporting:
-            records = [x for x in manifest.get('supporting_sources',[]) if
-                       (x.get('repo'),x.get('source'),x.get('path'),x.get('ref'),x.get('side')) ==
-                       (*key,item.get('ref'),item.get('side','result'))]
-        else:
-            if key not in coverage:
-                raise ValueError("evidence is outside covered changed paths")
-            records = [x for x in repos[key[0]]["evidence_files"] if
-                       (x["source"],x["path"],x["ref"],x["side"]) ==
-                       (key[1],key[2],item.get("ref"),item.get("side","result"))]
-        if len(records)!=1:
+        if key not in coverage:
+            raise ValueError("evidence is outside covered changed paths")
+        records = [x for x in repos[key[0]]["evidence_files"] if
+                   (x["source"], x["path"], x["ref"], x["side"]) ==
+                   (key[1], key[2], item.get("ref"), item.get("side", "result"))]
+        if len(records) != 1:
             raise ValueError("evidence must identify one frozen file version")
-        record=records[0]
-        data=safe(context,record['file']).read_bytes()
-        if hashlib.sha256(data).hexdigest()!=record['sha256']:
+        record = records[0]
+        data = safe(context, record["file"]).read_bytes()
+        if hashlib.sha256(data).hexdigest() != record["sha256"]:
             raise ValueError("frozen evidence digest changed")
-        start,end=item.get('line_start'),item.get('line_end')
-        if b'\0' in data or type(start) is not int or type(end) is not int or not 1<=start<=end<=len(data.splitlines()):
+        start, end = item.get("line_start"), item.get("line_end")
+        if b"\0" in data or type(start) is not int or type(end) is not int or not 1 <= start <= end <= len(data.splitlines()):
             raise ValueError("invalid text evidence line range")
         return key
 
@@ -251,9 +178,8 @@ def validate(draft: dict, manifest: dict, context: Path) -> dict:
                 or not item.get("evidence")):
             raise ValueError("finding needs priority, behavior, impact, fix and evidence")
         keys = [evidence(e) for e in item["evidence"]]
-        anchors = [k for k in keys if k in coverage]
-        if not anchors or any(coverage[k]["status"] != "reviewed" for k in anchors):
-            raise ValueError("findings require at least one reviewed changed-path anchor")
+        if any(coverage[k]["status"] != "reviewed" for k in keys):
+            raise ValueError("findings require reviewed coverage")
         fingerprint = tuple(item[k] for k in ("priority", *fields)) + (tuple(sorted({(k[0], k[2]) for k in keys})),)
         if fingerprint in unique:
             prior = unique[fingerprint]["evidence"]

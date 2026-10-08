@@ -1,4 +1,13 @@
+.gitattributes text eol=lf
+README.md text eol=lf
+docs/group-workflow.md text eol=lf
+package.json text eol=lf
 resources/workflow-kit/*.md text eol=lf
+resources/workflow-kit/*.json text eol=lf
+resources/workflow-kit-installer.py text eol=lf
+scripts/build-workflow-kit.py text eol=lf
 resources/workflow-kit/overlays/** text eol=lf
 resources/workflow-kit/overlays/sources/*.zip binary !eol
 test/overlays/** text eol=lf
+test/release/*.py text eol=lf
+test/fixtures/workflow-kit-predecessor/** text eol=lf

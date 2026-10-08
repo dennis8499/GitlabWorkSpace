@@ -8,7 +8,6 @@ import json
 import os
 import re
 import subprocess
-import stat
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -85,8 +84,8 @@ def validate_repo(group_root: Path, repo_path: object) -> tuple[str, Path]:
     group_root = group_root.resolve()
     name = canonical_child(repo_path)
     lexical = group_root / name
-    if lexical.is_symlink() or lexical.exists() and bool(getattr(lexical.lstat(), 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)):
-        raise InvalidWorkspace(f"repository path must not be a symlink or junction: {name}")
+    if lexical.is_symlink():
+        raise InvalidWorkspace(f"repository path must not be a symlink: {name}")
     repo = lexical.resolve()
     if repo.parent != group_root or not repo.is_dir():
         raise InvalidWorkspace(f"repository must be an existing direct child: {name}")

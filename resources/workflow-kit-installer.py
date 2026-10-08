@@ -59,11 +59,258 @@ SOURCE_SUMMARY = [
     "Native Megin 0.4.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
     "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
 ]
-OVERLAY_HASHES = {
-    "codebase-wiki": "88d89bbc04d47320ddf7230cdc6e493310b5316513a09ed4ca7f6dc8a1618d87",
-    "megin": "ca04ffd227dd4333ea73c070c6cb192415972c38f390b93aa228dcb104d75860",
-    "merge-reviewer": "6d7b35df749f99da33a8f7c699f29c4c8cd2ab08eaa96b29ff8c4f87193cb33a",
-}
+OVERLAY_HASHES = {'codebase-wiki': '88d89bbc04d47320ddf7230cdc6e493310b5316513a09ed4ca7f6dc8a1618d87',
+ 'megin': '0b7a3061d1dec8f347bf1dcf42c02ef9c50504354d86bf0bc76ca7bb497d883e',
+ 'merge-reviewer': 'd8bd99b91e7df8c7b44f48a1ba4c8fc8a6f36fc81158b9b62fe75b7a8bce34dc'}
+CURRENT_PAYLOAD_SHA256 = '700bbd3cd4fabc3513a2874a934377f4fd0591e7e0276c905398fc4a6a548029'
+CURRENT_SKILL_FILES = {'.agents/skills/megin-behavior-contract/SKILL.md': '429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2',
+ '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
+ '.agents/skills/megin-bug-diagnosis/SKILL.md': 'fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d',
+ '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
+ '.agents/skills/megin-code-review/SKILL.md': '82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa',
+ '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
+ '.agents/skills/megin-finishing-delivery/SKILL.md': 'dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097',
+ '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
+ '.agents/skills/megin-human-acceptance/SKILL.md': '4ce75e7f4d0eb9d89cbd2a6d0307e45def505afa15e564a49c4bfb4e3b77167f',
+ '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
+ '.agents/skills/megin-implementation-execution/SKILL.md': '2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41',
+ '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
+ '.agents/skills/megin-project-knowledge/SKILL.md': 'c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa',
+ '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
+ '.agents/skills/megin-requirements-discovery/SKILL.md': 'f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1',
+ '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
+ '.agents/skills/megin-technical-planning/SKILL.md': '35bc74ab0bd40d29569e603e36a564cb9ad381ccd189a9629ee297f69f45cf5c',
+ '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
+ '.agents/skills/megin-test-driven-development/SKILL.md': '68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19',
+ '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
+ '.agents/skills/megin-verification-before-completion/SKILL.md': '31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262',
+ '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
+ '.agents/skills/megin/SKILL.md': '6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0',
+ '.agents/skills/megin/agents/openai.yaml': 'e83f14a0b245b81ada931689895269562510490fda4362df8e6ce56cec906ceb',
+ '.agents/skills/megin/references/branch-policy.md': '037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b',
+ '.agents/skills/megin/references/cross-flow-delivery.md': '69861d9f5093d28c3f4a382ab20eca39a21673b71bb40fb72165cb5c893d6f04',
+ '.agents/skills/megin/references/cross-repo-evidence.md': 'f2a21fc6c4a82515a8fec92bf65f77e60106a80a06a7d05e9b8b95097b276372',
+ '.agents/skills/megin/references/gitlab-delivery.md': 'ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3',
+ '.agents/skills/megin/references/group-workspace.md': 'b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901',
+ '.agents/skills/megin/references/language-policy.md': '523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a',
+ '.agents/skills/megin/references/quality-gates.md': '8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916',
+ '.agents/skills/megin/references/repository-workflow.md': '5fd4e868756ee7c94833edd6d74d213a130186a86f08d1615caa4711452ad092',
+ '.agents/skills/megin/references/requirements-discovery-protocol.md': '6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6',
+ '.agents/skills/megin/references/requirements-template.md': '9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061',
+ '.agents/skills/megin/references/workflow-record.md': '8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e',
+ '.agents/skills/megin/scripts/behavior_trace.py': '94529af3133c21a2f311138fbc64570e2553ce738af1618d957c393542df41ff',
+ '.agents/skills/megin/scripts/delivery_receipt.py': '661cecae50a14a41d90c9163b0e453864653acb0272ee8ef3b9f2a0088046a4c',
+ '.agents/skills/megin/scripts/gitlab_delivery.py': '556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e',
+ '.agents/skills/megin/scripts/group_quality_gate.py': '39c26dd61db692ca21b1a2202c15380ed729d21f7cb694e98dd82ee97b3b7e21',
+ '.agents/skills/megin/scripts/group_workspace.py': 'b2147acc1f08215eb27fa6db1e3bfd95d111ca30c5c3a3fae0e83026428a5e58',
+ '.agents/skills/megin/scripts/quality_gate.py': 'a5d9c43b679fe8d04d9b918166282fbbc66b6190a72309706a62de9bafcc3378',
+ '.agents/skills/megin/scripts/repo_workspace.py': 'c757393d71231c5696dbe27a0847e6c696ef90c045aca555c764334f601c8f3b',
+ '.agents/skills/megin/scripts/simulation_policy.py': '110da648ce3c0cdc696fe59f5a8bd4abf7acee3b204ff1ee904c1967456a1b44',
+ '.agents/skills/megin/scripts/validate_skills.py': '60e1ae420eb79e1a547cecd63a267851669cf838aae794563fa9e4ee0874616e',
+ '.agents/skills/megin/scripts/verification_inputs.py': '5a90b2143b017e748543f9db31a012d10a636cc4ddff373ab9c6ba6b4db8df1c',
+ '.agents/skills/megin/scripts/workspace_extension.py': 'a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b',
+ '.agents/skills/merge-reviewer/SKILL.md': '090e68cad120c988cfddb48a44ae5372c85d31b8891b2fc911366f18b77c47fd',
+ '.agents/skills/merge-reviewer/VERSION': '967d9afb101346667166f2e76e81910bc190488d7d41d50ca0072e9d92f00e32',
+ '.agents/skills/merge-reviewer/agents/openai.yaml': 'c7351c91341da5cca4a60c0df69451c389a53dcd2f8977c134e493291fb39f45',
+ '.agents/skills/merge-reviewer/references/group-review.md': '9e6366f97c819741b6c025774b1daf753ed3fec8cafedbaa6f9bad97da8005f6',
+ '.agents/skills/merge-reviewer/references/mr-contract.md': 'bd435317c2d83926b42a3e9322c6749dc32c5477fb934639eb1fa7074bfb8849',
+ '.agents/skills/merge-reviewer/references/native-review.md': '34958c9843041b806e512f95ca455b29130c8953a860dd379e1d2b7051994597',
+ '.agents/skills/merge-reviewer/references/review-rules.md': 'f167b4d2c7ffc7ba0c8cea96cb8e476e3e208bd8730c42a1e9275ffb59838b6d',
+ '.agents/skills/merge-reviewer/scripts/delivery_binding.py': 'ec17398cf4df3d44352cf39cc74afc277158d5ba342f3a00082f8414f7ab485e',
+ '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'd07a606b0a1ad1664923e8758cd320665ee53cbb213c6357305aa3adbfda9f1b',
+ '.agents/skills/merge-reviewer/scripts/group_review.py': '11ace52161f37259b273eb5abcacbbd298aad20155b4ce185cc78f1a25b53903',
+ '.agents/skills/merge-reviewer/scripts/mr_contract.py': 'fe61b1a80ef4e7a201fe3b6df28092dbd6daaa77370a2958c0054005514750fd',
+ '.agents/skills/merge-reviewer/scripts/review_report.py': 'd4912998f5dd444df86ef43488169f8b1f4343e9f62d448c9fbbd741ba1f63de',
+ '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+ '.agents/skills/merge-reviewer/scripts/workspace_extension.py': '6cbc505ab59a2ca74fa9f102aa7fa142000f3e04f9460ed79e76c69f835ed3e2'}
+TRUSTED_PREDECESSORS = {'local_updates': [{'baseline_manifest_sha256': '491f28c1974def51df4c44351e1603cbbf7ca1c7f776ddc9b0b00276beacd0b6',
+                    'files': {'megin-behavior-contract/SKILL.md': '429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2',
+                              'megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
+                              'megin-bug-diagnosis/SKILL.md': 'fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d',
+                              'megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
+                              'megin-code-review/SKILL.md': '82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa',
+                              'megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
+                              'megin-finishing-delivery/SKILL.md': 'dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097',
+                              'megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
+                              'megin-human-acceptance/SKILL.md': '4ce75e7f4d0eb9d89cbd2a6d0307e45def505afa15e564a49c4bfb4e3b77167f',
+                              'megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
+                              'megin-implementation-execution/SKILL.md': '2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41',
+                              'megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
+                              'megin-project-knowledge/SKILL.md': 'c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa',
+                              'megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
+                              'megin-requirements-discovery/SKILL.md': 'f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1',
+                              'megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
+                              'megin-technical-planning/SKILL.md': '35bc74ab0bd40d29569e603e36a564cb9ad381ccd189a9629ee297f69f45cf5c',
+                              'megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
+                              'megin-test-driven-development/SKILL.md': '68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19',
+                              'megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
+                              'megin-verification-before-completion/SKILL.md': '31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262',
+                              'megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
+                              'megin/SKILL.md': '6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0',
+                              'megin/agents/openai.yaml': 'e83f14a0b245b81ada931689895269562510490fda4362df8e6ce56cec906ceb',
+                              'megin/references/branch-policy.md': '037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b',
+                              'megin/references/cross-flow-delivery.md': '69861d9f5093d28c3f4a382ab20eca39a21673b71bb40fb72165cb5c893d6f04',
+                              'megin/references/cross-repo-evidence.md': 'f2a21fc6c4a82515a8fec92bf65f77e60106a80a06a7d05e9b8b95097b276372',
+                              'megin/references/gitlab-delivery.md': 'ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3',
+                              'megin/references/group-workspace.md': 'b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901',
+                              'megin/references/language-policy.md': '523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a',
+                              'megin/references/quality-gates.md': '8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916',
+                              'megin/references/repository-workflow.md': '5fd4e868756ee7c94833edd6d74d213a130186a86f08d1615caa4711452ad092',
+                              'megin/references/requirements-discovery-protocol.md': '6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6',
+                              'megin/references/requirements-template.md': '9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061',
+                              'megin/references/workflow-record.md': '8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e',
+                              'megin/scripts/behavior_trace.py': '94529af3133c21a2f311138fbc64570e2553ce738af1618d957c393542df41ff',
+                              'megin/scripts/delivery_receipt.py': '661cecae50a14a41d90c9163b0e453864653acb0272ee8ef3b9f2a0088046a4c',
+                              'megin/scripts/gitlab_delivery.py': '556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e',
+                              'megin/scripts/group_quality_gate.py': '39c26dd61db692ca21b1a2202c15380ed729d21f7cb694e98dd82ee97b3b7e21',
+                              'megin/scripts/group_workspace.py': 'b2147acc1f08215eb27fa6db1e3bfd95d111ca30c5c3a3fae0e83026428a5e58',
+                              'megin/scripts/quality_gate.py': 'a5d9c43b679fe8d04d9b918166282fbbc66b6190a72309706a62de9bafcc3378',
+                              'megin/scripts/repo_workspace.py': 'c757393d71231c5696dbe27a0847e6c696ef90c045aca555c764334f601c8f3b',
+                              'megin/scripts/simulation_policy.py': '110da648ce3c0cdc696fe59f5a8bd4abf7acee3b204ff1ee904c1967456a1b44',
+                              'megin/scripts/validate_skills.py': '60e1ae420eb79e1a547cecd63a267851669cf838aae794563fa9e4ee0874616e',
+                              'megin/scripts/verification_inputs.py': '5a90b2143b017e748543f9db31a012d10a636cc4ddff373ab9c6ba6b4db8df1c',
+                              'megin/scripts/workspace_extension.py': 'a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b',
+                              'merge-reviewer/SKILL.md': '090e68cad120c988cfddb48a44ae5372c85d31b8891b2fc911366f18b77c47fd',
+                              'merge-reviewer/VERSION': '967d9afb101346667166f2e76e81910bc190488d7d41d50ca0072e9d92f00e32',
+                              'merge-reviewer/agents/openai.yaml': 'c7351c91341da5cca4a60c0df69451c389a53dcd2f8977c134e493291fb39f45',
+                              'merge-reviewer/references/group-review.md': '9e6366f97c819741b6c025774b1daf753ed3fec8cafedbaa6f9bad97da8005f6',
+                              'merge-reviewer/references/mr-contract.md': 'bd435317c2d83926b42a3e9322c6749dc32c5477fb934639eb1fa7074bfb8849',
+                              'merge-reviewer/references/native-review.md': '34958c9843041b806e512f95ca455b29130c8953a860dd379e1d2b7051994597',
+                              'merge-reviewer/references/review-rules.md': 'f167b4d2c7ffc7ba0c8cea96cb8e476e3e208bd8730c42a1e9275ffb59838b6d',
+                              'merge-reviewer/scripts/delivery_binding.py': 'ec17398cf4df3d44352cf39cc74afc277158d5ba342f3a00082f8414f7ab485e',
+                              'merge-reviewer/scripts/git_review_context.py': 'd07a606b0a1ad1664923e8758cd320665ee53cbb213c6357305aa3adbfda9f1b',
+                              'merge-reviewer/scripts/group_review.py': '11ace52161f37259b273eb5abcacbbd298aad20155b4ce185cc78f1a25b53903',
+                              'merge-reviewer/scripts/mr_contract.py': 'fe61b1a80ef4e7a201fe3b6df28092dbd6daaa77370a2958c0054005514750fd',
+                              'merge-reviewer/scripts/review_report.py': 'd4912998f5dd444df86ef43488169f8b1f4343e9f62d448c9fbbd741ba1f63de',
+                              'merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                              'merge-reviewer/scripts/workspace_extension.py': '6cbc505ab59a2ca74fa9f102aa7fa142000f3e04f9460ed79e76c69f835ed3e2'},
+                    'payload_sha256': '30c91f9b63d037ec8b43601ceabb35eee1e43112825e8262147ed9c4c16212af',
+                    'version': '0.13.2+delivery-evidence.1'}],
+ 'packages': [{'files': {'.agents/skills/megin-behavior-contract/SKILL.md': '429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2',
+                         '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
+                         '.agents/skills/megin-bug-diagnosis/SKILL.md': 'fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d',
+                         '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
+                         '.agents/skills/megin-code-review/SKILL.md': '82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa',
+                         '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
+                         '.agents/skills/megin-finishing-delivery/SKILL.md': 'dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097',
+                         '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
+                         '.agents/skills/megin-human-acceptance/SKILL.md': '868c6448c280217ae6936cbef6e04cbf593bfab9fd223c02f832878310852d85',
+                         '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
+                         '.agents/skills/megin-implementation-execution/SKILL.md': '2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41',
+                         '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
+                         '.agents/skills/megin-project-knowledge/SKILL.md': 'c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa',
+                         '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
+                         '.agents/skills/megin-requirements-discovery/SKILL.md': 'f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1',
+                         '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
+                         '.agents/skills/megin-technical-planning/SKILL.md': 'a2fd50902b42b6883e70fd66996be923af23ad5cb4bbf1fd170429578cd1a2d3',
+                         '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
+                         '.agents/skills/megin-test-driven-development/SKILL.md': '68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19',
+                         '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
+                         '.agents/skills/megin-verification-before-completion/SKILL.md': '31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262',
+                         '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
+                         '.agents/skills/megin/SKILL.md': '6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0',
+                         '.agents/skills/megin/agents/openai.yaml': 'e83f14a0b245b81ada931689895269562510490fda4362df8e6ce56cec906ceb',
+                         '.agents/skills/megin/references/branch-policy.md': '037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b',
+                         '.agents/skills/megin/references/gitlab-delivery.md': 'ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3',
+                         '.agents/skills/megin/references/group-workspace.md': 'b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901',
+                         '.agents/skills/megin/references/language-policy.md': '523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a',
+                         '.agents/skills/megin/references/quality-gates.md': '8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916',
+                         '.agents/skills/megin/references/repository-workflow.md': '5fd4e868756ee7c94833edd6d74d213a130186a86f08d1615caa4711452ad092',
+                         '.agents/skills/megin/references/requirements-discovery-protocol.md': '6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6',
+                         '.agents/skills/megin/references/requirements-template.md': '9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061',
+                         '.agents/skills/megin/references/workflow-record.md': '8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e',
+                         '.agents/skills/megin/scripts/gitlab_delivery.py': '556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e',
+                         '.agents/skills/megin/scripts/group_quality_gate.py': 'f0796c5eb835d520b02e964c9b517254f4b3871318d6f253e050acaa96130229',
+                         '.agents/skills/megin/scripts/group_workspace.py': '60a5ab61d3d499ba28ca5bfa9665911b3645368221cf72f9da82a42e9c50c098',
+                         '.agents/skills/megin/scripts/quality_gate.py': 'a5d9c43b679fe8d04d9b918166282fbbc66b6190a72309706a62de9bafcc3378',
+                         '.agents/skills/megin/scripts/repo_workspace.py': 'c757393d71231c5696dbe27a0847e6c696ef90c045aca555c764334f601c8f3b',
+                         '.agents/skills/megin/scripts/validate_skills.py': '60e1ae420eb79e1a547cecd63a267851669cf838aae794563fa9e4ee0874616e',
+                         '.agents/skills/megin/scripts/workspace_extension.py': 'a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b',
+                         '.agents/skills/merge-reviewer/SKILL.md': '127139e3694c8d334ec25ac645dfca8df5e007d4bb41632127152fd83c8c3fdd',
+                         '.agents/skills/merge-reviewer/VERSION': '967d9afb101346667166f2e76e81910bc190488d7d41d50ca0072e9d92f00e32',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'c7351c91341da5cca4a60c0df69451c389a53dcd2f8977c134e493291fb39f45',
+                         '.agents/skills/merge-reviewer/references/group-review.md': '1761a877021c3a6dafc0d534d8d0853b0446b7ecba3056601add82dded98aea9',
+                         '.agents/skills/merge-reviewer/references/mr-contract.md': 'b5c66d9ebf9a84e8a2f2d7e03deb81a36099dda27a150a9fcc0062b40200684a',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': 'f167b4d2c7ffc7ba0c8cea96cb8e476e3e208bd8730c42a1e9275ffb59838b6d',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': '9ce0a525b58ad0693ab7e39e6de821d5a87c2876972b7a8472af0236b303ab10',
+                         '.agents/skills/merge-reviewer/scripts/group_review.py': '49e973aa3083b176250b6ec771d83e6a1d525d5eb16cdc65afb5ecdb7eda970b',
+                         '.agents/skills/merge-reviewer/scripts/mr_contract.py': '91d45cf471fbb760e54f8ed66ce06da28f987440ab885a6e2e14a1eaa187ca65',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': 'd4912998f5dd444df86ef43488169f8b1f4343e9f62d448c9fbbd741ba1f63de',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                         '.agents/skills/merge-reviewer/scripts/workspace_extension.py': '15d3310bbeaf47d67165f9fbe9a99c13f771895089f542b426e31de2a1142884'},
+               'overlays': {'codebase-wiki': {'added': {'.agents/skills/codebase-wiki/references/group-development-workflow.md': 'c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa'},
+                                              'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': 'e593253c7bb29364780f085ebf4609e11cc261c0bf44dbb8067f509217e9f97a',
+                                                                                                     'upstream_sha256': '654b4bd8444eaa36b96e49eb498b6c37ce0b6b65ba1d4a48cb2a9c11992e5e85'},
+                                                           '.agents/skills/codebase-wiki/assets/development-spec-template.md': {'overlay_sha256': '2c8d56a091f389749fe6040a566d3438b296cdfee126b8d093764641f7294f98',
+                                                                                                                                'upstream_sha256': '0a1de5be1ec5d5818bbdd420add45b5d2f1fc0b04cf9be58d24bba97a0770df5'},
+                                                           '.agents/skills/codebase-wiki/references/development-spec-workflow.md': {'overlay_sha256': '4ceb35f77da9b97a4f77eb59ed600e0febddbbe658562595e25221875871266d',
+                                                                                                                                    'upstream_sha256': 'f72371bc60eb5f5259726c91b85d85fbe3c242d8daf8050d6f1fc3e43575a965'},
+                                                           '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': {'overlay_sha256': 'da441eb51e35a68f08ed74ca94e63c6d961cd217a99126d6c766bf7a4d294dad',
+                                                                                                                                 'upstream_sha256': 'd63fc316d9028378751f76a19b4e29c8e1497e31b6771e29fb9e217cfc287994'}}},
+                            'megin': {'added': {'.agents/skills/megin/references/gitlab-delivery.md': 'ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3',
+                                                '.agents/skills/megin/references/group-workspace.md': 'b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901',
+                                                '.agents/skills/megin/scripts/gitlab_delivery.py': '556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e',
+                                                '.agents/skills/megin/scripts/group_quality_gate.py': 'f0796c5eb835d520b02e964c9b517254f4b3871318d6f253e050acaa96130229',
+                                                '.agents/skills/megin/scripts/group_workspace.py': '60a5ab61d3d499ba28ca5bfa9665911b3645368221cf72f9da82a42e9c50c098',
+                                                '.agents/skills/megin/scripts/workspace_extension.py': 'a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b'},
+                                      'replaced': {'.agents/skills/megin-behavior-contract/SKILL.md': {'overlay_sha256': '429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2',
+                                                                                                       'upstream_sha256': '02aa0daad3fb3b8442c3bf6c8be10b394f25c493a9ab6a372842a1a59ec9c721'},
+                                                   '.agents/skills/megin-bug-diagnosis/SKILL.md': {'overlay_sha256': 'fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d',
+                                                                                                   'upstream_sha256': '1cfb5386e5b0a8e01d2a645b3f365e279908cfc053f850e553cf758e991b85ac'},
+                                                   '.agents/skills/megin-code-review/SKILL.md': {'overlay_sha256': '82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa',
+                                                                                                 'upstream_sha256': '900b19674c59db08c39c6e8689616009354df060c45daab717fd7c4f196444f1'},
+                                                   '.agents/skills/megin-finishing-delivery/SKILL.md': {'overlay_sha256': 'dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097',
+                                                                                                        'upstream_sha256': 'ba37595ff65c8f696a17262532314337669cd3c5d9a1bd80d7ca90948d145629'},
+                                                   '.agents/skills/megin-human-acceptance/SKILL.md': {'overlay_sha256': '868c6448c280217ae6936cbef6e04cbf593bfab9fd223c02f832878310852d85',
+                                                                                                      'upstream_sha256': 'f91be08047b952131f20b0b08b1dfd370876ffe610601c4bb35ef652aa38eebe'},
+                                                   '.agents/skills/megin-implementation-execution/SKILL.md': {'overlay_sha256': '2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41',
+                                                                                                              'upstream_sha256': 'bd5d20009f6f9575364ea81dbd46da032beb19effce79137cc3acdb07c861f8a'},
+                                                   '.agents/skills/megin-project-knowledge/SKILL.md': {'overlay_sha256': 'c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa',
+                                                                                                       'upstream_sha256': '886a41740a1945f114284b0e5e468a125e4b2663ad3cd26bd7856d4bb7af31c1'},
+                                                   '.agents/skills/megin-requirements-discovery/SKILL.md': {'overlay_sha256': 'f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1',
+                                                                                                            'upstream_sha256': '76eb90a15cdedc70fa6283b7082444c65e08241caa8b29c58efa9cca6d43f589'},
+                                                   '.agents/skills/megin-technical-planning/SKILL.md': {'overlay_sha256': 'a2fd50902b42b6883e70fd66996be923af23ad5cb4bbf1fd170429578cd1a2d3',
+                                                                                                        'upstream_sha256': 'ff55c9bdcbde00736a336c3b4456f4359b19feb09b9a3daa57dde0b6b24741f0'},
+                                                   '.agents/skills/megin-test-driven-development/SKILL.md': {'overlay_sha256': '68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19',
+                                                                                                             'upstream_sha256': 'dddc871fe1654a3253d0182c285e16cb5bc83e6d7e0f729ec7033f979b0f4d15'},
+                                                   '.agents/skills/megin-verification-before-completion/SKILL.md': {'overlay_sha256': '31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262',
+                                                                                                                    'upstream_sha256': '69a9ddd32ea42b707b94a21c74f41b96beed53b1c98188dffe4e268996402d7e'},
+                                                   '.agents/skills/megin/SKILL.md': {'overlay_sha256': '6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0',
+                                                                                     'upstream_sha256': 'c2dbfc5b17f5606eada8f86f2da942981f0461602ca1971d95cb9deda904636d'},
+                                                   '.agents/skills/megin/references/branch-policy.md': {'overlay_sha256': '037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b',
+                                                                                                        'upstream_sha256': '9d5f0904b6c32b7131ee2f75d558b9ff78852367a0fcaeec87924eea7ae708b8'},
+                                                   '.agents/skills/megin/references/language-policy.md': {'overlay_sha256': '523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a',
+                                                                                                          'upstream_sha256': '523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a'},
+                                                   '.agents/skills/megin/references/quality-gates.md': {'overlay_sha256': '8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916',
+                                                                                                        'upstream_sha256': 'cb194dd81a01aa1076357851e019ec11aa5c9a92c491bffeacea2feee93a3ec7'},
+                                                   '.agents/skills/megin/references/requirements-discovery-protocol.md': {'overlay_sha256': '6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6',
+                                                                                                                          'upstream_sha256': 'd75d8865cc2f4d9135c778bd201cfb240e2b613a00dfe4e4a476256bcb3ab32a'},
+                                                   '.agents/skills/megin/references/requirements-template.md': {'overlay_sha256': '9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061',
+                                                                                                                'upstream_sha256': '4eb84aed20fc8053ac04102cc6ba0bcb875147b4cb9b282da5cea3f7c0e4e36b'},
+                                                   '.agents/skills/megin/references/workflow-record.md': {'overlay_sha256': '8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e',
+                                                                                                          'upstream_sha256': '900bd5e07dd834d44e3dcad8cc4239e0e726c0a277b07b0fc8cea00633ed0b95'}}},
+                            'merge-reviewer': {'added': {'.agents/skills/merge-reviewer/references/group-review.md': '1761a877021c3a6dafc0d534d8d0853b0446b7ecba3056601add82dded98aea9',
+                                                         '.agents/skills/merge-reviewer/references/mr-contract.md': 'b5c66d9ebf9a84e8a2f2d7e03deb81a36099dda27a150a9fcc0062b40200684a',
+                                                         '.agents/skills/merge-reviewer/scripts/group_review.py': '49e973aa3083b176250b6ec771d83e6a1d525d5eb16cdc65afb5ecdb7eda970b',
+                                                         '.agents/skills/merge-reviewer/scripts/mr_contract.py': '91d45cf471fbb760e54f8ed66ce06da28f987440ab885a6e2e14a1eaa187ca65',
+                                                         '.agents/skills/merge-reviewer/scripts/workspace_extension.py': '15d3310bbeaf47d67165f9fbe9a99c13f771895089f542b426e31de2a1142884'},
+                                               'replaced': {'.agents/skills/merge-reviewer/SKILL.md': {'overlay_sha256': '127139e3694c8d334ec25ac645dfca8df5e007d4bb41632127152fd83c8c3fdd',
+                                                                                                       'upstream_sha256': '7734810f9d1674eeffc8f435c2d57c261e9de3c25cf731b61634ef11c8fc374f'}}}},
+               'payloadSha256': '11e66d6bf395cd0940fe2fd9c6aea4b403addde44dc7f241195b6ba52f7d3978',
+               'upstream': {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': '6b29e9135d4f504a336d7fdc90227039b9b6866a12f503913020c3fd722197f0',
+                                              'version': '0.4.0'},
+                            'megin': {'asset': 'megin-skills.zip',
+                                      'repository': 'Megin',
+                                      'sha256': 'fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92',
+                                      'version': '0.4.0'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.7.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '0ccc6b47b4e75d5f3c1fe5a02134916362ad2e052e0e6063b732734a65a7dbd3',
+                                               'version': '0.7.0'}},
+               'version': '0.13.2'}],
+ 'schema': 'gitlab-workspace-kit-predecessors/v1'}
 SPECIAL_RULES = {
     "sourceReferences": "Repo/path",
     "analysisIssueFlow": "draft-ready-scn-manual-issue",
@@ -97,7 +344,7 @@ def safe_relative(raw: str) -> PurePosixPath:
     if not raw or "\\" in raw or "\x00" in raw:
         fail("組合包路徑無效。")
     relative = PurePosixPath(raw)
-    if relative.is_absolute() or not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
+    if relative.is_absolute() or relative.as_posix() != raw or not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
         fail("組合包路徑超出允許範圍。")
     if any(part[-1:] in (".", " ") or any(character in part for character in '<>:"|?*') for part in relative.parts):
         fail("組合包包含 Windows 不支援的檔名。")
@@ -581,20 +828,61 @@ def replace_managed_block(text: str, body: str) -> str:
     return f"{text[:start]}{replacement}{text[end:]}"
 
 
+def trusted_skill_files(raw: dict[str, Any]) -> dict[str, str]:
+    """Recognize only frozen package metadata and explicitly reviewed local overlays."""
+    if (not isinstance(raw, dict) or not isinstance(raw.get("files"), dict)
+            or any(not isinstance(p, str) for p in raw["files"])):
+        fail("Installed package metadata is invalid.")
+    upstream = {key: {k: v for k, v in value.items() if k != "root"} for key, value in UPSTREAM.items()}
+    if raw.get("upstream") != upstream:
+        fail("Installed upstream provenance is unknown or changed.")
+    overlays = raw.get("overlays")
+    if not isinstance(overlays, dict):
+        fail("Installed overlay metadata is missing.")
+    observed = {key: digest(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                      separators=(",", ":")).encode("utf-8")) for key, value in overlays.items()}
+    expected = None
+    if (raw.get("version") == VERSION and raw.get("payloadSha256") == CURRENT_PAYLOAD_SHA256
+            and observed == OVERLAY_HASHES and raw.get("local_update") is None):
+        expected = CURRENT_SKILL_FILES
+    else:
+        for package in TRUSTED_PREDECESSORS["packages"]:
+            if all(raw.get(key) == package.get(key) for key in ("version", "payloadSha256", "upstream", "overlays")):
+                expected = package["files"]
+                update = raw.get("local_update")
+                if update is not None:
+                    expected = None
+                    for reviewed in TRUSTED_PREDECESSORS["local_updates"]:
+                        if (isinstance(update, dict) and update.get("schema") == "workflow-overlay-install/v1"
+                                and update.get("upstream_payload_sha256") == package["payloadSha256"]
+                                and all(update.get(key) == reviewed.get(key) for key in
+                                        ("version", "payload_sha256", "files", "baseline_manifest_sha256"))):
+                            expected = {".agents/skills/" + p: h for p, h in reviewed["files"].items()}
+                            break
+                break
+    if expected is None:
+        fail("Installed package is not a reviewed predecessor.")
+    actual = {p: h for p, h in raw.get("files", {}).items()
+              if p.startswith(".agents/skills/megin") or p.startswith(".agents/skills/merge-reviewer/")}
+    if actual != expected:
+        fail("Installed Skill hashes differ from the reviewed package.")
+    return expected
+
+
 def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
-    if (raw.get("schema") != "gitlab-workspace-kit-installed/v1" or raw.get("package") != PACKAGE
+    if (not isinstance(raw, dict) or raw.get("schema") != "gitlab-workspace-kit-installed/v1" or raw.get("package") != PACKAGE
             or raw.get("workspaceContract") not in (1, WORKSPACE_CONTRACT)):
         fail("Group 組合包安裝紀錄契約無效。")
     if raw.get("workspaceContract") == WORKSPACE_CONTRACT:
         overlays = raw.get("overlays")
         if not isinstance(overlays, dict) or set(overlays) != set(OVERLAY_HASHES):
             fail("Installed overlay manifest is missing or invalid.")
-        for overlay_id, overlay in overlays.items():
-            if digest(json.dumps(overlay, ensure_ascii=False, sort_keys=True,
-                                 separators=(",", ":")).encode("utf-8")) != OVERLAY_HASHES[overlay_id]:
-                fail(f"Installed {overlay_id} overlay manifest was changed.")
         if not isinstance(raw.get("payloadSha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", raw["payloadSha256"]):
             fail("Installed final payload digest is invalid.")
+    trusted_skill_files(raw)
+    for name, expected_hash in PROFILE_HASHES.items():
+        if raw["files"].get(".agents/gitlab-workspace-kit/" + name) != expected_hash:
+            fail("Installed Group profile differs from the reviewed package.")
     version = raw.get("version")
     source = raw.get("source")
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version) or source not in ("gitea", "github", "bundled"):
@@ -612,7 +900,9 @@ def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
         if digest(read_regular(path, FILE_LIMIT)) != expected_digest:
             fail(f"已安裝的組合包檔案有本機修改，請先保存並檢查：{relative}")
     expected_skills = raw.get("skills")
-    if not isinstance(expected_skills, list) or len(expected_skills) != 14 or len(set(expected_skills)) != 14:
+    if (not isinstance(expected_skills, list) or len(expected_skills) != 14
+            or any(not isinstance(name, str) for name in expected_skills)
+            or set(expected_skills) != managed_skills()):
         fail("Group 組合包安裝記錄沒有保留十四個 Skills。")
     agent_path = assert_safe(root, "AGENTS.md", allow_missing=True)
     if agent_path.exists():
@@ -750,11 +1040,11 @@ def prepare_native_wiki(root: Path, stage: Path, entries: dict[str, bytes], has_
     target.mkdir()
     current_agents = assert_safe(root, "AGENTS.md", allow_missing=True)
     if current_agents.exists():
-        _safe_copy_known(current_agents, target / "AGENTS.md", root)
+        _safe_copy_known(current_agents, target / "AGENTS.md", stage)
     for relative in ("Codex.md", ".codex/config.toml", ".codex/hooks.json"):
         current = assert_safe(root, relative, allow_missing=True)
         if current.exists():
-            _safe_copy_known(current, target / relative, root)
+            _safe_copy_known(current, target / relative, stage)
     current_wiki_skill = assert_safe(root, ".agents/skills/codebase-wiki", allow_missing=True)
     if current_wiki_skill.exists():
         copy_safe_tree(current_wiki_skill, target / ".agents/skills/codebase-wiki")
@@ -928,6 +1218,63 @@ def digest_tree(path: Path) -> str:
     return digest(json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
 
 
+def managed_skills() -> set[str]:
+    return {safe_relative(p).parts[2] for p in CURRENT_SKILL_FILES} | {"codebase-wiki"}
+
+
+def transaction_paths() -> set[str]:
+    return {".agents/skills/" + name for name in managed_skills()} | {
+        ".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json",
+        "AGENTS.md", "wiki", MARKER,
+    }
+
+
+def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) -> None:
+    """Validate every interrupted operation before restoring any managed path."""
+    installed = journal.get("installed_manifest")
+    if (not isinstance(installed, dict) or journal.get("payloadSha256") != installed.get("payloadSha256")
+            or journal.get("phase") not in ("prepared", "applying")):
+        fail("Pending transaction payload or phase differs.")
+    trusted_skill_files(installed)
+    if journal.get("previous_manifest") is not None:
+        trusted_skill_files(journal["previous_manifest"])
+    operations = journal.get("operations")
+    if not isinstance(operations, list) or not operations:
+        fail("Pending transaction operations missing.")
+    paths, backups = set(), set()
+    for operation in operations:
+        if not isinstance(operation, dict) or operation.get("kind") != "path":
+            fail("Invalid pending transaction operation.")
+        path, backup_name = operation.get("path"), operation.get("backup")
+        if (not isinstance(path, str) or safe_relative(path).as_posix() != path
+                or path not in transaction_paths() or path in paths
+                or not isinstance(backup_name, str) or not re.fullmatch(r"backups/[0-9]{5}", backup_name)
+                or backup_name in backups or operation.get("incoming") != "incoming/" + path):
+            fail("Pending transaction path or backup identity differs.")
+        paths.add(path)
+        backups.add(backup_name)
+        if (type(operation.get("hadPrevious")) is not bool
+                or operation.get("expectedPreviousPresent") != operation["hadPrevious"]):
+            fail("Pending transaction before-image identity differs.")
+        target = assert_safe(root, path, allow_missing=True)
+        backup = assert_safe(stage, backup_name, allow_missing=True)
+        incoming = assert_safe(stage, "incoming/" + path, allow_missing=True)
+        if incoming.exists() and _action_hash(incoming) != operation.get("newSha256"):
+            fail("Pending transaction incoming bytes changed.")
+        if backup.exists():
+            if not operation["hadPrevious"] or _action_hash(backup) != operation.get("expectedPreviousSha256"):
+                fail("Pending transaction before-image changed.")
+            if target.exists() and _action_hash(target) != operation.get("newSha256"):
+                fail("Pending transaction target changed; preserving all files.")
+        elif operation["hadPrevious"]:
+            if not target.exists() or _action_hash(target) != operation.get("expectedPreviousSha256") or not incoming.exists():
+                fail("Pending transaction original path changed or is missing.")
+        elif target.exists() and (incoming.exists() or _action_hash(target) != operation.get("newSha256")):
+            fail("Pending transaction new path changed; preserving all files.")
+    if not (transaction_paths() - {"wiki"}).issubset(paths):
+        fail("Pending transaction omits a bundle-managed path.")
+
+
 def recover_incomplete(root: Path) -> None:
     stage_parent = assert_safe(root, ".gitlab-workspace/tool-installs", allow_missing=True)
     if not stage_parent.exists():
@@ -939,6 +1286,11 @@ def recover_incomplete(root: Path) -> None:
             continue
         if stage.is_symlink() or _is_reparse_point(stage, stage.lstat()) or not stage.is_dir():
             fail("找到不安全的套件安裝暫存路徑；請人工檢查。")
+        if not re.fullmatch(r"kit-[0-9a-f]{32}", stage.name):
+            fail("Unrecognized transaction directory; preserving it.")
+        owner = json.loads(read_regular(assert_safe(stage, "owner.json")).decode("utf-8"))
+        if owner != {"package": PACKAGE, "group_root": str(root)}:
+            fail("Transaction owner differs; preserving it.")
         journal_path = stage / "transaction.json"
         if not journal_path.exists():
             shutil.rmtree(stage)
@@ -947,11 +1299,13 @@ def recover_incomplete(root: Path) -> None:
             journal = json.loads(read_regular(journal_path).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             fail("找到無法讀取的套件回復紀錄；暫存檔已保留供檢查。")
-        if journal.get("schema") != "gitlab-workspace-kit-transaction/v1" or journal.get("group_root") != str(root):
+        if (journal.get("schema") != "gitlab-workspace-kit-transaction/v1" or journal.get("group_root") != str(root)
+                or journal.get("id") != stage.name):
             fail("套件回復紀錄的 Group 身分不符；暫存檔已保留。")
         if journal.get("phase") == "committed":
-            shutil.rmtree(stage)
+            continue  # Completed transactions retain their verified before-images for explicit rollback.
         else:
+            validate_pending_recovery(root, stage, journal)
             _recover_transaction(root, stage, journal)
 
 
@@ -1160,7 +1514,7 @@ def _test_after_apply(count: int, total: int) -> None:
 
 
 def install(archive: Path, archive_format: str, group_root: Path, expected_version: str, source: str,
-           entry_root: str, archive_sha256: str) -> dict[str, Any]:
+           entry_root: str, archive_sha256: str, *, dry_run: bool = False) -> dict[str, Any]:
     root = checked_root(group_root)
     if source not in ("gitea", "github", "bundled"):
         fail("組合包來源無效。")
@@ -1169,9 +1523,14 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
     if not re.fullmatch(r"[a-f0-9]{64}", archive_sha256) or digest_file(archive) != archive_sha256.lower():
         fail("組合包 SHA-256 與套件索引不符。")
     lock_path = assert_safe(root, INSTALL_LOCK, allow_missing=True)
-    stage_parent = _mkdir_safe(root, ".gitlab-workspace/tool-installs")
-    with KitInstallLock(lock_path):
-        recover_incomplete(root)
+    preview = tempfile.TemporaryDirectory(prefix="workflow-kit-preview-") if dry_run else None
+    stage_parent = Path(preview.name) if preview else _mkdir_safe(root, ".gitlab-workspace/tool-installs")
+    with contextlib.ExitStack() as resources:
+        if preview:
+            resources.enter_context(preview)
+        else:
+            resources.enter_context(KitInstallLock(lock_path))
+            recover_incomplete(root)
         existing_manifest_path = assert_safe(root, MARKER, allow_missing=True)
         old_manifest: dict[str, Any] | None = None
         if existing_manifest_path.exists():
@@ -1255,14 +1614,28 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             manifest_target = candidate_payload / "tool-manifest.json"
             _atomic_json(manifest_target, expected_installed)
             operations = build_operations(root, stage, candidate_payload, old_manifest, expected_installed)
-            journal = {"schema": "gitlab-workspace-kit-transaction/v1", "group_root": str(root), "phase": "prepared", "operations": operations}
+            changed = [o["path"] for o in operations if not o["hadPrevious"] or
+                       o.get("expectedPreviousSha256") != o["newSha256"]]
+            if dry_run or not changed:
+                shutil.rmtree(stage)
+                return {"ok": True, "package": PACKAGE, "version": expected_version,
+                        "status": "ready" if changed else "unchanged", "applied": False,
+                        "changed_paths": changed, "skills": len(manifest["skills"])}
+            journal = {"schema": "gitlab-workspace-kit-transaction/v1", "group_root": str(root),
+                       "id": stage.name, "payloadSha256": manifest["payloadSha256"],
+                       "previous_manifest": old_manifest, "installed_manifest": expected_installed,
+                       "phase": "prepared", "operations": operations}
             _atomic_json(journal_path, journal)
             _apply_operations(root, stage, operations, journal_path, journal)
             journal["phase"] = "committed"
             _atomic_json(journal_path, journal)
-            shutil.rmtree(stage)
+            for child in stage.iterdir():
+                if child.name not in ("backups", "transaction.json", "owner.json"):
+                    _remove_owned(child)
             return {"ok": True, "package": PACKAGE, "version": expected_version, "source": source,
-                    "skills": len(manifest["skills"]), "wiki": "preserved" if has_wiki else "seeded"}
+                    "skills": len(manifest["skills"]), "wiki": "preserved" if has_wiki else "seeded",
+                    "status": "installed", "applied": True, "changed_paths": changed,
+                    "transaction": journal_path.relative_to(root).as_posix()}
         except Exception:
             if journal_path.is_file():
                 try:
@@ -1274,6 +1647,75 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             elif stage.exists():
                 shutil.rmtree(stage, ignore_errors=True)
             raise
+
+
+def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
+    root = checked_root(group_root)
+    journal_path = journal_value if journal_value.is_absolute() else root / journal_value
+    relative = journal_path.absolute().relative_to(root).as_posix()
+    if not re.fullmatch(r"\.gitlab-workspace/tool-installs/kit-[0-9a-f]{32}/transaction\.json", relative):
+        fail("Rollback requires an owned retained transaction journal.")
+    journal_path = assert_safe(root, relative)
+    stage = journal_path.parent
+    with KitInstallLock(assert_safe(root, INSTALL_LOCK, allow_missing=True)):
+        journal = json.loads(read_regular(journal_path).decode("utf-8"))
+        owner = json.loads(read_regular(assert_safe(stage, "owner.json")).decode("utf-8"))
+        if (owner != {"package": PACKAGE, "group_root": str(root)}
+                or journal.get("schema") != "gitlab-workspace-kit-transaction/v1"
+                or journal.get("group_root") != str(root) or journal.get("id") != stage.name
+                or journal.get("phase") != "committed"
+                or journal.get("payloadSha256") != CURRENT_PAYLOAD_SHA256):
+            fail("Rollback transaction identity or reviewed payload differs.")
+        if approved_work_in_progress(root):
+            fail("Finish or explicitly stop active Megin work before rollback.")
+        current = json.loads(read_regular(assert_safe(root, MARKER)).decode("utf-8"))
+        verify_installed(root, current)
+        if current != journal.get("installed_manifest"):
+            fail("Installed package changed after this transaction.")
+        previous = journal.get("previous_manifest")
+        if previous is not None:
+            trusted_skill_files(previous)
+        operations = journal.get("operations")
+        if not isinstance(operations, list) or not operations:
+            fail("Rollback operations missing.")
+        allowed = transaction_paths()
+        required = allowed - {"wiki"}
+        seen, backups = set(), set()
+        # Validate the entire rollback, including every before-image, before changing anything.
+        for operation in operations:
+            if not isinstance(operation, dict) or operation.get("kind") != "path":
+                fail("Invalid rollback operation.")
+            path = operation.get("path")
+            if not isinstance(path, str) or safe_relative(path).as_posix() != path or path not in allowed or path in seen:
+                fail("Rollback path is duplicate or outside bundle ownership.")
+            seen.add(path)
+            backup_name = operation.get("backup", "")
+            if not re.fullmatch(r"backups/[0-9]{5}", backup_name) or backup_name in backups or operation.get("incoming") != "incoming/" + path:
+                fail("Rollback backup identity differs.")
+            backups.add(backup_name)
+            target = assert_safe(root, path)
+            if _action_hash(target) != operation.get("newSha256"):
+                fail("Rollback target changed; preserving it.")
+            if type(operation.get("hadPrevious")) is not bool or operation.get("expectedPreviousPresent") != operation["hadPrevious"]:
+                fail("Rollback before-image identity differs.")
+            backup = assert_safe(stage, backup_name, allow_missing=True)
+            if operation["hadPrevious"]:
+                if not backup.exists() or _action_hash(backup) != operation.get("expectedPreviousSha256"):
+                    fail("Rollback before-image missing or changed.")
+                if path.startswith(".agents/skills/") and previous is not None:
+                    actual = {path + "/" + p.removeprefix(backup.name + "/"): h
+                              for p, h in hash_tree(backup.parent, backup).items()}
+                    expected = {p: h for p, h in previous["files"].items() if p.startswith(path + "/")}
+                    if actual != expected:
+                        fail("Rollback Skill before-image differs from trusted installed files.")
+                if path == MARKER and json.loads(read_regular(backup).decode("utf-8")) != previous:
+                    fail("Rollback previous manifest differs.")
+            elif backup.exists():
+                fail("Unexpected rollback before-image.")
+        if not required.issubset(seen):
+            fail("Rollback operations omit a bundle-managed path.")
+        _recover_transaction(root, stage, journal)
+        return {"ok": True, "package": PACKAGE, "status": "rolled-back", "transaction": relative}
 
 
 def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[str, Any] | None,
@@ -1357,13 +1799,15 @@ def inspect_status(root_value: Path, expected_version: str) -> dict[str, Any]:
                 active = approved_work_in_progress(root)
                 if active:
                     return {"ok": True, "status": "work-in-progress", "version": raw["version"], "source": raw["source"], "message": "請先完成 Megin 工作再更新組合包。"}
-                status = "installed" if raw["version"] == expected_version else "update-available"
+                status = "installed" if (raw["version"] == expected_version and
+                    raw.get("payloadSha256") == CURRENT_PAYLOAD_SHA256 and
+                    raw.get("local_update") is None) else "update-available"
                 return {"ok": True, "status": status, "version": raw["version"], "source": raw["source"]}
             old = legacy_paths(root, include_installed=True)
             if old:
                 return {"ok": True, "status": "needs-cleanup", "message": "請依組合包 cleanup 文件人工移除舊工具，保留 Wiki 與工作紀錄。", "legacyPaths": old[:24]}
             return {"ok": True, "status": "missing"}
-    except (KitError, OSError) as error:
+    except (KitError, OSError, ValueError, TypeError) as error:
         return {"ok": True, "status": "error", "message": str(error) or "組合包安裝記錄無法驗證。"}
 
 
@@ -1385,6 +1829,10 @@ def run() -> int:
     install_parser.add_argument("--format", choices=("zip", "tar.xz"), required=True)
     install_parser.add_argument("--entry-root", default="")
     install_parser.add_argument("--archive-sha256", required=True)
+    install_parser.add_argument("--dry-run", action="store_true", help="Validate and preview in system temp without changing the Group.")
+    rollback_parser = subcommands.add_parser("rollback")
+    rollback_parser.add_argument("group_root", type=Path)
+    rollback_parser.add_argument("journal", type=Path)
     args = parser.parse_args()
     try:
         if args.action == "inspect":
@@ -1396,8 +1844,11 @@ def run() -> int:
         if args.action == "status":
             print(json.dumps(inspect_status(args.group_root, args.expected_version), ensure_ascii=False))
             return 0
+        if args.action == "rollback":
+            print(json.dumps(rollback(args.group_root, args.journal), ensure_ascii=False))
+            return 0
         result = install(args.archive, args.format, args.group_root, args.version, args.source,
-                         args.entry_root, args.archive_sha256)
+                         args.entry_root, args.archive_sha256, dry_run=args.dry_run)
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except (KitError, OSError, ValueError, EOFError, subprocess.SubprocessError, tarfile.TarError,

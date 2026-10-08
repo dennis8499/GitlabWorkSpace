@@ -10,6 +10,30 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0
 
 更新會驗證目前受管理檔案未被本機修改。既有 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 與 `review-reports/` 會保留。舊版分開安裝採人工清除後重裝，請按錯誤訊息提供的精確路徑清單，並依套件中的 `legacy-cleanup.md` 移除舊 Skills、工具紀錄及 Wiki managed block；保留 Wiki、工作紀錄、報告與其他 Skills。不要移除進行中的 Megin 鎖或工作紀錄來繞過安裝阻擋。
 
+### 本機預覽與交易回復
+
+從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
+
+```text
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.13.2 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --dry-run
+```
+
+預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
+
+成功安裝回傳 `transaction`，例如 `.gitlab-workspace/tool-installs/kit-<id>/transaction.json`。交易保留前版檔案，可執行：
+
+```text
+python -X utf8 -B resources/workflow-kit-installer.py rollback <Group> <transaction>
+```
+
+回復前會完整核對 Group、交易身分、目前安裝紀錄、所有受管理路徑及前版 bytes。安裝後有修改、備份缺漏／變造、交易路徑越界或進行中的 Megin 工作均會阻擋回復並保留資料。交易成功回復後不可重用；保留的其他歷史交易不會在狀態檢查時被移除。
+
+### 固定驗證與歷史交付
+
+Group 品質契約可宣告固定已提交驗證輸入、SCN 行為追蹤與 runner 預檢。需要補證時引用已核准的跨 Repo 錨點；缺漏情境、失敗 runner、輸入摘要不符與 MR 身分／正文漂移均停止交付。完成紀錄匯出歷史收據後，後續工作區或技能更新不重寫已驗證的交付；原始證據與固定 Git 物件仍須完整。
+
+安裝後參考 `.agents/skills/megin/references/cross-flow-delivery.md`、`cross-repo-evidence.md` 與 `.agents/skills/merge-reviewer/references/native-review.md`。Linked correction 保留既有交付 ancestry；部分交付續作保留已完成 commit。模擬委派驗收須明確授權且限模擬契約，不能取代正式人類驗收。
+
 ## 整包版與分開安裝
 
 下表比較 GitLab Workspace v0.10.0 整包版與 v0.8.0 分開安裝方式。兩種方式所附上游版本相同：Codebase LLM Wiki 0.3.0、Megin 0.2.0、MergeReviewer 0.5.0。

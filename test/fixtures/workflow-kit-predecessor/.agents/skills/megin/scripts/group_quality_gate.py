@@ -325,11 +325,9 @@ def load_group_contract(
         repo_path = canonical_relative(item.get("repo_path"))
         if len(PurePosixPath(repo_path).parts) != 1:
             raise InvalidEvidence(f"repository must be a direct child of Group root: {repo_path}")
-        from group_workspace import validate_repo
-        try:
-            _, repo = validate_repo(group_root, repo_path)
-        except InvalidWorkspace as exc:
-            raise InvalidEvidence(str(exc)) from exc
+        if (group_root / repo_path).is_symlink():
+            raise InvalidEvidence(f"repository path must not be a symlink: {repo_path}")
+        repo = within_group(group_root, repo_path)
         if repo.parent != group_root:
             raise InvalidEvidence(f"repository must be a direct child of Group root: {repo_path}")
         if repo_path in seen_paths or not repo.is_dir():
@@ -392,16 +390,6 @@ def load_group_contract(
                 or not isinstance(cwd, str) or cwd not in (".", *seen_paths)):
             raise InvalidEvidence("invalid or duplicate Group check ID, command, or cwd")
         check_ids.add(identifier)
-
-    from verification_inputs import validate_inputs
-    from behavior_trace import validate_trace
-    try:
-        validate_inputs(group_root, contract.get('verification_inputs'), check_ids)
-        validate_trace(contract)
-        from simulation_policy import validate_policy
-        validate_policy(group_root,work_id,contract)
-    except ValueError as exc:
-        raise InvalidEvidence(str(exc)) from exc
 
     records: set[str] = set()
     for record in process_records:
@@ -557,9 +545,6 @@ def group_snapshot(
             "mode": entry["mode"],
             "content": entry["content"],
         } for entry in entries)
-    from verification_inputs import validate_inputs, snapshot_entries, canonical_digest
-    inputs = validate_inputs(group_root, _contract.get('verification_inputs'), {x['id'] for x in _contract['checks']})
-    all_entries.extend(snapshot_entries(inputs))
     all_entries.extend(group_record_entries(group_root, work_id, records))
     result: dict[str, object] = {
         "schema": (
@@ -576,9 +561,6 @@ def group_snapshot(
         result["skills_sha256"] = _contract["skills_sha256"]
         result["group_config_sha256"] = _contract["group_config_sha256"]
         result["merge_order"] = _contract["handoff"]["merge_order"]
-    if inputs:
-        result['verification_inputs'] = inputs
-        result['verification_inputs_sha256'] = canonical_digest(inputs)
     return result
 
 
@@ -765,7 +747,6 @@ def check_completion_group(
         group_root, work_id, records, contract["checks"], evidence, digest, reasons,
         require_pass=True,
     )
-    validate_optional_check_bindings(group_root, work_id, records, contract, evidence, current, reasons)
     handoff = contract["handoff"]
     check_results = {
         item.get("id"): item for item in evidence.get("checks", []) if isinstance(item, dict)
@@ -803,12 +784,6 @@ def check_completion_group(
             if verdict != "APPROVED" or review_snapshot != digest or context == writer_context:
                 reasons.append("independent APPROVED review for current Group snapshot missing")
     acceptance = evidence.get("acceptance")
-    if isinstance(acceptance, dict):
-        from simulation_policy import validate_policy, validate_acceptance_actor
-        try:
-            validate_acceptance_actor(validate_policy(group_root,work_id,contract),acceptance)
-        except ValueError as exc:
-            reasons.append(str(exc))
     if not isinstance(acceptance, dict):
         reasons.append("Group human acceptance missing")
     else:
@@ -942,19 +917,6 @@ def check_completion_group(
         result["delivery_gate_result_sha256"] = delivery_gate_digest
     return result
 
-
-def validate_optional_check_bindings(root, work_id, records, contract, evidence, current, reasons):
-    if not contract.get('verification_inputs'):
-        return
-    digest = current['verification_inputs_sha256']
-    identifiers = {identifier for item in current['verification_inputs'] for identifier in item['check_ids']}
-    results = {item.get('id'): item for item in evidence.get('checks', []) if isinstance(item, dict)}
-    for identifier in identifiers:
-        result = results.get(identifier, {})
-        if result.get('verification_inputs_sha256') != digest:
-            reasons.append(f'{identifier}: fixed verification input binding missing or stale')
-        cited_claims(root, work_id, records, result.get('output'), identifier + ' fixed inputs', reasons,
-                     {'verification_inputs': 'Verification inputs SHA-256: ' + digest}, require_locator=True)
 
 def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
     fields, contract, repositories, records = load_group_contract(group_root, work_id)
@@ -1110,7 +1072,6 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
         group_root, work_id, records, contract["checks"], evidence, digest, reasons,
         require_pass=gate in ("acceptance", "delivery"),
     )
-    validate_optional_check_bindings(group_root, work_id, records, contract, evidence, current, reasons)
     if v3 and gate == "delivery":
         recorded_checks = evidence.get("checks")
         by_id = {entry.get("id"): entry for entry in recorded_checks if isinstance(entry, dict)} \
@@ -1158,12 +1119,6 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
 
     if gate == "delivery":
         acceptance = evidence.get("acceptance")
-        if isinstance(acceptance,dict):
-            from simulation_policy import validate_policy, validate_acceptance_actor
-            try:
-                validate_acceptance_actor(validate_policy(group_root,work_id,contract),acceptance)
-            except ValueError as exc:
-                reasons.append(str(exc))
         if not isinstance(acceptance, dict):
             reasons.append("Group human acceptance missing")
         else:

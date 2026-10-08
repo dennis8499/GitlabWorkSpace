@@ -149,6 +149,46 @@ def atomic_write(target: Path, content: bytes) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def sync_installer_metadata(manifest: dict) -> None:
+    """Freeze current and reviewed predecessor hashes into the shipped installer."""
+    import ast
+    import pprint
+    trusted_path = PROFILE / "trusted-predecessors.json"
+    if trusted_path.is_symlink() or not trusted_path.is_file():
+        raise ValueError("Trusted predecessor metadata is missing or unsafe.")
+    trusted = json.loads(trusted_path.read_text(encoding="utf-8"))
+    if trusted.get("schema") != "gitlab-workspace-kit-predecessors/v1":
+        raise ValueError("Unknown trusted predecessor metadata schema.")
+    for update in trusted["local_updates"]:
+        if digest(json.dumps(update["files"], ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":")).encode("utf-8")) != update["payload_sha256"]:
+            raise ValueError("Reviewed local update hashes changed.")
+    values = {
+        "OVERLAY_HASHES": {key: digest(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                                 separators=(",", ":")).encode("utf-8"))
+                           for key, value in manifest["overlays"].items()},
+        "CURRENT_PAYLOAD_SHA256": manifest["payloadSha256"],
+        "CURRENT_SKILL_FILES": {p: h for p, h in manifest["files"].items()
+                                if p.startswith(".agents/skills/megin") or p.startswith(".agents/skills/merge-reviewer/")},
+        "TRUSTED_PREDECESSORS": trusted,
+    }
+    installer = ROOT / "resources/workflow-kit-installer.py"
+    source = installer.read_text(encoding="utf-8")
+    lines = source.splitlines(keepends=True)
+    edits = []
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+            if name in values:
+                edits.append((node.lineno - 1, node.end_lineno,
+                              name + " = " + pprint.pformat(values[name], width=110, sort_dicts=True) + "\n"))
+    if len(edits) != len(values):
+        raise ValueError("Installer metadata assignments changed.")
+    for start, end, replacement in reversed(edits):
+        lines[start:end] = [replacement]
+    atomic_write(installer, "".join(lines).encode("utf-8"))
+
+
 def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
                   destination_prefix: str = "") -> dict[str, object]:
     if overlay_root.is_symlink() or not overlay_root.is_dir():
@@ -282,6 +322,7 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
+    sync_installer_metadata(manifest)
     entries = {f"{ROOT_NAME}/{name}": data for name, data in files.items()}
     entries[f"{ROOT_NAME}/manifest.json"] = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     OUTPUT.mkdir(parents=True, exist_ok=True)

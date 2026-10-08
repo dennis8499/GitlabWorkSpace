@@ -33,9 +33,5 @@ The cited raw acceptance record starts with the exact machine-readable `work_id`
 `snapshot`, and `verdict: ACCEPTED` lines from the shared reference, followed by the user's response.
 
 Handoff: `phase: delivery` and an exact acceptance record, or a named failed scenario with the next
-repair action. Delivery creates feature commits for selected change Repos. Only `local_merge` performs
-local `--no-ff` integration in dependency order; `feature_handoff` and `gitlab_mr` leave base branches unchanged. Acceptance itself never creates commits or merges.
-
-Explicitly authorized isolated exercises may use delegated main-agent acceptance as defined in
-[../megin/references/cross-repo-evidence.md](../megin/references/cross-repo-evidence.md).
-Record simulation mode, protected authorization digest and delegated actor; never call this a human response.
+repair action. Delivery creates feature commits for all selected Repos; only a single-Repo Work ID
+performs a local `--no-ff` integration. Acceptance itself never creates commits or merges.

@@ -28,9 +28,3 @@ Workspace verifies identity, body digest and live source/target versions before
 publication. A report may explicitly be incomplete or contain P0/P1 findings;
 publication only checks version binding. Human approval/merge and GitLab rules
 remain separate. The Skill never posts comments or approves/merges an MR.
-
-## Optional Megin linkage
-
-Add `--megin-receipt <completed receipt.json>` only with a fixed MR task. The validator checks native completed-delivery evidence and accepted bytes, exact local Repo identity, source commit and tree. The manifest and portable report embed `megin_binding` for Work ID, plan, execution mode, acceptance snapshot, delivery commit, MR identity and pinned source/target SHA. Without the flag existing reports remain compatible.
-
-`delivery_binding.correction_plan(binding, new_work_id, current_task)` creates the linked correction contract only when current MR identity/source/target exactly match the reviewed task. A new delivery must retain prior source ancestry AND approved target ancestry before Workspace fast-forwards the original source branch. Replan on version drift and build/review a fresh context. Preserve old complete Work IDs and reports. The helpers neither push nor post/merge. See [Megin correction delivery](../../megin/references/cross-flow-delivery.md).

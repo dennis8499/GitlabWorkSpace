@@ -55,7 +55,3 @@ publication clears the current owned context; rebuild it when trying again.
 
 This review does not replace Megin's independent review/verification/acceptance
 gates and never stages, commits or fixes products.
-
-## Fixed supporting sources
-
-Optional `--supporting-sources <JSON file>` is Group-quick-only. The JSON array contains objects `{repo, commit, paths}` with a direct-child Repo name, full immutable commit SHA and regular relative file paths. Freeze unchanged consumers/contracts from Git into the owned context with SHA-256 and blob identity. Cite them with source `supporting`, repo/path, full commit ref, side `result`, and valid lines. Supplemental citations do not create fake changed-file coverage. Every finding must still include an index or working-tree citation on a reviewed changed path. Drift/tamper of frozen supplemental bytes invalidates evidence. The Group validator rejects lexical/canonical parent escapes, symlinks and Windows junction/reparse candidates and continues valid direct-child worktrees.

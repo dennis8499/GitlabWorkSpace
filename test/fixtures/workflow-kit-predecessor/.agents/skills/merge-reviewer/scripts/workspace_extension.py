@@ -14,8 +14,6 @@ def extend_parser(parser: argparse.ArgumentParser) -> None:
         "--group-root",
         help="Review all direct-child Repos' staged and working files locally with --quick.",
     )
-    parser.add_argument('--supporting-sources', help='JSON array of fixed commit-backed Group supporting sources.')
-    parser.add_argument('--megin-receipt', help='Optional exported immutable Megin delivery receipt.')
     mr_context = parser.add_mutually_exclusive_group()
     mr_context.add_argument("--mr-context", help="Read a MergeReviewTask/v1 JSON file.")
     mr_context.add_argument(
@@ -25,20 +23,9 @@ def extend_parser(parser: argparse.ArgumentParser) -> None:
 
 def prepare_manifest(args, api):
     if getattr(args, "group_root", None):
-        if getattr(args, "megin_receipt", None):
-            raise ValueError("--megin-receipt requires a fixed MR task, not Group quick")
         return group_review.build(args, api)
-    if getattr(args, 'supporting_sources', None):
-        raise ValueError('--supporting-sources requires Group quick review')
     if getattr(args, "mr_context", None) or getattr(args, "mr_context_base64", None):
         mr_contract.prepare(args, api)
-        if getattr(args, 'megin_receipt', None):
-            import json
-            from delivery_binding import bind_delivery
-            receipt = json.loads(Path(args.megin_receipt).read_text(encoding='utf-8'))
-            args.megin_binding = bind_delivery(receipt,args.mr_task)
-    if getattr(args, 'megin_receipt', None) and not getattr(args, 'mr_task', None):
-        raise ValueError('--megin-receipt requires a fixed MR task')
     return None
 
 

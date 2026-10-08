@@ -84,23 +84,5 @@ def bind_report(body: str, manifest: dict, result: dict) -> tuple[str, dict]:
         "reviewComplete": result["review_status"] != "審查未完成", "generatedAt": manifest["generated_at"],
         "priorityCounts": result["priority_counts"],
     }
-    if manifest.get('megin_binding'):
-        from delivery_binding import verify_report_binding
-        metadata['megin_binding'] = manifest['megin_binding']
-        verify_report_binding(manifest['megin_binding'],metadata,task['sourceSha'],task['targetSha'])
     encoded = base64.b64encode(json.dumps(metadata, ensure_ascii=False, sort_keys=True).encode("utf-8")).decode("ascii")
     return body + f"\n\n<!-- merge-review-report:{encoded} -->\n", metadata
-
-def verify_portable_report(markdown, current_task):
-    """Workspace-compatible local import check; does not publish or authorize merging."""
-    task = validate_task(current_task)
-    matches = list(re.finditer(r"<!-- merge-review-report:([A-Za-z0-9+/=]+) -->", markdown))
-    if len(matches) != 1 or markdown[matches[0].end():].strip(): raise ValueError("portable report metadata is missing or ambiguous")
-    metadata = json.loads(base64.b64decode(matches[0].group(1), validate=True).decode("utf-8"))
-    body = normalize_body(markdown[:matches[0].start()])
-    if metadata.get("schema") != REPORT or metadata.get("bodySha256") != hashlib.sha256(body.encode("utf-8")).hexdigest(): raise ValueError("report body digest changed")
-    if any(metadata.get(k) != task[k] for k in IDENTITY_FIELDS) or metadata.get("repoPath") != task["repoPath"]: raise ValueError("MR identity or versions changed; review again")
-    if metadata.get("megin_binding"):
-        from delivery_binding import verify_report_binding
-        verify_report_binding(metadata["megin_binding"], metadata, task["sourceSha"], task["targetSha"])
-    return metadata

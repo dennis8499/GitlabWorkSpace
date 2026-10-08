@@ -36,8 +36,8 @@ command, and required environment; split independently failing promises. Include
 only when the change makes them relevant. The plan remains the sole source of approved obligations.
 
 Write `plan.md` in the central Group Work ID record. The requirements master remains the full local
-Group Scope; the branch, commit, and delivery list include only Repos with actual approved product changes.
-Compatibility-only Repos remain read-only plan obligations; bind their fixed inputs separately. It must bind the canonical Group root, each change Repo path, remote name/URL, exact remote
+Group Scope; the plan and delivery list include only Repos with approved changes or compatibility
+checks. It must bind the canonical Group root, each change Repo path, remote name/URL, exact remote
 base SHA, `feature/<Work ID>`, Repo-relative allowed paths, and every check's
 explicit command and `cwd`, as well as the requirements revision, interfaces, dependency-ordered
 work packages, forbidden paths, acceptance scenarios, evidence locations, knowledge scope, and
@@ -49,8 +49,6 @@ commits/Push/MR without base merges, for one or more Repos. Each package has
 one writer handoff and one fresh-review handoff. Include migration and failure
 handling when the change affects data, permissions, dependencies, compatibility, or operational
 behavior.
-
-Read [../megin/references/cross-repo-evidence.md](../megin/references/cross-repo-evidence.md) for optional fixed inputs, scenario trace, runner preflight, and isolated simulation delegation.
 
 The plan remains read-only. Once the user explicitly approves the exact Work ID and plan version,
 the implementation handoff creates the named feature branch from the recorded base commit before
