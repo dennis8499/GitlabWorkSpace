@@ -12,6 +12,29 @@ const project = { id: 1, name: 'One', path: 'one', path_with_namespace: 'group/o
 const issue = (iid: number) => ({ id: 100 + iid, iid, project_id: 1, title: 'Issue ' + iid });
 
 suite('Account, preview and workspace Repo integration', () => {
+  test('late Git reads are dropped after hiding, closing or leaving the panel while accepted writes finish', async () => {
+    const actions: string[] = [], replies: Array<Record<string, unknown>> = [];
+    let inventories = 0;
+    const view: Harness = Object.assign(Object.create(WorkspacePanel.prototype), {
+      panel: { visible: false }, activeMode: 'git', accountTransitionBusy: false,
+      gitRepositories: { handleAction: async (_id: string, action: { type: string }) => { actions.push(action.type); }, setActivePanelRepository: () => undefined },
+      post: (message: Record<string, unknown>) => { replies.push(message); }, sendGitRepositories: async () => { inventories++; }
+    });
+    const read = () => view.handleGitPanelRequest({ type: 'gitAction', repoId: 'repo', requestId: 'late-read', action: { type: 'readDiff', path: 'README.md', staged: false } });
+    await read();
+    await view.handleGitPanelRequest({ type: 'gitReady' });
+    assert.equal(inventories, 0);
+    assert.equal(view.gitPanelReady, true, 'a hidden ready message is retained for one refresh when shown');
+    view.panel = undefined; await read();
+    view.panel = { visible: true }; view.activeMode = 'developer'; await read();
+    assert.deepEqual(actions, []);
+    assert.equal(replies.length, 3);
+    await view.handleGitPanelRequest({ type: 'gitAction', repoId: 'repo', requestId: 'accepted-write', action: { type: 'commit', message: 'Keep working' } });
+    assert.deepEqual(actions, ['commit']);
+    view.activeMode = 'git'; await read();
+    assert.deepEqual(actions, ['commit', 'readDiff']);
+  });
+
   test('only the latest preview request can update selection, without loading Issue edit options', async () => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });

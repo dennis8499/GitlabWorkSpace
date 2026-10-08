@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { chromium, type Frame, type Page } from 'playwright-core';
@@ -11,6 +11,7 @@ interface TestExtensionApi {
   setFetchForTesting(fetcher: typeof fetch): void;
   getGitRepositoryState(): Promise<{ repositories: Array<{ path: string; name: string; branches?: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> }>; available: boolean; message?: string }>;
   getGitCommandCountForTesting(): number;
+  getGitActivityForTesting(): { commands: number; auxiliaryCommands: number; nativeApiCalls: number; nativeStatusEvents: number };
   getWebviewMessageCountsForTesting(): { sent: number; received: number };
   setGitWarningPromptHandlerForTesting(handler: (message: string, options: vscode.MessageOptions, ...items: string[]) => Promise<string | undefined>): void;
   setGitActionTraceHandlerForTesting(handler: (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void): void;
@@ -26,8 +27,8 @@ suite('Live GitLab Workspace Webview validation', function () {
 
   test('exercises the packaged Git GUI against an isolated local bare remote', async function () {
     if (!localGitGuiEnabled) this.skip();
-    this.timeout(300_000);
-    assert.equal(vscode.version, '1.140.0', 'the packaged Git GUI is loaded in the pinned VS Code Extension Host');
+    this.timeout(600_000);
+    assert.equal(vscode.version, process.env.GLW_LOCAL_VSCODE_EXPECTED_VERSION, 'the packaged Git GUI is loaded in the verified installed VS Code Extension Host');
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
     assert.ok(extension, 'the packaged project extension is loaded in the actual Extension Host');
     assert.equal(extension.packageJSON.version, process.env.GLW_LIVE_EXPECTED_VERSION, 'the actual packaged VSIX is loaded');
@@ -60,6 +61,7 @@ suite('Live GitLab Workspace Webview validation', function () {
     const runId = process.env.GLW_RUN_ID || `local-git-gui-${Date.now()}`;
     let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined;
     let ui: WebviewCdp | undefined;
+    const idleChecks: Array<Record<string, unknown>> = [];
     try {
       mkdirSync(path.join(path.dirname(reportPath), 'screenshots'), { recursive: true });
       browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 25_000 });
@@ -83,7 +85,70 @@ suite('Live GitLab Workspace Webview validation', function () {
       assert.ok(!remoteBranchNames.some((name) => name.startsWith('origin/origin/')), `remote names are not prefixed twice (${remoteBranchNames.join(', ')})`);
       await ui.waitUntil(`([...document.querySelectorAll('.git-repo-picker select option')].some((option) => option.textContent?.toLocaleLowerCase('en-US').includes('service')))`, 20_000,
         'The open Git GUI receives the Repo after VS Code Git finishes asynchronous repository discovery.');
-      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, promptRace);
+      const nativeCommandCount = (): number => {
+        const root = process.env.GLW_LOCAL_GIT_GUI_LOG_ROOT!;
+        if (!existsSync(root)) return 0;
+        return readdirSync(root, { recursive: true }).filter((name) => typeof name === 'string' && /vscode\.git[/\\]Git\.log$/i.test(name))
+          .reduce((count, name) => count + (readFileSync(path.join(root, String(name)), 'utf8').match(/> git /g)?.length ?? 0), 0);
+      };
+      const checkIdle = async (phase: string): Promise<void> => {
+        await new Promise((resolve) => setTimeout(resolve, 1250));
+        if (phase === 'select-file') {
+          const beforeClicks = api.getGitActivityForTesting();
+          await ui!.evaluate(`(() => { const button = document.querySelector('.git-change-name'); for (let index = 0; index < 20; index++) button?.click(); })()`);
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          assert.deepEqual(api.getGitActivityForTesting(), beforeClicks, 'twenty clicks on the selected file share the existing Diff result');
+        }
+        const before = api.getGitActivityForTesting();
+        const nativeBefore = nativeCommandCount();
+        const started = Date.now();
+        await new Promise((resolve) => setTimeout(resolve, 60_000));
+        const after = api.getGitActivityForTesting();
+        const nativeAfter = nativeCommandCount();
+        const delta = { commands: after.commands - before.commands, auxiliaryCommands: after.auxiliaryCommands - before.auxiliaryCommands, nativeApiCalls: after.nativeApiCalls - before.nativeApiCalls };
+        idleChecks.push({ phase, idleMs: Date.now() - started, before, after, extensionDelta: delta,
+          vscodeGitLog: { before: nativeBefore, after: nativeAfter, backgroundDelta: nativeAfter - nativeBefore } });
+        console.info(`Git GUI idle ${phase}: ${JSON.stringify(delta)}; VS Code background commands: ${nativeAfter - nativeBefore}`);
+        assert.deepEqual(delta, { commands: 0, auxiliaryCommands: 0, nativeApiCalls: 0 }, `${phase}: idle Git GUI must not launch additional extension Git commands or native API requests`);
+      };
+      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, promptRace, checkIdle);
+      const compatibility: Record<string, unknown> = {};
+      const taggedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
+      const tagNames = ['validation/annotated', 'validation/lightweight'];
+      execFileSync('git', ['tag', '-a', tagNames[0], '-m', 'Annotated graph tag'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      execFileSync('git', ['tag', tagNames[1]], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      await ui.click('.git-refresh');
+      for (const tagName of tagNames) {
+        await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.title?.endsWith('\\n' + ${JSON.stringify(taggedHead)}) && row.querySelector('.git-commit-refs')?.textContent?.includes(${JSON.stringify(tagName)})))`, 15_000, 'Tag labels attach to the tagged commit rather than the annotated tag object.');
+        await ui.evaluate(`(() => { const button = [...document.querySelectorAll('.git-ref-name')].find((item) => item.textContent?.includes(${JSON.stringify(tagName)})); if (!button) throw new Error('Tag ref missing'); button.closest('details').open = true; button.click(); })()`);
+        await ui.waitUntil(`document.querySelector('.git-commit-detail > code')?.textContent === ${JSON.stringify(taggedHead)}`, 10_000, 'Clicking either tag reads the tagged commit.');
+      }
+      compatibility.tags = 'PASS';
+      const currentBranch = execFileSync('git', ['branch', '--show-current'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
+      execFileSync('git', ['checkout', '--detach', 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === '' && document.querySelector('.git-branch-picker select')?.textContent?.includes('Detached HEAD')`, 15_000, 'Detached HEAD is shown without inventing a local branch.');
+      await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+      assert.ok(await ui.count('.git-wip-row .git-commit-graph path'), 'working changes connect to the detached HEAD commit');
+      compatibility.detachedHead = 'PASS';
+      execFileSync('git', ['checkout', currentBranch], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      const emptyRepo = path.join(path.dirname(workspaceRoot), 'empty-repo');
+      mkdirSync(emptyRepo, { recursive: true });
+      execFileSync('git', ['init', '-b', 'main'], { cwd: emptyRepo, stdio: 'ignore', windowsHide: true });
+      const nativeGitExtension = await vscode.extensions.getExtension('vscode.git')!.activate() as { getAPI(version: number): { openRepository(root: vscode.Uri): Promise<unknown> } };
+      assert.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(emptyRepo)));
+      await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some((option) => option.textContent?.includes('empty-repo'))`, 15_000, 'The isolated empty Repo is discovered.');
+      await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'empty-repo' && document.querySelector('.git-center .git-empty-list')?.textContent?.includes('尚無提交歷史')`, 15_000, 'An unborn Repo opens its empty graph.');
+      assert.equal(await ui.count('.git-wip-row'), 1);
+      assert.equal(await ui.evaluate(`document.querySelector('.git-commit-launch')?.disabled`), true);
+      compatibility.emptyRepo = 'PASS';
+      for (let index = 0; index < 4; index++) {
+        await ui.selectOptionContaining('.git-repo-picker select', 'service');
+        await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+      }
+      await ui.selectOptionContaining('.git-repo-picker select', 'service');
+      await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && document.querySelector('.git-branch-picker select')?.value === ${JSON.stringify(currentBranch)} && !document.querySelector('.git-progress') && !document.querySelector('.dashboard-error')`, 15_000, 'Rapid switching completes the latest open and renders its actual current branch without stale replies.');
+      compatibility.rapidRepoSwitching = 'PASS';
       await page.screenshot({ path: path.join(path.dirname(reportPath), 'screenshots', 'local-git-gui.png') });
       const status = gitGui.committed === true && gitGui.pushedWithUpstream === true ? 'PASS' : gitGui.commitUi && typeof gitGui.commitUi === 'object' && 'error' in gitGui.commitUi && Boolean(gitGui.commitUi.error) ? 'FAIL' : 'BLOCKED';
       writeFileSync(reportPath, `${JSON.stringify({
@@ -94,7 +159,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         interactiveConfirmationUI: status !== 'PASS' ? 'NOT_COMPLETE' :
           gitGui.commitConfirmation === 'workbench-dom' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: both native VS Code modal confirmations were presented and clicked through the Workbench DOM.' :
           'BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
-        warningPrompts, actionTrace, gitGui
+        warningPrompts, actionTrace, idleChecks, compatibility, gitGui
       }, null, 2)}\n`, 'utf8');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Local Git GUI validation failed.';
@@ -106,7 +171,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         nativeGitRepositoryState: await api.getGitRepositoryState().catch((stateError: unknown) => ({
           repositories: [], available: false, message: stateError instanceof Error ? stateError.message : String(stateError)
         })),
-        actionTrace
+        actionTrace, idleChecks
       }, null, 2)}\n`, 'utf8');
       throw error;
     } finally {
@@ -611,7 +676,7 @@ function percentile(values: number[], fraction: number): number {
   return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : 0;
 }
 
-async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true, promptRace: { beforeForcePush?: () => void } = {}): Promise<Record<string, unknown>> {
+async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true, promptRace: { beforeForcePush?: () => void } = {}, checkIdle?: (phase: string) => Promise<void>): Promise<Record<string, unknown>> {
   const confirmationDialogs: string[] = [];
   page.on('dialog', async (dialog) => {
     const message = dialog.message();
@@ -627,7 +692,8 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent?.toLowerCase().includes('service')`, 15_000, 'The Git GUI did not activate the service Repo.');
   await ui.waitForVisible('.git-toolbar > button.secondary', 20_000);
   await ui.waitForProperty('.git-toolbar > button.secondary', 'disabled', false, 20_000);
-  const playwrightWebview = await findPlaywrightFrame(page, '.git-commit-launch');
+  const playwrightWebview = await findPlaywrightFrame(page, '.git-commit-composer');
+  await checkIdle?.('open');
   const repoPath = path.basename(path.resolve(workspaceRoot)).toLocaleLowerCase('en-US') === 'service'
     ? workspaceRoot : path.join(workspaceRoot, 'service');
   const trackedFile = path.join(repoPath, 'service.ts');
@@ -657,12 +723,13 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await ui.click('.git-change-name');
   await ui.waitForVisible('.git-diff-line.add input[type="checkbox"]');
   assert.equal(await ui.count('.git-diff-line.add input[type="checkbox"]'), 2, 'the real Git diff exposes both added lines for line-level staging');
+  await checkIdle?.('select-file');
   await ui.setChecked('.git-diff-line.add input[type="checkbox"]', true, 0);
   await ui.click('.git-diff-actions button', 0);
   await waitForGitUiAction(ui);
   const indexAfterPartial = await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => /^1\s+0\s+service\.ts$/.test(output.trim()), 'Exactly one added line is staged through the Git GUI.');
 
-  await ui.click('.git-change-section .git-change-row button.quiet.small', 0);
+  await ui.click('.git-change-row button[title="取消暫存整檔"]', 0);
   await waitForGitUiAction(ui);
   await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => output.trim() === '', 'The Git GUI cancels staging for the entire file.');
   const beforeWholeFileStage = await ui.evaluate(`(() => ({
@@ -672,7 +739,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
     progress: document.querySelector('.git-progress')?.textContent ?? null,
     error: document.querySelector('.dashboard-error')?.textContent ?? null
   }))()`);
-  await ui.click('.git-change-section .git-change-row button.quiet.small', 0);
+  await ui.click('.git-change-row button[title="暫存整檔"]', 0);
   await waitForGitUiAction(ui);
   let indexAfterWholeFile: string;
   try { indexAfterWholeFile = await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => /^2\s+0\s+service\.ts$/.test(output.trim()), 'The whole-file stage includes both added lines.'); }
@@ -686,12 +753,12 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
     }))()`);
     throw new Error(`${String(error)} (UI before whole-file stage: ${JSON.stringify(beforeWholeFileStage)}; UI after: ${JSON.stringify(afterWholeFileStage)})`);
   }
-  await playwrightWebview.locator('.git-commit-launch').click();
   const commitMessage = `GUI validation ${runId}`;
-  await playwrightWebview.locator('.git-dialog textarea[name="message"]').fill(commitMessage);
-  assert.equal(await ui.evaluate<string | null>(`new FormData(document.querySelector('.git-dialog')).get('message')`), commitMessage, 'the commit form contains the exact message typed through the Webview keyboard path');
+  await checkIdle?.('stage');
+  await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(commitMessage);
+  assert.equal(await ui.evaluate<string | null>(`new FormData(document.querySelector('.git-commit-composer')).get('message')`), commitMessage, 'the commit form contains the exact message typed through the Webview keyboard path');
   await page.bringToFront();
-  await playwrightWebview.locator('.git-dialog button[type="submit"]').click();
+  await playwrightWebview.locator('.git-commit-composer button[type="submit"]').click();
   await ui.waitForVisible('.git-progress', 10_000);
   const commitDomConfirmed = await confirmWorkbenchDialog(page, ui, 'Commit');
   const commitBrowserDialog = confirmationDialogs.find((message) => /commit/i.test(message));
@@ -710,9 +777,9 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   }
   await ui.waitForHidden('.git-progress', 30_000);
   const commitSubject = await waitForGitState(repoPath, ['log', '-1', '--format=%s'], (output) => output.includes(`GUI validation ${runId}`), 'The staged changes appear in the committed Git history.');
+  await checkIdle?.('commit');
 
-  await ui.click('.git-actions-menu summary');
-  await ui.click('.git-actions-popup button', 2);
+  await ui.click('.git-push');
   await ui.waitForVisible('.git-dialog');
   const pushForm = await ui.evaluate(`Object.fromEntries(new FormData(document.querySelector('.git-dialog')).entries())`);
   await ui.click('.git-dialog button[type="submit"]');
@@ -737,7 +804,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await ui.waitForHidden('.git-progress', 30_000);
   const upstream = await waitForGitState(repoPath, ['rev-parse', '--abbrev-ref', '@{upstream}'], (output) => output.includes(`origin/${branch}`), 'The Push action set the upstream to the matching remote branch.');
 
-  await ui.click('.git-tabbar button[role="tab"]', 1);
+  await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
   await ui.waitForVisible('.git-commit-list');
   await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(`GUI validation ${runId}`)})`, 10_000, 'The Git GUI history did not show the new commit.');
   const commits = await ui.count('.git-commit-row');
@@ -752,12 +819,13 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
 async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: string, promptRace: { beforeForcePush?: () => void }, playwrightWebview: Frame): Promise<Record<string, unknown>> {
   const runGit = (args: string[], cwd = repoPath) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   const openMenuAction = async (index: number): Promise<void> => {
-    const alreadyOpen = await ui.evaluate<boolean>(`document.querySelector('.git-actions-menu')?.open === true`);
-    if (!alreadyOpen) {
-      await ui.click('.git-actions-menu summary');
-      await ui.waitUntil(`document.querySelector('.git-actions-menu')?.open === true`, 5_000, 'The Git GUI advanced action menu did not open.');
+    const direct = [".git-fetch", ".git-pull", ".git-push", "", "", ".git-stash"][index];
+    if (direct) await ui.click(direct);
+    else {
+      if (!await ui.evaluate<boolean>(`document.querySelector('.git-actions-menu')?.open === true`)) await ui.click('.git-actions-menu summary');
+      const menuIndex = ({ 3: 0, 4: 1, 6: 2, 7: 3, 8: 4 } as Record<number, number>)[index];
+      await ui.click('.git-actions-menu .git-actions-popup button', menuIndex);
     }
-    await ui.click('.git-actions-popup button', index);
     await ui.waitForVisible('.git-dialog', 5_000);
   };
   const submitGuiAction = async (): Promise<void> => {
@@ -773,7 +841,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
       'The Git GUI did not refresh after preparing the isolated Repo change.');
   };
 
-  await ui.click('.git-tabbar button[role="tab"]', 0);
+  await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
   const stashA = `GUI stash A ${runId}`;
   const stashB = `GUI stash B ${runId}`;
   await appendMarker(stashA);
@@ -885,7 +953,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   assert.ok(runGit(['rev-parse', '--git-path', 'rebase-merge']), 'The native Git repository records the expected paused Rebase operation.');
   const actionsMenuOpen = await ui.evaluate<boolean>(`document.querySelector('.git-actions-menu')?.open === true`);
   if (!actionsMenuOpen) await ui.click('.git-actions-menu summary');
-  const continued = await ui.evaluate<boolean>(`(() => { const button = [...document.querySelectorAll('.git-actions-popup button')].find((item) => item.textContent?.includes('繼續')); if (!button) return false; button.click(); return true; })()`);
+  const continued = await ui.evaluate<boolean>(`(() => { const button = [...document.querySelectorAll('.git-operation-actions button')].find((item) => item.textContent?.includes('繼續')); if (!button) return false; button.click(); return true; })()`);
   assert.ok(continued, 'The Git GUI exposes Continue for the edit pause.');
   await waitForGitUiAction(ui);
   await ui.waitUntil('!document.querySelector(".git-operation-banner")', 20_000,
@@ -897,7 +965,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   assert.ok(!rebasedSubjects.some((subject) => subject.includes('GUI rebase 6 ')), 'Drop omits the selected commit from the resulting history.');
   assert.equal(runGit(['branch', '--show-current']), rebaseBranch, 'Interactive Rebase keeps the original feature branch checked out.');
 
-  await ui.click('.git-tabbar button[role="tab"]', 0);
+  await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
   const amendFile = `gui-amend-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
   const amendMessage = `GUI amend ${runId}`;
   const headBeforeAmend = runGit(['rev-parse', 'HEAD']);
@@ -911,12 +979,9 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   await ui.click('.git-change-section .git-change-row button.quiet.small', amendRow);
   await waitForGitUiAction(ui);
   assert.match(runGit(['diff', '--cached', '--name-only']), new RegExp(amendFile), 'The Amend fixture is staged through the Git GUI.');
-  await ui.click('.git-tabbar button.quiet');
-  await ui.waitForVisible('.git-dialog textarea[name="message"]');
-  await ui.fill('.git-dialog textarea[name="message"]', amendMessage);
-  assert.equal(await ui.evaluate<boolean>(`document.querySelector('.git-dialog input[name="amend"]')?.checked === true`), true,
-    'The Amend checkbox is selected in the real Webview form.');
-  await submitGuiAction();
+  await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(amendMessage);
+  await ui.click('.git-amend');
+  await waitForGitUiAction(ui);
   const amendedHead = runGit(['rev-parse', 'HEAD']);
   assert.notEqual(amendedHead, headBeforeAmend, 'Amend replaces the current commit SHA.');
   assert.equal(runGit(['rev-parse', 'HEAD^']), parentBeforeAmend, 'Amend preserves the replaced commit parent.');
@@ -970,10 +1035,10 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   assert.ok(readFileSync(path.join(repoPath, localMergeFile), 'utf8').includes(rebaseBranch), 'The GUI Merge preserves the current branch file.');
   const mergeSubject = runGit(['log', '-1', '--format=%s']);
 
-  await ui.click('.git-tabbar button[role="tab"]', 1);
+  await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
   await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(mergeSubject)})`, 10_000,
     'The Git GUI history displays the merge commit.');
-  await ui.click('.git-commit-row', 0);
+  await ui.click('.git-commit-row:not(.git-wip-row)', 0);
   await ui.waitForVisible('.git-commit-detail select');
   await playwrightWebview.locator('.git-commit-detail select').selectOption(mergeParents[1]);
   assert.equal(await ui.evaluate<string>(`document.querySelector('.git-commit-detail select')?.value ?? ''`), mergeParents[1],
@@ -985,7 +1050,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   assert.ok(mergeDiffIndex >= 0, 'The selected merge parent exposes a file list for Diff review.');
   await ui.click('.git-commit-files button', mergeDiffIndex);
   try {
-    await ui.waitUntil(`(() => { const preview = document.querySelector('.git-commit-diff-preview'); return preview?.querySelector('h4')?.textContent?.includes(${JSON.stringify(mergeDiffFile)}) && preview.textContent?.includes('Parent 2') && preview.querySelector('.git-diff-view')?.textContent?.includes(${JSON.stringify(`Created on ${rebaseBranch}`)}); })()`, 10_000,
+    await ui.waitUntil(`(() => { const preview = document.querySelector('.git-diff-panel'); return preview?.querySelector('.git-diff-heading strong')?.textContent?.includes(${JSON.stringify(mergeDiffFile)}) && preview.textContent?.includes('Parent 2') && preview.querySelector('.git-diff-view')?.textContent?.includes(${JSON.stringify(`Created on ${rebaseBranch}`)}); })()`, 10_000,
       'The Git GUI opens a file Diff under the selected Merge Parent.');
   } catch (error) {
     const diffUi = await ui.evaluate(`(() => ({
@@ -1006,14 +1071,14 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   runGit(['add', '--', pickFile]);
   runGit(['commit', '-m', pickMessage]);
   const pickSourceHead = runGit(['rev-parse', 'HEAD']);
-  await ui.click('.git-tabbar button[role="tab"]', 0);
-  await ui.click('.git-tabbar button[role="tab"]', 1);
+  await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+  await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
   const selectHistoryCommit = async (): Promise<void> => {
-    await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.textContent?.includes(${JSON.stringify(pickMessage)})))`, 10_000,
+    await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.title?.endsWith('\\n' + ${JSON.stringify(pickSourceHead)})))`, 10_000,
       'The Git GUI history exposes the selected Cherry-pick/Revert source commit.');
-    const clicked = await ui.evaluate<boolean>(`(() => { const row = [...document.querySelectorAll('.git-commit-row')].find((item) => item.textContent?.includes(${JSON.stringify(pickMessage)})); if (!row) return false; row.click(); return true; })()`);
+    const clicked = await ui.evaluate<boolean>(`(() => { const row = [...document.querySelectorAll('.git-commit-row')].find((item) => item.title?.endsWith('\\n' + ${JSON.stringify(pickSourceHead)})); if (!row) return false; row.click(); return true; })()`);
     assert.ok(clicked, 'The source commit is selected from the actual Git GUI history list.');
-    await ui.waitUntil(`document.querySelector('.git-commit-detail')?.textContent?.includes(${JSON.stringify(pickMessage)})`, 10_000,
+    await ui.waitUntil(`document.querySelector('.git-commit-detail > code')?.textContent === ${JSON.stringify(pickSourceHead)}`, 10_000,
       'The Git GUI loads the selected commit detail.');
   };
 

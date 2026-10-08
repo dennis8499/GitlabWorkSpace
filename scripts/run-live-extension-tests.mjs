@@ -11,9 +11,10 @@ import { sameFilesystemPath } from './live-test-paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = path.join(ROOT, '.gitlab-workspace-validation');
-const EVIDENCE = path.join(ROOT, 'docs', 'work', 'work-20261006-live-validation', 'evidence');
+const EVIDENCE = path.join(ROOT, 'docs', 'work', process.argv.includes('--local-git-gui') ? 'work-20261008-git-gui' : 'work-20261006-live-validation', 'evidence');
 const TEST_PROFILE_ROOT = path.join(tmpdir(), 'gitlab-workspace-vscode-test');
 const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+let validatedVSCodeVersion;
 const ENVS = {
   ce19: { url: 'http://127.0.0.1:8929', tokenName: 'GLW_CE19_TOKEN', group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9341 },
   ce16: { url: 'http://127.0.0.1:8930', tokenName: 'GLW_CE16_TOKEN', group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9342 }
@@ -42,7 +43,11 @@ function verifyVsCodeExecutable() {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true,
     env: { ...process.env, GLW_VSCODE_VERSION_PATH: executable }
   }).trim().split(/\r?\n/)[0];
-  if (actual !== '1.140.0') throw new Error(`Live Extension Host tests require VS Code 1.140.0; found ${actual}.`);
+  if (process.argv.includes('--local-git-gui')) {
+    const version = /^(\d+)\.(\d+)\.\d+$/.exec(actual);
+    if (!version || Number(version[1]) < 1 || Number(version[1]) === 1 && Number(version[2]) < 90) throw new Error(`Local Git GUI tests require VS Code 1.90 or newer; found ${actual || 'no readable installation'}. Set VSCODE_EXECUTABLE_PATH to Code.exe.`);
+  } else if (actual !== '1.140.0') throw new Error(`Live Extension Host tests require VS Code 1.140.0; found ${actual}.`);
+  validatedVSCodeVersion = actual;
   return executable;
 }
 
@@ -280,8 +285,10 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
   const profileId = `local-git-gui-${process.pid}-${Date.now()}`;
   const userData = path.join(TEST_PROFILE_ROOT, `live-${profileId}`);
   const extensions = path.join(TEST_PROFILE_ROOT, `extensions-${profileId}`);
+  const logs = path.join(userData, 'logs');
   const port = await freePort(9343);
   const reportFile = path.join(EVIDENCE, nativeConfirmation ? 'git-gui-local-native.json' : 'git-gui-local.json');
+  rmSync(reportFile, { force: true });
   mkdirSync(userData, { recursive: true });
   mkdirSync(extensions, { recursive: true });
   const settingsDirectory = path.join(userData, 'User');
@@ -291,6 +298,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
     'git.autoRepositoryDetection': true,
     'git.openRepositoryInParentFolders': 'never',
     'git.useIntegratedAskPass': false,
+    'git.autofetch': false,
     'extensions.autoCheckUpdates': false,
     'update.mode': 'none'
   }, null, 2));
@@ -300,6 +308,8 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
     GLW_LOCAL_GIT_GUI: '1',
     GLW_LOCAL_GIT_GUI_NATIVE_CONFIRM: nativeConfirmation ? '1' : undefined,
     GLW_LOCAL_GIT_GUI_REPORT: reportFile,
+    GLW_LOCAL_GIT_GUI_LOG_ROOT: logs,
+    GLW_LOCAL_VSCODE_EXPECTED_VERSION: validatedVSCodeVersion,
     GLW_LIVE_WORKSPACE_ROOT: fixture.repository,
     GLW_LIVE_CDP_PORT: String(port),
     GLW_LIVE_EXPECTED_VERSION: PACKAGE.version,
@@ -311,14 +321,14 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
     vscodeExecutablePath: executable,
     extensionDevelopmentPath: packageInfo.extensionPath,
     extensionTestsPath: path.join(ROOT, 'scripts', 'live-extension-test-entry.cjs'),
-    launchArgs: [fixture.repository, `--user-data-dir=${userData}`, `--extensions-dir=${extensions}`, `--remote-debugging-port=${port}`, '--skip-welcome', '--skip-release-notes'],
+    launchArgs: [fixture.repository, `--user-data-dir=${userData}`, `--extensions-dir=${extensions}`, `--logsPath=${logs}`, `--remote-debugging-port=${port}`, '--skip-welcome', '--skip-release-notes'],
     extensionTestsEnv: env
   });
   let result;
   try {
     const [cold] = await Promise.all([waitForCdp(port), launch]);
     const report = readTestReport(reportFile);
-    result = { ...report, sourceRepository: 'isolated generated Git seed', isolatedRemote: 'local bare Repo', coldStartMs: cold.startedMs };
+    result = { ...report, vscodeVersion: validatedVSCodeVersion, sourceRepository: 'isolated generated Git seed', isolatedRemote: 'local bare Repo', coldStartMs: cold.startedMs };
   } catch (error) {
     let recorded;
     try { recorded = JSON.parse(readFileSync(reportFile, 'utf8')); } catch { recorded = undefined; }

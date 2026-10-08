@@ -21,7 +21,7 @@
 - VS Code 側欄整合「我的工作、專案、分析、待審查、版控、後臺管理」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
 - 後臺管理可篩選、查看及匯出本機操作 Log；預設保留 30 天、最多 50 MB。
-- 在獨立的 Git GUI 管理所有 VS Code 已偵測的本機 Repo；檔案、部分行暫存、Commit／Amend、分支、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset 均由按鈕、選單和表單操作。
+- Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset，並合併背景更新、共用讀取快取，避免 Git 狀態通知造成指令迴圈。
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。

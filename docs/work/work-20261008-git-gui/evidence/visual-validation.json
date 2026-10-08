@@ -1,0 +1,42 @@
+{
+  "schema": "GitLabWorkspaceGitGuiVisualEvidence/v1",
+  "generatedAt": "2026-10-08T04:07:12.512Z",
+  "status": "PASS",
+  "source": "production Webview bundle with an isolated deterministic message bridge",
+  "browser": "Microsoft Edge headless via Playwright",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "documentWidth": 1440,
+      "leftWidth": 220,
+      "rightWidth": 320
+    },
+    {
+      "width": 600,
+      "height": 800,
+      "documentWidth": 600
+    }
+  ],
+  "themes": [
+    "dark",
+    "vscode-light",
+    "vscode-high-contrast"
+  ],
+  "scenes": [
+    "commit graph with a two-parent merge and WIP-to-HEAD connection",
+    "working tree Diff",
+    "narrow graph",
+    "narrow changes drawer"
+  ],
+  "consoleErrors": [],
+  "screenshots": [
+    "screenshots/git-graph-dark.png",
+    "screenshots/git-diff-dark.png",
+    "screenshots/git-graph-light.png",
+    "screenshots/git-graph-high-contrast.png",
+    "screenshots/git-narrow-graph.png",
+    "screenshots/git-narrow-changes.png"
+  ],
+  "review": "Rendered screenshots inspected; text and controls readable; no outer horizontal overflow."
+}

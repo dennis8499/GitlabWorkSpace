@@ -1,0 +1,736 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-08T05:10:27.135Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.141.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "057fc01b0a588909b488c46729e2531e8d33233313be8d18853ac918024086be"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "status": "PASS",
+  "gitDiscoveryMs": 1491.63,
+  "initialGitState": {
+    "repositories": [
+      {
+        "id": "7007b25cd2abeff3d6d83ef0a6da2731",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service",
+        "branch": "main",
+        "stagedCount": 0,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "branches": [
+          {
+            "name": "main",
+            "kind": "local",
+            "current": true,
+            "commit": "8c6f5847549414914ab1eace9889c513fd728437"
+          },
+          {
+            "name": "origin/main",
+            "kind": "remote",
+            "current": false,
+            "commit": "8c6f5847549414914ab1eace9889c513fd728437"
+          }
+        ],
+        "stashes": [],
+        "recoveryRefs": []
+      }
+    ],
+    "available": true,
+    "revision": 4
+  },
+  "remoteBranchNames": [
+    "origin/main"
+  ],
+  "interactiveConfirmationUI": "BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.",
+  "warningPrompts": [
+    {
+      "message": "Commit 已暫存的變更 至 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service？\n暫存檔案：\nservice.ts",
+      "modal": true,
+      "items": [
+        "Commit"
+      ],
+      "result": "Commit"
+    },
+    {
+      "message": "Push a18f25ff07df 至 origin:validation/local-git-gui-1791435885506/muz2pocx（建立新遠端分支）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n8c6f584 Add minimal validation fixture\na18f25f GUI validation local-git-gui-1791435885506",
+      "modal": true,
+      "items": [
+        "Push"
+      ],
+      "result": "Push"
+    },
+    {
+      "message": "刪除 Stash stash@{0} · On validation/local-git-gui-1791435885506/muz2pocx: GUI stash A local-git-gui-1791435885506？",
+      "modal": true,
+      "items": [
+        "刪除 Stash"
+      ],
+      "result": "刪除 Stash"
+    },
+    {
+      "message": "將變更 service.ts 存入復原 Stash，並還原目前檔案？",
+      "modal": true,
+      "items": [
+        "備份並還原"
+      ],
+      "result": "備份並還原"
+    },
+    {
+      "message": "從 origin/main 更新 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n遠端目標：8a5d75d0f478\n整合方式：Merge",
+      "modal": true,
+      "items": [
+        "Pull"
+      ],
+      "result": "Pull"
+    },
+    {
+      "message": "將 validation/local-git-gui-1791435885506/muz2pocx Rebase 到 validation/rebase-base-local-git-gui-1791435885506。新的提交 SHA 會取代原提交（目前 HEAD：1d0ef0002fe3）。",
+      "modal": true,
+      "items": [
+        "開始互動式 Rebase"
+      ],
+      "result": "開始互動式 Rebase"
+    },
+    {
+      "message": "Amend 最近一次 Commit 至 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service？\n原提交：80aa27a88843\n這會改寫目前分支歷史。\n暫存檔案：\ngui-amend-local-git-gui-1791435885506.txt",
+      "modal": true,
+      "items": [
+        "Amend Commit"
+      ],
+      "result": "Amend Commit"
+    },
+    {
+      "message": "Force Push b0e33aea3a4c 至 origin:validation/local-git-gui-1791435885506/muz2pocx（遠端目前 a18f25ff07df）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n8a5d75d Prepare remote Pull local-git-gui-1791435885506\n9d286dc Merge remote-tracking branch 'refs/remotes/origin/main' into validation/local-git-gui-1791435885506/muz2pocx\n950b101 GUI rebase 1 local-git-gui-1791435885506\ne705f6c GUI rebase reworded local-git-gui-1791435885506\nb0e33ae GUI amend local-git-gui-1791435885506\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+      "modal": true,
+      "items": [
+        "Force Push"
+      ],
+      "result": "Force Push"
+    },
+    {
+      "message": "Force Push b0e33aea3a4c 至 origin:validation/local-git-gui-1791435885506/muz2pocx（遠端目前 b0e33aea3a4c）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n沒有新提交。\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+      "modal": true,
+      "items": [
+        "Force Push"
+      ],
+      "result": "Force Push"
+    },
+    {
+      "message": "Revert 提交 bf91fe3461f1？",
+      "modal": true,
+      "items": [
+        "Revert"
+      ],
+      "result": "Revert"
+    },
+    {
+      "message": "Cherry-pick bf91fe3461f1 到目前分支？",
+      "modal": true,
+      "items": [
+        "Cherry-pick"
+      ],
+      "result": "Cherry-pick"
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "branch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "branch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashApply"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashApply"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "discard"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "discard"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "fetch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "fetch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "pull"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "pull"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "rebasePreview"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "rebase"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "rebase"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "continue"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "continue"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push"
+    },
+    {
+      "phase": "error",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "push",
+      "error": "Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "merge"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "merge"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "revert"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "revert"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "cherryPick"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "cherryPick"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ce52dbda9e15bba8843d1ec56059dd83",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ce52dbda9e15bba8843d1ec56059dd83",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ce52dbda9e15bba8843d1ec56059dd83",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ce52dbda9e15bba8843d1ec56059dd83",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ce52dbda9e15bba8843d1ec56059dd83",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "7007b25cd2abeff3d6d83ef0a6da2731",
+      "action": "open"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60008,
+      "before": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "after": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 40,
+        "after": 40,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60007,
+      "before": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "after": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 81,
+        "after": 81,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60011,
+      "before": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 16
+      },
+      "after": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 16
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 121,
+        "after": 121,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "commit",
+      "idleMs": 62358,
+      "before": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 20
+      },
+      "after": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 20
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 143,
+        "after": 143,
+        "backgroundDelta": 0
+      }
+    }
+  ],
+  "compatibility": {
+    "tags": "PASS",
+    "detachedHead": "PASS",
+    "emptyRepo": "PASS",
+    "rapidRepoSwitching": "PASS"
+  },
+  "gitGui": {
+    "branch": "validation/local-git-gui-1791435885506/muz2pocx",
+    "previousBranch": "main",
+    "stagedPartialLines": 1,
+    "stagedWholeFileLines": 2,
+    "indexAfterPartial": "1\t0\tservice.ts",
+    "indexAfterWholeFile": "2\t0\tservice.ts",
+    "commitMessage": "GUI validation local-git-gui-1791435885506",
+    "committed": true,
+    "commitConfirmation": "test-adapter",
+    "pushConfirmation": "test-adapter",
+    "upstream": "origin/validation/local-git-gui-1791435885506/muz2pocx",
+    "pushedWithUpstream": true,
+    "historyRows": 3,
+    "warningPrompts": [
+      {
+        "message": "Commit 已暫存的變更 至 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service？\n暫存檔案：\nservice.ts",
+        "modal": true,
+        "items": [
+          "Commit"
+        ],
+        "result": "Commit"
+      },
+      {
+        "message": "Push a18f25ff07df 至 origin:validation/local-git-gui-1791435885506/muz2pocx（建立新遠端分支）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n8c6f584 Add minimal validation fixture\na18f25f GUI validation local-git-gui-1791435885506",
+        "modal": true,
+        "items": [
+          "Push"
+        ],
+        "result": "Push"
+      },
+      {
+        "message": "刪除 Stash stash@{0} · On validation/local-git-gui-1791435885506/muz2pocx: GUI stash A local-git-gui-1791435885506？",
+        "modal": true,
+        "items": [
+          "刪除 Stash"
+        ],
+        "result": "刪除 Stash"
+      },
+      {
+        "message": "將變更 service.ts 存入復原 Stash，並還原目前檔案？",
+        "modal": true,
+        "items": [
+          "備份並還原"
+        ],
+        "result": "備份並還原"
+      },
+      {
+        "message": "從 origin/main 更新 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n遠端目標：8a5d75d0f478\n整合方式：Merge",
+        "modal": true,
+        "items": [
+          "Pull"
+        ],
+        "result": "Pull"
+      },
+      {
+        "message": "將 validation/local-git-gui-1791435885506/muz2pocx Rebase 到 validation/rebase-base-local-git-gui-1791435885506。新的提交 SHA 會取代原提交（目前 HEAD：1d0ef0002fe3）。",
+        "modal": true,
+        "items": [
+          "開始互動式 Rebase"
+        ],
+        "result": "開始互動式 Rebase"
+      },
+      {
+        "message": "Amend 最近一次 Commit 至 c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service？\n原提交：80aa27a88843\n這會改寫目前分支歷史。\n暫存檔案：\ngui-amend-local-git-gui-1791435885506.txt",
+        "modal": true,
+        "items": [
+          "Amend Commit"
+        ],
+        "result": "Amend Commit"
+      },
+      {
+        "message": "Force Push b0e33aea3a4c 至 origin:validation/local-git-gui-1791435885506/muz2pocx（遠端目前 a18f25ff07df）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n8a5d75d Prepare remote Pull local-git-gui-1791435885506\n9d286dc Merge remote-tracking branch 'refs/remotes/origin/main' into validation/local-git-gui-1791435885506/muz2pocx\n950b101 GUI rebase 1 local-git-gui-1791435885506\ne705f6c GUI rebase reworded local-git-gui-1791435885506\nb0e33ae GUI amend local-git-gui-1791435885506\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+        "modal": true,
+        "items": [
+          "Force Push"
+        ],
+        "result": "Force Push"
+      },
+      {
+        "message": "Force Push b0e33aea3a4c 至 origin:validation/local-git-gui-1791435885506/muz2pocx（遠端目前 b0e33aea3a4c）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791435884567-9368\\demo\\service\n將傳送的提交：\n沒有新提交。\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+        "modal": true,
+        "items": [
+          "Force Push"
+        ],
+        "result": "Force Push"
+      },
+      {
+        "message": "Revert 提交 bf91fe3461f1？",
+        "modal": true,
+        "items": [
+          "Revert"
+        ],
+        "result": "Revert"
+      },
+      {
+        "message": "Cherry-pick bf91fe3461f1 到目前分支？",
+        "modal": true,
+        "items": [
+          "Cherry-pick"
+        ],
+        "result": "Cherry-pick"
+      }
+    ],
+    "confirmationDialogs": [],
+    "advancedActions": {
+      "stashA": "On validation/local-git-gui-1791435885506/muz2pocx: GUI stash A local-git-gui-1791435885506",
+      "stashPopLeavesOlderEntry": "On validation/local-git-gui-1791435885506/muz2pocx: GUI stash A local-git-gui-1791435885506",
+      "stashDropAndDiscardRecovery": "On validation/local-git-gui-1791435885506/muz2pocx: GitLab Workspace 復原點 2026-10-08T05:09:32.160Z",
+      "fetchRemoteMain": "8a5d75d0f4789ff936f2fab83cd3e9cd7743bf67",
+      "pulledRemoteFile": "remote-fetch-local-git-gui-1791435885506.txt",
+      "pullMergeHead": "8261bf6e66d3b8ee3eaaf1d8aa4fb3f4b67b8f33 8d144759e9e0fbbf4f267c32b8c0cdbe74877634 GUI pick target local-git-gui-1791435885506",
+      "interactiveRebase": {
+        "actions": [
+          "pick",
+          "reword",
+          "edit",
+          "squash",
+          "fixup",
+          "drop"
+        ],
+        "pauseAndContinue": true,
+        "resultingSubjects": [
+          "GUI rebase squashed local-git-gui-1791435885506",
+          "GUI rebase reworded local-git-gui-1791435885506",
+          "GUI rebase 1 local-git-gui-1791435885506"
+        ]
+      },
+      "amend": {
+        "previousHead": "80aa27a88843a6c57b699a76bcf19b12999fe94f",
+        "newHead": "b0e33aea3a4c540b87bc075de3f5e5d12f8ff2c9",
+        "message": "GUI amend local-git-gui-1791435885506",
+        "parent": "e705f6cff38c7b878203f9c85ff27dacf90a6ae0"
+      },
+      "forceWithLease": {
+        "pushedSha": "b0e33aea3a4c540b87bc075de3f5e5d12f8ff2c9",
+        "raceCommit": "a20901ff1393110edde5888cfc2371a7cba87a45",
+        "rejectedRaceMessage": "Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。關閉"
+      },
+      "merge": {
+        "branch": "validation/merge-source-local-git-gui-1791435885506",
+        "head": "96bfe69743ba189008341ae2e1ee2b804798c13c",
+        "parents": [
+          "a4906273bdd2f5859089879ffc2981a87131c17e",
+          "a9360c2f1253b383a8eb71175aacd08d618620c5"
+        ],
+        "parentDiff": {
+          "selectedParent": "a9360c2f1253b383a8eb71175aacd08d618620c5",
+          "file": "gui-merge-local-local-git-gui-1791435885506.txt"
+        }
+      },
+      "revertAndCherryPick": {
+        "sourceCommit": "bf91fe3461f11635bb1d778bdefddbdd1b8f11de",
+        "file": "gui-pick-local-git-gui-1791435885506.txt",
+        "revertAndReplay": true
+      }
+    }
+  },
+  "sourceRepository": "isolated generated Git seed",
+  "isolatedRemote": "local bare Repo",
+  "coldStartMs": 341.11
+}

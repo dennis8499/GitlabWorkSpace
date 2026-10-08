@@ -1,0 +1,154 @@
+{
+  "schema": "GitLabWorkspaceGitGuiVerification/v1",
+  "generatedAt": "2026-10-08T05:15:38.204Z",
+  "status": "PASS",
+  "artifact": {
+    "file": "dist/gitlab-workspace-0.13.2.vsix",
+    "bytes": 5060388,
+    "sha256": "057fc01b0a588909b488c46729e2531e8d33233313be8d18853ac918024086be",
+    "testedArtifactMatchesDeliveredArtifact": true
+  },
+  "npmTest": {
+    "command": "npm.cmd test",
+    "exitCode": 0,
+    "evidence": "npm-test.json"
+  },
+  "localGitGui": {
+    "entrypoint": "scripts/run-live-extension-tests.mjs --local-git-gui",
+    "command": "node.exe scripts/run-live-extension-tests.mjs --local-git-gui",
+    "exitCode": 0,
+    "npmWrapperExecuted": true,
+    "packaging": "The final npm test packaged and verified this VSIX; its immutable artifact was tested with the same local GUI runner while release tests continued.",
+    "evidence": "git-gui-local.json",
+    "compatibility": {
+      "tags": "PASS",
+      "detachedHead": "PASS",
+      "emptyRepo": "PASS",
+      "rapidRepoSwitching": "PASS"
+    },
+    "confirmationUI": "BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable."
+  },
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60008,
+      "before": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "after": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 40,
+        "after": 40,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60007,
+      "before": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "after": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 81,
+        "after": 81,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60011,
+      "before": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 16
+      },
+      "after": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 16
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 121,
+        "after": 121,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "commit",
+      "idleMs": 62358,
+      "before": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 20
+      },
+      "after": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 20
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 143,
+        "after": 143,
+        "backgroundDelta": 0
+      }
+    }
+  ],
+  "visual": {
+    "status": "PASS",
+    "evidence": "visual-validation.json"
+  },
+  "limitations": [
+    "Native confirmation dialogs used the Extension Host test adapter; their layout was not validated.",
+    "Remote operations used an isolated generated local bare repository; live GitLab environments were not part of this validation."
+  ],
+  "packageVerification": {
+    "exitCode": 0,
+    "command": "npm.cmd run verify:package"
+  },
+  "cleanup": {
+    "isolatedProfilesAndFixtures": "PASS",
+    "isolatedCodeCache": "removed",
+    "visualPreview": "closed"
+  }
+}

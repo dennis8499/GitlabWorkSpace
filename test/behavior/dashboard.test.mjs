@@ -7,6 +7,179 @@ const html = await readFile(new URL('../../resources/issue-webview/dashboard.htm
 const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+const gitHead = 'a'.repeat(40), gitParent = 'b'.repeat(40), gitSide = 'c'.repeat(40);
+function gitSnapshot(id = 'repo-a', patch = {}) {
+  return {
+    id, name: id === 'repo-a' ? 'service' : 'tools', path: `C:/workspace/${id}`, branch: 'main', headCommit: gitHead,
+    tracking: 'origin/main', ahead: 1, behind: 0, stagedCount: 1, unstagedCount: 1, conflictCount: 0,
+    branches: [{ name: 'main', kind: 'local', current: true, commit: gitHead }, { name: 'feature', kind: 'local', current: false, commit: gitSide }, { name: 'origin/main', kind: 'remote', current: false, commit: gitParent }],
+    stashes: [], recoveryRefs: [], remotes: ['origin'],
+    changes: [{ path: 'service.ts', section: 'unstaged', kind: '已修改' }, { path: 'service.ts', section: 'staged', kind: '已修改' }],
+    history: [{ hash: gitHead, parents: [gitParent, gitSide], subject: 'Merge feature', author: 'Dennis', date: '2026-10-08T00:00:00Z' }, { hash: gitSide, parents: [gitParent], subject: 'Add feature', author: 'Tester', date: '2026-10-07T00:00:00Z' }, { hash: gitParent, parents: [], subject: 'Initial commit', author: 'Dennis', date: '2026-10-06T00:00:00Z' }],
+    historyHasMore: false, configuredPullStrategy: 'merge', revision: 1, ...patch
+  };
+}
+async function mountGit(t, storage = {}, data = gitSnapshot()) {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), storage);
+  t.after(() => view.dom.window.close());
+  for (let attempt = 0; attempt < 40 && !view.requests.some((request) => request.type === 'gitReady'); attempt++) await view.tick();
+  assert.ok(view.requests.some((request) => request.type === 'gitReady'));
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [data, gitSnapshot('repo-b')] });
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  const open = view.requests.findLast((request) => request.type === 'gitAction' && request.action.type === 'open');
+  assert.ok(open);
+  view.send({ type: 'gitSnapshot', requestId: open.requestId, snapshot: data });
+  view.send({ type: 'gitActionResult', requestId: open.requestId });
+  await view.tick();
+  return view;
+}
+function gitActions(view, type) { return view.requests.filter((request) => request.type === 'gitAction' && (!type || request.action.type === type)); }
+async function finishGit(view, request, patch = {}) {
+  view.send({ type: 'gitSnapshot', requestId: request.requestId, snapshot: gitSnapshot(request.repoId, patch) });
+  view.send({ type: 'gitActionResult', requestId: request.requestId, commitCompleted: patch.commitCompleted });
+  await view.tick();
+}
+
+test('Git refs read commit details; historical files open central Diff and merge parents remain explicit', async (t) => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('.git-ref-name')].find((button) => button.textContent.includes('feature')).click();
+  await view.tick();
+  assert.equal(gitActions(view).at(-1).action.type, 'readCommit');
+  assert.equal(gitActions(view, 'checkout').length, 0);
+  const selected = gitSnapshot().history[1];
+  await finishGit(view, gitActions(view).at(-1), { revision: 2, selectedCommit: selected, selectedCommitParent: gitParent, commitFiles: ['service.ts'] });
+  assert.ok(document.querySelector('.git-commit-list'));
+  document.querySelector('.git-commit-files button').click();
+  await view.tick();
+  const diffRequest = gitActions(view, 'readDiff').at(-1);
+  assert.equal(diffRequest.action.ref, gitSide);
+  await finishGit(view, diffRequest, { revision: 3, selectedCommit: selected, selectedCommitParent: gitParent, commitFiles: ['service.ts'], diffPath: 'service.ts', diffStaged: false, diffRef: gitSide, diffParent: gitParent, diffText: 'diff --git a/service.ts b/service.ts\n+feature' });
+  assert.ok(document.querySelector('.git-center .git-diff-view'));
+  assert.equal(document.querySelector('.git-commit-list'), null);
+  assert.equal(document.querySelectorAll('.git-diff-line input').length, 0, 'historical Diff cannot be staged');
+  document.querySelector('.git-back-graph').click(); await view.tick();
+  document.querySelector('.git-commit-row:not(.git-wip-row)').click(); await view.tick();
+  await finishGit(view, gitActions(view, 'readCommit').at(-1), { revision: 4, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'] });
+  const parent = document.querySelector('select[aria-label="比較 Parent"]');
+  parent.value = gitSide; parent.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.equal(gitActions(view, 'readCommit').at(-1).action.parent, gitSide);
+  assert.equal(parent.value, gitSide, 'the chosen Parent stays visible while its comparison loads');
+  assert.equal(document.querySelectorAll('.git-commit-files button').length, 0, 'stale comparison files cannot be selected');
+  await finishGit(view, gitActions(view, 'readCommit').at(-1), { revision: 5, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitSide, commitFiles: ['README.md'] });
+  assert.equal(document.querySelector('.git-commit-files button').title, 'README.md');
+  const search = document.querySelector('.git-graph-search input');
+  search.value = 'feature'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelectorAll('.git-commit-row').length, 4, 'search keeps the full topology');
+  assert.equal(document.querySelectorAll('.search-hit').length, 2);
+});
+
+test('Git repeated selection shares reads, staged/unstaged paths differ, and stale replies cannot replace the latest selection', async (t) => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  for (let i = 0; i < 20; i++) document.querySelectorAll('.git-change-name')[0].click();
+  await view.tick();
+  assert.equal(gitActions(view, 'readDiff').length, 1);
+  const first = gitActions(view, 'readDiff').at(-1);
+  document.querySelectorAll('.git-change-name')[1].click(); await view.tick();
+  const second = gitActions(view, 'readDiff').at(-1);
+  assert.equal(second.action.staged, true);
+  await finishGit(view, first, { revision: 2, diffPath: 'service.ts', diffStaged: false, diffText: '+obsolete' });
+  assert.doesNotMatch(document.querySelector('.git-center').textContent, /obsolete/);
+  await finishGit(view, second, { revision: 3, diffPath: 'service.ts', diffStaged: true, diffText: '+current' });
+  assert.match(document.querySelector('.git-diff-view').textContent, /current/);
+  for (let i = 0; i < 20; i++) document.querySelectorAll('.git-change-name')[1].click();
+  await view.tick();
+  assert.equal(gitActions(view, 'readDiff').length, 2, 'resolved same selection also uses its result');
+  document.querySelector('.git-back-graph').click(); await view.tick();
+  const commits = document.querySelectorAll('.git-commit-row:not(.git-wip-row)');
+  commits[0].click(); await view.tick();
+  const original = gitActions(view, 'readCommit').at(-1);
+  commits[1].click(); await view.tick();
+  const obsolete = gitActions(view, 'readCommit').at(-1);
+  commits[0].click(); await view.tick();
+  const current = gitActions(view, 'readCommit').at(-1);
+  assert.notEqual(current.requestId, original.requestId, 'returning to a pending selection reclaims the shared read');
+  await finishGit(view, original, { revision: 4, selectedCommit: gitSnapshot().history[0], commitFiles: [] });
+  await finishGit(view, obsolete, { revision: 5, selectedCommit: gitSnapshot().history[1], commitFiles: [] });
+  assert.equal(document.querySelector('.git-detail-subject'), null);
+  await finishGit(view, current, { revision: 6, selectedCommit: gitSnapshot().history[0], commitFiles: ['service.ts'] });
+  assert.match(document.querySelector('.git-detail-subject').textContent, /Merge feature/);
+});
+
+test('Git Repo reopening sends a fresh request after switching away from a pending open', async (t) => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  const picker = document.querySelector('.git-repo-picker select');
+  const select = async (id) => { picker.value = id; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick(); };
+  await select('repo-b');
+  const cancelled = gitActions(view, 'open').at(-1);
+  await select('repo-a'); await select('repo-b');
+  const reopened = gitActions(view, 'open').filter((request) => request.repoId === 'repo-b').at(-1);
+  assert.notEqual(reopened.requestId, cancelled.requestId, 'a pending open from an earlier panel lifetime must not suppress reopening');
+  await finishGit(view, cancelled, { revision: 2, branch: 'obsolete' });
+  await finishGit(view, reopened, { revision: 3, branch: 'fresh', branches: [{ name: 'fresh', kind: 'local', current: true, commit: gitHead }] });
+  assert.equal(document.querySelector('.git-branch-picker select').value, 'fresh');
+  assert.equal(document.querySelector('.git-progress'), null);
+});
+
+test('Git drafts migrate and remain per Repo; failed or cancelled commits preserve them and successful commits clear only submitted text', async (t) => {
+  const view = await mountGit(t, { 'gitlab-workspace.git-ui.v1': { 'repo-a': { draft: 'Migrated draft', tab: 'changes' } } });
+  const document = view.dom.window.document;
+  const text = () => document.querySelector('.git-commit-composer textarea');
+  assert.equal(text().value, 'Migrated draft');
+  const submit = () => document.querySelector('.git-commit-composer').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  submit(); submit(); await view.tick();
+  assert.equal(gitActions(view, 'commit').length, 1, 'repeated submission cannot enqueue writes');
+  const failed = gitActions(view, 'commit').at(-1);
+  view.send({ type: 'gitActionResult', requestId: failed.requestId, error: 'Commit failed' }); await view.tick();
+  assert.equal(text().value, 'Migrated draft');
+  submit(); await view.tick();
+  await finishGit(view, gitActions(view, 'commit').at(-1), { revision: 2, headCommit: 'c'.repeat(40), commitCompleted: false });
+  assert.equal(text().value, 'Migrated draft', 'cancelled confirmation preserves the draft even if another process changes HEAD');
+  const picker = document.querySelector('.git-repo-picker select');
+  picker.value = 'repo-b'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  await finishGit(view, gitActions(view, 'open').at(-1));
+  text().value = 'Tools draft'; text().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  picker.value = 'repo-a'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  await finishGit(view, gitActions(view, 'open').at(-1), { revision: 3 });
+  assert.equal(text().value, 'Migrated draft');
+  submit(); await view.tick();
+  text().value = 'Next draft'; text().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  await finishGit(view, gitActions(view, 'commit').at(-1), { revision: 4, headCommit: 'd'.repeat(40), commitCompleted: true });
+  assert.equal(text().value, 'Next draft');
+  submit(); await view.tick();
+  await finishGit(view, gitActions(view, 'commit').at(-1), { revision: 5, headCommit: 'e'.repeat(40), commitCompleted: true });
+  assert.equal(text().value, '');
+  const saved = JSON.parse(view.dom.window.localStorage.getItem('gitlab-workspace.git-ui.v2'));
+  assert.equal(saved['repo-b'].draft, 'Tools draft');
+});
+
+test('Git restores historical file context, paginates with bounded rows, and handles unborn and detached HEAD', async (t) => {
+  const restored = { 'repo-a': { selection: 'commit', selectedCommit: gitHead, selectedPath: 'service.ts', view: 'diff', draft: '' } };
+  const view = await mountGit(t, { 'gitlab-workspace.git-ui.v2': restored });
+  const document = view.dom.window.document;
+  assert.equal(gitActions(view, 'readCommit').length, 1);
+  await finishGit(view, gitActions(view, 'readCommit').at(-1), { revision: 2, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'] });
+  assert.equal(gitActions(view, 'readDiff').at(-1).action.ref, gitHead);
+  await finishGit(view, gitActions(view, 'readDiff').at(-1), { revision: 3, selectedCommit: gitSnapshot().history[0], selectedCommitParent: gitParent, commitFiles: ['service.ts'], diffPath: 'service.ts', diffRef: gitHead, diffParent: gitParent, diffStaged: false, diffText: '+restored' });
+  assert.match(document.querySelector('.git-diff-view').textContent, /restored/);
+  document.querySelector('.git-back-graph').click(); await view.tick();
+  const many = Array.from({ length: 200 }, (_, i) => ({ hash: i.toString(16).padStart(40, '0'), parents: i < 199 ? [(i + 1).toString(16).padStart(40, '0')] : [], author: 'Tester', date: '2026-10-08T00:00:00Z', subject: `Commit ${i}` }));
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 4, history: many, historyHasMore: true, branch: undefined, headCommit: many[0].hash, branches: [] }) }); await view.tick();
+  assert.equal(document.querySelector('.git-branch-picker select').textContent, 'Detached HEAD');
+  assert.match(document.querySelector('.git-commit-row:not(.git-wip-row) .git-commit-refs').textContent, /HEAD/);
+  assert.ok(document.querySelectorAll('.git-commit-row').length < 40, 'history is virtualized');
+  document.querySelector('.git-load-more').click(); await view.tick();
+  assert.equal(gitActions(view, 'history').at(-1).action.skip, 200);
+  await finishGit(view, gitActions(view, 'history').at(-1), { revision: 5, history: [{ ...many[199], hash: 'f'.repeat(40) }], historyOffset: 200, historyHasMore: false });
+  assert.equal(document.querySelector('.git-load-more'), null);
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 6, history: [], branches: [], headCommit: undefined, stagedCount: 0, unstagedCount: 0, changes: [] }) }); await view.tick();
+  assert.match(document.querySelector('.git-center .git-empty-list').textContent, /尚無提交歷史/);
+  assert.equal(document.querySelectorAll('.git-wip-row').length, 1);
+});
+
 function project(id, path) {
   return {
     id, name: path, path, path_with_namespace: `team/${path}`,
@@ -77,7 +250,7 @@ function issueDetailData(issue, project) {
   };
 }
 
-async function mount(initialState, initialSnapshot) {
+async function mount(initialState, initialSnapshot, storage = {}) {
   const runtimeErrors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', (error) => runtimeErrors.push(error.stack ?? error.message));
@@ -89,6 +262,7 @@ async function mount(initialState, initialSnapshot) {
   });
   dom.window.addEventListener('error', (event) => runtimeErrors.push(event.error?.stack ?? event.message));
   const requests = [];
+  for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
   let state = initialState;
   dom.window.acquireVsCodeApi = () => ({
     postMessage: (message) => requests.push(message),

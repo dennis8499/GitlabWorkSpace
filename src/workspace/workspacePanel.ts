@@ -28,7 +28,7 @@ import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
-import { isGitPanelRequest } from '../git/gitProtocol';
+import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
 import type { LogContext, LogQuery } from '../logging/logProtocol';
 import { logGitCommand } from '../git/gitCommandLog';
@@ -192,6 +192,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.gitRepositories?.setActivePanelRepository(undefined);
     this.repositoryScanAbort?.abort(); this.previewAbort?.abort();
     if (this.logNotificationTimer) clearTimeout(this.logNotificationTimer);
     this.issueGraphGeneration++;
@@ -239,9 +240,17 @@ export class WorkspacePanel implements vscode.Disposable {
       panel.onDidDispose(() => {
         messageListener.dispose();
         if (this.panel === panel) {
+          this.gitRepositories?.setActivePanelRepository(undefined);
+          if (this.gitRepositoryListTimer) { clearTimeout(this.gitRepositoryListTimer); this.gitRepositoryListTimer = undefined; }
           this.panel = undefined; this.webviewReady = false; this.logsVisible = false;
           if (this.logNotificationTimer) { clearTimeout(this.logNotificationTimer); this.logNotificationTimer = undefined; }
         }
+      });
+      panel.onDidChangeViewState(() => {
+        if (this.panel !== panel) return;
+        this.gitRepositories?.setActivePanelRepository(panel.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
+        if (!panel.visible && this.gitRepositoryListTimer) { clearTimeout(this.gitRepositoryListTimer); this.gitRepositoryListTimer = undefined; }
+        if (panel.visible) this.scheduleGitRepositoryListSend();
       });
     } else {
       this.panel.reveal(vscode.ViewColumn.Active);
@@ -265,7 +274,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.activeMode = mode;
       await this.context.globalState.update(SELECTED_MODE_KEY, mode);
     }
-    this.gitRepositories?.setActivePanelRepository(this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
+    this.gitRepositories?.setActivePanelRepository(this.activeMode === 'git' && this.panel?.visible ? this.selectedGitRepositoryId : undefined);
     await this.show(undefined, { refresh: !panelAlreadyReady });
     if (panelAlreadyReady) {
       this.sendSnapshot();
@@ -411,17 +420,22 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private scheduleGitRepositoryListSend(): void {
-    if (!this.gitPanelReady || this.activeMode !== 'git' || !this.gitRepositoryListDirty) return;
+    if (!this.panel?.visible || !this.gitPanelReady || this.activeMode !== 'git' || !this.gitRepositoryListDirty) return;
     if (this.gitRepositoryListTimer) clearTimeout(this.gitRepositoryListTimer);
     this.gitRepositoryListTimer = setTimeout(() => {
       this.gitRepositoryListTimer = undefined;
-      if (this.gitPanelReady && this.activeMode === 'git' && this.gitRepositoryListDirty) void this.sendGitRepositories();
+      if (this.panel?.visible && this.gitPanelReady && this.activeMode === 'git' && this.gitRepositoryListDirty) void this.sendGitRepositories();
     }, 1_000);
   }
 
   private async handleGitPanelRequest(request: import('../git/gitProtocol').GitPanelRequest): Promise<void> {
+    if (request.type === 'gitAction' && !isGitWriteAction(request.action) &&
+      (!this.panel?.visible || this.activeMode !== 'git')) {
+      this.post({ type: 'gitActionResult', requestId: request.requestId });
+      return;
+    }
     if (request.type === 'gitAction' && this.accountTransitionBusy &&
-      !['open', 'refresh', 'diff', 'history', 'showCommit', 'rebasePlan'].includes(request.action.type)) {
+      isGitWriteAction(request.action)) {
       this.post({ type: 'gitActionResult', requestId: request.requestId, error: '帳號正在切換，請稍後再執行版控操作。' });
       return;
     }
@@ -432,14 +446,8 @@ export class WorkspacePanel implements vscode.Disposable {
     if (request.type === 'gitReady') {
       this.gitPanelReady = true;
       this.gitRepositoryListDirty = true;
-      this.gitRepositories.setActivePanelRepository(this.selectedGitRepositoryId, false);
-      await this.sendGitRepositories();
-      if (this.selectedGitRepositoryId) {
-        try {
-          const snapshot = await this.gitRepositories.getSnapshot(this.selectedGitRepositoryId);
-          this.post({ type: 'gitSnapshot', snapshot });
-        } catch { /* A workspace may no longer contain its last selected Repo. */ }
-      }
+      this.gitRepositories.setActivePanelRepository(this.panel?.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined, false);
+      if (this.panel?.visible && this.activeMode === 'git') await this.sendGitRepositories();
       return;
     }
     if (request.type === 'gitOpenRepository') {
@@ -460,11 +468,11 @@ export class WorkspacePanel implements vscode.Disposable {
       if (request.action.type === 'open' || request.action.type === 'refresh') {
         this.selectedGitRepositoryId = request.repoId;
         void this.context.globalState.update(SELECTED_GIT_REPOSITORY_KEY, request.repoId);
-        this.gitRepositories.setActivePanelRepository(request.repoId, false);
+        this.gitRepositories.setActivePanelRepository(this.panel?.visible && this.activeMode === 'git' ? request.repoId : undefined, false);
       }
       const snapshot = await this.gitRepositories.handleAction(request.repoId, request.action);
       if (snapshot) this.post({ type: 'gitSnapshot', snapshot, requestId: request.requestId });
-      this.post({ type: 'gitActionResult', requestId: request.requestId });
+      this.post({ type: 'gitActionResult', requestId: request.requestId, commitCompleted: snapshot?.commitCompleted });
       if (request.repoId === this.selectedGitRepositoryId) await this.syncSidebarState?.();
     } catch (error) {
       this.post({ type: 'gitActionResult', requestId: request.requestId, error: readableError(error) });

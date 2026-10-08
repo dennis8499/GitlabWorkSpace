@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isGitObjectId, isGitPanelRequest, isGitRefName, isGitRemoteName } from '../../src/git/gitProtocol';
+import { isGitObjectId, isGitPanelRequest, isGitRefName, isGitRemoteName, isGitWriteAction } from '../../src/git/gitProtocol';
 
 const oid = 'a'.repeat(40);
+
+test('classifies reads consistently while treating a fetching rebase preview as a write', () => {
+  assert.equal(isGitWriteAction({ type: 'readDiff', path: 'README.md', staged: false }), false);
+  assert.equal(isGitWriteAction({ type: 'readCommit', hash: oid }), false);
+  assert.equal(isGitWriteAction({ type: 'history', skip: 200 }), false);
+  assert.equal(isGitWriteAction({ type: 'rebasePreview', ref: 'main' }), false);
+  assert.equal(isGitWriteAction({ type: 'rebasePreview', ref: 'origin/main', pullSource: { remote: 'origin', branch: 'main' } }), true);
+  assert.equal(isGitWriteAction({ type: 'commit', message: 'message' }), true);
+});
 
 test('accepts GUI Git requests only when their Repo, action, refs, and paths are valid', () => {
   assert.equal(isGitPanelRequest({ type: 'gitReady' }), true);

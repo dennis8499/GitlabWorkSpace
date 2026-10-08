@@ -1,0 +1,38 @@
+{
+  "schema": "GitLabWorkspaceNativeStatusIdleEvidence/v1",
+  "generatedAt": "2026-10-08T04:21:22.693Z",
+  "status": "PASS",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.13.2.vsix",
+    "sha256": "7280f404b87f31fbc4699252b02e5bc05b08ec48cf940787628cb9e05d935e8c"
+  },
+  "vscodeVersion": "1.141.0",
+  "scope": "Successful stage idle assertion from the preceding run; its later tag fixture assertion required an explicit GUI refresh.",
+  "idleCheck": {
+    "phase": "stage",
+    "idleMs": 60015,
+    "before": {
+      "commands": 55,
+      "auxiliaryCommands": 7,
+      "nativeApiCalls": 42,
+      "nativeStatusEvents": 16
+    },
+    "after": {
+      "commands": 55,
+      "auxiliaryCommands": 7,
+      "nativeApiCalls": 42,
+      "nativeStatusEvents": 17
+    },
+    "extensionDelta": {
+      "commands": 0,
+      "auxiliaryCommands": 0,
+      "nativeApiCalls": 0
+    },
+    "vscodeGitLog": {
+      "before": 122,
+      "after": 126,
+      "backgroundDelta": 4
+    }
+  },
+  "assertion": "VS Code background status completed while extension commands, auxiliary commands and native API calls remained unchanged."
+}

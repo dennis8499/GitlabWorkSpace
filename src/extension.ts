@@ -122,6 +122,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     queryLogsForTesting: (query?: import('./logging/logProtocol').LogQuery) => log.query(query),
     getLogQueryCountForTesting: () => getWorkspace().getLogQueryCountForTesting(),
     getGitCommandCountForTesting: () => gitRepositories.getCommandCountForTesting(),
+    getGitActivityForTesting: () => gitRepositories.getActivityForTesting(),
     getWebviewMessageCountsForTesting: () => getWorkspace().getWebviewMessageCountsForTesting(),
     setGitWarningPromptHandlerForTesting: (handler: (message: string, options: vscode.MessageOptions, ...items: string[]) => Thenable<string | undefined>) =>
       gitRepositories.setWarningPromptHandlerForTesting(handler),

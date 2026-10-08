@@ -1,0 +1,68 @@
+{
+  "status": "PASS",
+  "exitCode": 0,
+  "durationMs": 661073,
+  "command": "npm.cmd test",
+  "vscodeExecutable": "workspace-isolated VS Code 1.141.0",
+  "summaries": [
+    "ℹ tests 196",
+    "ℹ pass 196",
+    "ℹ fail 0",
+    "ℹ tests 33",
+    "ℹ pass 33",
+    "ℹ fail 0",
+    "30 scenarios (30 passed)",
+    "140 steps (140 passed)",
+    "10 scenarios (10 passed)",
+    "35 steps (35 passed)",
+    "Verified dist\\gitlab-workspace-0.13.2.vsix and dist\\gitlab-workspace-kit-0.13.2.zip v0.13.2 (5060388 bytes; matching payloads and SHA256SUMS)",
+    "ℹ tests 24",
+    "ℹ pass 24",
+    "ℹ fail 0",
+    "Ran 18 tests in 0.516s",
+    "Ran 8 tests in 35.184s",
+    "Ran 1 test in 29.474s",
+    "Ran 88 tests in 449.106s",
+    "Ran 8 tests in 28.647s",
+    "12 passing (3s)",
+    "2 pending"
+  ],
+  "stages": {
+    "unit": {
+      "passed": 196,
+      "failed": 0
+    },
+    "webview": {
+      "passed": 33,
+      "failed": 0
+    },
+    "bdd": {
+      "scenarios": 40,
+      "failed": 0
+    },
+    "releaseNode": {
+      "passed": 24,
+      "failed": 0
+    },
+    "releasePython": {
+      "passed": 123,
+      "suites": [
+        18,
+        8,
+        1,
+        88,
+        8
+      ],
+      "failed": 0
+    },
+    "extensionHost": {
+      "passed": 12,
+      "skipped": 2,
+      "failed": 0,
+      "skipReason": "Local Git GUI is run separately; live GitLab requires external test environments."
+    },
+    "package": "PASS"
+  },
+  "generatedAt": "2026-10-08T05:15:38.195Z",
+  "schema": "GitLabWorkspaceNpmTestEvidence/v1"
+}

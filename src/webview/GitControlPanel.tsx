@@ -1,81 +1,82 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
-import type { GitAction, GitChange, GitCommitSummary, GitPanelMessage, GitRebasePlan, GitRebaseTodoEntry, GitRepositorySnapshot, GitStashSummary } from '../git/gitProtocol';
+import { isGitWriteAction, type GitAction, type GitChange, type GitCommitSummary, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
+import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
 import { makeDiffLines, makeSelectedPatch, type GitDiffLine } from '../git/gitDiffSelection';
+import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitUi, type RepoGitUi } from './gitUiState';
 import './git-control-panel.css';
 
 interface Props { post: (message: WorkspaceRequest) => void; }
-type Tab = 'changes' | 'history';
-interface RepoUi { tab: Tab; draft: string; selectedPath?: string; }
 interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
+interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; }
+const COMMIT_ROW_HEIGHT = 36;
+const COLORS = ['#43c6a0', '#69a8ff', '#c18bfa', '#efbd68', '#ec849f', '#5fd5db', '#bdcd70'];
+const LAYOUT_KEY = 'gitlab-workspace.git-layout.v1';
 
-const STORAGE_KEY = 'gitlab-workspace.git-ui.v1';
-const EMPTY_UI: RepoUi = { tab: 'changes', draft: '' };
-const COMMIT_ROW_HEIGHT = 54;
-
-function loadUi(): Record<string, RepoUi> {
+function loadUi(): Record<string, RepoGitUi> {
+  try { return restoreGitUi(localStorage.getItem(GIT_UI_STORAGE_KEY) ?? localStorage.getItem(LEGACY_GIT_UI_STORAGE_KEY)); } catch { return {}; }
+}
+function loadLayout(): { theme: 'dark' | 'vscode'; left: number; right: number } {
   try {
-    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, Partial<RepoUi>>;
-    return Object.fromEntries(Object.entries(value).map(([id, item]) => [id, {
-      tab: item.tab === 'history' ? 'history' : 'changes', draft: typeof item.draft === 'string' ? item.draft : '', selectedPath: item.selectedPath
-    }]));
-  } catch { return {}; }
+    const value = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? '{}');
+    return { theme: value.theme === 'vscode' ? 'vscode' : 'dark', left: clamp(value.left, 180, 360, 220), right: clamp(value.right, 280, 480, 320) };
+  } catch { return { theme: 'dark', left: 220, right: 320 }; }
 }
-
-function laneMap(commits: GitCommitSummary[]): Map<string, number> {
-  const lanes = new Map<string, number>();
-  const active: string[] = [];
-  for (const commit of commits) {
-    let lane = active.indexOf(commit.hash);
-    if (lane < 0) { lane = active.findIndex((item) => !item); if (lane < 0) lane = active.length; }
-    lanes.set(commit.hash, lane);
-    active[lane] = commit.parents[0] ?? '';
-    for (const parent of commit.parents.slice(1)) {
-      if (!active.includes(parent)) { const empty = active.indexOf(''); active[empty < 0 ? active.length : empty] = parent; }
-    }
-  }
-  return lanes;
-}
-
+function clamp(value: unknown, min: number, max: number, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback; }
 function callName(action: GitAction): string {
-  const names: Record<string, string> = { stageFile: '更新暫存區', stagePatch: '更新部分暫存區', commit: 'Commit', branch: '建立分支', checkout: '切換分支', deleteBranch: '刪除分支', fetch: 'Fetch', pull: 'Pull', push: 'Push', merge: 'Merge', rebase: 'Rebase', cherryPick: 'Cherry-pick', revert: 'Revert', stashSave: '建立 Stash', stashApply: '套用 Stash', stashDrop: '刪除 Stash', reset: 'Reset', discard: '捨棄變更', abort: '中止作業', continue: '繼續作業', skip: '略過提交', readCommit: '讀取提交', readDiff: '讀取差異', history: '載入歷史', refresh: '重新整理', open: '開啟 Repo' };
+  const names: Record<string, string> = { stageFile: '更新暫存區', stagePatch: '更新部分暫存區', commit: 'Commit', branch: '建立分支', checkout: '切換分支', deleteBranch: '刪除分支', fetch: 'Fetch', pull: 'Pull', push: 'Push', merge: 'Merge', rebase: 'Rebase', rebasePreview: '預覽 Rebase', cherryPick: 'Cherry-pick', revert: 'Revert', stashSave: '建立 Stash', stashApply: '套用 Stash', stashDrop: '刪除 Stash', reset: 'Reset', discard: '捨棄變更', abort: '中止作業', continue: '繼續作業', skip: '略過提交', readCommit: '讀取提交', readDiff: '讀取差異', history: '載入歷史', refresh: '重新整理', open: '開啟 Repo' };
   return names[action.type] ?? action.type;
 }
 
-function buttonAction(action: GitAction): boolean {
-  return !['readDiff', 'readCommit', 'history', 'refresh', 'open'].includes(action.type);
-}
-
 export function GitControlPanel({ post }: Props) {
-  const [repositories, setRepositories] = useState<GitRepositorySnapshot[]>([]);
+  const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [available, setAvailable] = useState<boolean | undefined>();
   const [serviceMessage, setServiceMessage] = useState('');
-  const [uiByRepo, setUiByRepo] = useState<Record<string, RepoUi>>(loadUi);
+  const [uiByRepo, setUiByRepo] = useState<Record<string, RepoGitUi>>(loadUi);
   const [snapshotByRepo, setSnapshotByRepo] = useState<Record<string, GitRepositorySnapshot>>({});
   const [diffLines, setDiffLines] = useState<GitDiffLine[]>([]);
   const [selectedDiffLines, setSelectedDiffLines] = useState<number[]>([]);
   const [dialog, setDialog] = useState<DialogState>();
   const [dialogError, setDialogError] = useState('');
-  const [pending, setPending] = useState('');
-  const [error, setError] = useState('');
+  const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>({});
+  const [readingByRepo, setReadingByRepo] = useState<Record<string, string>>({});
+  const [errorsByRepo, setErrorsByRepo] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
   const [historyFilter, setHistoryFilter] = useState('');
+  const [searchPosition, setSearchPosition] = useState(0);
+  const [layout, setLayout] = useState(loadLayout);
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+  const [hostWidth, setHostWidth] = useState(1200);
   const [rebaseTodos, setRebaseTodos] = useState<Record<string, GitRebaseTodoEntry[]>>({});
   const [historyViewport, setHistoryViewport] = useState({ top: 0, height: 600 });
   const historyListRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLElement>(null);
+  const resizeCleanup = useRef<() => void>();
   const rebaseTargetByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
-  const latestRequestByRepository = useRef(new Map<string, string>());
-  const requestRepository = useRef(new Map<string, string>());
+  const latestReadByRepo = useRef(new Map<string, string>());
+  const requests = useRef(new Map<string, RequestContext>());
+  const inFlight = useRef(new Map<string, string>());
+  const writes = useRef(new Set<string>());
+  const restoreSelections = useRef(new Set<string>());
   const latestRevision = useRef(new Map<string, number>());
   const repositoryListRevision = useRef(-1);
   const selectedIdRef = useRef(selectedId);
+  const snapshotsRef = useRef(snapshotByRepo);
+  const uiRef = useRef(uiByRepo);
   selectedIdRef.current = selectedId;
-  const ui = uiByRepo[selectedId] ?? EMPTY_UI;
+  snapshotsRef.current = snapshotByRepo;
+  uiRef.current = uiByRepo;
+  const ui = uiByRepo[selectedId] ?? EMPTY_GIT_UI;
   const snapshot = snapshotByRepo[selectedId];
+  const pending = pendingByRepo[selectedId] ?? '';
+  const reading = readingByRepo[selectedId] ?? '';
+  const error = errorsByRepo[selectedId] ?? '';
+  const setError = (value: string) => setErrorsByRepo((current) => ({ ...current, [selectedId]: value }));
   const rebaseDialogDetails = dialog?.kind === 'rebaseEditor' ? parseRebaseDialog(dialog.value) : undefined;
 
   useEffect(() => {
@@ -88,21 +89,25 @@ export function GitControlPanel({ post }: Props) {
         repositoryListRevision.current = message.revision;
         setAvailable(message.available);
         setServiceMessage(message.message ?? '');
-        setRepositories(message.repositories as GitRepositorySnapshot[]);
-        if (message.selectedRepositoryId) setSelectedId(message.selectedRepositoryId);
-        else setSelectedId((current) => current && message.repositories.some((repository) => repository.id === current) ? current : message.repositories[0]?.id ?? '');
+        setRepositories(message.repositories);
+        setSelectedId((current) => message.selectedRepositoryId && message.repositories.some((repo) => repo.id === message.selectedRepositoryId)
+          ? message.selectedRepositoryId : current && message.repositories.some((repo) => repo.id === current) ? current : message.repositories[0]?.id ?? '');
       } else if (message.type === 'gitSnapshot') {
         const incoming = message.snapshot;
-        if (message.requestId && latestRequestByRepository.current.get(incoming.id) !== message.requestId) return;
-        const last = latestRevision.current.get(incoming.id) ?? -1;
-        if (incoming.revision < last) return;
+        const context = message.requestId ? requests.current.get(message.requestId) : undefined;
+        if (message.requestId && (!context || !context.write && latestReadByRepo.current.get(incoming.id) !== message.requestId)) return;
+        if (incoming.revision < (latestRevision.current.get(incoming.id) ?? -1)) return;
         latestRevision.current.set(incoming.id, incoming.revision);
+        if (context?.action.type === 'open') restoreSelections.current.add(incoming.id);
         setSnapshotByRepo((current) => {
           const previous = current[incoming.id];
-          const next = incoming.historyOffset && incoming.historyOffset > 0 && previous
-            ? { ...incoming, history: previous.history.concat(incoming.history) }
-            : incoming;
-          return { ...current, [incoming.id]: next };
+          const append = !!incoming.historyOffset && incoming.historyOffset > 0 && previous;
+          const samePrefix = previous && incoming.history.length > 0 && incoming.headCommit === previous.headCommit && incoming.historyOffset === undefined && incoming.history.every((commit, index) => previous.history[index]?.hash === commit.hash);
+          const history = append ? Array.from(new Map(previous.history.concat(incoming.history).map((commit) => [commit.hash, commit])).values())
+            : samePrefix && previous.history.length > incoming.history.length ? previous.history : incoming.history;
+          const next = { ...incoming, history, historyHasMore: samePrefix && previous.history.length > incoming.history.length ? previous.historyHasMore : incoming.historyHasMore };
+          snapshotsRef.current = { ...current, [incoming.id]: next };
+          return snapshotsRef.current;
         });
         if (incoming.rebasePlan && incoming.id === selectedIdRef.current) setRebaseTodos((current) => {
           const currentTodo = current[incoming.id];
@@ -111,93 +116,190 @@ export function GitControlPanel({ post }: Props) {
           return sameTarget && currentTodo && currentTodo.map((item) => item.hash).join(',') === incoming.rebasePlan!.commits.map((item) => item.hash).join(',')
             ? current : { ...current, [incoming.id]: incoming.rebasePlan!.commits.map((commit) => ({ hash: commit.hash, action: 'pick' as const })) };
         });
-        setRepositories((current) => current.map((repository) => repository.id === incoming.id ? incoming : repository));
-        if (incoming.id === selectedIdRef.current) setError(incoming.error ?? '');
+        setRepositories((current) => current.map((repo) => repo.id === incoming.id ? incoming : repo));
+        setErrorsByRepo((current) => ({ ...current, [incoming.id]: incoming.error ?? '' }));
       } else if (message.type === 'gitActionResult') {
-        const repoId = requestRepository.current.get(message.requestId);
-        requestRepository.current.delete(message.requestId);
-        if (!repoId || latestRequestByRepository.current.get(repoId) !== message.requestId) return;
-        setPending('');
-        if (repoId === selectedIdRef.current) setError(message.error ?? '');
-      } else if (message.type === 'gitError') setError(message.message);
+        const context = requests.current.get(message.requestId);
+        if (!context) return;
+        requests.current.delete(message.requestId);
+        if (inFlight.current.get(context.key) === message.requestId) inFlight.current.delete(context.key);
+        if (message.error) restoreSelections.current.delete(context.repoId);
+        if (context.write) {
+          writes.current.delete(context.repoId);
+          setPendingByRepo((current) => ({ ...current, [context.repoId]: '' }));
+          if (!message.error && message.commitCompleted === true && context.action.type === 'commit') {
+            const messageText = context.action.message;
+            setUiByRepo((current) => current[context.repoId]?.draft.trim() === messageText
+              ? { ...current, [context.repoId]: { ...current[context.repoId], draft: '' } } : current);
+          }
+        } else if (latestReadByRepo.current.get(context.repoId) === message.requestId) {
+          setReadingByRepo((current) => ({ ...current, [context.repoId]: '' }));
+        }
+        if (context.write || latestReadByRepo.current.get(context.repoId) === message.requestId) setErrorsByRepo((current) => ({ ...current, [context.repoId]: message.error ?? '' }));
+      } else if (message.type === 'gitError') setErrorsByRepo((current) => ({ ...current, [selectedIdRef.current]: message.message }));
     };
     window.addEventListener('message', receive);
-    return () => window.removeEventListener('message', receive);
+    return () => { window.removeEventListener('message', receive); resizeCleanup.current?.(); };
   }, []);
 
   useEffect(() => {
-    if (ui.tab !== 'history') return;
-    const element = historyListRef.current;
-    if (!element) return;
-    const measure = () => setHistoryViewport({ top: element.scrollTop, height: element.clientHeight || 600 });
+    const measure = () => {
+      const width = hostRef.current?.getBoundingClientRect().width;
+      if (width) setHostWidth(width);
+      const element = historyListRef.current;
+      if (element) setHistoryViewport({ top: element.scrollTop, height: element.clientHeight || 600 });
+    };
     measure();
+    if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    if (hostRef.current) observer.observe(hostRef.current);
+    if (historyListRef.current) observer.observe(historyListRef.current);
     return () => observer.disconnect();
-  }, [ui.tab, selectedId]);
+  }, [ui.view, selectedId]);
 
   useEffect(() => {
-    if (historyListRef.current) historyListRef.current.scrollTop = 0;
+    setDialog(undefined); setLeftOpen(false); setRightOpen(false); setHistoryFilter('');
     setHistoryViewport((current) => ({ ...current, top: 0 }));
-  }, [historyFilter, selectedId]);
-
-  useEffect(() => {
+    if (historyListRef.current) historyListRef.current.scrollTop = 0;
     if (selectedId) send({ type: 'open', repoId: selectedId });
   }, [selectedId]);
 
+  useEffect(() => { try { localStorage.setItem(GIT_UI_STORAGE_KEY, JSON.stringify(uiByRepo)); } catch { /* Storage may be unavailable. */ } }, [uiByRepo]);
+  useEffect(() => { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* Storage may be unavailable. */ } }, [layout]);
+  useEffect(() => { setDiffLines(makeDiffLines(snapshot?.diffText ?? '')); setSelectedDiffLines([]); }, [snapshot?.id, snapshot?.diffPath, snapshot?.diffText, snapshot?.diffStaged, snapshot?.diffRef, snapshot?.diffParent]);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(uiByRepo));
-  }, [uiByRepo]);
-
-  useEffect(() => {
-    const text = snapshot?.diffText ?? '';
-    setDiffLines(makeDiffLines(text));
-    setSelectedDiffLines([]);
-  }, [snapshot?.id, snapshot?.diffPath, snapshot?.diffText, snapshot?.revision]);
+    if (!dialog) return;
+    const form = hostRef.current?.querySelector<HTMLFormElement>('.git-dialog');
+    form?.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setDialog(undefined); }
+      if (event.key !== 'Tab' || !form) return;
+      const elements = Array.from(form.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
+      const first = elements[0], last = elements.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, [dialog?.kind]);
 
   function send(action: GitAction): void {
     if (!selectedId) return;
-    if (buttonAction(action)) setPending(callName(action));
-    setNotice('');
+    const write = isGitWriteAction(action);
+    if (write && writes.current.has(selectedId)) return;
+    const key = selectedId + ':' + JSON.stringify(action);
+    const shared = inFlight.current.get(key);
+    if (shared && action.type !== 'open' && (write || latestReadByRepo.current.get(selectedId) === shared)) return;
     const id = 'git-ui-' + (++requestId.current);
-    latestRequestByRepository.current.set(selectedId, id);
-    requestRepository.current.set(id, selectedId);
+    if (write) { writes.current.add(selectedId); setPendingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
+    else { latestReadByRepo.current.set(selectedId, id); setReadingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
+    requests.current.set(id, { repoId: selectedId, action, key, write });
+    inFlight.current.set(key, id);
+    closeMenus();
+    setNotice('');
     post({ type: 'gitAction', repoId: selectedId, requestId: id, action });
   }
-
-  function setUi(patch: Partial<RepoUi>): void {
+  function setUi(patch: Partial<RepoGitUi>): void {
     if (!selectedId) return;
-    setUiByRepo((current) => ({ ...current, [selectedId]: { ...(current[selectedId] ?? EMPTY_UI), ...patch } }));
+    setUiByRepo((current) => {
+      const next = { ...current, [selectedId]: { ...(current[selectedId] ?? EMPTY_GIT_UI), ...patch } };
+      uiRef.current = next;
+      return next;
+    });
   }
-
   function selectChange(change: GitChange): void {
-    setUi({ selectedPath: change.path, tab: 'changes' });
-    send({ type: 'readDiff', path: change.path, staged: change.section === 'staged' });
+    setUi({ selectedPath: change.path, selectedSection: change.section, selection: 'worktree', view: 'diff', selectedCommit: undefined, parent: undefined });
+    if (snapshot?.diffPath !== change.path || snapshot.diffRef || snapshot.diffStaged !== (change.section === 'staged') || snapshot.diffText === undefined) send({ type: 'readDiff', path: change.path, staged: change.section === 'staged' });
   }
-
-  const visibleRepositories = useMemo(() => repositories.filter((repo) => (repo.name + ' ' + repo.path).toLocaleLowerCase().includes(query.toLocaleLowerCase())), [repositories, query]);
+  function selectCommit(hash: string, parent?: string): void {
+    setUi({ selection: 'commit', selectedCommit: hash, parent, view: 'graph', selectedPath: undefined, selectedSection: undefined });
+    if (snapshot?.selectedCommit?.hash !== hash || parent && snapshot.selectedCommitParent !== parent) send({ type: 'readCommit', hash, parent });
+    const index = graphCommits.findIndex((commit) => commit.hash === hash);
+    if (index >= 0 && historyListRef.current) { historyListRef.current.scrollTop = Math.max(0, index * COMMIT_ROW_HEIGHT - 72); setHistoryViewport((current) => ({ ...current, top: historyListRef.current!.scrollTop })); }
+  }
+  function selectCommitFile(file: string): void {
+    if (!selectedCommit || !commitComparisonReady) return;
+    setUi({ selectedPath: file, view: 'diff' });
+    if (snapshot?.diffRef !== selectedCommit.hash || snapshot.diffPath !== file || snapshot.diffParent !== snapshot.selectedCommitParent || snapshot.diffText === undefined) send({ type: 'readDiff', path: file, staged: false, ref: selectedCommit.hash, parent: snapshot.selectedCommitParent });
+  }
+  function beginResize(side: 'left' | 'right', event: PointerEvent): void {
+    event.preventDefault(); resizeCleanup.current?.();
+    const start = event.clientX, initial = layout[side];
+    const move = (next: PointerEvent) => setLayout((current) => ({ ...current, [side]: clamp(initial + (next.clientX - start) * (side === 'left' ? 1 : -1), side === 'left' ? 180 : 280, side === 'left' ? 360 : 480, initial) }));
+    const end = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); resizeCleanup.current = undefined; };
+    resizeCleanup.current = end;
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  }
+  function submitCommit(event: Event, amend = false): void {
+    event.preventDefault();
+    if (!ui.draft.trim() || !snapshot?.stagedCount || pending) return;
+    send({ type: 'commit', message: ui.draft.trim(), amend });
+  }
+  const visibleRepositories = useMemo(() => repositories.filter((repo) => repo.id === selectedId || (repo.name + ' ' + repo.path).toLocaleLowerCase().includes(query.toLocaleLowerCase())), [repositories, query, selectedId]);
   const localBranches = snapshot?.branches.filter((branch) => branch.kind === 'local') ?? [];
   const remotes = snapshot?.remotes ?? [];
-  const headHash = localBranches.find((branch) => branch.current)?.commit;
+  const headHash = snapshot?.headCommit ?? localBranches.find((branch) => branch.current)?.commit;
+  const selectedChange = snapshot?.changes.find((change) => change.path === ui.selectedPath && change.section === ui.selectedSection);
+  const selectedCommit = ui.selection === 'commit' && snapshot?.selectedCommit?.hash === ui.selectedCommit ? snapshot.selectedCommit : undefined;
+  const commitComparisonReady = !!selectedCommit && (!ui.parent || snapshot?.selectedCommitParent === ui.parent);
   const refsByCommit = useMemo(() => {
     const refs = new Map<string, string[]>();
     for (const branch of snapshot?.branches ?? []) {
       if (!branch.commit) continue;
       const labels = refs.get(branch.commit) ?? [];
-      labels.push(branch.current ? 'HEAD ' + branch.name : (branch.kind === 'tag' ? 'tag ' : '') + branch.name);
+      labels.push(branch.current ? 'HEAD · ' + branch.name : (branch.kind === 'tag' ? '◇ ' : '') + branch.name);
       refs.set(branch.commit, labels);
     }
+    if (headHash && !snapshot?.branch) refs.set(headHash, ['HEAD', ...(refs.get(headHash) ?? [])]);
     return refs;
-  }, [snapshot?.branches]);
-  const selectedChange = snapshot?.changes.find((change) => change.path === ui.selectedPath);
-  const changedCommits = useMemo(() => snapshot?.history.filter((commit) => (commit.subject + ' ' + commit.author + ' ' + commit.hash).toLocaleLowerCase().includes(historyFilter.toLocaleLowerCase())) ?? [], [snapshot?.history, historyFilter]);
-  const lanes = useMemo(() => laneMap(snapshot?.history ?? []), [snapshot?.history]);
+  }, [snapshot?.branches, snapshot?.branch, headHash]);
+  const graphCommits = useMemo(() => [
+    { hash: 'worktree', parents: headHash ? [headHash] : [], subject: '工作中變更', author: '', date: '' },
+    ...(snapshot?.history ?? [])
+  ], [snapshot?.history, headHash]);
+  const graph = useMemo(() => layoutGitGraph(graphCommits), [graphCommits]);
+  const searchHits = useMemo(() => historyFilter.trim() ? graphCommits.flatMap((commit, index) => commit.hash !== 'worktree' && (commit.subject + ' ' + commit.author + ' ' + commit.hash + ' ' + (refsByCommit.get(commit.hash) ?? []).join(' ')).toLocaleLowerCase().includes(historyFilter.toLocaleLowerCase()) ? [index] : []) : [], [graphCommits, historyFilter, refsByCommit]);
+  function jumpSearch(position: number): void {
+    if (!searchHits.length) return;
+    const next = (position + searchHits.length) % searchHits.length;
+    setSearchPosition(next);
+    const top = Math.max(0, searchHits[next] * COMMIT_ROW_HEIGHT - 72);
+    if (historyListRef.current) historyListRef.current.scrollTop = top;
+    setHistoryViewport((current) => ({ ...current, top }));
+  }
+  useEffect(() => { setSearchPosition(0); if (searchHits.length) jumpSearch(0); }, [historyFilter]);
   const commitVisibleCount = Math.ceil(historyViewport.height / COMMIT_ROW_HEIGHT) + 12;
-  const historyStart = Math.min(Math.max(0, Math.floor(historyViewport.top / COMMIT_ROW_HEIGHT) - 6), Math.max(0, changedCommits.length - commitVisibleCount));
-  const historyEnd = Math.min(changedCommits.length, historyStart + commitVisibleCount);
-  const visibleCommits = changedCommits.slice(historyStart, historyEnd);
-
+  const historyStart = Math.min(Math.max(0, Math.floor(historyViewport.top / COMMIT_ROW_HEIGHT) - 6), Math.max(0, graphCommits.length - commitVisibleCount));
+  const historyEnd = Math.min(graphCommits.length, historyStart + commitVisibleCount);
+  const visibleCommits = graphCommits.slice(historyStart, historyEnd);
+  const diffMatches = !!snapshot?.diffPath && snapshot.diffPath === ui.selectedPath && (ui.selection === 'commit'
+    ? snapshot.diffRef === ui.selectedCommit && snapshot.diffParent === (ui.parent ?? snapshot.selectedCommitParent)
+    : !snapshot.diffRef && snapshot.diffStaged === (ui.selectedSection === 'staged'));
+  useEffect(() => {
+    if (!snapshot) return;
+    if (ui.selection === 'worktree' && ui.selectedPath && !selectedChange) {
+      const moved = snapshot.changes.find((change) => change.path === ui.selectedPath);
+      if (moved && ui.view === 'diff') selectChange(moved);
+      else if (moved) setUi({ selectedSection: moved.section });
+      else setUi({ view: 'graph', selectedPath: undefined, selectedSection: undefined });
+      restoreSelections.current.delete(selectedId);
+      return;
+    }
+    if (!restoreSelections.current.has(selectedId)) return;
+    if (ui.selection === 'commit' && ui.selectedCommit && !commitComparisonReady) {
+      send({ type: 'readCommit', hash: ui.selectedCommit, parent: ui.parent });
+      return;
+    }
+    restoreSelections.current.delete(selectedId);
+    if (ui.view === 'diff' && ui.selectedPath && !diffMatches) {
+      if (selectedCommit) send({ type: 'readDiff', path: ui.selectedPath, staged: false, ref: selectedCommit.hash, parent: snapshot.selectedCommitParent });
+      else if (selectedChange) send({ type: 'readDiff', path: selectedChange.path, staged: selectedChange.section === 'staged' });
+    }
+  }, [selectedId, snapshot?.revision]);
+  const graphWidth = Math.max(48, graph.lanes * 18 + 20);
+  function closeMenus(): void { hostRef.current?.querySelectorAll<HTMLDetailsElement>('.git-actions-menu, .git-ref-menu').forEach((menu) => { menu.open = false; }); }
   function startDialog(kind: DialogState['kind'], value?: string): void {
+    closeMenus();
     setDialogError('');
     setDialog({ kind, value, operation: kind === 'pick' && value?.split('|')[1] === 'revert' ? 'revert' : kind === 'pick' ? 'cherryPick' : undefined });
   }
@@ -268,83 +370,109 @@ export function GitControlPanel({ post }: Props) {
 
   function openNativeConflict(path: string): void { post({ type: 'gitOpenMergeEditor', repositoryId: selectedId, path }); }
 
-  if (available === false) return <section class="git-empty-state"><div class="git-empty-icon">⑂</div><h2>VS Code 內建 Git 尚未啟用</h2><p>{serviceMessage || '請先在擴充功能中啟用 Git，再重新開啟版控工作台。'}</p><button class="primary" onClick={() => post({ type: 'gitReady' })}>重新整理</button></section>;
 
-  return <section class="git-workbench" aria-label="Git 版控工作台">
+  return <section class="git-workbench" ref={hostRef} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
     <header class="git-toolbar">
-      <label class="git-repo-picker"><span>Repo</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => setSelectedId(event.currentTarget.value)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option value={repo.id}>{repo.name}　{repo.path}</option>)}</select></label>
-      <button class="quiet" disabled={!snapshot || !!pending} onClick={() => send({ type: 'refresh' })}>更新</button>
+      <div class="git-repo-picker"><GitIcon name="repo" /><label><span>REPOSITORY</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => setSelectedId(event.currentTarget.value)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}</select></label></div>
+      <label class="git-branch-picker"><GitIcon name="branch" /><select aria-label="切換本機分支" disabled={!snapshot || !!pending} value={snapshot?.branch ?? ''} onChange={(event) => event.currentTarget.value && send({ type: 'checkout', name: event.currentTarget.value })}>{!snapshot?.branch && <option value="">Detached HEAD</option>}{snapshot?.branch && !localBranches.some((branch) => branch.name === snapshot.branch) && <option value={snapshot.branch}>{snapshot.branch}</option>}{localBranches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}</select></label>
+      {snapshot && <span class="git-toolbar-sync" title={snapshot.tracking ?? '尚未設定追蹤分支'} aria-label={'同步狀態：領先 ' + (snapshot.ahead ?? 0) + '，落後 ' + (snapshot.behind ?? 0)}>↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span>}
       <div class="git-toolbar-spacer" />
-      <button class="secondary" disabled={!snapshot || !!pending || !snapshot.branch} onClick={() => startDialog('branch')}>＋ 分支</button>
-      <label class="git-branch-picker"><span>切換</span><select aria-label="切換本機分支" disabled={!snapshot || !!pending} value={snapshot?.branch ?? ''} onChange={(event) => event.currentTarget.value && send({ type: 'checkout', name: event.currentTarget.value })}>{localBranches.map((branch) => <option value={branch.name}>{branch.name}</option>)}</select></label>
-      <details class="git-actions-menu"><summary>遠端與進階操作</summary><div class="git-actions-popup">
-        <button onClick={() => startDialog('fetch')} disabled={!remotes.length || !!pending}>Fetch…</button>
-        <button onClick={() => startDialog('pull')} disabled={!remotes.length || !!pending}>Pull…</button>
-        <button onClick={() => startDialog('push')} disabled={!remotes.length || !!pending || !snapshot?.branch}>Push…</button>
+      <button class="git-tool git-fetch" disabled={!snapshot || !remotes.length || !!pending} onClick={() => startDialog('fetch')}><GitIcon name="fetch" />Fetch</button>
+      <button class="git-tool git-pull" disabled={!snapshot || !remotes.length || !!pending} onClick={() => startDialog('pull')}><GitIcon name="down" />Pull</button>
+      <button class="git-tool git-push" disabled={!snapshot?.branch || !remotes.length || !!pending} onClick={() => startDialog('push')}><GitIcon name="up" />Push</button>
+      <span class="git-toolbar-divider" />
+      <button class="git-tool secondary" disabled={!snapshot || !!pending} onClick={() => startDialog('branch')}><GitIcon name="branch" />分支</button>
+      <button class="git-tool git-stash" disabled={!snapshot || !!pending} onClick={() => startDialog('stash')}><GitIcon name="stash" />Stash</button>
+      <button class="git-tool git-refresh" title="更新 Repo 狀態" aria-label="更新 Repo 狀態" disabled={!snapshot || !!pending || !!reading} onClick={() => send({ type: 'refresh' })}><GitIcon name="refresh" /></button>
+      <details class="git-actions-menu"><summary aria-label="遠端與進階操作">···</summary><div class="git-actions-popup">
         <button onClick={() => startDialog('merge')} disabled={!snapshot || !!pending}>Merge…</button>
         <button onClick={() => startDialog('rebase')} disabled={!snapshot || !!pending}>Rebase…</button>
-        <button onClick={() => startDialog('stash')} disabled={!snapshot || !!pending}>建立 Stash…</button>
         <button onClick={() => startDialog('stashAction', snapshot?.stashes[0]?.oid)} disabled={!snapshot?.stashes.length || !!pending}>Stash 操作…</button>
-        <button onClick={() => startDialog('reset', snapshot?.history[0]?.hash)} disabled={!snapshot?.history.length || !!pending}>Reset…</button>
-        <button onClick={() => startDialog('pick', snapshot?.selectedCommit?.hash)} disabled={!snapshot?.selectedCommit || !!pending}>Cherry-pick／Revert…</button>
-        {snapshot?.operation && snapshot.operation !== 'stash-conflict' && <><button onClick={() => send({ type: 'continue' })} disabled={!!pending}>繼續</button>{snapshot.operation === 'rebase' && <button onClick={() => send({ type: 'skip' })} disabled={!!pending}>略過</button>}<button class="danger-button" onClick={() => send({ type: 'abort' })} disabled={!!pending}>中止</button></>}
+        <button onClick={() => startDialog('reset', selectedCommit?.hash ?? snapshot?.history[0]?.hash)} disabled={!snapshot?.history.length || !!pending}>Reset…</button>
+        <button onClick={() => startDialog('pick', selectedCommit?.hash)} disabled={!selectedCommit || !!pending}>Cherry-pick／Revert…</button>
       </div></details>
+      <select class="git-theme-picker" aria-label="Git 介面主題" value={layout.theme} onChange={(event) => setLayout((current) => ({ ...current, theme: event.currentTarget.value === 'vscode' ? 'vscode' : 'dark' }))}><option value="dark">深色</option><option value="vscode">跟隨 VS Code</option></select>
     </header>
-
+    {error && <div class="git-error dashboard-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>關閉</button></div>}
+    {snapshot?.operation && <div class="git-operation-banner" role="status"><div><strong>{snapshot.conflictCount ? '目前有合併衝突' : 'Git 操作暫停中'}</strong><span>{snapshot.operation === 'stash-conflict' ? '解決並暫存衝突檔案即可；原 Stash 會保留。' : '使用 Merge Editor 解決衝突，暫存後繼續作業。'}</span></div>{snapshot.operation !== 'stash-conflict' && <div class="git-operation-actions"><button disabled={!!pending} onClick={() => send({ type: 'continue' })}>繼續</button>{snapshot.operation === 'rebase' && <button disabled={!!pending} onClick={() => send({ type: 'skip' })}>略過</button>}<button class="danger-button" disabled={!!pending} onClick={() => send({ type: 'abort' })}>中止</button></div>}</div>}
     {snapshot ? <>
-      <div class="git-repo-heading"><div><strong title={snapshot.path}>{snapshot.name}</strong><code>{snapshot.path}</code></div><div class="git-branch-state"><span class="git-branch-chip">⑂ {snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="subtle">追蹤 {snapshot.tracking}</span>}{typeof snapshot.ahead === 'number' && <span>↑{snapshot.ahead}</span>}{typeof snapshot.behind === 'number' && <span>↓{snapshot.behind}</span>}{snapshot.busy && <span class="git-busy" role="status">作業處理中…</span>}</div></div>
-      {error && <div class="alert dashboard-error" role="alert"><span>{error}</span><button class="quiet" onClick={() => setError('')}>關閉</button></div>}
-      {notice && <div class="git-notice" role="status">{notice}</div>}
-      {pending && <div class="git-progress" role="status"><span class="spinner" />{pending}…</div>}
-      {snapshot.operation && <div class="git-operation-banner" role="status"><strong>{snapshot.changes.some((change) => change.section === 'conflict') ? '目前有合併衝突' : 'Git 操作暫停中'}</strong><span>{snapshot.operation === 'stash-conflict' ? '解決並暫存衝突檔案即可；原 Stash 會保留在清單中。' : '選擇衝突檔案並使用 VS Code Merge Editor，完成後使用下方適用的繼續、中止或略過操作。'}</span></div>}
-      <div class="git-tabbar" role="tablist" aria-label="Repo 內容"><button role="tab" aria-selected={ui.tab === 'changes'} class={ui.tab === 'changes' ? 'active' : ''} onClick={() => setUi({ tab: 'changes' })}>變更 <span>{snapshot.changes.length}</span></button><button role="tab" aria-selected={ui.tab === 'history'} class={ui.tab === 'history' ? 'active' : ''} onClick={() => setUi({ tab: 'history' })}>歷史</button><button class="git-commit-launch" onClick={() => startDialog('commit')}>提交…</button><button class="quiet" onClick={() => startDialog('commit', 'amend')} disabled={!snapshot.changes.some((change) => change.section === 'staged') || !snapshot.history.length}>Amend…</button></div>
-
-      {ui.tab === 'changes' ? <div class="git-changes-layout">
-        <div class="git-change-list">
-          {(['conflict', 'staged', 'unstaged'] as const).map((section) => {
-            const changes = snapshot.changes.filter((change) => change.section === section);
-            if (!changes.length) return null;
-            const label = section === 'conflict' ? '衝突' : section === 'staged' ? '已暫存' : '未暫存';
-            return <section class="git-change-section"><h3>{label}<span>{changes.length}</span></h3>{changes.map((change) => <div class={'git-change-row ' + (ui.selectedPath === change.path ? 'selected' : '')}>
-              <button class="git-change-name" onClick={() => selectChange(change)} title={change.path}><span class={'git-change-status ' + section}>{change.kind}</span><span>{change.path}</span></button>
-              {section === 'conflict' ? <><button class="quiet small" onClick={() => openNativeConflict(change.path)}>開啟 Merge Editor</button><button class="quiet small" title="儲存解決內容後，標記此檔為已解決" onClick={() => send({ type: 'stageFile', path: change.path, staged: true })}>標記已解決</button></> : <button class="quiet small" title={section === 'staged' ? '取消暫存整檔' : '暫存整檔'} onClick={() => send({ type: 'stageFile', path: change.path, staged: section !== 'staged' })}>{section === 'staged' ? '取消暫存' : '暫存'}</button>}
-              {section === 'unstaged' && <button class="quiet small" title="先建立復原 Stash，再還原此檔" onClick={() => send({ type: 'discard', path: change.path })}>捨棄…</button>}
-            </div>)}</section>;
+      <div class="git-mobile-toolbar"><button class="git-left-toggle" aria-expanded={leftOpen} onClick={() => setLeftOpen(!leftOpen)}><GitIcon name="branch" />分支導覽</button><button class="git-right-toggle" aria-expanded={rightOpen} onClick={() => setRightOpen(!rightOpen)}><GitIcon name="commit" />{ui.selection === 'worktree' ? '變更與提交' : '提交內容'}</button></div>
+      <div class={'git-shell ' + (leftOpen ? 'left-open ' : '') + (rightOpen ? 'right-open' : '')}>
+        {(leftOpen && hostWidth < 1000 || rightOpen && hostWidth < 720) && <button class="git-drawer-shade" aria-label="關閉側面板" onClick={() => { setLeftOpen(false); setRightOpen(false); }} />}
+        <aside class="git-sidebar" aria-label="分支導覽" inert={hostWidth < 1000 && !leftOpen}>
+          <header class="git-sidebar-heading"><span>EXPLORER</span><button class="git-drawer-close" aria-label="關閉分支導覽" onClick={() => setLeftOpen(false)}>×</button></header>
+          <label class="git-sidebar-search"><GitIcon name="search" /><input aria-label="搜尋版控 Repo" placeholder="搜尋 Repo…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} /></label>
+          <button class={'git-worktree-link ' + (ui.selection === 'worktree' ? 'selected' : '')} onClick={() => setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined })}><GitIcon name="changes" /><span>工作中變更</span><span class="git-count">{snapshot.changes.length}</span></button>
+          {(['local', 'remote', 'tag'] as const).map((kind) => {
+            const branches = snapshot.branches.filter((branch) => branch.kind === kind);
+            return <details class="git-nav-group" open key={kind}><summary><GitIcon name={kind === 'tag' ? 'tag' : kind === 'remote' ? 'remote' : 'branch'} /><span>{kind === 'local' ? '本機分支' : kind === 'remote' ? '遠端分支' : '標籤'}</span><small>{branches.length}</small></summary><div class="git-nav-items">{branches.map((branch) => <div class={'git-ref-row ' + (branch.current ? 'current' : '')} key={branch.name}>
+              <button class="git-ref-name" title={branch.name} onClick={() => branch.commit && selectCommit(branch.commit)}><span class="git-ref-dot" style={{ background: COLORS[(graph.rows.get(branch.commit ?? '')?.color ?? 0) % COLORS.length] }} /><span>{branch.name}</span>{branch.current && <small>HEAD</small>}</button>
+              <details class="git-ref-menu"><summary aria-label={'操作分支 ' + branch.name}>···</summary><div class="git-actions-popup">{kind === 'local' && !branch.current && <><button disabled={!!pending} onClick={() => send({ type: 'checkout', name: branch.name })}>切換至此分支</button><button disabled={!!pending} onClick={() => send({ type: 'deleteBranch', name: branch.name })}>刪除分支…</button></>}<button disabled={!!pending || branch.current} onClick={() => startDialog('merge', branch.name)}>合併至目前分支…</button><button disabled={!!pending || branch.current} onClick={() => startDialog('rebase', branch.name)}>Rebase 至此…</button></div></details>
+            </div>)}{!branches.length && <p class="git-nav-empty">沒有{kind === 'local' ? '本機分支' : kind === 'remote' ? '遠端分支' : '標籤'}</p>}</div></details>;
           })}
-          {!snapshot.changes.length && <div class="git-empty-list"><strong>工作目錄乾淨</strong><span>沒有待處理變更。</span></div>}
-          <section class="git-ref-list"><h3>本機分支 <span>{localBranches.length}</span></h3>{localBranches.map((branch) => <div class="git-ref-row"><button class="git-ref-name" onClick={() => send({ type: 'checkout', name: branch.name })}>{branch.current ? '● ' : '⑂ '}{branch.name}</button>{!branch.current && <button class="quiet small" title="刪除分支" onClick={() => send({ type: 'deleteBranch', name: branch.name })}>刪除</button>}</div>)}</section>
-          <section class="git-ref-list"><h3>標籤 <span>{snapshot.branches.filter((branch) => branch.kind === 'tag').length}</span></h3>{snapshot.branches.filter((branch) => branch.kind === 'tag').slice(0, 80).map((branch) => <div class="git-ref-row"><span class="git-ref-name">◇ {branch.name}</span></div>)}</section>
-          <section class="git-ref-list"><h3>Stash <span>{snapshot.stashes.length}</span></h3>{snapshot.stashes.map((stash) => <StashRow stash={stash} onAction={(operation) => startDialog('stashAction', stash.oid + '|' + operation)} />)}</section>
-          <section class="git-ref-list"><h3>復原點 <span>{snapshot.recoveryRefs.length}</span></h3>{snapshot.recoveryRefs.map((recovery) => <div class="git-ref-row git-recovery-row"><span class="git-ref-name" title={recovery.hash}>{recovery.subject || recovery.name}<small>{recovery.name} · {recovery.hash.slice(0, 12)}</small></span><button class="quiet small" title="Reset 到此復原提交" onClick={() => send({ type: 'reset', hash: recovery.hash, mode: 'hard' })}>復原…</button></div>)}{snapshot.recoveryRefs.length > 0 && <p class="subtle git-recovery-note">硬重設前建立的未提交備份會留在 Stash 清單，可從那裡 Apply。</p>}</section>
+          <details class="git-nav-group" open><summary><GitIcon name="stash" /><span>Stash</span><small>{snapshot.stashes.length}</small></summary><div class="git-nav-items">{snapshot.stashes.map((stash) => <StashRow key={stash.oid} stash={stash} onAction={(operation) => startDialog('stashAction', stash.oid + '|' + operation)} />)}{!snapshot.stashes.length && <p class="git-nav-empty">沒有 Stash</p>}</div></details>
+          <details class="git-nav-group"><summary><GitIcon name="refresh" /><span>復原點</span><small>{snapshot.recoveryRefs.length}</small></summary><div class="git-nav-items">{snapshot.recoveryRefs.map((recovery) => <div class="git-ref-row git-recovery-row" key={recovery.name}><button class="git-ref-name" title={recovery.hash} onClick={() => selectCommit(recovery.hash)}>{recovery.subject || recovery.name}<small>{recovery.hash.slice(0, 12)}</small></button><button disabled={!!pending} onClick={() => startDialog('reset', recovery.hash)}>復原…</button></div>)}{snapshot.recoveryRefs.length > 0 && <p class="git-nav-empty">未提交備份保留於 Stash，可從那裡 Apply。</p>}</div></details>
+        </aside>
+        <div class="git-resizer git-left-resizer" role="separator" aria-label="調整分支欄寬度" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => beginResize('left', event)} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') setLayout((current) => ({ ...current, left: clamp(current.left + (event.key === 'ArrowRight' ? 16 : -16), 180, 360, 220) })); }} />
+        <div class="git-center">
+          {ui.view === 'graph' ? <div class="git-history-list">
+            <header class="git-history-toolbar"><div><span class="git-panel-eyebrow">COMMIT GRAPH</span><strong>提交歷史</strong></div><label class="git-graph-search"><GitIcon name="search" /><input aria-label="搜尋 Commit 歷史" placeholder="搜尋提交、作者或分支…" value={historyFilter} onInput={(event) => setHistoryFilter(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') jumpSearch(searchPosition + (event.shiftKey ? -1 : 1)); }} /></label>{historyFilter && <div class="git-search-navigation"><span>{searchHits.length ? searchPosition + 1 : 0}/{searchHits.length}</span><button aria-label="上一個搜尋結果" disabled={!searchHits.length} onClick={() => jumpSearch(searchPosition - 1)}>↑</button><button aria-label="下一個搜尋結果" disabled={!searchHits.length} onClick={() => jumpSearch(searchPosition + 1)}>↓</button></div>}</header>
+            <div class="git-graph-column-head"><span>圖譜 / 提交訊息</span><span>作者</span><span>提交</span></div>
+            <div class="git-commit-list" ref={historyListRef} onScroll={(event) => setHistoryViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight || 600 })}>
+              <div class="git-graph-rows" style={{ minWidth: Math.max(430, graphWidth + 330) + 'px', '--git-graph-width': graphWidth + 'px' }}>
+                {historyStart > 0 && <div class="git-list-spacer" style={{ height: historyStart * COMMIT_ROW_HEIGHT + 'px' }} aria-hidden="true" />}
+                {visibleCommits.map((commit) => {
+                  const working = commit.hash === 'worktree';
+                  const selected = working ? ui.selection === 'worktree' : ui.selection === 'commit' && ui.selectedCommit === commit.hash;
+                  return <button key={commit.hash} class={'git-commit-row ' + (working ? 'git-wip-row ' : '') + (selected ? 'selected ' : '') + (searchHits.includes(graphCommits.indexOf(commit)) ? 'search-hit' : '')} title={working ? '工作中變更' : commit.subject + '\n' + commit.hash} onClick={() => working ? setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined }) : selectCommit(commit.hash)}>
+                    <GraphCell row={graph.rows.get(commit.hash)!} width={graphWidth} head={commit.hash === headHash} working={working} />
+                    <span class="git-commit-summary">{working ? <><strong>工作中變更</strong><small>{snapshot.changes.length ? snapshot.stagedCount + ' 已暫存 · ' + snapshot.unstagedCount + ' 未暫存' : '工作目錄乾淨'}</small></> : <><span class="git-commit-refs">{refsByCommit.get(commit.hash)?.map((label) => <span key={label} style={{ '--git-ref-color': COLORS[graph.rows.get(commit.hash)!.color % COLORS.length] }}>{label}</span>)}</span><strong>{commit.subject}</strong></>}</span>
+                    <span class="git-commit-author">{working ? <span class="git-count">{snapshot.changes.length}</span> : <><i>{commit.author.slice(0, 1).toUpperCase()}</i><span>{commit.author}</span></>}</span>
+                    <code class="git-commit-hash">{working ? 'WIP' : commit.hash.slice(0, 8)}</code>
+                  </button>;
+                })}
+                {historyEnd < graphCommits.length && <div class="git-list-spacer" style={{ height: (graphCommits.length - historyEnd) * COMMIT_ROW_HEIGHT + 'px' }} aria-hidden="true" />}
+              </div>
+              {!snapshot.history.length && <div class="git-empty-list"><GitIcon name="commit" /><strong>尚無提交歷史</strong><span>暫存變更並建立第一筆提交。</span></div>}
+              {snapshot.historyHasMore && <button class="git-load-more" disabled={!!reading} onClick={() => send({ type: 'history', skip: snapshot.history.length })}>{reading === '載入歷史' ? '載入中…' : '載入較舊提交'}</button>}
+            </div>
+          </div> : <div class="git-diff-panel">
+            <header class="git-diff-heading"><button class="git-back-graph" onClick={() => setUi({ view: 'graph' })}>← 提交圖</button><strong title={ui.selectedPath}>{ui.selectedPath ?? '選取檔案'}</strong><span>{ui.selection === 'commit' ? '提交差異' : ui.selectedSection === 'staged' ? '已暫存' : ui.selectedSection === 'conflict' ? '衝突' : '未暫存'}</span></header>
+            {diffMatches && selectedChange && selectedChange.section !== 'conflict' && <div class="git-diff-actions"><button disabled={!selectedDiffLines.length || !!pending || selectedChange.kind === '未追蹤'} onClick={() => stageSelectedLines(selectedChange.section === 'staged')}>{selectedChange.section === 'staged' ? '取消暫存選取行' : '暫存選取行'}</button><button disabled={!!pending} onClick={() => send({ type: 'stageFile', path: selectedChange.path, staged: selectedChange.section !== 'staged' })}>{selectedChange.section === 'staged' ? '取消暫存整檔' : '暫存整檔'}</button></div>}
+            {diffMatches && BufferByteLength(snapshot.diffText ?? '') > 1_048_576 ? <div class="git-large-diff"><p>此 Diff 超過 1 MiB。</p><button onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>在 VS Code 開啟原生 Diff</button></div> : diffMatches && snapshot.diffText ? <pre class="git-diff-view">{diffLines.map((line, index) => <label class={'git-diff-line ' + line.kind}>{(line.kind === 'add' || line.kind === 'remove') && ui.selection === 'worktree' && <input aria-label={'選取差異行 ' + (index + 1)} type="checkbox" disabled={!selectedChange || selectedChange.kind === '未追蹤' || selectedChange.section === 'conflict' || !!pending} checked={selectedDiffLines.includes(index)} onChange={(event) => setSelectedDiffLines((current) => event.currentTarget.checked ? current.concat(index) : current.filter((item) => item !== index))} />}<code>{line.text}</code></label>)}</pre> : <div class="git-empty-list">{reading ? '正在讀取差異…' : diffMatches ? '沒有文字差異；二進位檔案可使用原生 Diff 檢視。' : '從右側選取檔案以檢視差異。'}</div>}
+            {diffMatches && <footer class="git-diff-footer"><span>{ui.selection === 'commit' && snapshot.diffParent ? '比較 Parent ' + (selectedCommit?.parents.indexOf(snapshot.diffParent)! + 1) : '選取新增或刪除的行可進行部分暫存'}</span><button onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>原生 Diff ↗</button></footer>}
+          </div>}
         </div>
-        <div class="git-diff-panel">
-          <div class="git-diff-heading"><div><strong>{snapshot.diffPath ?? '選取檔案以檢視 Diff'}</strong><span>{snapshot.diffRef ? '提交歷史差異' : selectedChange?.section === 'staged' ? '已暫存差異' : selectedChange?.section === 'conflict' ? '合併衝突' : '工作目錄差異'}</span></div>{snapshot.diffPath && !snapshot.diffRef && selectedChange && selectedChange.section !== 'conflict' && <div class="git-diff-actions"><button class="secondary small" disabled={!selectedDiffLines.length || !!pending || selectedChange.kind === '未追蹤'} onClick={() => stageSelectedLines(selectedChange.section === 'staged')}>{selectedChange.section === 'staged' ? '取消暫存選取行' : '暫存選取行'}</button><button class="quiet small" disabled={!!pending} onClick={() => send({ type: 'stageFile', path: snapshot.diffPath!, staged: selectedChange.section !== 'staged' })}>{selectedChange.section === 'staged' ? '取消暫存整檔' : '暫存整檔'}</button></div>}</div>
-          {snapshot.diffText && BufferByteLength(snapshot.diffText) > 1_048_576 ? <div class="git-large-diff"><p>此 Diff 超過 1 MiB。</p><button class="secondary" onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath ?? '', staged: snapshot.diffStaged ?? false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>在 VS Code 開啟原生 Diff</button><button class="quiet" onClick={() => selectedChange && selectChange(selectedChange)}>重新載入 Diff</button></div> : snapshot.diffText ? <pre class="git-diff-view">{diffLines.map((line, index) => line.kind === 'add' || line.kind === 'remove' ? <label class={'git-diff-line ' + line.kind}><input type="checkbox" disabled={!selectedChange || selectedChange.kind === '未追蹤' || !!snapshot.diffRef} checked={selectedDiffLines.includes(index)} onChange={(event) => setSelectedDiffLines((current) => event.currentTarget.checked ? current.concat(index) : current.filter((item) => item !== index))} /><code>{line.text}</code></label> : <code class={'git-diff-line ' + line.kind}>{line.text}</code>)}</pre> : <div class="git-empty-list">選取檔案後，Diff 會顯示於此。</div>}
-        </div>
-      </div> : <div class="git-history-layout">
-        <div class="git-history-list"><div class="git-history-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Commit 歷史" placeholder="搜尋訊息或作者" value={historyFilter} onInput={(event) => setHistoryFilter(event.currentTarget.value)} /></label><span>{changedCommits.length} 筆</span></div>
-          <div class="git-commit-list" ref={historyListRef} onScroll={(event) => setHistoryViewport({ top: event.currentTarget.scrollTop, height: event.currentTarget.clientHeight || 600 })}>
-            {historyStart > 0 && <div class="git-list-spacer" style={{ height: `${historyStart * COMMIT_ROW_HEIGHT}px` }} aria-hidden="true" />}
-            {visibleCommits.map((commit) => <button key={commit.hash} class={'git-commit-row ' + (snapshot.selectedCommit?.hash === commit.hash ? 'selected' : '')} onClick={() => send({ type: 'readCommit', hash: commit.hash })}>
-              <svg class="git-commit-graph" viewBox="0 0 46 54" aria-hidden="true"><line x1={10 + (lanes.get(commit.hash) ?? 0) * 12} y1="0" x2={10 + (lanes.get(commit.hash) ?? 0) * 12} y2="54" /><circle cx={10 + (lanes.get(commit.hash) ?? 0) * 12} cy="27" r="4" class={commit.hash === headHash ? 'head' : ''} />{commit.parents.length > 1 && <path d="M 10 27 C 24 27, 22 40, 34 45" />}</svg>
-              <span class="git-commit-summary"><strong>{commit.subject}</strong><small>{commit.author} · {new Date(commit.date).toLocaleString()}</small><code>{commit.hash.slice(0, 12)}</code>{refsByCommit.has(commit.hash) && <span class="git-commit-refs">{refsByCommit.get(commit.hash)!.map((label) => <span key={label}>{label}</span>)}</span>}</span></button>)}
-            {historyEnd < changedCommits.length && <div class="git-list-spacer" style={{ height: `${(changedCommits.length - historyEnd) * COMMIT_ROW_HEIGHT}px` }} aria-hidden="true" />}
-            {!changedCommits.length && <div class="git-empty-list">目前沒有可顯示的提交歷史。</div>}
-            {snapshot.historyHasMore && <button class="secondary git-load-more" onClick={() => { const skip = snapshot.history.length; send({ type: 'history', skip }); }}>載入較舊提交</button>}
-          </div>
-        </div>
-        <aside class="git-commit-detail"><h3>提交內容</h3>{snapshot.selectedCommit ? <><strong>{snapshot.selectedCommit.subject}</strong><p>{snapshot.selectedCommit.author} · {new Date(snapshot.selectedCommit.date).toLocaleString()}</p><code>{snapshot.selectedCommit.hash}</code>{snapshot.selectedCommit.parents.length > 1 && <label class="git-field"><span>比較 Parent</span><select value={snapshot.selectedCommitParent ?? snapshot.selectedCommit.parents[0]} onChange={(event) => send({ type: 'readCommit', hash: snapshot.selectedCommit!.hash, parent: event.currentTarget.value })}>{snapshot.selectedCommit.parents.map((parent, index) => <option value={parent}>Parent {index + 1} · {parent.slice(0, 12)}</option>)}</select></label>}<div class="git-commit-files"><h4>變更檔案 ({snapshot.commitFiles?.length ?? 0})</h4>{snapshot.commitFiles?.map((file) => <button onClick={() => { setUi({ selectedPath: file }); send({ type: 'readDiff', path: file, staged: false, ref: snapshot.selectedCommit!.hash, parent: snapshot.selectedCommitParent }); }}>{file}</button>)}</div>{snapshot.diffRef === snapshot.selectedCommit.hash && snapshot.diffPath && <section class="git-commit-diff-preview" aria-label="提交差異"><header><h4>{snapshot.diffPath}</h4><span>{snapshot.diffParent ? `Parent ${snapshot.selectedCommit.parents.indexOf(snapshot.diffParent) + 1}` : '初始提交'}</span></header>{BufferByteLength(snapshot.diffText ?? '') > 1_048_576 ? <div class="git-large-diff"><p>此 Diff 超過 1 MiB。</p><button class="secondary" onClick={() => post({ type: 'gitOpenDiff', repositoryId: selectedId, path: snapshot.diffPath!, staged: false, ref: snapshot.diffRef, parent: snapshot.diffParent })}>在 VS Code 開啟原生 Diff</button></div> : <pre class="git-diff-view">{diffLines.map((line) => <code class={'git-diff-line ' + line.kind}>{line.text}</code>)}</pre>}</section>}<div class="git-commit-actions"><button class="secondary" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash)}>Cherry-pick…</button><button class="quiet" onClick={() => startDialog('pick', snapshot.selectedCommit!.hash + '|revert')}>Revert…</button><button class="quiet" onClick={() => startDialog('reset', snapshot.selectedCommit!.hash)}>Reset…</button></div></> : <p>選取提交以檢視訊息、變更檔案及 Diff。</p>}</aside>
-      </div>}
-    </> : <div class="git-empty-state"><div class="git-empty-icon">⑂</div><h2>{repositories.length ? '選擇要管理的 Repo' : '找不到本機 Git Repo'}</h2><p>{repositories.length ? '使用上方選單，或直接從 VS Code 側欄切換 Repo。' : 'VS Code 內建 Git 會自動偵測目前工作區與多資料夾工作區中的 Repo。請先開啟本機 Repo 資料夾。'}</p>{serviceMessage && <p>{serviceMessage}</p>}<button class="secondary" onClick={() => post({ type: 'gitReady' })}>重新整理</button></div>}
-
-    {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
+        <div class="git-resizer git-right-resizer" role="separator" aria-label="調整提交欄寬度" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => beginResize('right', event)} onKeyDown={(event) => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') setLayout((current) => ({ ...current, right: clamp(current.right + (event.key === 'ArrowLeft' ? 16 : -16), 280, 480, 320) })); }} />
+        <aside class="git-inspector" aria-label="變更與提交" inert={hostWidth < 720 && !rightOpen}>
+          <header class="git-inspector-heading"><div><span class="git-panel-eyebrow">{ui.selection === 'worktree' ? 'WORKING DIRECTORY' : 'COMMIT DETAILS'}</span><strong>{ui.selection === 'worktree' ? '變更與提交' : '提交內容'}</strong></div><button class="git-drawer-close" aria-label="關閉提交內容" onClick={() => setRightOpen(false)}>×</button></header>
+          {ui.selection === 'worktree' ? <>
+            <div class="git-change-list">{(['conflict', 'unstaged', 'staged'] as const).map((section) => {
+              const changes = snapshot.changes.filter((change) => change.section === section);
+              if (section === 'conflict' && !changes.length) return null;
+              return <section class="git-change-section" key={section}><h3><span class={'git-section-dot ' + section} />{section === 'conflict' ? '衝突' : section === 'staged' ? '已暫存' : '未暫存'}<span class="git-count">{changes.length}</span></h3>{changes.map((change) => <div key={change.path} class={'git-change-row ' + (ui.selectedPath === change.path && ui.selectedSection === section ? 'selected' : '')}><button class="git-change-name" title={change.path} onClick={() => selectChange(change)}><span class={'git-change-status ' + section}>{change.kind}</span><span>{change.path}</span></button>{section === 'conflict' ? <><button class="quiet small" aria-label={'開啟 Merge Editor ' + change.path} disabled={!!pending} onClick={() => openNativeConflict(change.path)}>Merge</button><button class="quiet small" title="儲存解決內容後，標記此檔為已解決" disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: true })}>✓</button></> : <button class="quiet small" title={section === 'staged' ? '取消暫存整檔' : '暫存整檔'} aria-label={(section === 'staged' ? '取消暫存 ' : '暫存 ') + change.path} disabled={!!pending} onClick={() => send({ type: 'stageFile', path: change.path, staged: section !== 'staged' })}>{section === 'staged' ? '−' : '+'}</button>}{section === 'unstaged' && <button class="quiet small" title="先建立復原 Stash，再還原此檔" aria-label={'捨棄 ' + change.path} disabled={!!pending} onClick={() => send({ type: 'discard', path: change.path })}>↶</button>}</div>)}{!changes.length && <p class="git-nav-empty">{section === 'staged' ? '暫存檔案後即可提交' : '沒有未暫存變更'}</p>}</section>;
+            })}</div>
+            <form class="git-commit-composer" onSubmit={(event) => submitCommit(event)}><label class="git-field"><span>提交訊息</span><textarea aria-label="提交訊息" name="message" rows={5} value={ui.draft} placeholder="描述這次變更…" onInput={(event) => setUi({ draft: event.currentTarget.value })} /></label><div class="git-commit-preview"><span>{snapshot.stagedCount} 個已暫存檔案</span>{snapshot.conflictCount > 0 && <span class="warning">先解決衝突</span>}</div><button class="primary git-commit-launch" type="submit" disabled={!ui.draft.trim() || !snapshot.stagedCount || !!snapshot.conflictCount || !!pending}><GitIcon name="commit" />Commit 已暫存變更</button><button class="git-amend" type="button" disabled={!ui.draft.trim() || !snapshot.stagedCount || !headHash || !!snapshot.conflictCount || !!pending} onClick={(event) => submitCommit(event, true)}>Amend 最近一次提交…</button></form>
+          </> : <div class="git-commit-detail">{selectedCommit ? <>
+            <strong class="git-detail-subject">{selectedCommit.subject}</strong><p>{selectedCommit.author} · {new Date(selectedCommit.date).toLocaleString()}</p><code>{selectedCommit.hash}</code>
+            {selectedCommit.parents.length > 1 && <label class="git-field"><span>比較 Parent</span><select aria-label="比較 Parent" value={ui.parent ?? snapshot.selectedCommitParent ?? selectedCommit.parents[0]} onChange={(event) => selectCommit(selectedCommit.hash, event.currentTarget.value)}>{selectedCommit.parents.map((parent, index) => <option key={parent} value={parent}>Parent {index + 1} · {parent.slice(0, 12)}</option>)}</select></label>}
+            <div class="git-commit-files"><h4>變更檔案 <span class="git-count">{commitComparisonReady ? snapshot.commitFiles?.length ?? 0 : '…'}</span></h4>
+              {commitComparisonReady ? <>{snapshot.commitFiles?.map((file) => <button class={ui.selectedPath === file ? 'selected' : ''} key={file} title={file} onClick={() => selectCommitFile(file)}><GitIcon name="file" /><span>{file}</span></button>)}{!snapshot.commitFiles?.length && <p class="git-nav-empty">此比較沒有變更檔案。</p>}</> : <p class="git-nav-empty" role="status">正在讀取比較…</p>}
+            </div>
+            <div class="git-commit-actions"><button disabled={!!pending} onClick={() => startDialog('pick', selectedCommit.hash)}>Cherry-pick…</button><button disabled={!!pending} onClick={() => startDialog('pick', selectedCommit.hash + '|revert')}>Revert…</button><button disabled={!!pending} onClick={() => startDialog('reset', selectedCommit.hash)}>Reset…</button></div>
+          </> : <div class="git-empty-list">正在讀取提交內容…</div>}<button class="git-return-worktree" onClick={() => setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined })}>← 返回工作中變更</button></div>}
+        </aside>
+      </div>
+      <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="git-tracking" title={snapshot.tracking}>↗ {snapshot.tracking}</span>}<span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : notice || (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
+    </> : <div class="git-empty-state"><GitIcon name="repo" /><h2>{available === false ? 'VS Code 內建 Git 尚未啟用' : repositories.length ? '正在開啟 Repo…' : available === undefined ? '正在尋找本機 Repo…' : '找不到本機 Git Repo'}</h2><p>{serviceMessage || (available === false ? '請啟用 VS Code 內建 Git，再重新整理。' : '開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。')}</p><button onClick={() => post({ type: 'gitReady' })}>重新整理</button></div>}
+    {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" role="dialog" aria-modal="true" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
       {dialog.kind === 'branch' && <Field name="name" label="新分支名稱" placeholder="feature/my-change" autoFocus />}
       {dialog.kind === 'fetch' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><p class="subtle">Fetch 只會更新遠端追蹤分支，不會改動目前工作目錄。</p></>}
       {dialog.kind === 'pull' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><Field name="branch" label="分支" defaultValue={snapshot.tracking?.split('/').slice(1).join('/') ?? snapshot.branch ?? ''} /><SelectField name="strategy" label="整合方式" values={['configured', 'ff-only', 'merge', 'rebase', 'rebase-merges', 'interactive']} labels={['依 Repo Git 設定', '只接受快轉', 'Merge', 'Rebase', 'Rebase 並保留 Merge 結構', '互動式 Rebase']} defaultValue="configured" /><p class="subtle">目前 Repo 設定：{snapshot.configuredPullStrategy ?? 'Merge'}。會先顯示來源與策略確認畫面。</p></>}
       {dialog.kind === 'push' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><Field name="branch" label="遠端分支" defaultValue={snapshot.branch ?? ''} /><label class="git-checkbox"><input type="checkbox" name="setUpstream" defaultChecked={!snapshot.tracking} />設定 upstream 追蹤此遠端分支</label><label class="git-checkbox"><input type="checkbox" name="force" />Force Push（使用固定 SHA 的 force-with-lease）</label></>}
       {dialog.kind === 'stash' && <><Field name="message" label="Stash 名稱" defaultValue="工作中變更" autoFocus /><label class="git-checkbox"><input type="checkbox" name="includeUntracked" defaultChecked />包含未追蹤檔案</label></>}
       {dialog.kind === 'stashAction' && <><Field name="hash" label="Stash SHA" defaultValue={(dialog.value ?? '').split('|')[0]} /><SelectField name="operation" label="操作" values={['apply', 'pop', 'drop']} labels={['Apply（保留 Stash）', 'Pop（成功套用後移除）', 'Drop（刪除）']} defaultValue={(dialog.value ?? '').split('|')[1] ?? 'apply'} /><p class="subtle">Apply／Pop 發生衝突時，原 Stash 會保留。</p></>}
-      {dialog.kind === 'rebase' && <><SelectField name="ref" label="目標分支／提交" values={localBranches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={localBranches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><label class="git-checkbox"><input type="checkbox" name="interactive" />互動式 Rebase（先預覽提交順序與操作）</label><p class="subtle">互動式 Rebase 使用標準線性歷史；包含 Merge Commit 時會先顯示展平預覽及確認。</p></>}
+      {dialog.kind === 'rebase' && <><SelectField name="ref" label="目標分支／提交" defaultValue={dialog.value} values={localBranches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={localBranches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><label class="git-checkbox"><input type="checkbox" name="interactive" />互動式 Rebase（先預覽提交順序與操作）</label><p class="subtle">互動式 Rebase 使用標準線性歷史；包含 Merge Commit 時會先顯示展平預覽及確認。</p></>}
       {dialog.kind === 'rebaseEditor' && <RebaseTodoEditor
         plan={snapshot.rebasePlan?.target === rebaseDialogDetails?.ref ? snapshot.rebasePlan : undefined}
         target={rebaseDialogDetails?.ref ?? ''}
@@ -352,7 +480,7 @@ export function GitControlPanel({ post }: Props) {
         entries={rebaseTodos[selectedId] ?? []}
         onChange={(entries) => setRebaseTodos((current) => ({ ...current, [selectedId]: entries }))}
       />}
-      {dialog.kind === 'merge' && <><SelectField name="ref" label="來源分支／提交" values={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><p class="subtle">來源會合併至目前分支：{snapshot.branch ?? 'Detached HEAD'}。</p></>}
+      {dialog.kind === 'merge' && <><SelectField name="ref" label="來源分支／提交" defaultValue={dialog.value} values={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><p class="subtle">來源會合併至目前分支：{snapshot.branch ?? 'Detached HEAD'}。</p></>}
       {dialog.kind === 'reset' && <><Field name="hash" label="目標提交 SHA" defaultValue={(dialog.value ?? snapshot.history[0]?.hash ?? '').split('|')[0]} /><SelectField name="mode" label="Reset 類型" values={['soft', 'mixed', 'hard']} labels={['Soft：保留暫存與工作檔', 'Mixed：保留工作檔，清除暫存', 'Hard：復原備份未提交變更，再重設']} defaultValue="mixed" /><p class="subtle">操作前會再次顯示 Repo、目標提交及影響內容；Hard Reset 會先建立 Stash 備份。</p></>}
       {dialog.kind === 'commit' && <><label class="git-field"><span>提交訊息</span><textarea name="message" rows={4} defaultValue={ui.draft} placeholder="描述這次變更…" autoFocus /></label><label class="git-checkbox"><input type="checkbox" name="amend" defaultChecked={dialog.value === 'amend'} />Amend 最近一次提交（改寫歷史，執行前會確認並建立復原點）</label><div class="git-staged-preview"><strong>將提交的暫存內容</strong>{snapshot.changes.filter((change) => change.section === 'staged').map((change) => <span>{change.kind}　{change.path}</span>)}{!snapshot.changes.some((change) => change.section === 'staged') && <span>目前沒有已暫存檔案。</span>}</div></>}
       {dialog.kind === 'pick' && <><label class="git-field"><span>操作</span><select name="operation" value={dialog.operation ?? 'cherryPick'} onChange={(event) => setDialog((current) => current?.kind === 'pick' ? { ...current, operation: event.currentTarget.value as 'cherryPick' | 'revert' } : current)}><option value="cherryPick">Cherry-pick</option><option value="revert">Revert</option></select></label><Field name="hash" label="提交 SHA" defaultValue={(dialog.value ?? snapshot.selectedCommit?.hash ?? '').split('|')[0]} /><label class="git-field"><span>Merge Commit mainline parent（一般提交留空）</span><select name="mainline"><option value="">一般提交</option><option value="1">Parent 1</option><option value="2">Parent 2</option><option value="3">Parent 3</option></select></label><p class="subtle">Merge Commit 請選擇要保留的 mainline parent。</p></>}
@@ -360,7 +488,6 @@ export function GitControlPanel({ post }: Props) {
     </div><footer><button type="button" class="quiet" onClick={() => setDialog(undefined)}>取消</button><button type="submit" class="primary">{dialog.kind === 'commit' ? dialog.value === 'amend' ? 'Amend' : '提交' : '檢視並執行'}</button></footer></form></div>}
   </section>;
 }
-
 function StashRow({ stash, onAction }: { stash: GitStashSummary; onAction: (operation: string) => void }) {
   const [open, setOpen] = useState(false);
   return <div class="git-stash-row"><button class="git-ref-name" onClick={() => setOpen((value) => !value)} title={stash.oid}>{stash.message}</button><button class="quiet small" onClick={() => onAction('apply')}>操作</button>{open && <div class="git-stash-actions"><button onClick={() => onAction('apply')}>Apply</button><button onClick={() => onAction('pop')}>Pop</button><button onClick={() => onAction('drop')}>Drop…</button></div>}</div>;
@@ -413,3 +540,27 @@ function parseRebaseDialog(value?: string): { ref: string; pullSource?: { remote
 function dialogTitle(dialog: DialogState): string { const titles: Record<DialogState['kind'], string> = { branch: '建立並切換分支', fetch: 'Fetch 遠端分支', pull: 'Pull 遠端變更', push: 'Push 本機提交', stash: '建立 Stash', stashAction: 'Stash 操作', rebase: 'Rebase 至目標', rebaseEditor: '互動式 Rebase 預覽', merge: '合併分支或提交', reset: '重設 Repo', commit: dialog.value === 'amend' ? 'Amend 最近一次提交' : 'Commit 已暫存變更', pick: '套用或還原提交' }; return titles[dialog.kind]; }
 function moveItem(items: GitRebaseTodoEntry[], index: number, delta: number): GitRebaseTodoEntry[] { const next = items.slice(); const target = index + delta; if (target < 0 || target >= next.length) return next; const [value] = next.splice(index, 1); next.splice(target, 0, value); return next; }
 function replaceItem(items: GitRebaseTodoEntry[], index: number, value: GitRebaseTodoEntry): GitRebaseTodoEntry[] { const next = items.slice(); next[index] = value; return next; }
+
+function GraphCell({ row, width, head, working }: { row: GitGraphRow; width: number; head: boolean; working: boolean }) {
+  const x = (lane: number) => 14 + lane * 18;
+  return <svg class="git-commit-graph" width={width} viewBox={'0 0 ' + width + ' 36'} aria-hidden="true">
+    {row.segments.map((segment, index) => {
+      const y1 = segment.start === 'top' ? 0 : 18, y2 = segment.end === 'node' ? 18 : 36;
+      return <path key={index} d={'M ' + x(segment.from) + ' ' + y1 + ' C ' + x(segment.from) + ' ' + (y1 + y2) / 2 + ', ' + x(segment.to) + ' ' + (y1 + y2) / 2 + ', ' + x(segment.to) + ' ' + y2} stroke={COLORS[segment.color % COLORS.length]} />;
+    })}
+    <circle cx={x(row.lane)} cy="18" r={working ? 5.5 : head ? 5 : 4} fill={working ? 'var(--git-bg)' : COLORS[row.color % COLORS.length]} stroke={COLORS[row.color % COLORS.length]} strokeWidth="2" strokeDasharray={working ? '2 2' : undefined} />
+    {head && <circle cx={x(row.lane)} cy="18" r="8" fill="none" stroke={COLORS[row.color % COLORS.length]} strokeWidth="1" />}
+  </svg>;
+}
+function GitIcon({ name }: { name: string }) {
+  const paths: Record<string, string> = {
+    repo: 'M3 2h9v12H3z M6 2v12 M9 5h1 M9 8h1', branch: 'M4 4v8 M4 8c0-3 7 0 7-4 M2 2h4v4H2z M9 1h4v4H9z M2 11h4v4H2z',
+    commit: 'M1 8h4 M11 8h4 M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+    changes: 'M3 3h10v10H3z M5 6h6 M5 9h6', stash: 'M2 5h12v9H2z M1 2h14v3H1z M6 8h4',
+    tag: 'M2 2h6l6 6-6 6-6-6z M5 5h.1', remote: 'M4 11H3a2 2 0 0 1 0-4 4 4 0 0 1 8-2 3 3 0 0 1 1 6 M8 8v6 M6 12l2 2 2-2',
+    fetch: 'M8 2v9 M5 8l3 3 3-3 M2 11v3h12v-3', down: 'M8 2v12 M4 10l4 4 4-4', up: 'M8 14V2 M4 6l4-4 4 4',
+    refresh: 'M13 6a5 5 0 1 0 0 4 M13 2v4H9', search: 'M10 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M9 9l5 5',
+    file: 'M3 1h6l4 4v10H3z M9 1v4h4'
+  };
+  return <svg class="git-icon" viewBox="0 0 16 16" aria-hidden="true"><path d={paths[name] ?? paths.commit} /></svg>;
+}

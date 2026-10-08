@@ -36,6 +36,24 @@ npm test
 
 `npm test` 依序執行單元測試、行為測試、VSIX 打包與驗證、發行流程測試及 VS Code Extension Host 測試。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
 
+Git GUI 的本機整合驗證使用獨立的工作目錄、VS Code 設定檔及產生的 bare remote，不需要 GitLab 帳號：
+
+```powershell
+npm.cmd run test:git-gui:local
+```
+
+測試會操作打包後的真實 Webview，並在開啟、點選檔案、暫存與提交後各閒置 60 秒，分別記錄擴充功能的 Git 指令／Git API 呼叫與 VS Code Git 輸出。另驗證連點去重、Merge Parent Diff、空 Repo、Detached HEAD 及快速切換 Repo。結果與截圖寫入 `docs/work/work-20261008-git-gui/evidence/`。破壞性操作的原生確認視窗由測試處理器回答；這個測試不驗證原生視窗的版面。
+
+本機 Git GUI 測試接受已安裝的 VS Code 1.90 或更新版本，並在證據中記錄實際版本。若 VS Code 不在預設安裝位置，可明確指定執行檔；一般 Extension Host 測試也支援相同環境變數：
+
+```powershell
+$env:VSCODE_EXECUTABLE_PATH = 'C:\path\to\Microsoft VS Code\Code.exe'
+npm.cmd test
+npm.cmd run test:git-gui:local
+```
+
+連線真實 GitLab 的 `test:live`、`test:git-gui` 與效能基準仍使用各自固定的 VS Code 版本及環境要求。
+
 打包本機安裝檔：
 
 ```sh

@@ -418,3 +418,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .issue-workspace-layout .field input, .issue-workspace-layout .field select, .issue-workspace-layout .field textarea { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+.page[data-mode="git"] { padding: 0; overflow: hidden; }
+.page[data-mode="git"] .workspace-tasks { min-height: 0; flex: 1 1 0; }
+.page[data-mode="git"] .git-mode-host { min-height: 0; flex: 1 1 0; }

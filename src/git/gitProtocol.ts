@@ -24,6 +24,7 @@ export interface GitRepositorySummary {
   name: string;
   path: string;
   branch?: string;
+  headCommit?: string;
   tracking?: string;
   ahead?: number;
   behind?: number;
@@ -65,6 +66,8 @@ export interface GitRebasePlan {
 }
 
 export interface GitRepositorySnapshot extends GitRepositorySummary {
+  /** Present only on a Commit action response; cancelling must not clear the draft. */
+  commitCompleted?: boolean;
   remotes: string[];
   changes: GitChange[];
   history: GitCommitSummary[];
@@ -122,10 +125,19 @@ export type GitPanelRequest =
   | { type: 'gitOpenDiff'; repositoryId: string; path: string; staged: boolean; ref?: string; parent?: string }
   | { type: 'gitAction'; requestId: string; repoId: string; action: GitAction };
 
+/** Rebase preview may fetch a remote; every other preview is read-only. */
+export function isGitWriteAction(action: GitAction): boolean {
+  switch (action.type) {
+    case 'open': case 'refresh': case 'readDiff': case 'readCommit': case 'history': return false;
+    case 'rebasePreview': return !!action.pullSource;
+    default: return true;
+  }
+}
+
 export type GitPanelMessage =
   | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; revision: number }
   | { type: 'gitSnapshot'; snapshot: GitRepositorySnapshot; requestId?: string }
-  | { type: 'gitActionResult'; requestId: string; error?: string }
+  | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean }
   | { type: 'gitError'; message: string };
 
 const REF_NAME = /^(?!-)(?!\/)(?!.*(?:\.\.|\/\/|@\{|\\|[\x00-\x20~^:?*[)\x7f]))(?!.*\/\.)(?!.*\/$)(?!.*\.lock$).+$/;
