@@ -9,7 +9,7 @@ import { scanWorkspaceRepositories, localPathKey } from '../../src/git/repositor
 
 const exec = promisify(execFile);
 async function directory(t: TestContext): Promise<string> {
-  const prefix = path.resolve(os.tmpdir(), 'workspace-scan-');
+  const prefix = path.resolve(await realpath(os.tmpdir()), 'workspace-scan-');
   const root = await mkdtemp(prefix);
   assert.ok(path.resolve(root).startsWith(prefix));
   t.after(() => rm(root, { recursive: true, force: true }));

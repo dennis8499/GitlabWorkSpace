@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { gitDirectoryForRepository, withGitDirectoryLock, withGitDirectoryLocks } from '../../src/git/repositoryOperationLock';
 
 test('native async Git-directory detection handles normal repos, worktrees, submodules and missing paths', async (t) => {
-  const parent = await mkdtemp(path.join(os.tmpdir(), 'glw-git-lock-'));
-  t.after(async () => { if (!path.basename(parent).startsWith('glw-git-lock-')) throw new Error('Unsafe fixture cleanup'); await rm(parent, { recursive: true, force: true }); });
+  const temporaryRoot = await realpath(os.tmpdir());
+  const parent = await mkdtemp(path.join(temporaryRoot, 'glw-git-lock-'));
+  t.after(async () => { if (path.dirname(parent) !== temporaryRoot || !path.basename(parent).startsWith('glw-git-lock-')) throw new Error('Unsafe fixture cleanup'); await rm(parent, { recursive: true, force: true }); });
   const main = path.join(parent, 'main'), worktree = path.join(parent, 'worktree'), submodule = path.join(parent, 'submodule');
   const common = path.join(main, '.git'), worktreeGit = path.join(common, 'worktrees', 'linked'), submoduleGit = path.join(common, 'modules', 'sub');
   await Promise.all([mkdir(worktreeGit, { recursive: true }), mkdir(submoduleGit, { recursive: true }), mkdir(worktree), mkdir(submodule)]);
