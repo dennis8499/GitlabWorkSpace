@@ -270,6 +270,228 @@
         }
       },
       "version": "0.13.2"
+    },
+    {
+      "files": {
+        ".agents/skills/megin-behavior-contract/SKILL.md": "429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2",
+        ".agents/skills/megin-behavior-contract/agents/openai.yaml": "6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c",
+        ".agents/skills/megin-bug-diagnosis/SKILL.md": "fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d",
+        ".agents/skills/megin-bug-diagnosis/agents/openai.yaml": "b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a",
+        ".agents/skills/megin-code-review/SKILL.md": "82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa",
+        ".agents/skills/megin-code-review/agents/openai.yaml": "fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4",
+        ".agents/skills/megin-finishing-delivery/SKILL.md": "dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097",
+        ".agents/skills/megin-finishing-delivery/agents/openai.yaml": "c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25",
+        ".agents/skills/megin-human-acceptance/SKILL.md": "4ce75e7f4d0eb9d89cbd2a6d0307e45def505afa15e564a49c4bfb4e3b77167f",
+        ".agents/skills/megin-human-acceptance/agents/openai.yaml": "be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8",
+        ".agents/skills/megin-implementation-execution/SKILL.md": "2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41",
+        ".agents/skills/megin-implementation-execution/agents/openai.yaml": "737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb",
+        ".agents/skills/megin-project-knowledge/SKILL.md": "c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa",
+        ".agents/skills/megin-project-knowledge/agents/openai.yaml": "ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9",
+        ".agents/skills/megin-requirements-discovery/SKILL.md": "f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1",
+        ".agents/skills/megin-requirements-discovery/agents/openai.yaml": "d8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7",
+        ".agents/skills/megin-technical-planning/SKILL.md": "35bc74ab0bd40d29569e603e36a564cb9ad381ccd189a9629ee297f69f45cf5c",
+        ".agents/skills/megin-technical-planning/agents/openai.yaml": "82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8",
+        ".agents/skills/megin-test-driven-development/SKILL.md": "68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19",
+        ".agents/skills/megin-test-driven-development/agents/openai.yaml": "f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e",
+        ".agents/skills/megin-verification-before-completion/SKILL.md": "31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262",
+        ".agents/skills/megin-verification-before-completion/agents/openai.yaml": "7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6",
+        ".agents/skills/megin/SKILL.md": "6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0",
+        ".agents/skills/megin/agents/openai.yaml": "e83f14a0b245b81ada931689895269562510490fda4362df8e6ce56cec906ceb",
+        ".agents/skills/megin/references/branch-policy.md": "037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b",
+        ".agents/skills/megin/references/cross-flow-delivery.md": "69861d9f5093d28c3f4a382ab20eca39a21673b71bb40fb72165cb5c893d6f04",
+        ".agents/skills/megin/references/cross-repo-evidence.md": "f2a21fc6c4a82515a8fec92bf65f77e60106a80a06a7d05e9b8b95097b276372",
+        ".agents/skills/megin/references/gitlab-delivery.md": "ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3",
+        ".agents/skills/megin/references/group-workspace.md": "b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901",
+        ".agents/skills/megin/references/language-policy.md": "523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a",
+        ".agents/skills/megin/references/quality-gates.md": "8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916",
+        ".agents/skills/megin/references/repository-workflow.md": "5fd4e868756ee7c94833edd6d74d213a130186a86f08d1615caa4711452ad092",
+        ".agents/skills/megin/references/requirements-discovery-protocol.md": "6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6",
+        ".agents/skills/megin/references/requirements-template.md": "9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061",
+        ".agents/skills/megin/references/workflow-record.md": "8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e",
+        ".agents/skills/megin/scripts/behavior_trace.py": "94529af3133c21a2f311138fbc64570e2553ce738af1618d957c393542df41ff",
+        ".agents/skills/megin/scripts/delivery_receipt.py": "661cecae50a14a41d90c9163b0e453864653acb0272ee8ef3b9f2a0088046a4c",
+        ".agents/skills/megin/scripts/gitlab_delivery.py": "556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e",
+        ".agents/skills/megin/scripts/group_quality_gate.py": "39c26dd61db692ca21b1a2202c15380ed729d21f7cb694e98dd82ee97b3b7e21",
+        ".agents/skills/megin/scripts/group_workspace.py": "b2147acc1f08215eb27fa6db1e3bfd95d111ca30c5c3a3fae0e83026428a5e58",
+        ".agents/skills/megin/scripts/quality_gate.py": "a5d9c43b679fe8d04d9b918166282fbbc66b6190a72309706a62de9bafcc3378",
+        ".agents/skills/megin/scripts/repo_workspace.py": "c757393d71231c5696dbe27a0847e6c696ef90c045aca555c764334f601c8f3b",
+        ".agents/skills/megin/scripts/simulation_policy.py": "110da648ce3c0cdc696fe59f5a8bd4abf7acee3b204ff1ee904c1967456a1b44",
+        ".agents/skills/megin/scripts/validate_skills.py": "60e1ae420eb79e1a547cecd63a267851669cf838aae794563fa9e4ee0874616e",
+        ".agents/skills/megin/scripts/verification_inputs.py": "5a90b2143b017e748543f9db31a012d10a636cc4ddff373ab9c6ba6b4db8df1c",
+        ".agents/skills/megin/scripts/workspace_extension.py": "a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b",
+        ".agents/skills/merge-reviewer/SKILL.md": "090e68cad120c988cfddb48a44ae5372c85d31b8891b2fc911366f18b77c47fd",
+        ".agents/skills/merge-reviewer/VERSION": "967d9afb101346667166f2e76e81910bc190488d7d41d50ca0072e9d92f00e32",
+        ".agents/skills/merge-reviewer/agents/openai.yaml": "c7351c91341da5cca4a60c0df69451c389a53dcd2f8977c134e493291fb39f45",
+        ".agents/skills/merge-reviewer/references/group-review.md": "9e6366f97c819741b6c025774b1daf753ed3fec8cafedbaa6f9bad97da8005f6",
+        ".agents/skills/merge-reviewer/references/mr-contract.md": "bd435317c2d83926b42a3e9322c6749dc32c5477fb934639eb1fa7074bfb8849",
+        ".agents/skills/merge-reviewer/references/native-review.md": "34958c9843041b806e512f95ca455b29130c8953a860dd379e1d2b7051994597",
+        ".agents/skills/merge-reviewer/references/review-rules.md": "f167b4d2c7ffc7ba0c8cea96cb8e476e3e208bd8730c42a1e9275ffb59838b6d",
+        ".agents/skills/merge-reviewer/scripts/delivery_binding.py": "ec17398cf4df3d44352cf39cc74afc277158d5ba342f3a00082f8414f7ab485e",
+        ".agents/skills/merge-reviewer/scripts/git_review_context.py": "d07a606b0a1ad1664923e8758cd320665ee53cbb213c6357305aa3adbfda9f1b",
+        ".agents/skills/merge-reviewer/scripts/group_review.py": "11ace52161f37259b273eb5abcacbbd298aad20155b4ce185cc78f1a25b53903",
+        ".agents/skills/merge-reviewer/scripts/mr_contract.py": "fe61b1a80ef4e7a201fe3b6df28092dbd6daaa77370a2958c0054005514750fd",
+        ".agents/skills/merge-reviewer/scripts/review_report.py": "d4912998f5dd444df86ef43488169f8b1f4343e9f62d448c9fbbd741ba1f63de",
+        ".agents/skills/merge-reviewer/scripts/review_session.py": "5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea",
+        ".agents/skills/merge-reviewer/scripts/workspace_extension.py": "6cbc505ab59a2ca74fa9f102aa7fa142000f3e04f9460ed79e76c69f835ed3e2"
+      },
+      "overlays": {
+        "codebase-wiki": {
+          "added": {
+            ".agents/skills/codebase-wiki/references/group-development-workflow.md": "c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa"
+          },
+          "replaced": {
+            ".agents/skills/codebase-wiki/SKILL.md": {
+              "overlay_sha256": "e593253c7bb29364780f085ebf4609e11cc261c0bf44dbb8067f509217e9f97a",
+              "upstream_sha256": "654b4bd8444eaa36b96e49eb498b6c37ce0b6b65ba1d4a48cb2a9c11992e5e85"
+            },
+            ".agents/skills/codebase-wiki/assets/development-spec-template.md": {
+              "overlay_sha256": "2c8d56a091f389749fe6040a566d3438b296cdfee126b8d093764641f7294f98",
+              "upstream_sha256": "0a1de5be1ec5d5818bbdd420add45b5d2f1fc0b04cf9be58d24bba97a0770df5"
+            },
+            ".agents/skills/codebase-wiki/references/development-spec-workflow.md": {
+              "overlay_sha256": "4ceb35f77da9b97a4f77eb59ed600e0febddbbe658562595e25221875871266d",
+              "upstream_sha256": "f72371bc60eb5f5259726c91b85d85fbe3c242d8daf8050d6f1fc3e43575a965"
+            },
+            ".agents/skills/codebase-wiki/scripts/validate-development-spec.py": {
+              "overlay_sha256": "da441eb51e35a68f08ed74ca94e63c6d961cd217a99126d6c766bf7a4d294dad",
+              "upstream_sha256": "d63fc316d9028378751f76a19b4e29c8e1497e31b6771e29fb9e217cfc287994"
+            }
+          }
+        },
+        "megin": {
+          "added": {
+            ".agents/skills/megin/references/cross-flow-delivery.md": "69861d9f5093d28c3f4a382ab20eca39a21673b71bb40fb72165cb5c893d6f04",
+            ".agents/skills/megin/references/cross-repo-evidence.md": "f2a21fc6c4a82515a8fec92bf65f77e60106a80a06a7d05e9b8b95097b276372",
+            ".agents/skills/megin/references/gitlab-delivery.md": "ca3d55f62c1c405eb14e4b974ee3caf55e63907f170799cd891f3311a2214ac3",
+            ".agents/skills/megin/references/group-workspace.md": "b4978d5b0003a5033ac1da0847957a4b105b44624336954024fccfbccaba2901",
+            ".agents/skills/megin/scripts/behavior_trace.py": "94529af3133c21a2f311138fbc64570e2553ce738af1618d957c393542df41ff",
+            ".agents/skills/megin/scripts/delivery_receipt.py": "661cecae50a14a41d90c9163b0e453864653acb0272ee8ef3b9f2a0088046a4c",
+            ".agents/skills/megin/scripts/gitlab_delivery.py": "556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e",
+            ".agents/skills/megin/scripts/group_quality_gate.py": "39c26dd61db692ca21b1a2202c15380ed729d21f7cb694e98dd82ee97b3b7e21",
+            ".agents/skills/megin/scripts/group_workspace.py": "b2147acc1f08215eb27fa6db1e3bfd95d111ca30c5c3a3fae0e83026428a5e58",
+            ".agents/skills/megin/scripts/simulation_policy.py": "110da648ce3c0cdc696fe59f5a8bd4abf7acee3b204ff1ee904c1967456a1b44",
+            ".agents/skills/megin/scripts/verification_inputs.py": "5a90b2143b017e748543f9db31a012d10a636cc4ddff373ab9c6ba6b4db8df1c",
+            ".agents/skills/megin/scripts/workspace_extension.py": "a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b"
+          },
+          "replaced": {
+            ".agents/skills/megin-behavior-contract/SKILL.md": {
+              "overlay_sha256": "429206282e308f293720029206711530bc9c9fe0ccf8c6820e2e3f8922c819f2",
+              "upstream_sha256": "02aa0daad3fb3b8442c3bf6c8be10b394f25c493a9ab6a372842a1a59ec9c721"
+            },
+            ".agents/skills/megin-bug-diagnosis/SKILL.md": {
+              "overlay_sha256": "fb0424e41526d719905b09393dfa9fd96bc66183472f46990530578667235f3d",
+              "upstream_sha256": "1cfb5386e5b0a8e01d2a645b3f365e279908cfc053f850e553cf758e991b85ac"
+            },
+            ".agents/skills/megin-code-review/SKILL.md": {
+              "overlay_sha256": "82029738a01c88b942fc8848bdf3386b27027fc887e915e6e7f7604efeade4fa",
+              "upstream_sha256": "900b19674c59db08c39c6e8689616009354df060c45daab717fd7c4f196444f1"
+            },
+            ".agents/skills/megin-finishing-delivery/SKILL.md": {
+              "overlay_sha256": "dbe23e256972732082c11bcdd570c3ae63585fb52be930626fe34eee91c2b097",
+              "upstream_sha256": "ba37595ff65c8f696a17262532314337669cd3c5d9a1bd80d7ca90948d145629"
+            },
+            ".agents/skills/megin-human-acceptance/SKILL.md": {
+              "overlay_sha256": "4ce75e7f4d0eb9d89cbd2a6d0307e45def505afa15e564a49c4bfb4e3b77167f",
+              "upstream_sha256": "f91be08047b952131f20b0b08b1dfd370876ffe610601c4bb35ef652aa38eebe"
+            },
+            ".agents/skills/megin-implementation-execution/SKILL.md": {
+              "overlay_sha256": "2cb8c4f54201a9d2022716568bae91bdb459df1fa25cd008467536d5e7e97d41",
+              "upstream_sha256": "bd5d20009f6f9575364ea81dbd46da032beb19effce79137cc3acdb07c861f8a"
+            },
+            ".agents/skills/megin-project-knowledge/SKILL.md": {
+              "overlay_sha256": "c79b5249b8b604163783c4153ca7316522fdfc01d19f3d566e244d8e9a569daa",
+              "upstream_sha256": "886a41740a1945f114284b0e5e468a125e4b2663ad3cd26bd7856d4bb7af31c1"
+            },
+            ".agents/skills/megin-requirements-discovery/SKILL.md": {
+              "overlay_sha256": "f3ac9cc43a3907d587b9442972a6c6676d3ca75c4583ef3195efa295ebc1aae1",
+              "upstream_sha256": "76eb90a15cdedc70fa6283b7082444c65e08241caa8b29c58efa9cca6d43f589"
+            },
+            ".agents/skills/megin-technical-planning/SKILL.md": {
+              "overlay_sha256": "35bc74ab0bd40d29569e603e36a564cb9ad381ccd189a9629ee297f69f45cf5c",
+              "upstream_sha256": "ff55c9bdcbde00736a336c3b4456f4359b19feb09b9a3daa57dde0b6b24741f0"
+            },
+            ".agents/skills/megin-test-driven-development/SKILL.md": {
+              "overlay_sha256": "68c8dc337fc99bd122bb5c269c88a366162e82a5491067b00c2c9196efadfe19",
+              "upstream_sha256": "dddc871fe1654a3253d0182c285e16cb5bc83e6d7e0f729ec7033f979b0f4d15"
+            },
+            ".agents/skills/megin-verification-before-completion/SKILL.md": {
+              "overlay_sha256": "31e6bd6f3fc1ac28518c640f5000f7b2b1fe7f453e782d9f23945309868fa262",
+              "upstream_sha256": "69a9ddd32ea42b707b94a21c74f41b96beed53b1c98188dffe4e268996402d7e"
+            },
+            ".agents/skills/megin/SKILL.md": {
+              "overlay_sha256": "6391df9e3569ba2e75ba1f40d6d51fd8fb45efa38f8e3462f7c53ac798c1f7d0",
+              "upstream_sha256": "c2dbfc5b17f5606eada8f86f2da942981f0461602ca1971d95cb9deda904636d"
+            },
+            ".agents/skills/megin/references/branch-policy.md": {
+              "overlay_sha256": "037f783c8cc856b68aae2eae657c12268aab10c4ba97235f44514445e1afc19b",
+              "upstream_sha256": "9d5f0904b6c32b7131ee2f75d558b9ff78852367a0fcaeec87924eea7ae708b8"
+            },
+            ".agents/skills/megin/references/language-policy.md": {
+              "overlay_sha256": "523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a",
+              "upstream_sha256": "523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a"
+            },
+            ".agents/skills/megin/references/quality-gates.md": {
+              "overlay_sha256": "8e06ec220202dc147cde218530da1d61473c2ae18bd2e6b9aa16f8d5fd73b916",
+              "upstream_sha256": "cb194dd81a01aa1076357851e019ec11aa5c9a92c491bffeacea2feee93a3ec7"
+            },
+            ".agents/skills/megin/references/requirements-discovery-protocol.md": {
+              "overlay_sha256": "6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6",
+              "upstream_sha256": "d75d8865cc2f4d9135c778bd201cfb240e2b613a00dfe4e4a476256bcb3ab32a"
+            },
+            ".agents/skills/megin/references/requirements-template.md": {
+              "overlay_sha256": "9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061",
+              "upstream_sha256": "4eb84aed20fc8053ac04102cc6ba0bcb875147b4cb9b282da5cea3f7c0e4e36b"
+            },
+            ".agents/skills/megin/references/workflow-record.md": {
+              "overlay_sha256": "8d608def9b186ca5de11a74394df121cb34af08633dd8a8c55fa3e762b07be2e",
+              "upstream_sha256": "900bd5e07dd834d44e3dcad8cc4239e0e726c0a277b07b0fc8cea00633ed0b95"
+            }
+          }
+        },
+        "merge-reviewer": {
+          "added": {
+            ".agents/skills/merge-reviewer/references/group-review.md": "9e6366f97c819741b6c025774b1daf753ed3fec8cafedbaa6f9bad97da8005f6",
+            ".agents/skills/merge-reviewer/references/mr-contract.md": "bd435317c2d83926b42a3e9322c6749dc32c5477fb934639eb1fa7074bfb8849",
+            ".agents/skills/merge-reviewer/references/native-review.md": "34958c9843041b806e512f95ca455b29130c8953a860dd379e1d2b7051994597",
+            ".agents/skills/merge-reviewer/scripts/delivery_binding.py": "ec17398cf4df3d44352cf39cc74afc277158d5ba342f3a00082f8414f7ab485e",
+            ".agents/skills/merge-reviewer/scripts/group_review.py": "11ace52161f37259b273eb5abcacbbd298aad20155b4ce185cc78f1a25b53903",
+            ".agents/skills/merge-reviewer/scripts/mr_contract.py": "fe61b1a80ef4e7a201fe3b6df28092dbd6daaa77370a2958c0054005514750fd",
+            ".agents/skills/merge-reviewer/scripts/workspace_extension.py": "6cbc505ab59a2ca74fa9f102aa7fa142000f3e04f9460ed79e76c69f835ed3e2"
+          },
+          "replaced": {
+            ".agents/skills/merge-reviewer/SKILL.md": {
+              "overlay_sha256": "090e68cad120c988cfddb48a44ae5372c85d31b8891b2fc911366f18b77c47fd",
+              "upstream_sha256": "7734810f9d1674eeffc8f435c2d57c261e9de3c25cf731b61634ef11c8fc374f"
+            },
+            ".agents/skills/merge-reviewer/scripts/git_review_context.py": {
+              "overlay_sha256": "d07a606b0a1ad1664923e8758cd320665ee53cbb213c6357305aa3adbfda9f1b",
+              "upstream_sha256": "9ce0a525b58ad0693ab7e39e6de821d5a87c2876972b7a8472af0236b303ab10"
+            }
+          }
+        }
+      },
+      "payloadSha256": "700bbd3cd4fabc3513a2874a934377f4fd0591e7e0276c905398fc4a6a548029",
+      "upstream": {
+        "codebase-wiki": {
+          "asset": "codebase-llm-wiki-codex.zip",
+          "repository": "code-base-llm-wiki",
+          "sha256": "6b29e9135d4f504a336d7fdc90227039b9b6866a12f503913020c3fd722197f0",
+          "version": "0.4.0"
+        },
+        "megin": {
+          "asset": "megin-skills.zip",
+          "repository": "Megin",
+          "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92",
+          "version": "0.4.0"
+        },
+        "merge-reviewer": {
+          "asset": "merge-reviewer-0.7.0.zip",
+          "repository": "MergeReviewer",
+          "sha256": "0ccc6b47b4e75d5f3c1fe5a02134916362ad2e052e0e6063b732734a65a7dbd3",
+          "version": "0.7.0"
+        }
+      },
+      "version": "0.13.2"
     }
   ],
   "schema": "gitlab-workspace-kit-predecessors/v1"

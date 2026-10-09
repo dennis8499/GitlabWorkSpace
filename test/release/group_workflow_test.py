@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 WORK = "work-20261002-offline-integration"
 
 
@@ -33,7 +34,7 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
             group.mkdir()
             bundle = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
             digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
-            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, "0.13.2", "bundled",
+            installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, VERSION, "bundled",
                                     "--format", "tar.xz", "--entry-root", "workflow-kit", "--archive-sha256", digest)
             self.assertTrue(installed["ok"])
             self.assertEqual(14, installed["skills"])

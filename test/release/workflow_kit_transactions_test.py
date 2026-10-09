@@ -6,11 +6,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 import workflow_kit_installer_test as harness
@@ -36,7 +38,7 @@ class TransactionTests(unittest.TestCase):
         self.group = self.create_group(self.root, wiki="# User Wiki\n")
 
     def preview(self):
-        return self.execute("install", ARCHIVE, self.group, "0.13.2", "bundled",
+        return self.execute("install", ARCHIVE, self.group, harness.VERSION, "bundled",
             "--format", "tar.xz", "--entry-root", "workflow-kit",
             "--archive-sha256", hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), "--dry-run")
 
@@ -45,9 +47,9 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         return data
 
-    def predecessor(self, *, local_update=False):
+    def predecessor(self, *, local_update=False, package_index=0):
         installed = self.apply()
-        old = TRUST["packages"][0]
+        old = TRUST["packages"][package_index]
         marker = self.group / MARKER
         value = json.loads(marker.read_text(encoding="utf-8"))
         expected = old["files"]
@@ -103,7 +105,7 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(before, self.snapshot(self.group))
         self.assertTrue((self.group / first["transaction"]).is_file())
 
-    def test_reviewed_predecessor_same_version_upgrade_and_rollback(self):
+    def test_reviewed_predecessor_upgrade_and_rollback(self):
         self.predecessor()
         before = self.snapshot(self.group)
         result, preview = self.preview()
@@ -117,6 +119,41 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, data)
         self.assertEqual(before, self.snapshot(self.group))
         self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_synced_predecessor_version_upgrade_and_rollback(self):
+        self.predecessor(package_index=1)
+        before = self.snapshot(self.group)
+        update = self.apply()
+        self.assertTrue(update["applied"])
+        self.assertEqual([MARKER], update["changed_paths"])
+        self.assertEqual(harness.VERSION, self.status(self.group)["version"])
+        result, data = self.execute("rollback", self.group, update["transaction"])
+        self.assertEqual(0, result.returncode, data)
+        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_reviewed_payload_upgrade_with_the_same_version(self):
+        self.predecessor()
+        previous_version = TRUST["packages"][0]["version"]
+        installer = self.root / "same-version-installer.py"
+        source, count = re.subn(r"^VERSION = .*$", f"VERSION = {previous_version!r}",
+                               harness.INSTALLER.read_text(encoding="utf-8"), count=1, flags=re.MULTILINE)
+        self.assertEqual(1, count)
+        installer.write_bytes(source.encode("utf-8"))
+        archive = self.root / "same-version.zip"
+        with zipfile.ZipFile(harness.RELEASE_ZIP) as original, zipfile.ZipFile(archive, "w") as target:
+            for info in original.infolist():
+                raw = original.read(info)
+                if info.filename == "workflow-kit/manifest.json":
+                    manifest = json.loads(raw)
+                    manifest["version"] = previous_version
+                    raw = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+                target.writestr(info, raw)
+        with mock.patch.object(harness, "INSTALLER", installer):
+            result, data = self.install(self.group, archive=archive, archive_format="zip", version=previous_version)
+            self.assertEqual(0, result.returncode, data)
+            self.assertTrue(data["applied"])
+            self.assertEqual("installed", self.status(self.group, expected_version=previous_version)["status"])
 
     def test_reviewed_aspire_patch_is_a_supported_predecessor(self):
         self.predecessor(local_update=True)

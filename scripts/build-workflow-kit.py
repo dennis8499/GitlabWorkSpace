@@ -164,6 +164,7 @@ def sync_installer_metadata(manifest: dict) -> None:
                              separators=(",", ":")).encode("utf-8")) != update["payload_sha256"]:
             raise ValueError("Reviewed local update hashes changed.")
     values = {
+        "VERSION": KIT_VERSION,
         "OVERLAY_HASHES": {key: digest(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                                  separators=(",", ":")).encode("utf-8"))
                            for key, value in manifest["overlays"].items()},
