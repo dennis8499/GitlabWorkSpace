@@ -34,7 +34,7 @@ class TransactionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="kit-transaction-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.group = self.create_group(self.root, wiki="# User Wiki\n")
 
     def preview(self):

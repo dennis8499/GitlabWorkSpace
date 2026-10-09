@@ -10,7 +10,7 @@ import zipfile
 WORKSPACE = Path(__file__).resolve().parents[3]
 STAGE = tempfile.TemporaryDirectory(prefix="workspace-delivery-evidence-")
 atexit.register(STAGE.cleanup)
-ROOT = Path(STAGE.name)
+ROOT = Path(STAGE.name).resolve()
 SOURCES = WORKSPACE / "resources/offline-tools/sources"
 OVERLAYS = WORKSPACE / "resources/workflow-kit/overlays"
 

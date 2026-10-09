@@ -60,7 +60,7 @@ class BoundaryTests(unittest.TestCase):
 class VerificationInputTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name);self.repo=self.root/'consumer';self.repo.mkdir()
+        self.root=Path(self.temp.name).resolve();self.repo=self.root/'consumer';self.repo.mkdir()
         git(self.repo,'init','-b','main');git(self.repo,'config','user.name','test');git(self.repo,'config','user.email','test@example.invalid')
         (self.repo/'consumer.mjs').write_text('export const ok = h => h.ok === true;\n')
         git(self.repo,'add','.');git(self.repo,'commit','-m','consumer v1')

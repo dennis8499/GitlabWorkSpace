@@ -35,7 +35,7 @@ def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
 
 class Fixture:
     def __init__(self,temp,names=('service',),mode='local_merge',fixed=False):
-        self.root=Path(temp)/'group';self.root.mkdir()
+        self.root=Path(temp).resolve()/'group';self.root.mkdir()
         shutil.copytree(ROOT/'skills',self.root/'.agents/skills')
         self.work='work-20261008-replay';self.prefix=f'docs/work/{self.work}'
         self.folder=self.root/self.prefix;self.folder.mkdir(parents=True)
@@ -53,7 +53,7 @@ class Fixture:
         if mode=='gitlab_mr': self.contract['gitlab']={'origin':'https://simulation.example.invalid','issue_project_id':101,'issue_iid':1}
         if fixed:
             self.contract['verification_inputs']=[{'repo_path':'consumer','commit':git(self.root/'consumer','rev-parse','HEAD'),'files':[{'path':'health.txt','sha256':hashlib.sha256(subprocess.check_output(['git','-C',str(self.root/'consumer'),'show','HEAD:health.txt'])).hexdigest()}],'check_ids':['diff']}]
-        save(self.folder/'simulation.json',{'schema':'megin-simulation/v1','mode':'simulation','work_id':self.work,'group_root':str(self.root),'source_group':str(Path(temp)),'authorization':{'actor':'user','delegate':'root','text':'Test fixture exercising user-authorized isolated simulation gates','scopes':['requirements','approval','acceptance']}})
+        save(self.folder/'simulation.json',{'schema':'megin-simulation/v1','mode':'simulation','work_id':self.work,'group_root':str(self.root),'source_group':str(Path(temp).resolve()),'authorization':{'actor':'user','delegate':'root','text':'Test fixture exercising user-authorized isolated simulation gates','scopes':['requirements','approval','acceptance']}})
         (self.folder/'requirements.md').write_text('Fixture requirements\n')
         (self.folder/'plan.md').write_text('Frozen fixture plan\n')
         self.persist_contract();self.phase('implementation')
