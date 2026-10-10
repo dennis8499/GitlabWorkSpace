@@ -60,7 +60,7 @@ export class WorkflowKitPackageManager {
 
   async listPackages(): Promise<WorkflowKitPackage[]> {
     const packages: WorkflowKitPackage[] = [];
-    for (const record of await this.readImportedRecords()) {
+    for (const record of (await this.readImportedRecords()).filter(record => record.version === this.expectedVersion)) {
       packages.push(await this.withAvailability({
         id: packageId(record.version, record.source, record.sha256), version: record.version,
         source: record.source, assetName: record.assetName, format: 'zip', entryRoot: '', available: false,
@@ -149,7 +149,7 @@ export class WorkflowKitPackageManager {
     try { value = JSON.parse(text) as PackageManifest; } catch { throw new Error('本機套件清單格式無效。'); }
     if (value.schema !== CATALOG_SCHEMA || !Array.isArray(value.packages)) throw new Error('本機套件清單版本不支援。');
     return value.packages.map((record) => {
-      if (!record || !isVersion(record.version) || record.version !== this.expectedVersion ||
+      if (!record || !isVersion(record.version) ||
         (record.source !== 'github' && record.source !== 'gitea') || !/^[a-f0-9]{64}$/i.test(record.sha256) ||
         typeof record.assetName !== 'string' || !record.assetName || record.assetName.length > 180 || path.basename(record.assetName) !== record.assetName) {
         throw new Error('本機套件清單包含無效項目。');

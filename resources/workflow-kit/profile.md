@@ -1,6 +1,6 @@
 # GitLab Workspace Group profile
 
-This Group installs Codebase LLM Wiki, Megin, and MergeReviewer together through GitLab Workspace. Keep their upstream Skills intact and use this profile as the Group-level adapter.
+This Group installs Codebase LLM Wiki, Megin, MergeReviewer, and ReleaseReviewer together through GitLab Workspace. Keep their upstream Skills intact and use this profile as the Group-level adapter.
 
 ## Group and repositories
 
@@ -16,6 +16,7 @@ This Group installs Codebase LLM Wiki, Megin, and MergeReviewer together through
 - Use `$megin` for requested code changes. Preserve its single Group Work ID, one approved plan, exclusive Group lock, independent fresh reviewer, executed verification, human acceptance, immutable evidence, and completion gates. Every change originating in GitLab Workspace uses `delivery_mode: gitlab_mr`. Megin prepares the accepted handoff and stops; the Workspace alone commits accepted staged paths, then Push and MR stay separate actions.
 - Use Megin's own `megin-code-review` as the independent pre-acceptance code reviewer. MergeReviewer provides Group quick-review and GitLab MR branch review; its report is an additional integration check and never substitutes for Megin's independent review or acceptance.
 - Use `$merge-reviewer` for a fixed GitLab MR task and the real Group repository set for a quick review. Bind findings to the selected MR's frozen source and target SHAs. Consult the shared Wiki for context, but inspect evidence from those pinned source versions before reporting findings.
+- Use `$release-reviewer` for release checks of one explicitly named Repo and explicit base/head refs. Run its native helpers from that Repo with the Group as `--workspace`. Keep code risks, newly used configuration and DB reminders separate; compare new usage against the entire pinned base Repo. Final behavior comes from the merge preview, or head in explicitly requested direct mode. Wiki is context, not evidence for version-specific claims. Preserve local edits, keep owned contexts in system temporary storage, and write local reports under the selected Repo's `review-reports/` with the `release-review` prefix. JSON is opt-in. Release reports use their own metadata and are not MR reports. Report limitations and unverified environment state, then clean the owned context on completion or interruption.
 - Keep Wiki updates separate from product acceptance. After the Workspace records every accepted local delivery commit, use the Workspace's copied knowledge-update prompt to prepare a source-checked Group Wiki update. Record that local delivery and remote MR merge are different states.
 
 ## Scope and safety

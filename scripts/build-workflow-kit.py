@@ -51,6 +51,14 @@ PINNED_SOURCES = (
         "version": "0.7.0",
         "sha256": "0ccc6b47b4e75d5f3c1fe5a02134916362ad2e052e0e6063b732734a65a7dbd3",
     },
+    {
+        "id": "release-reviewer",
+        "repository": "ReleaseReviewer",
+        "asset": "release-reviewer-0.1.0.zip",
+        "filename": "release-reviewer-0.1.0.zip",
+        "version": "0.1.0",
+        "sha256": "7f7b3486e46f190eb5e4b92f0c35b25f10e40fd6ece0a6f3764d48783431a646",
+    },
 )
 
 
@@ -165,12 +173,17 @@ def sync_installer_metadata(manifest: dict) -> None:
             raise ValueError("Reviewed local update hashes changed.")
     values = {
         "VERSION": KIT_VERSION,
+        "UPSTREAM": {item["id"]: {**manifest["upstream"][item["id"]], "root": item.get("root", "")} for item in PINNED_SOURCES},
+        "PROFILE_HASHES": manifest["customProfile"]["files"],
+        "SOURCE_SUMMARY": manifest["sourceSummary"],
+        "SPECIAL_RULES": manifest["customProfile"]["specialRules"],
+        "AGENT_BLOCK_SHA256": digest((PROFILE / "group-instructions.md").read_text(encoding="utf-8").strip().encode("utf-8")),
         "OVERLAY_HASHES": {key: digest(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                                  separators=(",", ":")).encode("utf-8"))
                            for key, value in manifest["overlays"].items()},
         "CURRENT_PAYLOAD_SHA256": manifest["payloadSha256"],
         "CURRENT_SKILL_FILES": {p: h for p, h in manifest["files"].items()
-                                if p.startswith(".agents/skills/megin") or p.startswith(".agents/skills/merge-reviewer/")},
+                                if p.startswith(".agents/skills/") and not p.startswith(".agents/skills/codebase-wiki/")},
         "TRUSTED_PREDECESSORS": trusted,
     }
     installer = ROOT / "resources/workflow-kit-installer.py"
@@ -261,12 +274,12 @@ def build() -> dict[str, object]:
             if any(f"payload/.agents/skills/{name}/SKILL.md" not in files for name in megin_skill_names):
                 raise ValueError("Megin Release 含有不完整的 Skill。")
         else:
-            prefix = "merge-reviewer/"
+            prefix = source["id"] + "/"
             skill_files = {name[len(prefix):]: data for name, data in selected.items() if name.startswith(prefix)}
             if len(skill_files) != len(selected) or not skill_files or "SKILL.md" not in skill_files:
-                raise ValueError("MergeReviewer Release 結構無效。")
+                raise ValueError(f"{source['repository']} Release 結構無效。")
             for name, data in skill_files.items():
-                files[f"payload/.agents/skills/merge-reviewer/{name}"] = data
+                files[f"payload/.agents/skills/{source['id']}/{name}"] = data
         files[f"sources/{source['asset']}"] = archive_path.read_bytes()
 
     overlay_root = PROFILE / "overlays"
@@ -287,9 +300,9 @@ def build() -> dict[str, object]:
             raise ValueError(f"GitLab Workspace profile file is missing: {name}")
         files[f"payload/.agents/gitlab-workspace-kit/{name}"] = source_path.read_bytes()
 
-    skill_names = sorted({"codebase-wiki", "merge-reviewer", *megin_skill_names})
-    if len(skill_names) != 14:
-        raise ValueError(f"Expected the original fourteen Skills, found {len(skill_names)}.")
+    skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *megin_skill_names})
+    if len(skill_names) != 15:
+        raise ValueError(f"Expected fifteen Skills, found {len(skill_names)}.")
     total = sum(len(value) for value in files.values())
     if len(files) > MAX_FILES or total > MAX_EXPANDED_BYTES:
         raise ValueError("組合包解壓容量超過限制。")
@@ -303,7 +316,8 @@ def build() -> dict[str, object]:
         "sourceSummary": [
             "Native Codebase LLM Wiki 0.4.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.4.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
-            "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review."
+            "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
+            "Native ReleaseReviewer 0.1.0 reviews one Repo using explicit base/head refs and writes local code-risk, configuration, and database reports without an overlay."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",
@@ -313,6 +327,7 @@ def build() -> dict[str, object]:
                 "analysisIssueFlow": "draft-ready-scn-manual-issue",
                 "developmentDelivery": "megin-gitlab_mr",
                 "mergeRequestReview": "pinned-source-and-target-shas",
+                "releaseReview": "single-repo-explicit-refs-local-report",
                 "wikiFeedback": "manual-after-all-local-repo-commits"
             },
             "files": {name: digest(files[f"payload/.agents/gitlab-workspace-kit/{name}"]) for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")}

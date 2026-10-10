@@ -11,3 +11,5 @@ resources/workflow-kit/overlays/sources/*.zip binary !eol
 test/overlays/** text eol=lf
 test/release/*.py text eol=lf
 test/fixtures/workflow-kit-predecessor/** text eol=lf
+test/fixtures/workflow-kit-0.14.0/*.py text eol=lf
+test/fixtures/workflow-kit-0.14.0/*.tar.xz binary !eol

@@ -72,3 +72,40 @@ test('keeps imported kit ZIPs in extension storage and detects tampering before 
     assert.equal(catalog.packages.length, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('extension upgrade keeps prior imports while offering only current-version packages', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'workspace-kit-upgrade-'));
+  try {
+    const storage = path.join(root, 'storage');
+    const bundledPath = path.join(root, 'workflow-kit.tar.xz');
+    const manifestPath = path.join(root, 'manifest.json');
+    const downloaded = path.join(root, 'release.zip');
+    const oldBytes = Buffer.from('0.14.0 imported ZIP');
+    await writeFile(downloaded, oldBytes);
+    const oldManager = new WorkflowKitPackageManager(storage, bundledPath, manifestPath, '0.14.0');
+    const previous = await oldManager.importPackage({
+      version: '0.14.0', source: 'gitea', assetName: 'gitlab-workspace-kit-0.14.0.zip',
+      archivePath: downloaded, verifiedSha256: sha256(oldBytes)
+    });
+    const bundledBytes = Buffer.from('0.15.0 bundled TAR.XZ');
+    const currentBytes = Buffer.from('0.15.0 imported ZIP');
+    await writeFile(bundledPath, bundledBytes);
+    await writeFile(manifestPath, JSON.stringify({
+      ...createIndex(bundledBytes, currentBytes), version: '0.15.0', releaseZip: 'gitlab-workspace-kit-0.15.0.zip'
+    }));
+    const upgraded = new WorkflowKitPackageManager(storage, bundledPath, manifestPath, '0.15.0');
+    const available = await upgraded.listPackages();
+    assert.deepEqual(available.map(item => [item.version, item.source, item.available]), [['0.15.0', 'bundled', true]]);
+    await assert.rejects(upgraded.getPackage(previous.id), /找不到所選套件/);
+    await writeFile(downloaded, currentBytes);
+    await upgraded.importPackage({ version: '0.15.0', source: 'gitea', assetName: 'gitlab-workspace-kit-0.15.0.zip',
+      archivePath: downloaded, verifiedSha256: sha256(currentBytes) });
+    assert.deepEqual((await upgraded.listPackages()).map(item => [item.version, item.source]),
+      [['0.15.0', 'bundled'], ['0.15.0', 'gitea']]);
+    const records = JSON.parse(await readFile(path.join(storage, 'workflow-kit-packages.json'), 'utf8'));
+    assert.deepEqual(records.packages.map((item: { version: string }) => item.version), ['0.14.0', '0.15.0']);
+    assert.deepEqual(await readFile(previous.archivePath), oldBytes);
+    const restored = new WorkflowKitPackageManager(storage, path.join(root, 'missing14.tar.xz'), path.join(root, 'missing14.json'), '0.14.0');
+    assert.equal((await restored.getPackage(previous.id)).version, '0.14.0');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

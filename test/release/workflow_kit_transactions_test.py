@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest import mock
 import zipfile
@@ -60,10 +61,13 @@ class TransactionTests(unittest.TestCase):
             value["local_update"] = {"schema": "workflow-overlay-install/v1", **reviewed,
                                      "upstream_payload_sha256": old["payloadSha256"]}
         for path in list(value["files"]):
-            if path.startswith(".agents/skills/megin") or path.startswith(".agents/skills/merge-reviewer/"):
+            if path.startswith(".agents/skills/") and not path.startswith(".agents/skills/codebase-wiki/"):
                 if path not in expected:
                     (self.group / path).unlink()
                     del value["files"][path]
+        for directory in sorted((self.group / ".agents/skills").rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            if directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
         for path, digest in expected.items():
             target = self.group / path
             if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
@@ -78,6 +82,21 @@ class TransactionTests(unittest.TestCase):
                 target.write_bytes(raw)
             self.assertEqual(digest, hashlib.sha256(target.read_bytes()).hexdigest(), path)
             value["files"][path] = digest
+        with tarfile.open(ROOT / "test/fixtures/workflow-kit-0.14.0/workflow-kit.tar.xz", "r:xz") as frozen:
+            for name in old["profileHashes"]:
+                relative = ".agents/gitlab-workspace-kit/" + name
+                raw = frozen.extractfile("workflow-kit/payload/" + relative).read()
+                self.assertEqual(old["profileHashes"][name], hashlib.sha256(raw).hexdigest())
+                (self.group / relative).write_bytes(raw)
+                value["files"][relative] = hashlib.sha256(raw).hexdigest()
+        instructions = (self.group / ".agents/gitlab-workspace-kit/group-instructions.md").read_text(encoding="utf-8").strip()
+        agents = self.group / "AGENTS.md"
+        text = agents.read_text(encoding="utf-8")
+        text = re.sub(r"(<!-- gitlab-workspace-kit:managed:start -->).*?(<!-- gitlab-workspace-kit:managed:end -->)",
+                      lambda match: match[1] + "\n" + instructions + "\n" + match[2], text, flags=re.DOTALL)
+        agents.write_text(text, encoding="utf-8", newline="")
+        value["agentBlockSha256"] = old["agentBlockSha256"]
+        value["skills"] = old["skills"]
         for key in ("version", "payloadSha256", "upstream", "overlays"):
             value[key] = copy.deepcopy(old[key])
         marker.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -120,12 +139,60 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(before, self.snapshot(self.group))
         self.assertEqual("update-available", self.status(self.group)["status"])
 
+    def install_frozen_014(self):
+        fixture = ROOT / "test/fixtures/workflow-kit-0.14.0"
+        with mock.patch.object(harness, "INSTALLER", fixture / "installer.py"):
+            result, data = self.install(self.group, archive=fixture / "workflow-kit.tar.xz", version="0.14.0")
+        self.assertEqual(0, result.returncode, data)
+        self.assertEqual(14, data["skills"])
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_real_014_install_upgrade_and_exact_rollback(self):
+        self.install_frozen_014()
+        before = self.snapshot(self.group)
+        result, preview = self.preview()
+        self.assertEqual(0, result.returncode, preview)
+        self.assertIn(".agents/skills/release-reviewer", preview["changed_paths"])
+        self.assertEqual(before, self.snapshot(self.group))
+        update = self.apply()
+        self.assertEqual(15, update["skills"])
+        self.assertEqual("installed", self.status(self.group)["status"])
+        for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
+                         "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
+            self.assertEqual(before[relative], (self.group / relative).read_bytes())
+        result, data = self.execute("rollback", self.group, update["transaction"])
+        self.assertEqual(0, result.returncode, data)
+        self.assertFalse((self.group / ".agents/skills/release-reviewer").exists())
+        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_real_014_failed_upgrade_restores_new_skill_and_old_profile(self):
+        self.install_frozen_014()
+        before = self.snapshot(self.group)
+        environment = {**os.environ, "GITLAB_WORKSPACE_KIT_TESTING": "1", "GITLAB_WORKSPACE_KIT_TEST_FAIL_AFTER": "16"}
+        result, _ = self.install(self.group, env=environment)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_unknown_release_reviewer_directory_is_preserved_on_upgrade(self):
+        self.install_frozen_014()
+        target = self.group / ".agents/skills/release-reviewer/SKILL.md"
+        target.parent.mkdir()
+        target.write_text("personal release reviewer\n", encoding="utf-8")
+        before = self.snapshot(self.group)
+        result, data = self.install(self.group)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("release-reviewer", str(data))
+        self.assertEqual(before, self.snapshot(self.group))
+
     def test_synced_predecessor_version_upgrade_and_rollback(self):
         self.predecessor(package_index=1)
         before = self.snapshot(self.group)
         update = self.apply()
         self.assertTrue(update["applied"])
-        self.assertEqual([MARKER], update["changed_paths"])
+        self.assertIn(".agents/skills/release-reviewer", update["changed_paths"])
+        self.assertIn(".agents/gitlab-workspace-kit", update["changed_paths"])
         self.assertEqual(harness.VERSION, self.status(self.group)["version"])
         result, data = self.execute("rollback", self.group, update["transaction"])
         self.assertEqual(0, result.returncode, data)
@@ -159,7 +226,8 @@ class TransactionTests(unittest.TestCase):
         self.predecessor(local_update=True)
         update = self.apply()
         self.assertTrue(update["applied"])
-        self.assertEqual([MARKER], update["changed_paths"])
+        self.assertIn(".agents/skills/release-reviewer", update["changed_paths"])
+        self.assertIn(".agents/gitlab-workspace-kit", update["changed_paths"])
         self.assertEqual("installed", self.status(self.group)["status"])
 
     def test_fresh_rollback_preserves_user_files(self):
@@ -289,7 +357,7 @@ class TransactionTests(unittest.TestCase):
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
         paths.extend(ROOT / "resources/offline-tools/sources" / p for p in
-                     ("codebase-llm-wiki-codex-0.4.0.zip", "megin-skills-0.4.0.zip", "merge-reviewer-0.7.0.zip"))
+                     ("codebase-llm-wiki-codex-0.4.0.zip", "megin-skills-0.4.0.zip", "merge-reviewer-0.7.0.zip", "release-reviewer-0.1.0.zip"))
         for path in paths:
             target = source / path.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)

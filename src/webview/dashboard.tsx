@@ -14,8 +14,9 @@ import { applyIssueGraphPatch, issueGraphNodeKey, selectIssueGraph } from '../wo
 import { VirtualRows } from './VirtualRows';
 import { IssueView, type IssueEditorDraftState } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
-import { createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, type WikiGuideInputValues } from './codebaseWikiGuideData';
-import { CodebaseWikiGuide } from './CodebaseWikiGuide';
+import type { WikiGuideInputValues } from './codebaseWikiGuideData';
+import { legacyWikiInputs, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
+import { SkillsGuide } from './SkillsGuide';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
 import { AdminLogPanel } from './AdminLogPanel';
 import { LocalRepositoriesPanel } from './LocalRepositoriesPanel';
@@ -71,6 +72,7 @@ interface SavedState {
   scopeKey?: string;
   instanceUserScope?: string;
   recoveredBundle?: IssueDraftBundle;
+  skillsGuideByScope?: Record<string, SkillGuideState>;
   wikiGuideInputsByScope?: Record<string, WikiGuideInputValues>;
   wikiGuideSelectionsByScope?: Record<string, string>;
   version?: 3;
@@ -121,7 +123,7 @@ const defaultGraphCamera: GraphCamera = { x: 0, y: 0, scale: 1 };
 const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: string }> = [
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
-  { id: 'sa', name: 'Codebase LLM Wiki', short: '分析', icon: '⌕' },
+  { id: 'sa', name: 'Skills 功能指引', short: '分析', icon: '⌕' },
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' },
   { id: 'git', name: '版控', short: '版控', icon: '⑂' },
   { id: 'admin', name: '後臺管理', short: '後臺管理', icon: '≡' }
@@ -287,14 +289,18 @@ function App() {
   const savedWikiGuideInputsRef = useRef(initial?.wikiGuideInputsByScope ?? {});
   const savedWikiGuideSelectionsRef = useRef(initial?.wikiGuideSelectionsByScope ?? {});
   const wikiGuideScopeRef = useRef(wikiGuideScopeKey(initial?.scopeKey, initial?.instanceUserScope));
-  const [wikiGuideSelection, setWikiGuideSelection] = useState<string>(savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current] ?? DEFAULT_WIKI_GUIDE_CARD_ID);
-  const wikiGuideSelectionRef = useRef(wikiGuideSelection);
-  wikiGuideSelectionRef.current = wikiGuideSelection;
-  const [wikiGuideInputs, setWikiGuideInputs] = useState<WikiGuideInputValues>(() => ({
-    ...createDefaultWikiGuideInputs(), ...(savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] ?? {})
-  }));
-  const wikiGuideInputsRef = useRef(wikiGuideInputs);
-  wikiGuideInputsRef.current = wikiGuideInputs;
+  const savedSkillsGuideRef = useRef(initial?.skillsGuideByScope ?? {});
+  const [skillsGuide, setSkillsGuide] = useState<SkillGuideState>(() => restoreSkillGuideState(
+    savedSkillsGuideRef.current[wikiGuideScopeRef.current], savedWikiGuideInputsRef.current[wikiGuideScopeRef.current],
+    savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current]
+  ));
+  const skillsGuideRef = useRef(skillsGuide);
+  skillsGuideRef.current = skillsGuide;
+  const updateSkillsGuide = (update: SkillGuideState | ((current: SkillGuideState) => SkillGuideState)): void => {
+    const value = typeof update === 'function' ? update(skillsGuideRef.current) : update;
+    skillsGuideRef.current = value;
+    setSkillsGuide(value);
+  };
 
   const scopedState: ScopedSavedState = {
     filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
@@ -347,13 +353,12 @@ function App() {
       if (message.type === 'snapshot') {
         const nextGuideScope = wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
         if (nextGuideScope !== wikiGuideScopeRef.current) {
-          savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = wikiGuideInputsRef.current;
-          savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current] = wikiGuideSelectionRef.current;
+          savedSkillsGuideRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current;
+          savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = legacyWikiInputs(skillsGuideRef.current.inputs);
+          savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current.selections['codebase-wiki']!;
           wikiGuideScopeRef.current = nextGuideScope;
-          setWikiGuideInputs({ ...createDefaultWikiGuideInputs(), ...(savedWikiGuideInputsRef.current[nextGuideScope] ?? {}) });
-          const nextSelection = savedWikiGuideSelectionsRef.current[nextGuideScope] ?? DEFAULT_WIKI_GUIDE_CARD_ID;
-          wikiGuideSelectionRef.current = nextSelection;
-          setWikiGuideSelection(nextSelection);
+          updateSkillsGuide(restoreSkillGuideState(savedSkillsGuideRef.current[nextGuideScope],
+            savedWikiGuideInputsRef.current[nextGuideScope], savedWikiGuideSelectionsRef.current[nextGuideScope]));
         }
         const nextScope = message.snapshot.connectedScope;
         if (nextScope && nextScope !== scopeRef.current) {
@@ -559,15 +564,16 @@ function App() {
       ...vscode.getState(), issueNavigation, reviewerTab, mrReplyDrafts,
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
-      wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: wikiGuideInputs },
-      wikiGuideSelectionsByScope: { ...savedWikiGuideSelectionsRef.current, [wikiGuideScopeRef.current]: wikiGuideSelection },
+      skillsGuideByScope: { ...savedSkillsGuideRef.current, [wikiGuideScopeRef.current]: skillsGuide },
+      wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: legacyWikiInputs(skillsGuide.inputs) },
+      wikiGuideSelectionsByScope: { ...savedWikiGuideSelectionsRef.current, [wikiGuideScopeRef.current]: skillsGuide.selections['codebase-wiki']! },
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
       selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, wikiGuideInputs, wikiGuideSelection, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -850,7 +856,7 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !snapshot.groupRoot ? snapshot.workspaceRootError ?? '請先在 VSCode 開啟此 Group 的資料夾，再下載 Repo。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
-            : mode === 'sa' ? <CodebaseWikiGuide groupRoot={snapshot.groupRoot} repositories={snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []} repositoryScanStatus={snapshot.groupRepositoryScanStatus} repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.workflowKit.version} kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} selectedCardId={wikiGuideSelection} onSelectCard={(id) => { wikiGuideSelectionRef.current = id; setWikiGuideSelection(id); }} inputs={wikiGuideInputs} onInput={(key, value) => setWikiGuideInputs((current) => ({ ...current, [key]: value }))} onCopy={(text) => post({ type: 'copy', text })} onOpenSettings={() => setToolDrawer(true)} />
+            : mode === 'sa' ? <SkillsGuide groupRoot={snapshot.groupRoot} repositories={snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []} repositoryScanStatus={snapshot.groupRepositoryScanStatus} repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.workflowKit.version} kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} state={skillsGuide} onChange={updateSkillsGuide} onCopy={(text) => post({ type: 'copy', text })} onNavigate={modeChange} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
                 <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
@@ -1012,7 +1018,7 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>工作流程組合包</h3>
     <label class="field">套件來源<select value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
-    <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
+    <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
     {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
     {(() => {
       const installed = snapshot.workflowKit ?? { status: 'missing' as const };
@@ -1027,7 +1033,7 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
         <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
-        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 14 個 Skills。</p>}
+        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 15 個 Skills。</p>}
         {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
         <button class="primary" type="button" disabled={!snapshot.groupRoot || !selected?.available || ['installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;

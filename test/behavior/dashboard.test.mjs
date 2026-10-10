@@ -604,11 +604,11 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   const view = await mount({ mode: 'sa' }, selectedGroup);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  assert.equal(document.querySelector('.page-heading h1').textContent, 'Codebase LLM Wiki');
+  assert.equal(document.querySelector('.page-heading h1').textContent, 'Skills 功能指引');
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-development-spec');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
-  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 13);
+  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 12);
 
   const selector = document.querySelector('.wiki-guide-selector select');
   assert.equal(selector.value, 'development-spec');
@@ -666,10 +666,7 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(reopened.dom.window.document.querySelector('.wiki-guide-selector select').value, 'query');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-query.question"]').value, query.value);
 
-  selector.value = 'install';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  await view.tick();
-  document.querySelector('.wiki-guide-fields button').click();
+  document.querySelector('.skills-install-button').click();
   await view.tick();
   assert.ok(document.querySelector('[role="dialog"]'));
 });
@@ -726,6 +723,123 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.ok(document.querySelector('.wiki-guide-selector select'));
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
+test('four Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
+  const view = await mount({ mode: 'sa', scopeKey: 'team-scope',
+    wikiGuideInputsByScope: { 'team-scope': { 'query.question': '保留的 Wiki 問題' } },
+    wikiGuideSelectionsByScope: { 'team-scope': 'query' } }, snapshot('sa'));
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const change = async (selector, value, event = 'change') => {
+    const input = document.querySelector(selector);
+    input.value = value;
+    input.dispatchEvent(new view.dom.window.Event(event, { bubbles: true }));
+    await view.tick();
+  };
+  assert.equal(document.querySelectorAll('.skills-tool-selector option').length, 4);
+  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
+  await change('.skills-tool-selector select', 'release-reviewer');
+  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'release-review');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  await change('[id="wiki-input-release-review.repo"]', 'C:/工作區 with spaces/service', 'input');
+  await change('[id="wiki-input-release-review.base"]', 'origin/main', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  await change('[id="wiki-input-release-review.head"]', 'v1.1.0', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]').value, '合併前審查');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.output"]').value, 'Markdown');
+  assert.equal(document.querySelector('.wiki-prompt-preview').textContent.includes('--include-json'), false);
+  await change('[id="wiki-input-release-review.mode"]', '直接比較');
+  await change('[id="wiki-input-release-review.output"]', 'Markdown＋JSON');
+  document.querySelector('.wiki-copy-button').click();
+  await view.tick();
+  const copy = view.requests.at(-1);
+  assert.equal(copy.type, 'copy');
+  assert.match(copy.text, /\$release-reviewer/);
+  assert.match(copy.text, /C:\/工作區 with spaces\/service/);
+  assert.match(copy.text, /比較模式：直接比較/);
+  assert.match(copy.text, /--include-json/);
+  assert.match(copy.text, /實際 Group 工作區/);
+  assert.match(copy.text, /本機實際 Git Repo/);
+
+  await change('.skills-tool-selector select', 'codebase-wiki');
+  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
+  await change('.skills-tool-selector select', 'merge-reviewer');
+  await change('.wiki-guide-selector select', 'merge-group');
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /--group-root.*--quick/);
+  await change('.skills-tool-selector select', 'release-reviewer');
+
+  const groupB = snapshot('sa');
+  groupB.connectedScope = 'another-group-scope';
+  groupB.groupRoot = 'C:/workspace/another-team';
+  groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
+  view.sendSnapshot(groupB);
+  await view.tick();
+  assert.equal(document.querySelector('.skills-tool-selector select').value, 'codebase-wiki');
+  await change('.skills-tool-selector select', 'release-reviewer');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, '');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]').value, '合併前審查');
+  await change('[id="wiki-input-release-review.repo"]', 'other-service', 'input');
+
+  view.sendSnapshot(snapshot('sa'));
+  await view.tick();
+  assert.equal(document.querySelector('.skills-tool-selector select').value, 'release-reviewer');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'C:/工作區 with spaces/service');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]').value, '直接比較');
+  assert.equal(view.savedState.skillsGuideByScope['another-group-scope'].inputs['release-review.repo'], 'other-service');
+  const reopened = await mount(view.savedState, snapshot('sa'));
+  t.after(() => reopened.dom.window.close());
+  assert.equal(reopened.dom.window.document.querySelector('.skills-tool-selector select').value, 'release-reviewer');
+  assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-release-review.head"]').value, 'v1.1.0');
+  assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-release-review.output"]').value, 'Markdown＋JSON');
+  reopened.dom.window.document.querySelector('.skills-install-button').click();
+  await reopened.tick();
+  assert.ok(reopened.dom.window.document.querySelector('[role="dialog"]'));
+});
+
+test('release guide retains multiple field inputs dispatched before the next repaint', async (t) => {
+  const view = await mount({ mode: 'sa' }, snapshot('sa'));
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const tool = document.querySelector('.skills-tool-selector select');
+  tool.value = 'release-reviewer';
+  tool.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  for (const [key, value] of Object.entries({ repo: 'service', base: 'origin/main', head: 'feature/payment' })) {
+    const input = document.querySelector(`[id="wiki-input-release-review.${key}"]`);
+    input.value = value;
+    input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  }
+  await view.tick();
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'service');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.base"]').value, 'origin/main');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.head"]').value, 'feature/payment');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+});
+
+test('Megin and MR guide buttons use existing workbench navigation', async (t) => {
+  const view = await mount({ mode: 'sa' }, snapshot('sa'));
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const choose = async (selector, value) => {
+    const input = document.querySelector(selector);
+    input.value = value;
+    input.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+    await view.tick();
+  };
+  await choose('.skills-tool-selector select', 'megin');
+  assert.equal(document.querySelector('.wiki-copy-button'), null);
+  document.querySelector('.skills-navigate-button').click();
+  await view.tick();
+  assert.ok(view.requests.some(request => request.type === 'setMode' && request.mode === 'developer'));
+  view.sendSnapshot(snapshot('sa'));
+  await view.tick();
+  await choose('.skills-tool-selector select', 'merge-reviewer');
+  await choose('.wiki-guide-selector select', 'merge-mr');
+  document.querySelector('.skills-navigate-button').click();
+  await view.tick();
+  assert.ok(view.requests.some(request => request.type === 'setMode' && request.mode === 'reviewer'));
+});
+
 test('copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, snapshot());
   t.after(() => view.dom.window.close());

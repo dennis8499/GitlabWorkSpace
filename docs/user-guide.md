@@ -1,6 +1,6 @@
 # 使用指南
 
-GitLab Workspace 將專案、Codebase LLM Wiki 功能指南、Issue 討論與交付集中在同一個工作台。第一次使用只需連線 GitLab 並選擇群組；閱讀或討論 Issue 不需要設定本機工作目錄。
+GitLab Workspace 將專案、Skills 功能指引、Issue 討論與交付集中在同一個工作台。第一次使用只需連線 GitLab 並選擇群組；閱讀或討論 Issue 不需要設定本機工作目錄。
 
 ## 視窗與 GitLab 相容版本
 
@@ -27,7 +27,7 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看群組 Repo、預設分支與本機狀態。工作目錄完全依 VS Code 已開啟的工作區自動辨識：單一非 Git 資料夾直接採用；單一 Git Repo 只有在 remote 符合目前 Group 時才採用其上層目錄；多資料夾工作區則須由 remote 唯一辨識目前 Group 的 Repo。辨識失敗時，依提示調整 VS Code 工作區，下載與更新操作會停用。勾選專案後，固定在清單底部的主要按鈕會顯示 **下載／更新（數量）**。搜尋不會取消勾選；**全選**只勾選目前顯示的 Repo，部分選取時會顯示中間狀態，並會告知被搜尋隱藏的選取數量。更新預設分支只檢查目前 Group 已存在且路徑安全的本機 Repo；進度與結果會逐項說明完成、略過或失敗原因，成功項目會自動取消勾選。
-- **分析**：頁面上方選單保留 13 項功能，每次只顯示所選功能，預設為 **開發規格（給 Megin）**。選項和各功能輸入依執行個體、帳號與 Group 保存。提示詞會列出 Group 目錄中 Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
+- **分析**：開啟 **Skills 功能指引**，先選工具，再選功能。四個入口為 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer；預設為 Wiki 的 **開發規格（給 Megin）**，整包安裝／更新是共用按鈕。工具、功能和欄位依執行個體、帳號與 Group 保存，原有 Wiki 草稿會承接。提示詞會列出 Group 目錄中 Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
 
@@ -54,13 +54,26 @@ Issue 詳情分成四個任務分頁：
 
 Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自保存工作目錄；如果 Issue 屬於其他群組，閱讀和討論仍可用，工作台會提示要到設定選擇對應目錄。
 
+## Skills 功能指引與上板檢查
+
+Wiki 保留規格、建立／查詢知識、品質維護、健檢、BA／SA／SD、ADR、分析保存、NotebookLM 匯出及程式碼考古。Megin 介紹完整開發流程，提供 **前往我的工作** 和指定 Work ID 續作；子 Skills 依既有流程協作。MergeReviewer 提供手動 Repo／版本審查、單 Repo quick、Group 未提交快審，以及 **前往待審查** 的 MR 入口。
+
+執行上板檢查：
+
+1. 在 **分析** 選 **ReleaseReviewer → 上板檢查**。
+2. 手動填寫 **Repo 名稱或路徑、基礎版本、比較版本**。本機分支可填 `main`，遠端分支須明確填 `origin/main`，也可填 Tag 或 commit SHA。
+3. 預設 **合併前審查**；若要檢查兩個已完成版本，選 **直接比較**。報告預設 Markdown，選 **Markdown＋JSON** 才附加 JSON。
+4. 預覽並複製提示詞，貼入從 Group 根目錄啟動的 Codex CLI。必填欄位、工作流程包或 Repo 掃描未就緒時，複製按鈕會停用。
+
+Skill 解析並固定版本，遠端版本取得失敗就停止。它保留本機未提交修改，分列程式風險、新增設定使用及定義、新增 DB 連線與物件提醒；新增使用以基礎版本整個 Repo 為準。報告位於所選 Repo 的 `review-reports/`，檔名前綴 `release-review`。完成、失敗或中止時清理本次受管理的暫存證據。報告為本機成果，具有獨立中繼資料；實際環境設定與 DB 建立／套用狀態列為未查證。
+
 ## 安裝開發工具
 
 在工作區設定的 **開發工具** 管理一個套件：「GitLab Workspace 工作流程包」。預設來源是 **VSIX 內附離線包**；也可切到 GitLab Workspace 的 Gitea 或 GitHub Release，下載單一組合包 ZIP 後按 **匯入 ZIP**。擴充功能會檢查 ZIP 路徑、連結、檔案數量、解壓容量、套件版本與逐檔摘要，再保存檔案摘要。擴充功能不會查詢 Release API，也不會自動下載附件。套件版本與目前擴充功能版本必須相同。
 
 選好唯一的組合包版本後按 **安裝／更新**。VSIX 內附版本為預設安裝來源；匯入的 ZIP 會複製到 VS Code 持久儲存區並以 SHA-256 去重，因此原始下載檔可在匯入後刪除。安裝前會整體預檢 Skills、Wiki 設定、管理區塊與安裝紀錄，再以暫存與回復日誌套用；中途失敗或 VS Code／Python 程序中斷後，下一次檢查會先回復原狀。匯入 ZIP 或本機 Skill 若與套件版本、契約或摘要不符，會清楚阻擋安裝。
 
-套件安裝到 Group 下的 `.agents/skills/`，並加入 Group 專用 Codex 規則。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留；只有尚無 Wiki 時才建立起始內容。偵測到舊版分開安裝、Megin 鎖或尚未完成的已核准工作時，安裝／更新會列出原因並停止。舊版需依套件提供的 `legacy-cleanup.md` 人工移除指定工具檔案與管理區塊，再重新安裝；不要刪除 Wiki、工作紀錄或報告。
+套件安裝到 Group 下的 `.agents/skills/`，包含 15 個 Skills，並加入 Group 專用 Codex 規則。0.14.0 整包可直接升級到 0.15.0，既有受信任前版仍受支援。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留；只有尚無 Wiki 時才建立起始內容。偵測到舊版分開安裝、Megin 鎖或尚未完成的已核准工作時，安裝／更新會列出原因並停止。分開安裝的舊工具需依套件提供的 `legacy-cleanup.md` 人工處理指定檔案與管理區塊；遇到自行安裝的同名 ReleaseReviewer 時先備份並處理衝突，不會自動覆寫。不要刪除 Wiki、工作紀錄或報告。
 
 ## 專案與 Git 操作
 
@@ -91,7 +104,7 @@ Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自
 ## 命令面板
 
 - **GitLab Workspace: 開啟工作台**：開啟整合工作台。
-- **GitLab Workspace: 我的工作／專案／Codebase LLM Wiki／待審查**：直接切換至對應工作區；分析頁的既有命令 ID 仍保留相容性。
+- **GitLab Workspace: 我的工作／專案／Skills 功能指引／待審查**：直接切換至對應工作區；分析頁的既有命令 ID 仍保留相容性。
 - **GitLab Workspace: 連線 GitLab**、**選擇 Group**、**重新整理工作台**：管理連線、群組與資料。
 - **GitLab Workspace: 選擇要下載或更新的專案**、**下載或更新全部專案**、**下載或更新選取專案**、**更新本機預設分支**：執行 Repo 操作。
 - **GitLab Workspace: 新增 Issue**、**開啟 Issue 詳情**：在同一工作台建立或開啟 Issue。

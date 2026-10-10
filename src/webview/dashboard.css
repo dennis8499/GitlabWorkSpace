@@ -426,3 +426,9 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .page[data-mode="git"] { padding: 0; overflow: hidden; }
 .page[data-mode="git"] .workspace-tasks { min-height: 0; flex: 1 1 0; }
 .page[data-mode="git"] .git-mode-host { min-height: 0; flex: 1 1 0; }
+
+.skills-guide-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+.skills-guide-controls .field { flex: 1 1 240px; margin: 0; min-width: 0; }
+.skills-guide-controls .wiki-guide-selector { max-width: none; }
+.skills-guide-controls .skills-install-button { flex: 0 0 auto; margin-bottom: 0; }
+@media (max-width: 600px) { .skills-guide-controls .field, .skills-guide-controls .skills-install-button { flex-basis: 100%; } }

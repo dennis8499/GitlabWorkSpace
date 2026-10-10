@@ -41,7 +41,7 @@ suite('GitLab Workspace extension activation', () => {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
-    assert.equal(wikiGuideCommand?.title, 'GitLab Workspace: Codebase LLM Wiki');
+    assert.equal(wikiGuideCommand?.title, 'GitLab Workspace: Skills 功能指引');
   });
 
 });

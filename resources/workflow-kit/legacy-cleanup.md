@@ -26,3 +26,5 @@ Remove only the separately installed tool contents and their managed records:
 - `.codex/config.toml` and `.codex/hooks.json` only if they exist solely for the old Wiki installation; preserve unrelated Group Codex settings and user instructions
 
 Keep `<Group>/wiki/`, `<Group>/docs/work/`, `<Group>/review-reports/`, `.megin/` history and configuration, other `.agents/skills/`, and all repository files. Do not delete an active Megin workspace lock or any work records to make an installation succeed.
+
+Version 0.15.0 also installs `.agents/skills/release-reviewer/`. If that directory already belongs to a separate or personal installation, back it up and resolve the name conflict before installation. The kit will preserve it and stop. Trusted 0.14.0 all-in-one installations can upgrade directly; they do not require this separate-tool cleanup.

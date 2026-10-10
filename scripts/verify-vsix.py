@@ -92,8 +92,8 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     if manifest.get("upstream") != zip_manifest.get("upstream") or manifest.get("skills") != zip_manifest.get("skills") or \
        manifest.get("payloadFiles") != len(zip_payload) or tar_payload != zip_payload or zip_payload != zip_manifest.get("files"):
         raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group payload")
-    if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 14 or len(set(manifest["skills"])) != 14:
-        raise ValueError("Workflow kit must include all fourteen Skills")
+    if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 15 or len(set(manifest["skills"])) != 15 or "release-reviewer" not in manifest["skills"]:
+        raise ValueError("Workflow kit must include all fifteen Skills including ReleaseReviewer")
     return {archive_name, manifest_name}, manifest
 
 

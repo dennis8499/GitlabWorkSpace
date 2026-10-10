@@ -25,7 +25,7 @@
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析」使用整包內附的 Wiki、Megin 與 MergeReviewer 能力；提示詞會帶入 Group、Repo 與套件版本，並可複製到 Codex CLI。
+- 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查手動指定 Repo 與基礎／比較版本，產生本機報告。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從工具管理抽屜一次安裝或更新 GitLab Workspace 工作流程包。預設使用 VSIX 內附離線包；也可匯入 GitLab Workspace 的單一 Release ZIP。
@@ -61,7 +61,9 @@
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-GitLab Workspace v0.14.0 的 VSIX 與組合包共用版本，先安裝固定的原生 Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0，再套用 Group 專用覆層，最後以工作台安裝紀錄驗證完整 payload。原生發行包各自可在單一 Codebase／Repo／ref 使用；Group 掃描、共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、`gitlab_mr`、MR 任務與版本綁定報告由工作台覆層提供。MR 審查保留固定來源與目標 SHA、Markdown 報告中繼資料及受管理的暫存證據。Issue 開發任務仍會探索 Group 全部直屬 Repo，只交付核准且有變更的 Repo，並在驗收後交接。安裝器把原生 Wiki 安裝、Group 覆層、Wiki 安裝狀態、Codex 設定與紀錄放在同一交易；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
+GitLab Workspace v0.15.0 的 VSIX 與組合包共用版本，安裝固定的原生 Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0、ReleaseReviewer 0.1.0，共 15 個 Skills。Wiki、Megin 與 MergeReviewer 套用既有 Group 覆層；ReleaseReviewer 保留原生內容，最後以工作台安裝紀錄驗證完整 payload。原生發行包各自可在單一 Codebase／Repo／ref 使用；Group 掃描、共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、`gitlab_mr`、MR 任務與版本綁定報告由工作台覆層提供。MR 審查保留固定來源與目標 SHA、Markdown 報告中繼資料及受管理的暫存證據。Issue 開發任務仍會探索 Group 全部直屬 Repo，只交付核准且有變更的 Repo，並在驗收後交接。安裝器把所有 Skills、原生 Wiki 安裝、Group 覆層、Wiki 安裝狀態、Codex 設定與紀錄放在同一交易；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
+
+0.15.0 可從真正的 0.14.0 安裝升級並回復。分析頁以四個工具及各自功能導覽，保留原有 Wiki 輸入，並依帳號與 Group 保存選取及草稿。ReleaseReviewer 分列程式風險、新增設定使用與新增 DB 使用提醒，預設只產生所選 Repo 下 `review-reports/release-review-*.md`；JSON 可選，報告使用獨立中繼資料。實際環境與 DB 建立狀態由報告列為待確認。
 
 0.14.0 納入 Aspire `toolkit-correction` 的 19 項覆層差異：固定驗證 bytes、SCN 行為追蹤、runner 預檢、歷史交付收據與 MR 綁定。跨 Repo 補證、MR 身分／正文驗證、linked correction ancestry 與需明確授權的模擬驗收仍由 Group 覆層管理。安裝器支援可信前版的同版本 payload 升級、`install --dry-run` 與保留交易的 `rollback`，並可從已發行或本次同步的 0.13.2 套件升級；操作見[Group 工作流程](docs/group-workflow.md)。固定上游來源維持現值。
 

@@ -37,7 +37,7 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
             installed = self.helper(ROOT / "resources/workflow-kit-installer.py", "install", bundle, group, VERSION, "bundled",
                                     "--format", "tar.xz", "--entry-root", "workflow-kit", "--archive-sha256", digest)
             self.assertTrue(installed["ok"])
-            self.assertEqual(14, installed["skills"])
+            self.assertEqual(15, installed["skills"])
             self.assertFalse((group / ".git").exists())
             tools = group / ".agents/skills"
             wiki = tools / "codebase-wiki/scripts"

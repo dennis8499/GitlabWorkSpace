@@ -44,7 +44,7 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
   {
     id: 'install', title: '安裝／設定',
     description: '透過 GitLab Workspace 一次管理所有工作 Skills 與 Group 規則。',
-    output: '整包含 14 個 Skills、固定來源版本、Group Wiki 設定及安裝紀錄。',
+    output: '整包含 15 個 Skills、固定來源版本、Group Wiki 設定及安裝紀錄。',
     behavior: '使用工具抽屜的單一套件卡安裝或更新；檢查失敗時整包回復。',
     fields: []
   },
