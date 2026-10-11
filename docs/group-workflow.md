@@ -1,10 +1,10 @@
-# Group 工作流程（GitLab Workspace 0.16.0）
+# Group 工作流程（GitLab Workspace 0.17.0）
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0、ReleaseReviewer 0.1.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並加入 Group 工作目錄專用規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0、ReleaseReviewer 0.1.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並提供 Group overlays 與原生單 Repo 兩種 profile，使用對應的工作目錄規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
 
 ## 一次安裝整包
 
-登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。預設下載、匯入與安裝都需要此 Group 環境；可在設定關閉限制後自由指定安裝位置，套件內的 Group 工作流程規則仍保留。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
+登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。「符合 Group 時使用 Group 流程」預設開啟；須核對所有已開啟 Repo 和 Group 資料夾的直屬 Repo，其唯一 origin 對應所選 Group（含子群組），並共用唯一非 Git 根目錄。未符合時自動切換原生單 Repo；關閉則固定單 Repo。下載與匯入可免登入，安裝需有效目標；空 Group 資料夾可先下載再核對。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
 
 安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的已核准工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 
@@ -15,7 +15,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.16.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.17.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
@@ -78,13 +78,19 @@ MR 審查、Push 或合併是各自獨立的狀態。已產生報告不代表 MR
 
 ## 上板檢查與四工具指引
 
-「分析」頁是四個主要工具的 Skills 功能指引。先選工具再選功能；安裝／更新為共用入口，Megin 與 MR 導覽沿用既有工作台流程。指引的工具選取、功能與輸入依帳號及 Group 保存，舊 Wiki 指引草稿會承接。
+「分析」頁是四個主要工具的 Skills 功能指引。先選工具再選功能；安裝／更新為共用入口，Megin 與 MR 導覽沿用既有工作台流程。指引的工具選取、功能與輸入依帳號及 Group，或所選 Repo 根目錄保存，舊 Wiki 指引草稿會承接。
 
 ReleaseReviewer 使用明確的單一 Repo、基礎版本與比較版本；預設合併前審查，直接比較及 JSON 輸出皆由使用者選擇。提示詞帶入實際 Group、Repo 清單及整包版本，Codex 從安裝後的原生 Skill 執行檢查。新增設定／DB 使用以固定基礎版本整個 Repo 的原有使用為基準。程式風險、設定提醒與 DB 提醒分列；環境建置狀態仍待確認。
 
 報告存於所選 Repo 的 `review-reports/release-review-*.md`，JSON 選填。它的版本中繼資料與 MR 報告不同。暫存證據由原生 helper 管理，完成或中止均需清理。
 
-0.16.0 安裝器保留受信任的 0.14.0 與 0.15.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
+0.17.0 安裝器保留受信任的 0.14.0、0.15.0 與 0.16.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
+
+## 原生單 Repo 與版本限制
+
+單 Repo profile 名稱為 `repository`，CLI 使用 `--profile repository`，目標必須是實際 Git 根目錄。可使用 Wiki、原生 Megin 開發／續作、單 Repo 審查與上板檢查；Group quick、Issue 交付及 MR 任務入口保留於 Group。Wiki、工作紀錄、提示詞與 Codex 目錄跟隨所選情境。
+
+設定、Skills 頁及操作入口共用核對結果與安裝資訊。Skills 顯示目前根目錄實際整包／工具版本；舊版須更新才能啟動新任務。完整驗證過的進行中 Megin 工作可沿原根目錄、profile、版本及 Work ID 續作。切換畫面不會修改安裝；按安裝／更新才轉換 profile，沿用交易回復，並保留 Wiki、工作紀錄、報告和其他 Skills。進行中的工作會阻擋更新。
 
 ## 交付後的 Wiki 知識回饋
 
@@ -94,10 +100,10 @@ ReleaseReviewer 使用明確的單一 Repo、基礎版本與比較版本；預�
 
 ## 套件建置與發行
 
-套件固定來源為 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0 與 ReleaseReviewer 0.1.0。ReleaseReviewer 保留原生內容，既有三項 Group 覆層維持原架構。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有相同且有效的 payload。套件建置會產生：
+套件固定來源為 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0 與 ReleaseReviewer 0.1.0。ReleaseReviewer 保留原生內容，既有三項 Group 覆層維持原架構。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。套件建置會產生：
 
-- `gitlab-workspace-0.16.0.vsix`
-- `gitlab-workspace-kit-0.16.0.zip`
+- `gitlab-workspace-0.17.0.vsix`
+- `gitlab-workspace-kit-0.17.0.zip`
 - `SHA256SUMS`
 
 建置及發行測試涵蓋新裝、重複安裝、更新、失敗回復、程序中斷回復、套件與本機內容損壞、舊版清理、Megin 工作阻擋，以及 Group 規格、審查、精確 Commit、MR 報告與知識回饋流程。

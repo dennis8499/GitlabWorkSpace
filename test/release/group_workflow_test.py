@@ -140,6 +140,18 @@ Q-001: requester must confirm access behavior.
                       "group_config_sha256": settings_digest, "skills_sha256": skills}
             write("workflow.md", "# Integration Work\n" + "\n".join(f"- {key}: {value}" for key, value in fields.items()) + "\n")
             self.helper(megin / "group_workspace.py", "claim", "--group-root", group, "--work-id", WORK, "--writer", "writer-1")
+            active = self.helper(ROOT / "resources/workflow-kit-installer.py", "status", group, "--expected-version", "99.0.0")
+            self.assertEqual("work-in-progress", active["status"])
+            self.assertEqual([WORK], active["activeWorkIds"], "resume requires a fully verified Group v3 contract and Skills fingerprint")
+            contract_path = work / "plan-1/quality-contract.json"
+            approved_contract = contract_path.read_bytes()
+            for field, invalid in (("work_id", "work-20261002-other"), ("skills_sha256", "0" * 64), ("group_root", str(base))):
+                changed = json.loads(approved_contract)
+                changed[field] = invalid
+                contract_path.write_text(json.dumps(changed, ensure_ascii=False), encoding="utf-8")
+                rejected = self.helper(ROOT / "resources/workflow-kit-installer.py", "status", group, "--expected-version", "99.0.0")
+                self.assertEqual([], rejected["activeWorkIds"], field)
+            contract_path.write_bytes(approved_contract)
             snapshot = self.helper(megin / "quality_gate.py", "snapshot", "--group-root", group, "--work-id", WORK)
             digest = snapshot["product_sha256"]
             write("evidence/writer.md", f"- context: writer-1\n- snapshot: {digest}\n")

@@ -362,7 +362,9 @@ function App() {
         } }));
       }
       if (message.type === 'snapshot') {
-        const nextGuideScope = wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
+        const nextGuideScope = message.snapshot.skillsContext?.mode === 'repository' && message.snapshot.skillsContext.root
+          ? `repository:${message.snapshot.skillsContext.root}` : message.snapshot.skillsContext?.mode === 'unavailable' ? wikiGuideScopeRef.current
+          : wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
         if (nextGuideScope !== wikiGuideScopeRef.current) {
           savedSkillsGuideRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current;
           savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = legacyWikiInputs(skillsGuideRef.current.inputs);
@@ -867,12 +869,21 @@ function App() {
                   })}</div>
                 </section>}
                 <div class="list-actions clone-actions">
-                  <div class="clone-root-line"><strong>下載位置</strong><span title={snapshot.groupRoot}>{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo'}</span>{snapshot.groupRoot && <button class="quiet small clone-open-workspace" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}</div>
-                  <div class="clone-actions-row"><div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}</div><button class="quiet small" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} onClick={() => setSelectedProjectIds([])}>清除選取</button><details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel"><button class="secondary" type="button" disabled={!!snapshot.busy || !snapshot.groupRoot} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button>{snapshot.groupRoot && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}<button class="quiet" type="button" disabled={!!snapshot.busy || !snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button></div></details><button class="primary clone-submit" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy || !snapshot.groupRoot} aria-label={`下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>下載／更新（{selectedProjectIds.length}）</button></div>
-                  <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !snapshot.groupRoot ? snapshot.workspaceRootError ?? '請先在 VSCode 開啟此 Group 的資料夾，再下載 Repo。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
+                  <div class="clone-root-line"><strong>下載位置</strong><span title={(snapshot.cloneRoot ?? snapshot.groupRoot)}>{(snapshot.cloneRoot ?? snapshot.groupRoot) ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo'}</span>{(snapshot.cloneRoot ?? snapshot.groupRoot) && <button class="quiet small clone-open-workspace" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}</div>
+                  <div class="clone-actions-row"><div class="clone-selection-summary"><strong>已選 {selectedProjectIds.length} 個專案</strong>{hiddenSelectionCount > 0 && <span class="subtle">{hiddenSelectionCount} 個不在目前搜尋結果</span>}</div><button class="quiet small" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy} onClick={() => setSelectedProjectIds([])}>清除選取</button><details class="more-actions"><summary>更多專案操作</summary><div class="more-actions-panel"><button class="secondary" type="button" disabled={!!snapshot.busy || !snapshot.groupRoot} onClick={() => post({ type: 'syncRepos' })}>更新本機預設分支</button>{(snapshot.cloneRoot ?? snapshot.groupRoot) && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'openLocalWorkspace' })}>開啟工作區</button>}<button class="quiet" type="button" disabled={!!snapshot.busy || !snapshot.group?.web_url} onClick={() => snapshot.group?.web_url && post({ type: 'openExternal', url: snapshot.group.web_url })}>在 GitLab 開啟 Group</button></div></details><button class="primary clone-submit" type="button" disabled={!selectedProjectIds.length || !!snapshot.busy || !(snapshot.cloneRoot ?? snapshot.groupRoot)} aria-label={`下載或更新 ${selectedProjectIds.length} 個選取專案`} onClick={() => post({ type: 'clone', projectIds: selectedProjectIds })}>下載／更新（{selectedProjectIds.length}）</button></div>
+                  <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !(snapshot.cloneRoot ?? snapshot.groupRoot) ? snapshot.workspaceRootError ?? '請先在 VSCode 開啟此 Group 的資料夾，再下載 Repo。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
-            : mode === 'sa' ? <SkillsGuide groupRoot={snapshot.groupRoot} repositories={snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []} repositoryScanStatus={snapshot.groupRepositoryScanStatus} repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.workflowKit.version} kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} state={skillsGuide} onChange={updateSkillsGuide} onCopy={(text) => post({ type: 'copy', text })} onNavigate={modeChange} onOpenSettings={() => setToolDrawer(true)} />
+            : mode === 'sa' ? <SkillsGuide skillsContext={snapshot.skillsContext} profile={snapshot.skillsContext?.mode === 'group' ? 'group' : snapshot.skillsContext ? 'repository' : undefined}
+              root={snapshot.skillsContext?.root} groupRoot={snapshot.skillsContext?.mode === 'group' ? snapshot.skillsContext.root : snapshot.skillsContext ? undefined : snapshot.groupRoot}
+              repositories={snapshot.skillsContext?.repositories ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : [])}
+              repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
+              repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
+              kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} state={skillsGuide} onChange={updateSkillsGuide}
+              onSelectRepository={root => post({ type: 'selectSkillsRepository', root })}
+              onOpenCodex={() => snapshot.skillsContext && post({ type: 'openCodexTerminal', revision: snapshot.skillsContext.revision })}
+              onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}
+              onNavigate={modeChange} onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
                 <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
@@ -939,7 +950,7 @@ function App() {
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
                 <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>重新檢查分支</button></div>
                 <div class="next-step" role="status">{selectedMr.freshness.state === 'current' ? '分支已同步。下一步：執行審查並將報告貼回此處。' : selectedMr.freshness.state === 'behind' ? '來源分支落後目標分支。先更新分支，再重新檢查後審查。' : '先重新檢查分支狀態，再開始審查。'}</div>
-                <div class="button-row"><button class="primary" type="button" onClick={openReviewerTask}>複製審查任務並開啟 Codex CLI</button><span class="subtle">完成後將 Markdown 貼到「審查報告」。</span></div>
+                {(!snapshot.skillsContext || snapshot.skillsContext.mode === 'group') && <div class="button-row"><button class="primary" type="button" disabled={!!snapshot.skillsContext && !snapshot.skillsContext.availableFeatures.includes('merge-mr')} onClick={openReviewerTask}>複製審查任務並開啟 Codex CLI</button><span class="subtle">完成後將 Markdown 貼到「審查報告」。</span></div>}
                 <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
                 <nav class="issue-tabs review-tabs" role="tablist" aria-label="Merge Request 詳情分頁">{([['changes', '變更'], ['discussion', '討論'], ['report', '審查報告']] as const).map(([tab, label], index) => <button role="tab" tabIndex={reviewerTab === tab ? 0 : -1} aria-selected={reviewerTab === tab} class={reviewerTab === tab ? 'active' : ''} onKeyDown={(event) => {
                   const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
@@ -1040,13 +1051,18 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       onSection(next); drawerRef.current?.querySelector<HTMLButtonElement>(`#settings-tab-${next}`)?.focus();
     }}>{(['tools', 'accounts'] as const).map(id => <button id={`settings-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls={`settings-content-${id}`} tabIndex={section === id ? 0 : -1} onClick={() => onSection(id)}>{id === 'tools' ? '工作區與 Skills' : '帳號與連線'}</button>)}</div>
     {section === 'accounts' ? <div role="tabpanel" id="settings-content-accounts" aria-labelledby="settings-tab-accounts"><AccountPanel snapshot={snapshot} intent={accountIntent} post={post} /></div> : <div role="tabpanel" id="settings-content-tools" aria-labelledby="settings-tab-tools">
-    <section class="skills-policy" aria-label="Skills 使用限制"><label class="skills-policy-toggle"><input type="checkbox" role="switch" checked={policy.requireGroupEnvironment} disabled={kitBusy} onChange={event => post({ type: 'setWorkflowKitRequireGroup', enabled: event.currentTarget.checked })} /><span>Skills 下載／安裝需在 Group 環境</span></label>
+    <section class="skills-policy" aria-label="Skills 使用限制"><label class="skills-policy-toggle"><input type="checkbox" role="switch" checked={policy.requireGroupEnvironment} disabled={kitBusy} onChange={event => post({ type: 'setWorkflowKitRequireGroup', enabled: event.currentTarget.checked })} /><span>符合 Group 時使用 Group 流程</span></label>
       <p class="subtle">設定範圍：{policy.settingTarget === 'workspace' ? '目前工作區（覆寫使用者設定）' : '使用者（適用未另設規則的工作區）'}。</p>
-      <p>{policy.requireGroupEnvironment ? 'Group 模式：登入、選擇 Group 並開啟對應本機工作區後，即可下載、匯入和安裝。安裝位置固定為 Group 根目錄。' : '自由模式：可免登入下載、匯入，並自由選擇安裝資料夾。'}</p>
-      <p class="subtle">此開關控制下載與安裝資格；Skills 套件仍保留既有 Group 工作流程規則。</p>
+      <p>{policy.requireGroupEnvironment ? '自動模式：所有 Repo 對應所選 Group 時使用 Group 流程，其餘情況使用原生單 Repo 流程。' : '固定使用原生單 Repo 流程。'}</p>
+      <p class="subtle">安裝位置與 Skills 功能跟隨實際流程；下載及匯入可免登入。切換流程後請確認安裝狀態。</p>
       {!policy.allowed && <div class="skills-policy-reason" role="status"><p class="warning">{policy.reason}</p><div class="button-row">{policy.action === 'connect' ? <button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>登入 GitLab</button> : policy.action === 'selectGroup' ? <button class="primary" type="button" disabled={operationBusy} onClick={onSelectGroup}>選擇 Group</button> : policy.action === 'openWorkspace' ? <button class="primary" type="button" disabled={operationBusy} onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟 Group 資料夾</button> : null}</div></div>}
     </section>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">VSCode 工作區：{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
+    {snapshot.skillsContext && <section class="workspace-settings" aria-label="Group 對應狀態"><h3>Group 對應狀態</h3>
+      <p role="status">{{ checking: '核對中', matched: '已對應', mismatched: '不符', unverified: '尚未驗證', ambiguous: '根目錄不唯一', error: '驗證失敗' }[snapshot.skillsContext.groupMatch.status]}</p>
+      {snapshot.skillsContext.groupMatch.reason && <p>{snapshot.skillsContext.groupMatch.reason}</p>}
+      <ul>{snapshot.skillsContext.groupMatch.repositories.map(repo => <li key={repo.path}>{repo.name} · {repo.path} · {repo.matched ? '已對應' : repo.reason ?? '未對應'}</li>)}</ul>
+    </section>}
     <section class="workspace-settings"><h3>後臺管理</h3><p>查看、篩選與匯出本機操作紀錄。</p><button type="button" disabled={operationBusy} onClick={onOpenAdmin}>開啟後臺管理</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
@@ -1056,8 +1072,8 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>工作流程組合包</h3>
     <label class="field">套件來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
-    <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
-    <p class="subtle">下載、匯入與安裝依上方 Skills 使用限制判斷。</p>
+    <p class="source-lines">一包提供 Group 與原生單 Repo 流程，包含 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
+    <p class="subtle">下載及匯入可免登入；安裝需選定有效的 Group 或 Repo 目標。</p>
     {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
     {(() => {
       const target = snapshot.workflowKitInstallTarget;
@@ -1069,8 +1085,10 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       const kitVersion = (snapshot.workflowKitPackages ?? []).find((item) => item.source === 'bundled')?.version ?? installed.version;
       return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
+        {snapshot.skillsContext && <p>目前流程：{snapshot.skillsContext.mode === 'group' ? 'Group' : '原生單 Repo'}{installed.profile ? ` · 已安裝：${installed.profile === 'group' ? 'Group' : '原生單 Repo'}` : ''}</p>}
+        {snapshot.skillsContext?.reason && <p class="subtle" role="status">{snapshot.skillsContext.reason}</p>}
         <p class="subtle workflow-kit-install-root">安裝位置：{target?.root ?? '尚未選擇資料夾'}{target?.manual ? '（手動指定）' : target?.root ? '（預設位置）' : ''}</p>
-        <div class="button-row"><button type="button" disabled={policy.requireGroupEnvironment || operationBusy || kitBusy || installed.status === 'installing'} onClick={onSelectInstallRoot}>選擇資料夾</button><button class="quiet" type="button" disabled={policy.requireGroupEnvironment || operationBusy || kitBusy || installed.status === 'installing' || !target?.manual} onClick={onResetInstallRoot}>恢復預設位置</button></div>
+        <div class="button-row"><button type="button" disabled={policy.mode === 'group' || operationBusy || kitBusy || installed.status === 'installing'} onClick={onSelectInstallRoot}>選擇資料夾</button><button class="quiet" type="button" disabled={policy.mode === 'group' || operationBusy || kitBusy || installed.status === 'installing' || !target?.manual} onClick={onResetInstallRoot}>恢復預設位置</button></div>
         {target?.error && target.error !== policy.reason && <p class="warning" role="status">{target.error}</p>}
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
@@ -1081,7 +1099,7 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       </section>;
     })()}
     </section>
-    <div class="drawer-footer"><span>工作 Skills、Group 規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>
+    <div class="drawer-footer"><span>工作 Skills、流程規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>
     </div>}
   </aside></div>;
 }

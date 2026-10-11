@@ -87,10 +87,25 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
   }
 ];
 
-export function getSkillGuideCard(tool: SkillGuideToolId, id?: string): SkillGuideCard {
+export function getSkillGuideCards(profile: 'group' | 'repository' = 'group'): readonly SkillGuideCard[] {
+  if (profile === 'group') return skillGuideCards;
+  return skillGuideCards.filter(card => card.id !== 'merge-group' && card.id !== 'merge-mr').map(card => {
+    if (card.id === 'megin-workflow') return { ...card, title: '單一 Repo 開發流程', destination: undefined,
+      description: '在選定的 Git Repo 啟動原生 Megin 開發工作。',
+      output: 'Repo 內的 Work ID、核准計畫、驗證、人工驗收與本機交付紀錄。',
+      behavior: '依原生 Megin 流程完成需求、規劃、實作、獨立審查、驗證、人工驗收及本機 Commit／Merge。',
+      fields: [field('task', '開發需求', { required: true, kind: 'textarea', rows: 4 })] };
+    if (card.id === 'megin-resume') return { ...card, description: '從此 Repo 的工作紀錄恢復未完成的工作。',
+      output: '沿用原 Work ID、核准計畫與驗收版本，回報進度及下一步。', behavior: '使用原生 Repo 鎖及完成門檻，續作此 Repo 的既有工作。' };
+    return { ...card, fields: card.fields.filter(item => item.id !== 'repo') };
+  });
+}
+
+export function getSkillGuideCard(tool: SkillGuideToolId, id?: string, profile: 'group' | 'repository' = 'group'): SkillGuideCard {
+  const cards = getSkillGuideCards(profile);
   const defaultId = skillGuideTools.find(item => item.id === tool)!.defaultCard;
-  return skillGuideCards.find(card => card.tool === tool && card.id === id)
-    ?? skillGuideCards.find(card => card.tool === tool && card.id === defaultId)!;
+  return cards.find(card => card.tool === tool && card.id === id)
+    ?? cards.find(card => card.tool === tool && card.id === defaultId)!;
 }
 
 export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: WikiGuideInputValues, legacySelection?: string): SkillGuideState {
@@ -126,6 +141,16 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   const input = (id: string) => value(card, id, inputs).trim();
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   const json = input('output') === 'Markdown＋JSON';
+  if (context.profile === 'repository' && card.id === 'megin-workflow') return [
+    `$megin 請在 Repo ${JSON.stringify(context.root)} 執行下列開發需求：`, input('task'),
+    '使用此 Repo 安裝的原生 Megin 與協作 Skills。先讀取來源與相關知識，確認既有工作；新工作先釐清需求、建立可驗證計畫並取得核准。',
+    '工作紀錄保存在 docs/work/<Work ID>/，沿用原生 Repo 鎖、獨立審查、實際驗證、人工驗收及本機交付規則。'
+  ].join('\n');
+  if (context.profile === 'repository' && card.id === 'megin-resume') return [
+    `$megin 請在 Repo ${JSON.stringify(context.root)} 續作 Work ID：${input('workId')}。`,
+    '先讀取 docs/work/<Work ID>/workflow.md、原核准計畫、固定版本與 evidence，核對原生 Repo 工作契約及 Skills 指紋，從最早未完成的階段繼續。',
+    '沿用原 Work ID、版本、Repo 鎖、獨立審查、實際驗證、人工驗收與本機交付規則。'
+  ].join('\n');
   if (card.id === 'megin-resume') return [
     `$megin 請在此 Group 續作 Work ID：${input('workId') || '〔請填寫 Work ID〕'}。`,
     '先讀取 docs/work/<Work ID>/workflow.md、核准計畫及 evidence，確認原有 Issue 與 Repo 契約，從最早尚未完成的階段繼續。',
@@ -137,12 +162,14 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
       ? `$merge-reviewer 請對下列 Repo 執行原生單 Repo quick 審查（--quick --remote ${quoted('remote')}${input('workingTree') === '是' ? ' --include-working-tree' : ''}）。${input('workingTree') === '是' ? '納入固定的本機修改快照。' : '只審查已提交內容。'}`
       : `$${card.tool} 請依下列明確輸入執行${card.tool === 'release-reviewer' ? '上板檢查' : '版本審查'}。`;
   const lines = [opening];
-  if (card.id !== 'merge-group') lines.push(`專案名稱：${quoted('repo')}`);
+  if (card.id !== 'merge-group') lines.push(`專案名稱：${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')}`);
   if (card.id === 'merge-repo' || card.id === 'release-review') lines.push(
     `基礎分支：${quoted('base')}`, `比較分支：${quoted('head')}`, `比較模式：${input('mode') || '合併前審查'}`,
     'Repo 有多個候選時先釐清；不猜測基礎或比較版本。短分支名稱代表本機分支；origin/main 等明確遠端分支須取得最新指定版本，失敗時停止，不使用過期資料。'
   );
-  lines.push('使用安裝於本 Group 的 Skill 與 helpers。先解析實際 Repo；單 Repo helper 的工作目錄使用該 Repo，--workspace 指向此 Group。保留本機未提交修改，從固定版本查證。');
+  lines.push(context.profile === 'repository'
+    ? `使用此 Repo 安裝的原生 Skill 與 helpers，工作目錄及 --workspace 均為 ${JSON.stringify(context.root)}。保留本機未提交修改，從固定版本查證。`
+    : '使用安裝於本 Group 的 Skill 與 helpers。先解析實際 Repo；單 Repo helper 的工作目錄使用該 Repo，--workspace 指向此 Group。保留本機未提交修改，從固定版本查證。');
   if (card.tool === 'release-reviewer') lines.push(
     '以 base_sha 的整個 Repo 原有程式使用為新增判斷基準。合併前模式以乾淨合併預覽為最終行為，直接比較以 head 為準；缺少預覽或有衝突時明列未完成。',
     '分別列出本次引入的程式風險、新增設定使用與對應定義、新增 DB 連線與物件使用。設定及 DB 提醒保留基礎搜尋證據，不把新增項目自動當作缺陷。',

@@ -53,6 +53,9 @@ class TransactionTests(unittest.TestCase):
         old = TRUST["packages"][package_index]
         marker = self.group / MARKER
         value = json.loads(marker.read_text(encoding="utf-8"))
+        # Historical installers did not write the 0.17 profile/capability fields.
+        for key in ("profile", "capabilities", "installedRoot"):
+            value.pop(key, None)
         expected = old["files"]
         if local_update:
             reviewed = TRUST["local_updates"][0]
@@ -100,7 +103,8 @@ class TransactionTests(unittest.TestCase):
         for key in ("version", "payloadSha256", "upstream", "overlays"):
             value[key] = copy.deepcopy(old[key])
         marker.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        self.assertEqual("update-available", self.status(self.group)["status"])
+        state = self.status(self.group)
+        self.assertEqual("update-available", state["status"], state)
         return installed
 
     def test_dry_run_leaves_group_bytes_and_directories_unchanged(self):

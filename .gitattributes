@@ -13,3 +13,5 @@ test/release/*.py text eol=lf
 test/fixtures/workflow-kit-predecessor/** text eol=lf
 test/fixtures/workflow-kit-0.14.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.14.0/*.tar.xz binary !eol
+test/fixtures/workflow-kit-0.16.0/*.py text eol=lf
+test/fixtures/workflow-kit-0.16.0/*.tar.xz binary !eol

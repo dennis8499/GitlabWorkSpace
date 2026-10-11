@@ -45,12 +45,12 @@ def load_installer() -> Any:
     return module
 
 
-def payload_hashes(entries: dict[str, bytes], root: str = "workflow-kit") -> dict[str, str]:
-    prefix = f"{root}/payload/"
+def payload_hashes(entries: dict[str, bytes], root: str = "workflow-kit", tree: str = "payload") -> dict[str, str]:
+    prefix = f"{root}/{tree}/"
     return {name[len(prefix):]: digest(data) for name, data in entries.items() if name.startswith(prefix)}
 
 
-def verify_package_bytes(installer: Any, content: bytes, archive_format: str, expected_version: str) -> tuple[dict[str, Any], dict[str, str]]:
+def verify_package_bytes(installer: Any, content: bytes, archive_format: str, expected_version: str) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     suffix = ".zip" if archive_format == "zip" else ".tar.xz"
     with tempfile.NamedTemporaryFile(prefix="verify-workflow-kit-", suffix=suffix, delete=False) as stream:
         path = Path(stream.name)
@@ -58,7 +58,7 @@ def verify_package_bytes(installer: Any, content: bytes, archive_format: str, ex
     try:
         manifest, _ = installer.import_package(path, archive_format, expected_version)
         entries = installer.extract_zip(path) if archive_format == "zip" else installer.extract_tar_xz(path)
-        return manifest, payload_hashes(entries)
+        return manifest, {"group": payload_hashes(entries), "repository": payload_hashes(entries, tree="repository-payload")}
     finally:
         path.unlink(missing_ok=True)
 
@@ -77,7 +77,7 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     if manifest.get("schema") != "gitlab-workspace-kit-bundle/v1" or manifest.get("package") != "gitlab-workspace-kit" or \
        manifest.get("version") != MANIFEST["version"] or manifest.get("archive") != "workflow-kit.tar.xz" or \
        manifest.get("format") != "tar.xz" or manifest.get("releaseZip") != KIT_ZIP_PATH.name or \
-       manifest.get("workspaceContract") != 2 or not isinstance(manifest.get("upstream"), dict) or \
+       manifest.get("workspaceContract") != 2 or manifest.get("profiles") != ["group", "repository"] or not isinstance(manifest.get("upstream"), dict) or \
        not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("archiveSha256", ""))) or \
        not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("releaseZipSha256", ""))):
         raise ValueError("Workflow kit package index is invalid or has the wrong extension version")
@@ -90,8 +90,9 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     _, tar_payload = verify_package_bytes(installer, bundle, "tar.xz", MANIFEST["version"])
     zip_manifest, zip_payload = verify_package_bytes(installer, KIT_ZIP_PATH.read_bytes(), "zip", MANIFEST["version"])
     if manifest.get("upstream") != zip_manifest.get("upstream") or manifest.get("skills") != zip_manifest.get("skills") or \
-       manifest.get("payloadFiles") != len(zip_payload) or tar_payload != zip_payload or zip_payload != zip_manifest.get("files"):
-        raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group payload")
+       manifest.get("payloadFiles") != len(zip_payload["group"]) or tar_payload != zip_payload or \
+       any(zip_payload[name] != zip_manifest.get("profiles", {}).get(name, {}).get("files") for name in ("group", "repository")):
+        raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group and native Repo payloads")
     if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 15 or len(set(manifest["skills"])) != 15 or "release-reviewer" not in manifest["skills"]:
         raise ValueError("Workflow kit must include all fifteen Skills including ReleaseReviewer")
     return {archive_name, manifest_name}, manifest

@@ -117,7 +117,10 @@ test('inspects VS Code folders using their actual Git remotes and selects the ma
     const matchesGroup = (remote: string, item: GitLabProject) => remote === item.http_url_to_repo;
 
     const matchedService = await inspectWorkspaceFolder(servicePath, [service], matchesGroup);
-    assert.deepEqual(matchedService, { kind: 'group-repository', path: realpathSync.native(servicePath), groupRoot: realpathSync.native(groupRoot) });
+    assert.equal(matchedService.kind, 'group-repository');
+    assert.equal(matchedService.path, realpathSync.native(servicePath));
+    assert.equal(matchedService.kind === 'group-repository' && matchedService.projectId, service.id);
+    assert.match(matchedService.kind === 'group-repository' ? matchedService.remoteFingerprint! : '', /^[a-f0-9]{64}$/);
     assert.equal(resolveGroupWorkspaceRoot([matchedService]).root, realpathSync.native(groupRoot));
 
     const unrelatedRepo = await inspectWorkspaceFolder(servicePath, [docs], matchesGroup);
@@ -131,8 +134,8 @@ test('inspects VS Code folders using their actual Git remotes and selects the ma
     assert.equal(resolveGroupWorkspaceRoot([firstRoot, secondRoot]).root, realpathSync.native(groupRoot), 'multiple matching Group Repos share one unambiguous parent');
 
     const directFolder = await inspectWorkspaceFolder(groupRoot, [service, docs], matchesGroup);
-    assert.equal(directFolder.kind, 'directory', 'a single non-Git VS Code folder is adopted directly');
-    assert.equal(resolveGroupWorkspaceRoot([directFolder]).root, realpathSync.native(groupRoot));
+    assert.equal(directFolder.kind, 'directory');
+    assert.equal(resolveGroupWorkspaceRoot([directFolder]).root, undefined, 'a directory needs verified child Repos');
   } finally { rmSync(parent, { recursive: true, force: true }); }
 });
 

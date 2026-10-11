@@ -185,6 +185,8 @@ def sync_installer_metadata(manifest: dict) -> None:
         "CURRENT_SKILL_FILES": {p: h for p, h in manifest["files"].items()
                                 if p.startswith(".agents/skills/") and not p.startswith(".agents/skills/codebase-wiki/")},
         "TRUSTED_PREDECESSORS": trusted,
+        "PROFILE_MANIFESTS": manifest["profiles"],
+        "WIKI_INSTALLED_VERSION_SHA256": manifest["wikiInstalledVersionSha256"],
     }
     installer = ROOT / "resources/workflow-kit-installer.py"
     source = installer.read_text(encoding="utf-8")
@@ -282,6 +284,10 @@ def build() -> dict[str, object]:
                 files[f"payload/.agents/skills/{source['id']}/{name}"] = data
         files[f"sources/{source['asset']}"] = archive_path.read_bytes()
 
+    native_payload = {name[len("payload/"):]: data for name, data in files.items() if name.startswith("payload/")}
+    for source, destination in (("repository-profile.md", "profile.md"), ("repository-instructions.md", "group-instructions.md"), ("legacy-cleanup.md", "legacy-cleanup.md")):
+        native_payload[".agents/gitlab-workspace-kit/" + destination] = (PROFILE / source).read_bytes()
+
     overlay_root = PROFILE / "overlays"
     overlays = {
         "codebase-wiki": apply_overlay(
@@ -338,6 +344,25 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
+    capabilities = sorted(["development-spec", "ingest", "query", "lint", "audit", "adr", "synthesis",
+                           "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
+                           "megin-workflow", "megin-resume", "merge-repo", "merge-quick", "merge-group", "merge-mr", "release-review"])
+    native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}
+    manifest["capabilities"] = capabilities
+    manifest["wikiInstalledVersionSha256"] = digest(files["framework/VERSION"])
+    manifest["profiles"] = {
+        "group": {"files": manifest["files"], "payloadSha256": manifest["payloadSha256"], "overlays": overlays,
+                  "profileHashes": manifest["customProfile"]["files"], "skills": skill_names, "capabilities": capabilities,
+                  "agentBlockSha256": digest((PROFILE / "group-instructions.md").read_text(encoding="utf-8").strip().encode("utf-8"))},
+        "repository": {"files": native_hashes, "payloadSha256": digest(json.dumps(native_hashes, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")),
+                       "overlays": {}, "skills": skill_names, "capabilities": [item for item in capabilities if item not in ("merge-group", "merge-mr")],
+                       "profileHashes": {name: native_hashes[".agents/gitlab-workspace-kit/" + name] for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")},
+                       "agentBlockSha256": digest(native_payload[".agents/gitlab-workspace-kit/group-instructions.md"].decode("utf-8").strip().encode("utf-8"))}
+    }
+    for name, content in native_payload.items():
+        files["repository-payload/" + name] = content
+    if len(files) > MAX_FILES or sum(len(value) for value in files.values()) > MAX_EXPANDED_BYTES:
+        raise ValueError("Combined workflow profiles exceed archive limits.")
     sync_installer_metadata(manifest)
     entries = {f"{ROOT_NAME}/{name}": data for name, data in files.items()}
     entries[f"{ROOT_NAME}/manifest.json"] = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
@@ -375,6 +400,7 @@ def build() -> dict[str, object]:
             "skills": skill_names,
             "payloadFiles": len(manifest["files"]),
             "payloadSha256": manifest["payloadSha256"],
+            "profiles": list(manifest["profiles"]),
         }
         atomic_write(OUTPUT / "manifest.json", (json.dumps(index, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"))
     finally:

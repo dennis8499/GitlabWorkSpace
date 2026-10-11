@@ -6,6 +6,7 @@ import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import type { GitLabAccount, AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
+import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
@@ -103,6 +104,10 @@ export interface MergeRequestDetail {
 }
 
 export interface InstalledWorkflowKitState {
+  profile?: 'group' | 'repository';
+  upstreamVersions?: Record<string, string>;
+  capabilities?: string[];
+  activeWorkIds?: string[];
   version?: string;
   source?: ToolSource;
   status: 'installed' | 'missing' | 'update-available' | 'work-in-progress' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
@@ -111,10 +116,23 @@ export interface InstalledWorkflowKitState {
 }
 
 export interface WorkflowKitInstallTarget {
+  profile?: 'group' | 'repository';
   root?: string;
   error?: string;
   manual: boolean;
   state: InstalledWorkflowKitState;
+}
+
+export interface SkillsContext {
+  mode: 'group' | 'repository' | 'unavailable';
+  root?: string;
+  revision: string;
+  groupMatch: GroupWorkspaceMatch;
+  repositories: Array<{ name: string; path: string }>;
+  installed: InstalledWorkflowKitState;
+  availableFeatures: string[];
+  resumeOnly: boolean;
+  reason?: string;
 }
 
 export interface WorkflowKitPackageSummary {
@@ -137,6 +155,8 @@ export interface WorkspaceSnapshot {
   group?: GitLabGroup;
   groups: GitLabGroup[];
   groupRoot?: string;
+  cloneRoot?: string;
+  skillsContext?: SkillsContext;
   workspaceRootError?: string;
   groupRepositories: Array<{ name: string; path: string }>;
   groupRepositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
@@ -234,8 +254,8 @@ export type WorkspaceRequest =
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }
-  | { type: 'openCodexTerminal' }
-  | { type: 'copyAndOpenCodex'; text: string; returnTo: string }
+  | { type: 'openCodexTerminal'; revision: string }
+  | { type: 'copyAndOpenCodex'; text: string; returnTo: string; revision: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
   | { type: 'cloneSelection'; requestId: string; scopeKey?: string; projectIds: number[] }
   | { type: 'syncRepos' }
@@ -277,6 +297,8 @@ export type WorkspaceRequest =
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
+  | { type: 'selectSkillsRepository'; root: string }
+  | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
   | { type: 'setWorkflowKitRequireGroup'; enabled: boolean }
   | { type: 'openWorkspaceFolder' }
   | { type: 'selectWorkflowKitInstallRoot' }

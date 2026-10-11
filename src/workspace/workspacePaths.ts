@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { resolve, relative, isAbsolute, sep } from 'node:path';
@@ -16,8 +17,8 @@ export interface LocalGroupRepository {
 
 export type WorkspaceFolderInspection =
   | { kind: 'directory'; path: string }
-  | { kind: 'group-repository'; path: string; groupRoot: string }
-  | { kind: 'repository' | 'nested-repository'; path: string }
+  | { kind: 'group-repository'; path: string; groupRoot: string; projectId?: number; remoteFingerprint?: string }
+  | { kind: 'repository' | 'nested-repository'; path: string; remoteFingerprint?: string }
   | { kind: 'unavailable'; path: string; error: string };
 
 export interface WorkspaceRootResolution {
@@ -52,15 +53,18 @@ export function resolveGroupWorkspaceRoot(
 ): WorkspaceRootResolution {
   const unavailable = inspections.find((inspection) => inspection.kind === 'unavailable');
   if (unavailable?.kind === 'unavailable') return { error: unavailable.error };
+  if (inspections.some(item => item.kind === 'repository' || item.kind === 'nested-repository')) {
+    return { error: '目前 VSCode 工作區包含未對應所選 GitLab Group 的 Repo。' };
+  }
 
   const matchingRepositoryRoots = uniquePaths(inspections.flatMap((inspection) =>
     inspection.kind === 'group-repository' ? [inspection.groupRoot] : []), platform);
-  if (matchingRepositoryRoots.length === 1) return { root: matchingRepositoryRoots[0] };
+  if (matchingRepositoryRoots.length === 1 && inspections.every(item => item.kind !== 'directory' || sameLocalPath(item.path, matchingRepositoryRoots[0], platform))) return { root: matchingRepositoryRoots[0] };
   if (matchingRepositoryRoots.length > 1) return { error: '目前 VSCode 工作區包含多個 Group Repo 目錄，無法唯一辨識工作區。' };
 
   const directories = uniquePaths(inspections.flatMap((inspection) =>
     inspection.kind === 'directory' ? [inspection.path] : []), platform);
-  if (directories.length === 1) return { root: directories[0] };
+  if (directories.length === 1) return { error: '此資料夾尚無可驗證的 Group Repo。' };
   if (directories.length > 1) return { error: '目前 VSCode 工作區包含多個可能的 Group 資料夾，請調整工作區 folders。' };
   if (!inspections.length) return { error: '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo。' };
   return { error: '目前 VSCode 工作區無法對應所選 GitLab Group；請調整工作區 folders。' };
@@ -76,7 +80,7 @@ function uniquePaths(paths: readonly string[], platform: NodeJS.Platform): strin
 }
 
 /** Scan only direct Group children; Git itself validates normal repos and linked worktrees. */
-export async function scanLocalGroupRepositories(root: string): Promise<LocalGroupRepository[]> {
+export async function scanLocalGroupRepositories(root: string, strict = false): Promise<LocalGroupRepository[]> {
   const rootPath = await realpath(root);
   const entries = await readdir(rootPath, { withFileTypes: true });
   const candidates: Array<{ name: string; path: string }> = [];
@@ -89,7 +93,10 @@ export async function scanLocalGroupRepositories(root: string): Promise<LocalGro
       if (error && typeof error === "object" && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw error;
     }
-    if (marker.isSymbolicLink() || (!marker.isDirectory() && !marker.isFile())) continue;
+    if (marker.isSymbolicLink() || (!marker.isDirectory() && !marker.isFile())) {
+      if (strict) throw new Error(`無法驗證 Git Repo：${entry.name}`);
+      continue;
+    }
     candidates.push({ name: entry.name, path: repositoryPath });
   }
   const repositories = new Array<LocalGroupRepository | undefined>(candidates.length);
@@ -105,11 +112,12 @@ export async function scanLocalGroupRepositories(root: string): Promise<LocalGro
         const gitRoot = await realpath(result.stdout.trim());
         const actualPath = await realpath(candidate.path);
         if (sameLocalPath(gitRoot, actualPath)) repositories[index] = { name: candidate.name, path: actualPath };
+        else if (strict) throw new Error('Git root differs from the repository directory.');
       } catch (error) {
         if (error && typeof error === "object" && "code" in error) {
           const code = (error as NodeJS.ErrnoException).code;
           if (code === "ENOENT") throw new Error("Git could not be found while scanning local Repos.");
-          if (typeof code === "number") continue;
+          if (typeof code === "number" && !strict) continue;
         }
         throw new Error("Could not inspect local Repo: " + candidate.name);
       }
@@ -123,7 +131,7 @@ export async function inspectWorkspaceFolder(
   projects: readonly GitLabProject[],
   matchesRemote: (remoteUrl: string, project: GitLabProject) => boolean
 ): Promise<WorkspaceFolderInspection> {
-  const absolutePath = await realpath(folderPath);
+  let absolutePath = await realpath(folderPath);
   const stat = await lstat(absolutePath);
   if (!stat.isDirectory()) return { kind: 'unavailable', path: absolutePath, error: 'VSCode 工作區項目不是資料夾。' };
 
@@ -154,7 +162,7 @@ export async function inspectWorkspaceFolder(
     return { kind: 'directory', path: absolutePath };
   }
 
-  if (!sameLocalPath(topLevel, absolutePath)) return { kind: 'nested-repository', path: absolutePath };
+  absolutePath = topLevel;
   const parent = path.dirname(absolutePath);
   let parentIsRepository = false;
   try {
@@ -167,28 +175,24 @@ export async function inspectWorkspaceFolder(
       return { kind: 'unavailable', path: absolutePath, error: '找不到 Git，無法辨識 Group Repo。' };
     }
   }
-  if (parentIsRepository) return { kind: 'unavailable', path: absolutePath, error: 'Group Repo 的上層資料夾仍位於另一個 Git Repo 內。' };
+  if (parentIsRepository) return { kind: 'repository', path: absolutePath };
 
   let remotes: string[];
   try {
-    const result = await logGitCommand(['remote'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'remote'], {
+    const result = await logGitCommand(['config'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'config', '--null', '--get-all', 'remote.origin.url'], {
       windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
     }));
-    remotes = result.stdout.split(/\r?\n/).filter(Boolean);
-  } catch {
+    remotes = result.stdout.split('\0').filter(Boolean);
+  } catch (error) {
+    if ((error as { code?: number }).code === 1) return { kind: 'repository', path: absolutePath };
     return { kind: 'unavailable', path: absolutePath, error: '無法讀取 Group Repo 的 remote。' };
   }
-  for (const remote of remotes) {
-    try {
-      const result = await logGitCommand(['remote'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'remote', 'get-url', remote], {
-        windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-      }));
-      if (projects.some((project) => matchesRemote(result.stdout.trim(), project))) {
-        return { kind: 'group-repository', path: absolutePath, groupRoot: parent };
-      }
-    } catch { /* Ignore inaccessible or malformed remotes; another remote may identify this Repo. */ }
+  const remoteFingerprint = createHash('sha256').update(JSON.stringify(remotes)).digest('hex');
+  const matched = remotes.length === 1 ? projects.find(project => matchesRemote(remotes[0], project)) : undefined;
+  if (matched) {
+    return { kind: 'group-repository', path: absolutePath, groupRoot: parent, projectId: matched.id, remoteFingerprint };
   }
-  return { kind: 'repository', path: absolutePath };
+  return { kind: 'repository', path: absolutePath, remoteFingerprint };
 }
 
 export function projectFolderNames(projects: readonly GitLabProject[]): Map<number, string> {

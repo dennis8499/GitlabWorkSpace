@@ -680,7 +680,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
           {(() => {
             const repo = snapshot?.localRepositories[detail.project.id];
             const inGroup = !!snapshot?.projects.some((item) => item.id === detail.project.id);
-            const kitReady = snapshot?.workflowKit?.status === 'installed' || snapshot?.workflowKit?.status === 'work-in-progress';
+            const kitReady = snapshot?.skillsContext ? snapshot.skillsContext.mode === 'group' && snapshot.skillsContext.availableFeatures.includes('megin-workflow')
+              : snapshot?.workflowKit?.status === 'installed' || snapshot?.workflowKit?.status === 'work-in-progress';
             const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready' && kitReady;
             const matchingWorks = (snapshot?.meginWorkItems ?? []).filter((item) => item.status !== 'complete' && item.status !== 'aborted' && item.issueIid === issue.iid &&
               (item.issueProjectId === detail.project.id || item.projectPath?.toLocaleLowerCase('en-US') === detail.project.path_with_namespace.toLocaleLowerCase('en-US')));
@@ -688,7 +689,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
             return <>
             {canDevelop ? <>
               {matchingWorks.length > 0 && <label class="field">延續既有 Megin 工作<select value={selectedWorkId ?? ''} onChange={(event) => setResumeWorkId(event.currentTarget.value)}><option value="">建立新工作（開始前仍會檢查重複 Work ID）</option>{matchingWorks.map((item) => <option value={item.workId}>{item.workId} · {item.status}{item.planVersion ? ` · ${item.planVersion}` : ''}</option>)}</select></label>}
-              <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl, { discussions: detail.discussions, actor: detail.user, workId: selectedWorkId }), returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button>
+              <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl, { discussions: detail.discussions, actor: detail.user, workId: selectedWorkId }), revision: snapshot?.skillsContext?.revision ?? '', returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button>
               <button class="secondary" type="button" onClick={() => postWorkspace({ type: 'openGroupQuickReview' })}>審查 Group 未提交內容</button>
             </> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 Group 的本機資料夾或對應 Repo。' : !kitReady ? '請先安裝或更新 GitLab Workspace 完整工作流程包。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請檢查 VSCode 工作區中的資料夾。' : '此 Repo 尚未下載到本機。'}</strong><p>Issue 內容和討論可繼續查看；Codex 工作任務會先核對工作區與整包安裝狀態。</p>{snapshot?.groupRoot && !kitReady && <button type="button" onClick={onOpenSettings}>前往安裝設定</button>}</div>}
             <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>準備開發交付：檢查差異 → Commit → Push → 建立 MR</summary>

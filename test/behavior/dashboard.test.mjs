@@ -714,40 +714,36 @@ test('offline installation uses its own folder and exposes selection, reset, and
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
 });
 
-test('Skills restrictions show actionable prerequisites and synchronize the switch with host policy', async t => {
+test('Skills auto mode falls back offline and keeps downloads independent of Group matching', async t => {
   const state = snapshot('sa');
   Object.assign(state, { connected: false, currentUser: undefined, group: undefined, groupRoot: undefined, workflowKitSource: 'github',
-    workflowKitInstallTarget: { root: 'C:/local', manual: true, state: { status: 'missing' } },
-    workflowKitPackages: [{ ...state.workflowKitPackages[0], source: 'github' }] });
+    workflowKitInstallTarget: { root: 'C:/local/repo', profile: 'repository', manual: true, state: { status: 'missing' } },
+    workflowKitPackages: [{ ...state.workflowKitPackages[0], source: 'github' }],
+    workflowKitPolicy: { requireGroupEnvironment: true, allowed: true, mode: 'repository', settingTarget: 'workspace' } });
+  setSkillsContext(state, 'repository', { status: 'unverified', reason: '尚未登入 GitLab；使用原生單 Repo 流程。' });
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   document.querySelector('.settings-trigger').click(); await view.tick();
   const button = text => [...document.querySelectorAll('.tool-drawer button')].find(item => item.textContent === text);
   const toggle = document.querySelector('[role="switch"]');
   assert.equal(toggle.checked, true);
-  assert.match(document.querySelector('.skills-policy-reason').textContent, /先登入/);
-  for (const item of [button('開啟 GitHub Release'), button('匯入組合包 ZIP'), document.querySelector('.workflow-kit-install-button')]) assert.equal(item.disabled, true);
-  button('登入 GitLab').click(); assert.equal(view.requests.at(-1).type, 'connect');
+  assert.match(document.querySelector('.skills-policy').textContent, /符合 Group 時使用 Group 流程/);
+  assert.match(document.querySelector('[aria-label="Group 對應狀態"]').textContent, /尚未驗證.*尚未登入/s);
+  for (const item of [button('開啟 GitHub Release'), button('匯入組合包 ZIP'), document.querySelector('.workflow-kit-install-button')]) assert.equal(item.disabled, false);
   toggle.checked = false; toggle.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-  assert.equal(view.requests.at(-1).type, 'setWorkflowKitRequireGroup'); assert.equal(view.requests.at(-1).enabled, false);
-  state.workflowKitPolicy = { requireGroupEnvironment: false, allowed: true, settingTarget: 'user' };
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'setWorkflowKitRequireGroup', enabled: false });
+  state.workflowKitPolicy = { requireGroupEnvironment: false, allowed: true, mode: 'repository', settingTarget: 'user' };
   view.sendSnapshot(state); await view.tick();
   assert.equal(toggle.checked, false);
-  assert.match(document.querySelector('.skills-policy').textContent, /使用者.*自由模式/s);
-  for (const item of [button('開啟 GitHub Release'), button('匯入組合包 ZIP'), document.querySelector('.workflow-kit-install-button'), button('選擇資料夾')]) assert.equal(item.disabled, false);
+  assert.match(document.querySelector('.skills-policy').textContent, /使用者.*固定使用原生單 Repo/s);
   button('開啟 GitHub Release').click(); assert.equal(view.requests.at(-1).type, 'openWorkflowKitDownload');
-  state.workflowKitPolicy = { requireGroupEnvironment: true, allowed: false, settingTarget: 'workspace', reason: '請先選擇 Group。', action: 'selectGroup' };
-  state.connected = true;
-  view.sendSnapshot(state); await view.tick();
-  button('選擇 Group').click(); assert.equal(view.requests.at(-1).type, 'selectGroup');
-  state.workflowKitPolicy = { ...state.workflowKitPolicy, reason: '請開啟符合的工作區。', action: 'openWorkspace' };
-  view.sendSnapshot(state); await view.tick();
-  button('開啟 Group 資料夾').click(); assert.equal(view.requests.at(-1).type, 'openWorkspaceFolder');
-  state.workflowKitPolicy = { requireGroupEnvironment: true, allowed: true, settingTarget: 'workspace' };
-  state.groupRoot = 'C:/group'; state.workflowKitInstallTarget = { root: state.groupRoot, manual: false, state: { status: 'missing' } };
+  state.workflowKitPolicy = { requireGroupEnvironment: true, allowed: true, mode: 'group', settingTarget: 'workspace' };
+  state.groupRoot = 'C:/group'; state.workflowKitInstallTarget = { root: state.groupRoot, profile: 'group', manual: false, state: { status: 'missing' } };
+  setSkillsContext(state, 'group');
   view.sendSnapshot(state); await view.tick();
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
   assert.equal(button('選擇資料夾').disabled, true);
+  assert.match(document.querySelector('[aria-label="Group 對應狀態"]').textContent, /已對應/);
   state.workflowKitOperationBusy = true;
   view.sendSnapshot(state); await view.tick();
   assert.equal(toggle.disabled, true); assert.equal(button('匯入組合包 ZIP').disabled, true);
@@ -1678,4 +1674,90 @@ test('the selected Issue tab survives Webview reconstruction without changing it
   while (restored.dom.window.document.querySelector('.issue-embed [role=tab][aria-selected=true]')?.textContent !== '工時' && Date.now() < deadline) await restored.tick();
   assert.equal(restored.dom.window.document.querySelector('.issue-embed [role=tab][aria-selected=true]').textContent, '工時');
   assert.equal(restored.savedState.issueNavigation.revision, 7);
+});
+
+function setSkillsContext(state, mode = 'repository', matching = {}) {
+  const root = mode === 'group' ? state.groupRoot : state.workflowKitInstallTarget.root;
+  const repositories = [{ name: 'alpha', path: 'C:/local/repo', matched: true }, { name: 'beta', path: 'C:/local/other', matched: true }];
+  const features = ['development-spec', 'query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
+    ...(mode === 'group' ? ['merge-group', 'merge-mr'] : [])];
+  state.skillsContext = { mode, root, revision: `revision-${root}`, groupMatch: { status: mode === 'group' ? 'matched' : 'mismatched',
+    root: mode === 'group' ? root : undefined, repositories, ...matching }, repositories: mode === 'group' ? repositories : repositories.filter(repo => repo.path === root),
+    installed: { status: 'installed', profile: mode, version: '0.17.0', capabilities: features,
+      upstreamVersions: { 'codebase-wiki': '0.4.0', megin: '0.4.0', 'merge-reviewer': '0.7.0', 'release-reviewer': '0.1.0' } },
+    availableFeatures: features, resumeOnly: false };
+  return state.skillsContext;
+}
+
+test('native Skills shares selected Repo, real versions, functions, prompts and per-Repo drafts', async t => {
+  const state = snapshot('sa');
+  state.workflowKitPolicy = { requireGroupEnvironment: false, allowed: true, mode: 'repository', settingTarget: 'workspace' };
+  state.workflowKitInstallTarget = { root: 'C:/local/repo', profile: 'repository', manual: true, state: { status: 'installed' } };
+  setSkillsContext(state);
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const change = async (selector, value, event = 'change') => {
+    const control = document.querySelector(selector); control.value = value;
+    control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
+  };
+  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /0.17.0.*0.4.0/);
+  await change('[aria-label="Skills 工具"]', 'megin');
+  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /單一 Repo 開發流程/);
+  assert.equal(document.querySelector('.skills-navigate-button'), null);
+  await change('[id="wiki-input-megin-workflow.task"]', '實作可重試的付款 API', 'input');
+  const prompt = document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(prompt, /C:\/local\/repo.*實作可重試的付款 API/s);
+  assert.doesNotMatch(prompt, /Group 鎖|兄弟 Repo|gitlab_mr|C:\/workspace\/team/);
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  document.querySelector('.wiki-copy-button').click();
+  assert.equal(view.requests.at(-1).type, 'copySkillGuidePrompt');
+  assert.equal(view.requests.at(-1).featureId, 'megin-workflow');
+  assert.equal(view.requests.at(-1).revision, state.skillsContext.revision);
+  assert.equal(view.requests.at(-1).inputs['megin-workflow.task'], '實作可重試的付款 API');
+  document.querySelector('.skills-codex-button').click();
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'openCodexTerminal', revision: state.skillsContext.revision });
+  await change('[aria-label="Skills 工具"]', 'merge-reviewer');
+  assert.deepEqual([...document.querySelector('[aria-label="Skills 功能"]').options].map(option => option.value), ['merge-repo', 'merge-quick']);
+  assert.equal(document.querySelector('[id="wiki-input-merge-repo.repo"]'), null);
+  await change('[aria-label="Skills Repo"]', 'C:/local/other');
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'selectSkillsRepository', root: 'C:/local/other' });
+  const second = structuredClone(state); second.workflowKitInstallTarget.root = 'C:/local/other'; setSkillsContext(second);
+  view.sendSnapshot(second); await view.tick();
+  await change('[aria-label="Skills 工具"]', 'megin');
+  assert.equal(document.querySelector('[id="wiki-input-megin-workflow.task"]').value, '');
+  await change('[id="wiki-input-megin-workflow.task"]', '另一個 Repo 的草稿', 'input');
+  view.sendSnapshot(state); await view.tick();
+  await change('[aria-label="Skills 工具"]', 'megin');
+  assert.equal(document.querySelector('[id="wiki-input-megin-workflow.task"]').value, '實作可重試的付款 API');
+  assert.equal(view.savedState.skillsGuideByScope['repository:C:/local/other'].inputs['megin-workflow.task'], '另一個 Repo 的草稿');
+  assert.ok(!view.requests.some(request => request.type === 'installWorkflowKit'), 'navigation must never install or convert a profile');
+});
+
+test('legacy Skills only resumes verified Work IDs and never displays another roots version', async t => {
+  const state = snapshot('sa');
+  state.workflowKitInstallTarget.root = 'C:/local/repo';
+  const context = setSkillsContext(state);
+  context.installed = { ...context.installed, version: '0.16.0', status: 'work-in-progress', activeWorkIds: ['work-20261011-existing'] };
+  context.availableFeatures = ['megin-resume']; context.resumeOnly = true;
+  context.reason = '舊版僅可續作既有 Megin 工作；完成後請更新。';
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /0.16.0/);
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  const change = async (selector, value, event = 'change') => {
+    const control = document.querySelector(selector); control.value = value;
+    control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
+  };
+  await change('[aria-label="Skills 工具"]', 'megin');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true, 'new tasks stay blocked');
+  await change('[aria-label="Skills 功能"]', 'megin-resume');
+  await change('[id="wiki-input-megin-resume.workId"]', 'work-20261011-other', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  await change('[id="wiki-input-megin-resume.workId"]', 'work-20261011-existing', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  document.querySelector('.wiki-copy-button').click(); assert.equal(view.requests.at(-1).featureId, 'megin-resume');
+  context.installed = { status: 'missing' }; context.availableFeatures = []; context.resumeOnly = false;
+  view.sendSnapshot(state); await view.tick();
+  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /未安裝/);
+  assert.doesNotMatch(document.querySelector('.wiki-guide-card-header').textContent, /0.9.0|0.16.0/);
 });

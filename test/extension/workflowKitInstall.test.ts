@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -18,7 +19,8 @@ suite('Local workflow kit installation', () => {
       if (hasWorkspace) await configuration.update(setting, undefined, vscode.ConfigurationTarget.Workspace);
       await configuration.update(setting, true, vscode.ConfigurationTarget.Global);
       assert.equal(fresh().requireGroupEnvironment, true);
-      assert.equal(fresh().allowed, false);
+      assert.equal(fresh().allowed, true, 'auto mode falls back to native Repo without GitLab');
+      assert.equal(fresh().mode, 'repository');
       await configuration.update(setting, false, vscode.ConfigurationTarget.Global);
       assert.equal(fresh().requireGroupEnvironment, false);
       assert.equal(fresh().allowed, true);
@@ -47,19 +49,30 @@ suite('Local workflow kit installation', () => {
     const configurationTarget = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
     const previous = configuration.inspect<boolean>(setting);
     await configuration.update(setting, false, configurationTarget);
+    let host: any;
+    let nativeRepository: { rootUri: vscode.Uri } | undefined;
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    assert.ok(gitExtension);
+    const gitExports = await gitExtension.activate();
+    const nativeGit = gitExports.getAPI(1);
     try {
       const target = path.join(temporary, 'Repo 中文');
-      await mkdir(target); await mkdir(path.join(target, '.git'));
+      await mkdir(target); execFileSync('git', ['init', '--quiet', target]);
       const root = await realpath(target);
+      nativeRepository = await nativeGit.openRepository(vscode.Uri.file(root));
+      assert.ok(nativeRepository, 'VS Code Git must register the actual Repo');
       const extensionRoot = path.resolve(__dirname, '../../..');
       const packageJSON = JSON.parse(await readFile(path.join(extensionRoot, 'package.json'), 'utf8'));
       const archivePath = path.join(extensionRoot, 'resources/offline-tools/workflow-kit.tar.xz');
       const selected = { id: 'bundled', archivePath, version: packageJSON.version, source: 'bundled',
         format: 'tar.xz', entryRoot: 'workflow-kit', sha256: createHash('sha256').update(await readFile(archivePath)).digest('hex') };
       const values = new Map<string, unknown>([['gitlabWorkspace.workflowKit.installRoot', root]]);
-      const host: any = Object.assign(Object.create(WorkspacePanel.prototype), {
+      host = Object.assign(Object.create(WorkspacePanel.prototype), {
         disposed: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
-        workspaceFoldersGeneration: 0, workflowKitRefreshGeneration: 0, workflowKitStatusReads: new Map(),
+        workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0, workflowKitStatusReads: new Map(),
+        workspaceMatch: { status: 'checking', repositories: [] }, projects: [], workspaceSections: {},
+        remoteWatchers: [], remoteWatchSignature: '',
+        gitRepositories: { getInventory: async () => [{ path: nativeRepository!.rootUri.fsPath }] },
         workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
         workflowKitState: { status: 'missing' }, workflowKitSelectingRoot: false,
         session: { getClient: () => { throw new Error('Offline installation must not request a GitLab client'); } },
@@ -75,11 +88,20 @@ suite('Local workflow kit installation', () => {
       await host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled' });
       assert.equal(host.workflowKitInstallTarget.root, root);
       assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+      assert.equal(host.workflowKitInstallTarget.state.profile, 'repository');
       assert.equal(host.workflowKitState.status, 'missing');
       assert.equal(host.groupRoot, undefined);
       assert.equal((await readdir(path.join(root, '.agents/skills'))).length, 15);
-      assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Group/);
+      assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
+      assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
+      assert.ok(!(await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('group_workspace.py'));
     } finally {
+      if (host) {
+        host.disposed = true;
+        host.remoteWatchers.forEach((watcher: vscode.Disposable) => watcher.dispose());
+        if (host.remoteRefreshTimer) clearTimeout(host.remoteRefreshTimer);
+      }
+      if (nativeRepository && nativeGit.close) await nativeGit.close(nativeRepository);
       await configuration.update(setting, configurationTarget === vscode.ConfigurationTarget.Workspace ? previous?.workspaceValue : previous?.globalValue, configurationTarget);
       assert.equal(path.dirname(await realpath(temporary)), tempBase);
       await rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
