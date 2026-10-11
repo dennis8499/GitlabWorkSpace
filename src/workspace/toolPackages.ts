@@ -80,7 +80,7 @@ export class WorkflowKitPackageManager {
 
   async importPackage(input: {
     version: string; source: 'gitea' | 'github'; assetName: string; archivePath: string; verifiedSha256: string;
-  }): Promise<WorkflowKitPackage> {
+  }, beforeWrite?: () => void): Promise<WorkflowKitPackage> {
     if (input.source !== 'gitea' && input.source !== 'github') throw new Error('Release 來源無效。');
     if (input.version !== this.expectedVersion) throw new PackageIntegrityError(`套件版本必須與 GitLab Workspace ${this.expectedVersion} 相同。`);
     if (!/^[a-f0-9]{64}$/i.test(input.verifiedSha256)) throw new Error('套件 SHA-256 無效。');
@@ -95,10 +95,12 @@ export class WorkflowKitPackageManager {
     if (!sourceStat.isFile() || sourceStat.isSymbolicLink() || sourceStat.size === 0 || sourceStat.size > MAX_PACKAGE_BYTES) {
       throw new Error('套件不存在、不是一般檔案或超過 80 MB。');
     }
+    beforeWrite?.();
     await mkdir(this.archivesDirectory, { recursive: true });
     const archivePath = this.importedArchivePath(input.verifiedSha256.toLowerCase());
     const temporaryPath = path.join(this.archivesDirectory, `${randomUUID()}.tmp`);
     try {
+      beforeWrite?.();
       await copyFile(input.archivePath, temporaryPath);
       const actualSha256 = await sha256File(temporaryPath);
       if (actualSha256 !== input.verifiedSha256.toLowerCase()) throw new PackageIntegrityError('ZIP 內容在匯入期間變更，已取消保存。');
@@ -112,12 +114,14 @@ export class WorkflowKitPackageManager {
         }
       } catch (error) {
         if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error;
+        beforeWrite?.();
         await rename(temporaryPath, archivePath);
       }
       const records = await this.readImportedRecords();
       if (!records.some((record) => record.version === input.version && record.source === input.source && record.sha256 === actualSha256)) {
         records.push({ version: input.version, source: input.source, assetName, sha256: actualSha256 });
-        await this.writeImportedRecords(records);
+        beforeWrite?.();
+        await this.writeImportedRecords(records, beforeWrite);
       }
     } finally {
       await rm(temporaryPath, { force: true });
@@ -158,10 +162,10 @@ export class WorkflowKitPackageManager {
     });
   }
 
-  private async writeImportedRecords(records: ImportedRecord[]): Promise<void> {
+  private async writeImportedRecords(records: ImportedRecord[], beforeWrite?: () => void): Promise<void> {
     const temporaryPath = `${this.catalogPath}.${randomUUID()}.tmp`;
     await writeFile(temporaryPath, `${JSON.stringify({ schema: CATALOG_SCHEMA, packages: records }, null, 2)}\n`, { flag: 'wx' });
-    try { await rename(temporaryPath, this.catalogPath); }
+    try { beforeWrite?.(); await rename(temporaryPath, this.catalogPath); }
     finally { await rm(temporaryPath, { force: true }); }
   }
 

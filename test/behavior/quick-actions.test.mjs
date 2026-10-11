@@ -99,10 +99,15 @@ test('shows saved account summaries and dispatches supported account management 
   ] });
   await new Promise(resolve => setTimeout(resolve, 0));
   const menu = view.dom.window.document.querySelector('.sidebar-account-menu');
-  assert.match(menu.textContent, /tester.*gitlab.example.test.*目前帳號/s);
-  assert.match(menu.textContent, /other.example.test.*已登出/s);
-  for (const [index, action] of ['addAccount', 'switchAccount', 'removeAccount', 'logoutAccount'].entries()) {
+  assert.match(menu.textContent, /tester.*gitlab.example.test.*目前使用/s);
+  assert.match(menu.textContent, /管理帳號（2）/);
+  for (const [index, action] of ['manageAccounts', 'addAccount'].entries()) {
     menu.querySelectorAll('button')[index].click();
     assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action });
   }
+  view.sendState({ connected: false, accounts: [{ id: 'b'.repeat(32), baseUrl: 'https://other.example.test', userId: 8, username: 'other', name: 'Other User', needsLogin: true }] });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(menu.textContent, /尚未登入.*已保存 1 個帳號/s);
+  menu.querySelectorAll('button')[1].click();
+  assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'manageAccounts' });
 });

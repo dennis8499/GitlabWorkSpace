@@ -4,7 +4,8 @@ import type { IssueGraphPatch, IssueGraphSnapshot } from './issueGraph';
 import type { IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationsData } from '../issues/protocol';
 import type { GitPanelMessage, GitPanelRequest } from '../git/gitProtocol';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
-import type { GitLabAccount } from '../connection/accountProtocol';
+import type { GitLabAccount, AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
+import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
@@ -166,6 +167,7 @@ export interface WorkspaceSnapshot {
   issuePreview?: { projectId: number; issueIid: number; status: 'loading' | 'ready' | 'error'; error?: string };
   accounts?: GitLabAccount[];
   activeAccountId?: string;
+  accountOperation?: AccountOperation;
   localWorkspaceRepositories?: ScannedRepository[];
   repositoryScan?: RepositoryScanState;
   projectMembers: GitLabMember[];
@@ -176,6 +178,8 @@ export interface WorkspaceSnapshot {
   scopeEpoch?: number;
   workflowKit: InstalledWorkflowKitState;
   workflowKitInstallTarget: WorkflowKitInstallTarget;
+  workflowKitPolicy?: WorkflowKitPolicy;
+  workflowKitOperationBusy?: boolean;
   workflowKitSource: ToolSource;
   workflowKitPackages?: WorkflowKitPackageSummary[];
   meginWorkItems: MeginWorkSummary[];
@@ -210,6 +214,8 @@ export type WorkspaceRequest =
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }
   | { type: 'connect' }
+  | { type: 'openAccountManager' }
+  | { type: 'submitAccountLogin'; requestId: string; baseUrl: string; token: string; accountId?: string }
   | { type: 'disconnect'; accountId?: string }
   | { type: 'addAccount'; accountId?: string }
   | { type: 'switchAccount'; accountId: string }
@@ -271,11 +277,15 @@ export type WorkspaceRequest =
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
+  | { type: 'setWorkflowKitRequireGroup'; enabled: boolean }
+  | { type: 'openWorkspaceFolder' }
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
   | { type: 'installWorkflowKit'; packageId: string };
 
 export type WorkspaceResponse =
+  | { type: 'openAccountManager'; intent: AccountPanelIntent }
+  | { type: 'accountLoginResult'; requestId: string; error?: string; name?: string }
   | { type: 'logsPage'; requestId: string; page: LogPage }
   | { type: 'logsChanged' }
   | GitPanelMessage

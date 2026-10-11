@@ -20,6 +20,9 @@ import { SkillsGuide } from './SkillsGuide';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
 import { AdminLogPanel } from './AdminLogPanel';
 import { LocalRepositoriesPanel } from './LocalRepositoriesPanel';
+import { AccountPanel } from './AccountPanel';
+import { accountStatus, type AccountPanelIntent } from '../connection/accountProtocol';
+import { workflowKitPolicy } from '../workspace/workflowKitPolicy';
 import './workspace-management.css';
 import { countHiddenProjectSelection, reconcileProjectSelection, toggleProjectSelection } from '../workspace/repositorySelection';
 import './dashboard.css';
@@ -264,6 +267,9 @@ function App() {
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>(initial?.reviewerTab ?? 'changes');
   const [mrReplyDrafts, setMrReplyDrafts] = useState<Record<string, string>>(initial?.mrReplyDrafts ?? {});
   const [toolDrawer, setToolDrawer] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'tools' | 'accounts'>('tools');
+  const [accountIntent, setAccountIntent] = useState<AccountPanelIntent>();
+  const drawerReturnFocus = useRef<HTMLElement>();
   const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'bundled');
   const [selectedWorkflowKitPackageId, setSelectedWorkflowKitPackageId] = useState<string>(initial?.selectedWorkflowKitPackageId ?? '');
   const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
@@ -345,6 +351,11 @@ function App() {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
       if (!message) return;
+      if (message.type === 'openAccountManager') {
+        drawerReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+        setAccountIntent(message.intent); setSettingsSection('accounts'); setToolDrawer(true);
+        return;
+      }
       if (message.type === 'mergeReviewReportImported') {
         setReports((current) => ({ ...current, [mrKey(message.projectId, message.iid)]: {
           text: message.text, sha: message.sourceSha, targetSha: message.targetSha, validated: true
@@ -799,8 +810,13 @@ function App() {
       <div class="top-controls">
         {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={!!snapshot.busy} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
         <button class="quiet maximize-button" type="button" title="放大／還原工作台" aria-label="放大／還原工作台" onClick={() => post({ type: 'toggleFullDisplay' })}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
-        <button class="quiet settings-trigger" type="button" disabled={!!snapshot.busy} onClick={() => setToolDrawer(true)}>設定</button>
-        <details class="account-menu"><summary class="connection"><i />{snapshot.connected ? snapshot.currentUser?.name ?? 'GitLab 已連線' : 'GitLab 帳號'}　⌄</summary><div class="account-popover account-manager"><strong>{snapshot.baseUrl ?? '選擇或新增 GitLab 帳號'}</strong>{(snapshot.accounts ?? []).map(account => <div class="saved-account" key={account.id}><button class="quiet saved-account-select" type="button" disabled={!!snapshot.busy || snapshot.connected && snapshot.activeAccountId === account.id} onClick={() => post({ type: account.needsLogin ? 'addAccount' : 'switchAccount', accountId: account.id })}><strong>{account.name || account.username}</strong><small>{account.username} · {account.baseUrl}</small><small>{snapshot.connected && snapshot.activeAccountId === account.id ? '目前帳號' : account.needsLogin ? '已登出 · 重新登入' : '切換帳號'}</small></button><div class="saved-account-actions"><button class="quiet small" type="button" disabled={!!snapshot.busy} aria-label={`重新登入 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'addAccount', accountId: account.id })}>重新登入</button>{!account.needsLogin && <button class="quiet small" type="button" disabled={!!snapshot.busy} aria-label={`登出 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'disconnect', accountId: account.id })}>登出</button>}<button class="quiet small danger" type="button" disabled={!!snapshot.busy} aria-label={`移除 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'removeAccount', accountId: account.id })}>移除</button></div></div>)}<button type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'addAccount' })}>＋ 新增 GitLab 帳號</button>{snapshot.connected && <button class="secondary" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'disconnect' })}>登出目前帳號</button>}</div></details>{!snapshot.connected && !(snapshot.accounts?.length) && <button class="primary" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
+        <button class="quiet settings-trigger" type="button" onClick={event => { drawerReturnFocus.current = event.currentTarget; setAccountIntent(undefined); setSettingsSection('tools'); setToolDrawer(true); }}>設定</button>
+        <details class="account-menu"><summary class={`connection ${snapshot.connected ? 'connected' : ''}`}><i />{snapshot.connected ? `${snapshot.currentUser?.name ?? 'GitLab 已連線'}${snapshot.currentUser?.username ? ` · @${snapshot.currentUser.username}` : ''}` : '尚未登入 GitLab'}　⌄</summary>
+          <div class="account-popover account-manager"><strong>{snapshot.baseUrl ?? '選擇或新增 GitLab 帳號'}</strong>
+            {(snapshot.accounts ?? []).map(account => <div class="saved-account" key={account.id}><button class="quiet saved-account-select" type="button" disabled={!!snapshot.busy || snapshot.connected && snapshot.activeAccountId === account.id && !account.needsLogin} onClick={() => post({ type: account.needsLogin ? 'addAccount' : 'switchAccount', accountId: account.id })}><strong>{account.name || account.username}</strong><small>@{account.username} · {account.baseUrl}</small><small>{accountStatus(account, snapshot.activeAccountId, snapshot.connected)}</small></button></div>)}
+            <button type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'addAccount' })}>＋ 新增 GitLab 帳號</button>
+            <button class="secondary" type="button" onClick={() => post({ type: 'openAccountManager' })}>管理帳號與連線</button>
+          </div></details>{!snapshot.connected && !(snapshot.accounts?.length) && <button class="primary" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'connect' })}>連線 GitLab</button>}
       </div>
     </header>
 
@@ -958,6 +974,7 @@ function App() {
 
     <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : snapshot.workspaceRootError ?? '請在 VSCode 開啟 GitLab Group 工作區'}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
     {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} source={workflowKitSource}
+      section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
       selectedPackageId={selectedWorkflowKitPackageId}
       onRetryInstance={() => post({ type: 'retryInstanceCheck' })}
       onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
@@ -970,7 +987,10 @@ function App() {
       onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
       onOpenAdmin={() => { setToolDrawer(false); modeChange('admin'); requestAnimationFrame(() => document.querySelector<HTMLHeadingElement>('.page-heading h1')?.focus()); }}
-      onClose={() => { setToolDrawer(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus()); }} />}
+      onClose={() => { setToolDrawer(false); setAccountIntent(undefined); requestAnimationFrame(() => {
+        if (drawerReturnFocus.current?.isConnected) drawerReturnFocus.current.focus();
+        else document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus();
+      }); }} />}
   </main>;
 }
 
@@ -982,7 +1002,8 @@ function Discussion({ discussion, reply, onReplyChange, onReply }: { discussion:
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => onReplyChange(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); onReplyChange(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectInstallRoot, onResetInstallRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose }: {
+function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectInstallRoot, onResetInstallRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose, section, onSection, accountIntent, post }: {
+  section: 'tools' | 'accounts'; onSection: (section: 'tools' | 'accounts') => void; accountIntent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
   onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
   onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
@@ -1009,8 +1030,22 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
   const capabilityStatus: Record<string, string> = { supported: '支援', unsupported: '不支援', unknown: '未確認' };
+  const policy = snapshot.workflowKitPolicy ?? workflowKitPolicy({ requireGroupEnvironment: true, connected: snapshot.connected, groupSelected: !!snapshot.group, groupRoot: snapshot.groupRoot, workspaceRootError: snapshot.workspaceRootError, hasWorkspace: !!snapshot.groupRoot });
+  const kitBusy = !!snapshot.workflowKitOperationBusy;
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
-    <div class="drawer-heading"><div><span class="eyebrow">工作區設定</span><h2 id="tool-title">工作區與工具</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
+    <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace 設定</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工作區與工具'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
+    <div class="settings-tabs" role="tablist" aria-label="設定類別" onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault(); const next = event.key === 'Home' ? 'tools' : event.key === 'End' ? 'accounts' : section === 'tools' ? 'accounts' : 'tools';
+      onSection(next); drawerRef.current?.querySelector<HTMLButtonElement>(`#settings-tab-${next}`)?.focus();
+    }}>{(['tools', 'accounts'] as const).map(id => <button id={`settings-tab-${id}`} type="button" role="tab" aria-selected={section === id} aria-controls={`settings-content-${id}`} tabIndex={section === id ? 0 : -1} onClick={() => onSection(id)}>{id === 'tools' ? '工作區與 Skills' : '帳號與連線'}</button>)}</div>
+    {section === 'accounts' ? <div role="tabpanel" id="settings-content-accounts" aria-labelledby="settings-tab-accounts"><AccountPanel snapshot={snapshot} intent={accountIntent} post={post} /></div> : <div role="tabpanel" id="settings-content-tools" aria-labelledby="settings-tab-tools">
+    <section class="skills-policy" aria-label="Skills 使用限制"><label class="skills-policy-toggle"><input type="checkbox" role="switch" checked={policy.requireGroupEnvironment} disabled={kitBusy} onChange={event => post({ type: 'setWorkflowKitRequireGroup', enabled: event.currentTarget.checked })} /><span>Skills 下載／安裝需在 Group 環境</span></label>
+      <p class="subtle">設定範圍：{policy.settingTarget === 'workspace' ? '目前工作區（覆寫使用者設定）' : '使用者（適用未另設規則的工作區）'}。</p>
+      <p>{policy.requireGroupEnvironment ? 'Group 模式：登入、選擇 Group 並開啟對應本機工作區後，即可下載、匯入和安裝。安裝位置固定為 Group 根目錄。' : '自由模式：可免登入下載、匯入，並自由選擇安裝資料夾。'}</p>
+      <p class="subtle">此開關控制下載與安裝資格；Skills 套件仍保留既有 Group 工作流程規則。</p>
+      {!policy.allowed && <div class="skills-policy-reason" role="status"><p class="warning">{policy.reason}</p><div class="button-row">{policy.action === 'connect' ? <button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>登入 GitLab</button> : policy.action === 'selectGroup' ? <button class="primary" type="button" disabled={operationBusy} onClick={onSelectGroup}>選擇 Group</button> : policy.action === 'openWorkspace' ? <button class="primary" type="button" disabled={operationBusy} onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟 Group 資料夾</button> : null}</div></div>}
+    </section>
     <section class="workspace-settings"><h3>GitLab 工作區</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>工作群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><p class="subtle">VSCode 工作區：{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo。'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 Group</button></div></> : <><p>先連線 GitLab 並選擇工作群組。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
     <section class="workspace-settings"><h3>後臺管理</h3><p>查看、篩選與匯出本機操作紀錄。</p><button type="button" disabled={operationBusy} onClick={onOpenAdmin}>開啟後臺管理</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
@@ -1020,10 +1055,10 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       <button class="secondary small" type="button" disabled={operationBusy || snapshot.instanceChecking} onClick={onRetryInstance}>{snapshot.instanceChecking ? '正在重新偵測…' : '重新偵測功能支援'}</button>
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>工作流程組合包</h3>
-    <label class="field">套件來源<select value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
+    <label class="field">套件來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
     <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
-    <p class="subtle">安裝不需登入或選擇 GitLab Group，可選擇一般資料夾、Git Repo 或其子目錄。套件保留現有 Group 工作流程規則。</p>
-    {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
+    <p class="subtle">下載、匯入與安裝依上方 Skills 使用限制判斷。</p>
+    {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
     {(() => {
       const target = snapshot.workflowKitInstallTarget;
       const installed = target?.state ?? { status: 'missing' as const };
@@ -1035,18 +1070,19 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
         <p class="subtle workflow-kit-install-root">安裝位置：{target?.root ?? '尚未選擇資料夾'}{target?.manual ? '（手動指定）' : target?.root ? '（預設位置）' : ''}</p>
-        <div class="button-row"><button type="button" disabled={operationBusy || installed.status === 'installing'} onClick={onSelectInstallRoot}>選擇資料夾</button><button class="quiet" type="button" disabled={operationBusy || installed.status === 'installing' || !target?.manual} onClick={onResetInstallRoot}>恢復預設位置</button></div>
-        {target?.error && <p class="warning" role="status">{target.error}</p>}
+        <div class="button-row"><button type="button" disabled={policy.requireGroupEnvironment || operationBusy || kitBusy || installed.status === 'installing'} onClick={onSelectInstallRoot}>選擇資料夾</button><button class="quiet" type="button" disabled={policy.requireGroupEnvironment || operationBusy || kitBusy || installed.status === 'installing' || !target?.manual} onClick={onResetInstallRoot}>恢復預設位置</button></div>
+        {target?.error && target.error !== policy.reason && <p class="warning" role="status">{target.error}</p>}
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
         <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
         {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 15 個 Skills。</p>}
         {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
-        <button class="primary workflow-kit-install-button" type="button" disabled={!target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
+        <button class="primary workflow-kit-install-button" type="button" disabled={!policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;
     })()}
     </section>
     <div class="drawer-footer"><span>工作 Skills、Group 規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>
+    </div>}
   </aside></div>;
 }
 

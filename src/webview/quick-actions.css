@@ -54,7 +54,12 @@ body { overflow-x: hidden; overflow-y: auto; }
 @media (forced-colors: active) {
   .action-button:focus-visible, .repo-link:focus-visible, .repo-open-link:focus-visible { outline-color: Highlight; }
 }
-.sidebar-account-menu { margin: 0 0 10px; padding: 6px; border: 1px solid var(--vscode-panel-border, #343b46); border-radius: 5px; }
+.sidebar-account-menu { margin: 0 0 4px; padding: 10px; border: 1px solid var(--vscode-panel-border, #343b46); border-radius: 6px; }
+.sidebar-account-menu .account-identity { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; }
+.sidebar-account-menu .account-state { grid-column: 2; justify-self: start; margin-left: 0; }
+.sidebar-account-empty small { display: block; line-height: 1.5; }
+.sidebar-account-menu .sidebar-account-actions { margin-top: 12px; }
+.sidebar-account-progress { color: var(--vscode-descriptionForeground); font-size: 12px; }
 .sidebar-account-menu summary { cursor: pointer; }
 .sidebar-account-menu p { overflow-wrap: anywhere; }
 .sidebar-account-menu small { display: block; margin-top: 3px; color: var(--vscode-descriptionForeground, #9ba7b4); }

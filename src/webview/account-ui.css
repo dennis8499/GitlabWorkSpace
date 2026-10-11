@@ -1,0 +1,44 @@
+.account-identity { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.account-avatar { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%; background: var(--vscode-button-secondaryBackground, #303641); color: var(--vscode-button-secondaryForeground, #e6edf3); font-weight: 700; }
+.account-identity-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.account-identity-text strong, .account-identity-text span, .account-identity-text small { overflow-wrap: anywhere; }
+.account-identity-text span, .account-identity-text small { color: var(--vscode-descriptionForeground, #9ba7b4); font-size: 12px; }
+.account-state { flex-shrink: 0; padding: 3px 6px; border: 1px solid var(--vscode-panel-border, #42464d); border-radius: 4px; font-size: 11px; }
+.account-state.active { color: var(--vscode-testing-iconPassed, #73c991); }
+.account-state.expired { color: var(--vscode-editorWarning-foreground, #cca700); }
+.accounts-heading { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.accounts-panel h3, .accounts-panel h4 { margin: 0 0 10px; }
+.accounts-panel h4 { font-size: 14px; }
+.accounts-heading p { margin-top: 0; }
+.account-cards { display: grid; gap: 12px; margin: 18px 0; }
+.account-card, .account-login, .account-empty, .account-workspace { padding: 16px; border: 1px solid var(--vscode-panel-border, #42464d); border-radius: 8px; background: var(--vscode-editor-background, #1e1e1e); }
+.account-card.current { border-color: var(--vscode-focusBorder, #007fd4); }
+.account-card .button-row { margin-top: 14px; }
+.account-login { margin: 16px 0; }
+.account-login fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.account-login-steps { display: flex; gap: 14px; padding: 0 0 12px; margin: 0 0 14px; list-style: none; border-bottom: 1px solid var(--vscode-panel-border, #42464d); color: var(--vscode-descriptionForeground, #9ba7b4); }
+.account-login-steps [aria-current="step"] { color: var(--vscode-foreground, #eee); font-weight: 700; }
+.token-input { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
+.token-input input { flex: 1; width: 0; min-width: 0; }
+.token-input button { flex-shrink: 0; }
+.login-site, .account-workspace dd { overflow-wrap: anywhere; }
+.account-login-success, .account-progress { border-left: 3px solid var(--vscode-testing-iconPassed, #73c991); padding: 12px; background: var(--vscode-textBlockQuote-background, #252526); }
+.account-login-success p { margin: 6px 0; }
+.account-workspace dl { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; margin: 12px 0 16px; }
+.account-workspace dt { color: var(--vscode-descriptionForeground, #9ba7b4); }
+.account-workspace dd { margin: 0; }
+.account-storage-note { font-size: 12px; margin-top: 16px; }
+.settings-tabs { display: flex; gap: 8px; margin: 0 0 20px; border-bottom: 1px solid var(--vscode-panel-border, #42464d); padding-bottom: 10px; }
+.settings-tabs button { padding: 7px 10px; border: 0; border-radius: 5px; background: var(--vscode-button-secondaryBackground, #303641); color: var(--vscode-button-secondaryForeground, #e6edf3); font: inherit; cursor: pointer; }
+.settings-tabs [aria-selected="true"] { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #0e639c); }
+.skills-policy { border: 1px solid var(--vscode-panel-border, #42464d); padding: 16px; margin-bottom: 20px; border-radius: 8px; }
+.skills-policy-toggle { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; cursor: pointer; }
+.skills-policy-toggle input { width: auto; margin: 2px 0 0; }
+.skills-policy .button-row { margin-top: 12px; }
+@media (max-width: 480px) {
+  .accounts-heading { flex-wrap: wrap; }
+  .account-card .account-identity { display: grid; grid-template-columns: 34px minmax(0, 1fr); }
+  .account-card .account-state { grid-column: 2; justify-self: start; margin-left: 0; }
+  .account-workspace dl { grid-template-columns: 1fr; gap: 5px; }
+  .account-workspace dd { margin-bottom: 8px; }
+}

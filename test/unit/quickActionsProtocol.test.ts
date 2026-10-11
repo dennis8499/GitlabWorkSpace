@@ -4,7 +4,7 @@ import { isQuickActionsRequest } from '../../src/workspace/quickActionsProtocol'
 
 test('accepts only the navigation initialization and supported destinations', () => {
   assert.equal(isQuickActionsRequest({ type: 'ready' }), true);
-  for (const action of ['openWorkspace', 'openMyWork', 'openProjects', 'openAdmin', 'addAccount', 'switchAccount', 'logoutAccount', 'removeAccount']) {
+  for (const action of ['openWorkspace', 'openMyWork', 'openProjects', 'openAdmin', 'addAccount', 'switchAccount', 'logoutAccount', 'removeAccount', 'manageAccounts']) {
     assert.equal(isQuickActionsRequest({ type: 'perform', action }), true, `${action} is supported`);
   }
 });

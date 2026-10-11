@@ -432,3 +432,6 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .skills-guide-controls .wiki-guide-selector { max-width: none; }
 .skills-guide-controls .skills-install-button { flex: 0 0 auto; margin-bottom: 0; }
 @media (max-width: 600px) { .skills-guide-controls .field, .skills-guide-controls .skills-install-button { flex-basis: 100%; } }
+.account-menu .connection:not(.connected) i { background: var(--vscode-descriptionForeground, #9ba7b4); }
+.account-popover.account-manager { max-height: min(65vh, 520px); overflow-y: auto; }
+.account-popover.account-manager > button { width: 100%; margin-top: 8px; }

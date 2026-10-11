@@ -17,6 +17,7 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openGit: 'gitlabWorkspace.openGitMode',
   openAdmin: 'gitlabWorkspace.openAdmin',
   addAccount: 'gitlabWorkspace.addAccount',
+  manageAccounts: 'gitlabWorkspace.manageAccounts',
   switchAccount: 'gitlabWorkspace.switchAccount',
   logoutAccount: 'gitlabWorkspace.disconnect',
   removeAccount: 'gitlabWorkspace.removeAccount',
@@ -45,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     async () => {
       const state = await gitRepositories.getSummaryState();
       return {
+        ...workspacePanel?.getAccountUiState(),
         activeMode: workspacePanel?.getActiveMode() ?? 'developer',
         selectedRepositoryId: workspacePanel?.getSelectedGitRepositoryId(),
         repositories: state.repositories,
@@ -93,6 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     }),
     registerLoggedCommand('gitlabWorkspace.disconnect', () => getWorkspace().disconnectFromSidebar()),
     registerLoggedCommand('gitlabWorkspace.addAccount', (id?: string) => getWorkspace().accountFromSidebar('addAccount', id)),
+    registerLoggedCommand('gitlabWorkspace.manageAccounts', () => getWorkspace().openAccountManager()),
     registerLoggedCommand('gitlabWorkspace.switchAccount', (id?: string) => getWorkspace().accountFromSidebar('switchAccount', id)),
     registerLoggedCommand('gitlabWorkspace.removeAccount', (id?: string) => getWorkspace().accountFromSidebar('removeAccount', id)),
     registerLoggedCommand('gitlabWorkspace.openAdmin', () => getWorkspace().navigateTo('admin')),

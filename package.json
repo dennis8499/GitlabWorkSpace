@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -32,6 +32,7 @@
     "onCommand:gitlabWorkspace.selectGroup",
     "onCommand:gitlabWorkspace.syncLocalDefaultBranches",
     "onCommand:gitlabWorkspace.addAccount",
+    "onCommand:gitlabWorkspace.manageAccounts",
     "onCommand:gitlabWorkspace.switchAccount",
     "onCommand:gitlabWorkspace.removeAccount",
     "onCommand:gitlabWorkspace.openAdmin",
@@ -145,6 +146,10 @@
         "title": "GitLab Workspace: 新增 GitLab 帳號"
       },
       {
+        "command": "gitlabWorkspace.manageAccounts",
+        "title": "GitLab Workspace: 管理 GitLab 帳號"
+      },
+      {
         "command": "gitlabWorkspace.switchAccount",
         "title": "GitLab Workspace: 切換 GitLab 帳號"
       },
@@ -164,6 +169,12 @@
     "configuration": {
       "title": "GitLab Workspace",
       "properties": {
+        "gitlabWorkspace.workflowKit.requireGroupEnvironment": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Skills 下載、匯入及安裝需先登入 GitLab、選取 Group 並開啟對應本機工作區。關閉後可自由指定安裝位置；套件內既有 Group 工作流程規則仍保留。"
+        },
         "gitlabWorkspace.pythonPath": {
           "type": "string",
           "default": "python",

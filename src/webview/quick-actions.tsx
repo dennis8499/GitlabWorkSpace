@@ -2,6 +2,8 @@
 import { render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { QuickAction, QuickActionsResponse, QuickActionsState } from '../workspace/quickActionsProtocol';
+import { AccountIdentity } from './AccountPanel';
+import { accountStatus } from '../connection/accountProtocol';
 import './quick-actions.css';
 
 interface VsCodeBridge {
@@ -56,15 +58,19 @@ function GitSidebar() {
     if (!state.busyAction) vscode.postMessage({ type: 'perform', action: 'openRepository', repositoryId });
   }
 
+  const activeAccount = state.connected ? state.accounts?.find(account => account.id === state.activeAccountId) : undefined;
+
   return <main class="quick-actions" aria-label="GitLab Workspace 導覽">
+    <section class="sidebar-account-menu" aria-label="GitLab 帳號">
+      {activeAccount ? <AccountIdentity account={activeAccount} status={accountStatus(activeAccount, state.activeAccountId, state.connected)} />
+        : <div class="sidebar-account-empty"><strong>{state.connected ? 'GitLab 已連線' : '尚未登入 GitLab'}</strong><small>{state.accounts?.length ? `已保存 ${state.accounts.length} 個帳號，可選擇帳號登入。` : '登入後選擇 Group，開始使用 GitLab 工作流程。'}</small></div>}
+      {state.accountOperation && <p role="status" class="sidebar-account-progress">{state.accountOperation === 'login' ? '正在驗證帳號…' : state.accountOperation === 'switch' ? '正在切換帳號…' : '正在更新帳號…'}</p>}
+      <div class="sidebar-account-actions"><button type="button" disabled={!!state.busyAction} onClick={() => navigate('manageAccounts')}>管理帳號（{state.accounts?.length ?? 0}）</button><button type="button" disabled={!!state.busyAction || !!state.accountOperation} onClick={() => navigate(!state.connected && state.accounts?.length ? 'manageAccounts' : 'addAccount')}>{state.connected ? '新增帳號' : '登入 GitLab'}</button></div>
+    </section>
     <p class="connection-status" title={state.groupLabel}>
       <span class={'connection-dot' + (state.connected ? ' connected' : '')} aria-hidden="true" />
-      <span>{state.connected ? state.groupLabel ?? 'GitLab 已連線' : 'GitLab 尚未連線'}</span>
+      <span>{state.connected ? state.groupLabel ?? '尚未選擇 Group' : '登入後選擇 Group'}</span>
     </p>
-    <details class="sidebar-account-menu"><summary>GitLab 帳號（{state.accounts?.length ?? 0}）</summary>
-      {(state.accounts ?? []).map(account => <p key={account.id}><strong>{account.name || account.username}</strong><small>{account.username} · {account.baseUrl}</small><small>{account.id === state.activeAccountId && state.connected ? '目前帳號' : account.needsLogin ? '已登出' : '已保存'}</small></p>)}
-      <div class="sidebar-account-actions"><button type="button" disabled={!!state.busyAction} onClick={() => navigate('addAccount')}>新增帳號</button><button type="button" disabled={!!state.busyAction || !state.accounts?.length} onClick={() => navigate('switchAccount')}>切換帳號</button><button type="button" disabled={!!state.busyAction || !state.accounts?.length} onClick={() => navigate('removeAccount')}>移除帳號</button><button type="button" disabled={!!state.busyAction || !state.connected} onClick={() => navigate('logoutAccount')}>登出目前帳號</button></div>
-    </details>
     <button class={'action-button workspace-link' + (state.activeMode === 'git' ? ' active' : '')}
       type="button" disabled={!!state.busyAction} onClick={() => navigate('openWorkspace')}>
       <span aria-hidden="true">⌂</span><span>工作台</span>

@@ -175,6 +175,42 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(before, self.snapshot(self.group))
         self.assertEqual("update-available", self.status(self.group)["status"])
 
+    def install_frozen_015(self):
+        fixture = ROOT / "test/fixtures/workflow-kit-0.15.0"
+        with mock.patch.object(harness, "INSTALLER", fixture / "installer.py"):
+            result, data = self.install(self.group, archive=fixture / "workflow-kit.tar.xz", version="0.15.0")
+        self.assertEqual(0, result.returncode, data)
+        self.assertEqual(15, data["skills"])
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_real_015_install_upgrade_and_exact_rollback(self):
+        self.install_frozen_015()
+        before = self.snapshot(self.group)
+        result, preview = self.preview()
+        self.assertEqual(0, result.returncode, preview)
+        self.assertTrue(preview["changed_paths"])
+        self.assertEqual(before, self.snapshot(self.group))
+        update = self.apply()
+        self.assertEqual(15, update["skills"])
+        self.assertEqual("installed", self.status(self.group)["status"])
+        for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
+                         "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
+            self.assertEqual(before[relative], (self.group / relative).read_bytes())
+        result, data = self.execute("rollback", self.group, update["transaction"])
+        self.assertEqual(0, result.returncode, data)
+        self.assertTrue((self.group / ".agents/skills/release-reviewer/SKILL.md").is_file())
+        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
+    def test_real_015_failed_upgrade_restores_exact_previous_installation(self):
+        self.install_frozen_015()
+        before = self.snapshot(self.group)
+        environment = {**os.environ, "GITLAB_WORKSPACE_KIT_TESTING": "1", "GITLAB_WORKSPACE_KIT_TEST_FAIL_AFTER": "16"}
+        result, _ = self.install(self.group, env=environment)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual("update-available", self.status(self.group)["status"])
+
     def test_unknown_release_reviewer_directory_is_preserved_on_upgrade(self):
         self.install_frozen_014()
         target = self.group / ".agents/skills/release-reviewer/SKILL.md"

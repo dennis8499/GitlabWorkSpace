@@ -22,7 +22,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     private readonly extensionUri: vscode.Uri,
     private readonly session: GitLabSession,
     private readonly runAction: (action: QuickAction, repositoryId?: string) => Thenable<unknown> | Promise<unknown> | unknown,
-    private readonly getNavigationState?: () => Promise<Pick<QuickActionsState, 'activeMode' | 'repositories' | 'gitAvailable' | 'gitMessage'>>
+    private readonly getNavigationState?: () => Promise<Pick<QuickActionsState, 'activeMode' | 'repositories' | 'gitAvailable' | 'gitMessage' | 'accountOperation' | 'workflowKitPolicy'>>
   ) {}
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {

@@ -22,11 +22,13 @@ import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildRev
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
   BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
-  CloneOperationState, IssueNavigation, MergeRequestDetail, MeginWorkSummary, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
+  CloneOperationState, IssueNavigation, MergeRequestDetail, MeginWorkSummary, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
 import type { WorkflowKitPackage } from './toolPackages';
 import type { GitLabSession } from '../connection/session';
-import { isAllowedGitRemote } from '../api/urlPolicy';
+import { isAllowedGitRemote, normalizeGitLabBaseUrl } from '../api/urlPolicy';
+import type { AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
+import { REQUIRE_GROUP_SETTING, workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
 import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
@@ -53,6 +55,10 @@ export class WorkspacePanel implements vscode.Disposable {
   private previewAbort?: AbortController;
   private writesInFlight = 0;
   private accountTransitionBusy = false;
+  private accountOperation?: AccountOperation;
+  private pendingAccountPanel?: AccountPanelIntent;
+  private accountLoginRequestId?: string;
+  private readonly accountLoginReceipts = new Map<string, Extract<WorkspaceResponse, { type: 'accountLoginResult' }>>();
   private localWorkspaceRepositories: ScannedRepository[] = [];
   private repositoryScan: RepositoryScanState = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
   private repositoryScanAbort?: AbortController;
@@ -123,6 +129,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitInstallTarget: WorkflowKitInstallTarget = { manual: false, state: { status: 'missing' } };
   private workflowKitInstallation?: WorkflowKitInstallTarget;
   private workflowKitSelectingRoot = false;
+  private workflowKitImporting = false;
+  private workflowKitSettingBusy = false;
   private workflowKitRefreshGeneration = 0;
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
   private workflowKitPackages: WorkflowKitPackage[] = [];
@@ -181,6 +189,13 @@ export class WorkspacePanel implements vscode.Disposable {
       }, 500);
     }));
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (!event.affectsConfiguration(`gitlabWorkspace.${REQUIRE_GROUP_SETTING}`)) return;
+      this.workflowKitRefreshGeneration++;
+      this.sendSnapshot();
+      void this.refreshWorkflowKit().catch(error => this.post({ type: 'error', message: readableError(error) }));
+      void Promise.resolve(this.syncSidebarState?.()).catch(() => undefined);
+    }));
     const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
     if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
       void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'bundled')).catch(() => undefined);
@@ -310,6 +325,25 @@ export class WorkspacePanel implements vscode.Disposable {
   getActiveMode(): WorkspaceMode { return this.activeMode; }
   getSelectedGitRepositoryId(): string | undefined { return this.selectedGitRepositoryId; }
   getGitLabProjects(): readonly GitLabProject[] { return this.projects; }
+  getAccountUiState(): { accountOperation?: AccountOperation; workflowKitPolicy: WorkflowKitPolicy } {
+    return { accountOperation: this.accountOperation, workflowKitPolicy: this.getWorkflowKitPolicy() };
+  }
+
+  async openAccountManager(accountId?: string, startLogin = false): Promise<void> {
+    if (accountId && !this.session.accounts.some(account => account.id === accountId)) throw new Error('找不到此 GitLab 帳號。');
+    this.pendingAccountPanel = { id: randomUUID(), startLogin, accountId };
+    await this.show(undefined, { refresh: false });
+    if (this.webviewReady) {
+      this.sendSnapshot();
+      this.publishAccountPanel();
+    }
+  }
+
+  private publishAccountPanel(): void {
+    if (!this.pendingAccountPanel || !this.webviewReady) return;
+    this.post({ type: 'openAccountManager', intent: this.pendingAccountPanel });
+    this.pendingAccountPanel = undefined;
+  }
   getWebviewMessageCountsForTesting(): { sent: number; received: number } {
     return { sent: this.webviewMessagesSent, received: this.webviewMessagesReceived };
   }
@@ -417,7 +451,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.session.log?.record({ feature: message.type === 'gitError' ? 'git' : 'workspace', action: 'operationError', result: 'error', message: message.message });
     }
     if (!this.disposed && (!this.panel || this.panel.visible === false || !this.webviewReady) && message && typeof message === 'object' && 'type' in message &&
-      (message.type === 'message' || message.type === 'error' || message.type === 'gitError' ||
+      (message.type === 'message' || message.type === 'error' || message.type === 'gitError' || message.type === 'accountLoginResult' ||
         message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object' && 'type' in message.response && message.response.type === 'reply')) {
       this.pendingViewNotices.push(message);
       if (this.pendingViewNotices.length > 128) this.pendingViewNotices.shift();
@@ -524,7 +558,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private async handleMessage(value: unknown): Promise<void> {
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
     const request = value as WorkspaceRequest;
-    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan'].includes(request.type);
+    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin'].includes(request.type);
     const issueWrite = request.type === 'issueRequest' && ['create', 'update', 'invoke', 'upload'].includes(request.request?.type);
     const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'publishMergeReviewReport', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
     if (write && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
@@ -572,6 +606,7 @@ export class WorkspacePanel implements vscode.Disposable {
         }
         this.post({ type: 'issueNavigation', navigation: this.issueNavigation });
         for (const notice of this.pendingViewNotices.splice(0)) this.post(notice);
+        this.publishAccountPanel();
         break;
       }
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
@@ -607,6 +642,8 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
+      case 'openAccountManager': await this.openAccountManager(); break;
+      case 'submitAccountLogin': await this.submitAccountLogin(request); break;
       case 'disconnect': await this.disconnect(request.accountId); break;
       case 'addAccount': await this.connect(request.accountId); break;
       case 'switchAccount': await this.switchAccount(request.accountId); break;
@@ -760,6 +797,8 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
       case 'importWorkflowKitPackage': await this.importWorkflowKitPackage(request.source); break;
       case 'refreshWorkflowKit': await this.refreshWorkflowKit(); break;
+      case 'setWorkflowKitRequireGroup': await this.setWorkflowKitRequireGroup(request.enabled); break;
+      case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
       case 'selectWorkflowKitInstallRoot': await this.selectWorkflowKitInstallRoot(); break;
       case 'resetWorkflowKitInstallRoot': await this.resetWorkflowKitInstallRoot(); break;
       case 'installWorkflowKit': await this.installWorkflowKit(request.packageId); break;
@@ -1161,7 +1200,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.localRepositoryScanGeneration++;
     this.actualRepositoryScanGeneration++;
     this.pendingWorkspaceRefresh = true;
-    if (this.busy || this.repositoryOperationInProgress) return;
+    if (this.busy || this.repositoryOperationInProgress) { this.sendSnapshot(); return; }
     this.groupRoot = undefined;
     this.workspaceRootError = '正在辨識目前 VSCode 工作區…';
     this.localRepositoryStates = {};
@@ -1725,6 +1764,7 @@ export class WorkspacePanel implements vscode.Disposable {
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
       activeAccountId: this.session.activeAccountId,
+      accountOperation: this.accountOperation,
       issuePreview: this.issuePreview,
       repositoryScan: this.repositoryScan,
       localWorkspaceRepositories: this.localWorkspaceRepositories.map(repository => ({ ...repository, projectIds: this.projects.filter(project => repository.remotes.some(remote => projectRemoteMatches(remote, project))).map(project => project.id) })),
@@ -1780,6 +1820,8 @@ export class WorkspacePanel implements vscode.Disposable {
       projectMembers: this.projectMembers,
       workflowKit: root && this.workflowKitStateRoot === root ? this.workflowKitState : { status: 'missing' },
       workflowKitInstallTarget: this.workflowKitInstallTarget,
+      workflowKitPolicy: this.getWorkflowKitPolicy(),
+      workflowKitOperationBusy: this.workflowKitSelectingRoot || this.workflowKitImporting || !!this.workflowKitInstallation || this.workflowKitSettingBusy,
       workflowKitSource: this.workflowKitSource(),
       workflowKitPackages: this.workflowKitPackages.map(({ id, version, source, assetName, format, entryRoot, available, error }) =>
         ({ id, version, source, assetName, format, entryRoot, available, error })),
@@ -1803,32 +1845,74 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async connect(accountId?: string): Promise<void> {
-    this.assertAccountTransitionAllowed();
-    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
-    const saved = accountId ? this.session.accounts.find(account => account.id === accountId) : undefined;
-    if (accountId && !saved) throw new Error('找不到此 GitLab 帳號。');
-    const baseUrl = saved?.baseUrl ?? await vscode.window.showInputBox({ title: '新增 GitLab 帳號', prompt: '輸入 GitLab 網址', value: this.session.baseUrl, placeHolder: 'https://gitlab.example.com', ignoreFocusOut: true });
-    if (!baseUrl) return;
-    const token = await vscode.window.showInputBox({ title: 'GitLab Personal Access Token', prompt: 'Token 儲存在 VS Code SecretStorage。', password: true, ignoreFocusOut: true });
-    if (!token) return;
-    this.accountTransitionBusy = true; this.sendSnapshot();
+    await this.openAccountManager(accountId, true);
+  }
+
+  private async submitAccountLogin(request: Extract<WorkspaceRequest, { type: 'submitAccountLogin' }>): Promise<void> {
+    if (typeof request.requestId !== 'string' || !/^[a-zA-Z0-9-]{1,128}$/.test(request.requestId)) return;
+    const receipt = this.accountLoginReceipts.get(request.requestId);
+    if (receipt) { this.post(receipt); return; }
+    if (this.accountLoginRequestId === request.requestId) return;
+    let ownsTransition = false;
+    const reply = (result: Omit<Extract<WorkspaceResponse, { type: 'accountLoginResult' }>, 'type' | 'requestId'>) => {
+      const message = { type: 'accountLoginResult' as const, requestId: request.requestId, ...result };
+      this.accountLoginReceipts.set(request.requestId, message);
+      while (this.accountLoginReceipts.size > 32) this.accountLoginReceipts.delete(this.accountLoginReceipts.keys().next().value!);
+      if (!this.disposed) this.post(message);
+    };
+    const token = typeof request.token === 'string' ? request.token.trim() : '';
+    if (token) this.session.log?.addSecret(token);
     try {
-      const user = await this.session.connect(baseUrl, token, accountId);
-      await this.connectedUserChanged(user);
-    } finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+      if (this.accountTransitionBusy) throw new Error('帳號正在驗證或切換，請稍後再試。');
+      this.assertAccountTransitionAllowed();
+      if (!token || token.length > 8192 || /[\r\n\0]/.test(token)) throw new Error('請輸入有效的 Personal Access Token。');
+      let baseUrl: string;
+      try {
+        if (typeof request.baseUrl !== 'string' || request.baseUrl.length > 2048) throw new Error();
+        baseUrl = normalizeGitLabBaseUrl(request.baseUrl);
+      } catch { throw new Error('GitLab 網址無效，請輸入完整 HTTP 或 HTTPS 網址，不可包含帳密、查詢參數或片段。'); }
+      if (request.accountId !== undefined) {
+        const saved = this.session.accounts.find(account => account.id === request.accountId);
+        if (!saved) throw new Error('找不到此 GitLab 帳號。');
+        if (saved.baseUrl !== baseUrl) throw new Error('重新登入須使用此帳號原有的 GitLab 站台；其他站台請使用新增帳號。');
+      }
+      ownsTransition = true;
+      this.accountLoginRequestId = request.requestId;
+      this.accountTransitionBusy = true; this.accountOperation = 'login';
+      this.sendSnapshot(); await this.syncSidebarState?.();
+      await this.runLogged('connectAccount', async () => {
+        const user = await this.session.connect(baseUrl, token, request.accountId);
+        await this.connectedUserChanged(user);
+        reply({ name: user.name || user.username });
+      });
+    } catch (error) {
+      const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
+      const message = status === 401 ? 'Token 無效或已過期，請重新產生具有 api 權限的 Token。'
+        : status === 403 ? 'GitLab 拒絕存取，請確認帳號權限與 Token 的 api 範圍。'
+        : error instanceof TypeError || error instanceof Error && /fetch failed|network|timeout|timed out|ECONN|ENOTFOUND|certificate/i.test(error.message)
+          ? '無法連線 GitLab，請檢查網址、網路或憑證後重試。'
+          : readableError(error);
+      reply({ error: token ? message.split(token).join('[redacted]') : message });
+    } finally {
+      if (ownsTransition) {
+        this.accountLoginRequestId = undefined;
+        this.accountTransitionBusy = false; this.accountOperation = undefined;
+        this.sendSnapshot(); await this.syncSidebarState?.();
+      }
+    }
   }
 
   private async switchAccount(accountId?: string): Promise<void> {
     this.assertAccountTransitionAllowed();
     if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
-    const selected = accountId ?? (await vscode.window.showQuickPick(this.session.accounts.map(account => ({ label: account.name || account.username, description: account.baseUrl, account })), { title: '切換 GitLab 帳號' }))?.account.id;
-    if (!selected) return;
+    if (!accountId) return this.openAccountManager();
+    const selected = accountId;
     const account = this.session.accounts.find(item => item.id === selected);
     if (!account) throw new Error('找不到此 GitLab 帳號。');
     if (account.needsLogin) return this.connect(account.id);
-    this.accountTransitionBusy = true; this.sendSnapshot();
+    this.accountTransitionBusy = true; this.accountOperation = 'switch'; this.sendSnapshot(); await this.syncSidebarState?.();
     try { await this.connectedUserChanged(await this.session.switchAccount(selected)); }
-    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+    finally { this.accountTransitionBusy = false; this.accountOperation = undefined; this.sendSnapshot(); await this.syncSidebarState?.(); }
   }
 
   private async connectedUserChanged(user: GitLabUser): Promise<void> {
@@ -1841,16 +1925,16 @@ export class WorkspacePanel implements vscode.Disposable {
     this.cancelMergeRequestSectionReads();
     this.issueOpenAbort?.abort();
     this.currentUser = user;
+    this.groupRoot = undefined; this.workspaceRootError = undefined;
+    this.workflowKitRefreshGeneration++;
+    this.actualRepositories = []; this.actualRepositoriesRoot = undefined; this.actualRepositoryScanStatus = 'idle';
     this.issueOpenGeneration++;
     this.issuePanels.close();
     this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = [];
     this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
-    await this.refresh();
-    const selected = this.session.selectedGroup ? true : await this.selectGroup();
-    if (!selected) {
-      await this.refresh();
-      await this.syncSidebarState?.();
-    }
+    try { await this.refresh(); }
+    catch (error) { this.sendSnapshot(); this.post({ type: 'error', message: `帳號已登入，工作區資料載入失敗：${readableError(error)}` }); }
+    await this.syncSidebarState?.();
     this.post({ type: 'message', message: `已連線：${user.name}` });
   }
 
@@ -1859,26 +1943,31 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
     const account = this.session.accounts.find(item => item.id === (accountId ?? this.session.activeAccountId));
     if (!account) return;
-    const active = this.session.activeAccountId === account.id;
     const confirm = await vscode.window.showWarningMessage(`登出 ${account.name || account.username}（${account.baseUrl}）？將清除 Token 並保留帳號名單、草稿及工時。`, { modal: true }, '登出');
     if (confirm !== '登出') return;
-    this.accountTransitionBusy = true; this.sendSnapshot();
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
+    const active = this.session.activeAccountId === account.id;
+    this.accountTransitionBusy = true; this.accountOperation = 'logout'; this.sendSnapshot(); await this.syncSidebarState?.();
     try { await this.session.logoutAccount(account.id); if (active) await this.disconnectedView(); }
-    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+    finally { this.accountTransitionBusy = false; this.accountOperation = undefined; this.sendSnapshot(); await this.syncSidebarState?.(); }
   }
 
   private async removeAccount(accountId?: string): Promise<void> {
-    const id = accountId ?? (await vscode.window.showQuickPick(this.session.accounts.map(account => ({ label: account.name || account.username, description: account.baseUrl, account })), { title: '移除 GitLab 帳號' }))?.account.id;
+    if (!accountId) return this.openAccountManager();
+    const id = accountId;
     const account = this.session.accounts.find(item => item.id === id);
     if (!account) return;
     this.assertAccountTransitionAllowed();
     if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
     const choice = await vscode.window.showWarningMessage(`移除 ${account.name || account.username}（${account.baseUrl}）？草稿與工時仍保留。`, { modal: true }, '移除帳號');
     if (choice !== '移除帳號') return;
+    this.assertAccountTransitionAllowed();
+    if (this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再試。');
     const active = this.session.activeAccountId === account.id;
-    this.accountTransitionBusy = true;
+    this.accountTransitionBusy = true; this.accountOperation = 'remove'; this.sendSnapshot(); await this.syncSidebarState?.();
     try { await this.session.removeAccount(account.id); if (active) await this.disconnectedView(); }
-    finally { this.accountTransitionBusy = false; this.sendSnapshot(); await this.syncSidebarState?.(); }
+    finally { this.accountTransitionBusy = false; this.accountOperation = undefined; this.sendSnapshot(); await this.syncSidebarState?.(); }
   }
 
   private async disconnectedView(): Promise<void> {
@@ -1908,6 +1997,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async selectGroup(groupId?: number): Promise<boolean> {
+    if (this.accountTransitionBusy) throw new Error('帳號正在驗證或切換，請稍後再選擇 Group。');
+    const epoch = this.session.connectionEpoch;
     if (this.repositoryOperationInProgress) throw new Error('Repo 操作完成後才能切換連線或 Group。');
     const groups = this.session.baseUrl ? await this.session.cachedRead('groups', (client) => client.listGroups()) : [];
     const selected = groupId ? groups.find((item) => item.id === groupId) : await vscode.window.showQuickPick(
@@ -1915,6 +2006,9 @@ export class WorkspacePanel implements vscode.Disposable {
       { title: '選擇 GitLab Group', placeHolder: '選取工作群組' }
     ).then((item) => item?.group);
     if (!selected) return false;
+    if (this.accountTransitionBusy || epoch !== this.session.connectionEpoch) throw new Error('帳號已變更，請重新選擇 Group。');
+    this.groupRoot = undefined; this.workspaceRootError = undefined; this.workflowKitRefreshGeneration++;
+    this.sendSnapshot();
     this.issueOpenGeneration++;
     this.issuePanels.close();
     this.previewAbort?.abort(); this.previewGeneration++; this.issuePreview = undefined;
@@ -2945,9 +3039,53 @@ export class WorkspacePanel implements vscode.Disposable {
     return vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'workflow-kit-installer.py').fsPath;
   }
 
-  private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000): Promise<Record<string, unknown>> {
+  private getWorkflowKitPolicy(): WorkflowKitPolicy {
+    return workflowKitPolicy({
+      requireGroupEnvironment: vscode.workspace.getConfiguration('gitlabWorkspace').get<boolean>(REQUIRE_GROUP_SETTING, true) !== false,
+      connected: !!this.session.baseUrl && !!this.currentUser,
+      groupSelected: !!this.session.selectedGroup,
+      groupRoot: this.groupRoot,
+      workspaceRootError: this.workspaceRootError,
+      workspaceChanging: this.pendingWorkspaceRefresh,
+      hasWorkspace: !!vscode.workspace.workspaceFile || !!vscode.workspace.workspaceFolders?.length
+    });
+  }
+
+  /** Recheck after dialogs and reads, immediately before starting a write or opening a download. */
+  private captureWorkflowKitAccess(): () => void {
+    const signature = () => [this.getWorkflowKitPolicy().requireGroupEnvironment, this.workspaceFoldersGeneration,
+      this.session.connectionEpoch, this.session.selectedGroup?.id, this.groupRoot].join('|');
+    const expected = signature();
+    const check = () => {
+      const policy = this.getWorkflowKitPolicy();
+      if (!policy.allowed) throw new Error(policy.reason);
+      if (this.accountTransitionBusy) throw new Error('帳號正在驗證或切換，請稍後再操作 Skills。');
+      if (signature() !== expected) throw new Error('Group、工作區或 Skills 使用設定已變更，請重新執行操作。');
+    };
+    check();
+    return check;
+  }
+
+  private async setWorkflowKitRequireGroup(enabled: boolean): Promise<void> {
+    if (typeof enabled !== 'boolean') throw new Error('Skills Group 設定必須為布林值。');
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) {
+      throw new Error('請等候目前 Skills 操作完成後再變更設定。');
+    }
+    this.workflowKitSettingBusy = true; this.sendSnapshot();
+    try {
+      const target = this.getWorkflowKitPolicy().settingTarget === 'workspace' ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+      await vscode.workspace.getConfiguration('gitlabWorkspace').update(REQUIRE_GROUP_SETTING, enabled, target);
+    } finally {
+      this.workflowKitSettingBusy = false;
+      await this.refreshWorkflowKit();
+      await this.syncSidebarState?.();
+    }
+  }
+
+  private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000, beforeLaunch?: () => void): Promise<Record<string, unknown>> {
     const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
     const python = await resolvePythonRuntime(pythonPath);
+    beforeLaunch?.();
     const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
       cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
     });
@@ -2989,22 +3127,26 @@ export class WorkspacePanel implements vscode.Disposable {
     const generation = ++this.workflowKitRefreshGeneration;
     const workspaceGeneration = this.workspaceFoldersGeneration;
     const groupRoot = this.groupRoot;
+    const policy = this.getWorkflowKitPolicy();
     const manualRoot = this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY);
     const installation = this.workflowKitInstallation;
     const current = () => !this.disposed && generation === this.workflowKitRefreshGeneration &&
       workspaceGeneration === this.workspaceFoldersGeneration && groupRoot === this.groupRoot &&
-      manualRoot === this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY) && installation === this.workflowKitInstallation;
+      manualRoot === this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY) && installation === this.workflowKitInstallation &&
+      policy.requireGroupEnvironment === this.getWorkflowKitPolicy().requireGroupEnvironment && policy.allowed === this.getWorkflowKitPolicy().allowed;
     if (!installation) this.workflowKitInstallTarget = { ...this.workflowKitInstallTarget, state: { status: 'checking' } };
     if (publish) this.sendSnapshot();
     const [packages, resolution] = await Promise.all([
       this.packages.listPackages(),
-      installation ? Promise.resolve({ root: installation.root, error: undefined }) : resolveWorkflowKitInstallRoot(manualRoot, groupRoot,
-        (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath))
+      installation ? Promise.resolve({ root: installation.root, error: undefined })
+        : !policy.allowed ? Promise.resolve({ root: undefined, error: policy.reason })
+        : resolveWorkflowKitInstallRoot(policy.requireGroupEnvironment ? undefined : manualRoot, groupRoot,
+          policy.requireGroupEnvironment ? [] : (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath))
     ]);
     if (!current()) return;
     this.workflowKitPackages = packages;
     const target: WorkflowKitInstallTarget = installation ?? {
-      ...resolution, manual: manualRoot !== undefined,
+      ...resolution, manual: !policy.requireGroupEnvironment && manualRoot !== undefined,
       state: { status: !resolution.root ? 'missing' : resolution.error ? 'error' : 'checking' }
     };
     this.workflowKitInstallTarget = target;
@@ -3012,7 +3154,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitState = { status: groupRoot ? 'checking' : 'missing' };
     if (publish) this.sendSnapshot();
     const [groupState, targetState] = await Promise.all([
-      groupRoot ? this.readWorkflowKitState(groupRoot) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' }),
+      groupRoot && policy.allowed ? this.readWorkflowKitState(groupRoot) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' }),
       target.root && !target.error ? this.readWorkflowKitState(target.root) : Promise.resolve(target.state)
     ]);
     if (!current()) return;
@@ -3022,8 +3164,11 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async selectWorkflowKitInstallRoot(): Promise<void> {
-    if (this.workflowKitInstallation || this.workflowKitSelectingRoot) throw new Error('請等候目前技能包操作完成後再選擇位置。');
+    const checkAccess = this.captureWorkflowKitAccess();
+    if (this.getWorkflowKitPolicy().requireGroupEnvironment) throw new Error('Group 模式的安裝位置固定為目前 Group 根目錄。');
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前技能包操作完成後再選擇位置。');
     this.workflowKitSelectingRoot = true;
+    this.sendSnapshot();
     try {
       const selection = await vscode.window.showOpenDialog({
         canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
@@ -3033,57 +3178,71 @@ export class WorkspacePanel implements vscode.Disposable {
       const folder = selection?.[0];
       if (!folder) return;
       if (folder.scheme !== 'file') throw new Error('請選擇本機安裝資料夾。');
+      checkAccess();
       this.workflowKitRefreshGeneration++;
       await this.context.workspaceState.update(WORKFLOW_KIT_INSTALL_ROOT_KEY, folder.fsPath);
       await this.refreshWorkflowKit();
-    } finally { this.workflowKitSelectingRoot = false; }
+    } finally { this.workflowKitSelectingRoot = false; this.sendSnapshot(); }
   }
 
   private async resetWorkflowKitInstallRoot(): Promise<void> {
-    if (this.workflowKitInstallation || this.workflowKitSelectingRoot) throw new Error('請等候目前技能包操作完成後再選擇位置。');
+    this.captureWorkflowKitAccess()();
+    if (this.getWorkflowKitPolicy().requireGroupEnvironment) throw new Error('Group 模式的安裝位置固定為目前 Group 根目錄。');
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前技能包操作完成後再選擇位置。');
     this.workflowKitSelectingRoot = true;
     try {
       this.workflowKitRefreshGeneration++;
       await this.context.workspaceState.update(WORKFLOW_KIT_INSTALL_ROOT_KEY, undefined);
       await this.refreshWorkflowKit();
-    } finally { this.workflowKitSelectingRoot = false; }
+    } finally { this.workflowKitSelectingRoot = false; this.sendSnapshot(); }
   }
 
   private async openWorkflowKitDownload(source: RemoteToolSource): Promise<void> {
     if (source !== 'gitea' && source !== 'github') throw new Error('Invalid download source.');
+    this.captureWorkflowKitAccess()();
     await vscode.env.openExternal(vscode.Uri.parse(WORKFLOW_KIT_RELEASES[source]));
   }
 
   private async importWorkflowKitPackage(source: RemoteToolSource): Promise<void> {
     if (source !== 'gitea' && source !== 'github') throw new Error('Invalid import source.');
-    const selection = await vscode.window.showOpenDialog({
-      canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-      openLabel: 'Import workflow kit ZIP', filters: { 'Workflow kit ZIP': ['zip'] }
-    });
-    const archive = selection?.[0];
-    if (!archive) return;
-    const inspected = await this.runWorkflowKitHelper(['inspect', archive.fsPath, '--format', 'zip', '--expected-version', String(this.context.extension.packageJSON.version)], 3 * 60_000);
-    if (inspected.package !== 'gitlab-workspace-kit' || inspected.version !== this.context.extension.packageJSON.version ||
-      typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
-      throw new Error(typeof inspected.error === 'string' ? inspected.error : 'The ZIP does not match this workflow kit version.');
-    }
-    const selected = await this.packages.importPackage({
-      version: String(inspected.version), source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath,
-      verifiedSha256: inspected.sha256.toLowerCase()
-    });
-    await this.refreshWorkflowKit();
-    this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} saved for offline installation.` });
+    const checkAccess = this.captureWorkflowKitAccess();
+    if (this.workflowKitImporting || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
+    this.workflowKitImporting = true; this.sendSnapshot();
+    try {
+      const selection = await vscode.window.showOpenDialog({
+        canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
+        openLabel: 'Import workflow kit ZIP', filters: { 'Workflow kit ZIP': ['zip'] }
+      });
+      const archive = selection?.[0];
+      if (!archive) return;
+      if (archive.scheme !== 'file') throw new Error('請選擇本機 ZIP 檔案。');
+      checkAccess();
+      const inspected = await this.runWorkflowKitHelper(['inspect', archive.fsPath, '--format', 'zip', '--expected-version', String(this.context.extension.packageJSON.version)], 3 * 60_000);
+      if (inspected.package !== 'gitlab-workspace-kit' || inspected.version !== this.context.extension.packageJSON.version ||
+        typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
+        throw new Error(typeof inspected.error === 'string' ? inspected.error : 'The ZIP does not match this workflow kit version.');
+      }
+      checkAccess();
+      const selected = await this.packages.importPackage({
+        version: String(inspected.version), source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath,
+        verifiedSha256: inspected.sha256.toLowerCase()
+      }, checkAccess);
+      await this.refreshWorkflowKit();
+      this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} saved for offline installation.` });
+    } finally { this.workflowKitImporting = false; this.sendSnapshot(); }
   }
 
   private async installWorkflowKit(packageId: string): Promise<void> {
     if (typeof packageId !== 'string' || !packageId) throw new Error('Select a workflow kit version first.');
-    if (this.workflowKitInstallation || this.workflowKitSelectingRoot) throw new Error('目前有技能包操作正在進行，請等候完成。');
+    const checkAccess = this.captureWorkflowKitAccess();
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('目前有技能包操作正在進行，請等候完成。');
     const target = this.workflowKitInstallTarget;
     if (!target.root || target.error) throw new Error(target.error ?? '請先選擇技能包安裝資料夾。');
     if (this.busy || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(target.state.status)) {
       throw new Error(target.state.message ?? '請等候檢查完成，或先處理目前安裝位置的工作與衝突。');
     }
     const root = target.root;
+    if (this.getWorkflowKitPolicy().requireGroupEnvironment && !sameLocalPath(root, this.requireGroupRoot())) throw new Error('Group 模式只能安裝至目前 Group 根目錄，請重新檢查安裝。');
     this.workflowKitInstallation = { ...target, state: { ...target.state, status: 'installing' } };
     this.workflowKitRefreshGeneration++;
     this.workflowKitInstallTarget = this.workflowKitInstallation;
@@ -3096,10 +3255,11 @@ export class WorkspacePanel implements vscode.Disposable {
       if (validation.error) throw new Error(validation.error);
       if (!validation.root || !sameLocalPath(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
       const selected = await this.packages.getPackage(packageId);
+      checkAccess();
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
         title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, () =>
         this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
-          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256]));
+          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256], undefined, checkAccess));
       if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version) throw new Error('The installer returned an unexpected package identity.');
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });
     } catch (error) {

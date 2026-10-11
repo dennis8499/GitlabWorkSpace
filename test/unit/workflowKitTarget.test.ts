@@ -7,17 +7,30 @@ import { resolveWorkflowKitInstallRoot } from '../../src/workspace/workspacePath
 
 const storageKey = 'gitlabWorkspace.workflowKit.installRoot';
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath });
+let requireGroup: boolean | undefined = false;
+const configurationUpdates: Array<{ key: string; value: unknown; target: number }> = [];
 const vscode = {
-  workspace: { workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }> },
+  workspace: {
+    workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
+    getConfiguration: () => ({
+      get: (_key: string, fallback: unknown) => _key === 'workflowKit.requireGroupEnvironment' ? requireGroup ?? fallback : fallback,
+      update: async (key: string, value: unknown, target: number) => { configurationUpdates.push({ key, value, target }); requireGroup = value as boolean; }
+    })
+  },
+  ConfigurationTarget: { Global: 1, Workspace: 2 },
+  env: { openExternal: async (_uri: unknown) => true },
   window: {
     showOpenDialog: async (_options: unknown): Promise<Array<ReturnType<typeof uri>> | undefined> => undefined,
     withProgress: async (_options: unknown, task: () => Promise<unknown>) => task()
   },
-  Uri: { file: uri }, ProgressLocation: { Notification: 15 }
+  Uri: { file: uri, parse: (url: string) => ({ url }) }, ProgressLocation: { Notification: 15 }
 };
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = moduleLoader._load;
-moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : originalLoad(name, parent, main);
+let resolvingPython: (() => void) | undefined;
+moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : name === './pythonRuntime' ? {
+  resolvePythonRuntime: async () => { resolvingPython?.(); return { executable: process.execPath, args: [], env: process.env }; }
+} : originalLoad(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
 try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); }
 finally { moduleLoader._load = originalLoad; }
@@ -31,8 +44,11 @@ function memory() {
 }
 
 function fixture(folders: string[], workspaceState = memory()) {
+  requireGroup = false;
+  configurationUpdates.length = 0;
   vscode.workspace.workspaceFolders = folders.map(root => ({ uri: uri(root) }));
   vscode.window.showOpenDialog = async () => undefined;
+  vscode.env.openExternal = async () => true;
   const installed = new Set<string>();
   const calls: string[][] = [], messages: any[] = [];
   const bundle = { id: 'bundled', archivePath: 'offline.tar.xz', version: '0.15.0', source: 'bundled', format: 'tar.xz', entryRoot: 'workflow-kit', sha256: 'a'.repeat(64) };
@@ -231,4 +247,117 @@ test('replacing the selected directory with an alias cannot redirect installatio
   await symlink(manual, workspace, process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(host.installWorkflowKit('bundled'), /安裝位置已變更/);
   assert.equal(calls.filter(args => args[0] === 'install').length, 0);
+});
+
+test('the default Group policy blocks every package entry point until login, Group and workspace are ready', async t => {
+  const [workspace, group] = await directories(t);
+  const { host, calls } = fixture([workspace]);
+  requireGroup = undefined;
+  let downloads = 0, dialogs = 0;
+  vscode.env.openExternal = async () => { downloads++; return true; };
+  vscode.window.showOpenDialog = async () => { dialogs++; return undefined; };
+  const blocked = async (reason: RegExp) => {
+    for (const request of [{ type: 'openWorkflowKitDownload', source: 'github' }, { type: 'importWorkflowKitPackage', source: 'gitea' }, { type: 'installWorkflowKit', packageId: 'bundled' }]) {
+      await assert.rejects(host.handleMessage(request), reason);
+    }
+  };
+  await host.refreshWorkflowKit();
+  assert.equal(host.getWorkflowKitPolicy().requireGroupEnvironment, true);
+  await blocked(/登入/);
+  host.session.baseUrl = 'https://gitlab.test'; host.currentUser = { id: 1 };
+  await blocked(/選擇.*Group/);
+  host.session.selectedGroup = { id: 1 };
+  await blocked(/本機資料夾/);
+  assert.equal(downloads, 0); assert.equal(dialogs, 0); assert.equal(calls.length, 0);
+  host.groupRoot = group;
+  await host.refreshWorkflowKit();
+  await host.handleMessage({ type: 'openWorkflowKitDownload', source: 'github' });
+  await host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled' });
+  assert.equal(downloads, 1);
+  assert.equal(calls.find(args => args[0] === 'install')?.[2], group);
+  host.pendingWorkspaceRefresh = true;
+  await blocked(/正在辨識/);
+});
+
+test('Group mode pins the Group target and preserves the saved free-mode location across toggles', async t => {
+  const [workspace, group, manual] = await directories(t);
+  const { host, workspaceState, calls } = fixture([workspace]);
+  host.groupRoot = group; host.currentUser = { id: 1 }; host.session.baseUrl = 'https://gitlab.test'; host.session.selectedGroup = { id: 1 };
+  await workspaceState.update(storageKey, manual);
+  requireGroup = true;
+  await host.refreshWorkflowKit();
+  assert.equal(host.workflowKitInstallTarget.root, group);
+  assert.equal(host.workflowKitInstallTarget.manual, false);
+  await assert.rejects(host.selectWorkflowKitInstallRoot(), /固定/);
+  await assert.rejects(host.resetWorkflowKitInstallRoot(), /固定/);
+  host.workflowKitInstallTarget = { root: manual, state: { status: 'missing' } };
+  await assert.rejects(host.installWorkflowKit('bundled'), /目前 Group 根目錄/);
+  assert.equal(calls.filter(args => args[0] === 'install').length, 0);
+  await host.setWorkflowKitRequireGroup(false);
+  assert.equal(host.workflowKitInstallTarget.root, manual);
+  assert.equal(workspaceState.get(storageKey), manual);
+  assert.deepEqual(configurationUpdates.at(-1), { key: 'workflowKit.requireGroupEnvironment', value: false, target: 2 });
+});
+
+test('settings use the user target in an empty window and invalid values cannot change the policy', async () => {
+  const { host } = fixture([]);
+  await host.setWorkflowKitRequireGroup(true);
+  assert.deepEqual(configurationUpdates.at(-1), { key: 'workflowKit.requireGroupEnvironment', value: true, target: 1 });
+  assert.equal(host.getWorkflowKitPolicy().settingTarget, 'user');
+  assert.equal(host.getWorkflowKitPolicy().allowed, false);
+  await assert.rejects(host.setWorkflowKitRequireGroup('false'), /布林/);
+  assert.equal(requireGroup, true);
+});
+
+test('a policy change during a folder dialog or archive inspection prevents saving the selection or import', async t => {
+  const [workspace, , manual] = await directories(t);
+  const { host, workspaceState } = fixture([workspace]);
+  vscode.window.showOpenDialog = async () => { requireGroup = true; return [uri(manual)]; };
+  await assert.rejects(host.selectWorkflowKitInstallRoot(), /登入/);
+  assert.equal(workspaceState.get(storageKey), undefined);
+  assert.equal(host.workflowKitSelectingRoot, false);
+  requireGroup = false;
+  vscode.window.showOpenDialog = async () => [uri('kit.zip')];
+  let imports = 0;
+  host.packages.importPackage = async () => { imports++; };
+  host.runWorkflowKitHelper = async () => { requireGroup = true; return { package: 'gitlab-workspace-kit', version: '0.15.0', sha256: 'a'.repeat(64) }; };
+  await assert.rejects(host.importWorkflowKitPackage('github'), /登入/);
+  assert.equal(imports, 0); assert.equal(host.workflowKitImporting, false);
+});
+
+test('policy changes before installer launch are checked again, while an already launched transaction keeps its target', async t => {
+  const [workspace] = await directories(t);
+  const { host, calls } = fixture([workspace]);
+  await host.refreshWorkflowKit();
+  const getPackage = host.packages.getPackage;
+  host.packages.getPackage = async () => { requireGroup = true; return getPackage(); };
+  await assert.rejects(host.installWorkflowKit('bundled'), /登入/);
+  assert.equal(calls.filter(args => args[0] === 'install').length, 0);
+  assert.equal(host.workflowKitInstallation, undefined);
+  requireGroup = false; host.packages.getPackage = getPackage;
+  await host.refreshWorkflowKit();
+  const helper = host.runWorkflowKitHelper;
+  host.runWorkflowKitHelper = async (args: string[]) => {
+    if (args[0] === 'install') requireGroup = true;
+    return helper(args);
+  };
+  await host.installWorkflowKit('bundled');
+  assert.equal(calls.find(args => args[0] === 'install')?.[2], workspace);
+  assert.equal(host.workflowKitInstallation, undefined);
+  assert.equal(host.getWorkflowKitPolicy().allowed, false);
+  assert.equal(host.workflowKitInstallTarget.root, undefined);
+});
+
+test('a policy change while resolving Python prevents the installer process from launching', async t => {
+  const [workspace] = await directories(t);
+  const { host } = fixture([workspace]);
+  await host.refreshWorkflowKit();
+  host.runWorkflowKitHelper = (WorkspacePanel!.prototype as any).runWorkflowKitHelper;
+  host.workflowKitHelper = () => { throw new Error('The installer must not launch'); };
+  resolvingPython = () => { requireGroup = true; };
+  try {
+    await assert.rejects(host.installWorkflowKit('bundled'), /登入/);
+    assert.equal(host.workflowKitInstallation, undefined);
+    assert.equal(host.getWorkflowKitPolicy().allowed, false);
+  } finally { resolvingPython = undefined; }
 });

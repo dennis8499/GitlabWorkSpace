@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -107,5 +107,32 @@ test('extension upgrade keeps prior imports while offering only current-version 
     assert.deepEqual(await readFile(previous.archivePath), oldBytes);
     const restored = new WorkflowKitPackageManager(storage, path.join(root, 'missing14.tar.xz'), path.join(root, 'missing14.json'), '0.14.0');
     assert.equal((await restored.getPackage(previous.id)).version, '0.14.0');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('import rechecks access before writing and publishing, removing temporary files after a policy change', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'workspace-kit-import-policy-'));
+  try {
+    const source = path.join(root, 'release.zip');
+    const contents = Buffer.from('verified package bytes');
+    await writeFile(source, contents);
+    for (const deniedCheck of [1, 3, 5]) {
+      const storage = path.join(root, `storage-${deniedCheck}`);
+      const manager = new WorkflowKitPackageManager(storage, path.join(root, 'missing.tar.xz'), path.join(root, 'missing.json'), '0.15.0');
+      let checks = 0;
+      await assert.rejects(manager.importPackage({ version: '0.15.0', source: 'github', assetName: 'release.zip',
+        archivePath: source, verifiedSha256: sha256(contents) }, () => {
+        if (++checks === deniedCheck) throw new Error('Group policy changed');
+      }), /Group policy changed/);
+      assert.equal(checks, deniedCheck);
+      assert.deepEqual(await manager.listPackages(), []);
+      await assert.rejects(readFile(path.join(storage, 'workflow-kit-packages.json')), { code: 'ENOENT' });
+      const files = await readdir(storage, { recursive: true }).catch(error => {
+        if (error.code !== 'ENOENT') throw error;
+        return [] as string[];
+      });
+      assert.equal(files.some(file => file.endsWith('.tmp')), false);
+      if (deniedCheck <= 3) assert.equal(files.some(file => file.endsWith('.zip')), false);
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
