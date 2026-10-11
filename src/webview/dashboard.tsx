@@ -965,6 +965,8 @@ function App() {
       onInstall={(packageId) => post({ type: 'installWorkflowKit', packageId })}
       onOpenDownload={(source) => post({ type: 'openWorkflowKitDownload', source })}
       onImport={(source) => post({ type: 'importWorkflowKitPackage', source })}
+      onSelectInstallRoot={() => post({ type: 'selectWorkflowKitInstallRoot' })}
+      onResetInstallRoot={() => post({ type: 'resetWorkflowKitInstallRoot' })}
       onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
       onOpenAdmin={() => { setToolDrawer(false); modeChange('admin'); requestAnimationFrame(() => document.querySelector<HTMLHeadingElement>('.page-heading h1')?.focus()); }}
@@ -980,11 +982,12 @@ function Discussion({ discussion, reply, onReplyChange, onReply }: { discussion:
   return <div class="discussion"><strong>{discussion.notes[0]?.author?.name ?? 'GitLab 使用者'}</strong>{discussion.notes.map((note) => <p>{note.body}</p>)}<div class="reply-row"><input aria-label="討論回覆" value={reply} onInput={(event) => onReplyChange(event.currentTarget.value)} placeholder="回覆這則討論…" /><button class="quiet small" type="button" disabled={!reply.trim()} onClick={() => { onReply(reply.trim()); onReplyChange(''); }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose }: {
+function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectInstallRoot, onResetInstallRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose }: {
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
   onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
   onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
   onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void; onRetryInstance: () => void;
+  onSelectInstallRoot: () => void; onResetInstallRoot: () => void;
   onSelectGroup: () => void; onConnect: () => void; onOpenAdmin: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'work-in-progress': '工作進行中', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
@@ -1019,9 +1022,11 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     <section class="tool-settings"><h3>工作流程組合包</h3>
     <label class="field">套件來源<select value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
     <p class="source-lines">一包安裝 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer 與 GitLab Workspace Group 規則。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
+    <p class="subtle">安裝不需登入或選擇 GitLab Group，可選擇一般資料夾、Git Repo 或其子目錄。套件保留現有 Group 工作流程規則。</p>
     {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={operationBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={operationBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
     {(() => {
-      const installed = snapshot.workflowKit ?? { status: 'missing' as const };
+      const target = snapshot.workflowKitInstallTarget;
+      const installed = target?.state ?? { status: 'missing' as const };
       const packages = (snapshot.workflowKitPackages ?? []).filter((item) => item.source === source);
       const effectiveId = packages.some((item) => item.id === selectedPackageId)
         ? selectedPackageId : packages.find((item) => item.available)?.id || '';
@@ -1029,13 +1034,15 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       const kitVersion = (snapshot.workflowKitPackages ?? []).find((item) => item.source === 'bundled')?.version ?? installed.version;
       return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
-        <p class="subtle">安裝位置：{snapshot.groupRoot ?? '請在 VSCode 開啟 Group 資料夾或該 Group 的 Repo'}</p>
+        <p class="subtle workflow-kit-install-root">安裝位置：{target?.root ?? '尚未選擇資料夾'}{target?.manual ? '（手動指定）' : target?.root ? '（預設位置）' : ''}</p>
+        <div class="button-row"><button type="button" disabled={operationBusy || installed.status === 'installing'} onClick={onSelectInstallRoot}>選擇資料夾</button><button class="quiet" type="button" disabled={operationBusy || installed.status === 'installing' || !target?.manual} onClick={onResetInstallRoot}>恢復預設位置</button></div>
+        {target?.error && <p class="warning" role="status">{target.error}</p>}
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
         <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
         {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 15 個 Skills。</p>}
         {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
-        <button class="primary" type="button" disabled={!snapshot.groupRoot || !selected?.available || ['installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
+        <button class="primary workflow-kit-install-button" type="button" disabled={!target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;
     })()}
     </section>

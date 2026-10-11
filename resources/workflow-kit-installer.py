@@ -720,12 +720,9 @@ def checked_root(value: Path) -> Path:
     try:
         root = value.resolve(strict=True)
     except OSError as error:
-        fail(f"Group 工作目錄無法讀取：{error}")
-    if not root.is_dir() or (root / ".git").exists():
-        fail("請選擇有效的非 Git Group 工作目錄。")
-    for parent in root.parents:
-        if (parent / ".git").exists():
-            fail("Group 工作目錄位於 Git repository 內；請從非 Git Group 根目錄使用工作流程套件。")
+        fail(f"安裝目錄無法讀取：{error}")
+    if not root.is_dir():
+        fail("請選擇有效的安裝資料夾。")
     return root
 
 

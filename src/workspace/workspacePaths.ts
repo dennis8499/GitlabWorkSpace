@@ -25,6 +25,26 @@ export interface WorkspaceRootResolution {
   error?: string;
 }
 
+/** Installation is local to a chosen directory and does not require a GitLab Group. */
+export async function resolveWorkflowKitInstallRoot(
+  manualRoot: string | undefined,
+  groupRoot: string | undefined,
+  workspaceRoots: readonly string[]
+): Promise<WorkspaceRootResolution> {
+  const folders = uniquePaths(workspaceRoots, process.platform);
+  const candidate = manualRoot ?? groupRoot ?? (folders.length === 1 ? folders[0] : undefined);
+  if (!candidate) return { error: folders.length > 1
+    ? '目前開啟多個工作區資料夾，請選擇技能包安裝位置。'
+    : '請選擇技能包安裝資料夾。' };
+  try {
+    const root = await realpath(candidate);
+    if (!(await lstat(root)).isDirectory()) return { root: candidate, error: '安裝位置不是資料夾，請重新選擇。' };
+    return { root };
+  } catch {
+    return { root: candidate, error: '安裝位置不存在或無法讀取，請重新選擇資料夾。' };
+  }
+}
+
 /** Pick one Group root from VS Code's already-resolved workspace folders. */
 export function resolveGroupWorkspaceRoot(
   inspections: readonly WorkspaceFolderInspection[],

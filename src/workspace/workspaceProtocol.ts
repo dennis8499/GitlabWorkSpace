@@ -109,6 +109,13 @@ export interface InstalledWorkflowKitState {
   legacyPaths?: string[];
 }
 
+export interface WorkflowKitInstallTarget {
+  root?: string;
+  error?: string;
+  manual: boolean;
+  state: InstalledWorkflowKitState;
+}
+
 export interface WorkflowKitPackageSummary {
   id: string;
   version: string;
@@ -168,6 +175,7 @@ export interface WorkspaceSnapshot {
   timerVersion?: number;
   scopeEpoch?: number;
   workflowKit: InstalledWorkflowKitState;
+  workflowKitInstallTarget: WorkflowKitInstallTarget;
   workflowKitSource: ToolSource;
   workflowKitPackages?: WorkflowKitPackageSummary[];
   meginWorkItems: MeginWorkSummary[];
@@ -263,6 +271,8 @@ export type WorkspaceRequest =
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
+  | { type: 'selectWorkflowKitInstallRoot' }
+  | { type: 'resetWorkflowKitInstallRoot' }
   | { type: 'installWorkflowKit'; packageId: string };
 
 export type WorkspaceResponse =

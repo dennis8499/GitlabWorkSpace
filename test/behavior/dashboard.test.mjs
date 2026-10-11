@@ -232,6 +232,7 @@ function snapshot(activeMode = 'developer') {
     projectMembers: [],
     timers: [],
     workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
+    workflowKitInstallTarget: { root: 'C:/workspace/team', manual: false, state: { status: 'installed', version: '0.9.0', source: 'bundled' } },
     workflowKitPackages: [{ id: 'bundled-0.9.0', version: '0.9.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
     workflowKitSource: 'bundled',
     tools: [],
@@ -669,6 +670,63 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   document.querySelector('.skills-install-button').click();
   await view.tick();
   assert.ok(document.querySelector('[role="dialog"]'));
+});
+
+test('offline installation uses its own folder and exposes selection, reset, and busy states', async (t) => {
+  const state = snapshot('sa');
+  state.connected = false; state.group = undefined; state.groupRoot = undefined;
+  state.groupRepositoryScanStatus = 'idle'; state.workflowKit = { status: 'missing' };
+  state.workflowKitInstallTarget = { root: 'C:/local/單一 Repo', manual: true, state: { status: 'missing' } };
+  const view = await mount({ mode: 'sa' }, state);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelector('.skills-install-button').click(); await view.tick();
+  const button = (text) => [...document.querySelectorAll('[role="dialog"] button')].find(item => item.textContent === text);
+  assert.match(document.querySelector('.workflow-kit-install-root').textContent, /C:\/local\/單一 Repo/);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
+  document.querySelector('.workflow-kit-install-button').click();
+  button('選擇資料夾').click(); button('恢復預設位置').click();
+  assert.ok(view.requests.some(request => request.type === 'installWorkflowKit' && request.packageId === 'bundled-0.9.0'));
+  assert.ok(view.requests.some(request => request.type === 'selectWorkflowKitInstallRoot'));
+  assert.ok(view.requests.some(request => request.type === 'resetWorkflowKitInstallRoot'));
+  for (const status of ['checking', 'installing', 'work-in-progress', 'needs-cleanup']) {
+    state.workflowKitInstallTarget.state = { status };
+    view.sendSnapshot(state); await view.tick();
+    assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true, status);
+    if (status === 'installing') {
+      assert.equal(button('選擇資料夾').disabled, true);
+      assert.equal(button('恢復預設位置').disabled, true);
+    }
+  }
+  state.workflowKitInstallTarget = { root: 'C:/missing', error: '安裝位置不存在，請重新選擇資料夾。', manual: true, state: { status: 'error' } };
+  view.sendSnapshot(state); await view.tick();
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
+  assert.match(document.querySelector('.tool-card').textContent, /安裝位置不存在/);
+  state.workflowKitInstallTarget = { manual: false, error: '請選擇技能包安裝資料夾。', state: { status: 'missing' } };
+  view.sendSnapshot(state); await view.tick();
+  assert.equal(button('選擇資料夾').disabled, false);
+  assert.equal(button('恢復預設位置').disabled, true);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
+});
+
+test('an installed custom folder does not enable the Group guide when the Group kit is missing', async (t) => {
+  const state = snapshot('sa'); state.workflowKit = { status: 'missing' };
+  state.workflowKitInstallTarget = { root: 'C:/another/repo', manual: true, state: { status: 'installed', version: '0.9.0' } };
+  const view = await mount({ mode: 'sa' }, state);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const scope = document.querySelector('[id="wiki-input-development-spec.scope"]');
+  scope.value = 'Retry behavior'; scope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const requirement = document.querySelector('[id="wiki-input-development-spec.requirement"]');
+  requirement.value = 'Describe retry behavior'; requirement.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  document.querySelector('.skills-install-button').click(); await view.tick();
+  assert.match(document.querySelector('.workflow-kit-install-root').textContent, /C:\/another\/repo/);
+  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '安裝／更新整包');
+  state.workflowKit = { status: 'installed', version: '0.9.0' };
+  view.sendSnapshot(state); await view.tick();
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
 
 test('keeps Wiki guide selection and inputs separate for each selected Group', async (t) => {

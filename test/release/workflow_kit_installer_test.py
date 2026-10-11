@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -312,6 +313,74 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             blocked, _ = self.install(group)
             self.assertNotEqual(0, blocked.returncode)
             self.assertEqual("work-in-progress", self.status(group)["status"])
+
+    def test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback(self) -> None:
+        for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):
+            for location in ("directory", "repository", "nested", "worktree"):
+                with self.subTest(format=archive_format, location=location), tempfile.TemporaryDirectory(prefix="kit-local-") as temporary:
+                    root = Path(temporary).resolve()
+                    seed = self.create_group(root / "seed", wiki="# Keep existing Wiki\n")
+                    repo = root / "測試 Repo"
+                    repo.mkdir()
+
+                    def git(*args: str, cwd: Path = repo) -> str:
+                        return subprocess.run(["git", "--no-optional-locks", "-C", str(cwd), *args],
+                            capture_output=True, text=True, encoding="utf-8", check=True).stdout.strip()
+
+                    git("init", "-b", "main")
+                    (repo / "tracked.txt").write_text("committed\n", encoding="utf-8")
+                    git("add", "tracked.txt")
+                    git("-c", "user.name=Installer Test", "-c", "user.email=installer@example.invalid",
+                        "-c", "core.hooksPath=", "-c", "commit.gpgsign=false", "commit", "-m", "Fixture")
+                    target = seed
+                    edit_root = repo
+                    if location == "repository":
+                        target = repo
+                        shutil.copytree(seed, target, dirs_exist_ok=True)
+                    elif location == "nested":
+                        target = repo / "子資料夾"
+                        shutil.copytree(seed, target)
+                    elif location == "worktree":
+                        target = root / "連結 Worktree"
+                        git("worktree", "add", "--detach", str(target), "HEAD")
+                        shutil.copytree(seed, target, dirs_exist_ok=True)
+                        edit_root = target
+                    (edit_root / "tracked.txt").write_text("staged edit\n", encoding="utf-8")
+                    git("add", "tracked.txt", cwd=edit_root)
+                    (edit_root / "tracked.txt").write_text("local unstaged edit\n", encoding="utf-8")
+                    metadata = self.snapshot(repo / ".git")
+                    before = self.snapshot(target)
+                    self.assertEqual("missing", self.status(target)["status"])
+                    result, installed = self.install(target, archive=archive, archive_format=archive_format)
+                    self.assertEqual(0, result.returncode, installed)
+                    self.assertEqual(15, installed["skills"])
+                    self.assertEqual("installed", self.status(target)["status"])
+                    self.assert_group_overlays(target)
+                    after = self.snapshot(target)
+                    result, repeated = self.install(target, archive=archive, archive_format=archive_format)
+                    self.assertEqual(0, result.returncode, repeated)
+                    self.assertEqual("unchanged", repeated["status"])
+                    self.assertEqual(after, self.snapshot(target))
+                    result, rolled_back = self.execute("rollback", target, installed["transaction"])
+                    self.assertEqual(0, result.returncode, rolled_back)
+                    self.assertEqual(before, self.snapshot(target))
+                    self.assertEqual("missing", self.status(target)["status"])
+                    self.assertEqual(metadata, self.snapshot(repo / ".git"))
+                    self.assertEqual("local unstaged edit\n", (edit_root / "tracked.txt").read_text(encoding="utf-8"))
+
+    def test_install_and_status_reject_missing_directories_and_files(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="kit-invalid-target-") as temporary:
+            root = Path(temporary)
+            file = root / "file.txt"
+            file.write_text("user content\n", encoding="utf-8")
+            for target in (root / "missing", file):
+                with self.subTest(target=target):
+                    result, _ = self.install(target)
+                    self.assertNotEqual(0, result.returncode)
+                    result, _ = self.execute("status", target, "--expected-version", VERSION)
+                    self.assertNotEqual(0, result.returncode)
+            self.assertEqual("user content\n", file.read_text(encoding="utf-8"))
+            self.assertEqual([file], list(root.iterdir()))
 
     def test_unicode_space_and_windows_parent_alias_resolve_to_same_group(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kit-alias-") as temporary:

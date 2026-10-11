@@ -28,7 +28,7 @@
 - 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查手動指定 Repo 與基礎／比較版本，產生本機報告。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從工具管理抽屜一次安裝或更新 GitLab Workspace 工作流程包。預設使用 VSIX 內附離線包；也可匯入 GitLab Workspace 的單一 Release ZIP。
+- 從工具管理抽屜一次安裝或更新 GitLab Workspace 工作流程包，不需登入或選擇 Group，可指定一般資料夾、Git Repo 或子目錄。預設使用 VSIX 內附離線包；也可匯入 GitLab Workspace 的單一 Release ZIP。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
@@ -60,6 +60,8 @@
 8. 全部 Repo 完成本機交付並保存證據後，複製 **Wiki 更新任務**，由 Codex 回查實際來源並更新 Group Wiki 的 index／log 與人工 notes。任務會分開標示本機交付與 MR 合併狀態。
 
 工作台的 **開啟 Codex CLI** 會在 Group 工作目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
+
+只需安裝 Skills 時，可直接開啟 **分析 → 整包安裝／更新**，不需先連線 GitLab。安裝位置預設沿用已辨識的 Group 根目錄，或唯一開啟的本機工作區資料夾；也可按 **選擇資料夾** 指定並記住此工作區的位置，按 **恢復預設位置** 清除選擇。多資料夾或空視窗需手動指定位置。套件仍保留既有 Group 工作流程規則，其他位置已安裝不會啟用目前 Group 的功能。
 
 GitLab Workspace v0.15.0 的 VSIX 與組合包共用版本，安裝固定的原生 Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0、ReleaseReviewer 0.1.0，共 15 個 Skills。Wiki、Megin 與 MergeReviewer 套用既有 Group 覆層；ReleaseReviewer 保留原生內容，最後以工作台安裝紀錄驗證完整 payload。原生發行包各自可在單一 Codebase／Repo／ref 使用；Group 掃描、共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、`gitlab_mr`、MR 任務與版本綁定報告由工作台覆層提供。MR 審查保留固定來源與目標 SHA、Markdown 報告中繼資料及受管理的暫存證據。Issue 開發任務仍會探索 Group 全部直屬 Repo，只交付核准且有變更的 Repo，並在驗收後交接。安裝器把所有 Skills、原生 Wiki 安裝、Group 覆層、Wiki 安裝狀態、Codex 設定與紀錄放在同一交易；失敗時回復原狀。既有 Wiki、其他 Skills、工作紀錄和報告會保留。
 
