@@ -1104,6 +1104,43 @@ test('installation and current Skills locations show independent profiles and st
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
 });
 
+test('AutoHook controls use the Skills revision and explain manual trust without claiming it', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.workflowKitInstallTarget = { root: 'D:/external', profile: 'repository', manual: true, state: { status: 'missing' } };
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: false, status: 'disabled', bundledVersion: '1.0.1', trustRequired: true };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const card = document.querySelector('.autohook-card');
+  const button = text => [...card.querySelectorAll('button')].find(item => item.textContent === text);
+  assert.match(card.textContent, /1\.0\.1.*C:\/workspace\/team/s); assert.doesNotMatch(card.textContent, /D:\/external/);
+  assert.equal(button('啟用 AutoHook').disabled, false); button('啟用 AutoHook').click();
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'enable', contextRevision: state.skillsContext.revision });
+  const active = structuredClone(state); active.autoHook = { ...state.autoHook, enabled: true, status: 'enabled', runtimeVersion: '1.0.1' };
+  view.sendSnapshot(active); await view.tick();
+  assert.match(card.textContent, /本機執行版本：1\.0\.1/);
+  assert.match(card.textContent, /不包含 Codex 的信任狀態.*重新開啟 Codex.*\/hooks/s);
+  assert.equal(button('啟用 AutoHook').disabled, true); assert.equal(button('停用').disabled, false);
+  button('重新驗證').click(); assert.equal(view.requests.at(-1).operation, 'revalidate');
+  button('停用').click(); assert.equal(view.requests.at(-1).operation, 'disable');
+  button('刷新狀態').click(); assert.equal(view.requests.at(-1).type, 'refreshAutoHook');
+  view.sendSnapshot({ ...active, workflowKitOperationBusy: true }); await view.tick();
+  assert.ok([...card.querySelectorAll('button')].every(item => item.disabled));
+});
+
+test('AutoHook remains optional on non-Windows and a changed Skills root uses the new revision', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'repository');
+  state.autoHook = { root: state.skillsContext.root, supported: false, enabled: false, status: 'disabled', bundledVersion: '1.0.1' };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const card = document.querySelector('.autohook-card');
+  assert.match(card.textContent, /Windows.*PowerShell/); assert.equal(card.querySelector('button').disabled, true);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
+  const next = structuredClone(state); next.workflowKitInstallTarget.root = 'C:/local/other'; setSkillsContext(next);
+  next.autoHook = { ...state.autoHook, root: next.skillsContext.root, supported: true };
+  view.sendSnapshot(next); await view.tick(); card.querySelector('button').click();
+  assert.equal(view.requests.at(-1).contextRevision, next.skillsContext.revision);
+});
+
 test('shows every assigned Issue by default and keeps the list usable when Board loading fails', async (t) => {
   const initialSnapshot = snapshot();
   initialSnapshot.issueBoardContent = undefined;

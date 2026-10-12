@@ -69,6 +69,9 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     helper_name = "extension/resources/workflow-kit-installer.py"
     if archive_name not in members or manifest_name not in members or helper_name not in members:
         raise ValueError("VSIX is missing its offline workflow kit or installer")
+    for name in ("workflow-kit-installer.py", "workflow_kit_autohook.py"):
+        if archive.read("extension/resources/" + name) != (ROOT / "resources" / name).read_bytes():
+            raise ValueError("VSIX contains an outdated workflow helper: " + name)
     if "extension/resources/tool-installer.py" in members:
         raise ValueError("VSIX must not include the legacy per-tool installer")
     if any(name.startswith("extension/resources/offline-tools/sources/") for name in members):
@@ -134,12 +137,14 @@ def main() -> int:
                 "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
                 "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
                 "extension/resources/git-rebase-editor.cjs",
-                "extension/resources/workflow-kit-installer.py"
+                "extension/resources/workflow-kit-installer.py", "extension/resources/workflow_kit_autohook.py"
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
             if any(name.startswith(("extension/.github/", "extension/scripts/", "extension/.npm-cache/")) for name in members):
                 raise ValueError("VSIX contains a release helper or npm cache")
+            if any(name.endswith(".log") for name in members):
+                raise ValueError("VSIX contains a diagnostic log")
             if any(name.startswith("extension/resources/issue-webview/issue-test.") for name in members):
                 raise ValueError("VSIX contains the Issue behavior test fixture")
             _, kit_manifest = verify_offline_bundle(archive, members, installer)

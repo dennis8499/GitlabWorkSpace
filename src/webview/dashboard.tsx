@@ -1105,6 +1105,21 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
       </section>;
     })()}
     </section>
+    <section class="tool-card autohook-card" aria-label="AutoHook">
+      <div class="panel-title"><strong>AutoHook{snapshot.autoHook?.bundledVersion ? ` v${snapshot.autoHook.bundledVersion}` : ''}</strong><span class="pill">{({ unavailable: '尚未就緒', disabled: '未啟用', enabled: '已設定', 'needs-revalidation': '需要重新驗證', error: '需要處理', checking: '檢查中' })[snapshot.autoHook?.status ?? 'unavailable']}</span></div>
+      <p>作用位置：{snapshot.skillsContext?.root ?? '尚未選擇 Skills 工作位置'}</p>
+      <p class="subtle">隨包附帶，預設關閉。只作用於目前 Skills 根目錄；已啟用時會隨整包更新並重新驗證。</p>
+      {snapshot.autoHook?.runtimeVersion && <p>本機執行版本：{snapshot.autoHook.runtimeVersion}</p>}
+      {snapshot.autoHook?.supported === false && <p role="status">啟用需要 Windows、Windows PowerShell 與支援 Hooks 的 Codex CLI。</p>}
+      {snapshot.autoHook?.message && <p class="warning" role="status">{snapshot.autoHook.message}</p>}
+      {snapshot.autoHook?.enabled && <p class="subtle">設定檢查不包含 Codex 的信任狀態。請重新開啟 Codex，並在 /hooks 檢查及確認信任。</p>}
+      <div class="button-row">
+        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.supported || snapshot.autoHook.enabled || !snapshot.skillsContext?.root || snapshot.skillsContext.installed.status !== 'installed'} onClick={() => post({ type: 'manageAutoHook', operation: 'enable', contextRevision: snapshot.skillsContext!.revision })}>啟用 AutoHook</button>
+        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.enabled || !snapshot.skillsContext?.root} onClick={() => post({ type: 'manageAutoHook', operation: 'disable', contextRevision: snapshot.skillsContext!.revision })}>停用</button>
+        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.supported || !snapshot.autoHook.enabled || !snapshot.skillsContext?.root} onClick={() => post({ type: 'manageAutoHook', operation: 'revalidate', contextRevision: snapshot.skillsContext!.revision })}>重新驗證</button>
+        <button class="quiet small" type="button" disabled={operationBusy || kitBusy || !snapshot.skillsContext?.root} onClick={() => post({ type: 'refreshAutoHook' })}>刷新狀態</button>
+      </div>
+    </section>
     <div class="drawer-footer"><span>工作 Skills、流程規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>
     </div>}
   </aside></div>;

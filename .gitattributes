@@ -5,6 +5,8 @@ package.json text eol=lf
 resources/workflow-kit/*.md text eol=lf
 resources/workflow-kit/*.json text eol=lf
 resources/workflow-kit-installer.py text eol=lf
+resources/workflow_kit_autohook.py text eol=lf
+resources/offline-tools/sources/*.zip binary !eol
 scripts/build-workflow-kit.py text eol=lf
 resources/workflow-kit/overlays/** text eol=lf
 resources/workflow-kit/overlays/sources/*.zip binary !eol
@@ -15,3 +17,6 @@ test/fixtures/workflow-kit-0.14.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.14.0/*.tar.xz binary !eol
 test/fixtures/workflow-kit-0.16.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.16.0/*.tar.xz binary !eol
+test/fixtures/workflow-kit-0.18.0/*.py text eol=lf
+test/fixtures/workflow-kit-0.18.0/*.tar.xz binary !eol
+test/fixtures/autohook-*.zip binary !eol

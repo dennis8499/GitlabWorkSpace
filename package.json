@@ -2,7 +2,7 @@
   "name": "gitlab-workspace",
   "displayName": "GitLab Workspace",
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "publisher": "local-dev",
   "license": "UNLICENSED",
   "repository": {
@@ -191,6 +191,12 @@
             ".venv"
           ],
           "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。"
+        },
+        "gitlabWorkspace.autoHook.codexPath": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "description": "AutoHook 使用的原生 codex.exe 路徑（選填，留白從 PATH 尋找）。"
         }
       }
     }
@@ -208,7 +214,7 @@
     "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
     "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
     "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
-    "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_transactions_test.py && node scripts/run-python.mjs test/release/workflow_kit_profiles_test.py && node scripts/run-python.mjs test/release/release_reviewer_integration_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/merge-reviewer/test_group_review.py && node scripts/run-python.mjs test/overlays/delivery-evidence/run_tests.py",
+    "test:release": "node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_transactions_test.py && node scripts/run-python.mjs test/release/workflow_kit_profiles_test.py && node scripts/run-python.mjs test/release/release_reviewer_integration_test.py && node scripts/run-python.mjs test/release/autohook_integration_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/merge-reviewer/test_group_review.py && node scripts/run-python.mjs test/overlays/delivery-evidence/run_tests.py",
     "test": "npm run test:unit && npm run test:behavior && npm run package && npm run test:release && npm run test:extension",
     "check:release": "node scripts/check-release.mjs",
     "package": "npm run compile && npm run build:webview && node scripts/package-extension.mjs && node scripts/run-python.mjs scripts/verify-vsix.py",

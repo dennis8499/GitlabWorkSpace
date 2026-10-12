@@ -21,7 +21,7 @@ import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphN
 import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
-  BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
+  AutoHookState, BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
   CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, MeginWorkSummary, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
 import type { WorkflowKitPackage } from './toolPackages';
@@ -153,6 +153,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitSelectingRoot = false;
   private workflowKitImporting = false;
   private workflowKitSettingBusy = false;
+  private autoHookState: AutoHookState = { status: 'unavailable', supported: process.platform === 'win32', enabled: false };
+  private autoHookRefreshGeneration = 0;
+  private workflowKitHelperQueue?: Promise<void>;
   private workflowKitRefreshGeneration = 0;
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
   private workflowKitPackages: WorkflowKitPackage[] = [];
@@ -585,7 +588,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const request = value as WorkspaceRequest;
     const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin'].includes(request.type);
     const issueWrite = request.type === 'issueRequest' && ['create', 'update', 'invoke', 'upload'].includes(request.request?.type);
-    const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'publishMergeReviewReport', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
+    const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'publishMergeReviewReport', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit', 'manageAutoHook'].includes(request.type);
     if (write && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
     if (write) this.writesInFlight++;
     const task = () => this.dispatchMessage(value);
@@ -827,6 +830,8 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'selectSkillsRepository': await this.selectSkillsRepository(request.root); break;
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
       case 'refreshWorkflowKit': await this.refreshWorkflowKit(); break;
+      case 'refreshAutoHook': await this.refreshAutoHook(); break;
+      case 'manageAutoHook': await this.manageAutoHook(request.operation, request.contextRevision); break;
       case 'setWorkflowKitRequireGroup': await this.setWorkflowKitRequireGroup(request.enabled); break;
       case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
       case 'selectWorkflowKitInstallRoot': await this.selectWorkflowKitInstallRoot(); break;
@@ -2077,6 +2082,7 @@ export class WorkspacePanel implements vscode.Disposable {
       projectMembers: this.projectMembers,
       workflowKit: root && this.workflowKitStateRoot === root ? this.workflowKitState : { status: 'missing' },
       workflowKitInstallTarget: this.workflowKitInstallTarget,
+      autoHook: this.autoHookState?.root === this.getSkillsContext().root ? this.autoHookState : { status: 'unavailable', supported: process.platform === 'win32', enabled: false },
       workflowKitPolicy: this.getWorkflowKitPolicy(),
       workflowKitOperationBusy: this.workflowKitSelectingRoot || this.workflowKitImporting || !!this.workflowKitInstallation || this.workflowKitSettingBusy,
       workflowKitSource: this.workflowKitSource(),
@@ -3402,15 +3408,21 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000, beforeLaunch?: () => void | Promise<void>): Promise<Record<string, unknown>> {
-    const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-    const python = await resolvePythonRuntime(pythonPath);
-    await beforeLaunch?.();
-    const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
-      cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
-    });
-    const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
-    if (value.ok !== true) throw new Error(typeof value.error === 'string' ? value.error : 'Workflow kit operation was not confirmed.');
-    return value;
+    const previous = this.workflowKitHelperQueue;
+    let release!: () => void;
+    this.workflowKitHelperQueue = new Promise<void>(resolve => { release = resolve; });
+    try {
+      await previous;
+      const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+      const python = await resolvePythonRuntime(pythonPath);
+      await beforeLaunch?.();
+      const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
+        cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
+      });
+      const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
+      if (value.ok !== true) throw new Error(typeof value.error === 'string' ? value.error : 'Workflow kit operation was not confirmed.');
+      return value;
+    } finally { release(); }
   }
 
   private readWorkflowKitState(root: string): Promise<InstalledWorkflowKitState> {
@@ -3503,7 +3515,62 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitState = groupState;
     this.skillsWorkflowKitState = skillsState;
     this.workflowKitInstallTarget = { ...target, state: targetState };
+    await this.refreshAutoHook(false);
+    if (!current()) return;
     if (publish) this.sendSnapshot();
+  }
+
+  private async refreshAutoHook(publish = true): Promise<void> {
+    if (this.workflowKitSettingBusy || this.workflowKitInstallation) return;
+    const generation = ++this.autoHookRefreshGeneration;
+    const context = this.getSkillsContext();
+    const root = context.root;
+    const revision = context.revision;
+    if (!root) {
+      this.autoHookState = { status: 'unavailable', supported: process.platform === 'win32', enabled: false, root };
+      if (publish) this.sendSnapshot();
+      return;
+    }
+    this.autoHookState = { status: 'checking', supported: process.platform === 'win32', enabled: false, root };
+    if (publish) this.sendSnapshot();
+    let next: AutoHookState;
+    try {
+      const value = await this.runWorkflowKitHelper(['autohook', 'status', root], 60_000);
+      if (!['disabled', 'enabled', 'needs-revalidation', 'error'].includes(String(value.status)) || value.root !== root) throw new Error('AutoHook status response is invalid.');
+      next = { root, status: value.status as AutoHookState['status'], supported: value.supported === true, enabled: value.enabled === true,
+        bundledVersion: typeof value.bundledVersion === 'string' ? value.bundledVersion : undefined,
+        runtimeVersion: typeof value.runtimeVersion === 'string' ? value.runtimeVersion : undefined,
+        trustRequired: true, message: typeof value.message === 'string' ? value.message : undefined };
+    } catch (error) { next = { root, status: 'error', supported: process.platform === 'win32', enabled: false, message: readableError(error) }; }
+    if (generation !== this.autoHookRefreshGeneration || this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== root) return;
+    this.autoHookState = next;
+    if (publish) this.sendSnapshot();
+  }
+
+  private async manageAutoHook(operation: 'enable' | 'disable' | 'revalidate', revision: string): Promise<void> {
+    if (!['enable', 'disable', 'revalidate'].includes(operation) || typeof revision !== 'string') throw new Error('AutoHook 操作無效。');
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
+    const original = this.getSkillsContext();
+    if (!original.root || original.revision !== revision) throw new Error('Skills 工作位置已變更，請重新整理後再操作 AutoHook。');
+    if (operation !== 'disable' && process.platform !== 'win32') throw new Error('AutoHook 啟用需要 Windows PowerShell。');
+    const checkAccess = this.captureWorkflowKitAccess();
+    const environment = JSON.stringify(this.workspaceMatch);
+    this.workflowKitSettingBusy = true; this.autoHookRefreshGeneration++; this.sendSnapshot();
+    try {
+      await this.workflowKitStatusReads.get(localPathKey(original.root));
+      const codex = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '').trim();
+      const args = ['autohook', operation, original.root, ...(codex ? ['--codex', codex] : [])];
+      await this.runWorkflowKitHelper(args, 60_000, async () => {
+        checkAccess();
+        if (this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== original.root ||
+            JSON.stringify(await this.inspectEnvironment()) !== environment) throw new Error('Skills 工作位置或 Repo 已變更，已取消 AutoHook 操作。');
+        checkAccess();
+      });
+      this.post({ type: 'message', message: operation === 'disable' ? 'AutoHook 已停用。' : 'AutoHook 已設定。請重新開啟 Codex，並在 /hooks 確認信任。' });
+    } finally {
+      this.workflowKitSettingBusy = false;
+      await this.refreshWorkflowKit();
+    }
   }
 
   private async selectWorkflowKitInstallRoot(): Promise<void> {
@@ -3617,7 +3684,8 @@ export class WorkspacePanel implements vscode.Disposable {
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
         title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, () =>
         this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
-          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch));
+          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile,
+          ...(() => { const codex = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '').trim(); return codex ? ['--codex', codex] : []; })()], undefined, beforeLaunch));
       if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('The installer returned an unexpected package identity.');
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });
     } catch (error) {

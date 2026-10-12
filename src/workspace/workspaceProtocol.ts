@@ -115,6 +115,17 @@ export interface InstalledWorkflowKitState {
   legacyPaths?: string[];
 }
 
+export interface AutoHookState {
+  root?: string;
+  supported: boolean;
+  enabled: boolean;
+  status: 'unavailable' | 'disabled' | 'enabled' | 'needs-revalidation' | 'error' | 'checking';
+  bundledVersion?: string;
+  runtimeVersion?: string;
+  trustRequired?: boolean;
+  message?: string;
+}
+
 export interface WorkflowKitInstallTarget {
   profile?: 'group' | 'repository';
   root?: string;
@@ -200,6 +211,7 @@ export interface WorkspaceSnapshot {
   timerVersion?: number;
   scopeEpoch?: number;
   workflowKit: InstalledWorkflowKitState;
+  autoHook?: AutoHookState;
   workflowKitInstallTarget: WorkflowKitInstallTarget;
   workflowKitPolicy?: WorkflowKitPolicy;
   workflowKitOperationBusy?: boolean;
@@ -302,6 +314,8 @@ export type WorkspaceRequest =
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
+  | { type: 'refreshAutoHook' }
+  | { type: 'manageAutoHook'; operation: 'enable' | 'disable' | 'revalidate'; contextRevision: string }
   | { type: 'selectSkillsRepository'; root: string }
   | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
   | { type: 'setWorkflowKitRequireGroup'; enabled: boolean }

@@ -1,0 +1,201 @@
+{
+  "archive": "workflow-kit.tar.xz",
+  "archiveSha256": "8e94527520fb8efb62e8e1161236c079f83ec25b0057bf837751a2b7dd406145",
+  "format": "tar.xz",
+  "overlays": {
+    "codebase-wiki": {
+      "added": {
+        ".agents/skills/codebase-wiki/references/group-development-workflow.md": "c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa"
+      },
+      "replaced": {
+        ".agents/skills/codebase-wiki/SKILL.md": {
+          "overlay_sha256": "eb44f9439416c0ef7f9e2e7e5ef486f937d6f5dfffcbc41bcb2633729e86c275",
+          "upstream_sha256": "56c3b7c69cab3d16522190fe9c680617abce94d384548b55e2e3b2932b029ba6"
+        },
+        ".agents/skills/codebase-wiki/assets/development-spec-template.md": {
+          "overlay_sha256": "2c8d56a091f389749fe6040a566d3438b296cdfee126b8d093764641f7294f98",
+          "upstream_sha256": "0a1de5be1ec5d5818bbdd420add45b5d2f1fc0b04cf9be58d24bba97a0770df5"
+        },
+        ".agents/skills/codebase-wiki/references/development-spec-workflow.md": {
+          "overlay_sha256": "4ceb35f77da9b97a4f77eb59ed600e0febddbbe658562595e25221875871266d",
+          "upstream_sha256": "f72371bc60eb5f5259726c91b85d85fbe3c242d8daf8050d6f1fc3e43575a965"
+        },
+        ".agents/skills/codebase-wiki/scripts/validate-development-spec.py": {
+          "overlay_sha256": "da441eb51e35a68f08ed74ca94e63c6d961cd217a99126d6c766bf7a4d294dad",
+          "upstream_sha256": "d63fc316d9028378751f76a19b4e29c8e1497e31b6771e29fb9e217cfc287994"
+        }
+      }
+    },
+    "megin": {
+      "added": {
+        ".agents/skills/megin/references/cross-flow-delivery.md": "a0b342fe0d156c2583c96b19f8caffde1a4941690e88ebdad9ba7e5e79268bad",
+        ".agents/skills/megin/references/cross-repo-evidence.md": "03b10cde95ddf690691f39426aa713106d437c530031cc724fd84c45ef11dbc4",
+        ".agents/skills/megin/references/gitlab-delivery.md": "95d7e0a1bf063cea3be829b3eb38b4da1d5d6f365fcabca3310b30ab4532aed1",
+        ".agents/skills/megin/references/group-workspace.md": "a1a8d173e113d7af7fe8a490dc390e95cebf4e38aac81446ae8972e80ba88163",
+        ".agents/skills/megin/scripts/gitlab_delivery.py": "556308cee1c919ad86d4d8a083e14cb2e1ea40563c8e2fa60b763a616096fe6e",
+        ".agents/skills/megin/scripts/group_quality_gate.py": "2feddc4b5ffb83d0d40224aedc33481844755191d8c2a9efd12c20c37cd908c5",
+        ".agents/skills/megin/scripts/group_workspace.py": "bef7fdfba95cc6d6af638cbb3de0d644249571fa51bcdd312957b3112456370f",
+        ".agents/skills/megin/scripts/simulation_policy.py": "110da648ce3c0cdc696fe59f5a8bd4abf7acee3b204ff1ee904c1967456a1b44",
+        ".agents/skills/megin/scripts/workspace_extension.py": "a12570a3b637a3ee62c759783da7aefbaabcbfa6fe9a50451bc5a80119b4a76b"
+      },
+      "replaced": {
+        ".agents/skills/megin-behavior-contract/SKILL.md": {
+          "overlay_sha256": "3945f9f230cdcada32b82f4b41fad9f1df513fac5cca2a36d95ce530d58724cd",
+          "upstream_sha256": "ab1fdcf76cd8aa06f2c8eaeda1f5ae4f75779430cab45c8f7f62f76d16c840bf"
+        },
+        ".agents/skills/megin-bug-diagnosis/SKILL.md": {
+          "overlay_sha256": "9a5a136654ad13b1f18b788f3c5f2cd77d6edb0c54a149b8b3112bf0cecce26a",
+          "upstream_sha256": "1cfb5386e5b0a8e01d2a645b3f365e279908cfc053f850e553cf758e991b85ac"
+        },
+        ".agents/skills/megin-code-review/SKILL.md": {
+          "overlay_sha256": "01f42c3975ceab232f92bf552aee77e128e5bbac26df9af3846e719ea63b521f",
+          "upstream_sha256": "ed62be6d81dedaa91ffc7ebe15ecbdcdbec40ac22cc19291af20dffd20823883"
+        },
+        ".agents/skills/megin-finishing-delivery/SKILL.md": {
+          "overlay_sha256": "92e39c1e825bc6a25aa8de381731bf4ef80c05d5e4bdd5853bd1c26a7095d9d5",
+          "upstream_sha256": "46efddf0b131cdf58acbc3890d44a328303cb6ba0fdb54d24a63d01560cd14b6"
+        },
+        ".agents/skills/megin-human-acceptance/SKILL.md": {
+          "overlay_sha256": "78d2b425c55fbdf29d60ef8d02c478bd14321b275c2aecaa6e207310032cafbc",
+          "upstream_sha256": "49cb3a7f95e33e5abf33d6ac651c641b143943a75572a59ef36a174eae173dcb"
+        },
+        ".agents/skills/megin-implementation-execution/SKILL.md": {
+          "overlay_sha256": "0dbe03ad44af82d33218c76b9d10a2aad38301a26ea6e0d1b5698746b58644d6",
+          "upstream_sha256": "c0079b9211cb17af3ef4c5aea9f778ad321e37f868c989dc74586739c3bde55a"
+        },
+        ".agents/skills/megin-project-knowledge/SKILL.md": {
+          "overlay_sha256": "7918385972dde8182b4a6c6b0e17702026ebe694aa47a58f0d3385ed10f7c7dd",
+          "upstream_sha256": "886a41740a1945f114284b0e5e468a125e4b2663ad3cd26bd7856d4bb7af31c1"
+        },
+        ".agents/skills/megin-requirements-discovery/SKILL.md": {
+          "overlay_sha256": "a8354017a6170b47c956b4c8cdf6ba7327833a39e7556f09f7b25000207e18a1",
+          "upstream_sha256": "f2e1d71753dac0b4dcced0d4ee6895d4df38c5e25265b2bea8ae3db5d011eec5"
+        },
+        ".agents/skills/megin-technical-planning/SKILL.md": {
+          "overlay_sha256": "4cf9f637c0d629eeeb73379abe7b2e3a760f7f2db06255db30ef8a1454785f55",
+          "upstream_sha256": "8ace2dc373f77040d0d81042db0b4dd4260aaa8bf374506fb57f6256ffc553e5"
+        },
+        ".agents/skills/megin-test-driven-development/SKILL.md": {
+          "overlay_sha256": "64b4b8c8a3698dc50faa7b5f3474be227fa22c419571d813cb5f65a571ad9fb3",
+          "upstream_sha256": "6432b0f16e71b3ba9e8727068a93102b3fad3c24c348dc87b3bf2ad1ba8080fe"
+        },
+        ".agents/skills/megin-verification-before-completion/SKILL.md": {
+          "overlay_sha256": "c834a99c3d291a020eff000b349e6c9b746466a562564e961b345797d03c85b8",
+          "upstream_sha256": "385392e54268277b3ab5eb1fd4353056c460b49d8a29a9e0bb9cecd957017e36"
+        },
+        ".agents/skills/megin/SKILL.md": {
+          "overlay_sha256": "34c523bbe0b2af5bc86fa5253c19f4db01109a6188f6ce1c68074b928da65e89",
+          "upstream_sha256": "ab12031e44041e8c0d46f226ecd0afaa68b87d2104143b7ae69bd80ada028812"
+        },
+        ".agents/skills/megin/references/branch-policy.md": {
+          "overlay_sha256": "68f79b691f41a4a3db54b7d1b844fc97596121bebcc1d3241e463c858482a61c",
+          "upstream_sha256": "9d5f0904b6c32b7131ee2f75d558b9ff78852367a0fcaeec87924eea7ae708b8"
+        },
+        ".agents/skills/megin/references/language-policy.md": {
+          "overlay_sha256": "523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a",
+          "upstream_sha256": "523fb9453989cd804813c891322f199f2beb07c5ceedc8d3bcf9f7b319fdad5a"
+        },
+        ".agents/skills/megin/references/quality-gates.md": {
+          "overlay_sha256": "9699b54b3ac71f670527b4ce48a41cb19ad29262297ceed76ca35839da89c11a",
+          "upstream_sha256": "5c45ae4e12444d46c1ff99c12afe7deefab57cb107b50cd1e4fcd93a49928b40"
+        },
+        ".agents/skills/megin/references/requirements-discovery-protocol.md": {
+          "overlay_sha256": "6bb694f70a9e834d6966233304dfdd07de0521207d102feef170c92b0db84df6",
+          "upstream_sha256": "22105bc37630b699f0f4c10a06b7d3e9fd8fb3739fc92f269e263d0124ec5dd4"
+        },
+        ".agents/skills/megin/references/requirements-template.md": {
+          "overlay_sha256": "9cb21e1ea2f1776ee3bd3d0d677e51838c9279d8db93d2c781d61e2d0ca21061",
+          "upstream_sha256": "4eb84aed20fc8053ac04102cc6ba0bcb875147b4cb9b282da5cea3f7c0e4e36b"
+        },
+        ".agents/skills/megin/references/workflow-record.md": {
+          "overlay_sha256": "dd58e205f3ba2c6b71a6aedba949e0b400218f026a1b9151f0747500acc8cebd",
+          "upstream_sha256": "7a7974edc29e4133332ba416560587ae0a2970f4c969bc1680467da4b3686f91"
+        },
+        ".agents/skills/megin/scripts/behavior_trace.py": {
+          "overlay_sha256": "94529af3133c21a2f311138fbc64570e2553ce738af1618d957c393542df41ff",
+          "upstream_sha256": "d802a8804e36af404c3ddaa6c998ff5e434e2d55f4263518815aed78e32e131d"
+        },
+        ".agents/skills/megin/scripts/delivery_receipt.py": {
+          "overlay_sha256": "39f90d3cae5b3978474ae8e63361a3cee4b4654541dce2c8bbc33f5b41e9ba67",
+          "upstream_sha256": "1b9d35339250d32624c79c55f02fde17067bb6dab0e8bf5c1be24d1412565547"
+        },
+        ".agents/skills/megin/scripts/verification_inputs.py": {
+          "overlay_sha256": "5a90b2143b017e748543f9db31a012d10a636cc4ddff373ab9c6ba6b4db8df1c",
+          "upstream_sha256": "f014d2b9f56d1b6bbddcfe570dc4b72f1469252ba77ebfc98630fe4c139900dd"
+        }
+      }
+    },
+    "merge-reviewer": {
+      "added": {
+        ".agents/skills/merge-reviewer/references/group-review.md": "9e6366f97c819741b6c025774b1daf753ed3fec8cafedbaa6f9bad97da8005f6",
+        ".agents/skills/merge-reviewer/references/mr-contract.md": "77159dcff95e551b71f2d4b58299a0ac50f34458daabe3681ed28679ca487027",
+        ".agents/skills/merge-reviewer/references/native-review.md": "037e1026042771b534bbd6717343a740cdb8cad0c0f0b515a45055338f7c2d11",
+        ".agents/skills/merge-reviewer/scripts/group_delivery_binding.py": "943e49cc5d3eeaa9d3a472dfe661d623b0a38471b4c05c145f436dd2e1e248e3",
+        ".agents/skills/merge-reviewer/scripts/group_review.py": "11ace52161f37259b273eb5abcacbbd298aad20155b4ce185cc78f1a25b53903",
+        ".agents/skills/merge-reviewer/scripts/mr_contract.py": "8c98864935d1fd4c8946207a0dac8d5b1d6ebf7cf3ff96d4b451b862fa4bd965",
+        ".agents/skills/merge-reviewer/scripts/workspace_extension.py": "2add557a423f03fad42217b2728dcd0cc2261e38aa19db6640fb3275ff9af712"
+      },
+      "replaced": {
+        ".agents/skills/merge-reviewer/SKILL.md": {
+          "overlay_sha256": "4fe05f4bd9002c59c7eff5c1d37e1198a2ab8f49d27212a1601d7d831a7e5d11",
+          "upstream_sha256": "7e00a6caf17b6be5e639fa741a36c534206df4419e41f3ae70e9012eb056d652"
+        }
+      }
+    }
+  },
+  "package": "gitlab-workspace-kit",
+  "payloadFiles": 183,
+  "payloadSha256": "b69edd4d6808c407a836a282661a637c42155535c6ff37c66d03a60500d94815",
+  "profiles": [
+    "group",
+    "repository"
+  ],
+  "releaseZip": "gitlab-workspace-kit-0.18.0.zip",
+  "releaseZipSha256": "e59b32f3db1feba3a57cf1feea536ae8d18d9f8f27438a4e746c683946b94850",
+  "schema": "gitlab-workspace-kit-bundle/v1",
+  "skills": [
+    "codebase-wiki",
+    "megin",
+    "megin-behavior-contract",
+    "megin-bug-diagnosis",
+    "megin-code-review",
+    "megin-finishing-delivery",
+    "megin-human-acceptance",
+    "megin-implementation-execution",
+    "megin-project-knowledge",
+    "megin-requirements-discovery",
+    "megin-technical-planning",
+    "megin-test-driven-development",
+    "megin-verification-before-completion",
+    "merge-reviewer",
+    "release-reviewer"
+  ],
+  "upstream": {
+    "codebase-wiki": {
+      "asset": "codebase-llm-wiki-codex.zip",
+      "repository": "code-base-llm-wiki",
+      "sha256": "cf13488ad93459438e43051ce8a3bd1a4bf0c2f1c1e47152a0d83bc7f95b05e1",
+      "version": "0.5.0"
+    },
+    "megin": {
+      "asset": "megin-skills.zip",
+      "repository": "Megin",
+      "sha256": "7cbe18d8403500ddf64f27105d615985f47fbae3359cf6b485bfff1ccd7d910f",
+      "version": "0.6.0"
+    },
+    "merge-reviewer": {
+      "asset": "merge-reviewer-0.9.0.zip",
+      "repository": "MergeReviewer",
+      "sha256": "d91becfaf01c8d6aaf00fcd087e8bf4406fb691ec90ddc8073c82c4d10fbfe0b",
+      "version": "0.9.0"
+    },
+    "release-reviewer": {
+      "asset": "release-reviewer-0.1.0.zip",
+      "repository": "ReleaseReviewer",
+      "sha256": "7f7b3486e46f190eb5e4b92f0c35b25f10e40fd6ece0a6f3764d48783431a646",
+      "version": "0.1.0"
+    }
+  },
+  "version": "0.18.0",
+  "workspaceContract": 2
+}

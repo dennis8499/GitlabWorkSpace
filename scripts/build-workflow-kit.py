@@ -27,6 +27,11 @@ MAX_EXPANDED_BYTES = 400 * 1024 * 1024
 
 PINNED_SOURCES = (
     {
+        "id": "autohook", "repository": "AutoHook", "asset": "autohook-1.0.1.zip",
+        "filename": "autohook-1.0.1.zip", "version": "1.0.1",
+        "sha256": "65e3596875b9b14ee15defc4929d69020ae726333556d3249cb14ed872fbe177",
+    },
+    {
         "id": "codebase-wiki",
         "repository": "code-base-llm-wiki",
         "asset": "codebase-llm-wiki-codex.zip",
@@ -187,6 +192,10 @@ def sync_installer_metadata(manifest: dict) -> None:
         "TRUSTED_PREDECESSORS": trusted,
         "PROFILE_MANIFESTS": manifest["profiles"],
         "WIKI_INSTALLED_VERSION_SHA256": manifest["wikiInstalledVersionSha256"],
+        "AUTOHOOK_FILES": {p: h for p, h in manifest["files"].items() if p.startswith(".agents/gitlab-workspace-kit/autohook/")},
+        "AUTOHOOK_LEGACY": json.loads((PROFILE / "autohook-legacy.json").read_text(encoding="utf-8")),
+        "WIKI_CONFIG_FILES": {name: content.decode("utf-8").replace('mode = "framework"', 'mode = "coexist"').replace('mode = "target"', 'mode = "coexist"')
+                              for name, content in _wiki_config_files().items()},
     }
     installer = ROOT / "resources/workflow-kit-installer.py"
     source = installer.read_text(encoding="utf-8")
@@ -240,6 +249,12 @@ def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
     return {"added": added, "replaced": replaced}
 
 
+def _wiki_config_files() -> dict[str, bytes]:
+    source = next(item for item in PINNED_SOURCES if item["id"] == "codebase-wiki")
+    selected, _ = checked_zip(SOURCES / source["filename"], source["sha256"])
+    return {name: selected[name] for name in (".codex/config.toml", ".codex/hooks.json")}
+
+
 def build() -> dict[str, object]:
     files: dict[str, bytes] = {}
     upstream: dict[str, dict[str, str]] = {}
@@ -253,7 +268,12 @@ def build() -> dict[str, object]:
             "version": source["version"],
             "sha256": source["sha256"],
         }
-        if source["id"] == "codebase-wiki":
+        if source["id"] == "autohook":
+            if set(selected) != {"autohook/" + name for name in ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json", "README.md")}:
+                raise ValueError("AutoHook source archive has an unexpected file set.")
+            for name, data in selected.items():
+                files[f"payload/.agents/gitlab-workspace-kit/{name}"] = data
+        elif source["id"] == "codebase-wiki":
             skill_prefix = ".agents/skills/codebase-wiki/"
             skill_files = {name[len(skill_prefix):]: data for name, data in selected.items() if name.startswith(skill_prefix)}
             if not skill_files or "SKILL.md" not in skill_files or "scripts/install-framework.py" not in skill_files:
@@ -322,6 +342,7 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "overlays": overlays,
         "sourceSummary": [
+            "AutoHook 1.0.1 is an optional Windows project-scoped approval tool; disabled by default and managed separately from the fifteen Skills.",
             "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
             "Native MergeReviewer 0.9.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",

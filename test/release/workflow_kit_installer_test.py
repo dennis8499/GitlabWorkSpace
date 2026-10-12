@@ -35,6 +35,8 @@ class WorkflowKitInstallerTests(unittest.TestCase):
 
     def execute(self, *args: object, env: dict[str, str] | None = None) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
         command = [sys.executable, "-X", "utf8", "-B", str(INSTALLER), *map(str, args)]
+        if INSTALLER.parent.parent.name == "fixtures":
+            command.insert(4, str(Path(__file__).with_name("frozen_installer_runner.py")))
         result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=env, check=False)
         output = result.stdout.strip() or result.stderr.strip()
         try:
@@ -44,8 +46,8 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         return result, data
 
     def install(self, group: Path, *, env: dict[str, str] | None = None, archive: Path = ARCHIVE,
-                archive_format: str = "tar.xz", version: str = VERSION) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
-        args: list[object] = ["install", archive, group, version, "bundled", "--format", archive_format,
+                archive_format: str = "tar.xz", version: str = VERSION, source: str = "bundled") -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+        args: list[object] = ["install", archive, group, version, source, "--format", archive_format,
                               "--entry-root", "workflow-kit", "--archive-sha256", hashlib.sha256(archive.read_bytes()).hexdigest()]
         return self.execute(*args, env=env)
 
@@ -211,7 +213,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"codebase-wiki": "0.5.0", "megin": "0.6.0", "merge-reviewer": "0.9.0", "release-reviewer": "0.1.0"},
+        self.assertEqual({"autohook": "1.0.1", "codebase-wiki": "0.5.0", "megin": "0.6.0", "merge-reviewer": "0.9.0", "release-reviewer": "0.1.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
         self.assertEqual({"codebase-wiki", "megin", "merge-reviewer"}, set(manifest["overlays"]))
@@ -277,7 +279,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             marker_before = (group / MARKER).read_bytes()
             env = os.environ.copy()
             env.update({"GITLAB_WORKSPACE_KIT_TESTING": "1", "GITLAB_WORKSPACE_KIT_TEST_FAIL_AFTER": "last"})
-            failed, _ = self.install(group, env=env)
+            failed, _ = self.install(group, env=env, source="github")
             self.assertNotEqual(0, failed.returncode)
             self.assertEqual(before, self.snapshot(group))
             self.assertEqual(marker_before, (group / MARKER).read_bytes())

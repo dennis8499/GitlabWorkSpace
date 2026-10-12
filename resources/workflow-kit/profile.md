@@ -2,6 +2,8 @@
 
 This Group installs Codebase LLM Wiki, Megin, MergeReviewer, and ReleaseReviewer together through GitLab Workspace. Keep their upstream Skills intact and use this profile as the Group-level adapter.
 
+AutoHook 1.0.1 is bundled under `.agents/gitlab-workspace-kit/autohook/` as an optional tool, disabled by default. Manage it in Workspace settings at this Skills root, without modifying child repositories. Enabled runtime files live in `.codex/autohook/`; updates validate and update them atomically with the kit, preserving the latest Wiki baseline, other hooks/settings, and decision logs. Windows, Windows PowerShell and a compatible native Codex executable are required to enable it. Reopen Codex and confirm trust in `/hooks` after setup; Workspace does not verify Codex trust.
+
 ## Group and repositories
 
 - Start the Codex CLI at the selected, non-Git Group root. A Group contains direct-child Git repositories; each selected repository remains an independent Git repository.

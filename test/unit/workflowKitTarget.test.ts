@@ -61,7 +61,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     workspaceMatch: { status: 'checking', repositories: [] }, projects: connected ? [project(1, 'service'), project(2, 'docs')] : [],
     workspaceSections: { projects: { status: connected ? 'ready' : 'idle' } },
     loadedScopeKey: connected ? 'https://gitlab.test|1|1' : undefined,
-    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' },
+    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' }, autoHookRefreshGeneration: 0,
     workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
     workflowKitSelectingRoot: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
     currentUser: connected ? { id: 1 } : undefined,
@@ -72,6 +72,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     sendSnapshot: () => undefined, post: () => undefined,
     runWorkflowKitHelper: async (args: string[], _timeout?: number, beforeLaunch?: () => Promise<void>) => {
       await beforeLaunch?.(); calls.push(args);
+      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.0.1' };
       if (args[0] === 'install') {
         const profile = args[args.indexOf('--profile') + 1] as 'group' | 'repository';
         installed.set(args[2], profile);
@@ -400,4 +401,93 @@ test('configuration retains its scope and drift during Python resolution prevent
   vscode.workspace.workspaceFolders = []; await host.setWorkflowKitRequireGroup(true); assert.equal(updates.at(-1).target, 1);
   const check = host.captureWorkflowKitAccess(); resolvingPython = () => { preferGroup = false; };
   await assert.rejects(WorkspacePanel!.prototype['runWorkflowKitHelper'].call({ ...host, workflowKitHelper: () => 'unused.py' }, ['inspect'], 1000, check), /已變更/);
+});
+
+test('AutoHook follows the Skills root independently of the installation target', async t => {
+  const [group, repo] = await directories(t);
+  const { host, installed, calls } = fixture([group], true); installed.set(group, 'group');
+  await host.refreshWorkflowKit();
+  vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectWorkflowKitInstallRoot();
+  assert.equal(host.autoHookState.root, group); assert.equal(host.workflowKitInstallTarget.root, repo);
+  await host.manageAutoHook('disable', host.getSkillsContext().revision);
+  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'disable'), ['autohook', 'disable', group]);
+  await assert.rejects(host.manageAutoHook('enable', 'expired'), /已變更/);
+});
+
+test('AutoHook rejects duplicate clicks and selection changes while an operation runs', async t => {
+  const [, repo, other] = await directories(t);
+  const { host, installed, calls } = fixture([repo, other]); installed.set(repo, 'repository');
+  await host.selectSkillsRepository(repo);
+  const helper = host.runWorkflowKitHelper;
+  let finish!: (value: unknown) => void, start!: () => void;
+  const started = new Promise<void>(resolve => { start = resolve; });
+  host.runWorkflowKitHelper = async (args: string[], timeout?: number, before?: () => Promise<void>) => {
+    if (args[0] !== 'autohook' || args[1] === 'status') return helper(args, timeout, before);
+    await before?.(); calls.push(args); start(); return new Promise(resolve => { finish = resolve; });
+  };
+  const operation = host.manageAutoHook('disable', host.getSkillsContext().revision); await started;
+  assert.equal(host.workflowKitSettingBusy, true);
+  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /等候/);
+  await assert.rejects(host.selectSkillsRepository(other), /等候/);
+  await assert.rejects(host.installWorkflowKit('bundled'), /正在進行/);
+  finish({ ok: true, enabled: false }); await operation;
+  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] === 'disable').length, 1);
+  assert.equal(host.workflowKitSettingBusy, false);
+});
+
+test('AutoHook checks Repo identity again immediately before launching Python', async t => {
+  const [, repo] = await directories(t);
+  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
+  const helper = host.runWorkflowKitHelper;
+  host.runWorkflowKitHelper = async (args: string[], timeout?: number, before?: () => Promise<void>) => {
+    if (args[0] !== 'autohook' || args[1] === 'status') return helper(args, timeout, before);
+    execFileSync('git', ['-C', repo, 'remote', 'set-url', 'origin', 'https://changed.test/team/service.git']);
+    await before?.(); throw new Error('must not launch');
+  };
+  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /Repo 已變更/);
+  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] !== 'status').length, 0);
+});
+
+test('late AutoHook status cannot replace a new Skills root or a newer refresh', async t => {
+  const [, repo, other] = await directories(t);
+  const { host, installed } = fixture([repo, other]); installed.set(repo, 'repository'); installed.set(other, 'repository');
+  await host.selectSkillsRepository(repo);
+  const helper = host.runWorkflowKitHelper;
+  let finish!: (value: unknown) => void;
+  host.runWorkflowKitHelper = (args: string[], ...rest: unknown[]) => args[0] === 'autohook' && args[2] === repo
+    ? new Promise(resolve => { finish = resolve; }) : helper(args, ...rest);
+  const old = host.refreshAutoHook();
+  await host.selectSkillsRepository(other);
+  finish({ ok: true, root: repo, status: 'enabled', enabled: true, supported: true }); await old;
+  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.enabled, false);
+  // Same-root responses can be stale too.
+  host.runWorkflowKitHelper = () => new Promise(resolve => { finish = resolve; });
+  const pending = host.refreshAutoHook(); host.runWorkflowKitHelper = helper; await host.refreshAutoHook();
+  finish({ ok: true, root: other, status: 'enabled', enabled: true, supported: true }); await pending;
+  assert.equal(host.autoHookState.enabled, false);
+});
+
+test('filesystem helpers are serialized and queued requests recheck before launch', async t => {
+  const [, repo] = await directories(t); const { host } = fixture([repo]);
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const order: string[] = [];
+  const run = WorkspacePanel!.prototype['runWorkflowKitHelper'].bind(host);
+  const first = run(['status'], 1000, async () => { order.push('first'); await waiting; throw new Error('first guard'); });
+  const second = run(['autohook'], 1000, () => { order.push('second'); throw new Error('second guard'); });
+  const completed = Promise.all([assert.rejects(first, /first guard/), assert.rejects(second, /second guard/)]);
+  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(order, ['first']);
+  release(); await completed; assert.deepEqual(order, ['first', 'second']);
+});
+
+test('AutoHook blocks enable on non-Windows and confirms trust instructions on Windows', async t => {
+  const [, repo] = await directories(t); const { host, installed } = fixture([repo]); installed.set(repo, 'repository');
+  await host.refreshWorkflowKit(); const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  t.after(() => Object.defineProperty(process, 'platform', platform));
+  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+  await assert.rejects(host.manageAutoHook('enable', host.getSkillsContext().revision), /Windows/);
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+  const messages: any[] = []; host.post = (message: unknown) => messages.push(message);
+  await host.manageAutoHook('enable', host.getSkillsContext().revision);
+  assert.match(messages.at(-1).message, /重新開啟 Codex.*\/hooks.*信任/);
 });

@@ -105,7 +105,7 @@ class ProfileTests(unittest.TestCase):
     def test_true_016_legacy_record_without_profile_upgrades_to_native_and_rolls_back(self):
         fixture = ROOT / "test/fixtures/workflow-kit-0.16.0"
         archive = fixture / "workflow-kit.tar.xz"
-        result = subprocess.run([sys.executable, "-X", "utf8", "-B", str(fixture / "installer.py"),
+        result = subprocess.run([sys.executable, "-X", "utf8", "-B", str(Path(__file__).with_name("frozen_installer_runner.py")), str(fixture / "installer.py"),
             "install", str(archive), str(self.repo), "0.16.0", "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
             "--archive-sha256", hashlib.sha256(archive.read_bytes()).hexdigest()], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
@@ -129,7 +129,7 @@ class ProfileTests(unittest.TestCase):
                 target.mkdir()
                 run = subprocess.run(['git', '-C', str(target), 'init', '-q', '-b', 'main'], capture_output=True)
                 self.assertEqual(0, run.returncode)
-                run = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(fixture / 'installer.py'),
+                run = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(Path(__file__).with_name('frozen_installer_runner.py')), str(fixture / 'installer.py'),
                     'install', str(archive), str(target), '0.17.0', 'bundled', '--format', 'tar.xz',
                     '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(),
                     '--profile', profile], capture_output=True, text=True, encoding='utf-8')
