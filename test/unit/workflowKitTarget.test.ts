@@ -72,7 +72,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     sendSnapshot: () => undefined, post: () => undefined,
     runWorkflowKitHelper: async (args: string[], _timeout?: number, beforeLaunch?: () => Promise<void>) => {
       await beforeLaunch?.(); calls.push(args);
-      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.0.1' };
+      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.1.0' };
       if (args[0] === 'install') {
         const profile = args[args.indexOf('--profile') + 1] as 'group' | 'repository';
         installed.set(args[2], profile);
@@ -465,6 +465,45 @@ test('late AutoHook status cannot replace a new Skills root or a newer refresh',
   const pending = host.refreshAutoHook(); host.runWorkflowKitHelper = helper; await host.refreshAutoHook();
   finish({ ok: true, root: other, status: 'enabled', enabled: true, supported: true }); await pending;
   assert.equal(host.autoHookState.enabled, false);
+});
+
+test('AutoHook status errors retain emergency disable state but do not carry it to another root', async t => {
+  const [, repo, other] = await directories(t);
+  const { host } = fixture([repo, other]); await host.selectSkillsRepository(repo);
+  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true };
+  let reject!: (error: Error) => void;
+  const helper = host.runWorkflowKitHelper;
+  host.runWorkflowKitHelper = () => new Promise((_resolve, failure) => { reject = failure; });
+  const pending = host.refreshAutoHook();
+  assert.equal(host.autoHookState.status, 'checking'); assert.equal(host.autoHookState.enabled, true);
+  reject(new Error('status unavailable')); await pending;
+  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.stateKnown, false);
+  assert.equal(host.autoHookState.status, 'error'); assert.match(host.autoHookState.message, /status unavailable/);
+  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => {
+    if (args[0] === 'autohook') throw new Error('new root unavailable');
+    return helper(args, ...rest);
+  };
+  await host.selectSkillsRepository(other);
+  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.enabled, false);
+  assert.equal(host.autoHookState.stateKnown, false);
+});
+
+test('AutoHook re-reads actual state after a failed operation and rejects malformed status', async t => {
+  const [, repo] = await directories(t); const { host } = fixture([repo]); await host.refreshWorkflowKit();
+  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true };
+  const helper = host.runWorkflowKitHelper; let statuses = 0;
+  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => {
+    if (args[0] !== 'autohook') return helper(args, ...rest);
+    if (args[1] !== 'status') throw new Error('disable failed');
+    statuses++; return { root: repo, status: 'needs-revalidation', enabled: true, supported: true };
+  };
+  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /disable failed/);
+  assert.equal(statuses, 1); assert.equal(host.workflowKitSettingBusy, false);
+  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.status, 'needs-revalidation');
+  host.runWorkflowKitHelper = async () => ({ root: repo, status: 'disabled' });
+  await host.refreshAutoHook();
+  assert.equal(host.autoHookState.status, 'error'); assert.equal(host.autoHookState.stateKnown, false);
+  assert.equal(host.autoHookState.enabled, true);
 });
 
 test('filesystem helpers are serialized and queued requests recheck before launch', async t => {

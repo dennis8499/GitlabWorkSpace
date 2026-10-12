@@ -89,15 +89,19 @@ Skill 解析並固定版本，遠端版本取得失敗就停止。它保留本�
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 
-切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 整包可升級至 0.19.0，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
+切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 整包可升級至 0.19.1，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
 
 ### AutoHook
 
-兩種 profile 都附帶 AutoHook 1.0.1，預設關閉。從 **設定 → 工作區與 Skills → AutoHook** 查看 Skills 路徑、隨包／執行版本與狀態，並使用 **啟用 AutoHook**、**停用**、**重新驗證** 或 **刷新狀態**。操作跟隨目前 Skills 的 Group 根目錄或單一 Repo，不跟隨另外指定的安裝位置，也不修改子 Repo。
+兩種 profile 都附帶 AutoHook 1.1.0，預設關閉。從 **設定 → 工作區與 Skills → AutoHook** 查看 Skills 路徑、隨包／執行版本、官方政策版本與狀態。勾選 **啟用 AutoHook** 會安裝啟用，取消勾選會停用，另保留 **重新驗證** 與 **刷新狀態**。操作跟隨目前 Skills 的 Group 根目錄或單一 Repo，不跟隨另外指定的安裝位置，也不修改子 Repo。
+
+勾選狀態來自專案安裝，不另存 VS Code 布林設定；操作中禁止重複切換，結束後重新查詢。查詢失敗會顯示錯誤；上次已啟用者仍可取消勾選停用。需要重新驗證時維持勾選，不能視為已完成 Codex 信任。固定規則涵蓋部分讀取／Git 查閱；勾選同時預授權指定專案測試／建置與檔案新增／更新，未審查專案程式的全部副作用，其餘保留人工核准。
 
 啟用需要 Windows、Windows PowerShell 與原生 Codex CLI。Python 沿用 `gitlabWorkspace.pythonPath`；Codex 預設從 PATH 尋找，也可在 VS Code 設定 `gitlabWorkspace.autoHook.codexPath`。其他平台仍可安裝 Skills。
 
 啟用後會保留 Wiki 底稿、其他設定與 Hooks；更新已啟用的整包會同步更新 AutoHook 並重新驗證，驗證失敗會停止整包更新。停用會恢復最新 Wiki 底稿，決策紀錄保留。未知安裝或本機修改會阻擋覆寫。設定完成後請重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證 Codex 信任狀態。
+
+互動驗收需在 CLI 與 VS Code Codex Chat 各開啟相同 Skills 根目錄的新工作階段，完成專案與 Hook 信任後，以 `sandbox_permissions = "require_escalated"` 要求單獨執行 PowerShell `Get-Location`，預期自動允許且 `.codex/autohook/decisions.jsonl` 記錄 `allow`／`read.location`。再要求同樣需核准的 `Write-Output 'AutoHook-manual-check'`，預期保留人工核准，取消即可。取消勾選並重開後，第一個命令也應回到原核准流程。未出現核准請求的普通命令不能驗證 Hook；自動化測試與工作台設定狀態均不能代替兩個客戶端的互動驗收。
 
 ## 專案與 Git 操作
 

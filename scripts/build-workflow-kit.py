@@ -27,9 +27,9 @@ MAX_EXPANDED_BYTES = 400 * 1024 * 1024
 
 PINNED_SOURCES = (
     {
-        "id": "autohook", "repository": "AutoHook", "asset": "autohook-1.0.1.zip",
-        "filename": "autohook-1.0.1.zip", "version": "1.0.1",
-        "sha256": "65e3596875b9b14ee15defc4929d69020ae726333556d3249cb14ed872fbe177",
+        "id": "autohook", "repository": "AutoHook", "asset": "autohook-1.1.0.zip",
+        "filename": "autohook-1.1.0.zip", "version": "1.1.0",
+        "sha256": "4e2cb7d3328330158bae47793b3883eb84c36d35215c21c0da3bb14ace0b857d",
     },
     {
         "id": "codebase-wiki",
@@ -269,7 +269,7 @@ def build() -> dict[str, object]:
             "sha256": source["sha256"],
         }
         if source["id"] == "autohook":
-            if set(selected) != {"autohook/" + name for name in ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json", "README.md")}:
+            if set(selected) != {"autohook/" + name for name in ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json", "README.md", "policy-source.json", "guardian-policy.md", "guardian-policy-template.md", "UPSTREAM-LICENSE", "UPSTREAM-NOTICE")}:
                 raise ValueError("AutoHook source archive has an unexpected file set.")
             for name, data in selected.items():
                 files[f"payload/.agents/gitlab-workspace-kit/{name}"] = data
@@ -342,7 +342,7 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "overlays": overlays,
         "sourceSummary": [
-            "AutoHook 1.0.1 is an optional Windows project-scoped approval tool; disabled by default and managed separately from the fifteen Skills.",
+            "AutoHook 1.1.0 is an optional Windows project-scoped approval tool with a pinned public policy snapshot and partial fixed-rule mapping; disabled by default and controlled by the Skills-root checkbox, separately from the fifteen Skills.",
             "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
             "Native MergeReviewer 0.9.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",

@@ -1104,41 +1104,88 @@ test('installation and current Skills locations show independent profiles and st
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
 });
 
-test('AutoHook controls use the Skills revision and explain manual trust without claiming it', async t => {
+test('AutoHook checkbox enables/disables once, uses the Skills revision and keeps backend state', async t => {
   const state = snapshot('sa'); setSkillsContext(state, 'group');
   state.workflowKitInstallTarget = { root: 'D:/external', profile: 'repository', manual: true, state: { status: 'missing' } };
-  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: false, status: 'disabled', bundledVersion: '1.0.1', trustRequired: true };
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: false, status: 'disabled', stateKnown: true, bundledVersion: '1.1.0', trustRequired: true };
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
   const card = document.querySelector('.autohook-card');
+  const checkbox = card.querySelector('input[type="checkbox"]');
   const button = text => [...card.querySelectorAll('button')].find(item => item.textContent === text);
-  assert.match(card.textContent, /1\.0\.1.*C:\/workspace\/team/s); assert.doesNotMatch(card.textContent, /D:\/external/);
-  assert.equal(button('啟用 AutoHook').disabled, false); button('啟用 AutoHook').click();
+  assert.match(card.textContent, /1\.1\.0.*C:\/workspace\/team/s); assert.doesNotMatch(card.textContent, /D:\/external/);
+  assert.equal(checkbox.checked, false); assert.equal(checkbox.disabled, false);
+  checkbox.click(); checkbox.click();
+  assert.equal(checkbox.checked, false, 'wait for actual installation rather than optimistic state');
+  assert.equal(view.requests.filter(item => item.type === 'manageAutoHook').length, 1);
   assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'enable', contextRevision: state.skillsContext.revision });
-  const active = structuredClone(state); active.autoHook = { ...state.autoHook, enabled: true, status: 'enabled', runtimeVersion: '1.0.1' };
+  view.sendSnapshot({ ...state, workflowKitOperationBusy: true }); await view.tick();
+  assert.ok([...card.querySelectorAll('button, input')].every(item => item.disabled));
+  const active = structuredClone(state); active.autoHook = { ...state.autoHook, enabled: true, status: 'enabled', runtimeVersion: '1.1.0' };
   view.sendSnapshot(active); await view.tick();
-  assert.match(card.textContent, /本機執行版本：1\.0\.1/);
+  assert.equal(checkbox.checked, true); assert.equal(checkbox.disabled, false);
+  assert.match(card.textContent, /本機執行版本：1\.1\.0/);
   assert.match(card.textContent, /不包含 Codex 的信任狀態.*重新開啟 Codex.*\/hooks/s);
-  assert.equal(button('啟用 AutoHook').disabled, true); assert.equal(button('停用').disabled, false);
   button('重新驗證').click(); assert.equal(view.requests.at(-1).operation, 'revalidate');
-  button('停用').click(); assert.equal(view.requests.at(-1).operation, 'disable');
+  view.sendSnapshot(structuredClone(active)); await view.tick();
+  checkbox.click(); assert.equal(view.requests.at(-1).operation, 'disable');
+  assert.equal(checkbox.checked, true);
+  view.sendSnapshot(state); await view.tick(); assert.equal(checkbox.checked, false);
   button('刷新狀態').click(); assert.equal(view.requests.at(-1).type, 'refreshAutoHook');
-  view.sendSnapshot({ ...active, workflowKitOperationBusy: true }); await view.tick();
-  assert.ok([...card.querySelectorAll('button')].every(item => item.disabled));
 });
 
 test('AutoHook remains optional on non-Windows and a changed Skills root uses the new revision', async t => {
   const state = snapshot('sa'); setSkillsContext(state, 'repository');
-  state.autoHook = { root: state.skillsContext.root, supported: false, enabled: false, status: 'disabled', bundledVersion: '1.0.1' };
+  state.autoHook = { root: state.skillsContext.root, supported: false, enabled: false, status: 'disabled', bundledVersion: '1.1.0' };
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
   const card = document.querySelector('.autohook-card');
-  assert.match(card.textContent, /Windows.*PowerShell/); assert.equal(card.querySelector('button').disabled, true);
+  assert.match(card.textContent, /Windows.*PowerShell/); assert.equal(card.querySelector('input').disabled, true);
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
   const next = structuredClone(state); next.workflowKitInstallTarget.root = 'C:/local/other'; setSkillsContext(next);
   next.autoHook = { ...state.autoHook, root: next.skillsContext.root, supported: true };
-  view.sendSnapshot(next); await view.tick(); card.querySelector('button').click();
+  view.sendSnapshot(next); await view.tick(); card.querySelector('input').click();
   assert.equal(view.requests.at(-1).contextRevision, next.skillsContext.revision);
+});
+
+test('AutoHook failed operations restore the checkbox and unknown status is never treated as disabled', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: false, status: 'disabled', stateKnown: true };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const card = document.querySelector('.autohook-card'), checkbox = card.querySelector('input');
+  checkbox.click(); await view.tick(); assert.equal(checkbox.disabled, true);
+  view.send({ type: 'error', message: 'enable rejected before launch' }); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'refreshAutoHook'); assert.equal(checkbox.checked, false);
+  view.sendSnapshot(structuredClone(state)); await view.tick();
+  assert.equal(checkbox.checked, false); assert.equal(checkbox.disabled, false);
+  const active = { ...state, autoHook: { ...state.autoHook, enabled: true, status: 'needs-revalidation' } };
+  view.sendSnapshot(active); await view.tick(); assert.equal(checkbox.checked, true);
+  checkbox.click(); await view.tick();
+  view.sendSnapshot(structuredClone(active)); await view.tick(); assert.equal(checkbox.checked, true);
+  view.sendSnapshot({ ...state, autoHook: { ...state.autoHook, status: 'error', stateKnown: false, message: 'query failed' } }); await view.tick();
+  assert.equal(checkbox.disabled, true); assert.match(card.textContent, /尚未確認.*query failed/s);
+  view.sendSnapshot({ ...active, autoHook: { ...active.autoHook, status: 'error', stateKnown: false, supported: false, message: 'damaged runtime' } }); await view.tick();
+  assert.equal(checkbox.checked, true); assert.equal(checkbox.disabled, false, 'retain emergency disable even with invalid installation');
+  checkbox.click(); assert.equal(view.requests.at(-1).operation, 'disable');
+});
+
+test('AutoHook reload reads installed state and a different Skills root cannot reuse the old checkbox', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: true, status: 'enabled', stateKnown: true,
+    policySource: { repository: 'https://github.com/openai/codex', revision: 'd'.repeat(40), captured_on: '2026-10-12' },
+    policyCoverage: { mode: 'fixed-rules', equivalent_to_native: false, deterministic_rules: ['read.location'], preauthorized_rules: ['build.standard'], manual_review: ['other'], limitations: ['partial'] } };
+  for (let reload = 0; reload < 2; reload++) {
+    const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+    const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+    const card = document.querySelector('.autohook-card'), checkbox = card.querySelector('input');
+    assert.equal(checkbox.checked, true); assert.match(card.textContent, /官方政策版本：dddddddddddd.*部分本機讀取.*預授權.*無法完整重現/s);
+    const next = structuredClone(state); next.skillsContext.root = 'D:/different'; next.skillsContext.revision = 'new-root';
+    view.sendSnapshot(next); await view.tick();
+    assert.equal(checkbox.checked, false); assert.equal(checkbox.disabled, true);
+    assert.match(card.querySelector('.pill').textContent, /尚未就緒/);
+    assert.equal(view.requests.filter(item => item.type === 'manageAutoHook').length, 0);
+  }
 });
 
 test('shows every assigned Issue by default and keeps the list usable when Board loading fails', async (t) => {

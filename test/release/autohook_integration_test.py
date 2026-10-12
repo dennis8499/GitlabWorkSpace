@@ -62,6 +62,11 @@ class AutoHookIntegrationTests(unittest.TestCase):
                     self.assertEqual(15, len(list((self.root / ".agents/skills").iterdir())))
                     for relative, expected in self.kit.AUTOHOOK_FILES.items():
                         self.assertEqual(expected, hashlib.sha256((self.root / relative).read_bytes()).hexdigest())
+                    state = self.integration.status(self.root)
+                    self.assertTrue(state["stateKnown"])
+                    self.assertFalse(state["enabled"])
+                    self.assertRegex(state["policySource"]["revision"], r"^[0-9a-f]{40}$")
+                    self.assertFalse(state["policyCoverage"]["equivalent_to_native"])
                     if os.name != "nt":
                         with self.assertRaisesRegex(self.kit.KitError, "Windows"):
                             self.enable()
@@ -251,7 +256,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="ah-old-") as temporary:
             source = Path(temporary)
             with zipfile.ZipFile(fixture) as package:
-                for name in self.integration.native().ASSETS:
+                for name in self.integration.native().LEGACY_ASSETS:
                     raw = package.read(name)
                     self.assertIn(hashlib.sha256(raw).hexdigest(), self.kit.AUTOHOOK_LEGACY[name])
                     (source / name).write_bytes(raw)
@@ -269,7 +274,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
         self.assertEqual("1.0.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
         with self.fake_tools():
             self.install()
-            self.assertEqual("1.0.1", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+            self.assertEqual("1.1.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
             self.assertEqual("installed", self.kit.inspect_status(self.root, harness.VERSION)["status"])
             baseline = self.integration.baseline(self.root)
             self.integration.manage(self.root, "disable")
@@ -279,6 +284,97 @@ class AutoHookIntegrationTests(unittest.TestCase):
             hooks = json.loads((self.root / HOOKS).read_bytes())["hooks"]
             self.assertIn("PreToolUse", hooks)
             self.assertIn("echo personal", (self.root / HOOKS).read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(os.name == "nt", "Windows enable")
+    def test_0190_profiles_upgrade_101_runtime_and_preserve_disabled_state(self):
+        fixture = ROOT / "test/fixtures/workflow-kit-0.19.0"
+        archive = fixture / "offline-tools/workflow-kit.tar.xz"
+        self.assertEqual("4ee9928ac46e8c20db75f3fda45536cbf1e7b6cd63822d14442dcd7b87518e9d", hashlib.sha256(archive.read_bytes()).hexdigest())
+        for profile in ("group", "repository"):
+            for enabled in (False, True):
+                with self.subTest(profile=profile, enabled=enabled), tempfile.TemporaryDirectory(prefix="ah-up-") as temporary:
+                    original = self.root; self.root = Path(temporary).resolve()
+                    try:
+                        if profile == "repository":
+                            subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+                        old = load_frozen(fixture / "installer.py")
+                        old.install(archive, "tar.xz", self.root, "0.19.0", "bundled", "workflow-kit", hashlib.sha256(archive.read_bytes()).hexdigest(), profile=profile)
+                        prior = old.autohook_integration()
+                        self.addCleanup(lambda prior=prior: prior.temporary.cleanup() if prior.temporary else None)
+                        config = self.root / CONFIG
+                        config.write_bytes(config.read_bytes() + b'\n[user_preferences]\ncolor = "blue"\n')
+                        hooks = json.loads((self.root / HOOKS).read_bytes())
+                        custom = {"hooks": [{"type": "command", "command": "echo personal"}]}
+                        hooks["hooks"].setdefault("SessionStart", []).append(custom)
+                        (self.root / HOOKS).write_text(json.dumps(hooks), encoding="utf-8")
+                        with patch.object(prior.native(), "_compatibility_probe", return_value="codex-cli fixture"):
+                            prior.manage(self.root, "enable", sys.executable)
+                            if not enabled:
+                                prior.manage(self.root, "disable")
+                        self.assertEqual("1.0.1", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+                        with self.fake_tools():
+                            self.install(profile)
+                            state = self.integration.status(self.root)
+                            self.assertEqual(enabled, state["enabled"])
+                            self.assertEqual("enabled" if enabled else "disabled", state["status"])
+                            self.assertFalse(state["policyCoverage"]["equivalent_to_native"])
+                            if enabled:
+                                self.assertEqual("1.1.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+                                self.integration.manage(self.root, "disable")
+                        self.assertIn(b'color = "blue"', (self.root / CONFIG).read_bytes())
+                        self.assertIn(custom, json.loads((self.root / HOOKS).read_bytes())["hooks"]["SessionStart"])
+                        self.assertEqual("installed", self.kit.inspect_status(self.root, harness.VERSION)["status"])
+                    finally:
+                        self.root = original
+
+    @unittest.skipUnless(os.name == "nt", "Windows enable")
+    def test_old_interrupted_autohook_enable_is_recovered_before_upgrading(self):
+        class Interrupted(BaseException):
+            pass
+        fixture = ROOT / "test/fixtures/workflow-kit-0.19.0"
+        archive = fixture / "offline-tools/workflow-kit.tar.xz"
+        old = load_frozen(fixture / "installer.py")
+        old.install(archive, "tar.xz", self.root, "0.19.0", "bundled", "workflow-kit", hashlib.sha256(archive.read_bytes()).hexdigest())
+        prior = old.autohook_integration()
+        self.addCleanup(lambda: prior.temporary.cleanup() if prior.temporary else None)
+        before = self.snapshot()
+        def crash(count, total):
+            if count == total // 2:
+                raise Interrupted()
+        with patch.object(prior.native(), "_compatibility_probe", return_value="codex-cli fixture"), patch.object(old, "_test_after_apply", side_effect=crash):
+            with self.assertRaises(Interrupted):
+                prior.manage(self.root, "enable", sys.executable)
+        self.kit.recover_incomplete(self.root)
+        self.assertEqual(before, self.snapshot())
+        self.install()
+        self.assertFalse(self.integration.status(self.root)["enabled"])
+
+    def test_invalid_settings_do_not_claim_disabled_status_is_known(self):
+        self.install()
+        path = self.root / SETTINGS; path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'{"enabled":"unknown"}')
+        state = self.integration.status(self.root)
+        self.assertEqual("error", state["status"])
+        self.assertFalse(state["stateKnown"])
+
+    def test_0190_source_tampering_cannot_be_adopted_by_rehashing_the_manifest(self):
+        fixture = ROOT / "test/fixtures/workflow-kit-0.19.0"
+        archive = fixture / "offline-tools/workflow-kit.tar.xz"
+        old = load_frozen(fixture / "installer.py")
+        prior = old.autohook_integration()
+        self.addCleanup(lambda: prior.temporary.cleanup() if prior.temporary else None)
+        old.install(archive, "tar.xz", self.root, "0.19.0", "bundled", "workflow-kit", hashlib.sha256(archive.read_bytes()).hexdigest())
+        relative = ".agents/gitlab-workspace-kit/autohook/default.rules"
+        target = self.root / relative
+        target.write_bytes(target.read_bytes() + b"# altered source\n")
+        marker = self.root / self.kit.MARKER
+        manifest = json.loads(marker.read_bytes())
+        manifest["files"][relative] = hashlib.sha256(target.read_bytes()).hexdigest()
+        marker.write_text(json.dumps(manifest), encoding="utf-8")
+        before = self.snapshot()
+        with self.assertRaisesRegex(self.kit.KitError, "AutoHook source hashes"):
+            self.install()
+        self.assertEqual(before, self.snapshot())
 
     @unittest.skipUnless(os.name == "nt", "Windows enable")
     def test_enabled_preview_and_compatibility_checks_are_read_only(self):

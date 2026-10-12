@@ -1047,6 +1047,27 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
   const capabilityStatus: Record<string, string> = { supported: '支援', unsupported: '不支援', unknown: '未確認' };
   const policy = snapshot.workflowKitPolicy ?? workflowKitPolicy({ requireGroupEnvironment: true, connected: snapshot.connected, groupSelected: !!snapshot.group, groupRoot: snapshot.groupRoot, workspaceRootError: snapshot.workspaceRootError, hasWorkspace: !!snapshot.groupRoot });
   const kitBusy = !!snapshot.workflowKitOperationBusy;
+  const autoHook = snapshot.autoHook?.root === snapshot.skillsContext?.root ? snapshot.autoHook : undefined;
+  const [autoHookPending, setAutoHookPending] = useState(false);
+  const autoHookRequest = useRef(false);
+  useEffect(() => {
+    if (!snapshot.workflowKitOperationBusy) { autoHookRequest.current = false; setAutoHookPending(false); }
+  }, [snapshot]);
+  useEffect(() => {
+    const onFailure = (event: MessageEvent<WorkspaceResponse>) => {
+      // Precondition failures can arrive before the host publishes a busy snapshot.
+      if (event.data?.type === 'error' && autoHookRequest.current) post({ type: 'refreshAutoHook' });
+    };
+    window.addEventListener('message', onFailure);
+    return () => window.removeEventListener('message', onFailure);
+  }, [post]);
+  const hookBusy = operationBusy || kitBusy || autoHookPending || autoHook?.status === 'checking';
+  const hookKnown = autoHook?.stateKnown !== false && ['disabled', 'enabled', 'needs-revalidation'].includes(autoHook?.status ?? '');
+  const manageHook = (operation: 'enable' | 'disable' | 'revalidate') => {
+    if (autoHookRequest.current || hookBusy || !snapshot.skillsContext?.root) return;
+    autoHookRequest.current = true; setAutoHookPending(true);
+    post({ type: 'manageAutoHook', operation, contextRevision: snapshot.skillsContext.revision });
+  };
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace 設定</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工作區與工具'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <div class="settings-tabs" role="tablist" aria-label="設定類別" onKeyDown={event => {
@@ -1106,18 +1127,22 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     })()}
     </section>
     <section class="tool-card autohook-card" aria-label="AutoHook">
-      <div class="panel-title"><strong>AutoHook{snapshot.autoHook?.bundledVersion ? ` v${snapshot.autoHook.bundledVersion}` : ''}</strong><span class="pill">{({ unavailable: '尚未就緒', disabled: '未啟用', enabled: '已設定', 'needs-revalidation': '需要重新驗證', error: '需要處理', checking: '檢查中' })[snapshot.autoHook?.status ?? 'unavailable']}</span></div>
+      <div class="panel-title"><strong>AutoHook{autoHook?.bundledVersion ? ` v${autoHook.bundledVersion}` : ''}</strong><span class="pill">{({ unavailable: '尚未就緒', disabled: '未啟用', enabled: '已設定', 'needs-revalidation': '需要重新驗證', error: '需要處理', checking: '檢查中' })[autoHook?.status ?? 'unavailable']}</span></div>
       <p>作用位置：{snapshot.skillsContext?.root ?? '尚未選擇 Skills 工作位置'}</p>
       <p class="subtle">隨包附帶，預設關閉。只作用於目前 Skills 根目錄；已啟用時會隨整包更新並重新驗證。</p>
-      {snapshot.autoHook?.runtimeVersion && <p>本機執行版本：{snapshot.autoHook.runtimeVersion}</p>}
-      {snapshot.autoHook?.supported === false && <p role="status">啟用需要 Windows、Windows PowerShell 與支援 Hooks 的 Codex CLI。</p>}
-      {snapshot.autoHook?.message && <p class="warning" role="status">{snapshot.autoHook.message}</p>}
-      {snapshot.autoHook?.enabled && <p class="subtle">設定檢查不包含 Codex 的信任狀態。請重新開啟 Codex，並在 /hooks 檢查及確認信任。</p>}
+      <label class="skills-policy-toggle"><input type="checkbox" aria-label="啟用 AutoHook" checked={autoHook?.enabled === true}
+        disabled={hookBusy || !snapshot.skillsContext?.root || (!autoHook?.enabled && (!hookKnown || !autoHook?.supported || snapshot.skillsContext.installed.status !== 'installed'))}
+        onChange={event => { const enable = event.currentTarget.checked; event.currentTarget.checked = autoHook?.enabled === true; manageHook(enable ? 'enable' : 'disable'); }} /><span>啟用 AutoHook</span></label>
+      {(!autoHook || autoHook.stateKnown === false) && <p class="warning" role="status">目前啟用狀態尚未確認，請刷新狀態。{autoHook?.enabled ? '保留上次已啟用狀態，可取消勾選以停用。' : ''}</p>}
+      {autoHook?.runtimeVersion && <p>本機執行版本：{autoHook.runtimeVersion}</p>}
+      {autoHook?.policySource && <p class="subtle">官方政策版本：{autoHook.policySource.revision.slice(0, 12)}{autoHook.policySource.captured_on ? `（${autoHook.policySource.captured_on}）` : ''}</p>}
+      {autoHook?.policyCoverage && <p class="subtle">固定規則涵蓋部分本機讀取與 Git 查閱；勾選同時預授權指定的專案測試／建置和檔案新增／更新。專案程式的副作用仍需自行確認，其餘交回人工核准，無法完整重現原生 AI 審查。</p>}
+      {autoHook?.supported === false && <p role="status">啟用需要 Windows、Windows PowerShell 與支援 Hooks 的 Codex CLI。</p>}
+      {autoHook?.message && <p class="warning" role="status">{autoHook.message}</p>}
+      {autoHook?.enabled && <p class="subtle">設定檢查不包含 Codex 的信任狀態。請重新開啟 Codex，並在 /hooks 檢查及確認信任。</p>}
       <div class="button-row">
-        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.supported || snapshot.autoHook.enabled || !snapshot.skillsContext?.root || snapshot.skillsContext.installed.status !== 'installed'} onClick={() => post({ type: 'manageAutoHook', operation: 'enable', contextRevision: snapshot.skillsContext!.revision })}>啟用 AutoHook</button>
-        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.enabled || !snapshot.skillsContext?.root} onClick={() => post({ type: 'manageAutoHook', operation: 'disable', contextRevision: snapshot.skillsContext!.revision })}>停用</button>
-        <button type="button" disabled={operationBusy || kitBusy || !snapshot.autoHook?.supported || !snapshot.autoHook.enabled || !snapshot.skillsContext?.root} onClick={() => post({ type: 'manageAutoHook', operation: 'revalidate', contextRevision: snapshot.skillsContext!.revision })}>重新驗證</button>
-        <button class="quiet small" type="button" disabled={operationBusy || kitBusy || !snapshot.skillsContext?.root} onClick={() => post({ type: 'refreshAutoHook' })}>刷新狀態</button>
+        <button type="button" disabled={hookBusy || !autoHook?.supported || !autoHook.enabled || !snapshot.skillsContext?.root} onClick={() => manageHook('revalidate')}>重新驗證</button>
+        <button class="quiet small" type="button" disabled={hookBusy || !snapshot.skillsContext?.root} onClick={() => post({ type: 'refreshAutoHook' })}>刷新狀態</button>
       </div>
     </section>
     <div class="drawer-footer"><span>工作 Skills、流程規則與知識設定由此整包管理</span><button class="quiet small" type="button" onClick={onRefresh}>重新檢查安裝</button></div>

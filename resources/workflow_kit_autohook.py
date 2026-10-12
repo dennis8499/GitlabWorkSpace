@@ -17,8 +17,10 @@ RUNTIME = ".codex/autohook/"
 SETTINGS = RUNTIME + "settings.json"
 CONFIG = ".codex/config.toml"
 HOOKS = ".codex/hooks.json"
-ASSETS = ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json")
+ASSETS = ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json",
+          "policy-source.json", "guardian-policy.md", "guardian-policy-template.md", "UPSTREAM-LICENSE", "UPSTREAM-NOTICE")
 RUNTIME_PATHS = {RUNTIME + name for name in (*ASSETS, ".gitignore", "settings.json")}
+LEGACY_RUNTIME_PATHS = {RUNTIME + name for name in (*ASSETS[:5], ".gitignore", "settings.json")}
 
 
 class Integration:
@@ -35,7 +37,9 @@ class Integration:
             action = journal.get("autohookOperation")
             if action not in ("enable", "disable", "revalidate"):
                 self.fail("Unknown AutoHook transaction operation.")
-            return {SETTINGS} if action == "disable" else RUNTIME_PATHS | {CONFIG, HOOKS}
+            version = journal.get("installed_manifest", {}).get("upstream", {}).get("autohook", {}).get("version")
+            paths = LEGACY_RUNTIME_PATHS if version in ("1.0.0", "1.0.1") else RUNTIME_PATHS
+            return {SETTINGS} if action == "disable" else paths | {CONFIG, HOOKS}
         return self.k["transaction_paths"]() - RUNTIME_PATHS - {"wiki"}
 
     def fail(self, message):
@@ -81,7 +85,7 @@ class Integration:
         try:
             value = json.loads(raw)
             app._validate_settings(value, root, require_policy=False)
-            if value.get("policy_version") not in ("1.0.0", "1.0.1"):
+            if value.get("policy_version") not in ("1.0.0", "1.0.1", "1.1.0"):
                 self.fail("AutoHook runtime version is not reviewed.")
             if verify_assets:
                 app._validate_assets(value, root / RUNTIME)
@@ -203,12 +207,18 @@ class Integration:
     def status(self, root):
         result = {"ok": True, "root": str(root), "supported": os.name == "nt", "status": "disabled",
                   "enabled": False, "bundledVersion": self.k["UPSTREAM"]["autohook"]["version"],
-                  "trustRequired": True}
+                  "trustRequired": True, "stateKnown": False}
         try:
             raw = self.read(root, SETTINGS)
             if raw is not None:
                 # An invalid asset must not hide the emergency stop control.
-                result["enabled"] = json.loads(raw).get("enabled") is True
+                enabled = json.loads(raw).get("enabled")
+                result["enabled"] = enabled is True
+                result["stateKnown"] = isinstance(enabled, bool)
+            else:
+                result["stateKnown"] = True
+            metadata = self.native().policy_metadata(Path(self.native().__file__).parent)
+            result.update(policySource=metadata["policy_source"], policyCoverage=metadata["policy_coverage"])
             settings = self.settings(root)
             if settings:
                 result.update(enabled=settings.get("enabled") is True, runtimeVersion=settings["policy_version"])

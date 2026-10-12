@@ -3531,17 +3531,24 @@ export class WorkspacePanel implements vscode.Disposable {
       if (publish) this.sendSnapshot();
       return;
     }
-    this.autoHookState = { status: 'checking', supported: process.platform === 'win32', enabled: false, root };
+    const previous = this.autoHookState?.root === root ? this.autoHookState : undefined;
+    this.autoHookState = { ...previous, status: 'checking', supported: process.platform === 'win32', enabled: previous?.enabled === true, root };
     if (publish) this.sendSnapshot();
     let next: AutoHookState;
     try {
       const value = await this.runWorkflowKitHelper(['autohook', 'status', root], 60_000);
-      if (!['disabled', 'enabled', 'needs-revalidation', 'error'].includes(String(value.status)) || value.root !== root) throw new Error('AutoHook status response is invalid.');
+      if (!['disabled', 'enabled', 'needs-revalidation', 'error'].includes(String(value.status)) || value.root !== root || typeof value.enabled !== 'boolean') throw new Error('AutoHook status response is invalid.');
       next = { root, status: value.status as AutoHookState['status'], supported: value.supported === true, enabled: value.enabled === true,
+        stateKnown: value.stateKnown !== false,
         bundledVersion: typeof value.bundledVersion === 'string' ? value.bundledVersion : undefined,
         runtimeVersion: typeof value.runtimeVersion === 'string' ? value.runtimeVersion : undefined,
         trustRequired: true, message: typeof value.message === 'string' ? value.message : undefined };
-    } catch (error) { next = { root, status: 'error', supported: process.platform === 'win32', enabled: false, message: readableError(error) }; }
+      const source = value.policySource as AutoHookState['policySource'];
+      const coverage = value.policyCoverage as AutoHookState['policyCoverage'];
+      if (source && typeof source.repository === 'string' && /^[0-9a-f]{40}$/.test(source.revision)) next.policySource = source;
+      if (coverage?.mode === 'fixed-rules' && coverage.equivalent_to_native === false &&
+          [coverage.deterministic_rules, coverage.preauthorized_rules, coverage.manual_review, coverage.limitations].every(items => Array.isArray(items) && items.every(item => typeof item === 'string'))) next.policyCoverage = coverage;
+    } catch (error) { next = { ...previous, root, status: 'error', supported: process.platform === 'win32', enabled: previous?.enabled === true, stateKnown: false, message: readableError(error) }; }
     if (generation !== this.autoHookRefreshGeneration || this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== root) return;
     this.autoHookState = next;
     if (publish) this.sendSnapshot();

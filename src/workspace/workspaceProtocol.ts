@@ -119,10 +119,17 @@ export interface AutoHookState {
   root?: string;
   supported: boolean;
   enabled: boolean;
+  stateKnown?: boolean;
   status: 'unavailable' | 'disabled' | 'enabled' | 'needs-revalidation' | 'error' | 'checking';
   bundledVersion?: string;
   runtimeVersion?: string;
   trustRequired?: boolean;
+  policySource?: { repository: string; revision: string; captured_on?: string };
+  policyCoverage?: {
+    mode: 'fixed-rules'; equivalent_to_native: false;
+    deterministic_rules: string[]; preauthorized_rules: string[];
+    manual_review: string[]; limitations: string[];
+  };
   message?: string;
 }
 

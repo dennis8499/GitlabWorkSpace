@@ -213,7 +213,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"autohook": "1.0.1", "codebase-wiki": "0.5.0", "megin": "0.6.0", "merge-reviewer": "0.9.0", "release-reviewer": "0.1.0"},
+        self.assertEqual({"autohook": "1.1.0", "codebase-wiki": "0.5.0", "megin": "0.6.0", "merge-reviewer": "0.9.0", "release-reviewer": "0.1.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
         self.assertEqual({"codebase-wiki", "megin", "merge-reviewer"}, set(manifest["overlays"]))
