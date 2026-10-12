@@ -125,3 +125,7 @@ governed by these Skills and Markdown records. For `gitlab_mr`, Megin stops befo
 GitlabWorkSpace uses the native helper and records every verified feature commit without base merges.
 
 For tasks supplied by GitlabWorkSpace, use `gitlab_mr` and load [references/gitlab-delivery.md](references/gitlab-delivery.md) during planning and finishing. Existing standalone delivery modes remain available.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

@@ -1,12 +1,12 @@
-# Group 工作流程（GitLab Workspace 0.17.0）
+# Group 工作流程（GitLab Workspace 0.18.0）
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0、ReleaseReviewer 0.1.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並提供 Group overlays 與原生單 Repo 兩種 profile，使用對應的工作目錄規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.9.0、ReleaseReviewer 0.1.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並提供 Group overlays 與原生單 Repo 兩種 profile，使用對應的工作目錄規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
 
 ## 一次安裝整包
 
 登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。「符合 Group 時使用 Group 流程」預設開啟；須核對所有已開啟 Repo 和 Group 資料夾的直屬 Repo，其唯一 origin 對應所選 Group（含子群組），並共用唯一非 Git 根目錄。未符合時自動切換原生單 Repo；關閉則固定單 Repo。下載與匯入可免登入，安裝需有效目標；空 Group 資料夾可先下載再核對。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
 
-安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的已核准工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
+安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 
 更新會驗證目前受管理檔案未被本機修改。既有 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 與 `review-reports/` 會保留。舊版分開安裝採人工清除後重裝，請按錯誤訊息提供的精確路徑清單，並依套件中的 `legacy-cleanup.md` 移除舊 Skills、工具紀錄及 Wiki managed block；保留 Wiki、工作紀錄、報告與其他 Skills。不要移除進行中的 Megin 鎖或工作紀錄來繞過安裝阻擋。
 
@@ -15,7 +15,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.4.0
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.17.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.18.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
@@ -29,6 +29,12 @@ python -X utf8 -B resources/workflow-kit-installer.py rollback <Group> <transact
 回復前會完整核對 Group、交易身分、目前安裝紀錄、所有受管理路徑及前版 bytes。安裝後有修改、備份缺漏／變造、交易路徑越界或進行中的 Megin 工作均會阻擋回復並保留資料。交易成功回復後不可重用；保留的其他歷史交易不會在狀態檢查時被移除。
 
 ### 固定驗證與歷史交付
+
+0.18.0 新工作使用 `megin-skills-workflow/v4` 及同版品質契約、證據與快照；原生單 Repo 使用 v2。先完整探索目前所有有效直屬 Repo 的功能入口、流程、依賴與缺口，分開記錄事實、假設、需求與技術建議。精確計畫取得明確核准後才可 claim writer 及實作，必須保存探索與核准引用，串接 REQ → SCN Given／When／Then → 測試斷言 → 實作 → Review → 人工驗收，並保存實際 assertion-failing red 與通過 green 的原始紀錄。
+
+初審為第 0 輪，最多三次修正重審（第 1～3 輪），每輪由新的獨立唯讀 reviewer 執行並追加歷程。任一次通過即可驗證及人工驗收；第三次修正仍失敗，工作保持未完成並保留全部證據。中斷續作不重置修正次數。無可用獨立 reviewer 時保持 `awaiting_review`，不以自審代替。
+
+舊 v2／v3 Group 工作與原生 v1 工作保留原契約及 Skills 指紋，不自動改標新版。進行中的工作與鎖會阻擋升級、profile 轉換及交易回復。歷史交付收據驗證固定 Git 物件與保存的原始證據，不以後續工作區的測試檔取代交付版本。
 
 Group 品質契約可宣告固定已提交驗證輸入、SCN 行為追蹤與 runner 預檢。需要補證時引用已核准的跨 Repo 錨點；缺漏情境、失敗 runner、輸入摘要不符與 MR 身分／正文漂移均停止交付。完成紀錄匯出歷史收據後，後續工作區或技能更新不重寫已驗證的交付；原始證據與固定 Git 物件仍須完整。
 
@@ -56,6 +62,8 @@ Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `revie
 
 ## 分析、規格與 Issue
 
+**專案功能探索** 使用 `functional_exploration`，先讀目前原始碼，再視需要查 Wiki 背景；輸出功能、來源、檔案／入口覆蓋、排除項目與缺口。原始碼唯讀，不執行目標程式或測試；工作台預設只在回覆輸出，明確要求保存時才寫入指定文件。一般 **查詢 Wiki** 維持 Wiki-first。
+
 在 **分析** 的功能選單選擇 Wiki 功能後，頁面只顯示該功能區塊。提示詞會帶入目前 Group、Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑（包含未對應 GitLab 的 Repo），以及目前 Manifest 版本；掃描完成前不提供複製。AI 任務入口會先確認整包已安裝或目前存在 Megin 工作；尚未安裝時，會導向整包管理卡。
 
 開發規格保留 `draft`／`ready` 狀態、blocking questions 與 SCN 情境驗證。只有需求問題都處理完、規格驗證通過後，才由使用者手動建立 GitLab Issue；規格流程不會自動建立 Issue。
@@ -64,7 +72,7 @@ Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `revie
 
 ## 開發、驗收與工作台交付
 
-開發由 Megin 維持核准計畫、獨立審查、測試、人工驗收與工作狀態；GitLab Workspace 讀取既有 `docs/work/<Work ID>/workflow.md`，提供續作摘要和交付介面。套件更新遇到 Megin Group 鎖或仍未完成的已核准工作時會停止，避免破壞正在進行的交付。
+開發由 Megin 維持核准計畫、獨立審查、測試、人工驗收與工作狀態；GitLab Workspace 讀取既有 `docs/work/<Work ID>/workflow.md`，提供續作摘要和交付介面。套件更新遇到 Megin Group 鎖或仍未完成的工作時會停止，避免破壞正在進行的交付。
 
 工作台任務固定使用 `gitlab_mr` 交付模式。Megin 原生 handoff 必須先通過檢查，工作台再依核准的路徑建立精確 Commit，並把 Commit、Repo 與驗證證據記錄到 Group 工作紀錄。Push 和建立 MR 是分開的人工操作；遇到結果不明時先對帳遠端狀態，不自動重送。多 Repo 工作逐一保存完成證據，已完成 Repo 可保留並接續未完成 Repo。
 
@@ -84,9 +92,11 @@ ReleaseReviewer 使用明確的單一 Repo、基礎版本與比較版本；預�
 
 報告存於所選 Repo 的 `review-reports/release-review-*.md`，JSON 選填。它的版本中繼資料與 MR 報告不同。暫存證據由原生 helper 管理，完成或中止均需清理。
 
-0.17.0 安裝器保留受信任的 0.14.0、0.15.0 與 0.16.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
+0.18.0 安裝器保留受信任的 0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
 
 ## 原生單 Repo 與版本限制
+
+此模式即「無限制」版本：不需 GitLab 登入或選擇 Group，每次操作一個所選的本機 Repo，使用驗證過的原生 Skills。
 
 單 Repo profile 名稱為 `repository`，CLI 使用 `--profile repository`，目標必須是實際 Git 根目錄。可使用 Wiki、原生 Megin 開發／續作、單 Repo 審查與上板檢查；Group quick、Issue 交付及 MR 任務入口保留於 Group。Wiki、工作紀錄、提示詞與 Codex 目錄跟隨所選情境。
 
@@ -100,10 +110,10 @@ ReleaseReviewer 使用明確的單一 Repo、基礎版本與比較版本；預�
 
 ## 套件建置與發行
 
-套件固定來源為 Codebase LLM Wiki 0.4.0、Megin 0.4.0、MergeReviewer 0.7.0 與 ReleaseReviewer 0.1.0。ReleaseReviewer 保留原生內容，既有三項 Group 覆層維持原架構。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。套件建置會產生：
+套件固定來源為 Codebase LLM Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.9.0 與 ReleaseReviewer 0.1.0。ReleaseReviewer 保留原生內容；Group 覆層共用 Megin 新品質規則，並以獨立 Group 綁定模組保留原生 MergeReviewer 收據驗證。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。套件建置會產生：
 
-- `gitlab-workspace-0.17.0.vsix`
-- `gitlab-workspace-kit-0.17.0.zip`
+- `gitlab-workspace-0.18.0.vsix`
+- `gitlab-workspace-kit-0.18.0.zip`
 - `SHA256SUMS`
 
 建置及發行測試涵蓋新裝、重複安裝、更新、失敗回復、程序中斷回復、套件與本機內容損壞、舊版清理、Megin 工作阻擋，以及 Group 規格、審查、精確 Commit、MR 報告與知識回饋流程。

@@ -34,7 +34,9 @@ def immutable_delivery(root, work_id):
     digest = evidence.get("snapshot")
     if (delivery.get("schema"), delivery.get("work_id"), delivery.get("plan_version"), delivery.get("status"), delivery.get("completion_ok"), delivery.get("completion_snapshot")) != ("megin-delivery-result/v2", work_id, version, "complete", True, digest):
         raise InvalidEvidence("immutable native completion identity differs")
-    if (evidence.get("schema"), evidence.get("work_id"), evidence.get("plan_version")) != ("megin-quality-evidence/v3", work_id, version): raise InvalidEvidence("quality identity differs")
+    schema_version = "v4" if fields.get("schema") == "megin-skills-workflow/v4" else "v3"
+    if contract.get("schema") != "megin-quality-contract/" + schema_version: raise InvalidEvidence("workflow/contract schema mismatch")
+    if (evidence.get("schema"), evidence.get("work_id"), evidence.get("plan_version")) != ("megin-quality-evidence/" + schema_version, work_id, version): raise InvalidEvidence("quality identity differs")
     reasons = []
     validate_delivery_gate_receipt(root, work_id, fields, contract, records, delivery, digest, evidence["repository_snapshots"], reasons)
     validate_recorded_checks(root, work_id, records, contract["checks"], evidence, digest, reasons, True)
@@ -77,6 +79,22 @@ def immutable_delivery(root, work_id):
     entries.extend(snapshot_entries(inputs))
     entries.extend(group_record_entries(root, work_id, records))
     if digest_entries(entries) != digest: reasons.append("protected records or delivered composite differs from acceptance")
+    if schema_version == "v4":
+        from quality_policy import validate_evidence
+        from quality_gate import git
+        def delivered_test(relative):
+            name, path = relative.split("/", 1)
+            if name not in by_path: raise InvalidEvidence("TDD test is outside delivered Repos")
+            repo = root / name
+            commit = by_path[name]["feature_commit"]
+            rows = git(repo, "ls-tree", "-z", commit, "--", path).split(b"\0")
+            if len(rows) != 2 or not rows[0]: raise InvalidEvidence("delivered TDD test missing")
+            metadata, actual = rows[0].split(b"\t", 1)
+            mode, kind, _blob = metadata.decode("ascii").split()
+            if actual.decode("utf-8") != path or kind != "blob" or mode not in ("100644", "100755"):
+                raise InvalidEvidence("delivered TDD test is not a regular blob")
+            return git(repo, "cat-file", "blob", commit + ":" + path)
+        validate_evidence(root, work_id, fields, contract, records, evidence, digest, "completion", reasons, test_reader=delivered_test)
     if reasons: raise InvalidEvidence("; ".join(reasons))
     return fields, contract, source, evidence, sorted(items, key=lambda item: order.index(item["repo_path"]))
 
@@ -84,6 +102,21 @@ def export_receipt(group_root, work_id):
     root = Path(group_root).resolve()
     fields, contract, source, evidence, items = immutable_delivery(root, work_id)
     value = {"schema": "megin-delivery-receipt/v1", "work_id": work_id, "plan_version": fields["plan_version"], "group_root": str(root), "execution_mode": contract.get("execution_mode", "development"), "accepted_snapshot": evidence["snapshot"], "local_delivery_complete": True, "delivery_source": {"path": str(source), "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}, "repositories": items}
+    if contract.get("schema") == "megin-quality-contract/v4":
+        from quality_policy import evidence_paths
+        records = set(contract["process_records"])
+        paths = (evidence_paths(contract) | evidence_paths(evidence)) & records
+        paths.update({contract["approval_ref"], fields["quality_ref"], fields["delivery_ref"],
+                      f"docs/work/{work_id}/{fields['plan_version']}/quality-contract.json",
+                      f"docs/work/{work_id}/{fields['plan_version']}/plan.md", contract["requirements_ref"]})
+        todo = list(paths)
+        while todo:
+            relative = todo.pop()
+            if relative.endswith(".json"):
+                extra = evidence_paths(read_json(root / relative)) & records
+                todo.extend(extra - paths)
+                paths.update(extra)
+        value["record_files"] = [{"path": p, "sha256": hashlib.sha256((root / p).read_bytes()).hexdigest()} for p in sorted(paths)]
     value["receipt_sha256"] = canonical_digest(value)
     return value
 

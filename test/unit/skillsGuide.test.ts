@@ -70,8 +70,26 @@ test('resume requires a real Work ID format and state round trips without losing
     inputs: { ...state.inputs, 'megin-resume.workId': 'work-20261010-payment', 'query.question': 'old Wiki draft', 'release-review.repo': 'service' } };
   assert.equal(canCopySkillPrompt(card, saved.inputs), true);
   assert.match(buildSkillGuidePrompt(card, saved.inputs, context), /從最早尚未完成的階段繼續/);
+  assert.match(buildSkillGuidePrompt(card, saved.inputs, context), /不得重置/);
   assert.deepEqual(restoreSkillGuideState(saved), saved);
   assert.deepEqual(legacyWikiInputs(saved.inputs)['query.question'], 'old Wiki draft');
   assert.equal(legacyWikiInputs(saved.inputs)['release-review.repo'], undefined);
   assert.equal(canCopySkillPrompt(getSkillGuideCard('release-reviewer'), { ...saved.inputs, 'release-review.mode': 'unknown' }), false);
+});
+
+test('native development prompts require exploration, approval and bounded independent reviews', () => {
+  const card = getSkillGuideCard('megin', undefined, 'repository');
+  const prompt = buildSkillGuidePrompt(card, { 'megin-workflow.task': '改善退款流程' }, {
+    ...context, profile: 'repository', root: context.repositories[0].path
+  });
+  assert.match(prompt, /native v2/);
+  assert.match(prompt, /中立釐清問題、受眾、成果與驗收/);
+  assert.match(prompt, /事實、假設、需求與技術建議/);
+  assert.match(prompt, /明確核准後才開始 BDD／TDD/);
+  assert.match(prompt, /red／green 原始證據/);
+  assert.match(prompt, /REQ.*SCN.*斷言.*實作.*Review.*人工驗收/);
+  assert.match(prompt, /初審為第 0 輪，最多三次修正重審/);
+  assert.match(prompt, /新的獨立唯讀 reviewer/);
+  assert.match(prompt, /第三次修正仍失敗.*回報未完成/);
+  assert.match(prompt, /續作不重置次數/);
 });

@@ -19,7 +19,7 @@ Group files. Every remote base must still match its recorded target before deliv
 tests or reviewer checks into extra manual work.
 For a new or resumed change, require the Group `acceptance` gate with `--group-root` and `--work-id`
 from [../megin/references/quality-gates.md](../megin/references/quality-gates.md) to pass first. A
-structural pass is not the user's acceptance response. Validate the v3 record and confirm the Group
+structural pass is not the user's acceptance response. Validate the v4 record and confirm the Group
 lock remains with this Work ID/writer. Keep it while waiting; do not release or expire it because the
 user response is pending.
 
@@ -39,3 +39,7 @@ local `--no-ff` integration in dependency order; `feature_handoff` and `gitlab_m
 Explicitly authorized isolated exercises may use delegated main-agent acceptance as defined in
 [../megin/references/cross-repo-evidence.md](../megin/references/cross-repo-evidence.md).
 Record simulation mode, protected authorization digest and delegated actor; never call this a human response.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](../megin/references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

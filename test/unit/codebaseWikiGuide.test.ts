@@ -5,9 +5,9 @@ import {
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
-  assert.equal(wikiGuideCards.length, 13);
+  assert.equal(wikiGuideCards.length, 14);
   assert.deepEqual(wikiGuideCards.map((card) => card.id), [
-    'development-spec', 'install', 'ingest', 'query', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
+    'development-spec', 'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
     'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
@@ -87,6 +87,23 @@ test('adds the selected Group and actual local Repo names and paths to copied pr
 });
 test('rejects unknown guide cards instead of copying an empty prompt', () => {
   assert.throws(() => buildWikiGuidePrompt('missing', {}), /未知的 Codebase LLM Wiki 功能/);
+});
+
+test('functional exploration starts from current sources and remains read-only in both profiles', () => {
+  const inputs = createDefaultWikiGuideInputs();
+  const card = wikiGuideCards.find((item) => item.id === 'functional-exploration')!;
+  assert.equal(canCopyWikiPrompt(card, inputs), true);
+  const native = buildWikiGuidePrompt(card.id, inputs, {
+    profile: 'repository', root: 'C:\\工作區 with spaces\\service', repositories: [], repositoryScanStatus: 'ready'
+  });
+  assert.match(native, /functional_exploration.*先從目前原始碼/s);
+  assert.match(native, /只探索單一所選 Repo/);
+  assert.match(native, /功能、來源、覆蓋、排除與缺口/);
+  assert.match(native, /不執行目標程式或測試/);
+  assert.match(native, /不保存文件/);
+  assert.equal(native.includes('逐一探索所選 Group'), false);
+  assert.match(buildWikiGuidePrompt(card.id, inputs), /有效直屬 Repo.*Repo\/path/);
+  assert.match(buildWikiGuidePrompt('query', { 'query.question': '退款流程？' }), /Wiki-first.*先讀取 wiki\/index.md/s);
 });
 
 

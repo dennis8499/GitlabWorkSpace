@@ -613,7 +613,7 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-development-spec');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
-  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 12);
+  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 13);
 
   const selector = document.querySelector('.wiki-guide-selector select');
   assert.equal(selector.value, 'development-spec');
@@ -650,6 +650,17 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   view.send({ type: 'message', message: 'Prompt copied' });
   await view.tick();
   assert.match(document.querySelector('.toast').textContent, /Prompt copied/);
+
+  selector.value = 'functional-exploration';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  await view.tick();
+  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-functional-exploration');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  document.querySelector('.wiki-copy-button').click();
+  await view.tick();
+  assert.match(view.requests.at(-1).text, /functional_exploration.*先從目前原始碼/s);
+  assert.match(view.requests.at(-1).text, /不執行目標程式或測試/);
+  assert.match(view.requests.at(-1).text, /不保存文件/);
 
   selector.value = 'audit';
   selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));

@@ -18,7 +18,7 @@ import group_workspace as ws
 import group_quality_gate as q
 import gitlab_delivery as gd
 import delivery_receipt as dr
-import delivery_binding as db
+import group_delivery_binding as db
 import mr_contract as mr
 import git_review_context as gc
 import group_review as gr

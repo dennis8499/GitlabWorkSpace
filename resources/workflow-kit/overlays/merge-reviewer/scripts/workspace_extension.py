@@ -34,12 +34,23 @@ def prepare_manifest(args, api):
         mr_contract.prepare(args, api)
         if getattr(args, 'megin_receipt', None):
             import json
-            from delivery_binding import bind_delivery
+            from group_delivery_binding import bind_delivery
             receipt = json.loads(Path(args.megin_receipt).read_text(encoding='utf-8'))
-            args.megin_binding = bind_delivery(receipt,args.mr_task)
-    if getattr(args, 'megin_receipt', None) and not getattr(args, 'mr_task', None):
-        raise ValueError('--megin-receipt requires a fixed MR task')
+            if receipt.get('schema') == 'megin-delivery-receipt/v1':
+                args.megin_binding = bind_delivery(receipt,args.mr_task)
     return None
+
+
+def verify_binding(manifest):
+    binding = manifest.get('megin_binding')
+    if not isinstance(binding, dict) or binding.get('schema') not in ('megin-mr-binding/v1', 'megin-mr-binding/v2'):
+        return False
+    from group_delivery_binding import verify_report_binding
+    task = mr_contract.validate_task(manifest.get('mr_context'))
+    verify_report_binding(binding, {**task, 'megin_binding': binding}, task['sourceSha'], task['targetSha'], task=task)
+    if (manifest.get('head_sha'), manifest.get('base_sha')) != (task['sourceSha'], task['targetSha']):
+        raise ValueError('Megin MR binding differs from captured refs')
+    return True
 
 
 def publish_group(context: Path, draft: dict, manifest: dict, report_dir, include_json):

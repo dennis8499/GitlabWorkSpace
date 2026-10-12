@@ -935,12 +935,15 @@ class WorkspaceHardeningTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlink"):
                 skills_validator.package_files(root)
 
-    def test_review_skill_documents_the_source_maintenance_v1_exception(self) -> None:
+    def test_review_skill_preserves_legacy_contract_without_downgrading_new_work(self) -> None:
         review_skill = (ROOT / ".agents/skills/megin-code-review/SKILL.md").read_text(
             encoding="utf-8",
         )
-        self.assertIn("Megin source-maintenance work", review_skill)
-        self.assertIn("v1 review gate", review_skill)
+        self.assertIn("For retained native work explicitly using `--repo`", review_skill)
+        self.assertIn("follow its own approved contract and gate version", review_skill)
+        self.assertIn("New single-Repo work uses repository profile native v2", review_skill)
+        self.assertIn("new Group work uses the v4 path above", review_skill)
+        self.assertIn("For retained legacy work, follow its original verdict contract", review_skill)
 
 
 if __name__ == "__main__":

@@ -44,13 +44,19 @@ def bind_delivery(receipt,task):
     expected=items[0]['tree_sha']
     result=subprocess.run(['git','--no-optional-locks','-C',str(repo),'rev-parse',task['sourceSha']+'^{tree}'],text=True,capture_output=True,check=False)
     if result.returncode or result.stdout.strip()!=expected:raise ValueError('MR source tree differs from immutable delivery')
-    return {'schema':'megin-mr-binding/v1','work_id':receipt['work_id'],'plan_version':receipt['plan_version'],
+    return {'schema':'megin-mr-binding/v2','work_id':receipt['work_id'],'plan_version':receipt['plan_version'],
             'execution_mode':receipt['execution_mode'],'accepted_snapshot':receipt['accepted_snapshot'],
             'delivery_commit':task['sourceSha'],'delivered_tree':expected,'receipt_sha256':receipt['receipt_sha256'],
-            'mr_identity':{k:task[k] for k in IDENTITY_FIELDS}}
+            'mr_identity':{k:task[k] for k in IDENTITY_FIELDS}, 'receipt':receipt, 'task':task}
 
-def verify_report_binding(binding,metadata,current_source,current_target):
-    if not isinstance(binding,dict) or binding.get('schema')!='megin-mr-binding/v1':raise ValueError('invalid Megin MR binding')
+def verify_report_binding(binding,metadata,current_source,current_target,*,task=None,allow_legacy=False):
+    if not isinstance(binding,dict) or binding.get('schema') not in ('megin-mr-binding/v1','megin-mr-binding/v2'):raise ValueError('invalid Megin MR binding')
+    if binding['schema']=='megin-mr-binding/v1':
+        if not allow_legacy:raise ValueError('legacy Megin binding requires fresh receipt capture')
+    else:
+        frozen_task=validate_task(binding.get('task'))
+        if task is not None and frozen_task!=task:raise ValueError('Megin binding task differs from captured MR')
+        if bind_delivery(binding.get('receipt'),frozen_task)!=binding:raise ValueError('Megin receipt/report binding changed')
     if metadata.get('megin_binding')!=binding:raise ValueError('report lacks matching Megin binding')
     if any(metadata.get(k)!=v for k,v in binding['mr_identity'].items()):raise ValueError('MR/report identity mismatch')
     if (current_source,current_target)!=(binding['mr_identity']['sourceSha'],binding['mr_identity']['targetSha']):raise ValueError('MR changed after capture; re-review required')

@@ -49,7 +49,9 @@ class TransactionTests(unittest.TestCase):
         return data
 
     def predecessor(self, *, local_update=False, package_index=0):
-        installed = self.apply()
+        # Start with authentic historical Wiki and installer metadata, then apply
+        # the reviewed predecessor deltas without reinterpreting current bytes.
+        installed = self.install_frozen_014()
         old = TRUST["packages"][package_index]
         marker = self.group / MARKER
         value = json.loads(marker.read_text(encoding="utf-8"))
@@ -60,7 +62,7 @@ class TransactionTests(unittest.TestCase):
         if local_update:
             reviewed = TRUST["local_updates"][0]
             expected = {".agents/skills/" + p: h for p, h in reviewed["files"].items()}
-            # The reviewed Aspire local patch is exactly the current Group skill payload.
+            # The reviewed Aspire local patch matches the frozen 0.14 Group payload.
             value["local_update"] = {"schema": "workflow-overlay-install/v1", **reviewed,
                                      "upstream_payload_sha256": old["payloadSha256"]}
         for path in list(value["files"]):
@@ -78,7 +80,7 @@ class TransactionTests(unittest.TestCase):
                 if source.is_file():
                     raw = source.read_bytes()
                 else:
-                    name = "merge-reviewer-0.7.0.zip" if path.startswith(".agents/skills/merge-reviewer/") else "megin-skills-0.4.0.zip"
+                    name = "merge-reviewer-0.7.0.zip" if path.startswith(".agents/skills/merge-reviewer/") else "megin-skills.zip"
                     with zipfile.ZipFile(ROOT / "resources/offline-tools/sources" / name) as archive:
                         raw = archive.read(path.removeprefix(".agents/skills/"))
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -150,6 +152,7 @@ class TransactionTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, data)
         self.assertEqual(14, data["skills"])
         self.assertEqual("update-available", self.status(self.group)["status"])
+        return data
 
     def test_real_014_install_upgrade_and_exact_rollback(self):
         self.install_frozen_014()
@@ -397,7 +400,7 @@ class TransactionTests(unittest.TestCase):
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
         paths.extend(ROOT / "resources/offline-tools/sources" / p for p in
-                     ("codebase-llm-wiki-codex-0.4.0.zip", "megin-skills-0.4.0.zip", "merge-reviewer-0.7.0.zip", "release-reviewer-0.1.0.zip"))
+                     ("codebase-llm-wiki-codex-0.5.0.zip", "megin-skills-0.6.0.zip", "merge-reviewer-0.9.0.zip", "release-reviewer-0.1.0.zip"))
         for path in paths:
             target = source / path.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)

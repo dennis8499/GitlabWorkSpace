@@ -71,6 +71,18 @@ def normalize_body(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").strip(" \t\n")
 
 
+def verify_delivery_binding(binding, metadata, task, *, allow_legacy=False):
+    if binding.get('schema') in ('megin-mr-binding/v1', 'megin-mr-binding/v2'):
+        from group_delivery_binding import verify_report_binding
+        return verify_report_binding(binding, metadata, task['sourceSha'], task['targetSha'], task=task, allow_legacy=allow_legacy)
+    from delivery_binding import bind_delivery
+    manifest = {'repo': task['repoPath'], 'head_sha': task['sourceSha'],
+                'review_right': task['sourceSha'], 'review_scope': 'committed'}
+    if metadata.get('megin_binding') != binding or bind_delivery(binding.get('receipt'), manifest) != binding:
+        raise ValueError('native Megin receipt/report binding differs')
+    return True
+
+
 def bind_report(body: str, manifest: dict, result: dict) -> tuple[str, dict]:
     task = validate_task(manifest["mr_context"])
     if (manifest["head_sha"], manifest["base_sha"]) != (task["sourceSha"], task["targetSha"]):
@@ -85,9 +97,8 @@ def bind_report(body: str, manifest: dict, result: dict) -> tuple[str, dict]:
         "priorityCounts": result["priority_counts"],
     }
     if manifest.get('megin_binding'):
-        from delivery_binding import verify_report_binding
         metadata['megin_binding'] = manifest['megin_binding']
-        verify_report_binding(manifest['megin_binding'],metadata,task['sourceSha'],task['targetSha'])
+        verify_delivery_binding(manifest['megin_binding'], metadata, task)
     encoded = base64.b64encode(json.dumps(metadata, ensure_ascii=False, sort_keys=True).encode("utf-8")).decode("ascii")
     return body + f"\n\n<!-- merge-review-report:{encoded} -->\n", metadata
 
@@ -101,6 +112,5 @@ def verify_portable_report(markdown, current_task):
     if metadata.get("schema") != REPORT or metadata.get("bodySha256") != hashlib.sha256(body.encode("utf-8")).hexdigest(): raise ValueError("report body digest changed")
     if any(metadata.get(k) != task[k] for k in IDENTITY_FIELDS) or metadata.get("repoPath") != task["repoPath"]: raise ValueError("MR identity or versions changed; review again")
     if metadata.get("megin_binding"):
-        from delivery_binding import verify_report_binding
-        verify_report_binding(metadata["megin_binding"], metadata, task["sourceSha"], task["targetSha"])
+        verify_delivery_binding(metadata["megin_binding"], metadata, task, allow_legacy=True)
     return metadata

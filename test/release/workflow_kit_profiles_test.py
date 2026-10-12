@@ -44,7 +44,7 @@ class ProfileTests(unittest.TestCase):
         result, data = self.apply(profile)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual(profile, data["profile"])
-        self.assertEqual("0.4.0", data["upstreamVersions"]["megin"])
+        self.assertEqual("0.6.0", data["upstreamVersions"]["megin"])
         return data
 
     def assert_preserved(self):
@@ -89,7 +89,7 @@ class ProfileTests(unittest.TestCase):
         native = self.installed()
         self.assertEqual("repository", self.status(self.repo)["profile"])
         path = ".agents/skills/codebase-wiki/references/development-spec-workflow.md"
-        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.4.0.zip") as upstream:
+        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.5.0.zip") as upstream:
             name = next(name for name in upstream.namelist() if name.endswith(path))
             self.assertEqual(upstream.read(name), (self.repo / path).read_bytes())
         self.assert_preserved()
@@ -119,6 +119,33 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(original, (self.repo / MARKER).read_bytes())
         self.assertEqual("group", self.status(self.repo)["profile"])
         self.assert_preserved()
+
+    def test_true_017_profiles_upgrade_and_restore_original_fingerprints(self):
+        fixture = ROOT / 'test/fixtures/workflow-kit-0.17.0'
+        archive = fixture / 'workflow-kit.tar.xz'
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile):
+                target = self.base / ('old-017-' + profile)
+                target.mkdir()
+                run = subprocess.run(['git', '-C', str(target), 'init', '-q', '-b', 'main'], capture_output=True)
+                self.assertEqual(0, run.returncode)
+                run = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(fixture / 'installer.py'),
+                    'install', str(archive), str(target), '0.17.0', 'bundled', '--format', 'tar.xz',
+                    '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    '--profile', profile], capture_output=True, text=True, encoding='utf-8')
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                before = (target / MARKER).read_bytes()
+                state = self.status(target)
+                self.assertEqual(('update-available', profile, '0.17.0'), (state['status'], state['profile'], state['version']))
+                self.assertNotIn('functional-exploration', state['capabilities'])
+                run, updated = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz',
+                    '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                self.assertIn('functional-exploration', self.status(target)['capabilities'])
+                run, _ = self.execute('rollback', target, updated['transaction'])
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                self.assertEqual(before, (target / MARKER).read_bytes())
+                self.assertEqual(('update-available', profile), (self.status(target)['status'], self.status(target)['profile']))
 
     def test_conversion_failure_restores_original_profile_and_rejects_tampering(self):
         self.installed("group")

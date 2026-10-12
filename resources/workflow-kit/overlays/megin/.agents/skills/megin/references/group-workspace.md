@@ -2,7 +2,7 @@
 
 ## 啟動位置與 Skills
 
-新 Group 工作使用 v3 workflow、quality contract、evidence 和 snapshot；已完成的 v1/v2 歷史保持原樣。未完成舊 Group 工作須建立 v3 新計畫並重新核准、審查、驗證及驗收。Megin 原始碼維護入口仍保留 v1。
+新 Group 工作使用 v4 workflow、quality contract、evidence 和 snapshot。舊工作沿用原契約、Skills 指紋及核准，不自動改版；未完成工作阻擋套件升級與 profile 轉換，續作不重置審查次數。
 
 使用者從 GitLab Group 根目錄啟動 Codex。該位置不是 Git repository；其中 `.agents/skills/` 放置整組 `megin*` Skills。Codex 會從目前工作目錄的 `.agents/skills/` 掃描 repository-local Skills；若 Skills 清單未更新，重新載入或啟動 Codex。不要把新工作的記錄放進個別 Repo。
 
@@ -39,7 +39,7 @@
 
 ## 品質命令與證據
 
-新工作使用 Group v3 品質契約及 `--group-root`、`--work-id`。v1/v2 歷史維持原樣；未完成舊 Group 工作需新 plan 版本並重新核准、審查、驗證及驗收。Megin Skills 原始碼維護仍保留 v1 `--repo` 入口。
+新工作使用 Group v4 品質契約及 `--group-root`、`--work-id`。舊工作維持原 schema、指紋與核准，不以新工作模板改寫。歷史原生 `--repo` 紀錄依原契約續作；新的單 Repo 工作使用 repository profile 的原生 v2 Skills。
 
 ```text
 python <Group>/.agents/skills/megin/scripts/quality_gate.py snapshot --group-root <Group> --work-id <Work ID>
@@ -50,7 +50,7 @@ python <Group>/.agents/skills/megin/scripts/quality_gate.py check --group-root <
 python <Group>/.agents/skills/megin/scripts/quality_gate.py check --group-root <Group> --work-id <Work ID> --gate completion
 ```
 
-`validate-record` 唯讀驗證 v3 workflow、契約、必要欄位、唯一標頭、狀態、Group root、Repo 清單、交付模式、設定摘要、Skills 指紋及交接圖。`review` 適用 implementation/review；`acceptance` 適用 verification/acceptance；`delivery` 與 `completion` 適用 delivery。品質命令不執行產品命令，也不自動推進流程狀態。
+`validate-record` 唯讀驗證 v4 workflow、契約、必要欄位、唯一標頭、狀態、Group root、Repo 清單、交付模式、設定摘要、Skills 指紋及交接圖。`review` 適用 implementation/review；`acceptance` 適用 verification/acceptance；`delivery` 與 `completion` 適用 delivery。品質命令不執行產品命令，也不自動推進流程狀態。
 
 ## Group 設定與 Skills 指紋
 

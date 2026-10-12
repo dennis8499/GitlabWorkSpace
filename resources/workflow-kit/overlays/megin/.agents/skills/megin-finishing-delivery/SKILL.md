@@ -16,7 +16,7 @@ Group root, all selected Repo paths and feature branches, per-Repo approved path
 verified composite snapshot, knowledge scope, delivery mode, and final diffs. Confirm each remote
 and base still matches its approved target and acceptance covers this exact snapshot. Stop on
 unrelated files, remote or branch drift, stale evidence, or an unauthorized target. Revalidate the
-approved v3 record, frozen Group settings and Skills fingerprint; require the Group lock to match
+approved v4 record, frozen Group settings and Skills fingerprint; require the Group lock to match
 the Work ID and writer before product writes.
 For a new or resumed change, confirm the accepted Group snapshot, then stage only approved paths in
 each Repo and run the Group read-only `delivery` gate with `--group-root` and `--work-id` from
@@ -49,3 +49,7 @@ gate. It must verify each feature commit tree, approved merge order, and (for on
 `status: complete`, then release the Group lock with `group_workspace.py release --completion-record`.
 For multiple Repos, record ordered manual-merge details and no base merge. If completion fails, keep
 the lock and leave the Work ID in delivery with exact pending Repo/action in `workflow.md`.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](../megin/references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

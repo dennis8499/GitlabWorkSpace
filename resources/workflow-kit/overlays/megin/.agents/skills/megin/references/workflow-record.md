@@ -7,7 +7,7 @@
 ```markdown
 # Megin 工作流程：<short title>
 
-- schema: megin-skills-workflow/v3
+- schema: megin-skills-workflow/v4
 - work_id: work-YYYYMMDD-<lowercase-slug>
 - group_root: <Group root>
 - repositories: <JSON array of direct-child Repo paths>
@@ -27,7 +27,7 @@
 
 Work ID 固定為 `work-YYYYMMDD-<lowercase-slug>`；不得重用舊 Work ID 或舊核准。Repo branch 和 SHA 不放在單一全域欄位，逐 Repo 保存於核准的 `plan-<version>/plan.md` 與 `quality-contract.json`，其內容至少包含 `repo_path`、`remote`、`remote_url`、`base_branch`、`base_commit`、`feature_branch`、`allowed_paths` 及帶明確 `cwd` 的檢查命令。`repositories` 必須是與契約清單相同順序的 JSON 字串陣列。`delivery_mode` 可選一個 Repo 的 `local_merge`、多個 Repo 的 `feature_handoff`，或交由 GitlabWorkSpace 完成一個／多個 Repo 交付的 `gitlab_mr`。標頭鍵與控制值維持英文，說明使用繁體中文。
 
-`workflow.md` 是唯一流程狀態來源；核准計畫是行為、路徑、命令、Group 設定解析、Skills 指紋和交付義務來源；`quality_ref` 指向執行證據，`delivery_ref` 指向預先列入 `process_records` 的交付結果。已完成的舊 v1/v2 紀錄保持原樣，不回填、不遷移、不作為新工作的授權。未完成舊 Group v1/v2 工作需升級到新的 v3 plan 並重新核准、審查、驗證及驗收。Megin 原始碼自身的 v1 維護紀錄不變。新工作不讀取或續用 repo-local `docs/work` 紀錄。
+`workflow.md` 是唯一流程狀態來源；核准計畫是行為、路徑、命令、Group 設定解析、Skills 指紋和交付義務來源；`quality_ref` 指向執行證據，`delivery_ref` 指向預先列入 `process_records` 的交付結果。舊工作保持原 schema、Skills 指紋、核准與審查歷程，不回填、不自動遷移、不作為新工作的授權；未完成工作阻擋套件升級及 profile 轉換。新工作不讀取或續用 repo-local `docs/work` 紀錄。
 
 ## 區段
 
@@ -71,3 +71,7 @@ Work ID 固定為 `work-YYYYMMDD-<lowercase-slug>`；不得重用舊 Work ID 或
 需求未知時保持 `phase: requirements`、`status: awaiting_user`；審查或驗證失敗返回受影響的實作任務。實作開始前建立 Group 排他占用；審查、驗證、等待人工驗收和 blocked 都保留鎖，不依時間自動回收。每次產品寫入前核對 Work ID 和 writer。Skills 指紋漂移即停止續作，重確認計畫並重跑審查、驗證和驗收。完成時以 `completion` gate 驗證 delivery record、feature commit 和必要的單 Repo merge parents/tree；通過後才標記 `complete` 並釋放鎖。人工交接或中止需確認原 writer 已停止、記錄原因再轉交／釋放。知識檢視只在人工驗收後進行，且限核准來源範圍。Push、Pull Request、部署和分支清理不屬於本流程。
 
 `gitlab_mr` supports one or more Repos and hands accepted staged content to GitlabWorkSpace. Read [gitlab-delivery.md](gitlab-delivery.md) for frozen GitLab identity, handoff evidence, lock transfer and completion. Legacy local_merge/feature_handoff rules apply only to those modes.
+
+## Legacy records
+
+Native v1 and Group v1/v2/v3 records retain their original schema, fingerprints and evidence. Do not relabel or silently upgrade active work. New Group v4 records use the mandatory [new-work evidence contract](new-work-evidence.md); correction attempts append to history and never reset on resume.

@@ -68,6 +68,13 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
     fields: [field('question', '想了解的問題', { required: true, kind: 'textarea', rows: 3, placeholder: '可以貼上多行問題或情境…' })]
   },
   {
+    id: 'functional-exploration', title: '專案功能探索',
+    description: '完整盤點目前原始碼的功能入口、流程、依賴與缺口。',
+    output: '附來源的功能清單，以及檔案／入口覆蓋與待確認事項。',
+    behavior: '原始碼優先、唯讀，不執行程式或測試；明確要求保存時才寫入指定文件。',
+    fields: [field('scope', '功能探索範圍（選填）', { kind: 'textarea', rows: 2 })]
+  },
+  {
     id: 'lint', title: 'Wiki 品質與索引維護',
     description: '檢查 Wiki 健康狀態，或依現有頁面重建索引。',
     output: '品質檢查列出問題與修復建議；索引維護重建 index 並追加 log。',
@@ -186,6 +193,13 @@ export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValue
         : `請使用 $codebase-wiki，依照 Interactive Ingest 流程分析「${promptValue(card, 'path', inputs)}」。先摘要主要職責、相依關係與風險，提出預計新增或更新的 Wiki 頁面，預覽變更並等待我確認後再寫入 Wiki、index 與 log。`;
     case 'query':
       return `請使用 $codebase-wiki 以 Wiki-first 流程回答以下問題：\n\n${promptValue(card, 'question', inputs)}\n\n先讀取 wiki/index.md 和相關頁面；只有 Wiki 不足、過時或內容矛盾時才回查來源。回答附上檔案依據並標示尚未驗證的資訊，不修改任何檔案。`;
+    case 'functional-exploration':
+      return [
+        '請使用 $codebase-wiki 的 functional_exploration 路由，先從目前原始碼盤點功能入口、完整流程、依賴、設定與缺口，再以必要的 Wiki 作背景核對。分開記錄來源事實、推論與待確認事項。',
+        `探索範圍：${inputValue(card, 'scope', inputs).trim() || '所選工作區的完整安全來源範圍'}`,
+        context?.profile === 'repository' ? `只探索單一所選 Repo：${JSON.stringify(context.root)}。` : '逐一探索所選 Group 的有效直屬 Repo，來源引用使用 Repo/path。',
+        '使用共享 scanner 核對所有納入檔案與入口，回報功能、來源、覆蓋、排除與缺口。原始碼唯讀，不執行目標程式或測試；本次只在回覆中輸出，不保存文件。'
+      ].join('\n\n');
     case 'lint':
       return inputValue(card, 'operation', inputs) === '重建索引'
         ? '請使用 $codebase-wiki 重新檢查 wiki/ 目錄，依各頁現有 frontmatter 重建 wiki/index.md，並依規範追加 wiki/log.md。完成後回報更新結果。'

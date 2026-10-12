@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILLS = ROOT / ".agents" / "skills"
+# Read the actual pinned native Skills plus current overlays; the historical
+# requirements feature below remains an immutable test input.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "group-workspace"))
+from support import SKILL_ROOT
+SKILLS = SKILL_ROOT
 
 
 def require(text: str, *phrases: str) -> None:

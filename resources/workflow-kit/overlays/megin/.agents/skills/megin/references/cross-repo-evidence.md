@@ -1,6 +1,6 @@
 # Fixed inputs, executable scenarios and isolated exercises
 
-Only Repos with approved product changes enter the branch/commit/delivery set. A compatibility-only Repo stays on its current branch. The optional v3 `verification_inputs` binds immutable Git blobs, not live checkout files:
+Only Repos with approved product changes enter the branch/commit/delivery set. A compatibility-only Repo stays on its current branch. The optional v4 `verification_inputs` binds immutable Git blobs, not live checkout files:
 
 ```json
 [{"repo_path":"contracts","commit":"<full commit SHA>","files":[{"path":"health.mjs","sha256":"<SHA-256 of committed bytes>"}],"check_ids":["compatibility"]}]

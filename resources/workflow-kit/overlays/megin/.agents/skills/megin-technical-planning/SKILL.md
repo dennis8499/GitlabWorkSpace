@@ -50,7 +50,7 @@ one writer handoff and one fresh-review handoff. Include migration and failure
 handling when the change affects data, permissions, dependencies, compatibility, or operational
 behavior.
 
-Read [../megin/references/cross-repo-evidence.md](../megin/references/cross-repo-evidence.md) for optional fixed inputs, scenario trace, runner preflight, and isolated simulation delegation.
+Read [../megin/references/cross-repo-evidence.md](../megin/references/cross-repo-evidence.md) for optional fixed inputs, runner preflight, and isolated simulation delegation. New v4 scenario trace and TDD evidence are mandatory, as specified in new-work-evidence.md.
 
 The plan remains read-only. Once the user explicitly approves the exact Work ID and plan version,
 the implementation handoff creates the named feature branch from the recorded base commit before
@@ -63,3 +63,7 @@ plan and returns the work here.
 Handoff: `phase: approval` with a reviewable, complete plan; approval is not implied by producing it.
 
 For a GitlabWorkSpace task, freeze `delivery_mode: gitlab_mr` and the GitLab/Issue/Repo identities described in [../megin/references/gitlab-delivery.md](../megin/references/gitlab-delivery.md); predeclare handoff.json before any quality snapshot.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](../megin/references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

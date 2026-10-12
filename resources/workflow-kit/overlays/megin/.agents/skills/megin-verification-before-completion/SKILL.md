@@ -36,3 +36,7 @@ and fresh review, verification, and human acceptance.
 When all automated obligations pass, write a final verification record and set `status:
 awaiting_user` with `phase: acceptance`. Product files, knowledge, staging, and commit state remain
 unchanged until the human acceptance response.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](../megin/references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

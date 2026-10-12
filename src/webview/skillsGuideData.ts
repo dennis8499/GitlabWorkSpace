@@ -39,14 +39,14 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
     tool: 'megin', id: 'megin-workflow', title: 'Issue 開發與交付流程',
     description: '從「我的工作」選擇 Issue，帶入真實 Issue、Repo 與 GitLab 契約後啟動 Megin。',
     output: 'Group Work ID、核准計畫、驗證與人工驗收證據，以及工作台交付資料。',
-    behavior: 'Megin 依序協調需求探索、專案知識、問題診斷、行為契約、技術規劃、實作、TDD、獨立程式審查、完成前驗證、人工驗收與交付子 Skills。使用 gitlab_mr，由工作台接手 Commit、Push 與 MR。',
+    behavior: 'Megin 先中立探索需求與完整功能，明確核准計畫後實作 BDD／TDD。初審另計，最多三次修正重審，每次由新的獨立唯讀 reviewer 審查；通過後驗證及人工驗收。使用 gitlab_mr，由工作台接手 Commit、Push 與 MR。',
     fields: [], destination: 'developer'
   },
   {
     tool: 'megin', id: 'megin-resume', title: '續作既有 Work ID',
     description: '從 Group 工作紀錄恢復尚未完成的工作。',
     output: '沿用原有 Work ID、Issue 契約、計畫與驗收版本，回報目前進度及下一步。',
-    behavior: '讀取既有紀錄並從未完成階段繼續，保留 Group 鎖、審查與驗收規則。',
+    behavior: '讀取既有紀錄並從未完成階段繼續，保留原契約、指紋、Group 鎖與審查歷程；修正次數不重置。',
     fields: [field('workId', 'Work ID', { required: true, placeholder: 'work-20261010-payment-retry' })]
   },
   {
@@ -93,7 +93,7 @@ export function getSkillGuideCards(profile: 'group' | 'repository' = 'group'): r
     if (card.id === 'megin-workflow') return { ...card, title: '單一 Repo 開發流程', destination: undefined,
       description: '在選定的 Git Repo 啟動原生 Megin 開發工作。',
       output: 'Repo 內的 Work ID、核准計畫、驗證、人工驗收與本機交付紀錄。',
-      behavior: '依原生 Megin 流程完成需求、規劃、實作、獨立審查、驗證、人工驗收及本機 Commit／Merge。',
+      behavior: '先中立探索需求及完整功能，明確核准計畫後進行 BDD／TDD；初審後最多三次修正，每次使用新的獨立 reviewer。通過後驗證、人工驗收及本機 Commit／Merge。',
       fields: [field('task', '開發需求', { required: true, kind: 'textarea', rows: 4 })] };
     if (card.id === 'megin-resume') return { ...card, description: '從此 Repo 的工作紀錄恢復未完成的工作。',
       output: '沿用原 Work ID、核准計畫與驗收版本，回報進度及下一步。', behavior: '使用原生 Repo 鎖及完成門檻，續作此 Repo 的既有工作。' };
@@ -143,18 +143,20 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   const json = input('output') === 'Markdown＋JSON';
   if (context.profile === 'repository' && card.id === 'megin-workflow') return [
     `$megin 請在 Repo ${JSON.stringify(context.root)} 執行下列開發需求：`, input('task'),
-    '使用此 Repo 安裝的原生 Megin 與協作 Skills。先讀取來源與相關知識，確認既有工作；新工作先釐清需求、建立可驗證計畫並取得核准。',
+    '使用此 Repo 安裝的原生 Megin 與十二個協作 Skills。新工作使用 native v2，先中立釐清問題、受眾、成果與驗收，完整探索目前功能，分開記錄事實、假設、需求與技術建議；精確計畫取得明確核准後才開始 BDD／TDD 實作，保留實際 red／green 原始證據。',
+    '每項 REQ 必須追溯到 SCN Given／When／Then、測試斷言、實作、Review 與人工驗收，探索及核准引用一併納入交付收據。',
+    '初審為第 0 輪，最多三次修正重審，每次使用新的獨立唯讀 reviewer；通過即進入驗證與人工驗收，第三次修正仍失敗則保留證據回報未完成。續作不重置次數。',
     '工作紀錄保存在 docs/work/<Work ID>/，沿用原生 Repo 鎖、獨立審查、實際驗證、人工驗收及本機交付規則。'
   ].join('\n');
   if (context.profile === 'repository' && card.id === 'megin-resume') return [
     `$megin 請在 Repo ${JSON.stringify(context.root)} 續作 Work ID：${input('workId')}。`,
     '先讀取 docs/work/<Work ID>/workflow.md、原核准計畫、固定版本與 evidence，核對原生 Repo 工作契約及 Skills 指紋，從最早未完成的階段繼續。',
-    '沿用原 Work ID、版本、Repo 鎖、獨立審查、實際驗證、人工驗收與本機交付規則。'
+    '沿用原 Work ID、契約版本、Skills 指紋、Repo 鎖與追加式審查歷程，修正次數不得重置；保留獨立審查、實際驗證、人工驗收與本機交付規則。'
   ].join('\n');
   if (card.id === 'megin-resume') return [
     `$megin 請在此 Group 續作 Work ID：${input('workId') || '〔請填寫 Work ID〕'}。`,
     '先讀取 docs/work/<Work ID>/workflow.md、核准計畫及 evidence，確認原有 Issue 與 Repo 契約，從最早尚未完成的階段繼續。',
-    '沿用原有 Work ID、Group 鎖、計畫與驗收版本；若紀錄不存在或無法確認，先釐清。保留獨立審查、實際驗證與人工驗收，gitlab_mr 交付由工作台接手。'
+    '沿用原有 Work ID、契約版本、Skills 指紋、Group 鎖、計畫與驗收版本，以及追加式審查歷程，修正次數不得重置；若紀錄不存在或無法確認，先釐清。保留獨立審查、實際驗證與人工驗收，gitlab_mr 交付由工作台接手。'
   ].join('\n');
   const opening = card.id === 'merge-group'
     ? `$merge-reviewer 請審查 Group ${JSON.stringify(context.groupRoot ?? '')} 下一層所有有效 Repo 的未提交內容，使用 git_review_context.py --group-root <此 Group> --quick。分別審查固定的暫存區與工作檔快照，輸出 Group 總覽與各 Repo 報告；不 fetch，也不推定 MR 身分。`

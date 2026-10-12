@@ -24,3 +24,5 @@ This Group installs Codebase LLM Wiki, Megin, MergeReviewer, and ReleaseReviewer
 - The Group is the shared knowledge and coordination root, not a Git repository or a product repository. Do not scan tool installations, this profile, `.megin/`, `docs/work/`, `review-reports/`, or `.notebooklm/` as product source.
 - For code analysis, preserve the upstream full inventory and static audit contracts; clearly state the actual repository paths and checked or unverified coverage.
 - Keep GitLab credentials in Workspace SecretStorage and never copy them into Wiki pages, work records, review reports, or prompts.
+
+New work uses native Megin v2 in the repository profile and Group v4 in the Group profile. Explore current-source functions and neutral requirements, obtain exact-plan approval, then preserve BDD/TDD raw evidence and a fresh independent read-only reviewer for initial round 0 plus at most three correction rounds. Approval can stop retries early; three failed corrections remain incomplete. Resume preserves the original attempt history and fingerprint. Functional exploration is source-first and read-only by default; normal Wiki queries stay Wiki-first.

@@ -30,26 +30,26 @@ PINNED_SOURCES = (
         "id": "codebase-wiki",
         "repository": "code-base-llm-wiki",
         "asset": "codebase-llm-wiki-codex.zip",
-        "filename": "codebase-llm-wiki-codex-0.4.0.zip",
-        "version": "0.4.0",
-        "sha256": "6b29e9135d4f504a336d7fdc90227039b9b6866a12f503913020c3fd722197f0",
-        "root": "codebase-llm-wiki-codex-0.4.0",
+        "filename": "codebase-llm-wiki-codex-0.5.0.zip",
+        "version": "0.5.0",
+        "sha256": "cf13488ad93459438e43051ce8a3bd1a4bf0c2f1c1e47152a0d83bc7f95b05e1",
+        "root": "codebase-llm-wiki-codex-0.5.0",
     },
     {
         "id": "megin",
         "repository": "Megin",
         "asset": "megin-skills.zip",
-        "filename": "megin-skills-0.4.0.zip",
-        "version": "0.4.0",
-        "sha256": "fb52888a5abc5a73076f50c05df9ee5caa87ec9c941c337a3dae3fd26af3df92",
+        "filename": "megin-skills-0.6.0.zip",
+        "version": "0.6.0",
+        "sha256": "7cbe18d8403500ddf64f27105d615985f47fbae3359cf6b485bfff1ccd7d910f",
     },
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.7.0.zip",
-        "filename": "merge-reviewer-0.7.0.zip",
-        "version": "0.7.0",
-        "sha256": "0ccc6b47b4e75d5f3c1fe5a02134916362ad2e052e0e6063b732734a65a7dbd3",
+        "asset": "merge-reviewer-0.9.0.zip",
+        "filename": "merge-reviewer-0.9.0.zip",
+        "version": "0.9.0",
+        "sha256": "d91becfaf01c8d6aaf00fcd087e8bf4406fb691ec90ddc8073c82c4d10fbfe0b",
     },
     {
         "id": "release-reviewer",
@@ -218,6 +218,8 @@ def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
         if not path.is_file():
             continue
         relative = path.relative_to(overlay_root).as_posix()
+        if '__pycache__' in PurePosixPath(relative).parts or path.suffix in ('.pyc', '.pyo'):
+            continue
         destination = f"{destination_prefix}{relative}" if destination_prefix else relative
         safe = checked_path(destination)
         payload_path = f"payload/{safe.as_posix()}"
@@ -320,9 +322,9 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "overlays": overlays,
         "sourceSummary": [
-            "Native Codebase LLM Wiki 0.4.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-            "Native Megin 0.4.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
-            "Native MergeReviewer 0.7.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
+            "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
+            "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
+            "Native MergeReviewer 0.9.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
             "Native ReleaseReviewer 0.1.0 reviews one Repo using explicit base/head refs and writes local code-risk, configuration, and database reports without an overlay."
         ],
         "customProfile": {
@@ -344,7 +346,7 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
-    capabilities = sorted(["development-spec", "ingest", "query", "lint", "audit", "adr", "synthesis",
+    capabilities = sorted(["development-spec", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
                            "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
                            "megin-workflow", "megin-resume", "merge-repo", "merge-quick", "merge-group", "merge-mr", "release-review"])
     native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}

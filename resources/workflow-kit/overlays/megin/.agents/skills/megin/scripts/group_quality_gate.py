@@ -1,4 +1,4 @@
-"""GitLab Workspace Group v2/v3 quality contracts, snapshots, and delivery gates."""
+"""GitLab Workspace Group v2/v3/v4 quality contracts, snapshots, and delivery gates."""
 from __future__ import annotations
 
 import argparse
@@ -156,7 +156,7 @@ def validate_v3_group_record(
     missing = sorted(required - set(fields))
     if missing:
         raise InvalidEvidence("workflow v3 required headers missing: " + ", ".join(missing))
-    if fields.get("schema") != "megin-skills-workflow/v3":
+    if fields.get("schema") not in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         raise InvalidEvidence("workflow schema is not megin-skills-workflow/v3")
     if not same_group_path(fields.get("group_root"), group_root):
         raise InvalidEvidence("workflow Group path differs from the selected Group root")
@@ -280,7 +280,7 @@ def load_group_contract(
     work = group_root / "docs" / "work" / work_id
     fields = workflow_fields(work / "workflow.md")
     workflow_schema = fields.get("schema")
-    if workflow_schema not in ("megin-skills-workflow/v2", "megin-skills-workflow/v3"):
+    if workflow_schema not in ("megin-skills-workflow/v2", "megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         raise InvalidEvidence("workflow schema is not a supported Group schema")
     if fields.get("work_id") != work_id:
         raise InvalidEvidence("workflow Work ID mismatch")
@@ -291,8 +291,7 @@ def load_group_contract(
     group_evidence_file(group_root, work_id, reference)
     contract = read_json(work / plan_version / "quality-contract.json")
     expected_contract_schema = (
-        "megin-quality-contract/v3" if workflow_schema == "megin-skills-workflow/v3"
-        else "megin-quality-contract/v2"
+        "megin-quality-contract/" + workflow_schema.rsplit("/", 1)[1]
     )
     if (contract.get("schema"), contract.get("work_id"), contract.get("plan_version")) != (
         expected_contract_schema, work_id, plan_version,
@@ -309,7 +308,7 @@ def load_group_contract(
         raise InvalidEvidence("Group contract needs repositories, checks, and process_records")
     if delivery_mode not in ("local_merge", "feature_handoff", "gitlab_mr"):
         raise InvalidEvidence("invalid Group delivery_mode")
-    if delivery_mode == "gitlab_mr" and workflow_schema != "megin-skills-workflow/v3":
+    if delivery_mode == "gitlab_mr" and workflow_schema not in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         raise InvalidEvidence("gitlab_mr requires a Group v3 contract")
     if delivery_mode == "gitlab_mr":
         validate_gitlab_identity(contract)
@@ -412,7 +411,7 @@ def load_group_contract(
         raise InvalidEvidence("quality_ref must be a unique approved process record")
     if delivery_mode == "gitlab_mr" and f"docs/work/{work_id}/evidence/handoff.json" not in records:
         raise InvalidEvidence("gitlab_mr handoff.json must be predeclared in process_records")
-    if workflow_schema == "megin-skills-workflow/v3":
+    if workflow_schema in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         validate_v3_group_record(
             group_root, work_id, fields, contract, validated, records, check_ids,
         )
@@ -563,16 +562,14 @@ def group_snapshot(
     all_entries.extend(group_record_entries(group_root, work_id, records))
     result: dict[str, object] = {
         "schema": (
-            "megin-quality-snapshot/v3"
-            if _fields.get("schema") == "megin-skills-workflow/v3"
-            else "megin-quality-snapshot/v2"
+            "megin-quality-snapshot/" + _fields["schema"].rsplit("/", 1)[1]
         ),
         "work_id": work_id,
         "product_sha256": digest_entries(all_entries),
         "path_count": len(all_entries),
         "repositories": repo_details,
     }
-    if _fields.get("schema") == "megin-skills-workflow/v3":
+    if _fields.get("schema") in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         result["skills_sha256"] = _contract["skills_sha256"]
         result["group_config_sha256"] = _contract["group_config_sha256"]
         result["merge_order"] = _contract["handoff"]["merge_order"]
@@ -751,7 +748,7 @@ def check_completion_group(
     evidence = read_json(quality_path)
     plan_version = fields["plan_version"]
     if (evidence.get("schema"), evidence.get("work_id"), evidence.get("plan_version")) != (
-        "megin-quality-evidence/v3", work_id, plan_version,
+        "megin-quality-evidence/" + fields["schema"].rsplit("/", 1)[1], work_id, plan_version,
     ):
         raise InvalidEvidence("Group v3 quality evidence identity mismatch")
     current = group_snapshot(group_root, work_id)
@@ -932,6 +929,8 @@ def check_completion_group(
             continue
         verified.append(verified_item)
 
+    from quality_policy import validate_evidence
+    validate_evidence(group_root, work_id, fields, contract, records, evidence, digest, "completion", reasons)
     result: dict[str, object] = {
         "gate": "completion", "ok": not reasons, "completion_ok": not reasons,
         "snapshot": digest, "delivery_mode": contract["delivery_mode"],
@@ -960,7 +959,7 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
     fields, contract, repositories, records = load_group_contract(group_root, work_id)
     if gate == "completion":
         return check_completion_group(group_root, work_id, fields, contract, repositories, records)
-    v3 = fields.get("schema") == "megin-skills-workflow/v3"
+    v3 = fields.get("schema") in ("megin-skills-workflow/v3", "megin-skills-workflow/v4")
     allowed_phases = {
         "review": {"implementation", "review"},
         "acceptance": {"verification", "acceptance"},
@@ -974,7 +973,7 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
     quality_path = group_evidence_file(group_root, work_id, reference)
     evidence = read_json(quality_path)
     plan_version = fields["plan_version"]
-    expected_evidence_schema = "megin-quality-evidence/v3" if v3 else "megin-quality-evidence/v2"
+    expected_evidence_schema = "megin-quality-evidence/" + fields["schema"].rsplit("/", 1)[1]
     if (evidence.get("schema"), evidence.get("work_id"), evidence.get("plan_version")) != (
         expected_evidence_schema, work_id, plan_version,
     ):
@@ -1212,6 +1211,8 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
                 )),
             }
 
+    from quality_policy import validate_evidence
+    validate_evidence(group_root, work_id, fields, contract, records, evidence, digest, gate, reasons)
     result: dict[str, object] = {
         "gate": gate,
         "ok": not reasons,
@@ -1227,10 +1228,20 @@ def check_group(group_root: Path, work_id: str, gate: str) -> dict[str, object]:
 
 def validate_record_group(group_root: Path, work_id: str) -> dict[str, object]:
     fields, contract, repositories, _records = load_group_contract(group_root, work_id)
-    if fields.get("schema") != "megin-skills-workflow/v3":
+    if fields.get("schema") not in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
         raise InvalidEvidence(
             "validate-record applies to Group v3; incomplete historical v1/v2 work needs an explicit upgrade"
         )
+    if fields.get("schema") == "megin-skills-workflow/v4":
+        from quality_policy import validate_contract, validate_reviews
+        try:
+            validate_contract(group_root, work_id, fields, contract, _records)
+            quality_path = group_root / fields["quality_ref"]
+            if quality_path.is_file():
+                evidence = read_json(quality_path)
+                validate_reviews(group_root, work_id, contract, _records, evidence, evidence.get("snapshot"), "writer")
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise InvalidEvidence(str(exc)) from exc
     completion = None
     if fields.get("status") == "complete":
         try:

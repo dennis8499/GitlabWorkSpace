@@ -14,7 +14,7 @@ ROOT = Path(STAGE.name).resolve()
 SOURCES = WORKSPACE / "resources/offline-tools/sources"
 OVERLAYS = WORKSPACE / "resources/workflow-kit/overlays"
 
-for filename in ("megin-skills-0.4.0.zip", "merge-reviewer-0.7.0.zip"):
+for filename in ("megin-skills-0.6.0.zip", "merge-reviewer-0.9.0.zip"):
     with zipfile.ZipFile(SOURCES / filename) as archive:
         for entry in archive.infolist():
             if entry.is_dir():

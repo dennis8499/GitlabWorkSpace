@@ -15,7 +15,7 @@ Start from the approved behavior scenario. Add or update the smallest executable
 run it red when a new behavior needs proof, then add the smallest implementation that makes it
 green. Follow with inner unit or integration tests for the changed seam, refactor while green, and
 rerun the focused command. Preserve raw output, exit status, source snapshot, and scenario ID in
-the Work ID evidence. Before each test or product-file write in Group v3 work, verify the exact
+the Work ID evidence. Before each test or product-file write in Group v4 work, verify the exact
 Work ID and writer with `group_workspace.py check`; keep the Group lock through all red/green loops
 and any blocked state.
 
@@ -30,3 +30,7 @@ would catch the promised behavior being absent. Preserve its preimplementation s
 from the final Green snapshot. Reuse valid existing coverage without an artificial Red.
 
 Handoff: focused red/green evidence and a clean package result for implementation and review.
+
+## New Group v4 work
+
+Read [the shared new-work evidence policy](../megin/references/new-work-evidence.md) before this stage. For new work, freeze current-source functional exploration for every valid direct-child Repo, keep facts, assumptions, requirements and technical suggestions separate, and obtain explicit approval of the exact plan and contract before claiming a writer. Require REQ → SCN Given/When/Then → test assertion → implementation → independent review → human acceptance traceability, actual assertion-failing red and passing green outputs, and append-only review history. The initial independent read-only review is round 0; allow at most three corrections (rounds 1–3), each in a fresh independent context. Stop early on approval; failed round 3 remains incomplete and blocked. Resume never resets or discards attempts. If an independent reviewer cannot be invoked, preserve evidence with status: awaiting_review.

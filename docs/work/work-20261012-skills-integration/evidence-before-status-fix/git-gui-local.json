@@ -1,0 +1,275 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-11T16:54:53.684Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.141.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.18.0.vsix",
+    "sha256": "0fd12e10ae85e67e8866035eacf970c1ed6d9b3fd04eaf07725604bfb203e469"
+  },
+  "status": "FAIL",
+  "error": "Creating a Stash clears the prepared working-tree change.\n+ actual - expected\n\n+ '?? .workflow-kit-install.lock'\n- ''\n",
+  "workspaceFolders": [
+    "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791737413774-30344\\demo\\service"
+  ],
+  "nativeGitRepositoryState": {
+    "repositories": [
+      {
+        "id": "b95fc6cce07324ad43e1ef26c69b5f66",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791737413774-30344\\demo\\service",
+        "branch": "validation/local-git-gui-1791737414892/mv428jzb",
+        "headCommit": "300da4795ae1f2abb4ac5b65854c15c536446199",
+        "tracking": "origin/validation/local-git-gui-1791737414892/mv428jzb",
+        "ahead": 0,
+        "behind": 0,
+        "stagedCount": 0,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "branches": [
+          {
+            "name": "validation/local-git-gui-1791737414892/mv428jzb",
+            "kind": "local",
+            "current": true,
+            "commit": "300da4795ae1f2abb4ac5b65854c15c536446199"
+          },
+          {
+            "name": "origin/validation/local-git-gui-1791737414892/mv428jzb",
+            "kind": "remote",
+            "current": false,
+            "commit": "300da4795ae1f2abb4ac5b65854c15c536446199"
+          },
+          {
+            "name": "main",
+            "kind": "local",
+            "current": false,
+            "commit": "00e9e1894652daa3bd3407f094619b2347a4feb9"
+          },
+          {
+            "name": "origin/main",
+            "kind": "remote",
+            "current": false,
+            "commit": "00e9e1894652daa3bd3407f094619b2347a4feb9"
+          }
+        ],
+        "stashes": [
+          {
+            "oid": "c6137ded8a2050e4d33a4ec7da8f09bb13919ddb",
+            "message": "stash@{0} · On validation/local-git-gui-1791737414892/mv428jzb: GUI stash A local-git-gui-1791737414892"
+          }
+        ],
+        "recoveryRefs": []
+      }
+    ],
+    "available": true,
+    "revision": 27
+  },
+  "windowFocused": true,
+  "nativeGitActivity": {
+    "commands": 76,
+    "auxiliaryCommands": 10,
+    "nativeApiCalls": 64,
+    "nativeStatusEvents": 24
+  },
+  "nativeWorkingChanges": [
+    {
+      "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791737413774-30344\\demo\\service",
+      "changes": []
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "branch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "branch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "b95fc6cce07324ad43e1ef26c69b5f66",
+      "action": "stashSave"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60015,
+      "before": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "after": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 41,
+        "after": 41,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60016,
+      "before": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "after": {
+        "commands": 29,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 9
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 82,
+        "after": 82,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60005,
+      "before": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 15
+      },
+      "after": {
+        "commands": 51,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 41,
+        "nativeStatusEvents": 15
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 118,
+        "after": 118,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "commit",
+      "idleMs": 60003,
+      "before": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 19
+      },
+      "after": {
+        "commands": 56,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 48,
+        "nativeStatusEvents": 19
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 140,
+        "after": 140,
+        "backgroundDelta": 0
+      }
+    }
+  ],
+  "sourceRepository": "isolated generated Git seed"
+}

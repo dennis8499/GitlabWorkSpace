@@ -265,11 +265,11 @@ def _active_group_work(group_root: Path) -> list[dict[str, str]]:
             raise InvalidWorkspace(f"Group workflow record path escapes the root: {path}")
         fields = _workflow_header(path)
         if fields.get("schema") not in (
-            "megin-skills-workflow/v1", "megin-skills-workflow/v2", "megin-skills-workflow/v3",
+            "megin-skills-workflow/v1", "megin-skills-workflow/v2", "megin-skills-workflow/v3", "megin-skills-workflow/v4",
         ):
             continue
         phase, status, work_id = fields.get("phase"), fields.get("status"), fields.get("work_id")
-        if fields.get("schema") == "megin-skills-workflow/v3":
+        if fields.get("schema") in ("megin-skills-workflow/v3", "megin-skills-workflow/v4"):
             if phase not in WORKFLOW_PHASES or status not in WORKFLOW_STATUSES:
                 raise InvalidWorkspace(f"invalid Group v3 phase/status in {path}")
         if phase in EXCLUSIVE_PHASES and status in ACTIVE_STATUSES:
@@ -280,12 +280,20 @@ def _active_group_work(group_root: Path) -> list[dict[str, str]]:
 def _validate_v3_record(group_root: Path, work_id: str, purpose: str) -> dict:
     work = group_root / "docs" / "work" / work_id
     fields = _workflow_header(work / "workflow.md")
-    if fields.get("schema") != "megin-skills-workflow/v3" or fields.get("work_id") != work_id:
+    if fields.get("schema") not in ("megin-skills-workflow/v3", "megin-skills-workflow/v4") or fields.get("work_id") != work_id:
         raise InvalidWorkspace("Group write lock requires the matching v3 workflow record")
     if purpose == "claim" and (fields.get("phase"), fields.get("status")) != (
         "implementation", "active",
     ):
         raise InvalidWorkspace("claim requires an approved implementation/active workflow record")
+    if fields.get("schema") == "megin-skills-workflow/v4" and purpose == "claim" and not (group_root / ".megin/workspace.lock.json").exists():
+        from group_quality_gate import load_group_contract
+        from quality_policy import validate_contract
+        _fields, contract, _repos, records = load_group_contract(group_root, work_id)
+        try:
+            validate_contract(group_root, work_id, _fields, contract, records, live=True)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            raise InvalidWorkspace(str(exc)) from exc
     quality_gate = Path(__file__).with_name("group_quality_gate.py")
     result = subprocess.run(
         [sys.executable, "-X", "utf8", "-B", str(quality_gate), "validate-record",
@@ -471,7 +479,7 @@ def release(
                     or any(part in ("", ".", "..") for part in record_path.parts)):
                 raise InvalidWorkspace("completion record path must be canonical and Group-relative")
             fields = _workflow_header(root / "docs" / "work" / work_id / "workflow.md")
-            if (fields.get("schema") != "megin-skills-workflow/v3"
+            if (fields.get("schema") not in ("megin-skills-workflow/v3", "megin-skills-workflow/v4")
                     or fields.get("delivery_ref") != record_path.as_posix()):
                 raise InvalidWorkspace("completion record must match the approved workflow delivery_ref")
             if fields.get("status") != "complete":

@@ -107,6 +107,34 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         self.assertEqual(2, installed["workspaceContract"])
         self.assertEqual(64, len(installed["payloadSha256"]))
 
+    def test_uninstalled_status_is_read_only_in_git_and_plain_roots(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="kit-read-only-status-") as temporary:
+            for kind in ("repository", "group"):
+                with self.subTest(kind=kind):
+                    root = Path(temporary) / kind
+                    root.mkdir()
+                    if kind == "repository":
+                        subprocess.run(["git", "init", "-b", "main", str(root)], check=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    before = self.snapshot(root)
+                    directories = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_dir()}
+                    for _ in range(3):
+                        self.assertEqual("missing", self.status(root)["status"])
+                    self.assertEqual(before, self.snapshot(root))
+                    self.assertEqual(directories, {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_dir()})
+                    self.assertFalse((root / ".workflow-kit-install.lock").exists())
+                    if kind == "repository":
+                        result = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                                check=True, capture_output=True, text=True)
+                        self.assertEqual("", result.stdout)
+                    legacy = root / ".agents/skills/megin/SKILL.md"
+                    legacy.parent.mkdir(parents=True)
+                    legacy.write_text("legacy skill\n", encoding="utf-8")
+                    before = self.snapshot(root)
+                    self.assertEqual("needs-cleanup", self.status(root)["status"])
+                    self.assertEqual(before, self.snapshot(root))
+                    self.assertFalse((root / ".workflow-kit-install.lock").exists())
+
     def test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths(self) -> None:
         for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):
             result, data = self.execute("inspect", archive, "--format", archive_format, "--expected-version", VERSION)
@@ -183,7 +211,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"codebase-wiki": "0.4.0", "megin": "0.4.0", "merge-reviewer": "0.7.0", "release-reviewer": "0.1.0"},
+        self.assertEqual({"codebase-wiki": "0.5.0", "megin": "0.6.0", "merge-reviewer": "0.9.0", "release-reviewer": "0.1.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
         self.assertEqual({"codebase-wiki", "megin", "merge-reviewer"}, set(manifest["overlays"]))

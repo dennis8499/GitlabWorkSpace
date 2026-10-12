@@ -1,6 +1,6 @@
 # 使用指南
 
-GitLab Workspace 將專案、Skills 功能指引、Issue 討論與交付集中在同一個工作台。第一次使用只需連線 GitLab 並選擇群組；閱讀或討論 Issue 不需要設定本機工作目錄。
+GitLab Workspace 將專案、Skills 功能指引、Issue 討論與交付集中在同一個工作台。單 Repo Skills 可直接開啟本機 Git Repo 使用，不需要登入 GitLab 或選擇 Group；每次操作一個所選 Repo。使用 GitLab Issue、MR 或 Group 協作時，再連線 GitLab 並選擇群組。閱讀或討論 Issue 不需要設定本機工作目錄。
 
 ## 視窗與 GitLab 相容版本
 
@@ -56,7 +56,9 @@ Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自
 
 ## Skills 功能指引與上板檢查
 
-Wiki 保留規格、建立／查詢知識、品質維護、健檢、BA／SA／SD、ADR、分析保存、NotebookLM 匯出及程式碼考古。Megin 介紹完整開發流程，提供 **前往我的工作** 和指定 Work ID 續作；子 Skills 依既有流程協作。MergeReviewer 提供手動 Repo／版本審查、單 Repo quick、Group 未提交快審，以及 **前往待審查** 的 MR 入口。
+新 Megin 工作先中立釐清問題、受眾、成果與驗收，完整盤點目前功能，再取得精確計畫的明確核准。BDD 情境、測試斷言、實作、Review 與人工驗收均須可追溯，保存實際 red／green 原始證據。初審後最多三次修正重審，每次使用新的獨立唯讀 reviewer；通過後進入驗證與人工驗收。第三次修正仍失敗會回報未完成，續作沿用原契約、指紋與修正次數。
+
+Wiki 提供原始碼優先的功能探索（含來源、覆蓋與缺口），一般查詢維持 Wiki 優先。功能探索原始碼唯讀，不執行目標程式或測試，只有明確要求保存才產生授權文件。Wiki 保留規格、建立／查詢知識、品質維護、健檢、BA／SA／SD、ADR、分析保存、NotebookLM 匯出及程式碼考古。Megin 介紹完整開發流程，提供 **前往我的工作** 和指定 Work ID 續作；子 Skills 依既有流程協作。MergeReviewer 提供手動 Repo／版本審查、單 Repo quick、Group 未提交快審，以及 **前往待審查** 的 MR 入口。
 
 執行上板檢查：
 
@@ -85,7 +87,7 @@ Skill 解析並固定版本，遠端版本取得失敗就停止。它保留本�
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 
-切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 整包可升級至 0.17.0，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成已核准工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
+切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0 整包可升級至 0.18.0，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
 
 ## 專案與 Git 操作
 

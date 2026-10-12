@@ -22,7 +22,7 @@ python .agents/skills/megin/scripts/gitlab_delivery.py prepare --group-root <Gro
 
 This saves `megin-gitlab-handoff/v1` with accepted per-Repo snapshots, staged
 paths, GitLab identity, raw gate receipt and evidence digests, and changes the
-existing v3 workflow to `phase: delivery`, `status: awaiting_user`. Stop product
+existing v4 workflow to `phase: delivery`, `status: awaiting_user`. Stop product
 writes and report 已驗收，待工作台交付. Do not commit or locally merge in this
 mode. The workspace loads `inspect`, verifies the receipt and commits via
 `commit --writer <workspace identity> --handoff-sha256 <preview digest>

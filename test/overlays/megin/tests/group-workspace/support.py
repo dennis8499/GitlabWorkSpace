@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[5]
-NATIVE_ARCHIVE = WORKSPACE_ROOT / "resources/offline-tools/sources/megin-skills-0.4.0.zip"
+NATIVE_ARCHIVE = WORKSPACE_ROOT / "resources/offline-tools/sources/megin-skills-0.6.0.zip"
 OVERLAY_ROOT = WORKSPACE_ROOT / "resources/workflow-kit/overlays/megin/.agents/skills"
 _TEMP = tempfile.TemporaryDirectory(prefix="gitlab-workspace-megin-fixture-")
 FIXTURE_ROOT = Path(_TEMP.name)

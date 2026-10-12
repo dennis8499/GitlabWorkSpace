@@ -32,7 +32,7 @@ Push、Pull Request、部署、branch 刪除和 worktree 清理不屬於本機�
 
 ## 工作紀錄欄位
 
-Group 新工作使用 `megin-skills-workflow/v3`；已完成 v1/v2 記錄原樣保留，未完成舊 Group 工作需建立新 v3 plan 並重新核准。`workflow.md` 是狀態來源；`plan-<version>/quality-contract.json` 逐 Repo 綁定：
+Group 新工作使用 `megin-skills-workflow/v4`；舊工作保留原 schema、指紋、核准與審查歷程，不自動改版，未完成工作阻擋升級及 profile 轉換。`workflow.md` 是狀態來源；`plan-<version>/quality-contract.json` 逐 Repo 綁定：
 
 ```text
 repo_path: <direct child path>
