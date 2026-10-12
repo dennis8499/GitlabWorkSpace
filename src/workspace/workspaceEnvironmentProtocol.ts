@@ -3,6 +3,7 @@ export interface WorkspaceRepositoryMatch {
   path: string;
   matched: boolean;
   projectId?: number;
+  defaultBranch?: string;
   remoteFingerprint?: string;
   reason?: string;
 }

@@ -24,13 +24,14 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   const card = getSkillGuideCard('release-reviewer');
   assert.equal(canCopySkillPrompt(card, state.inputs), false);
   const inputs = { ...state.inputs, 'release-review.repo': 'C:\\工作區 with spaces\\service',
-    'release-review.base': 'origin/main', 'release-review.head': 'v1.1.0' };
+    'release-review.base': 'origin/main', 'release-review.head': 'feature/payment' };
   assert.equal(canCopySkillPrompt(card, inputs), true);
   for (const key of ['repo', 'base', 'head']) assert.equal(canCopySkillPrompt(card, { ...inputs, [`release-review.${key}`]: ' ' }), false);
   const prompt = buildSkillGuidePrompt(card, inputs, context);
   assert.ok(prompt.includes(JSON.stringify(inputs['release-review.repo'])));
   assert.match(prompt, /\$release-reviewer/);
-  assert.match(prompt, /比較模式：合併前審查/);
+  assert.match(prompt, /固定合併前審查/);
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   assert.match(prompt, /base_sha 的整個 Repo/);
   assert.match(prompt, /所選 Repo\/review-reports\//);
   assert.match(prompt, /檔名前綴 release-review/);
@@ -39,9 +40,26 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   assert.equal(prompt.includes('--include-json'), false);
   assert.match(prompt, /環境設定、DB 建立或套用狀態標為未查證/);
   assert.match(prompt, /成功、失敗或中止都清理/);
-  const direct = buildSkillGuidePrompt(card, { ...inputs, 'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON' }, context);
-  assert.match(direct, /比較模式：直接比較/);
-  assert.match(direct, /--include-json/);
+  assert.throws(() => buildSkillGuidePrompt(card, { ...inputs, 'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON' }, context), /只接受 Repo/);
+  for (const ref of ['HEAD', 'refs/tags/v1', 'f'.repeat(40), 'main~1']) assert.equal(canCopySkillPrompt(card, { ...inputs, 'release-review.head': ref }), false);
+});
+
+test('release saved inputs migrate to three fields while MergeReviewer retains advanced modes', () => {
+  const saved = restoreSkillGuideState();
+  saved.inputs = { ...saved.inputs, 'release-review.repo': 'service', 'release-review.base': 'main', 'release-review.head': 'feature/payment',
+    'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON', 'merge-repo.mode': '直接比較', 'merge-repo.output': 'Markdown＋JSON' };
+  const restored = restoreSkillGuideState(saved);
+  assert.equal(restored.inputs['release-review.mode'], undefined);
+  assert.equal(restored.inputs['release-review.output'], undefined);
+  assert.equal(restored.inputs['merge-repo.mode'], '直接比較');
+  assert.equal(restored.inputs['merge-repo.output'], 'Markdown＋JSON');
+  assert.equal(canCopySkillPrompt(getSkillGuideCard('release-reviewer'), restored.inputs), true);
+  const prompt = buildSkillGuidePrompt(getSkillGuideCard('release-reviewer'), restored.inputs, {
+    ...context, repositories: [{ ...context.repositories[0], defaultBranch: 'production/local' }]
+  });
+  assert.ok(prompt.includes('"defaultBranch":"production/local"'));
+  assert.match(prompt, /關聯 Repo 使用各自本機預設分支/);
+  assert.match(prompt, /獨立 Checklist/);
 });
 
 test('review modes keep Group quick, native quick and explicit version contracts separate', () => {

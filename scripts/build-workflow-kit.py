@@ -59,10 +59,10 @@ PINNED_SOURCES = (
     {
         "id": "release-reviewer",
         "repository": "ReleaseReviewer",
-        "asset": "release-reviewer-0.1.0.zip",
-        "filename": "release-reviewer-0.1.0.zip",
-        "version": "0.1.0",
-        "sha256": "7f7b3486e46f190eb5e4b92f0c35b25f10e40fd6ece0a6f3764d48783431a646",
+        "asset": "release-reviewer-0.2.0.zip",
+        "filename": "release-reviewer-0.2.0.zip",
+        "version": "0.2.0",
+        "sha256": "0042d7519827a9ad350b8259ee111588cab7e4c70311158d9447872973f78179",
     },
 )
 
@@ -346,7 +346,7 @@ def build() -> dict[str, object]:
             "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
             "Native MergeReviewer 0.10.0 reviews branch/commit, staged and saved uncommitted changes in Repo/Group workspaces with fixed-source feature-chain coverage; GitlabWorkSpace adapters retain legacy Group quick and fixed-SHA Merge Request identity binding.",
-            "Native ReleaseReviewer 0.1.0 reviews one Repo using explicit base/head refs and writes local code-risk, configuration, and database reports without an overlay."
+            "Native ReleaseReviewer 0.2.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes v2 risk/resource reports plus separate manual deployment checklists without an overlay."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",
@@ -356,7 +356,7 @@ def build() -> dict[str, object]:
                 "analysisIssueFlow": "draft-ready-scn-manual-issue",
                 "developmentDelivery": "megin-gitlab_mr",
                 "mergeRequestReview": "pinned-source-and-target-shas",
-                "releaseReview": "single-repo-explicit-refs-local-report",
+                "releaseReview": "entry-branches-group-chain-local-defaults-v2-manual-checklist",
                 "wikiFeedback": "manual-after-all-local-repo-commits"
             },
             "files": {name: digest(files[f"payload/.agents/gitlab-workspace-kit/{name}"]) for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")}

@@ -6,7 +6,9 @@ AutoHook 1.1.0 is bundled under `.agents/gitlab-workspace-kit/autohook/` as an o
 
 Use native Megin's repository workflow, approved plan, Repo lock, independent review, executed verification, human acceptance and local delivery gates. Keep its twelve Skills together. Preserve the original Work ID, installed Skills fingerprint and approved versions when resuming a task.
 
-Run review helpers from this repository and pass this repository as `--workspace`. Require explicit base/head versions for version reviews and release checks. Preserve local edits, keep owned evidence in system temporary storage, and clean owned contexts after completion or interruption. JSON reports are opt-in.
+Run review helpers from this repository and pass this repository as `--workspace`. Preserve local edits, keep owned evidence in system temporary storage, and clean owned contexts after completion or interruption. MergeReviewer retains its own version/mode and optional JSON contracts.
+
+ReleaseReviewer accepts exactly an explicit Repo and base/head branches, always reviews the merge preview, and does not accept direct/tag/commit/JSON options. Compare new configuration, DB, FTP, SFTP, Redis, Kafka and other dependencies against the entire base Repo. Publish separate v2 main and editable manual Checklist Markdown under `review-reports/`; firewall, permissions and provisioning checks start pending. Static coverage does not establish environment readiness. This repository profile does not expand into ancestor Group Repos.
 
 MergeReviewer's portable branch/staged/uncommitted workflow uses `--scope repo` in this repository profile. Cover the selected changes and their callers/contracts inside this project; related Group Repos enter the review only when the user selects a Group/workspace scope. Local Stage/uncommitted review does not require a remote.
 

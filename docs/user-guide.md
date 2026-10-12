@@ -63,11 +63,13 @@ Wiki 提供原始碼優先的功能探索（含來源、覆蓋與缺口），一
 執行上板檢查：
 
 1. 在 **分析** 選 **ReleaseReviewer → 上板檢查**。
-2. 手動填寫 **Repo 名稱或路徑、基礎版本、比較版本**。本機分支可填 `main`，遠端分支須明確填 `origin/main`，也可填 Tag 或 commit SHA。
-3. 預設 **合併前審查**；若要檢查兩個已完成版本，選 **直接比較**。報告預設 Markdown，選 **Markdown＋JSON** 才附加 JSON。
+2. 指定 **Repo 名稱或路徑、基礎分支、比較分支**。單 Repo 環境由 **Skills Repo** 選擇器提供 Repo；Group 填入口 Repo。本機分支可填 `main`，遠端分支須明確填 `origin/main`；不接受 Tag、commit SHA 或 HEAD。
+3. 固定 **合併前審查**，只提供上述三項輸入，輸出主報告與人工 Checklist Markdown。舊表單的直接比較與 JSON 設定會移除，MergeReviewer 既有選項保留。
 4. 預覽並複製提示詞，貼入從目前情境的 Group 或 Repo 根目錄啟動的 Codex CLI。必填欄位、工作流程包或 Repo 掃描未就緒時，複製按鈕會停用。
 
-Skill 解析並固定版本，遠端版本取得失敗就停止。它保留本機未提交修改，分列程式風險、新增設定使用及定義、新增 DB 連線與物件提醒；新增使用以基礎版本整個 Repo 為準。報告位於所選 Repo 的 `review-reports/`，檔名前綴 `release-review`。完成、失敗或中止時清理本次受管理的暫存證據。報告為本機成果，具有獨立中繼資料；實際環境設定與 DB 建立／套用狀態列為未查證。
+Skill 固定入口版本，明確遠端分支取得失敗就停止，保留本機未提交修改。Group 從入口變更追查上下游 API、事件、契約、DB 與快取，包含未變更消費端；關聯 Repo 固定本機預設分支的已提交 SHA，不 fetch 或使用 checkout 分支。預設分支名稱來自既有專案資料或本機遠端 HEAD，無法取得版本、Repo 或鏈路證據就保持「檢查未完成」。
+
+新增判斷搜尋入口整個基礎版本，涵蓋首次使用、部署資源定義、目標改變及新增權限需求；分列設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 與其他資源提醒。報告位於入口 Repo 的 `review-reports/`，檔名前綴 `release-review`，另有同次版本的 `-checklist.md`。每項核對初始為待確認，人工填核對人、日期及開通／套用後證據，不適用須填理由；申請工單不算已開通。主報告保留產生時證據，舊 v1 報告保留。靜態完成不等於上板準備完成，實際環境未連線查證。完成、失敗或中止均清理本次受管理的暫存證據。
 
 ## 安裝開發工具
 
@@ -89,7 +91,7 @@ Skill 解析並固定版本，遠端版本取得失敗就停止。它保留本�
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 
-切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 整包可升級至 0.19.1，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
+切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1 整包可升級至 0.20.0，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
 
 ### AutoHook
 

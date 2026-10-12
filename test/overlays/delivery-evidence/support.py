@@ -1,28 +1,37 @@
-"""Assemble shipped Group Skills from pinned archives and maintained overlays."""
+"""Load the actual assembled Group payload, including its legacy adapters."""
 from __future__ import annotations
 
 import atexit
+import hashlib
+import json
 from pathlib import Path
-import shutil
 import tempfile
-import zipfile
+import tarfile
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 STAGE = tempfile.TemporaryDirectory(prefix="workspace-delivery-evidence-")
 atexit.register(STAGE.cleanup)
 ROOT = Path(STAGE.name).resolve()
-SOURCES = WORKSPACE / "resources/offline-tools/sources"
-OVERLAYS = WORKSPACE / "resources/workflow-kit/overlays"
-
-for filename in ("megin-skills-0.6.0.zip", "merge-reviewer-0.9.0.zip"):
-    with zipfile.ZipFile(SOURCES / filename) as archive:
-        for entry in archive.infolist():
-            if entry.is_dir():
-                continue
-            target = ROOT / "skills" / entry.filename
-            if not target.resolve().is_relative_to(ROOT):
-                raise ValueError("unsafe pinned archive path")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(archive.read(entry))
-shutil.copytree(OVERLAYS / "megin/.agents/skills", ROOT / "skills", dirs_exist_ok=True)
-shutil.copytree(OVERLAYS / "merge-reviewer", ROOT / "skills/merge-reviewer", dirs_exist_ok=True)
+ARCHIVE = WORKSPACE / "resources/offline-tools/workflow-kit.tar.xz"
+INDEX = json.loads((ARCHIVE.parent / "manifest.json").read_text(encoding="utf-8"))
+if hashlib.sha256(ARCHIVE.read_bytes()).hexdigest() != INDEX["archiveSha256"]:
+    raise ValueError("assembled test kit differs from its index")
+with tarfile.open(ARCHIVE, "r:xz") as archive:
+    manifest = json.loads(archive.extractfile("workflow-kit/manifest.json").read())
+    expected = manifest["profiles"]["group"]["files"]
+    prefix = "workflow-kit/payload/.agents/skills/"
+    for entry in archive.getmembers():
+        if not entry.name.startswith(prefix):
+            continue
+        relative = entry.name.removeprefix(prefix)
+        skill = relative.split("/", 1)[0]
+        if skill != "merge-reviewer" and skill != "megin" and not skill.startswith("megin-"):
+            continue
+        target = ROOT / "skills" / relative
+        if not entry.isfile() or not target.resolve().is_relative_to(ROOT / "skills"):
+            raise ValueError("unsafe assembled payload path")
+        content = archive.extractfile(entry).read()
+        if hashlib.sha256(content).hexdigest() != expected[".agents/skills/" + relative]:
+            raise ValueError("assembled payload digest differs")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)

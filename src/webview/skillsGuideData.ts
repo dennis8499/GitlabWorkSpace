@@ -32,6 +32,10 @@ const versionFields = (): SkillGuideField[] => [repoField(),
   field('mode', '比較模式', { kind: 'select', defaultValue: '合併前審查', options: ['合併前審查', '直接比較'] })
 ];
 const outputField = () => field('output', '報告格式', { kind: 'select', defaultValue: 'Markdown', options: ['Markdown', 'Markdown＋JSON'] });
+const releaseFields = (): SkillGuideField[] => [repoField(),
+  field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
+  field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' })
+];
 
 export const skillGuideCards: readonly SkillGuideCard[] = [
   ...wikiGuideCards.filter(card => card.id !== 'install').map(card => ({ ...card, tool: 'codebase-wiki' as const })),
@@ -80,10 +84,10 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
   },
   {
     tool: 'release-reviewer', id: 'release-review', title: '上板檢查',
-    description: '手動指定單一 Repo 與兩個版本，檢查程式風險、新增設定與 DB 使用。',
-    output: '繁體中文報告，分列程式風險、設定提醒、DB 提醒，以及未完成項目。',
-    behavior: '固定 Git 版本後靜態檢查，以基礎版本整個 Repo 判斷新增使用；實際環境及 DB 建立狀態列為待確認。',
-    fields: [...versionFields(), outputField()]
+    description: '指定 Repo、基礎分支與比較分支，審查上板風險及相關功能鏈。',
+    output: '繁體中文主報告與可填寫的人工 Checklist，涵蓋設定、DB、FTP、SFTP、Redis、Kafka 等新增依賴。',
+    behavior: '固定合併前審查；Group 關聯 Repo 使用各自本機預設分支，不 fetch。靜態完成與防火牆、權限、建表等人工核對分開呈現。',
+    fields: releaseFields()
   }
 ];
 
@@ -114,7 +118,9 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   const tool = skillGuideTools.some(item => item.id === saved?.tool) ? saved!.tool : 'codebase-wiki';
   const selections = Object.fromEntries(skillGuideTools.map(item => [item.id,
     getSkillGuideCard(item.id, saved?.selections?.[item.id] ?? (item.id === 'codebase-wiki' ? legacySelection : undefined)).id]));
-  return { tool, selections, inputs: { ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs } };
+  const inputs = { ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs };
+  for (const key of Object.keys(inputs)) if (key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length))) delete inputs[key];
+  return { tool, selections, inputs };
 }
 
 export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputValues {
@@ -127,11 +133,13 @@ function value(card: SkillGuideCard, id: string, inputs: SkillGuideInputValues):
 }
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
+  if (card.id === 'release-review' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) return false;
   if (card.destination || !card.fields.every(item => {
     const input = value(card, item.id, inputs);
     return (!item.required || !!input.trim()) && (item.kind !== 'select' || !!item.options?.includes(input))
       && (item.kind === 'textarea' || !/[\r\n\0]/.test(input));
   })) return false;
+  if (card.id === 'release-review' && ['base', 'head'].some(id => /^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value(card, id, inputs).trim()) || /[~^]|\.\.|@\{/.test(value(card, id, inputs)))) return false;
   return card.id !== 'megin-resume' || /^work-\d{8}-[a-z0-9-]+$/.test(value(card, 'workId', inputs).trim());
 }
 
@@ -140,7 +148,8 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   if (card.destination) return '';
   const input = (id: string) => value(card, id, inputs).trim();
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
-  const json = input('output') === 'Markdown＋JSON';
+  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
+  const json = card.tool !== 'release-reviewer' && input('output') === 'Markdown＋JSON';
   if (context.profile === 'repository' && card.id === 'megin-workflow') return [
     `$megin 請在 Repo ${JSON.stringify(context.root)} 執行下列開發需求：`, input('task'),
     '使用此 Repo 安裝的原生 Megin 與十二個協作 Skills。新工作使用 native v2，先中立釐清問題、受眾、成果與驗收，完整探索目前功能，分開記錄事實、假設、需求與技術建議；精確計畫取得明確核准後才開始 BDD／TDD 實作，保留實際 red／green 原始證據。',
@@ -166,16 +175,19 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   const lines = [opening];
   if (card.id !== 'merge-group') lines.push(`專案名稱：${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')}`);
   if (card.id === 'merge-repo' || card.id === 'release-review') lines.push(
-    `基礎分支：${quoted('base')}`, `比較分支：${quoted('head')}`, `比較模式：${input('mode') || '合併前審查'}`,
+    `基礎分支：${quoted('base')}`, `比較分支：${quoted('head')}`,
     'Repo 有多個候選時先釐清；不猜測基礎或比較版本。短分支名稱代表本機分支；origin/main 等明確遠端分支須取得最新指定版本，失敗時停止，不使用過期資料。'
   );
+  if (card.id === 'merge-repo') lines.push(`比較模式：${input('mode') || '合併前審查'}`);
   lines.push(context.profile === 'repository'
     ? `使用此 Repo 安裝的原生 Skill 與 helpers，工作目錄及 --workspace 均為 ${JSON.stringify(context.root)}。保留本機未提交修改，從固定版本查證。`
     : '使用安裝於本 Group 的 Skill 與 helpers。先解析實際 Repo；單 Repo helper 的工作目錄使用該 Repo，--workspace 指向此 Group。保留本機未提交修改，從固定版本查證。');
   if (card.tool === 'release-reviewer') lines.push(
-    '以 base_sha 的整個 Repo 原有程式使用為新增判斷基準。合併前模式以乾淨合併預覽為最終行為，直接比較以 head 為準；缺少預覽或有衝突時明列未完成。',
-    '分別列出本次引入的程式風險、新增設定使用與對應定義、新增 DB 連線與物件使用。設定及 DB 提醒保留基礎搜尋證據，不把新增項目自動當作缺陷。',
-    '使用 release_report.py 輸出繁體中文報告，存於所選 Repo/review-reports/，檔名前綴 release-review。此報告有獨立中繼資料，不當作 MR 報告匯入或發布。',
+    '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',
+    `內部工作區資料（非額外使用者選項；傳入 --workspace-context-json）：${JSON.stringify({ repositories: context.repositories.map(repo => ({ name: repo.name, path: repo.path, defaultBranch: repo.defaultBranch ?? null })) })}`,
+    context.profile === 'repository' ? '此為單 Repo 環境；保留入口內的完整功能與相容性審查。' : '以指定 Repo 為入口追查 Group 的 API、事件、契約、DB 與快取功能鏈及未變更消費端。關聯 Repo 使用各自本機預設分支的已提交版本，固定 SHA、不 fetch、不改用目前 checkout；版本或鏈路缺口保持檢查未完成。',
+    '以 base_sha 的整個 Repo 原有使用為新增判斷基準。逐類檢查設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 及其他資源，涵蓋首次使用、部署定義、目標變更與新增權限；保留基礎搜尋證據。其他 Repo 可用不代表入口服務已有權限。',
+    '使用 ReleaseReviewDraft/v2 與 release_report.py 輸出主報告及獨立 Checklist Markdown，存於所選 Repo/review-reports/，檔名前綴 release-review。Checklist 初始待確認，核對防火牆、帳號／ACL、Table／欄位／Topic 建立、設定注入與新舊相容性，人工填核對人、日期及開通／套用後驗證證據；僅申請工單不算完成。此報告有獨立中繼資料，不當作 MR 報告匯入或發布。',
     '預設靜態檢查；不複製機密值。實際環境設定、DB 建立或套用狀態標為未查證，不宣告已可上板。'
   );
   else lines.push('使用 review_report.py 產生繁體中文本機報告，保存固定版本證據、覆蓋範圍、實際執行的檢查與限制。');

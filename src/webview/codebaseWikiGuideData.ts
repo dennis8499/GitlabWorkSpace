@@ -24,7 +24,7 @@ export interface WikiGuideContext {
   profile?: 'group' | 'repository';
   root?: string;
   groupRoot?: string;
-  repositories: Array<{ name: string; path: string }>;
+  repositories: Array<{ name: string; path: string; defaultBranch?: string }>;
   workflowKitVersion?: string;
   repositoryScanStatus?: 'idle' | 'scanning' | 'ready' | 'error';
   repositoryScanError?: string;

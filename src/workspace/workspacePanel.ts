@@ -1351,7 +1351,9 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private getSkillsContext(): SkillsContext {
-    const inspected = this.workspaceMatch ?? { status: this.groupRoot ? 'matched' : 'unverified', root: this.groupRoot, repositories: [] };
+    const currentMatch = this.workspaceMatch ?? { status: this.groupRoot ? 'matched' : 'unverified', root: this.groupRoot, repositories: [] };
+    const inspected = { ...currentMatch, repositories: currentMatch.repositories.map(repo => ({ ...repo,
+      defaultBranch: this.projects.find(project => project.id === repo.projectId)?.default_branch?.trim() || undefined })) };
     const match: GroupWorkspaceMatch = inspected.status === 'matched' && !this.groupProjectScopeReady()
       ? { ...inspected, status: 'unverified', root: undefined, cloneRoot: undefined, reason: '帳號或 Group 專案清單尚未完成核對。' } : inspected;
     const savedRoot = this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY)
