@@ -37,6 +37,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(SCRIPTS))
 import group_review
 import mr_contract
+import git_review_context as api
+import review_session
+import review_workspace
 
 
 class GroupReviewTests(unittest.TestCase):
@@ -52,6 +55,38 @@ class GroupReviewTests(unittest.TestCase):
                             "--quick", "--context-dir", str(self.context))
         self.assertEqual(0, result.returncode, result.stderr)
         return json.loads(result.stdout)
+
+    def test_portable_targets_pass_through_workspace_adapter_with_distinct_sources(self):
+        (self.repo / "base.txt").write_text("stage\n", encoding="utf-8")
+        run_git(self.repo, "add", "base.txt")
+        (self.repo / "base.txt").write_text("working\n", encoding="utf-8")
+        before = api.snapshot(self.repo)
+        for target, source, expected in (("branch", "head", b"base\n"),
+                                          ("staged", "index", b"stage\n"),
+                                          ("uncommitted", "working-tree", b"working\n")):
+            with self.subTest(target=target):
+                context = self.root / (target + "-context")
+                args = ["--group-root", str(self.root), "--scope", "auto", "--target", target,
+                        "--project", str(self.repo), "--context-dir", str(context)]
+                if target == "branch":
+                    args += ["--base", "main", "--head", "feature", "--no-fetch"]
+                result = run_python(SCRIPTS / "git_review_context.py", *args)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.addCleanup(review_session.cleanup_session, context)
+                manifest = json.loads(result.stdout)
+                self.assertEqual((review_workspace.CONTEXT, "group", target),
+                                 (manifest["schema"], manifest["scope"], manifest["target"]))
+                captured = manifest["repositories"][0]
+                self.assertEqual(expected, review_workspace.fixed_bytes(context, captured, source, "base.txt", api))
+        self.assertEqual(before, api.snapshot(self.repo))
+
+    def test_portable_target_cannot_bypass_fixed_mr_contract(self):
+        result = run_python(SCRIPTS / "git_review_context.py", "--workspace", str(self.repo),
+                            "--scope", "repo", "--target", "staged", "--mr-context", "unused.json",
+                            "--context-dir", str(self.context))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("MR/receipt", result.stderr)
+        self.assertFalse(self.context.exists())
 
     def draft(self, manifest):
         coverage = []

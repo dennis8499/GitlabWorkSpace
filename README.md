@@ -67,7 +67,7 @@
 
 此開關對應 VS Code 設定 `gitlabWorkspace.workflowKit.requireGroupEnvironment`，支援使用者設定及工作區覆寫。工作台開關在已開啟工作區時寫入工作區設定，空視窗寫入使用者設定，變更立即生效。側欄常駐顯示帳號摘要；右上角提供快速切換，完整登入、重新登入、登出及移除集中於 **設定 → 帳號與連線**，亦可執行 **GitLab Workspace: 管理 GitLab 帳號**。
 
-GitLab Workspace v0.19.1 的 VSIX 與組合包共用版本，固定原生 Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.9.0、ReleaseReviewer 0.1.0，共 15 個 Skills。同一包提供 `group` 與 `repository` profile：Group 使用既有覆層，提供共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、Issue 開發交付、Group quick 與 MR 審查；單 Repo 使用固定來源的原生 Skills，提供 Wiki、原生 Megin 開發／續作、Repo 審查及上板檢查，工作紀錄、Wiki、報告及 Codex 目錄均在所選 Repo。
+GitLab Workspace v0.19.1 的 VSIX 與組合包共用版本，固定原生 Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.10.0、ReleaseReviewer 0.1.0，共 15 個 Skills。同一包提供 `group` 與 `repository` profile：Group 使用既有覆層，提供共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、Issue 開發交付、Group quick 與 MR 審查；單 Repo 使用固定來源的原生 Skills，提供 Wiki、原生 Megin 開發／續作、Repo 審查及上板檢查，工作紀錄、Wiki、報告及 Codex 目錄均在所選 Repo。MergeReviewer 共用核心新增 branch／Stage／未提交模式，固定各 Repo 的來源版本並沿相關功能鏈追查；單 Repo profile 預設以 `--scope repo` 限制於所選專案，Group 則使用 `--scope auto` 延伸至有程式證據關聯的 Repo。
 
 兩種 profile 另附 AutoHook 1.1.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，保留重新驗證與刷新狀態；勾選狀態以目前 Skills 根目錄實際安裝為準。隨包保存官方政策版本、原文與雜湊，固定規則只涵蓋部分政策，指定專案測試／建置和檔案新增／更新屬於勾選後的預授權。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
 

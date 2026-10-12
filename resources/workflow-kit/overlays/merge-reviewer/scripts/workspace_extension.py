@@ -10,12 +10,12 @@ import mr_contract
 
 
 def extend_parser(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--group-root",
-        help="Review all direct-child Repos' staged and working files locally with --quick.",
-    )
-    parser.add_argument('--supporting-sources', help='JSON array of fixed commit-backed Group supporting sources.')
-    parser.add_argument('--megin-receipt', help='Optional exported immutable Megin delivery receipt.')
+    # Group/local modes now belong to the portable core. Keep older native parsers compatible.
+    for flag, help_text in (("--group-root", "Local Group root."),
+                            ("--supporting-sources", "Legacy Group supplemental fixed sources."),
+                            ("--megin-receipt", "Optional immutable Megin delivery receipt.")):
+        if flag not in parser._option_string_actions:
+            parser.add_argument(flag, help=help_text)
     mr_context = parser.add_mutually_exclusive_group()
     mr_context.add_argument("--mr-context", help="Read a MergeReviewTask/v1 JSON file.")
     mr_context.add_argument(
@@ -24,6 +24,8 @@ def extend_parser(parser: argparse.ArgumentParser) -> None:
 
 
 def prepare_manifest(args, api):
+    if getattr(args, "scope", None) or getattr(args, "target", None):
+        return None  # Portable core prepares and validates the feature-chain context.
     if getattr(args, "group_root", None):
         if getattr(args, "megin_receipt", None):
             raise ValueError("--megin-receipt requires a fixed MR task, not Group quick")

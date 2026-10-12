@@ -51,10 +51,10 @@ PINNED_SOURCES = (
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.9.0.zip",
-        "filename": "merge-reviewer-0.9.0.zip",
-        "version": "0.9.0",
-        "sha256": "d91becfaf01c8d6aaf00fcd087e8bf4406fb691ec90ddc8073c82c4d10fbfe0b",
+        "asset": "merge-reviewer-0.10.0.zip",
+        "filename": "merge-reviewer-0.10.0.zip",
+        "version": "0.10.0",
+        "sha256": "ed02ca66030420c776447c31725600be9a96d97ba70eb7844ff7017acabb3d2e",
     },
     {
         "id": "release-reviewer",
@@ -345,7 +345,7 @@ def build() -> dict[str, object]:
             "AutoHook 1.1.0 is an optional Windows project-scoped approval tool with a pinned public policy snapshot and partial fixed-rule mapping; disabled by default and controlled by the Skills-root checkbox, separately from the fifteen Skills.",
             "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
-            "Native MergeReviewer 0.9.0 is single-Repo/ref; GitlabWorkSpace overlay adds Group quick review and fixed-SHA Merge Request review.",
+            "Native MergeReviewer 0.10.0 reviews branch/commit, staged and saved uncommitted changes in Repo/Group workspaces with fixed-source feature-chain coverage; GitlabWorkSpace adapters retain legacy Group quick and fixed-SHA Merge Request identity binding.",
             "Native ReleaseReviewer 0.1.0 reviews one Repo using explicit base/head refs and writes local code-risk, configuration, and database reports without an overlay."
         ],
         "customProfile": {

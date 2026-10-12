@@ -8,6 +8,8 @@ Use native Megin's repository workflow, approved plan, Repo lock, independent re
 
 Run review helpers from this repository and pass this repository as `--workspace`. Require explicit base/head versions for version reviews and release checks. Preserve local edits, keep owned evidence in system temporary storage, and clean owned contexts after completion or interruption. JSON reports are opt-in.
 
+MergeReviewer's portable branch/staged/uncommitted workflow uses `--scope repo` in this repository profile. Cover the selected changes and their callers/contracts inside this project; related Group Repos enter the review only when the user selects a Group/workspace scope. Local Stage/uncommitted review does not require a remote.
+
 The selected repository's local instructions and this repository profile govern these native workflows, including when an ancestor directory has a GitLab Workspace Group installation. Each task uses this repository's installed Skills and records.
 
 New work uses native Megin v2 in the repository profile and Group v4 in the Group profile. Explore current-source functions and neutral requirements, obtain exact-plan approval, then preserve BDD/TDD raw evidence and a fresh independent read-only reviewer for initial round 0 plus at most three correction rounds. Approval can stop retries early; three failed corrections remain incomplete. Resume preserves the original attempt history and fingerprint. Functional exploration is source-first and read-only by default; normal Wiki queries stay Wiki-first.

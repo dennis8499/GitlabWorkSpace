@@ -64,6 +64,8 @@ class ProfileTests(unittest.TestCase):
         self.assertTrue((self.repo / ".agents/skills/megin/scripts/repo_workspace.py").is_file())
         self.assertFalse((self.repo / ".agents/skills/megin/scripts/group_workspace.py").exists())
         self.assertFalse((self.repo / ".agents/skills/merge-reviewer/scripts/group_review.py").exists())
+        for module in ("review_workspace.py", "workspace_report.py", "legacy_group_review.py"):
+            self.assertTrue((self.repo / ".agents/skills/merge-reviewer/scripts" / module).is_file())
         self.assert_preserved()
         empty = self.base / "empty"; empty.mkdir()
         result, _ = self.execute("install", ARCHIVE, empty, VERSION, "bundled", "--format", "tar.xz",
