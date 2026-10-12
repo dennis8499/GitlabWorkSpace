@@ -203,6 +203,8 @@ function snapshot(activeMode = 'developer') {
       { id: 8, name: 'Child', full_path: 'team/child', web_url: 'https://gitlab.example.test/groups/team/child' }
     ],
     groupRoot: 'C:/workspace/team',
+    cloneRoot: 'C:/workspace/team',
+    projectLocalRepositories: {},
     workspaceRootError: undefined,
     groupRepositories: [{ name: 'alpha', path: 'C:/workspace/team/alpha' }],
     groupRepositoryScanStatus: 'ready',
@@ -753,7 +755,7 @@ test('Skills auto mode falls back offline and keeps downloads independent of Gro
   setSkillsContext(state, 'group');
   view.sendSnapshot(state); await view.tick();
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
-  assert.equal(button('選擇資料夾').disabled, true);
+  assert.equal(button('選擇資料夾').disabled, false);
   assert.match(document.querySelector('[aria-label="Group 對應狀態"]').textContent, /已對應/);
   state.workflowKitOperationBusy = true;
   view.sendSnapshot(state); await view.tick();
@@ -1053,17 +1055,53 @@ test('copies the loaded Issue Markdown for read-only accounts and ignores replie
   await view.tick();
   assert.match(document.querySelector('[role="alert"]').textContent, /Clipboard denied/);
 });
-test('uses only the VS Code workspace for clone destinations and disables local Repo actions when unresolved', async (t) => {
+test('offers folder selection for unresolved project locations without reusing the Skills Group root', async (t) => {
   const state = snapshot('clone');
-  state.groupRoot = undefined;
-  state.workspaceRootError = 'Open a matching VS Code Group folder';
+  state.cloneRoot = undefined;
+  state.cloneRootError = '請選擇專案下載／更新資料夾';
   const view = await mount({ mode: 'clone' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.clone-submit').disabled, true);
-  assert.match(document.querySelector('.clone-root-line').textContent, /Open a matching VS Code Group folder/);
-  assert.equal([...document.querySelectorAll('button')].some((button) => /選擇工作目錄|設定工作目錄|變更工作目錄/.test(button.textContent)), false);
-  assert.equal(view.requests.some((request) => request.type === 'selectWorkspace'), false);
+  assert.match(document.querySelector('.clone-root-line').textContent, /請選擇專案下載／更新資料夾/);
+  document.querySelector('.clone-select-root').click();
+  assert.equal(view.requests.at(-1).type, 'selectCloneRoot');
+  assert.equal([...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新本機預設分支').disabled, true);
+});
+
+test('mixed workspaces keep clone and more project actions enabled with their own root and repository states', async t => {
+  const state = snapshot('clone');
+  state.groupRoot = undefined; state.workspaceRootError = '所有 Repo 都須對應所選 GitLab Group。';
+  state.cloneRoot = 'C:/mixed'; state.cloneRootManual = true;
+  state.projectLocalRepositories = { 1: { path: 'C:/mixed/alpha', state: 'ready' } };
+  state.localRepositories = { 1: { path: 'C:/skills/alpha', state: 'ready' } };
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope', selectedProjectIds: [1] }, state);
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document;
+  assert.equal(document.querySelector('.clone-submit').disabled, false);
+  assert.match(document.querySelector('.clone-root-line').textContent, /C:\/mixed.*手動指定/);
+  assert.match(document.querySelector('.repo-row').textContent, /C:\/mixed\/alpha/);
+  assert.equal(document.querySelector('.repo-row').textContent.includes('C:/skills'), false);
+  document.querySelector('.clone-submit').click(); assert.equal(view.requests.at(-1).type, 'clone');
+  const sync = [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新本機預設分支');
+  assert.equal(sync.disabled, false); sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
+  document.querySelector('.clone-open-workspace').click(); assert.equal(view.requests.at(-1).type, 'openLocalWorkspace');
+  document.querySelector('.clone-reset-root').click(); assert.equal(view.requests.at(-1).type, 'resetCloneRoot');
+  view.sendSnapshot({ ...state, busy: true }); await view.tick();
+  assert.equal(document.querySelector('.clone-select-root').disabled, true); assert.equal(document.querySelector('.clone-reset-root').disabled, true);
+});
+
+test('installation and current Skills locations show independent profiles and statuses', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.workflowKitPolicy = { requireGroupEnvironment: true, allowed: true, mode: 'group', settingTarget: 'workspace' };
+  state.workflowKitInstallTarget = { root: 'D:/external', profile: 'repository', manual: true, state: { status: 'missing' } };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  assert.match(document.querySelector('.workflow-kit-install-root').textContent, /D:\/external/);
+  assert.match(document.querySelector('.workflow-kit-skills-root').textContent, /C:\/workspace\/team.*Group/);
+  assert.match(document.querySelector('.tool-card').textContent, /安裝版型：原生單 Repo/);
+  const select = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '選擇資料夾');
+  assert.equal(select.disabled, false); select.click(); assert.equal(view.requests.at(-1).type, 'selectWorkflowKitInstallRoot');
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
 });
 
 test('shows every assigned Issue by default and keeps the list usable when Board loading fails', async (t) => {

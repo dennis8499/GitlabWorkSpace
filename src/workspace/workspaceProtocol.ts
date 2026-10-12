@@ -156,6 +156,8 @@ export interface WorkspaceSnapshot {
   groups: GitLabGroup[];
   groupRoot?: string;
   cloneRoot?: string;
+  cloneRootError?: string;
+  cloneRootManual?: boolean;
   skillsContext?: SkillsContext;
   workspaceRootError?: string;
   groupRepositories: Array<{ name: string; path: string }>;
@@ -177,6 +179,7 @@ export interface WorkspaceSnapshot {
   issueGraph?: IssueGraphSnapshot;
   issueGraphVersion?: number;
   localRepositories: Record<number, LocalRepositoryState>;
+  projectLocalRepositories: Record<number, LocalRepositoryState>;
   issues: GitLabIssue[];
   mergeRequests: GitLabMergeRequest[];
   activeMode: WorkspaceMode;
@@ -254,6 +257,8 @@ export type WorkspaceRequest =
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }
+  | { type: 'selectCloneRoot' }
+  | { type: 'resetCloneRoot' }
   | { type: 'openCodexTerminal'; revision: string }
   | { type: 'copyAndOpenCodex'; text: string; returnTo: string; revision: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }

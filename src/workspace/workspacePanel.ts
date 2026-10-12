@@ -11,7 +11,7 @@ import type { GitLabGraphWorkItem, GitLabGroup, GitLabIssue, GitLabIssueBoard, G
 import type { IssueFormOptions } from '../issues/protocol';
 import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
-import { groupRepositoryPath, localRepositoryStateAsync, projectFolderNames, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository } from './workspacePaths';
+import { groupRepositoryPath, inspectWorkspaceFolder, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, projectFolderNames, resolveProjectWorkspaceRoot, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
@@ -48,6 +48,8 @@ const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
 const WORKFLOW_KIT_INSTALL_ROOT_KEY = 'gitlabWorkspace.workflowKit.installRoot';
+const SKILLS_REPOSITORY_ROOT_KEY = 'gitlabWorkspace.skills.repositoryRoot';
+const CLONE_ROOT_KEY_PREFIX = 'gitlabWorkspace.cloneRoot.';
 const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer', 'git', 'admin']);
 
 interface DeliveryRecord extends DeliveryPreview { groupId: number; userId: number; instanceScope?: string; }
@@ -79,6 +81,15 @@ export class WorkspacePanel implements vscode.Disposable {
   private localRepositoryStates: WorkspaceSnapshot['localRepositories'] = {};
   private localRepositoriesKey?: string;
   private localRepositoryScanGeneration = 0;
+  private projectLocalRepositoryStates: WorkspaceSnapshot['projectLocalRepositories'] = {};
+  private projectRepositoriesKey?: string;
+  private projectRepositoryScanGeneration = 0;
+  private cloneRoot?: string;
+  private cloneRootError?: string;
+  private cloneRootManual = false;
+  private cloneRootScope?: string;
+  private cloneRootGeneration = 0;
+  private cloneRootSelecting = false;
   private actualRepositories: LocalGroupRepository[] = [];
   private actualRepositoriesRoot?: string;
   private actualRepositoryScanStatus: WorkspaceSnapshot['groupRepositoryScanStatus'] = 'idle';
@@ -135,6 +146,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private currentUser?: GitLabUser;
   private workflowKitState: InstalledWorkflowKitState = { status: 'missing' };
   private workflowKitStateRoot?: string;
+  private skillsWorkflowKitState: InstalledWorkflowKitState = { status: 'missing' };
+  private skillsWorkflowKitStateRoot?: string;
   private workflowKitInstallTarget: WorkflowKitInstallTarget = { manual: false, state: { status: 'missing' } };
   private workflowKitInstallation?: WorkflowKitInstallTarget;
   private workflowKitSelectingRoot = false;
@@ -749,6 +762,8 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       }
       case 'openLocalWorkspace': await this.openLocalWorkspace(); break;
+      case 'selectCloneRoot': await this.selectCloneRoot(); break;
+      case 'resetCloneRoot': await this.selectCloneRoot(true); break;
       case 'openCodexTerminal': await this.openCodexTerminal(request.revision); break;
       case 'copyAndOpenCodex':
         await this.assertWorkflowKitReady();
@@ -944,6 +959,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const currentTask = this.refreshTask;
       if (!options.forceRepositories) return currentTask;
       return currentTask.then(async () => {
+        await this.refreshProjectRoot(true);
         const root = this.groupRoot;
         const connectedScope = this.connectedScopeKey();
         const repositoryKey = connectedScope && root ? this.repositoryStateKey(connectedScope, root, this.projects) : undefined;
@@ -983,6 +999,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.post({ type: 'busy', value: true, label: '正在更新工作台' });
     try {
       if (!this.session.baseUrl) {
+        this.invalidateProjectRoot();
         this.groups = []; this.projects = []; this.issues = []; this.mergeRequests = []; this.currentUser = undefined;
         this.resetWorkspaceSections();
         this.groupRoot = undefined; this.workspaceRootError = undefined;
@@ -1022,6 +1039,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       const scopeKey = `${this.session.baseUrl}|${user.id}|${group?.id ?? 'none'}`;
       if (scopeKey !== this.loadedScopeKey) {
+        this.invalidateProjectRoot();
         this.loadedScopeKey = scopeKey;
         this.snapshotGraphScope = undefined;
         this.resetWorkspaceSections();
@@ -1047,6 +1065,7 @@ export class WorkspacePanel implements vscode.Disposable {
         this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined;
       }
       if (!group) {
+        this.invalidateProjectRoot();
         this.projects = []; this.issues = []; this.mergeRequests = [];
         this.resetWorkspaceSections();
         this.groupRoot = undefined; this.workspaceRootError = undefined;
@@ -1087,7 +1106,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.sendSnapshot();
       const workspaceGeneration = this.workspaceFoldersGeneration;
       const environmentGeneration = this.skillsEnvironmentGeneration;
-      const resolution = await this.resolveWorkspaceRoot(projects);
+      const [resolution] = await Promise.all([this.resolveWorkspaceRoot(projects), this.refreshProjectRoot(options.forceRepositories)]);
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
       if (workspaceGeneration !== this.workspaceFoldersGeneration || environmentGeneration !== this.skillsEnvironmentGeneration) {
         this.pendingWorkspaceRefresh = true;
@@ -1193,6 +1212,100 @@ export class WorkspacePanel implements vscode.Disposable {
     return { root: match.root, error: match.reason, match };
   }
 
+  private cloneRootStorageKey(): string | undefined {
+    const scope = this.connectedScopeKey();
+    return scope ? `${CLONE_ROOT_KEY_PREFIX}${scope}` : undefined;
+  }
+
+  private invalidateProjectRoot(reason?: string): void {
+    this.cloneRootGeneration = (this.cloneRootGeneration ?? 0) + 1;
+    this.projectRepositoryScanGeneration = (this.projectRepositoryScanGeneration ?? 0) + 1;
+    this.cloneRoot = undefined; this.cloneRootScope = undefined; this.cloneRootError = reason;
+    this.cloneRootManual = false; this.projectLocalRepositoryStates = {}; this.projectRepositoriesKey = undefined;
+  }
+
+  private async resolveProjectRoot(): Promise<WorkspaceRootResolution & { manual: boolean }> {
+    const key = this.cloneRootStorageKey();
+    if (!key) return { manual: false, error: '請先連線 GitLab 並選擇 Group。' };
+    const manualRoot = this.context.workspaceState.get<string>(key);
+    if (manualRoot) {
+      const validated = await resolveWorkflowKitInstallRoot(manualRoot, undefined, []);
+      if (validated.error || !validated.root) return { manual: true, error: validated.error };
+      const inspected = await inspectWorkspaceFolder(validated.root, [], () => false);
+      if (inspected.kind === 'unavailable') return { manual: true, error: inspected.error };
+      return inspected.kind === 'directory' ? { root: inspected.path, manual: true }
+        : { manual: true, error: '下載位置必須為非 Git 資料夾，請選擇 Repo 的上層目錄。' };
+    }
+    const projects = this.groupProjectScopeReady() ? this.projects : [];
+    const folders = (vscode.workspace.workspaceFolders ?? []).map(folder => ({
+      path: folder.uri.scheme === 'file' ? folder.uri.fsPath : folder.uri.toString(), local: folder.uri.scheme === 'file'
+    }));
+    const inspect = async (folder: { path: string; local: boolean }) => {
+      try {
+        if (!folder.local) throw new Error('請選擇本機專案下載／更新資料夾。');
+        return await inspectWorkspaceFolder(folder.path, projects, projectRemoteMatches);
+      } catch (error) { return { kind: 'unavailable' as const, path: folder.path, error: readableError(error) }; }
+    };
+    const inspections = await mapWithConcurrency(folders, 4, inspect);
+    // An explicitly opened container takes precedence over additional Git API Repos.
+    if (!inspections.some(item => item.kind === 'directory')) {
+      const opened = await this.gitRepositories?.getInventory().catch(() => []) ?? [];
+      const additional = opened.filter(repo => !inspections.some(item => sameLocalPath(item.path, repo.path)));
+      inspections.push(...await mapWithConcurrency(additional, 4, repo => inspect({ path: repo.path, local: true })));
+    }
+    return { ...resolveProjectWorkspaceRoot(inspections), manual: false };
+  }
+
+  private async refreshProjectRoot(forceRepositories = false): Promise<void> {
+    const generation = this.cloneRootGeneration = (this.cloneRootGeneration ?? 0) + 1;
+    const scope = this.connectedScopeKey();
+    const workspaceGeneration = this.workspaceFoldersGeneration;
+    const projects = this.projects;
+    const key = this.cloneRootStorageKey();
+    const savedRoot = key ? this.context.workspaceState.get<string>(key) : undefined;
+    const resolution = await this.resolveProjectRoot();
+    if (this.disposed || generation !== this.cloneRootGeneration || scope !== this.connectedScopeKey() ||
+      workspaceGeneration !== this.workspaceFoldersGeneration || projects !== this.projects ||
+      savedRoot !== (key ? this.context.workspaceState.get<string>(key) : undefined)) return;
+    this.cloneRoot = resolution.root; this.cloneRootError = resolution.error;
+    this.cloneRootManual = resolution.manual; this.cloneRootScope = scope;
+    const repositoryKey = scope && this.repositoryStateKey(scope, resolution.root, projects);
+    if (scope && resolution.root && repositoryKey && (forceRepositories || this.projectRepositoriesKey !== repositoryKey)) {
+      await this.refreshLocalRepositoryStates(resolution.root, projects, scope, repositoryKey, true);
+    } else if (!resolution.root) {
+      this.projectLocalRepositoryStates = {}; this.projectRepositoriesKey = undefined;
+    }
+    this.sendSnapshot();
+  }
+
+  private async selectCloneRoot(reset = false): Promise<void> {
+    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.accountTransitionBusy) throw new Error('請等候目前專案操作完成。');
+    const key = this.cloneRootStorageKey();
+    if (!key) throw new Error('請先連線 GitLab 並選擇 Group。');
+    const epoch = this.session.connectionEpoch, workspaceGeneration = this.workspaceFoldersGeneration;
+    this.cloneRootSelecting = true; this.sendSnapshot();
+    try {
+      let root: string | undefined;
+      if (!reset) {
+        const selection = await vscode.window.showOpenDialog({ title: '選擇專案下載／更新資料夾',
+          canSelectFiles: false, canSelectFolders: true, canSelectMany: false, openLabel: '選擇資料夾',
+          defaultUri: this.cloneRoot ? vscode.Uri.file(this.cloneRoot) : undefined });
+        const selected = selection?.[0];
+        if (!selected) return;
+        if (selected.scheme !== 'file') throw new Error('請選擇本機資料夾。');
+        const inspected = await inspectWorkspaceFolder(selected.fsPath, [], () => false);
+        if (inspected.kind === 'unavailable') throw new Error(inspected.error);
+        if (inspected.kind !== 'directory') throw new Error('下載位置必須為非 Git 資料夾，請選擇 Repo 的上層目錄。');
+        root = inspected.path;
+      }
+      if (key !== this.cloneRootStorageKey() || epoch !== this.session.connectionEpoch || workspaceGeneration !== this.workspaceFoldersGeneration) {
+        throw new Error('Group、帳號或工作區已變更，請重新選擇下載位置。');
+      }
+      await this.context.workspaceState.update(key, root);
+      await this.refreshProjectRoot(true);
+    } finally { this.cloneRootSelecting = false; this.sendSnapshot(); }
+  }
+
   private async watchRepositoryRemotes(): Promise<void> {
     if (!vscode.workspace.createFileSystemWatcher) return;
     const generation = this.skillsEnvironmentGeneration;
@@ -1221,6 +1334,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private scheduleSkillsEnvironmentRefresh(): void {
     if (this.disposed) return;
+    this.invalidateProjectRoot('正在辨識專案下載／更新位置…');
     this.workspaceMatch = { ...this.workspaceMatch, status: 'checking', root: undefined, cloneRoot: undefined };
     this.skillsEnvironmentGeneration++; this.workflowKitRefreshGeneration++;
     this.groupRoot = undefined;
@@ -1235,17 +1349,29 @@ export class WorkspacePanel implements vscode.Disposable {
     const inspected = this.workspaceMatch ?? { status: this.groupRoot ? 'matched' : 'unverified', root: this.groupRoot, repositories: [] };
     const match: GroupWorkspaceMatch = inspected.status === 'matched' && !this.groupProjectScopeReady()
       ? { ...inspected, status: 'unverified', root: undefined, cloneRoot: undefined, reason: '帳號或 Group 專案清單尚未完成核對。' } : inspected;
-    const savedRoot = this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY);
+    const savedRoot = this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY)
+      ?? this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY);
     const selectedRoot = match.repositories.find(repo => savedRoot && sameLocalPath(savedRoot, repo.path))?.path;
-    const installed = this.workflowKitInstallTarget?.state ?? { status: 'missing' };
+    const skillsRoot = this.getWorkflowKitPolicy().requireGroupEnvironment && match.status === 'matched' ? match.root
+      : selectedRoot ?? (match.repositories.length === 1 ? match.repositories[0].path : undefined);
+    const installed = skillsRoot && this.skillsWorkflowKitStateRoot && sameLocalPath(skillsRoot, this.skillsWorkflowKitStateRoot)
+      ? this.skillsWorkflowKitState : { status: 'missing' as const };
     const revision = createHash('sha256').update(JSON.stringify([this.workspaceFoldersGeneration, this.session.connectionEpoch,
       this.session.selectedGroup?.id, this.getWorkflowKitPolicy().requireGroupEnvironment, match, selectedRoot, installed])).digest('hex');
     return resolveSkillsContext({ preferGroup: this.getWorkflowKitPolicy().requireGroupEnvironment, match, selectedRoot,
       installed, expectedVersion: String(this.context.extension.packageJSON.version), revision });
   }
 
-  private async selectSkillsRepository(root: string, fromPicker = false): Promise<void> {
-    if (this.workflowKitInstallation || this.workflowKitSelectingRoot && !fromPicker || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
+  private async migrateSkillsRepositorySelection(): Promise<string> {
+    const selected = this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY);
+    if (selected !== undefined) return selected;
+    const legacy = this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY) ?? '';
+    await this.context.workspaceState.update(SKILLS_REPOSITORY_ROOT_KEY, legacy);
+    return legacy;
+  }
+
+  private async selectSkillsRepository(root: string): Promise<void> {
+    if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
     const checkAccess = this.captureWorkflowKitAccess();
     this.workflowKitSelectingRoot = true; this.sendSnapshot();
     try {
@@ -1255,7 +1381,7 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!repository) throw new Error('請選擇目前 VS Code 工作區的 Git Repo。');
       if (this.getWorkflowKitPolicy().requireGroupEnvironment && match.status === 'matched') throw new Error('Group 模式使用已核對的 Group 根目錄。');
       this.workflowKitRefreshGeneration++;
-      await this.context.workspaceState.update(WORKFLOW_KIT_INSTALL_ROOT_KEY, repository.path);
+      await this.context.workspaceState.update(SKILLS_REPOSITORY_ROOT_KEY, repository.path);
       await this.refreshWorkflowKit();
     } finally { this.workflowKitSelectingRoot = false; this.sendSnapshot(); }
   }
@@ -1305,6 +1431,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private onWorkspaceFoldersChanged(): void {
+    this.invalidateProjectRoot('正在辨識專案下載／更新位置…');
     this.skillsEnvironmentGeneration++;
     this.workspaceMatch = { status: 'checking', repositories: [] };
     this.workflowKitRefreshGeneration++;
@@ -1392,9 +1519,11 @@ export class WorkspacePanel implements vscode.Disposable {
     root: string,
     projects: readonly GitLabProject[],
     connectedScope: string,
-    repositoryKey: string
+    repositoryKey: string,
+    projectOperations = false
   ): Promise<void> {
-    const generation = ++this.localRepositoryScanGeneration;
+    const generation = projectOperations
+      ? this.projectRepositoryScanGeneration = (this.projectRepositoryScanGeneration ?? 0) + 1 : ++this.localRepositoryScanGeneration;
     const folders = projectFolderNames(projects);
     const states = await mapWithConcurrency(projects, 4, async (project) => {
       try {
@@ -1404,11 +1533,14 @@ export class WorkspacePanel implements vscode.Disposable {
         return [project.id, { path: '', state: 'unsafe' as const }] as const;
       }
     });
-    const currentRoot = this.groupRoot;
-    if (this.disposed || generation !== this.localRepositoryScanGeneration || connectedScope !== this.connectedScopeKey() ||
+    const currentRoot = projectOperations ? this.cloneRoot : this.groupRoot;
+    if (this.disposed || generation !== (projectOperations ? this.projectRepositoryScanGeneration : this.localRepositoryScanGeneration) || connectedScope !== this.connectedScopeKey() ||
       repositoryKey !== this.repositoryStateKey(connectedScope, currentRoot, this.projects)) return;
-    this.localRepositoryStates = Object.fromEntries(states);
-    this.localRepositoriesKey = repositoryKey;
+    if (projectOperations) {
+      this.projectLocalRepositoryStates = Object.fromEntries(states); this.projectRepositoriesKey = repositoryKey;
+    } else {
+      this.localRepositoryStates = Object.fromEntries(states); this.localRepositoriesKey = repositoryKey;
+    }
     this.sendSnapshot();
   }
 
@@ -1877,6 +2009,9 @@ export class WorkspacePanel implements vscode.Disposable {
     if (includeGraphSnapshot) this.snapshotGraphScope = currentGraph.connectedScope;
     const localRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', root, this.projects);
     const localRepositories = localRepositoryKey === this.localRepositoriesKey ? this.localRepositoryStates : {};
+    const cloneRootCurrent = this.cloneRootScope === this.connectedScopeKey();
+    const cloneRoot = cloneRootCurrent ? this.cloneRoot : undefined;
+    const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
@@ -1896,7 +2031,10 @@ export class WorkspacePanel implements vscode.Disposable {
       group,
       groups: this.groups,
       groupRoot: root,
-      cloneRoot: this.workspaceMatch?.cloneRoot,
+      cloneRoot,
+      cloneRootError: cloneRootCurrent ? this.cloneRootError : undefined,
+      cloneRootManual: cloneRootCurrent && this.cloneRootManual,
+      projectLocalRepositories: projectRepositoryKey && projectRepositoryKey === this.projectRepositoriesKey ? this.projectLocalRepositoryStates : {},
       skillsContext: this.getSkillsContext(),
       workspaceRootError: this.workspaceRootError,
       groupRepositories: this.actualRepositoryScanStatus === 'ready' && this.actualRepositoriesRoot && root && sameLocalPath(this.actualRepositoriesRoot, root)
@@ -1949,7 +2087,7 @@ export class WorkspacePanel implements vscode.Disposable {
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)
         .map((item) => ({ ...item, instanceVerified: !!deliveryScope && item.instanceScope === deliveryScope, ...(item.handoffSha256 ? {} : { gate: { ok: false, reasons: ['舊紀錄缺少 Megin 原生驗收交接證據。'] } }) })),
       cloneOperation: this.cloneOperation,
-      busy: this.busy || this.repositoryOperationInProgress || this.accountTransitionBusy,
+      busy: this.busy || this.repositoryOperationInProgress || this.accountTransitionBusy || this.cloneRootSelecting,
       instanceChecking: this.instanceCheckBusy
     };
     this.post({ type: 'snapshot', snapshot });
@@ -2146,8 +2284,12 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async openLocalWorkspace(): Promise<void> {
-    const root = this.groupRoot ?? this.workspaceMatch?.cloneRoot;
-    if (!root) throw new Error(this.workspaceRootError ?? '請先選擇工作區。');
+    const scope = this.connectedScopeKey(), epoch = this.session.connectionEpoch, workspaceGeneration = this.workspaceFoldersGeneration;
+    const { root, error } = await this.resolveProjectRoot();
+    if (scope !== this.connectedScopeKey() || epoch !== this.session.connectionEpoch || workspaceGeneration !== this.workspaceFoldersGeneration) {
+      throw new Error('Group、帳號或工作區已變更，請重新開啟工作區。');
+    }
+    if (!root) throw new Error(error ?? '請先選擇工作區。');
     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), false);
   }
 
@@ -2176,11 +2318,13 @@ export class WorkspacePanel implements vscode.Disposable {
     const group = this.session.selectedGroup;
     const epoch = this.session.connectionEpoch;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
-    if (this.busy || this.repositoryOperationInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
-    const match = await this.inspectEnvironment();
-    if (this.busy || this.repositoryOperationInProgress || epoch !== this.session.connectionEpoch || this.session.selectedGroup?.id !== group.id) throw new Error('工作區或帳號已變更，請重新確認下載。');
-    const root = match.cloneRoot;
-    if (!root) throw new Error(match.reason ?? '無法確認下載位置。');
+    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.accountTransitionBusy) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    const workspaceGeneration = this.workspaceFoldersGeneration;
+    const match = await this.resolveProjectRoot();
+    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.accountTransitionBusy || epoch !== this.session.connectionEpoch ||
+      this.session.selectedGroup?.id !== group.id || workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('工作區或帳號已變更，請重新確認下載。');
+    const root = match.root;
+    if (!root) throw new Error(match.error ?? '無法確認下載位置。');
     this.repositoryOperationInProgress = true;
     this.sendSnapshot();
     let operation: CloneOperationState | undefined;
@@ -2222,8 +2366,9 @@ export class WorkspacePanel implements vscode.Disposable {
         this.post({ type: 'message', message: '下載已取消；勾選項目仍保留。' });
         return;
       }
-      const checked = await this.inspectEnvironment();
-      if (!checked.cloneRoot || !sameLocalPath(checked.cloneRoot, root) || this.session.selectedGroup?.id !== group.id) throw new Error('Group 或下載工作區已變更。');
+      const checked = await this.resolveProjectRoot();
+      if (!checked.root || !sameLocalPath(checked.root, root) || this.session.selectedGroup?.id !== group.id ||
+        epoch !== this.session.connectionEpoch || workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group 或下載工作區已變更。');
       const credentials = await this.session.getCloneCredentials();
       const updateItem = (projectId: number, update: Partial<CloneOperationState['items'][number]>): void => {
         if (!operation) return;
@@ -2271,8 +2416,13 @@ export class WorkspacePanel implements vscode.Disposable {
   private async syncRepos(): Promise<void> {
     const group = this.session.selectedGroup;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
-    if (this.busy || this.repositoryOperationInProgress) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
-    const root = this.requireGroupRoot();
+    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.accountTransitionBusy) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
+    const epoch = this.session.connectionEpoch, workspaceGeneration = this.workspaceFoldersGeneration;
+    const resolution = await this.resolveProjectRoot();
+    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.accountTransitionBusy || epoch !== this.session.connectionEpoch || group.id !== this.session.selectedGroup?.id ||
+      workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group、帳號或工作區已變更，請重新確認更新。');
+    const root = resolution.root;
+    if (!root) throw new Error(resolution.error ?? '請選擇專案下載／更新位置。');
     this.repositoryOperationInProgress = true;
     this.sendSnapshot();
     let operation: CloneOperationState | undefined;
@@ -2309,6 +2459,9 @@ export class WorkspacePanel implements vscode.Disposable {
         publishOperation();
         return;
       }
+      const checked = await this.resolveProjectRoot();
+      if (!checked.root || !sameLocalPath(checked.root, root) || epoch !== this.session.connectionEpoch || group.id !== this.session.selectedGroup?.id ||
+        workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group 或更新工作區已變更。');
       const client = await this.session.getClient();
       const credentials = await this.session.getCloneCredentials();
       const results = await syncLocalDefaultBranches(root!, existingProjects, credentials.baseUrl, credentials.token, (event) => {
@@ -3219,7 +3372,8 @@ export class WorkspacePanel implements vscode.Disposable {
   /** Recheck after dialogs and reads, immediately before starting a write or opening a download. */
   private captureWorkflowKitAccess(): () => void {
     const signature = () => [this.getWorkflowKitPolicy().requireGroupEnvironment, this.workspaceFoldersGeneration,
-      this.session.connectionEpoch, this.session.selectedGroup?.id, this.groupRoot, this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY)].join('|');
+      this.session.connectionEpoch, this.session.selectedGroup?.id, this.groupRoot, this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY),
+      this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY)].join('|');
     const expected = signature();
     const check = () => {
       const policy = this.getWorkflowKitPolicy();
@@ -3301,61 +3455,87 @@ export class WorkspacePanel implements vscode.Disposable {
     const projects = this.projects;
     const setting = this.getWorkflowKitPolicy().requireGroupEnvironment;
     const manualRoot = this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY);
+    let savedSkillsRoot = this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY);
     const installation = this.workflowKitInstallation;
     const current = () => !this.disposed && generation === this.workflowKitRefreshGeneration && environmentGeneration === this.skillsEnvironmentGeneration &&
       workspaceGeneration === this.workspaceFoldersGeneration && epoch === this.session.connectionEpoch && groupId === this.session.selectedGroup?.id && projects === this.projects &&
       manualRoot === this.context.workspaceState.get<string>(WORKFLOW_KIT_INSTALL_ROOT_KEY) && installation === this.workflowKitInstallation &&
+      savedSkillsRoot === this.context.workspaceState.get<string>(SKILLS_REPOSITORY_ROOT_KEY) &&
       setting === this.getWorkflowKitPolicy().requireGroupEnvironment;
-    const match = await this.inspectEnvironment();
+    const [match, location] = await Promise.all([this.inspectEnvironment(), resolveWorkflowKitInstallRoot(manualRoot, undefined,
+      (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath))]);
+    if (!current()) return;
+    // The old key also selected the native Skills Repo. Freeze that selection once,
+    // before the installer can target an unrelated folder.
+    if (savedSkillsRoot === undefined) {
+      savedSkillsRoot = await this.migrateSkillsRepositorySelection();
+      if (!current()) return;
+    }
+    let targetLocation: WorkspaceRootResolution & { profile?: 'group' | 'repository' } = location;
+    if (location.root && !location.error) {
+      try { targetLocation = await inspectWorkflowKitInstallRoot(location.root); }
+      catch (error) { targetLocation = { root: location.root, error: readableError(error) }; }
+    }
     if (!current()) return;
     this.workspaceMatch = match;
     this.groupRoot = match.root;
     this.workspaceRootError = match.reason;
     void this.watchRepositoryRemotes();
     const groupMode = setting && match.status === 'matched';
-    const profile = groupMode ? 'group' as const : 'repository' as const;
-    const selected = match.repositories.find(repo => manualRoot && sameLocalPath(repo.path, manualRoot))
+    const selected = match.repositories.find(repo => savedSkillsRoot && sameLocalPath(repo.path, savedSkillsRoot))
       ?? (match.repositories.length === 1 ? match.repositories[0] : undefined);
-    const root = groupMode ? match.root : selected?.path;
-    const target: WorkflowKitInstallTarget = installation ?? { root, profile, manual: !groupMode && !!manualRoot && !!selected,
-      error: root ? undefined : '請選擇目前 VS Code 工作區的 Repo。', state: { status: root ? 'checking' : 'missing' } };
+    const skillsRoot = groupMode ? match.root : selected?.path;
+    const target: WorkflowKitInstallTarget = installation ?? { ...targetLocation, manual: !!manualRoot,
+      state: { status: targetLocation.root && !targetLocation.error ? 'checking' : 'missing' } };
     this.workflowKitInstallTarget = target;
     this.workflowKitStateRoot = match.root;
     this.workflowKitState = { status: match.root ? 'checking' : 'missing' };
+    this.skillsWorkflowKitStateRoot = skillsRoot;
+    this.skillsWorkflowKitState = { status: skillsRoot ? 'checking' : 'missing' };
     if (publish) this.sendSnapshot();
-    const [packages, groupState, targetState] = await Promise.all([
+    const [packages, groupState, targetState, skillsState] = await Promise.all([
       this.packages.listPackages(), match.root ? this.readWorkflowKitState(match.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' }),
-      target.root ? this.readWorkflowKitState(target.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })
+      target.root && !target.error ? this.readWorkflowKitState(target.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' }),
+      skillsRoot ? this.readWorkflowKitState(skillsRoot) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })
     ]);
     if (!current()) return;
     this.workflowKitPackages = packages;
     this.workflowKitState = groupState;
+    this.skillsWorkflowKitState = skillsState;
     this.workflowKitInstallTarget = { ...target, state: targetState };
     if (publish) this.sendSnapshot();
   }
 
   private async selectWorkflowKitInstallRoot(): Promise<void> {
     if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
-    if (this.getWorkflowKitPolicy().mode === 'group') throw new Error('Group 模式的安裝位置固定為目前 Group 根目錄。');
-    const checkAccess = this.captureWorkflowKitAccess();
     this.workflowKitSelectingRoot = true; this.sendSnapshot();
     try {
-      const match = await this.inspectEnvironment();
+      await this.refreshWorkflowKit();
+      await this.migrateSkillsRepositorySelection();
+      const checkAccess = this.captureWorkflowKitAccess();
+      const selection = await vscode.window.showOpenDialog({ title: '選擇工作流程包安裝資料夾',
+        canSelectFiles: false, canSelectFolders: true, canSelectMany: false, openLabel: '選擇資料夾',
+        defaultUri: this.workflowKitInstallTarget.root ? vscode.Uri.file(this.workflowKitInstallTarget.root) : undefined });
+      const selected = selection?.[0];
+      if (!selected) return;
+      if (selected.scheme !== 'file') throw new Error('請選擇本機資料夾。');
+      const location = await resolveWorkflowKitInstallRoot(selected.fsPath, undefined, []);
+      if (!location.root || location.error) throw new Error(location.error ?? '請選擇有效的安裝資料夾。');
+      const target = await inspectWorkflowKitInstallRoot(location.root);
+      if (target.error) throw new Error(target.error);
       checkAccess();
-      if (!match.repositories.length) throw new Error('請在 VS Code 開啟 Git Repo，再選擇安裝位置。');
-      const selection = await vscode.window.showQuickPick(match.repositories.map(repo => ({ label: repo.name, description: repo.path, root: repo.path })),
-        { title: '選擇目前工作區的 Skills Repo', placeHolder: 'Skills 與工作紀錄會安裝於此 Git 根目錄' });
-      checkAccess();
-      if (selection) await this.selectSkillsRepository(selection.root, true);
+      this.workflowKitRefreshGeneration++;
+      await this.context.workspaceState.update(WORKFLOW_KIT_INSTALL_ROOT_KEY, target.root);
+      await this.refreshWorkflowKit();
     } finally { this.workflowKitSelectingRoot = false; this.sendSnapshot(); }
   }
 
   private async resetWorkflowKitInstallRoot(): Promise<void> {
     this.captureWorkflowKitAccess()();
-    if (this.getWorkflowKitPolicy().mode === 'group') throw new Error('Group 模式的安裝位置固定為目前 Group 根目錄。');
     if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前技能包操作完成後再選擇位置。');
     this.workflowKitSelectingRoot = true;
     try {
+      await this.migrateSkillsRepositorySelection();
       this.workflowKitRefreshGeneration++;
       await this.context.workspaceState.update(WORKFLOW_KIT_INSTALL_ROOT_KEY, undefined);
       await this.refreshWorkflowKit();
@@ -3410,7 +3590,6 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     const root = target.root;
     const profile = target.profile ?? 'repository';
-    if (profile === 'group' && !sameLocalPath(root, this.requireGroupRoot())) throw new Error('Group 模式只能安裝至目前 Group 根目錄，請重新檢查安裝。');
     this.workflowKitInstallation = { ...target, state: { ...target.state, status: 'installing' } };
     this.workflowKitRefreshGeneration++;
     this.workflowKitInstallTarget = this.workflowKitInstallation;
@@ -3429,6 +3608,10 @@ export class WorkspacePanel implements vscode.Disposable {
         checkAccess();
         const match = await this.inspectEnvironment();
         if (JSON.stringify(match) !== environment) throw new Error('Repo remote 或工作區已變更，請重新確認安裝。');
+        const location = await resolveWorkflowKitInstallRoot(root, undefined, []);
+        if (location.error || !location.root || !sameLocalPath(location.root, root)) throw new Error(location.error ?? '安裝位置已變更，請重新選擇資料夾。');
+        const checked = await inspectWorkflowKitInstallRoot(root);
+        if (checked.error || checked.profile !== profile) throw new Error(checked.error ?? '安裝資料夾類型已變更，請重新檢查安裝。');
         checkAccess();
       };
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,

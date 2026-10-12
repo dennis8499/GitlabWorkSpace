@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const storageKey = 'gitlabWorkspace.workflowKit.installRoot';
+const skillsStorageKey = 'gitlabWorkspace.skills.repositoryRoot';
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath });
 let preferGroup: boolean | undefined;
 let resolvingPython: (() => void) | undefined;
@@ -50,6 +51,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
   preferGroup = undefined; updates.length = 0; resolvingPython = undefined;
   vscode.workspace.workspaceFolders = folders.map(root => ({ uri: uri(root) }));
   vscode.window.showQuickPick = async () => undefined;
+  vscode.window.showOpenDialog = async () => undefined;
   vscode.env.openExternal = async () => true;
   const installed = new Map<string, 'group' | 'repository'>();
   const calls: string[][] = [];
@@ -143,26 +145,107 @@ test('Codex launches from the selected verified Repo and rejects a stale context
   assert.equal(terminals.length, 1, 'no terminal opens for a stale selection');
 });
 
-test('empty windows can download but cannot install outside the current workspace', async t => {
+test('empty windows can download and install into a chosen external folder without enabling Skills', async t => {
   const [, repo] = await directories(t);
   const { host, calls } = fixture([]);
   await host.refreshWorkflowKit(); await host.openWorkflowKitDownload('gitea');
   await assert.rejects(host.installWorkflowKit('bundled'), /選擇/);
   await assert.rejects(host.selectSkillsRepository(repo), /目前 VS Code/);
   assert.equal(calls.length, 0);
+  vscode.window.showOpenDialog = async options => {
+    assert.equal((options as any).canSelectFolders, true); assert.equal((options as any).canSelectFiles, false);
+    return [uri(repo)];
+  };
+  await host.selectWorkflowKitInstallRoot(); await host.installWorkflowKit('bundled');
+  assert.equal(host.workflowKitInstallTarget.root, repo);
+  assert.equal(host.workflowKitInstallTarget.state.profile, 'repository');
+  assert.equal(host.getSkillsContext().mode, 'unavailable');
 });
 
 test('Repo selection persists in the workspace and cancellation preserves it', async t => {
   const [, repo, other] = await directories(t);
   const { host, workspaceState } = fixture([repo, other]);
   await host.refreshWorkflowKit(); assert.equal(host.workflowKitInstallTarget.root, undefined);
-  vscode.window.showQuickPick = async items => items.find(item => item.root === other);
+  await host.selectSkillsRepository(other);
+  assert.equal(workspaceState.get(skillsStorageKey), other);
+  assert.equal(workspaceState.get(storageKey), undefined, 'Skills selection does not change the installation folder');
+  vscode.window.showOpenDialog = async () => [uri(other)];
   await host.selectWorkflowKitInstallRoot(); assert.equal(workspaceState.get(storageKey), other);
   const reopened = fixture([repo, other], false, workspaceState).host;
   await reopened.refreshWorkflowKit(); await reopened.selectWorkflowKitInstallRoot();
   assert.equal(reopened.workflowKitInstallTarget.root, other);
   await reopened.resetWorkflowKitInstallRoot();
   assert.equal(reopened.workflowKitInstallTarget.root, undefined); assert.equal(workspaceState.get(storageKey), undefined);
+  assert.equal(reopened.getSkillsContext().root, other, 'reset only affects installation');
+});
+
+test('legacy Repo selection migrates once and changing installation never changes native Skills or its verified state', async t => {
+  const [group, repo, other] = await directories(t);
+  const workspaceState = memory(); await workspaceState.update(storageKey, repo);
+  const { host, installed } = fixture([repo, other], false, workspaceState);
+  installed.set(repo, 'repository'); installed.set(group, 'group');
+  await host.refreshWorkflowKit();
+  assert.equal(workspaceState.get(skillsStorageKey), repo);
+  const before = host.getSkillsContext();
+  vscode.window.showOpenDialog = async () => [uri(group)]; await host.selectWorkflowKitInstallRoot();
+  assert.equal(host.workflowKitInstallTarget.state.profile, 'group');
+  assert.equal(host.getSkillsContext().root, repo); assert.equal(host.getSkillsContext().installed.profile, 'repository');
+  assert.equal(host.getSkillsContext().revision, before.revision);
+  installed.delete(repo); await host.refreshWorkflowKit();
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.getSkillsContext().installed.status, 'missing');
+  assert.deepEqual(host.getSkillsContext().availableFeatures, []);
+});
+
+test('resetting installation before the first refresh preserves the legacy Skills Repo preference', async t => {
+  const [, repo, other] = await directories(t);
+  const workspaceState = memory(); await workspaceState.update(storageKey, other);
+  const { host } = fixture([repo, other], false, workspaceState);
+  await host.resetWorkflowKitInstallRoot();
+  assert.equal(workspaceState.get(storageKey), undefined); assert.equal(workspaceState.get(skillsStorageKey), other);
+  assert.equal(host.getSkillsContext().root, other); assert.equal(host.workflowKitInstallTarget.root, undefined);
+});
+
+test('Group mode allows another installation folder while Skills keeps using the verified Group root', async t => {
+  const [group, repo] = await directories(t);
+  const { host, installed, calls } = fixture([group], true); installed.set(group, 'group');
+  await host.refreshWorkflowKit(); const before = host.getSkillsContext();
+  vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectWorkflowKitInstallRoot();
+  assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.workflowKitInstallTarget.profile, 'repository');
+  assert.equal(host.getSkillsContext().root, group); assert.equal(host.getSkillsContext().revision, before.revision);
+  await host.installWorkflowKit('bundled'); assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'repository');
+  await host.resetWorkflowKitInstallRoot(); assert.equal(host.workflowKitInstallTarget.root, group);
+  assert.equal(host.getSkillsContext().root, group);
+});
+
+test('the installation default is the opened folder even when Skills automatically uses its parent Group', async t => {
+  const [group, repo] = await directories(t); const { host } = fixture([repo], true);
+  await host.refreshWorkflowKit();
+  assert.equal(host.getSkillsContext().root, group);
+  assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.workflowKitInstallTarget.profile, 'repository');
+});
+
+test('ordinary folders can install the Group profile offline and Repo subdirectories are rejected', async t => {
+  const [group, repo] = await directories(t); const { host, calls } = fixture([group]);
+  await host.refreshWorkflowKit(); await host.installWorkflowKit('bundled');
+  assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'group');
+  const child = path.join(repo, 'src'); await mkdir(child);
+  vscode.window.showOpenDialog = async () => [uri(child)];
+  await assert.rejects(host.selectWorkflowKitInstallRoot(), /Git 根目錄/);
+  assert.equal(host.workflowKitInstallTarget.root, group);
+  vscode.window.showOpenDialog = async () => [{ scheme: 'vscode-remote', fsPath: child }];
+  await assert.rejects(host.selectWorkflowKitInstallRoot(), /本機/);
+});
+
+test('deleted installation folders stay visible as invalid targets without falling back or changing Skills', async t => {
+  const [group, repo] = await directories(t); const workspaceState = memory();
+  const missing = path.join(group, 'removed'); await workspaceState.update(storageKey, missing);
+  const { host, calls } = fixture([repo], false, workspaceState);
+  await host.refreshWorkflowKit();
+  assert.equal(host.workflowKitInstallTarget.root, missing); assert.match(host.workflowKitInstallTarget.error, /不存在|讀取/);
+  assert.equal(host.getSkillsContext().root, repo);
+  await assert.rejects(host.installWorkflowKit('bundled'), /不存在|讀取/);
+  assert.equal(calls.filter(args => args[0] === 'install').length, 0);
 });
 
 test('matched Group selects its profile; disabling the setting pins a Repo', async t => {
@@ -188,12 +271,12 @@ test('installation in another Repo never enables Skills for the selected Repo', 
   assert.deepEqual(host.getSkillsContext().availableFeatures, []);
 });
 
-test('late status reads cannot overwrite a new Repo selection', async t => {
-  const [, repo, other] = await directories(t);
-  const { host, workspaceState } = fixture([repo, other]); await workspaceState.update(storageKey, repo);
+test('late status reads cannot overwrite a new installation folder', async t => {
+  const [group, repo, other] = await directories(t);
+  const { host, workspaceState } = fixture([repo]); await workspaceState.update(storageKey, group);
   let finish!: (value: unknown) => void, start!: () => void;
   const started = new Promise<void>(resolve => { start = resolve; });
-  host.runWorkflowKitHelper = async (args: string[]) => args[1] === repo ? new Promise(resolve => { finish = resolve; start(); }) : { ok: true, status: 'missing' };
+  host.runWorkflowKitHelper = async (args: string[]) => args[1] === group ? new Promise(resolve => { finish = resolve; start(); }) : { ok: true, status: 'missing' };
   const old = host.refreshWorkflowKit(); await started;
   await workspaceState.update(storageKey, other); await host.refreshWorkflowKit();
   finish({ ok: true, status: 'installed', version: 'old', profile: 'repository' }); await old;
@@ -214,6 +297,7 @@ test('late environment inspection cannot restore a previous target', async t => 
 test('installations pin their target and reject duplicate installs and selection changes', async t => {
   const [, repo, other] = await directories(t);
   const { host, calls } = fixture([repo, other]); await host.selectSkillsRepository(repo);
+  await host.context.workspaceState.update(storageKey, repo);
   const helper = host.runWorkflowKitHelper;
   let finish!: (value: unknown) => void, start!: () => void;
   const started = new Promise<void>(resolve => { start = resolve; });

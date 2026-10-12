@@ -28,7 +28,7 @@
 - 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查手動指定 Repo 與基礎／比較版本，產生本機報告。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從設定一次安裝或更新 GitLab Workspace 工作流程包。依實際工作區自動選擇 Group 或原生單 Repo 流程；下載與匯入可免登入，安裝需有已核對的 Group 根目錄或選定的 Git Repo。預設使用 VSIX 內附離線包；也可匯入 GitLab Workspace 的單一 Release ZIP。
+- 從設定一次安裝或更新 GitLab Workspace 工作流程包。預設安裝於目前 VS Code 專案資料夾，也可用原生資料夾選擇視窗指定其他本機位置；Git 根目錄安裝單 Repo 版，一般資料夾安裝 Group 版。安裝位置與 Skills／Codex 工作位置分開管理。下載與匯入可免登入；預設使用 VSIX 內附離線包，也可匯入單一 Release ZIP。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
@@ -53,7 +53,7 @@
 1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**，再選 **連線 GitLab**。
 2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
-4. 登入成功後按 **選擇 Group**，並確認帳號面板中的 Group 與本機工作區狀態。閱讀與討論 Issue 可先使用；Skills 可免登入使用單 Repo 流程；本機 Group 操作需要所有 Repo 都符合該群組的 VS Code 工作區。
+4. 登入成功後按 **選擇 Group**，並確認帳號面板中的 Group 與本機工作區狀態。專案下載與更新允許混合不同 Group 的 Repo；位置不唯一時按 **選擇下載資料夾**，選擇依工作區、連線與 Group 保存，可恢復自動辨識。閱讀與討論 Issue 可先使用；Skills 可免登入使用單 Repo 流程；Group Skills 與交付需要符合該群組的工作區。
 5. 在 VS Code 開啟 Group 資料夾，或開啟該 Group 的單一 Repo。擴充功能會依 Git remote 自動辨識；所有已開啟 Repo 與 Group 資料夾的直屬 Repo 都須符合所選 Group（含子群組），且共用唯一非 Git 根目錄。空 Group 資料夾可先下載，完成核對後才啟用 Group Skills。開啟 **設定 → 工作區與 Skills** 並安裝「GitLab Workspace 工作流程包」。預設 VSIX 內附版本可離線安裝；也可匯入 Release 的整包 ZIP。安裝前會檢查版本、內容摘要、舊工具與進行中的 Megin 工作。
 6. 開啟 **分析**，從選單選擇一項 Wiki 功能。提示詞會帶入目前 Group、本機實際 Repo 名稱與完整路徑及套件版本；複製到 Group 根目錄的 Codex CLI 執行。規格維持 draft／ready 與 SCN 驗證，再由使用者建立 GitLab Issue。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**。在 **開發與交付** 複製含 Issue 內容、討論、GitLab 身分與 Repo 範圍的任務。若已有相同 Issue 的 Megin 工作，可選 Work ID 續作。完成 Megin 驗收後，依序建立精確 Commit、Push、建立 MR；MR 審查依固定來源與目標 SHA 產生報告。
@@ -61,7 +61,7 @@
 
 工作台的 **開啟 Codex CLI** 會在目前 Skills 情境所選的 Group 或 Repo 根目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-只需使用單 Repo Skills 時，直接在 VS Code 開啟 Git Repo，再進入 **分析 → 整包安裝／更新**。**設定 → 工作區與 Skills** 的「符合 Group 時使用 Group 流程」預設開啟：全部 Repo 的 `origin` 對應所選 Group，且 Group 根目錄唯一時使用 Group；未登入、未選 Group、remote 不符或根目錄不唯一時自動使用原生單 Repo。關閉後固定使用單 Repo。唯一 Repo 自動選取，多個 Repo 時由選擇器指定，並記住此工作區的選擇；一般資料夾與 Repo 子目錄不作為安裝目標。
+只需使用單 Repo Skills 時，直接在 VS Code 開啟 Git Repo，再進入 **分析 → 整包安裝／更新**。**設定 → 工作區與 Skills** 的「符合 Group 時使用 Group 流程」預設開啟：全部 Repo 的 `origin` 對應所選 Group，且 Group 根目錄唯一時使用 Group；未登入、未選 Group、remote 不符或根目錄不唯一時自動使用原生單 Repo。關閉後固定使用單 Repo。唯一 Repo 自動選取，多個 Repo 時由 Skills Repo 選擇器指定，並記住此工作區的選擇。套件安裝資料夾另行選擇，預設為唯一已開啟的本機工作區資料夾，多根工作區或空視窗需先選擇；一般非 Git 資料夾可安裝 Group 版，Repo 子目錄需改選 Git 根目錄。安裝到外部資料夾不會切換 Skills 或 Codex 工作位置，恢復預設安裝位置也不清除 Skills Repo 選擇。
 
 設定會列出「核對中、已對應、不符、尚未驗證、根目錄不唯一、驗證失敗」與 Repo 原因。資料夾名稱不作為證據，也不採用其他 remote 代替 `origin`。切換畫面或設定只更新情境；按 **安裝／更新** 才套用對應 profile。Skills 顯示目前根目錄的實際整包及工具版本，舊版須更新才能建立新任務；通過原契約與 Skills 指紋驗證的未完成 Megin 工作可沿原 Work ID 續作。
 

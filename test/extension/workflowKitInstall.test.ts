@@ -37,8 +37,8 @@ suite('Local workflow kit installation', () => {
     }
   });
 
-  test('installs the real bundled Skills in an offline controller without a selected Group', async function () {
-    this.timeout(60_000);
+  test('installs real bundled Skills into current and external folders without changing the offline Skills context', async function () {
+    this.timeout(120_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
     // Wiki's native installer adds its own staging tree; avoid Windows MAX_PATH in the fixture.
@@ -106,6 +106,25 @@ suite('Local workflow kit installation', () => {
       assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
       assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
       assert.ok(!(await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('group_workspace.py'));
+      const skills = host.getSkillsContext();
+      assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
+      for (const profile of ['group', 'repository']) {
+        const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
+        if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
+        const externalRoot = await realpath(external);
+        await host.context.workspaceState.update('gitlabWorkspace.workflowKit.installRoot', externalRoot);
+        await host.refreshWorkflowKit(false);
+        assert.equal(host.workflowKitInstallTarget.profile, profile);
+        await host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled' });
+        assert.equal(host.workflowKitInstallTarget.root, externalRoot);
+        assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+        assert.equal(host.workflowKitInstallTarget.state.profile, profile);
+        assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 15);
+        assert.equal(host.getSkillsContext().root, root);
+        assert.equal(host.getSkillsContext().installed.profile, 'repository');
+        assert.equal(host.getSkillsContext().revision, skills.revision);
+        assert.equal(vscode.workspace.workspaceFolders?.some(folder => folder.uri.fsPath === externalRoot), false);
+      }
     } finally {
       if (host) {
         host.disposed = true;

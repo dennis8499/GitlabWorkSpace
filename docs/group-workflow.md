@@ -4,7 +4,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.5.0
 
 ## 一次安裝整包
 
-登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。「符合 Group 時使用 Group 流程」預設開啟；須核對所有已開啟 Repo 和 Group 資料夾的直屬 Repo，其唯一 origin 對應所選 Group（含子群組），並共用唯一非 Git 根目錄。未符合時自動切換原生單 Repo；關閉則固定單 Repo。下載與匯入可免登入，安裝需有效目標；空 Group 資料夾可先下載再核對。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
+登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。安裝位置預設為唯一已開啟的本機工作區資料夾；可用 **選擇資料夾** 指定其他本機位置，Git 根目錄安裝單 Repo 版，一般非 Git 資料夾安裝 Group 版。安裝位置不會切換 Skills／Codex 工作位置；請確認 Group 根目錄的套件狀態。「符合 Group 時使用 Group 流程」預設開啟；須核對所有已開啟 Repo 和 Group 資料夾的直屬 Repo，其唯一 origin 對應所選 Group（含子群組），並共用唯一非 Git 根目錄。未符合時自動切換原生單 Repo；關閉則固定單 Repo。專案下載與更新使用獨立的位置判定，允許混合不同 Group 的 Repo；空資料夾可先下載再核對。下載與匯入可免登入。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
 
 安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 

@@ -18,7 +18,7 @@ export interface LocalGroupRepository {
 export type WorkspaceFolderInspection =
   | { kind: 'directory'; path: string }
   | { kind: 'group-repository'; path: string; groupRoot: string; projectId?: number; remoteFingerprint?: string }
-  | { kind: 'repository' | 'nested-repository'; path: string; remoteFingerprint?: string }
+  | { kind: 'repository' | 'nested-repository'; path: string; containerRoot?: string; remoteFingerprint?: string }
   | { kind: 'unavailable'; path: string; error: string };
 
 export interface WorkspaceRootResolution {
@@ -44,6 +44,31 @@ export async function resolveWorkflowKitInstallRoot(
   } catch {
     return { root: candidate, error: '安裝位置不存在或無法讀取，請重新選擇資料夾。' };
   }
+}
+
+/** Project downloads need a container, independently of strict Skills Group matching. */
+export function resolveProjectWorkspaceRoot(
+  inspections: readonly WorkspaceFolderInspection[],
+  platform = process.platform
+): WorkspaceRootResolution {
+  const directories = uniquePaths(inspections.flatMap(item => item.kind === 'directory' ? [item.path] : []), platform);
+  if (directories.length === 1) return { root: directories[0] };
+  if (directories.length > 1) return { error: '目前有多個工作區資料夾，請選擇專案下載／更新位置。' };
+  const matching = inspections.flatMap(item => item.kind === 'group-repository' ? [item.groupRoot] : []);
+  const candidates = uniquePaths(matching.length ? matching : inspections.flatMap(item =>
+    item.kind === 'repository' && item.containerRoot ? [item.containerRoot] : []), platform);
+  if (candidates.length === 1) return { root: candidates[0] };
+  return { error: candidates.length > 1 ? 'Repo 位於不同目錄，請選擇專案下載／更新位置。'
+    : '請選擇專案下載／更新資料夾，或在 VS Code 開啟本機工作區。' };
+}
+
+/** Installation profile follows the target folder, not the current Skills context. */
+export async function inspectWorkflowKitInstallRoot(root: string): Promise<WorkspaceRootResolution & { profile?: 'group' | 'repository' }> {
+  const inspected = await inspectWorkspaceFolder(root, [], () => false);
+  if (inspected.kind === 'unavailable') return { root, error: inspected.error };
+  if (inspected.kind === 'directory') return { root: inspected.path, profile: 'group' };
+  if (!sameLocalPath(root, inspected.path)) return { root, error: `請選擇 Git 根目錄：${inspected.path}；不能安裝於 Repo 子目錄。` };
+  return { root: inspected.path, profile: 'repository' };
 }
 
 /** Pick one Group root from VS Code's already-resolved workspace folders. */
@@ -184,7 +209,7 @@ export async function inspectWorkspaceFolder(
     }));
     remotes = result.stdout.split('\0').filter(Boolean);
   } catch (error) {
-    if ((error as { code?: number }).code === 1) return { kind: 'repository', path: absolutePath };
+    if ((error as { code?: number }).code === 1) return { kind: 'repository', path: absolutePath, containerRoot: parent };
     return { kind: 'unavailable', path: absolutePath, error: '無法讀取 Group Repo 的 remote。' };
   }
   const remoteFingerprint = createHash('sha256').update(JSON.stringify(remotes)).digest('hex');
@@ -192,7 +217,7 @@ export async function inspectWorkspaceFolder(
   if (matched) {
     return { kind: 'group-repository', path: absolutePath, groupRoot: parent, projectId: matched.id, remoteFingerprint };
   }
-  return { kind: 'repository', path: absolutePath, remoteFingerprint };
+  return { kind: 'repository', path: absolutePath, containerRoot: parent, remoteFingerprint };
 }
 
 export function projectFolderNames(projects: readonly GitLabProject[]): Map<number, string> {
