@@ -51,6 +51,9 @@ suite('Local workflow kit installation', () => {
     await configuration.update(setting, false, configurationTarget);
     let host: any;
     let nativeRepository: { rootUri: vscode.Uri } | undefined;
+    const originalWorkspace = vscode.workspace.workspaceFolders?.map(folder => ({ uri: folder.uri, name: folder.name })) ?? [];
+    const originalCwd = process.cwd();
+    let fixtureAdded = false;
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     assert.ok(gitExtension);
     const gitExports = await gitExtension.activate();
@@ -59,6 +62,14 @@ suite('Local workflow kit installation', () => {
       const target = path.join(temporary, 'Repo 中文');
       await mkdir(target); execFileSync('git', ['init', '--quiet', target]);
       const root = await realpath(target);
+      // VS Code 1.90 applies its parent-repository policy to roots outside the workspace.
+      // Register the fixture as a workspace folder, as a user selecting this Repo would.
+      const added = new Promise<void>(resolve => {
+        const listener = vscode.workspace.onDidChangeWorkspaceFolders(() => { listener.dispose(); resolve(); });
+      });
+      assert.equal(vscode.workspace.updateWorkspaceFolders(originalWorkspace.length, 0, { uri: vscode.Uri.file(root), name: 'Offline kit fixture' }), true);
+      fixtureAdded = true;
+      await added;
       nativeRepository = await nativeGit.openRepository(vscode.Uri.file(root));
       assert.ok(nativeRepository, 'VS Code Git must register the actual Repo');
       const extensionRoot = path.resolve(__dirname, '../../..');
@@ -101,7 +112,15 @@ suite('Local workflow kit installation', () => {
         host.remoteWatchers.forEach((watcher: vscode.Disposable) => watcher.dispose());
         if (host.remoteRefreshTimer) clearTimeout(host.remoteRefreshTimer);
       }
-      if (nativeRepository && nativeGit.close) await nativeGit.close(nativeRepository);
+      if (nativeRepository) await vscode.commands.executeCommand('git.close', nativeRepository.rootUri);
+      if (fixtureAdded) {
+        const restored = new Promise<void>(resolve => {
+          const listener = vscode.workspace.onDidChangeWorkspaceFolders(() => { listener.dispose(); resolve(); });
+        });
+        assert.equal(vscode.workspace.updateWorkspaceFolders(0, vscode.workspace.workspaceFolders?.length ?? 0, ...originalWorkspace), true);
+        await restored;
+      }
+      if (process.cwd().toLocaleLowerCase().startsWith(temporary.toLocaleLowerCase() + path.sep)) process.chdir(originalCwd);
       await configuration.update(setting, configurationTarget === vscode.ConfigurationTarget.Workspace ? previous?.workspaceValue : previous?.globalValue, configurationTarget);
       assert.equal(path.dirname(await realpath(temporary)), tempBase);
       await rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
