@@ -141,6 +141,9 @@ def main() -> int:
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
+            for relative in ("out/src/workspace/workspacePanel.js", "out/src/workspace/codexRuntime.js"):
+                if "extension/" + relative not in members or archive.read("extension/" + relative) != (ROOT / relative).read_bytes():
+                    raise ValueError(f"VSIX contains outdated compiled workspace code: {relative}")
             if any(name.startswith(("extension/.github/", "extension/scripts/", "extension/.npm-cache/")) for name in members):
                 raise ValueError("VSIX contains a release helper or npm cache")
             if any(name.endswith(".log") for name in members):

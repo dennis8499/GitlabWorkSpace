@@ -13,6 +13,7 @@ import type { IssuePanels } from '../issues/issuePanel';
 import { cloneProjects, createScopedGitEnvironment, projectRemoteMatches, syncLocalDefaultBranches } from '../git/cloneService';
 import { groupRepositoryPath, inspectWorkspaceFolder, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, projectFolderNames, resolveProjectWorkspaceRoot, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
+import { resolveAutoHookCodexPath, workflowKitFailure } from './codexRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
@@ -3435,15 +3436,28 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       await previous;
       const pythonPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+      const configuredCodexPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '');
       const python = await resolvePythonRuntime(pythonPath);
       await beforeLaunch?.();
       const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
         cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
+      }).catch((error: unknown) => {
+        const stdout = error && typeof error === 'object' && 'stdout' in error && typeof error.stdout === 'string' ? error.stdout : '';
+        const stderr = error && typeof error === 'object' && 'stderr' in error && typeof error.stderr === 'string' ? error.stderr : '';
+        throw workflowKitFailure(stdout, configuredCodexPath) ?? workflowKitFailure(stderr, configuredCodexPath) ?? error;
       });
       const value = parseLastJsonLine(result.stdout) as Record<string, unknown>;
-      if (value.ok !== true) throw new Error(typeof value.error === 'string' ? value.error : 'Workflow kit operation was not confirmed.');
+      if (value.ok !== true) throw workflowKitFailure(result.stdout, configuredCodexPath) ?? new Error('Workflow kit operation was not confirmed.');
       return value;
     } finally { release(); }
+  }
+
+  private async autoHookCodexArguments(): Promise<string[]> {
+    const configuredPath = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '');
+    const extension = configuredPath.trim() ? undefined : vscode.extensions.getExtension('openai.chatgpt');
+    const codex = await resolveAutoHookCodexPath({ configuredPath,
+      extensionPath: extension?.extensionUri.scheme === 'file' ? extension.extensionUri.fsPath : undefined });
+    return codex ? ['--codex', codex] : [];
   }
 
   private readWorkflowKitState(root: string): Promise<InstalledWorkflowKitState> {
@@ -3586,8 +3600,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitSettingBusy = true; this.autoHookRefreshGeneration++; this.sendSnapshot();
     try {
       await this.workflowKitStatusReads.get(localPathKey(original.root));
-      const codex = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '').trim();
-      const args = ['autohook', operation, original.root, ...(codex ? ['--codex', codex] : [])];
+      const args = ['autohook', operation, original.root, ...(operation === 'disable' ? [] : await this.autoHookCodexArguments())];
       await this.runWorkflowKitHelper(args, 60_000, async () => {
         checkAccess();
         if (this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== original.root ||
@@ -3710,10 +3723,10 @@ export class WorkspacePanel implements vscode.Disposable {
         checkAccess();
       };
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
-        title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, () =>
+        title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, async () =>
         this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
           '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile,
-          ...(() => { const codex = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('autoHook.codexPath', '').trim(); return codex ? ['--codex', codex] : []; })()], undefined, beforeLaunch));
+          ...await this.autoHookCodexArguments()], undefined, beforeLaunch));
       if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('The installer returned an unexpected package identity.');
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });
     } catch (error) {

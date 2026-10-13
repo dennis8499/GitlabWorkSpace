@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,15 +10,20 @@ const skillsStorageKey = 'gitlabWorkspace.skills.repositoryRoot';
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath });
 let preferGroup: boolean | undefined;
 let resolvingPython: (() => void) | undefined;
+let codexExtensionRoot: string | undefined;
+let configuredCodexPath: string | undefined;
 const updates: any[] = [];
 const terminals: any[] = [];
 const vscode = {
   workspace: {
     workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
-    getConfiguration: () => ({ get: (key: string, fallback: unknown) => key === 'workflowKit.requireGroupEnvironment' ? preferGroup ?? fallback : fallback,
+    getConfiguration: () => ({ get: (key: string, fallback: unknown) => key === 'workflowKit.requireGroupEnvironment' ? preferGroup ?? fallback
+      : key === 'autoHook.codexPath' ? configuredCodexPath ?? fallback : fallback,
       update: async (key: string, value: boolean, target: number) => { updates.push({ key, value, target }); preferGroup = value; } })
   },
   ConfigurationTarget: { Global: 1, Workspace: 2 },
+  extensions: { getExtension: (id: string) => id === 'openai.chatgpt' && codexExtensionRoot
+    ? { extensionUri: uri(codexExtensionRoot), extensionPath: codexExtensionRoot } : undefined },
   env: { openExternal: async (_uri: unknown) => true, clipboard: { writeText: async (_text: string) => undefined } },
   window: {
     createTerminal: (options: any) => { terminals.push(options); return { show: () => undefined, sendText: () => undefined }; },
@@ -46,9 +51,10 @@ function memory() {
 }
 const project = (id: number, name: string) => ({ id, name, path: name, path_with_namespace: `team/${name}`,
   http_url_to_repo: `https://gitlab.test/team/${name}.git`, web_url: `https://gitlab.test/team/${name}` });
+const argumentValue = (args: string[] | undefined, flag: string) => args?.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
 
 function fixture(folders: string[], connected = false, workspaceState = memory()) {
-  preferGroup = undefined; updates.length = 0; resolvingPython = undefined;
+  preferGroup = undefined; updates.length = 0; resolvingPython = undefined; codexExtensionRoot = undefined; configuredCodexPath = undefined;
   vscode.workspace.workspaceFolders = folders.map(root => ({ uri: uri(root) }));
   vscode.window.showQuickPick = async () => undefined;
   vscode.window.showOpenDialog = async () => undefined;
@@ -105,7 +111,7 @@ test('the default auto setting installs native Repo Skills offline and allows do
   assert.equal(host.getWorkflowKitPolicy().mode, 'repository');
   assert.equal(host.workflowKitInstallTarget.root, repo);
   await host.openWorkflowKitDownload('github'); await host.installWorkflowKit('bundled');
-  assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'repository');
+  assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'repository');
   assert.equal(host.getSkillsContext().installed.profile, 'repository');
   assert.equal(host.groupRoot, undefined);
 });
@@ -214,7 +220,7 @@ test('Group mode allows another installation folder while Skills keeps using the
   vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectWorkflowKitInstallRoot();
   assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.workflowKitInstallTarget.profile, 'repository');
   assert.equal(host.getSkillsContext().root, group); assert.equal(host.getSkillsContext().revision, before.revision);
-  await host.installWorkflowKit('bundled'); assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'repository');
+  await host.installWorkflowKit('bundled'); assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'repository');
   await host.resetWorkflowKitInstallRoot(); assert.equal(host.workflowKitInstallTarget.root, group);
   assert.equal(host.getSkillsContext().root, group);
 });
@@ -229,7 +235,7 @@ test('the installation default is the opened folder even when Skills automatical
 test('ordinary folders can install the Group profile offline and Repo subdirectories are rejected', async t => {
   const [group, repo] = await directories(t); const { host, calls } = fixture([group]);
   await host.refreshWorkflowKit(); await host.installWorkflowKit('bundled');
-  assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'group');
+  assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'group');
   const child = path.join(repo, 'src'); await mkdir(child);
   vscode.window.showOpenDialog = async () => [uri(child)];
   await assert.rejects(host.selectWorkflowKitInstallRoot(), /Git 根目錄/);
@@ -257,7 +263,7 @@ test('matched Group selects its profile; disabling the setting pins a Repo', asy
   assert.equal(host.getWorkflowKitPolicy().mode, 'group');
   await assert.rejects(host.selectSkillsRepository(repo), /Group/);
   await host.installWorkflowKit('bundled');
-  assert.equal(calls.find(args => args[0] === 'install')?.at(-1), 'group');
+  assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'group');
   await host.setWorkflowKitRequireGroup(false); await host.selectSkillsRepository(other);
   assert.equal(host.getSkillsContext().mode, 'repository'); assert.equal(host.getSkillsContext().root, other);
   assert.equal(updates.at(-1).target, 2);
@@ -459,6 +465,68 @@ test('AutoHook follows the Skills root independently of the installation target'
   await host.manageAutoHook('disable', host.getSkillsContext().revision);
   assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'disable'), ['autohook', 'disable', group]);
   await assert.rejects(host.manageAutoHook('enable', 'expired'), /已變更/);
+});
+
+test('AutoHook discovers the registered Codex extension when PATH only provides a shim', { skip: process.platform !== 'win32' }, async t => {
+  const [group, repo] = await directories(t);
+  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository');
+  await host.refreshWorkflowKit();
+  codexExtensionRoot = path.join(group, 'Codex 中文 版本一');
+  const native = path.join(codexExtensionRoot, 'bin', process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64', 'codex.exe');
+  await mkdir(path.dirname(native), { recursive: true }); await writeFile(native, 'native fixture');
+  const shimDirectory = path.join(group, 'npm shim'); await mkdir(shimDirectory);
+  await writeFile(path.join(shimDirectory, 'codex.cmd'), 'this shim must never execute');
+  const pathKey = Object.keys(process.env).find(key => key.toUpperCase() === 'PATH') ?? 'Path';
+  const previousPath = process.env[pathKey];
+  t.after(() => { if (previousPath === undefined) delete process.env[pathKey]; else process.env[pathKey] = previousPath; });
+  const pathDirectories = (previousPath ?? '').split(';').filter(Boolean);
+  const keep = await Promise.all(pathDirectories.map(async directory => {
+    for (const name of ['codex.exe', 'codex.cmd', 'codex.bat', 'codex.ps1']) {
+      if (await stat(path.join(directory.replace(/^"|"$/g, ''), name)).then(info => info.isFile(), () => false)) return false;
+    }
+    return true;
+  }));
+  process.env[pathKey] = [shimDirectory, ...pathDirectories.filter((_, index) => keep[index])].join(';');
+  await host.manageAutoHook('enable', host.getSkillsContext().revision);
+  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'enable'), ['autohook', 'enable', repo, '--codex', native]);
+  codexExtensionRoot = path.join(group, 'Codex 中文 版本二');
+  const updated = path.join(codexExtensionRoot, 'bin', process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64', 'codex.exe');
+  await mkdir(path.dirname(updated), { recursive: true }); await writeFile(updated, 'updated native fixture');
+  await host.manageAutoHook('revalidate', host.getSkillsContext().revision);
+  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'revalidate'), ['autohook', 'revalidate', repo, '--codex', updated]);
+  await host.installWorkflowKit('bundled');
+  assert.deepEqual(calls.find(args => args[0] === 'install')?.slice(-2), ['--codex', updated]);
+  codexExtensionRoot = undefined;
+  await host.installWorkflowKit('bundled');
+  assert.equal(calls.filter(args => args[0] === 'install').at(-1)?.includes('--codex'), false);
+});
+
+test('AutoHook status and emergency disable do not look up a Codex installation', async t => {
+  const [, repo] = await directories(t);
+  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository');
+  await host.refreshWorkflowKit(); configuredCodexPath = 'missing.cmd';
+  const previous = vscode.extensions.getExtension;
+  t.after(() => { vscode.extensions.getExtension = previous; });
+  vscode.extensions.getExtension = () => { throw new Error('status and disable must not discover Codex'); };
+  await host.refreshAutoHook();
+  await host.manageAutoHook('disable', host.getSkillsContext().revision);
+  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'disable'), ['autohook', 'disable', repo]);
+});
+
+test('a failing helper process exposes its JSON error instead of the entire command', async t => {
+  const [group, repo] = await directories(t);
+  const { host } = fixture([repo]); configuredCodexPath = 'missing.cmd';
+  const script = path.join(group, 'failed-helper.cjs');
+  host.workflowKitHelper = () => script; host.context.extensionUri = uri(repo);
+  for (const stream of ['stdout', 'stderr']) {
+    await writeFile(script, `process.${stream}.write(JSON.stringify({ok:false,error:"A native codex.exe is required; use enable --codex <path-to-codex.exe>"})); process.exitCode=1;`);
+    await assert.rejects(WorkspacePanel!.prototype['runWorkflowKitHelper'].call(host, ['autohook', 'enable', repo], 1000), (error: Error) => {
+      assert.match(error.message, /gitlabWorkspace\.autoHook\.codexPath/);
+      assert.match(error.message, /無效/);
+      assert.doesNotMatch(error.message, /Command failed|failed-helper/);
+      return true;
+    });
+  }
 });
 
 test('AutoHook rejects duplicate clicks and selection changes while an operation runs', async t => {

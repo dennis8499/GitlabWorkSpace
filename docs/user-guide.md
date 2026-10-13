@@ -99,7 +99,7 @@ Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依�
 
 勾選狀態來自專案安裝，不另存 VS Code 布林設定；操作中禁止重複切換，結束後重新查詢。查詢失敗會顯示錯誤；上次已啟用者仍可取消勾選停用。需要重新驗證時維持勾選，不能視為已完成 Codex 信任。固定規則涵蓋部分讀取／Git 查閱；勾選同時預授權指定專案測試／建置與檔案新增／更新，未審查專案程式的全部副作用，其餘保留人工核准。
 
-啟用需要 Windows、Windows PowerShell 與原生 Codex CLI。Python 沿用 `gitlabWorkspace.pythonPath`；Codex 預設從 PATH 尋找，也可在 VS Code 設定 `gitlabWorkspace.autoHook.codexPath`。其他平台仍可安裝 Skills。
+啟用需要 Windows、Windows PowerShell 與原生 Codex CLI。Python 沿用 `gitlabWorkspace.pythonPath`；Codex 依序從 PATH 的 `codex.exe`、npm 套件內的原生執行檔及已安裝 Codex 擴充功能尋找。只有 npm shim 或 Codex 擴充功能時也能自動取得原生執行檔，擴充功能路徑跟隨目前安裝版本。也可在 VS Code 設定 `gitlabWorkspace.autoHook.codexPath`，手動設定優先，須填現有原生 `.exe` 的完整路徑；無效時會回報設定錯誤，`.cmd`、`.bat` 或 `.ps1` 不能直接用於 AutoHook。首次啟用、重新驗證及整包更新共用此尋找順序。狀態查詢與停用不依賴 Codex 路徑；其他平台或尚未安裝 Codex 的電腦仍可安裝 Skills。
 
 啟用後會保留 Wiki 底稿、其他設定與 Hooks；更新已啟用的整包會同步更新 AutoHook 並重新驗證，驗證失敗會停止整包更新。停用會恢復最新 Wiki 底稿，決策紀錄保留。未知安裝或本機修改會阻擋覆寫。設定完成後請重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證 Codex 信任狀態。
 

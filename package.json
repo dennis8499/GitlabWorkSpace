@@ -196,7 +196,7 @@
           "type": "string",
           "default": "",
           "scope": "window",
-          "description": "AutoHook 使用的原生 codex.exe 路徑（選填，留白從 PATH 尋找）。"
+          "description": "AutoHook 使用的原生 codex.exe 完整路徑（選填，手動設定優先；留白依序尋找 PATH、npm 套件內的原生執行檔及已安裝的 Codex 擴充功能）。不接受 .cmd、.bat 或 .ps1。"
         }
       }
     }
