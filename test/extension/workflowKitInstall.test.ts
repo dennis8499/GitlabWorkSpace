@@ -102,7 +102,7 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.workflowKitInstallTarget.state.profile, 'repository');
       assert.equal(host.workflowKitState.status, 'missing');
       assert.equal(host.groupRoot, undefined);
-      assert.equal((await readdir(path.join(root, '.agents/skills'))).length, 15);
+      assert.equal((await readdir(path.join(root, '.agents/skills'))).length, 16);
       assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
       assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
       assert.ok(!(await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('group_workspace.py'));
@@ -119,7 +119,7 @@ suite('Local workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.root, externalRoot);
         assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
-        assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 15);
+        assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 16);
         assert.equal(host.getSkillsContext().root, root);
         assert.equal(host.getSkillsContext().installed.profile, 'repository');
         assert.equal(host.getSkillsContext().revision, skills.revision);

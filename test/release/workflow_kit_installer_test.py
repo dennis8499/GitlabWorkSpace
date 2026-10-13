@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +21,7 @@ ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 RELEASE_ZIP = ROOT / f"dist/gitlab-workspace-kit-{VERSION}.zip"
 SKILLS = (
-    "codebase-wiki", "megin", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
+    "codebase-wiki", "megin", "megin-architecture-exploration", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
     "megin-finishing-delivery", "megin-human-acceptance", "megin-implementation-execution",
     "megin-project-knowledge", "megin-requirements-discovery", "megin-technical-planning",
     "megin-test-driven-development", "megin-verification-before-completion", "merge-reviewer", "release-reviewer",
@@ -92,11 +94,14 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         reviewer = group / ".agents/skills/merge-reviewer"
         workflow = wiki / "references/development-spec-workflow.md"
         self.assertIn("Group", workflow.read_text(encoding="utf-8"))
-        for path in (megin / "scripts/group_workspace.py", megin / "scripts/group_quality_gate.py",
-                     megin / "scripts/gitlab_delivery.py", reviewer / "scripts/group_review.py",
+        for path in (megin / "scripts/unified_workflow.py", megin / "scripts/workspace_context.py",
+                     megin / "scripts/workspace_lock.py", reviewer / "scripts/review_workspace.py",
                      reviewer / "scripts/mr_contract.py"):
             with self.subTest(path=path):
                 self.assertTrue(path.is_file())
+        self.assertFalse((megin / 'scripts/gitlab_delivery.py').exists())
+        self.assertFalse((reviewer / 'scripts/group_review.py').exists())
+        self.assertTrue((reviewer / 'scripts/legacy_receipt_runtime/verify.py').is_file())
 
         state_path = wiki / "install-state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -108,6 +113,49 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         installed = json.loads((group / MARKER).read_text(encoding="utf-8"))
         self.assertEqual(2, installed["workspaceContract"])
         self.assertEqual(64, len(installed["payloadSha256"]))
+
+    def test_child_work_common_dir_locks_and_maintenance_race_block_replacement(self):
+        spec = importlib.util.spec_from_file_location('maintenance_kit_test', INSTALLER)
+        installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
+        with tempfile.TemporaryDirectory(prefix='kit-native-ownership-') as temporary:
+            group = Path(temporary).resolve() / 'group'; group.mkdir()
+            repo = group / 'consumer'; repo.mkdir()
+            subprocess.run(['git', '-C', str(repo), 'init', '-q', '-b', 'master'], check=True)
+            subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '--allow-empty', '-q', '-m', 'base'], check=True)
+            workflow = repo / 'docs/work/work-20261013-child/workflow.md'
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text('- schema: `megin-repo-workflow/v3`\n- status: `active`\n', encoding='utf-8')
+            self.assertTrue(any('consumer/docs/work/' in p for p in installer.approved_work_in_progress(group)))
+            with self.assertRaises(installer.KitError):
+                with installer.maintenance_lock(group): pass
+            workflow.write_text('- schema: megin-repo-workflow/v3\n- status: complete\n', encoding='utf-8')
+            linked = group / 'linked'
+            subprocess.run(['git', '-C', str(repo), 'worktree', 'add', '--detach', '-q', str(linked), 'HEAD'], check=True)
+            common_lock = repo / '.git/megin/workspace.lock.json'; common_lock.parent.mkdir()
+            common_lock.write_text('{"writer":"active"}', encoding='utf-8')
+            self.assertTrue(any(str(common_lock) == p for p in installer.approved_work_in_progress(group)))
+            common_lock.unlink()
+            with installer.maintenance_lock(group) as owned:
+                self.assertIn(common_lock.resolve(), owned)
+                self.assertTrue((group / '.megin/workspace.lock.json').exists())
+                self.assertEqual([], installer.approved_work_in_progress(group, owned))
+                with self.assertRaises(FileExistsError): common_lock.open('xb')
+            self.assertFalse(common_lock.exists())
+            self.assertFalse((group / '.megin/workspace.lock.json').exists())
+            original = installer.approved_work_in_progress
+            calls = 0
+            def concurrent_work(root, ignored_locks=()):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    workflow.write_text('- schema: megin-repo-workflow/v3\n- status: active\n', encoding='utf-8')
+                return original(root, ignored_locks)
+            with mock.patch.object(installer, 'approved_work_in_progress', side_effect=concurrent_work):
+                with self.assertRaises(installer.KitError):
+                    with installer.maintenance_lock(group): pass
+            self.assertFalse(common_lock.exists())
+            self.assertIn('status: active', workflow.read_text(encoding='utf-8'))
 
     def test_uninstalled_status_is_read_only_in_git_and_plain_roots(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kit-read-only-status-") as temporary:
@@ -141,7 +189,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):
             result, data = self.execute("inspect", archive, "--format", archive_format, "--expected-version", VERSION)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertEqual(15, data["skills"])
+            self.assertEqual(16, data["skills"])
             self.assertEqual(VERSION, data["version"])
 
         mismatch, mismatch_data = self.execute("inspect", ARCHIVE, "--format", "tar.xz", "--expected-version", "0.8.9")
@@ -173,12 +221,12 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                     manifest_path = "workflow-kit/manifest.json"
                     manifest = json.loads(entries[manifest_path].decode("utf-8"))
                     if mutation == "overlay-payload":
-                        relative = next(iter(manifest["overlays"]["megin"]["replaced"]))
+                        relative = next(iter(manifest["overlays"]["merge-reviewer"]["replaced"]))
                         archive_path = f"workflow-kit/payload/{relative}"
                         entries[archive_path] += b"\nchanged after overlay pinning\n"
                         manifest["files"][relative] = hashlib.sha256(entries[archive_path]).hexdigest()
                     elif mutation == "overlay-manifest":
-                        manifest["overlays"]["megin"]["added"][".agents/skills/megin/unlisted.md"] = "0" * 64
+                        manifest["overlays"]["merge-reviewer"]["added"][".agents/skills/merge-reviewer/unlisted.md"] = "0" * 64
                     elif mutation == "release-payload":
                         relative = ".agents/skills/release-reviewer/scripts/release_report.py"
                         archive_path = f"workflow-kit/payload/{relative}"
@@ -213,23 +261,23 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"autohook": "1.1.0", "codebase-wiki": "0.6.0", "megin": "0.6.0", "merge-reviewer": "0.10.0", "release-reviewer": "0.2.0"},
+        self.assertEqual({"autohook": "1.1.0", "codebase-wiki": "0.6.0", "megin": "0.8.0", "merge-reviewer": "0.11.0", "release-reviewer": "0.2.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
-        self.assertEqual({"codebase-wiki", "megin", "merge-reviewer"}, set(manifest["overlays"]))
+        self.assertEqual({"codebase-wiki", "merge-reviewer"}, set(manifest["overlays"]))
         self.assertTrue(all(overlay["added"] or overlay["replaced"]
                             for overlay in manifest["overlays"].values()))
         self.assertEqual(64, len(manifest["payloadSha256"]))
         self.assertEqual(64, len(manifest["customProfile"]["files"]["profile.md"]))
         self.assertTrue(manifest["sourceSummary"])
-        self.assertEqual(15, data["skills"])
+        self.assertEqual(16, data["skills"])
 
     def test_fresh_and_existing_wiki_installations_preserve_user_state(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kit-fresh-") as temporary:
             group = self.create_group(Path(temporary))
             result, installed = self.install(group)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertEqual(15, installed["skills"])
+            self.assertEqual(16, installed["skills"])
             self.assertTrue((group / "wiki/index.md").is_file())
             self.assertTrue((group / "wiki/log.md").is_file())
             self.assertIn("Keep this user text.", (group / "AGENTS.md").read_text(encoding="utf-8"))
@@ -287,11 +335,28 @@ class WorkflowKitInstallerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="kit-crash-") as temporary:
             group = self.create_group(Path(temporary))
+            repo = group / 'consumer'; repo.mkdir()
+            subprocess.run(['git', '-C', str(repo), 'init', '-q', '-b', 'master'], check=True)
+            subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                            'commit', '--allow-empty', '-q', '-m', 'base'], check=True)
             before = self.snapshot(group)
             env = os.environ.copy()
             env.update({"GITLAB_WORKSPACE_KIT_TESTING": "1", "GITLAB_WORKSPACE_KIT_TEST_CRASH_AFTER": "4"})
             crashed, _ = self.install(group, env=env)
             self.assertEqual(86, crashed.returncode)
+            spec = importlib.util.spec_from_file_location('kit_recovery_race_test', INSTALLER)
+            installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
+            recover = installer._recover_transaction
+            observed = []
+            def writer_during_restore(*args):
+                for lock in (group / '.megin/workspace.lock.json', repo / '.git/megin/workspace.lock.json'):
+                    self.assertTrue(lock.is_file())
+                    with self.assertRaises(FileExistsError): lock.open('xb')
+                observed.append(True)
+                return recover(*args)
+            with mock.patch.object(installer, '_recover_transaction', side_effect=writer_during_restore):
+                self.assertEqual('missing', installer.inspect_status(group, VERSION)['status'])
+            self.assertTrue(observed, 'crash recovery must retain native ownership during restore')
             self.assertEqual("missing", self.status(group)["status"])
             self.assertEqual(before, self.snapshot(group))
             self.assertFalse(any(path.name.startswith("kit-") for path in (group / ".gitlab-workspace/tool-installs").glob("*")))
@@ -383,7 +448,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                     self.assertEqual("missing", self.status(target)["status"])
                     result, installed = self.install(target, archive=archive, archive_format=archive_format)
                     self.assertEqual(0, result.returncode, installed)
-                    self.assertEqual(15, installed["skills"])
+                    self.assertEqual(16, installed["skills"])
                     self.assertEqual("installed", self.status(target)["status"])
                     self.assert_group_overlays(target)
                     after = self.snapshot(target)

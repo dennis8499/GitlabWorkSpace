@@ -111,7 +111,7 @@ test('native development prompts require exploration, approval and bounded indep
   const prompt = buildSkillGuidePrompt(card, { 'megin-workflow.task': '改善退款流程' }, {
     ...context, profile: 'repository', root: context.repositories[0].path
   });
-  assert.match(prompt, /native v2/);
+  assert.match(prompt, /Repo v3/);
   assert.match(prompt, /中立釐清問題、受眾、成果與驗收/);
   assert.match(prompt, /事實、假設、需求與技術建議/);
   assert.match(prompt, /明確核准後才開始 BDD／TDD/);

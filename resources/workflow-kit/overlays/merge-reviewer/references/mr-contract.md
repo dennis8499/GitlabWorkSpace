@@ -1,38 +1,56 @@
-# Fixed MR tasks and portable reports
+# Fixed MR tasks and Group impact reports
 
-Use `git_review_context.py --mr-context-base64 <task-base64>` for a
-GitlabWorkSpace MR; `--mr-context <task.json>` remains compatible with existing
-task files.
-The MergeReviewTask/v1 contains origin, projectId, mrIid, sourceProjectId,
-targetProjectId, sourceBranch, targetBranch, sourceSha, targetSha, repoPath,
-sourceRemoteUrl, targetRemoteUrl and mode. repoPath is the actual local Git root,
-not a GitLab namespace. targetSha is the current target branch tip, not the
-historical diff_refs.start_sha. Forks retain separate source/target identities.
+Use `git_review_context.py --mr-context-base64 <task-base64>` or
+`--mr-context <task.json>` with a Workspace-created `MergeReviewTask/v2`.
+The task includes origin, projectId, mrIid, sourceProjectId, targetProjectId,
+sourceBranch, targetBranch, sourceSha, targetSha, repoPath, **groupRoot**,
+sourceRemoteUrl, targetRemoteUrl and mode. The selected Workspace Group root is
+authoritative; repoPath must be its actual direct-child Git root. Never infer a
+Group from repoPath's parent. targetSha is the current target branch tip; fork
+source and target identities remain separate.
 
-The helper obtains the exact source and target objects, including from their
-respective remotes when absent. Missing objects stop review without guessing a
-branch or falling back to local HEAD. Legacy schema-4 comparison and evidence
-rules remain in effect; task metadata is bound to that context.
+The adapter obtains exactly those Git objects, fetching only missing exact SHAs
+from their specified remotes. Missing objects stop capture without a branch or
+HEAD fallback. It then uses the native portable Group context/result **v2**
+workflow: the MR Repo is the change seed, every other Group Repo is a candidate,
+and changed API/event/package/data/table/config contracts lead the transitive
+consumer search. Inspect fixed blobs, record contract-related searches and each
+Repo's disposition, and retain unresolved required sources/links as incomplete.
+Only an explicit `--scope repo` narrows this review. Group quick uses this same
+coverage gate while retaining distinct frozen index and working-tree sources.
 
-Use the normal validated review-report workflow. For an MR-bound context the
-renderer additionally embeds base64 MergeReviewReport/v1 metadata in Markdown
-and keeps the version metadata in the Markdown. The bound report identifies the
-GitLab origin, MR/project, source and target SHAs, actual comparison base,
-context digest and normalized body SHA-256. JSON output remains optional and
-contains the same bound metadata when requested.
+Read [workspace-review.md](workspace-review.md), then validate/publish locally
+with `review_report.py`. Capture and publication revalidate task digest, Group,
+seed identity and exact source/target comparison. `MergeReviewReport/v2` embeds
+the complete task, context schema/digest, normalized body digest and a digest of
+all metadata, including completeness, scope, priorities and optional receipt
+proof. Markdown is the default; optional JSON carries the same metadata. Owned
+contexts are cleaned on success/failure; clean explicitly when stopping early.
 
-Paste the complete Markdown including its metadata or import its optional JSON companion
-into GitlabWorkSpace. Editing the body invalidates its digest; regenerate or
-reimport a valid report. Old plain text is an unverified general comment.
-Workspace verifies identity, body digest and live source/target versions before
-publication. A report may explicitly be incomplete or contain P0/P1 findings;
-publication only checks version binding. Human approval/merge and GitLab rules
-remain separate. The Skill never posts comments or approves/merges an MR.
+Import the complete original report into Workspace. Import and remote
+publication verify body/metadata integrity, the current selected Group and real
+Repo, MR identity and both live branch SHAs. Megin-linked reports also revalidate
+raw receipt evidence using the bundled read-only verifier before import and
+again before publication. Editing the report requires regeneration. An
+incomplete report or findings may be published as an explicitly incomplete
+review; publication does not authorize approval or merge. The Skill never posts
+comments, approves or merges.
 
-## Optional Megin linkage
+## Optional completed Megin receipts
 
-For a Group receipt, add `--megin-receipt <completed receipt.json>` with a fixed MR task. `group_delivery_binding.py` validates completed Group delivery, accepted bytes, exact local Repo identity, source commit and tree. Native Repo receipts use the upstream `delivery_binding.py` validator and can accompany explicit refs or a fixed MR task. The manifest and portable report retain the appropriate `megin_binding`; an MR-bound report also binds MR identity and pinned source/target SHA. Without the flag existing reports remain compatible.
+Add `--megin-receipt <receipt.json>` to the fixed MR task. Native Repo/Group v2
+receipts are verified against all immutable acceptance, review, TDD, approval,
+impact and delivery records plus fixed Git objects, independently of a live
+Megin installation. The MR selects exactly its delivered Repo: feature commit
+must equal sourceSha and its pinned base must equal targetSha. Other delivered
+Repos remain Group candidates, rather than being claimed as additional MR
+seeds. The immutable `megin-mr-binding/v3` identifies that selected Repo and
+retains the complete receipt; source/target or evidence drift requires a fresh
+review. Ordinary native receipt review still covers every delivered Repo.
 
-New Group captures use `megin-mr-binding/v2`, preserving the complete immutable receipt and fixed task. Validation and local publication reconstruct the binding and revalidate raw evidence; altered binding fields, removed proof or a downgrade to v1 are rejected. Existing v1 portable reports remain readable with their original identity-only linkage; they cannot authorize a new capture or publication without fresh receipt validation.
-
-`group_delivery_binding.correction_plan(binding, new_work_id, current_task)` creates the linked Group correction contract only when current MR identity/source/target exactly match the reviewed task. A new delivery must retain prior source ancestry AND approved target ancestry before Workspace fast-forwards the original source branch. Replan on version drift and build/review a fresh context. Preserve old complete Work IDs and reports. The helpers neither push nor post/merge. See [Megin correction delivery](../../megin/references/cross-flow-delivery.md).
+Historical Repo v1 and Workspace Group v1 receipt validators remain read-only.
+The Group validator lives in an isolated `legacy_receipt_runtime`, with no old
+workflow/writer CLI. Historical `MergeReviewReport/v1` can be checked with
+`mr_contract.verify_historical_report`; it cannot satisfy a new capture, Group v2
+coverage gate, or Workspace v2 import. Active old work keeps its original kit,
+contract and fingerprint; do not migrate it or remove locks to upgrade.

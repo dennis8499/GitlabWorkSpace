@@ -361,6 +361,10 @@ test('MR tasks and delivery evidence use verified remotes instead of canonical f
   let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
   await host.openMergeReviewTask(1, 2);
   assert.ok(copied.includes(repo), 'the MR task must use the renamed actual Git root');
+  const encodedTask = copied.match(/--mr-context-base64 "([A-Za-z0-9+/=]+)"/)?.[1];
+  assert.ok(encodedTask);
+  const task = JSON.parse(Buffer.from(encodedTask, 'base64').toString('utf8'));
+  assert.equal(task.schema, 'MergeReviewTask/v2'); assert.equal(task.groupRoot, group);
   const handoff = { group_root: group, gitlab: { origin: 'https://gitlab.test' }, state: 'complete', repositories: [{
     gitlab_project_id: 1, gitlab_namespace: target.path_with_namespace, repo_path: path.basename(repo), remote_url: target.http_url_to_repo
   }] };

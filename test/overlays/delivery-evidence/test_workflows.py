@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from support import ROOT
+from support import ROOT, WORKSPACE
 sys.path[:0]=[str(ROOT/'skills/megin/scripts'),str(ROOT/'skills/merge-reviewer/scripts')]
 import group_workspace as ws
 import group_quality_gate as q
@@ -120,6 +120,40 @@ class Fixture:
         return {'schema':mr.TASK,'origin':'https://simulation.example.invalid','projectId':101,'mrIid':1,'sourceProjectId':101,'targetProjectId':101,'sourceBranch':item['feature_branch'],'targetBranch':'main','sourceSha':source or git(repo,'rev-parse',item['feature_branch']),'targetSha':item['base_commit'],'repoPath':str(repo),'sourceRemoteUrl':item['remote_url'],'targetRemoteUrl':item['remote_url'],'mode':'direct'}
 
 class DeliveryReplayTests(unittest.TestCase):
+    def test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f=Fixture(tmp);receipt=f.complete()
+            spec=importlib.util.spec_from_file_location('build_legacy_runtime_test',WORKSPACE/'scripts/build-workflow-kit.py')
+            builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+            runtime=Path(tmp)/'historical-runtime';runtime.mkdir()
+            for name,data in builder.legacy_receipt_runtime().items():(runtime/name).write_bytes(data)
+            for name in ('group_workspace.py','delivery_receipt.py'):
+                source=(runtime/name).read_text(encoding='utf-8')
+                for writer in ('def claim(', 'def release(', 'def write_receipt(', 'def main('):
+                    self.assertNotIn(writer,source)
+            result=subprocess.run([sys.executable,'-I','-B',str(runtime/'verify.py'),str(f.root),f.work],capture_output=True,text=True,encoding='utf-8')
+            self.assertEqual(0,result.returncode,result.stderr)
+            self.assertEqual(receipt,json.loads(result.stdout))
+            # Old Task/Report v1 and megin-mr-binding/v2 remain history only,
+            # checked by the current adapter and isolated proof dependencies.
+            adapter=Path(tmp)/'current-adapter';adapter.mkdir()
+            source=WORKSPACE/'resources/workflow-kit/overlays/merge-reviewer/scripts'
+            for name in ('mr_contract.py','group_delivery_binding.py'):shutil.copyfile(source/name,adapter/name)
+            shutil.copytree(runtime,adapter/'legacy_receipt_runtime')
+            task=f.task();binding=db.bind_delivery(receipt,task)
+            manifest={'mr_context':task,'head_sha':task['sourceSha'],'base_sha':task['targetSha'],
+                      'diff_base':task['targetSha'],'mode':'direct','generated_at':'2026-10-08T00:00:00Z','megin_binding':binding}
+            body,_=mr.bind_report('Historical checked body',manifest,{'context_sha256':'a'*64,
+                'review_status':'審查未完成','priority_counts':{p:0 for p in ('P0','P1','P2','P3')}})
+            report=Path(tmp)/'historical.md';report.write_text(body,encoding='utf-8')
+            task_file=Path(tmp)/'historical-task.json';task_file.write_text(json.dumps(task),encoding='utf-8')
+            code="import sys,json;from pathlib import Path;sys.path.insert(0,sys.argv[1]);import mr_contract as m;task=json.loads(Path(sys.argv[3]).read_text());report=Path(sys.argv[2]).read_text(encoding='utf-8');assert m.verify_historical_report(report,task)['historical_only'];\ntry:m.validate_task(task)\nexcept ValueError:pass\nelse:raise AssertionError('old task accepted as new Group review')"
+            verified=subprocess.run([sys.executable,'-I','-B','-c',code,str(adapter),str(report),str(task_file)],capture_output=True,text=True,encoding='utf-8')
+            self.assertEqual(0,verified.returncode,verified.stderr)
+            (f.folder/'evidence/acceptance.md').write_text('changed historical acceptance',encoding='utf-8')
+            rejected=subprocess.run([sys.executable,'-I','-B',str(runtime/'verify.py'),str(f.root),f.work],capture_output=True,text=True,encoding='utf-8')
+            self.assertNotEqual(0,rejected.returncode)
+
     def test_cross_repo_receipt_matches_sorted_acceptance_not_delivery_order(self):
         with tempfile.TemporaryDirectory() as tmp:
             f=Fixture(tmp,("contracts","service","client"),mode="feature_handoff",fixed=True)

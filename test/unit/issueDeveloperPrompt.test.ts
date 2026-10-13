@@ -20,7 +20,10 @@ test('developer tasks include Group, Repo, GitLab identity, Issue discussions, a
   assert.match(prompt, /GitLab Issue team\/付款服務#27/);
   assert.match(prompt, /C:\\workspace with spaces\\付款 Group/);
   assert.match(prompt, /本機 Repo 路徑：付款 Repo/);
-  assert.match(prompt, /delivery_mode: gitlab_mr/);
+  assert.match(prompt, /delivery_mode: feature_handoff/);
+  assert.match(prompt, /Group v6.*architecture v2/);
+  assert.match(prompt, /verification_repositories/);
+  assert.doesNotMatch(prompt, /gitlab_delivery.py prepare/);
   assert.match(prompt, /完整盤點 Group 下所有有效的直屬本機 Git Repo/);
   assert.match(prompt, /Issue 所屬 Repo 是需求線索，不是探索範圍/);
   assert.match(prompt, /無需改動的 Repo 保留在需求清單/);
@@ -41,5 +44,5 @@ test('new Issue tasks tell Megin to reuse an unfinished project and Issue Work I
   const prompt = buildDeveloperPrompt(project, issue, 'C:\\Group', 'payments');
   assert.match(prompt, /docs\/work\/\*\/workflow\.md/);
   assert.match(prompt, /相同 GitLab Project ID 與 Issue IID/);
-  assert.match(prompt, /不要自行 Commit、Push、建立 MR/);
+  assert.match(prompt, /不要自行 Push、建立 MR/);
 });

@@ -38,7 +38,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
                                 "workflow-kit", self.sha, profile=profile, **kw)
 
     def snapshot(self):
-        return {p.relative_to(self.root).as_posix(): p.read_bytes() for p in self.root.rglob("*")
+        return {p.relative_to(self.root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in self.root.rglob("*")
                 if p.is_file() and not p.relative_to(self.root).as_posix().startswith(".gitlab-workspace/tool-installs/")
                 and p.name != ".workflow-kit-install.lock"}
 
@@ -59,7 +59,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
                         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
                     self.install(profile)
                     self.assertFalse((self.root / SETTINGS).exists())
-                    self.assertEqual(15, len(list((self.root / ".agents/skills").iterdir())))
+                    self.assertEqual(16, len(list((self.root / ".agents/skills").iterdir())))
                     for relative, expected in self.kit.AUTOHOOK_FILES.items():
                         self.assertEqual(expected, hashlib.sha256((self.root / relative).read_bytes()).hexdigest())
                     state = self.integration.status(self.root)
@@ -454,7 +454,11 @@ class AutoHookIntegrationTests(unittest.TestCase):
             with patch.object(self.kit, "_copy_candidate", side_effect=interrupted_copy):
                 with self.assertRaises(Interrupted):
                     self.kit.recover_incomplete(self.root)
-            self.assertEqual(before, self.snapshot())
+            retained = self.snapshot()
+            for ownership in (".gitlab-workspace/maintenance-locks.json", ".megin/workspace.lock.json"):
+                self.assertIn(ownership, retained)
+                retained.pop(ownership)
+            self.assertEqual(before, retained)
             self.kit.recover_incomplete(self.root)
             self.assertEqual(before, self.snapshot())
 

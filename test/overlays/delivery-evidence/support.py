@@ -1,4 +1,4 @@
-"""Load the actual assembled Group payload, including its legacy adapters."""
+"""Retain old delivery/simulation behavior only in a frozen historical kit."""
 from __future__ import annotations
 
 import atexit
@@ -12,10 +12,7 @@ WORKSPACE = Path(__file__).resolve().parents[3]
 STAGE = tempfile.TemporaryDirectory(prefix="workspace-delivery-evidence-")
 atexit.register(STAGE.cleanup)
 ROOT = Path(STAGE.name).resolve()
-ARCHIVE = WORKSPACE / "resources/offline-tools/workflow-kit.tar.xz"
-INDEX = json.loads((ARCHIVE.parent / "manifest.json").read_text(encoding="utf-8"))
-if hashlib.sha256(ARCHIVE.read_bytes()).hexdigest() != INDEX["archiveSha256"]:
-    raise ValueError("assembled test kit differs from its index")
+ARCHIVE = WORKSPACE / "test/fixtures/workflow-kit-0.21.0/offline-tools/workflow-kit.tar.xz"
 with tarfile.open(ARCHIVE, "r:xz") as archive:
     manifest = json.loads(archive.extractfile("workflow-kit/manifest.json").read())
     expected = manifest["profiles"]["group"]["files"]

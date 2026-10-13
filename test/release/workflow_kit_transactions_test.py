@@ -162,7 +162,7 @@ class TransactionTests(unittest.TestCase):
         self.assertIn(".agents/skills/release-reviewer", preview["changed_paths"])
         self.assertEqual(before, self.snapshot(self.group))
         update = self.apply()
-        self.assertEqual(15, update["skills"])
+        self.assertEqual(16, update["skills"])
         self.assertEqual("installed", self.status(self.group)["status"])
         for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
                          "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
@@ -198,7 +198,7 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(preview["changed_paths"])
         self.assertEqual(before, self.snapshot(self.group))
         update = self.apply()
-        self.assertEqual(15, update["skills"])
+        self.assertEqual(16, update["skills"])
         self.assertEqual("installed", self.status(self.group)["status"])
         for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
                          "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
@@ -368,7 +368,8 @@ class TransactionTests(unittest.TestCase):
         path.write_text(json.dumps(journal), encoding="utf-8")
         before = self.snapshot(self.group)
         self.assertEqual("error", self.status(self.group)["status"])
-        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual({p: hashlib.sha256(v).hexdigest() for p, v in before.items()},
+                         {p: hashlib.sha256(v).hexdigest() for p, v in self.snapshot(self.group).items()})
         journal["id"] = path.parent.name
         path.write_text(json.dumps(journal), encoding="utf-8")
         target = self.group / ".agents/skills/codebase-wiki/SKILL.md"
@@ -376,7 +377,8 @@ class TransactionTests(unittest.TestCase):
         target.write_bytes(original + b"later edit\n")
         before = self.snapshot(self.group)
         self.assertEqual("error", self.status(self.group)["status"])
-        self.assertEqual(before, self.snapshot(self.group))
+        self.assertEqual({p: hashlib.sha256(v).hexdigest() for p, v in before.items()},
+                         {p: hashlib.sha256(v).hexdigest() for p, v in self.snapshot(self.group).items()})
         target.write_bytes(original)
         self.assertEqual("missing", self.status(self.group)["status"])
         self.assertFalse(path.exists())
@@ -403,7 +405,7 @@ class TransactionTests(unittest.TestCase):
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
         paths.extend(ROOT / "resources/offline-tools/sources" / p for p in
-                     ("autohook-1.1.0.zip", "codebase-llm-wiki-codex-0.6.0.zip", "megin-skills-0.6.0.zip", "merge-reviewer-0.10.0.zip", "release-reviewer-0.2.0.zip"))
+                     ("autohook-1.1.0.zip", "codebase-llm-wiki-codex-0.6.0.zip", "megin-skills-0.6.0.zip", "megin-skills-0.8.0.zip", "merge-reviewer-0.11.0.zip", "release-reviewer-0.2.0.zip"))
         for path in paths:
             target = source / path.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)

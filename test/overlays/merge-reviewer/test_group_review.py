@@ -51,10 +51,23 @@ class GroupReviewTests(unittest.TestCase):
         self.context = self.root / "context"
 
     def capture(self):
-        result = run_python(SCRIPTS / "git_review_context.py", "--group-root", str(self.root),
-                            "--quick", "--context-dir", str(self.context))
+        # Historical v1 renderer regression only; new entrypoints use portable v2.
+        args = api.parse_args(["--group-root", str(self.root), "--quick", "--context-dir", str(self.context)])
+        return group_review.build(args, api)
+
+    def test_current_group_quick_uses_portable_v2_and_keeps_staged_bug(self):
+        (self.repo / 'app.py').write_text('bug = True\n', encoding='utf-8')
+        run_git(self.repo, 'add', 'app.py')
+        (self.repo / 'app.py').write_text('bug = False\n', encoding='utf-8')
+        result = run_python(SCRIPTS / 'git_review_context.py', '--group-root', str(self.root),
+                            '--quick', '--context-dir', str(self.context))
         self.assertEqual(0, result.returncode, result.stderr)
-        return json.loads(result.stdout)
+        self.addCleanup(review_session.cleanup_session, self.context)
+        manifest = json.loads(result.stdout)
+        self.assertEqual(('merge-reviewer-workspace-context/v2', 'quick'), (manifest['schema'], manifest['target']))
+        repo = manifest['repositories'][0]
+        self.assertEqual(b'bug = True\n', review_workspace.fixed_bytes(self.context, repo, 'index', 'app.py', api))
+        self.assertEqual(b'bug = False\n', review_workspace.fixed_bytes(self.context, repo, 'working-tree', 'app.py', api))
 
     def test_portable_targets_pass_through_workspace_adapter_with_distinct_sources(self):
         (self.repo / "base.txt").write_text("stage\n", encoding="utf-8")
@@ -187,13 +200,14 @@ class GroupReviewTests(unittest.TestCase):
                 "mrIid": 8, "sourceProjectId": 22, "targetProjectId": 11, "sourceBranch": "feature",
                 "targetBranch": "main", "sourceSha": run_git(source, "rev-parse", "HEAD"),
                 "targetSha": run_git(self.repo, "rev-parse", "main"), "repoPath": str(self.repo),
-                "sourceRemoteUrl": str(source), "targetRemoteUrl": str(self.repo), "mode": "merge"}
+                "sourceRemoteUrl": str(source), "targetRemoteUrl": str(self.repo), "mode": "merge", "groupRoot": str(self.root)}
         task_file = self.root / "task.json"
         task_file.write_text(json.dumps(task), encoding="utf-8")
         result = run_python(SCRIPTS / "git_review_context.py", "--mr-context", str(task_file), "--context-dir", str(self.context))
         self.assertEqual(0, result.returncode, result.stderr)
         manifest = json.loads(result.stdout)
-        self.assertEqual(task["sourceSha"], manifest["head_sha"])
+        seed = next(r for r in manifest['repositories'] if r['id'] in manifest['seed_repos'])
+        self.assertEqual(task["sourceSha"], seed['native']["head_sha"])
         task["sourceSha"] = "b" * 40
         task_file.write_text(json.dumps(task), encoding="utf-8")
         result = run_python(SCRIPTS / "git_review_context.py", "--mr-context", str(task_file), "--context-dir", str(self.root / "failed-context"))
@@ -258,7 +272,7 @@ class GroupReviewTests(unittest.TestCase):
                 "projectId": 11, "mrIid": 7, "sourceProjectId": 22, "targetProjectId": 11,
                 "sourceBranch": "feature", "targetBranch": "main", "sourceSha": source,
                 "targetSha": source, "repoPath": str(self.repo), "sourceRemoteUrl": "unused",
-                "targetRemoteUrl": "unused", "mode": "merge"}
+                "targetRemoteUrl": "unused", "mode": "merge", "groupRoot": str(self.root)}
         task_file = self.root / "task.json"
         task_file.write_text(json.dumps(task), encoding="utf-8")
         result = run_python(SCRIPTS / "git_review_context.py", "--mr-context", str(task_file),
@@ -278,11 +292,20 @@ class GroupReviewTests(unittest.TestCase):
                                    "--context-dir", str(encoded_context))
         self.assertEqual(0, inline_result.returncode, inline_result.stderr)
         inline_manifest = json.loads(inline_result.stdout)
-        self.assertEqual(task, inline_manifest["mr_context"])
+        self.assertEqual(task, inline_manifest['mr_binding']['task'])
         self.assertTrue((encoded_context / "manifest.json").is_file())
-        manifest["head_sha"] = "b" * 40
+        seed = next(r for r in manifest['repositories'] if r['id'] in manifest['seed_repos'])
+        seed['native']["head_sha"] = "b" * 40
         with self.assertRaises(ValueError):
             mr_contract.bind_report("Review", manifest, {})
+
+    def test_mr_group_boundary_cannot_be_narrowed_with_workspace_file(self):
+        workspace = self.root / 'only-one.code-workspace'
+        workspace.write_text(json.dumps({'folders': [{'path': str(self.repo)}]}), encoding='utf-8')
+        result = run_python(SCRIPTS / 'git_review_context.py', '--mr-context', 'unused.json',
+                            '--workspace-file', str(workspace))
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('MR/receipt', result.stderr)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ class ProfileTests(unittest.TestCase):
         result, data = self.apply(profile)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual(profile, data["profile"])
-        self.assertEqual("0.6.0", data["upstreamVersions"]["megin"])
+        self.assertEqual("0.8.0", data["upstreamVersions"]["megin"])
         return data
 
     def assert_preserved(self):
@@ -98,7 +98,7 @@ class ProfileTests(unittest.TestCase):
         result, _ = self.execute("rollback", self.repo, native["transaction"])
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual("group", self.status(self.repo)["profile"])
-        self.assertTrue((self.repo / ".agents/skills/megin/scripts/group_workspace.py").is_file())
+        self.assertTrue((self.repo / ".agents/skills/megin/scripts/unified_workflow.py").is_file())
         self.installed()
         self.installed("group")
         self.assertEqual("group", self.status(self.repo)["profile"])
@@ -148,6 +148,36 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(0, run.returncode, run.stderr or run.stdout)
                 self.assertEqual(before, (target / MARKER).read_bytes())
                 self.assertEqual(('update-available', profile), (self.status(target)['status'], self.status(target)['profile']))
+
+    def test_frozen_021_work_keeps_original_package_then_upgrades_and_rolls_back(self):
+        fixture = ROOT / 'test/fixtures/workflow-kit-0.21.0'
+        archive = fixture / 'offline-tools/workflow-kit.tar.xz'
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile):
+                target = self.base / ('old-021-' + profile); target.mkdir()
+                subprocess.run(['git', '-C', str(target), 'init', '-q', '-b', 'master'], check=True)
+                run = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(Path(__file__).with_name('frozen_installer_runner.py')),
+                    str(fixture / 'workflow-kit-installer.py'), 'install', str(archive), str(target), '0.21.0', 'bundled',
+                    '--format', 'tar.xz', '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(),
+                    '--profile', profile], capture_output=True, text=True, encoding='utf-8')
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                marker = (target / MARKER).read_bytes()
+                skill = target / '.agents/skills/megin/SKILL.md'; original_skill = skill.read_bytes()
+                workflow = target / 'docs/work/work-20261013-old/workflow.md'; workflow.parent.mkdir(parents=True)
+                workflow.write_text('- schema: megin-skills-workflow/v4\n- status: active\n', encoding='utf-8')
+                self.assertEqual('work-in-progress', self.status(target)['status'])
+                blocked, _ = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
+                    '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
+                self.assertNotEqual(0, blocked.returncode)
+                self.assertEqual(marker, (target / MARKER).read_bytes()); self.assertEqual(original_skill, skill.read_bytes())
+                workflow.write_text('- status: complete\n', encoding='utf-8')
+                run, updated = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
+                    '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                self.assertTrue((target / '.agents/skills/megin-architecture-exploration/SKILL.md').is_file())
+                run, _ = self.execute('rollback', target, updated['transaction'])
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                self.assertEqual(marker, (target / MARKER).read_bytes()); self.assertEqual(original_skill, skill.read_bytes())
 
     def test_conversion_failure_restores_original_profile_and_rejects_tampering(self):
         self.installed("group")

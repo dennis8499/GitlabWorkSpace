@@ -44,17 +44,17 @@ PINNED_SOURCES = (
         "id": "megin",
         "repository": "Megin",
         "asset": "megin-skills.zip",
-        "filename": "megin-skills-0.6.0.zip",
-        "version": "0.6.0",
-        "sha256": "7cbe18d8403500ddf64f27105d615985f47fbae3359cf6b485bfff1ccd7d910f",
+        "filename": "megin-skills-0.8.0.zip",
+        "version": "0.8.0",
+        "sha256": "37487d4c3f55b8e447425acb24740e759444743bc7fa7e17ce90697277f4ebd7",
     },
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.10.0.zip",
-        "filename": "merge-reviewer-0.10.0.zip",
-        "version": "0.10.0",
-        "sha256": "ed02ca66030420c776447c31725600be9a96d97ba70eb7844ff7017acabb3d2e",
+        "asset": "merge-reviewer-0.11.0.zip",
+        "filename": "merge-reviewer-0.11.0.zip",
+        "version": "0.11.0",
+        "sha256": "f06fc3083eeee7d9a5500cd77dbcf04d4ebeae3db3b484a31fa87a5819cd877a",
     },
     {
         "id": "release-reviewer",
@@ -217,7 +217,7 @@ def sync_installer_metadata(manifest: dict) -> None:
 
 
 def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
-                  destination_prefix: str = "") -> dict[str, object]:
+                  destination_prefix: str = "", excluded=()) -> dict[str, object]:
     if overlay_root.is_symlink() or not overlay_root.is_dir():
         raise ValueError(f"Missing or unsafe {overlay_id} overlay directory: {overlay_root}")
     added: dict[str, str] = {}
@@ -229,6 +229,8 @@ def apply_overlay(files: dict[str, bytes], overlay_id: str, overlay_root: Path,
         if not path.is_file():
             continue
         relative = path.relative_to(overlay_root).as_posix()
+        if relative in excluded:
+            continue
         if '__pycache__' in PurePosixPath(relative).parts or path.suffix in ('.pyc', '.pyo'):
             continue
         destination = f"{destination_prefix}{relative}" if destination_prefix else relative
@@ -255,6 +257,106 @@ def _wiki_config_files() -> dict[str, bytes]:
     source = next(item for item in PINNED_SOURCES if item["id"] == "codebase-wiki")
     selected, _ = checked_zip(SOURCES / source["filename"], source["sha256"])
     return {name: selected[name] for name in (".codex/config.toml", ".codex/hooks.json")}
+
+
+def legacy_receipt_runtime() -> dict[str, bytes]:
+    """Retain only read-only historical Group receipt dependencies, never the old workflow."""
+    import ast
+    frozen = SOURCES / "megin-skills-0.6.0.zip"
+    selected, _ = checked_zip(frozen, "7cbe18d8403500ddf64f27105d615985f47fbae3359cf6b485bfff1ccd7d910f")
+    modules = {PurePosixPath(p).stem: data.decode("utf-8") for p, data in selected.items()
+               if p.startswith("megin/scripts/") and p.endswith(".py")}
+    old = PROFILE / "overlays/megin/.agents/skills/megin/scripts"
+    for name in ("delivery_receipt", "group_quality_gate", "group_workspace", "simulation_policy"):
+        modules[name] = (old / (name + ".py")).read_text(encoding="utf-8")
+    trees = {name: ast.parse(source) for name, source in modules.items()}
+    definitions = {}
+    for name, tree in trees.items():
+        definitions[name] = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
+    selected_nodes: dict[str, set[str]] = {}
+    pending = [("delivery_receipt", "export_receipt")]
+    forbidden = {"main", "claim", "release", "deliver", "prepare", "write_receipt", "save_result"}
+    while pending:
+        name, symbol = pending.pop()
+        first = name not in selected_nodes
+        chosen = selected_nodes.setdefault(name, set())
+        if symbol in chosen:
+            continue
+        if symbol in forbidden:
+            raise ValueError(f"Historical receipt runtime unexpectedly requires mutation: {name}.{symbol}")
+        chosen.add(symbol)
+        nodes = [definitions[name][symbol]] if symbol in definitions[name] else []
+        if first:
+            nodes.extend(n for n in trees[name].body if isinstance(n, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign)))
+        aliases = {}
+        for node in ast.walk(trees[name]):
+            if isinstance(node, ast.Import):
+                aliases.update({item.asname or item.name: (item.name, None) for item in node.names if item.name in modules})
+            if isinstance(node, ast.ImportFrom) and node.module in modules:
+                aliases.update({item.asname or item.name: (node.module, item.name) for item in node.names})
+        for node in nodes:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load):
+                    if child.id in definitions[name]:
+                        pending.append((name, child.id))
+                    if child.id in aliases and aliases[child.id][1]:
+                        pending.append(aliases[child.id])
+                if isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name) and child.value.id in aliases:
+                    target, imported = aliases[child.value.id]
+                    if imported is None:
+                        pending.append((target, child.attr))
+                if isinstance(child, ast.ImportFrom) and child.module in modules:
+                    pending.extend((child.module, item.name) for item in child.names)
+    result = {}
+    for name, chosen in selected_nodes.items():
+        nodes = [node for node in trees[name].body if isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign))
+                 or isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in chosen
+                 or isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)]
+        # Drop unused local imports whose definitions were intentionally not retained.
+        filtered = []
+        for node in nodes:
+            if isinstance(node, ast.ImportFrom) and node.module in modules:
+                node.names = [item for item in node.names if item.name in selected_nodes.get(node.module, set())]
+                if not node.names:
+                    continue
+            if isinstance(node, ast.Import):
+                node.names = [item for item in node.names if item.name not in modules or item.name in selected_nodes]
+                if not node.names:
+                    continue
+            filtered.append(node)
+        code = ast.unparse(ast.Module(body=filtered, type_ignores=[])) + "\n"
+        compile(code, name + ".py", "exec")
+        result[name + ".py"] = code.encode("utf-8")
+    result["verify.py"] = b'''"""Read-only historical Group v1 receipt validation; no workflow or writer CLI."""
+import json, sys
+from pathlib import Path
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delivery_receipt import export_receipt
+if __name__ == '__main__':
+    print(json.dumps(export_receipt(Path(sys.argv[1]), sys.argv[2]), ensure_ascii=False))
+'''
+    return result
+
+
+def validate_local_sources() -> None:
+    """Opt-in parity check against reviewed sibling source trees, without repinning."""
+    for source_id, directory in (("megin", ROOT.parent / "Megin/.agents/skills"),
+                                  ("merge-reviewer", ROOT.parent / "MergeReviewer/skills")):
+        pin = next(item for item in PINNED_SOURCES if item['id'] == source_id)
+        archived, _ = checked_zip(SOURCES / pin['filename'], pin['sha256'])
+        expected = {p: data for p, data in archived.items()
+                    if len(PurePosixPath(p).parts) > 1 and PurePosixPath(p).parts[0].startswith(source_id)}
+        actual = {}
+        for path in sorted(directory.rglob('*')):
+            if path.is_symlink():
+                raise ValueError(f'Local source contains a symlink: {path}')
+            if (path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc', '.pyo')
+                    and path.relative_to(directory).parts[0].startswith(source_id)):
+                actual[path.relative_to(directory).as_posix()] = path.read_bytes()
+        if expected != actual:
+            different = sorted(p for p in set(expected) | set(actual) if expected.get(p) != actual.get(p))
+            raise ValueError(f'{source_id} pinned archive differs from local source: {different[:8]}')
 
 
 def build() -> dict[str, object]:
@@ -295,8 +397,8 @@ def build() -> dict[str, object]:
                 if part.parts[-1] == "SKILL.md":
                     megin_skill_names.add(skill)
                 files[f"payload/.agents/skills/{name}"] = data
-            if len(megin_skill_names) != 12:
-                raise ValueError(f"Megin Release 必須包含十二個完整 Skills，目前找到 {len(megin_skill_names)} 個。")
+            if len(megin_skill_names) != 13 or "megin-architecture-exploration" not in megin_skill_names:
+                raise ValueError(f"Megin Release 必須包含十三個完整 Skills（含架構探索），目前找到 {len(megin_skill_names)} 個。")
             if any(f"payload/.agents/skills/{name}/SKILL.md" not in files for name in megin_skill_names):
                 raise ValueError("Megin Release 含有不完整的 Skill。")
         else:
@@ -326,12 +428,16 @@ def build() -> dict[str, object]:
         "codebase-wiki": apply_overlay(
             files, "codebase-wiki", overlay_root / "codebase-wiki",
         ),
-        "megin": apply_overlay(files, "megin", overlay_root / "megin"),
         "merge-reviewer": apply_overlay(
             files, "merge-reviewer", overlay_root / "merge-reviewer",
             ".agents/skills/merge-reviewer/",
+            excluded=("scripts/group_review.py", "references/group-review.md"),
         ),
     }
+    for name, data in legacy_receipt_runtime().items():
+        relative = ".agents/skills/merge-reviewer/scripts/legacy_receipt_runtime/" + name
+        files["payload/" + relative] = data
+        overlays["merge-reviewer"]["added"][relative] = digest(data)
 
     for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md"):
         source_path = PROFILE / name
@@ -340,8 +446,8 @@ def build() -> dict[str, object]:
         files[f"payload/.agents/gitlab-workspace-kit/{name}"] = source_path.read_bytes()
 
     skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *megin_skill_names})
-    if len(skill_names) != 15:
-        raise ValueError(f"Expected fifteen Skills, found {len(skill_names)}.")
+    if len(skill_names) != 16:
+        raise ValueError(f"Expected sixteen Skills, found {len(skill_names)}.")
     total = sum(len(value) for value in files.values())
     if len(files) > MAX_FILES or total > MAX_EXPANDED_BYTES:
         raise ValueError("組合包解壓容量超過限制。")
@@ -353,10 +459,10 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "overlays": overlays,
         "sourceSummary": [
-            "AutoHook 1.1.0 is an optional Windows project-scoped approval tool with a pinned public policy snapshot and partial fixed-rule mapping; disabled by default and controlled by the Skills-root checkbox, separately from the fifteen Skills.",
+            "AutoHook 1.1.0 is an optional Windows project-scoped approval tool with a pinned public policy snapshot and partial fixed-rule mapping; disabled by default and controlled by the Skills-root checkbox, separately from the sixteen Skills.",
             "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-            "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
-            "Native MergeReviewer 0.10.0 reviews branch/commit, staged and saved uncommitted changes in Repo/Group workspaces with fixed-source feature-chain coverage; GitlabWorkSpace adapters retain legacy Group quick and fixed-SHA Merge Request identity binding.",
+            "Native Megin 0.8.0 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
+            "Native MergeReviewer 0.11.0 unifies Group branch, staged, uncommitted, dual-source quick and receipt reviews with v2 fixed-source impact coverage; the Workspace MR adapter binds an explicit Group root and exact source/target SHAs to the same portable workflow.",
             "Native ReleaseReviewer 0.2.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes v2 risk/resource reports plus separate manual deployment checklists without an overlay."
         ],
         "customProfile": {
@@ -365,8 +471,8 @@ def build() -> dict[str, object]:
             "specialRules": {
                 "sourceReferences": "Repo/path",
                 "analysisIssueFlow": "draft-ready-scn-manual-issue",
-                "developmentDelivery": "megin-gitlab_mr",
-                "mergeRequestReview": "pinned-source-and-target-shas",
+                "developmentDelivery": "native-megin-formal-workflow",
+                "mergeRequestReview": "explicit-group-pinned-shas-task-report-v2",
                 "releaseReview": "entry-branches-group-chain-local-defaults-v2-manual-checklist",
                 "wikiFeedback": "manual-after-all-local-repo-commits"
             },
@@ -391,7 +497,7 @@ def build() -> dict[str, object]:
         "repository": {"files": native_hashes, "payloadSha256": digest(json.dumps(native_hashes, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")),
                        "overlays": {}, "skills": skill_names, "capabilities": [item for item in capabilities if item not in ("merge-group", "merge-mr")],
                        "profileHashes": {name: native_hashes[".agents/gitlab-workspace-kit/" + name] for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")},
-                       "agentBlockSha256": digest(native_payload[".agents/gitlab-workspace-kit/group-instructions.md"].decode("utf-8").strip().encode("utf-8"))}
+                       "agentBlockSha256": digest(native_payload[".agents/gitlab-workspace-kit/group-instructions.md"].decode("utf-8").replace('\r\n', '\n').replace('\r', '\n').strip().encode("utf-8"))}
     }
     for name, content in native_payload.items():
         files["repository-payload/" + name] = content
@@ -477,6 +583,13 @@ def _payload_hashes_from_zip(path: Path, root: str) -> dict[str, str]:
 
 if __name__ == "__main__":
     try:
+        import argparse
+        parser = argparse.ArgumentParser(description=__doc__)
+        parser.add_argument('--validate-local-sources', action='store_true',
+                            help='Require pinned Megin/MergeReviewer archives to equal the sibling source trees.')
+        args = parser.parse_args()
+        if args.validate_local_sources:
+            validate_local_sources()
         print(json.dumps(build(), ensure_ascii=False))
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, tarfile.TarError, lzma.LZMAError) as error:
         print(json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))

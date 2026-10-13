@@ -683,6 +683,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
             const kitReady = snapshot?.skillsContext ? snapshot.skillsContext.mode === 'group' && snapshot.skillsContext.availableFeatures.includes('megin-workflow')
               : snapshot?.workflowKit?.status === 'installed' || snapshot?.workflowKit?.status === 'work-in-progress';
             const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready' && kitReady;
+            const legacyDelivery = /^0\.[0-6]\./.test(snapshot?.skillsContext?.installed.upstreamVersions?.megin ?? snapshot?.workflowKit?.upstreamVersions?.megin ?? '');
             const matchingWorks = (snapshot?.meginWorkItems ?? []).filter((item) => item.status !== 'complete' && item.status !== 'aborted' && item.issueIid === issue.iid &&
               (item.issueProjectId === detail.project.id || item.projectPath?.toLocaleLowerCase('en-US') === detail.project.path_with_namespace.toLocaleLowerCase('en-US')));
             const selectedWorkId = matchingWorks.some((item) => item.workId === resumeWorkId) ? resumeWorkId : matchingWorks[0]?.workId;
@@ -692,14 +693,14 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
               <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl, { discussions: detail.discussions, actor: detail.user, workId: selectedWorkId }), revision: snapshot?.skillsContext?.revision ?? '', returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button>
               <button class="secondary" type="button" onClick={() => postWorkspace({ type: 'openGroupQuickReview' })}>審查 Group 未提交內容</button>
             </> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 Group 的本機資料夾或對應 Repo。' : !kitReady ? '請先安裝或更新 GitLab Workspace 完整工作流程包。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請檢查 VSCode 工作區中的資料夾。' : '此 Repo 尚未下載到本機。'}</strong><p>Issue 內容和討論可繼續查看；Codex 工作任務會先核對工作區與整包安裝狀態。</p>{snapshot?.groupRoot && !kitReady && <button type="button" onClick={onOpenSettings}>前往安裝設定</button>}</div>}
-            <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>準備開發交付：檢查差異 → Commit → Push → 建立 MR</summary>
+            {legacyDelivery ? <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>舊版 Megin 工作交付：檢查差異 → Commit → Push → 建立 MR</summary>
               {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers.length ? snapshot.projectMembers : detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} workflowRecords={snapshot?.deliveryRecords ?? []} onAction={(action, record) => {
                 if (action === 'commitDelivery') postWorkspace({ type: 'commitDelivery', deliveryId: record.id });
                 else if (action === 'copyWikiUpdatePrompt') postWorkspace({ type: 'copyWikiUpdatePrompt', deliveryId: record.id });
                 else if (action === 'pushDelivery') postWorkspace({ type: 'pushDelivery', deliveryId: record.id });
                 else if (action === 'createDeliveryMergeRequest') postWorkspace({ type: 'createDeliveryMergeRequest', deliveryId: record.id });
               }} onOpenExternal={(url) => postWorkspace({ type: 'openExternal', url })} /> : <p class="muted">在 VSCode 開啟符合目前 Group 的工作區並下載 Repo 後，即可開始交付。</p>}
-            </details>
+            </details> : <p class="muted">Megin 依原生流程完成驗證、人工驗收與本機 feature commits。後續 Push 與 MR 請使用版控或 GitLab 操作。</p>}
           </>; })()}
         </section>
       </div><aside class="sidebar">

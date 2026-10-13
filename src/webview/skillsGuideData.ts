@@ -42,8 +42,8 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
   {
     tool: 'megin', id: 'megin-workflow', title: 'Issue 開發與交付流程',
     description: '從「我的工作」選擇 Issue，帶入真實 Issue、Repo 與 GitLab 契約後啟動 Megin。',
-    output: 'Group Work ID、核准計畫、驗證與人工驗收證據，以及工作台交付資料。',
-    behavior: 'Megin 先中立探索需求與完整功能，明確核准計畫後實作 BDD／TDD。初審另計，最多三次修正重審，每次由新的獨立唯讀 reviewer 審查；通過後驗證及人工驗收。使用 gitlab_mr，由工作台接手 Commit、Push 與 MR。',
+    output: 'Group Work ID、跨 Repo 影響分析、核准計畫、驗證與人工驗收證據，以及原生本機 feature commits。',
+    behavior: 'Megin 原生 Group v6 先探索需求、架構與未修改消費端，明確核准計畫後實作 BDD／TDD。初審另計，最多三次修正重審，每次由新的獨立唯讀 reviewer 審查；通過驗證及人工驗收後依原生流程交付本機 feature commits。',
     fields: [], destination: 'developer'
   },
   {
@@ -154,7 +154,7 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   const json = card.tool !== 'release-reviewer' && input('output') === 'Markdown＋JSON';
   if (context.profile === 'repository' && card.id === 'megin-workflow') return [
     `$megin 請在 Repo ${JSON.stringify(context.root)} 執行下列開發需求：`, input('task'),
-    '使用此 Repo 安裝的原生 Megin 與十二個協作 Skills。新工作使用 native v2，先中立釐清問題、受眾、成果與驗收，完整探索目前功能，分開記錄事實、假設、需求與技術建議；精確計畫取得明確核准後才開始 BDD／TDD 實作，保留實際 red／green 原始證據。',
+    '使用此 Repo 安裝的原生 Megin 全部十三個 Skills。新工作使用 Repo v3，先中立釐清問題、受眾、成果與驗收，完整探索目前功能及架構，分開記錄事實、假設、需求與技術建議；精確計畫取得明確核准後才開始 BDD／TDD 實作，保留實際 red／green 原始證據。',
     '每項 REQ 必須追溯到 SCN Given／When／Then、測試斷言、實作、Review 與人工驗收，探索及核准引用一併納入交付收據。',
     '初審為第 0 輪，最多三次修正重審，每次使用新的獨立唯讀 reviewer；通過即進入驗證與人工驗收，第三次修正仍失敗則保留證據回報未完成。續作不重置次數。',
     '工作紀錄保存在 docs/work/<Work ID>/，沿用原生 Repo 鎖、獨立審查、實際驗證、人工驗收及本機交付規則。'
@@ -167,7 +167,7 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   if (card.id === 'megin-resume') return [
     `$megin 請在此 Group 續作 Work ID：${input('workId') || '〔請填寫 Work ID〕'}。`,
     '先讀取 docs/work/<Work ID>/workflow.md、核准計畫及 evidence，確認原有 Issue 與 Repo 契約，從最早尚未完成的階段繼續。',
-    '沿用原有 Work ID、契約版本、Skills 指紋、Group 鎖、計畫與驗收版本，以及追加式審查歷程，修正次數不得重置；若紀錄不存在或無法確認，先釐清。保留獨立審查、實際驗證與人工驗收，gitlab_mr 交付由工作台接手。'
+    '沿用原有 Work ID、原套件、契約版本、Skills 指紋、Group／Repo 鎖、計畫與驗收版本，以及追加式審查歷程，修正次數不得重置；若紀錄不存在或無法確認，先釐清。保留該版本的獨立審查、實際驗證、人工驗收與交付流程，舊工作不自動遷移。'
   ].join('\n');
   const opening = card.id === 'merge-group'
     ? `$merge-reviewer 請審查 Group ${JSON.stringify(context.groupRoot ?? '')} 下一層所有有效 Repo 的未提交內容，使用 git_review_context.py --group-root <此 Group> --quick。分別審查固定的暫存區與工作檔快照，輸出 Group 總覽與各 Repo 報告；不 fetch，也不推定 MR 身分。`

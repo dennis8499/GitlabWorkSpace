@@ -29,15 +29,15 @@ def validate_receipt(value):
     source_path=Path(source.get('path',''))
     if not root.is_absolute() or not source_path.is_absolute() or not source_path.resolve().is_relative_to(root.resolve()):raise ValueError('delivery source escapes its Group')
     if not source_path.is_file() or hashlib.sha256(source_path.read_bytes()).hexdigest()!=source.get('sha256'):raise ValueError('immutable delivery source changed')
-    exporter = Path(__file__).resolve().parents[2] / 'megin' / 'scripts' / 'delivery_receipt.py'
-    if not exporter.is_file(): raise ValueError('Megin immutable delivery validator is unavailable')
-    result = subprocess.run([sys.executable, '-B', str(exporter), '--group-root', str(root), '--work-id', value['work_id']], text=True, encoding='utf-8', errors='replace', capture_output=True, timeout=30, check=False)
+    exporter = Path(__file__).resolve().parent / 'legacy_receipt_runtime' / 'verify.py'
+    if not exporter.is_file(): raise ValueError('Isolated historical Group receipt validator is unavailable')
+    result = subprocess.run([sys.executable, '-I', '-B', str(exporter), str(root), value['work_id']], text=True, encoding='utf-8', errors='replace', capture_output=True, timeout=30, check=False)
     if result.returncode: raise ValueError('native immutable delivery validation failed: ' + result.stderr.strip())
     if json.loads(result.stdout) != value: raise ValueError('receipt differs from immutable accepted delivery')
     return value
 
-def bind_delivery(receipt,task):
-    receipt=validate_receipt(receipt);task=validate_task(task)
+def bind_delivery(receipt,task,*,allow_legacy=False):
+    receipt=validate_receipt(receipt);task=validate_task(task,allow_legacy=allow_legacy)
     repo=Path(task['repoPath']).resolve()
     items=[x for x in receipt['repositories'] if Path(x['repo_root']).resolve()==repo]
     if len(items)!=1 or items[0]['feature_commit']!=task['sourceSha']:raise ValueError('MR source differs from the accepted delivery commit')
@@ -54,9 +54,9 @@ def verify_report_binding(binding,metadata,current_source,current_target,*,task=
     if binding['schema']=='megin-mr-binding/v1':
         if not allow_legacy:raise ValueError('legacy Megin binding requires fresh receipt capture')
     else:
-        frozen_task=validate_task(binding.get('task'))
+        frozen_task=validate_task(binding.get('task'),allow_legacy=allow_legacy)
         if task is not None and frozen_task!=task:raise ValueError('Megin binding task differs from captured MR')
-        if bind_delivery(binding.get('receipt'),frozen_task)!=binding:raise ValueError('Megin receipt/report binding changed')
+        if bind_delivery(binding.get('receipt'),frozen_task,allow_legacy=allow_legacy)!=binding:raise ValueError('Megin receipt/report binding changed')
     if metadata.get('megin_binding')!=binding:raise ValueError('report lacks matching Megin binding')
     if any(metadata.get(k)!=v for k,v in binding['mr_identity'].items()):raise ValueError('MR/report identity mismatch')
     if (current_source,current_target)!=(binding['mr_identity']['sourceSha'],binding['mr_identity']['targetSha']):raise ValueError('MR changed after capture; re-review required')

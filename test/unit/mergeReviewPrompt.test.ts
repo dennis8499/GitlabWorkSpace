@@ -14,7 +14,8 @@ test('embeds the pinned MergeReview MR task in the copied prompt without a task 
     diff_refs: { head_sha: 'a'.repeat(40) }
   } as unknown as GitLabMergeRequest;
   const task = {
-    schema: 'MergeReviewTask/v1',
+    schema: 'MergeReviewTask/v2',
+    groupRoot: 'C:/group',
     origin: 'https://gitlab.example.invalid',
     projectId: 10,
     mrIid: 7,

@@ -16,7 +16,7 @@ import { resolvePythonRuntime } from './pythonRuntime';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
-import { parseMergeReviewReport, validateReportIdentity, type MergeReviewIdentity } from './mergeReviewReport';
+import { parseMergeReviewReport, validateReportIdentity, type MergeReviewIdentity, type ImportedMergeReviewReport } from './mergeReviewReport';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
@@ -2864,7 +2864,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const urls = await Promise.all(remotes.map((remote) => git(repoPath, ['remote', 'get-url', remote])));
     if (!urls.some((url) => projectRemoteMatches(url.trim(), target))) throw new Error('本機 Repo remote 與 MR 目標專案不一致。');
     if (!isAllowedGitRemote(identity.origin, source.http_url_to_repo) || !isAllowedGitRemote(identity.origin, target.http_url_to_repo)) throw new Error('MR remote 不屬於目前 GitLab。');
-    const taskBase64 = Buffer.from(JSON.stringify({ schema: 'MergeReviewTask/v1', ...identity, repoPath,
+    const taskBase64 = Buffer.from(JSON.stringify({ schema: 'MergeReviewTask/v2', ...identity, repoPath, groupRoot: root,
       sourceRemoteUrl: source.http_url_to_repo, targetRemoteUrl: target.http_url_to_repo, mode: 'merge' }), 'utf8').toString('base64');
     const prompt = buildReviewerPrompt(target, request, root, source, { repoPath, taskBase64, sourceSha: identity.sourceSha, targetSha: identity.targetSha });
     await this.confirmSkillsContext(revision, 'merge-mr');
@@ -2894,7 +2894,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     const report = parseMergeReviewReport(text);
     const { identity } = await this.liveReviewIdentity(projectId, iid);
-    validateReportIdentity(report, identity);
+    await this.validateBoundMergeReviewReport(report, identity);
     this.post({ type: 'mergeReviewReportImported', projectId, iid, text: report.text,
       sourceSha: report.metadata.sourceSha, targetSha: report.metadata.targetSha });
     this.post({ type: 'message', message: '已核對報告正文、MR 身分及來源／目標版本。' });
@@ -2903,11 +2903,32 @@ export class WorkspacePanel implements vscode.Disposable {
   private async publishMergeReviewReport(projectId: number, iid: number, text: string): Promise<void> {
     const report = parseMergeReviewReport(text);
     const { identity } = await this.liveReviewIdentity(projectId, iid);
-    validateReportIdentity(report, identity);
+    await this.validateBoundMergeReviewReport(report, identity);
     await this.publishMergeRequestText(projectId, iid, report.text, undefined, async () => {
       const current = await this.liveReviewIdentity(projectId, iid);
-      validateReportIdentity(report, current.identity);
+      await this.validateBoundMergeReviewReport(report, current.identity);
     });
+  }
+
+  private async validateBoundMergeReviewReport(report: ImportedMergeReviewReport, identity: MergeReviewIdentity): Promise<void> {
+    const root = this.meginGroupRoot();
+    validateReportIdentity(report, { ...identity, groupRoot: root, repoPath: this.matchedGroupRepository(identity.targetProjectId) });
+    if (!report.metadata.megin_binding) return;
+    await this.assertWorkflowKitReady();
+    const revision = this.getSkillsContext().revision;
+    const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'mr_contract.py');
+    const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
+    const python = await resolvePythonRuntime(configured);
+    const temporary = await mkdtemp(path.join(os.tmpdir(), 'gitlab-workspace-mr-proof-'));
+    const reportPath = path.join(temporary, 'report.md');
+    try {
+      await writeFile(reportPath, report.text, 'utf8');
+      await execFileAsync(python.executable, [...python.args, '-I', '-B', '-X', 'utf8', script,
+        '--verify-report', reportPath, '--task-base64', Buffer.from(JSON.stringify(report.metadata.task), 'utf8').toString('base64')],
+      { cwd: root, env: { ...python.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }, timeout: 4 * 60_000, maxBuffer: 256_000, windowsHide: true });
+      if (this.getSkillsContext().revision !== revision || !sameLocalPath(this.meginGroupRoot(), root)) throw new Error('審查證據驗證期間工作區已變更。');
+    } catch (error) { throw new Error(`Megin 收據原始證據驗證未通過；請重新審查。${readableError(error)}`); }
+    finally { await unlink(reportPath).catch(() => undefined); await rmdir(temporary).catch(() => undefined); }
   }
 
   private async replyMergeRequest(projectId: number, iid: number, discussionId: string, body: string): Promise<void> {
@@ -3031,7 +3052,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     const root = this.meginGroupRoot();
     const script = path.join(root, '.agents', 'skills', 'megin', 'scripts', 'gitlab_delivery.py');
-    if (!await exists(script)) throw new Error('請先安裝 Megin 0.2.0 以上，並完成 gitlab_mr 驗收交接。');
+    if (!await exists(script)) throw new Error('目前套件使用原生 Megin 本機交付流程；此入口只供保留原套件的舊 GitLab 交接工作使用。');
     const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
     const python = await resolvePythonRuntime(configured);
     const args = [...python.args, '-X', 'utf8', '-B', script, action, '--group-root', root, '--work-id', workId];
