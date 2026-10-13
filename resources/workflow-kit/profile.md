@@ -24,8 +24,30 @@ AutoHook 1.1.0 is bundled under `.agents/gitlab-workspace-kit/autohook/` as an o
 
 ## Scope and safety
 
-- The Group is the shared knowledge and coordination root, not a Git repository or a product repository. Do not scan tool installations, this profile, `.megin/`, `docs/work/`, `review-reports/`, or `.notebooklm/` as product source.
+- The Group is the shared knowledge and coordination root, not a Git repository or a product repository. Do not scan tool installations, this profile, `.megin/`, `docs/work/`, `review-reports/`, `.notebooklm/`, or `exports/megin/` as product source.
 - For code analysis, preserve the upstream full inventory and static audit contracts; clearly state the actual repository paths and checked or unverified coverage.
 - Keep GitLab credentials in Workspace SecretStorage and never copy them into Wiki pages, work records, review reports, or prompts.
 
 New work uses native Megin v2 in the repository profile and Group v4 in the Group profile. Explore current-source functions and neutral requirements, obtain exact-plan approval, then preserve BDD/TDD raw evidence and a fresh independent read-only reviewer for initial round 0 plus at most three correction rounds. Approval can stop retries early; three failed corrections remain incomplete. Resume preserves the original attempt history and fingerprint. Functional exploration is source-first and read-only by default; normal Wiki queries stay Wiki-first.
+
+## Wiki follow-ups, full Ingest and Megin export
+
+Query answers are read-only until a user selects a concrete preview under the
+Wiki `follow-up-actions.md` contract. That selection authorizes the complete
+bounded update/save or combined flow without duplicate Ingest/Synthesis gates;
+none or no answer writes nothing. Preserve human notes and finish index/log
+and validation for the selected subflows.
+
+Full Ingest covers all valid direct-child local Git Repos, including unmapped
+ones, unless the user explicitly lists a narrower set. Use the scanner-backed
+`ingest-coverage.py` inventory and validate operations with `--scope group` and
+the same `--repo` selections. The Group `wiki/ingest-coverage.json` records every
+included file's hash, disposition and Wiki page or no-page rationale. Any
+blocker, omission or source drift keeps the result partial.
+
+For `megin-spec-export` or generate-and-export, read
+[the common export workflow](references/megin-spec-export.md). First finish a
+ready five-section specification and its recorded Agent self-contained review;
+BA/SA/SD are not required. An explicit export authorizes the single checked
+artifact under this Group's `exports/megin/`. The helper validates before
+writing and preserves previous revisions on failure. Do not publish an Issue.

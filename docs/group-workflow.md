@@ -1,6 +1,6 @@
-# Group 工作流程（GitLab Workspace 0.20.0）
+# Group 工作流程（GitLab Workspace 0.21.0）
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.10.0、ReleaseReviewer 0.2.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並提供 Group overlays 與原生單 Repo 兩種 profile，使用對應的工作目錄規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0、Megin 0.6.0、MergeReviewer 0.10.0、ReleaseReviewer 0.2.0 與 15 個 Skills。套件內保留四個來源專案的完整 Skills 與資源，並提供 Group overlays 與原生單 Repo 兩種 profile，使用對應的工作目錄規則。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
 
 ## 一次安裝整包
 
@@ -15,7 +15,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.5.0
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.20.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.21.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
@@ -30,7 +30,7 @@ python -X utf8 -B resources/workflow-kit-installer.py rollback <Group> <transact
 
 ### 固定驗證與歷史交付
 
-0.20.0 新工作使用 `megin-skills-workflow/v4` 及同版品質契約、證據與快照；原生單 Repo 使用 v2。先完整探索目前所有有效直屬 Repo 的功能入口、流程、依賴與缺口，分開記錄事實、假設、需求與技術建議。精確計畫取得明確核准後才可 claim writer 及實作，必須保存探索與核准引用，串接 REQ → SCN Given／When／Then → 測試斷言 → 實作 → Review → 人工驗收，並保存實際 assertion-failing red 與通過 green 的原始紀錄。
+0.21.0 新工作使用 `megin-skills-workflow/v4` 及同版品質契約、證據與快照；原生單 Repo 使用 v2。先完整探索目前所有有效直屬 Repo 的功能入口、流程、依賴與缺口，分開記錄事實、假設、需求與技術建議。精確計畫取得明確核准後才可 claim writer 及實作，必須保存探索與核准引用，串接 REQ → SCN Given／When／Then → 測試斷言 → 實作 → Review → 人工驗收，並保存實際 assertion-failing red 與通過 green 的原始紀錄。
 
 初審為第 0 輪，最多三次修正重審（第 1～3 輪），每輪由新的獨立唯讀 reviewer 執行並追加歷程。任一次通過即可驗證及人工驗收；第三次修正仍失敗，工作保持未完成並保留全部證據。中斷續作不重置修正次數。無可用獨立 reviewer 時保持 `awaiting_review`，不以自審代替。
 
@@ -96,7 +96,7 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 
 在入口 Repo 的 `review-reports/` 產生主報告 `release-review-*.md` 與同次版本 `-checklist.md`，使用獨立 v2 中繼資料，舊 v1 報告保留。主報告保留原始證據，Checklist 供人工更新，狀態為待確認／已確認／未通過／不適用；核對人、日期與工單／驗證證據須保存，不適用須填理由。初始一律待確認，只有定義或申請工單不代表已建置／開通。靜態檢查完成不等於上板準備完成；本次不自動連線驗證實際環境。暫存證據由原生 helper 管理，完成或中止均需清理。
 
-0.20.0 安裝器保留受信任的 0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
+0.21.0 安裝器保留受信任的 0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1、0.20.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
 
 ## 原生單 Repo 與版本限制
 
@@ -137,10 +137,12 @@ python -X utf8 -B resources/workflow-kit-installer.py autohook disable <Skills�
 
 ## 套件建置與發行
 
-套件固定來源為 Codebase LLM Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.10.0 與 ReleaseReviewer 0.2.0。ReleaseReviewer 保留原生內容；Group 覆層共用 Megin 新品質規則，並以獨立 Group 綁定模組保留原生 MergeReviewer 收據驗證。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。套件建置會產生：
+套件固定來源為 Codebase LLM Wiki 0.6.0、Megin 0.6.0、MergeReviewer 0.10.0 與 ReleaseReviewer 0.2.0。ReleaseReviewer 保留原生內容；Group 覆層共用 Megin 新品質規則，並以獨立 Group 綁定模組保留原生 MergeReviewer 收據驗證。Manifest 記錄公開來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。套件建置會產生：
 
-- `gitlab-workspace-0.20.0.vsix`
-- `gitlab-workspace-kit-0.20.0.zip`
+- `gitlab-workspace-0.21.0.vsix`
+- `gitlab-workspace-kit-0.21.0.zip`
 - `SHA256SUMS`
 
 建置及發行測試涵蓋新裝、重複安裝、更新、失敗回復、程序中斷回復、套件與本機內容損壞、舊版清理、Megin 工作阻擋，以及 Group 規格、審查、精確 Commit、MR 報告與知識回饋流程。
+
+查詢後續的一次確認、全量 Ingest 與 Megin 單檔交付使用方式見[Wiki 工作流程](wiki-workflows.md)。

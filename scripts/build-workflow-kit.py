@@ -35,10 +35,10 @@ PINNED_SOURCES = (
         "id": "codebase-wiki",
         "repository": "code-base-llm-wiki",
         "asset": "codebase-llm-wiki-codex.zip",
-        "filename": "codebase-llm-wiki-codex-0.5.0.zip",
-        "version": "0.5.0",
-        "sha256": "cf13488ad93459438e43051ce8a3bd1a4bf0c2f1c1e47152a0d83bc7f95b05e1",
-        "root": "codebase-llm-wiki-codex-0.5.0",
+        "filename": "codebase-llm-wiki-codex-0.6.0.zip",
+        "version": "0.6.0",
+        "sha256": "292c5172f225ddfca5f0212acac3ad33156759cecbb66b0594fb89c6f1080e9a",
+        "root": "codebase-llm-wiki-codex-0.6.0",
     },
     {
         "id": "megin",
@@ -193,6 +193,8 @@ def sync_installer_metadata(manifest: dict) -> None:
         "PROFILE_MANIFESTS": manifest["profiles"],
         "WIKI_INSTALLED_VERSION_SHA256": manifest["wikiInstalledVersionSha256"],
         "AUTOHOOK_FILES": {p: h for p, h in manifest["files"].items() if p.startswith(".agents/gitlab-workspace-kit/autohook/")},
+        "KIT_EXTENSION_FILES": {p: h for p, h in manifest["files"].items()
+                                if p.startswith((".agents/gitlab-workspace-kit/scripts/", ".agents/gitlab-workspace-kit/references/"))},
         "AUTOHOOK_LEGACY": json.loads((PROFILE / "autohook-legacy.json").read_text(encoding="utf-8")),
         "WIKI_CONFIG_FILES": {name: content.decode("utf-8").replace('mode = "framework"', 'mode = "coexist"').replace('mode = "target"', 'mode = "coexist"')
                               for name, content in _wiki_config_files().items()},
@@ -306,6 +308,15 @@ def build() -> dict[str, object]:
                 files[f"payload/.agents/skills/{source['id']}/{name}"] = data
         files[f"sources/{source['asset']}"] = archive_path.read_bytes()
 
+    # Common extensions live outside native Skills so repository profile preserves upstream bytes.
+    common = PROFILE / "common"
+    for path in sorted(common.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("Common kit resources cannot be symlinks")
+        if path.is_file() and "__pycache__" not in path.parts and path.suffix not in (".pyc", ".pyo"):
+            relative = checked_path(path.relative_to(common).as_posix())
+            files[f"payload/.agents/gitlab-workspace-kit/{relative}"] = path.read_bytes()
+
     native_payload = {name[len("payload/"):]: data for name, data in files.items() if name.startswith("payload/")}
     for source, destination in (("repository-profile.md", "profile.md"), ("repository-instructions.md", "group-instructions.md"), ("legacy-cleanup.md", "legacy-cleanup.md")):
         native_payload[".agents/gitlab-workspace-kit/" + destination] = (PROFILE / source).read_bytes()
@@ -343,7 +354,7 @@ def build() -> dict[str, object]:
         "overlays": overlays,
         "sourceSummary": [
             "AutoHook 1.1.0 is an optional Windows project-scoped approval tool with a pinned public policy snapshot and partial fixed-rule mapping; disabled by default and controlled by the Skills-root checkbox, separately from the fifteen Skills.",
-            "Native Codebase LLM Wiki 0.5.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
+            "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.6.0 is single-Repo; GitlabWorkSpace overlay restores Group records, cross-Repo workflow, locks, and gitlab_mr delivery.",
             "Native MergeReviewer 0.10.0 reviews branch/commit, staged and saved uncommitted changes in Repo/Group workspaces with fixed-source feature-chain coverage; GitlabWorkSpace adapters retain legacy Group quick and fixed-SHA Merge Request identity binding.",
             "Native ReleaseReviewer 0.2.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes v2 risk/resource reports plus separate manual deployment checklists without an overlay."
@@ -367,7 +378,7 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
-    capabilities = sorted(["development-spec", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
+    capabilities = sorted(["development-spec", "megin-spec-export", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
                            "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
                            "megin-workflow", "megin-resume", "merge-repo", "merge-quick", "merge-group", "merge-mr", "release-review"])
     native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}

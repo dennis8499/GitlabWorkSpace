@@ -72,7 +72,12 @@ Q-001: requester must confirm access behavior.
             rejected = subprocess.run([sys.executable, str(wiki / "validate-development-spec.py"), str(spec_file)],
                                       capture_output=True, text=True, encoding="utf-8")
             self.assertNotEqual(0, rejected.returncode)
-            spec_file.write_text(spec.replace("spec_status: draft", "spec_status: ready")
+            clarified = spec.replace("blocking_questions: [Q-001]", "blocking_questions: []").replace(
+                "Q-001: requester must confirm access behavior.", "Requester confirmed authorized access.")
+            spec_file.write_text(clarified, encoding="utf-8")
+            reviewed_digest = self.helper(wiki / "validate-development-spec.py", spec_file)["review_digest"]
+            spec_file.write_text(clarified.replace("spec_status: draft", "spec_status: ready")
+                                 .replace("type: synthesis", "self_contained_review: passed\nreviewed_spec_digest: " + reviewed_digest + "\ntype: synthesis")
                                  .replace("blocking_questions: [Q-001]", "blocking_questions: []")
                                  .replace("Q-001: requester must confirm access behavior.", "Requester confirmed authorized access."), encoding="utf-8")
             self.assertTrue(self.helper(wiki / "validate-development-spec.py", spec_file)["ok"])

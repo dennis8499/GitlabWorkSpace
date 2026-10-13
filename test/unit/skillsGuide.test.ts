@@ -19,6 +19,17 @@ test('four tool entrances retain Wiki drafts and use existing Issue/MR destinati
   assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'development-spec');
 });
 
+test('full ingest and Megin export remain available through the shared Skills entry', () => {
+  const ingest = getSkillGuideCard('codebase-wiki', 'ingest');
+  const inputs = { 'ingest.scope': '全部專案' };
+  assert.equal(canCopySkillPrompt(ingest, inputs), true);
+  assert.match(buildSkillGuidePrompt(ingest, inputs, context), /ingest-coverage.py/);
+  const exportCard = getSkillGuideCard('codebase-wiki', 'megin-spec-export');
+  const exportInputs = { 'megin-spec-export.scope': 'refund', 'megin-spec-export.spec': 'wiki/synthesis/refund-development-spec.md' };
+  assert.equal(canCopySkillPrompt(exportCard, exportInputs), true);
+  assert.equal(canCopySkillPrompt(exportCard, { ...exportInputs, 'megin-spec-export.scope': '../escape' }), false);
+});
+
 test('release checks require manual Repo/base/head and preserve literal Unicode paths and refs', () => {
   const state = restoreSkillGuideState();
   const card = getSkillGuideCard('release-reviewer');

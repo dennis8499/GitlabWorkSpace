@@ -9,6 +9,7 @@ resources/workflow_kit_autohook.py text eol=lf
 resources/offline-tools/sources/*.zip binary !eol
 scripts/build-workflow-kit.py text eol=lf
 resources/workflow-kit/overlays/** text eol=lf
+resources/workflow-kit/common/** text eol=lf
 resources/workflow-kit/overlays/sources/*.zip binary !eol
 test/overlays/** text eol=lf
 test/release/*.py text eol=lf

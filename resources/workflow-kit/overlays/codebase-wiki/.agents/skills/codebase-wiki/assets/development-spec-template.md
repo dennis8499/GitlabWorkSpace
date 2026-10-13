@@ -11,6 +11,8 @@ notebooklm_role: exclude
 spec_revision: 1
 spec_status: draft
 blocking_questions: []
+self_contained_review: pending
+reviewed_spec_digest: ""
 ---
 
 # {scope} 開發規格

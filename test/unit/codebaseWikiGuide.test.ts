@@ -5,9 +5,9 @@ import {
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
-  assert.equal(wikiGuideCards.length, 14);
+  assert.equal(wikiGuideCards.length, 15);
   assert.deepEqual(wikiGuideCards.map((card) => card.id), [
-    'development-spec', 'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
+    'development-spec', 'megin-spec-export', 'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
     'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
@@ -118,4 +118,29 @@ test('development specifications require the feature and description, then clari
   assert.match(prompt, /development_spec/);
   assert.match(prompt, /未回答保持 draft/);
   assert.match(prompt, /Issue 由我自行建立/);
+});
+
+test('full ingest does not require a single path and keeps native scope within the Repo', () => {
+  const inputs = { ...createDefaultWikiGuideInputs(), 'ingest.scope': '全部專案' };
+  const card = wikiGuideCards.find((item) => item.id === 'ingest')!;
+  assert.equal(canCopyWikiPrompt(card, inputs), true);
+  const native = buildWikiGuidePrompt('ingest', inputs, { profile: 'repository', root: '/project', repositories: [] });
+  assert.match(native, /只涵蓋目前所選 Repo/);
+  assert.match(native, /逐檔 hash.*部分完成/s);
+  assert.equal(native.includes('--scope group'), false);
+  assert.match(buildWikiGuidePrompt('ingest', inputs), /全部合法直屬本機 Git Repo.*尚未對應 GitLab/s);
+});
+
+test('Megin export and generate-and-export use the kit-only standalone delivery workflow', () => {
+  const inputs = { 'megin-spec-export.spec': 'wiki/synthesis/refund-development-spec.md', 'megin-spec-export.scope': 'refund' };
+  const card = wikiGuideCards.find((item) => item.id === 'megin-spec-export')!;
+  assert.equal(canCopyWikiPrompt(card, inputs), true);
+  assert.match(buildWikiGuidePrompt(card.id, inputs), /megin-spec-export.*exports\/megin\/.*五段正文/s);
+  const generate = buildWikiGuidePrompt('development-spec', { 'development-spec.delivery': '產生並匯出',
+    'development-spec.scope': 'Refund', 'development-spec.requirement': 'Refund an order' },
+    { profile: 'repository', root: '/project', repositories: [] });
+  assert.match(generate, /直接接續.*megin-spec-export/s);
+  assert.match(generate, /不重複確認匯出/);
+  assert.match(buildWikiGuidePrompt('query', { 'query.question': '退款？' }), /具體變更預覽.*未選擇.*零寫入.*不重複確認/s);
+  assert.match(buildWikiGuidePrompt('query', { 'query.question': '退款？' }), /選擇已預覽動作即構成該範圍授權，直接完成/);
 });

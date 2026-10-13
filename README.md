@@ -67,19 +67,19 @@
 
 此開關對應 VS Code 設定 `gitlabWorkspace.workflowKit.requireGroupEnvironment`，支援使用者設定及工作區覆寫。工作台開關在已開啟工作區時寫入工作區設定，空視窗寫入使用者設定，變更立即生效。側欄常駐顯示帳號摘要；右上角提供快速切換，完整登入、重新登入、登出及移除集中於 **設定 → 帳號與連線**，亦可執行 **GitLab Workspace: 管理 GitLab 帳號**。
 
-GitLab Workspace v0.20.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.5.0、Megin 0.6.0、MergeReviewer 0.10.0、ReleaseReviewer 0.2.0，共 15 個 Skills。同一包提供 `group` 與 `repository` profile：Group 使用既有覆層，提供共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、Issue 開發交付、Group quick 與 MR 審查；單 Repo 使用固定來源的原生 Skills，提供 Wiki、原生 Megin 開發／續作、Repo 審查及上板檢查，工作紀錄、Wiki、報告及 Codex 目錄均在所選 Repo。MergeReviewer 共用核心新增 branch／Stage／未提交模式，固定各 Repo 的來源版本並沿相關功能鏈追查；單 Repo profile 預設以 `--scope repo` 限制於所選專案，Group 則使用 `--scope auto` 延伸至有程式證據關聯的 Repo。
+GitLab Workspace v0.21.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.6.0、Megin 0.6.0、MergeReviewer 0.10.0、ReleaseReviewer 0.2.0，共 15 個 Skills。同一包提供 `group` 與 `repository` profile：Group 使用既有覆層，提供共用 Wiki、集中工作紀錄、跨 Repo 相依、Group 鎖、Issue 開發交付、Group quick 與 MR 審查；單 Repo 使用固定來源的原生 Skills，提供 Wiki、原生 Megin 開發／續作、Repo 審查及上板檢查，工作紀錄、Wiki、報告及 Codex 目錄均在所選 Repo。MergeReviewer 共用核心新增 branch／Stage／未提交模式，固定各 Repo 的來源版本並沿相關功能鏈追查；單 Repo profile 預設以 `--scope repo` 限制於所選專案，Group 則使用 `--scope auto` 延伸至有程式證據關聯的 Repo。
 
 兩種 profile 另附 AutoHook 1.1.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，保留重新驗證與刷新狀態；勾選狀態以目前 Skills 根目錄實際安裝為準。隨包保存官方政策版本、原文與雜湊，固定規則只涵蓋部分政策，指定專案測試／建置和檔案新增／更新屬於勾選後的預授權。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
 
-0.20.0 支援受信任的 0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.19.0、0.19.1 升級與交易回復；受信任的舊紀錄未含 profile 時視為 Group。安裝與 profile 轉換保留 Wiki、其他 Skills、工作紀錄、報告及使用者設定；進行中的 Megin 工作或管理檔案修改會阻擋更新。草稿依 Group 或所選 Repo 保存。ReleaseReviewer 固定合併前審查，只接受 Repo、基礎分支、比較分支；不提供 tag／commit、直接比較或 JSON 選項，MergeReviewer 選項維持原有行為。Group 只比較入口 Repo 的分支，沿 API、事件、契約、DB 與快取追查未變更上下游；關聯 Repo 使用各自本機預設分支的固定 SHA，不 fetch，也不採目前 checkout。預設分支來自既有專案資料或本機遠端 HEAD，無法取得就列缺口。設定、DB、FTP、SFTP、Redis、Kafka 及其他新增依賴均附上板準備核對；輸出為入口 Repo 下 `review-reports/release-review-*.md` 與同次 `-checklist.md`，靜態完成與人工環境確認分開。
+0.21.0 支援受信任的 0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.19.0、0.19.1、0.20.0 升級與交易回復；受信任的舊紀錄未含 profile 時視為 Group。安裝與 profile 轉換保留 Wiki、其他 Skills、工作紀錄、報告及使用者設定；進行中的 Megin 工作或管理檔案修改會阻擋更新。草稿依 Group 或所選 Repo 保存。ReleaseReviewer 固定合併前審查，只接受 Repo、基礎分支、比較分支；不提供 tag／commit、直接比較或 JSON 選項，MergeReviewer 選項維持原有行為。Group 只比較入口 Repo 的分支，沿 API、事件、契約、DB 與快取追查未變更上下游；關聯 Repo 使用各自本機預設分支的固定 SHA，不 fetch，也不採目前 checkout。預設分支來自既有專案資料或本機遠端 HEAD，無法取得就列缺口。設定、DB、FTP、SFTP、Redis、Kafka 及其他新增依賴均附上板準備核對；輸出為入口 Repo 下 `review-reports/release-review-*.md` 與同次 `-checklist.md`，靜態完成與人工環境確認分開。
 
-0.14.0 納入 Aspire `toolkit-correction` 的 19 項覆層差異：固定驗證 bytes、SCN 行為追蹤、runner 預檢、歷史交付收據與 MR 綁定。跨 Repo 補證、MR 身分／正文驗證、linked correction ancestry 與需明確授權的模擬驗收仍由 Group 覆層管理。安裝器支援可信前版的同版本 payload 升級、`install --dry-run` 與保留交易的 `rollback`，並可從已發行或本次同步的 0.13.2 套件升級；操作見[Group 工作流程](docs/group-workflow.md)。0.20.0 的固定來源版本與摘要見組合包 Manifest。
+0.14.0 納入 Aspire `toolkit-correction` 的 19 項覆層差異：固定驗證 bytes、SCN 行為追蹤、runner 預檢、歷史交付收據與 MR 綁定。跨 Repo 補證、MR 身分／正文驗證、linked correction ancestry 與需明確授權的模擬驗收仍由 Group 覆層管理。安裝器支援可信前版的同版本 payload 升級、`install --dry-run` 與保留交易的 `rollback`，並可從已發行或本次同步的 0.13.2 套件升級；操作見[Group 工作流程](docs/group-workflow.md)。0.21.0 的固定來源版本與摘要見組合包 Manifest。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 
 ## 文件
 
-0.20.0 的新 Megin 工作使用原生 v2／Group v4：先中立探索需求與完整功能，再取得精確計畫的明確核准；需求、BDD 情境、測試斷言、實作、Review 與人工驗收均須可追溯，保存有效 red／green 原始證據。初審另計，最多三次修正重審，每次使用新的獨立唯讀 reviewer；任一次通過即可驗證及人工驗收，第三次修正仍失敗則回報未完成。續作沿用原契約、指紋及修正次數。
+0.21.0 的新 Megin 工作使用原生 v2／Group v4：先中立探索需求與完整功能，再取得精確計畫的明確核准；需求、BDD 情境、測試斷言、實作、Review 與人工驗收均須可追溯，保存有效 red／green 原始證據。初審另計，最多三次修正重審，每次使用新的獨立唯讀 reviewer；任一次通過即可驗證及人工驗收，第三次修正仍失敗則回報未完成。續作沿用原契約、指紋及修正次數。
 
 Wiki 新增 **專案功能探索**：從目前原始碼盤點功能、來源、覆蓋與缺口；預設只在回覆輸出，明確授權保存才寫文件。一般查詢維持 Wiki 優先。單 Repo 模式不需 GitLab 登入或 Group，每次操作一個本機 Repo。
 
@@ -127,3 +127,5 @@ npm run package
 - Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
 - Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
+
+查詢後續的一次確認、全量 Ingest 與 Megin 單檔交付使用方式見[Wiki 工作流程](docs/wiki-workflows.md)。

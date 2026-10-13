@@ -91,7 +91,7 @@ class ProfileTests(unittest.TestCase):
         native = self.installed()
         self.assertEqual("repository", self.status(self.repo)["profile"])
         path = ".agents/skills/codebase-wiki/references/development-spec-workflow.md"
-        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.5.0.zip") as upstream:
+        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.6.0.zip") as upstream:
             name = next(name for name in upstream.namelist() if name.endswith(path))
             self.assertEqual(upstream.read(name), (self.repo / path).read_bytes())
         self.assert_preserved()

@@ -135,11 +135,13 @@ function value(card: SkillGuideCard, id: string, inputs: SkillGuideInputValues):
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.id === 'release-review' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) return false;
   if (card.destination || !card.fields.every(item => {
+    if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
     const input = value(card, item.id, inputs);
     return (!item.required || !!input.trim()) && (item.kind !== 'select' || !!item.options?.includes(input))
       && (item.kind === 'textarea' || !/[\r\n\0]/.test(input));
   })) return false;
   if (card.id === 'release-review' && ['base', 'head'].some(id => /^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value(card, id, inputs).trim()) || /[~^]|\.\.|@\{/.test(value(card, id, inputs)))) return false;
+  if (card.id === 'megin-spec-export' && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value(card, 'scope', inputs).trim())) return false;
   return card.id !== 'megin-resume' || /^work-\d{8}-[a-z0-9-]+$/.test(value(card, 'workId', inputs).trim());
 }
 
