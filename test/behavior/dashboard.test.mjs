@@ -108,6 +108,33 @@ test('Git repeated selection shares reads, staged/unstaged paths differ, and sta
   assert.match(document.querySelector('.git-detail-subject').textContent, /Merge feature/);
 });
 
+test('interactive Rebase preserves edited order, actions and messages until its source versions change', async (t) => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('button')].find(button => button.textContent === 'Rebase…').click(); await view.tick();
+  document.querySelector('input[name="interactive"]').checked = true;
+  document.querySelector('.git-dialog').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  const preview = gitActions(view, 'rebasePreview').at(-1);
+  const plan = { target: preview.action.ref, targetHash: 'd'.repeat(40), containsMerge: false, commits: gitSnapshot().history.slice(1).reverse() };
+  await finishGit(view, preview, { revision: 2, rebasePlan: plan });
+  const titles = () => [...document.querySelectorAll('.git-rebase-commit strong')].map(item => item.textContent);
+  document.querySelector('button[aria-label="下移提交"]').click(); await view.tick();
+  const operation = document.querySelector('select[aria-label="Rebase 操作"]');
+  operation.value = 'reword'; operation.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  const message = document.querySelector('textarea[aria-label="新的提交訊息"]');
+  message.value = 'Retain this rewritten message'; message.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 3, rebasePlan: structuredClone(plan) }) }); await view.tick();
+  assert.deepEqual(titles(), ['Add feature', 'Initial commit']);
+  assert.deepEqual([...document.querySelectorAll('select[aria-label="Rebase 操作"]')].map(item => item.value), ['reword', 'pick']);
+  assert.equal(document.querySelector('textarea[aria-label="新的提交訊息"]').value, 'Retain this rewritten message');
+  assert.doesNotMatch(document.querySelector('.git-dialog').textContent, /來源版本已變更/);
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 4, rebasePlan: { ...plan, targetHash: 'e'.repeat(40) } }) }); await view.tick();
+  assert.deepEqual(titles(), ['Initial commit', 'Add feature']);
+  assert.deepEqual([...document.querySelectorAll('select[aria-label="Rebase 操作"]')].map(item => item.value), ['pick', 'pick']);
+  assert.equal(document.querySelector('textarea[aria-label="新的提交訊息"]'), null);
+  assert.match(document.querySelector('.git-dialog [role="status"]').textContent, /來源版本已變更.*重設/);
+});
+
 test('Git Repo reopening sends a fresh request after switching away from a pending open', async (t) => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
@@ -615,7 +642,10 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-development-spec');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
-  assert.equal(document.querySelectorAll('.wiki-guide-selector option').length, 13);
+  assert.deepEqual([...document.querySelectorAll('.wiki-guide-selector option')].map(option => option.value), [
+    'development-spec', 'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+    'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
+  ]);
 
   const selector = document.querySelector('.wiki-guide-selector select');
   assert.equal(selector.value, 'development-spec');
@@ -623,6 +653,19 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.ok(devPreview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
   assert.ok(devPreview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
   assert.equal(devPreview.textContent.includes('team/alpha'), false);
+
+  selector.value = 'megin-spec-export';
+  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  const spec = document.querySelector('[id="wiki-input-megin-spec-export.spec"]');
+  spec.value = 'wiki/synthesis/refund-development-spec.md';
+  spec.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const exportScope = document.querySelector('[id="wiki-input-megin-spec-export.scope"]');
+  exportScope.value = 'refund'; exportScope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  document.querySelector('.wiki-copy-button').click(); await view.tick();
+  assert.match(view.requests.at(-1).text, /megin-spec-export.*refund-development-spec\.md/s);
+  assert.match(view.requests.at(-1).text, /exports\/megin\/<scope>-r<spec_revision>\.md/);
 
   selector.value = 'query';
   selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
@@ -1894,4 +1937,80 @@ test('legacy Skills only resumes verified Work IDs and never displays another ro
   view.sendSnapshot(state); await view.tick();
   assert.match(document.querySelector('.wiki-guide-card-header').textContent, /未安裝/);
   assert.doesNotMatch(document.querySelector('.wiki-guide-card-header').textContent, /0.9.0|0.16.0/);
+});
+
+test('Issue development distinguishes default continuation, explicit new work and selected continuation', async t => {
+  const data = snapshot();
+  data.localRepositories = { 1: { state: 'ready', path: 'C:/workspace/team/alpha' }, 2: { state: 'ready', path: 'C:/workspace/team/beta' } };
+  data.meginWorkItems = [
+    { workId: 'work-20261013-first', status: 'implementing', issueIid: 1, issueProjectId: 1 },
+    { workId: 'work-20261013-second', status: 'implementing', issueIid: 1, issueProjectId: 1 },
+    { workId: 'work-20261013-beta', status: 'implementing', issueIid: 2, issueProjectId: 2 }
+  ];
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const openIssue = async (index, revision) => {
+    const issue = data.issues[index]; const project = data.projects.find(project => project.id === issue.project_id);
+    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, tab: 'development', revision } }); await view.tick();
+    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: issueDetailData(issue, project) } }); await view.tick();
+  };
+  const selector = () => [...document.querySelectorAll('.issue-embed select')].find(select => [...select.options].some(option => option.textContent.startsWith('建立新工作')));
+  const copyPrompt = () => {
+    [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '複製任務並開啟 Codex CLI').click();
+    return view.requests.findLast(request => request.type === 'copyAndOpenCodex').text;
+  };
+  const selectWork = async value => {
+    const select = selector(); select.value = value;
+    select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  };
+  await openIssue(0, 20);
+  assert.equal(selector().value, 'work-20261013-first');
+  assert.match(copyPrompt(), /續作 Work ID：work-20261013-first/);
+  await selectWork('work-20261013-second');
+  assert.match(copyPrompt(), /續作 Work ID：work-20261013-second/);
+  await selectWork('');
+  assert.equal(selector().value, '');
+  assert.doesNotMatch(copyPrompt(), /續作 Work ID：/);
+  view.sendSnapshot(structuredClone(data)); await view.tick();
+  assert.equal(selector().value, '', 'ordinary snapshots preserve the explicit new-work choice');
+  assert.doesNotMatch(copyPrompt(), /續作 Work ID：/);
+  await openIssue(1, 21);
+  assert.equal(selector().value, 'work-20261013-beta', 'another Issue resets the choice to its own default');
+  assert.match(copyPrompt(), /續作 Work ID：work-20261013-beta/);
+});
+
+test('sidebar mode navigation restores the narrow-layout list while ordinary snapshots preserve its preview', async t => {
+  const view = await mount({ mode: 'developer' }, snapshot()); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const panel = () => document.querySelector('.workbench').dataset.mobilePanel;
+  document.querySelector('.mobile-switch').click(); await view.tick();
+  assert.equal(panel(), 'detail');
+  view.sendSnapshot(snapshot()); await view.tick();
+  assert.equal(panel(), 'detail', 'background refresh must keep the current preview visible');
+  view.sendSnapshot(snapshot('clone')); await view.tick();
+  assert.equal(panel(), 'list', 'the project list must remain visible at the narrow-layout CSS breakpoint');
+  assert.ok(document.querySelector('.clone-list-column'));
+  assert.equal(document.querySelector('.mobile-switch'), null, 'projects have no separate detail pane or return control');
+  view.sendSnapshot(snapshot('reviewer')); await view.tick();
+  document.querySelector('.mobile-switch').click(); await view.tick();
+  assert.equal(panel(), 'detail');
+  view.sendSnapshot(snapshot('reviewer')); await view.tick();
+  assert.equal(panel(), 'detail');
+  view.sendSnapshot(snapshot()); await view.tick();
+  assert.equal(panel(), 'list');
+});
+
+test('offline Skills footer shows the selected Repo and its actionable state without requiring a Group', async t => {
+  const state = snapshot('sa');
+  Object.assign(state, { connected: false, group: undefined, groupRoot: undefined, connectedScope: undefined, workspaceRootError: '尚未登入 GitLab' });
+  state.workflowKitInstallTarget = { root: 'C:/local/repo', profile: 'repository', manual: true, state: { status: 'installed' } };
+  setSkillsContext(state);
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.statusbar').textContent, /Skills 工作區（單一 Repo）：C:\/local\/repo/);
+  assert.doesNotMatch(document.querySelector('.statusbar').textContent, /尚未登入|開啟 GitLab Group/);
+  const unavailable = structuredClone(state);
+  unavailable.skillsContext = { ...unavailable.skillsContext, mode: 'unavailable', root: undefined, reason: '請選擇目前 VS Code 工作區的 Repo。' };
+  view.sendSnapshot(unavailable); await view.tick();
+  assert.match(document.querySelector('.statusbar').textContent, /請選擇目前 VS Code 工作區的 Repo/);
 });

@@ -56,8 +56,8 @@
 4. 登入成功後按 **選擇 Group**，並確認帳號面板中的 Group 與本機工作區狀態。專案下載與更新允許混合不同 Group 的 Repo；位置不唯一時按 **選擇下載資料夾**，選擇依工作區、連線與 Group 保存，可恢復自動辨識。閱讀與討論 Issue 可先使用；Skills 可免登入使用單 Repo 流程；Group Skills 與交付需要符合該群組的工作區。
 5. 在 VS Code 開啟 Group 資料夾，或開啟該 Group 的單一 Repo。擴充功能會依 Git remote 自動辨識；所有已開啟 Repo 與 Group 資料夾的直屬 Repo 都須符合所選 Group（含子群組），且共用唯一非 Git 根目錄。空 Group 資料夾可先下載，完成核對後才啟用 Group Skills。開啟 **設定 → 工作區與 Skills** 並安裝「GitLab Workspace 工作流程包」。預設 VSIX 內附版本可離線安裝；也可匯入 Release 的整包 ZIP。安裝前會檢查版本、內容摘要、舊工具與進行中的 Megin 工作。
 6. 開啟 **分析**，從選單選擇一項 Wiki 功能。提示詞會帶入目前 Group、本機實際 Repo 名稱與完整路徑及套件版本；複製到 Group 根目錄的 Codex CLI 執行。規格維持 draft／ready 與 SCN 驗證，再由使用者建立 GitLab Issue。
-7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**。在 **開發與交付** 複製含 Issue 內容、討論、GitLab 身分與 Repo 範圍的任務。若已有相同 Issue 的 Megin 工作，可選 Work ID 續作。完成 Megin 驗收後，依序建立精確 Commit、Push、建立 MR；MR 審查依固定來源與目標 SHA 產生報告。
-8. 全部 Repo 完成本機交付並保存證據後，複製 **Wiki 更新任務**，由 Codex 回查實際來源並更新 Group Wiki 的 index／log 與人工 notes。任務會分開標示本機交付與 MR 合併狀態。
+7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**。在 **開發與交付** 複製含 Issue 內容、討論、GitLab 身分與 Repo 範圍的任務。若已有相同 Issue 的 Megin 工作，可選 Work ID 續作，或明確選擇建立新工作。新版 Megin 完成驗證與人工驗收後交付本機 feature commits；後續 Push、MR 與合併由使用者透過版控或 GitLab 操作。MR 審查依固定來源與目標 SHA 產生報告。
+8. 全部 Repo 完成本機交付並保存證據後，從 **分析** 選擇 Wiki 更新功能，請 Codex 回查實際來源並更新 Group Wiki 的 index／log 與人工 notes，分別記錄本機交付與 MR 合併狀態。舊版交付紀錄仍保留原有 Wiki 更新任務入口。
 
 工作台的 **開啟 Codex CLI** 會在目前 Skills 情境所選的 Group 或 Repo 根目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
@@ -68,6 +68,8 @@
 此開關對應 VS Code 設定 `gitlabWorkspace.workflowKit.requireGroupEnvironment`，支援使用者設定及工作區覆寫。工作台開關在已開啟工作區時寫入工作區設定，空視窗寫入使用者設定，變更立即生效。側欄常駐顯示帳號摘要；右上角提供快速切換，完整登入、重新登入、登出及移除集中於 **設定 → 帳號與連線**，亦可執行 **GitLab Workspace: 管理 GitLab 帳號**。
 
 GitLab Workspace v0.22.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0，共 16 個 Skills。Megin 全部十三個 Skills 保留原生內容，Group v6 架構探索追查直接及間接消費端，未修改的受影響 Repo 提供固定驗證，不建立分支或交付。Group quick、標準、MR 與收據審查共用 portable v2 契約搜尋、影響鏈與逐 Repo 判定；MR task/report v2 綁定明確 Group 根目錄及精確 source／target SHA。單 Repo profile 以 `--scope repo` 限制於所選專案，Group 預設延伸所有具程式證據關聯的 Repo。
+
+**分析 → MergeReviewer → 指定 Repo 內容審查** 可選擇分支比較、已暫存內容或目前已儲存內容。後兩種不需要 remote 或 GitLab 連線：已暫存內容只看 index；目前已儲存內容看最終儲存版本，包含已暫存、未暫存及未忽略的未追蹤檔案。切回分支比較會保留原先填寫的版本。單 Repo 審查限制在所選專案，Group 審查以指定 Repo 為入口追查相關功能鏈。
 
 兩種 profile 另附 AutoHook 1.1.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，保留重新驗證與刷新狀態；勾選狀態以目前 Skills 根目錄實際安裝為準。隨包保存官方政策版本、原文與雜湊，固定規則只涵蓋部分政策，指定專案測試／建置和檔案新增／更新屬於勾選後的預授權。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
 
@@ -107,7 +109,7 @@ npm run package
 
 `npm test` 會執行單元、行為、整包安裝／回復、Group 工作流程、發行流程及 Extension Host 測試，並打包與驗證 VSIX。打包結果包含 `dist/gitlab-workspace-<版本>.vsix`、`dist/gitlab-workspace-kit-<版本>.zip` 及 `dist/SHA256SUMS`。Windows PowerShell 若無法執行 `npm` 指令，請改用 `npm.cmd`。
 
-建置會從 `resources/offline-tools/sources/` 的固定官方 ZIP 驗證 SHA-256，重建可重現的 TAR.XZ 與 Release ZIP，並確認兩者 payload 完全相同。原始來源 ZIP 只供本機重建使用，不會打包進 VSIX。
+建置會從 `resources/offline-tools/sources/` 的固定來源 ZIP 驗證 SHA-256，重建可重現的 TAR.XZ 與 Release ZIP，並確認兩者 payload 完全相同。原始來源 ZIP 只供本機重建使用，不會打包進 VSIX；本機整合版本的驗證不代表已發布對應上游 Release。
 
 ## 版本發行
 

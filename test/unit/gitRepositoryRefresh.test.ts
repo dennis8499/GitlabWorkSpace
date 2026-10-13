@@ -85,7 +85,7 @@ async function fixture() {
   service.fingerprintScheduler.dispose();
   service.fingerprintScheduler = new GitRefreshScheduler((repositoryId) => service.checkRepositoryFingerprint(repositoryId), clock);
   service.setActivePanelRepository(id, false);
-  return { service, repository, session, id, counts, clock, emit: () => changes.fire() };
+  return { service, repository, api, session, id, counts, clock, emit: () => changes.fire() };
 }
 
 test('a status-completed event cannot recursively run status; open, reads and staging settle for 60 seconds', async (t) => {
@@ -266,10 +266,12 @@ test('sidebar summaries exclude snapshots and their size is independent of Diff 
   await f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
   await f.service.handleAction(f.id, { type: 'readCommit', hash: head });
   const state = await f.service.getSummaryState();
-  for (const field of ['changes', 'history', 'historyHasMore', 'revision', 'diffText', 'diffPath', 'selectedCommit', 'commitFiles', 'commitCompleted', 'remotes']) {
+  for (const field of ['changes', 'history', 'historyHasMore', 'branches', 'stashes', 'recoveryRefs', 'diffText', 'diffPath', 'selectedCommit', 'commitFiles', 'commitCompleted', 'remotes']) {
     assert.equal(Object.hasOwn(state.repositories[0], field), false, field + ' belongs only to a snapshot');
   }
-  assert.equal(JSON.stringify(state), before);
+  const withoutRepositoryRevision = (value: string) => JSON.stringify(JSON.parse(value), (key, item) => key === 'revision' ? undefined : item);
+  assert.equal(withoutRepositoryRevision(JSON.stringify(state)), withoutRepositoryRevision(before));
+  assert.equal(state.repositories[0].revision, f.service.revisionByRepository.get(f.id));
   assert.ok(JSON.stringify(state).length < 2000);
 });
 
@@ -325,4 +327,92 @@ test('native Git repository wrappers may be recreated without suppressing update
   assert.equal(summary.repositories[0].headCommit, 'f'.repeat(40));
   assert.equal(summary.repositories[0].unstagedCount, 0);
   assert.equal(f.counts.status, 1, 'a native change updates the view without requesting native status');
+});
+
+test('collapsed repository lists omit details and concurrent expansion shares cached native reads', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const state = await f.service.getSummaryState();
+  assert.equal(f.counts.branches, 0);
+  assert.deepEqual(f.counts.commands.map(args => args[0]), ['symbolic-ref']);
+  for (const field of ['branches', 'stashes', 'recoveryRefs']) assert.equal(Object.hasOwn(state.repositories[0], field), false);
+  let validations = 0;
+  f.service.requireRepository = async () => { validations++; return f.repository; };
+  const [first, second] = await Promise.all([f.service.getRepositoryDetails(f.id), f.service.getRepositoryDetails(f.id)]);
+  assert.deepEqual(first, second);
+  assert.equal(f.counts.branches, 1);
+  assert.equal(f.counts.commands.length, 4);
+  assert.equal(validations, 1, 'concurrent consumers share repository identity validation too');
+  const reads = f.counts.commands.length;
+  f.service.bump(f.id); // Selection changes revise snapshots without changing repository data.
+  const cached = await f.service.getRepositoryDetails(f.id);
+  assert.equal(cached.revision, (await f.service.getSummaryState()).repositories[0].revision);
+  assert.equal(f.counts.commands.length, reads);
+  assert.equal(f.counts.branches, 1);
+  assert.equal(validations, 1, 'an unchanged cached expansion does not spawn another identity probe');
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id, refresh: false });
+  assert.equal(f.counts.branches, 1, 'the selected workbench shares the sidebar detail cache');
+});
+
+test('detail invalidation reloads only the changed repository and advances its summary revision', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const other = { ...f.repository, rootUri: { fsPath: path.join(f.repository.rootUri.fsPath, 'test') } };
+  f.api.repositories.push(other);
+  f.service.publishRepositories();
+  f.service.requireRepository = async (id: string) => f.service.findRepository(id);
+  const otherId = f.service.repositoryId(other.rootUri.fsPath);
+  await f.service.getSummaryState();
+  await f.service.getRepositoryDetails(f.id); await f.service.getRepositoryDetails(otherId);
+  const branches = f.counts.branches, commands = f.counts.commands.length;
+  f.service.invalidateRepository(f.id); f.service.bump(f.id); f.service.publishRepositoryState(f.id);
+  const changed = await f.service.getSummaryState();
+  assert.equal(changed.repositories.find((repo: { id: string }) => repo.id === f.id).revision, 1);
+  await f.service.getRepositoryDetails(otherId);
+  assert.equal(f.counts.branches, branches);
+  assert.equal(f.counts.commands.length, commands + 1, 'only the changed lightweight summary reads symbolic HEAD');
+  await f.service.getRepositoryDetails(f.id);
+  assert.equal(f.counts.branches, branches + 1);
+  assert.equal(f.counts.commands.length, commands + 4);
+});
+
+test('stale and closed repository detail requests cannot populate the cache or start queued reads', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.getSummaryState();
+  let release!: () => void, entered!: () => void;
+  const acquired = new Promise<void>(resolve => { entered = resolve; });
+  const getBranches = f.repository.getBranches;
+  f.repository.getBranches = async () => { entered(); await new Promise<void>(resolve => { release = resolve; }); return getBranches(); };
+  const stale = f.service.getRepositoryDetails(f.id);
+  await acquired;
+  f.service.invalidateRepository(f.id); f.service.bump(f.id);
+  release();
+  await assert.rejects(stale, /Repo 狀態已變更/);
+  assert.equal(f.service.detailsCache.has(f.id), false);
+  f.repository.getBranches = getBranches;
+  await f.service.getRepositoryDetails(f.id);
+  assert.equal(f.service.detailsCache.has(f.id), true);
+
+  let unlock!: () => void, locked!: () => void;
+  const held = withGitDirectoryLock(f.repository.rootUri.fsPath, () => new Promise<void>(resolve => { unlock = resolve; locked(); }));
+  await new Promise<void>(resolve => { locked = resolve; });
+  f.service.invalidateRepository(f.id);
+  const closed = f.service.getRepositoryDetails(f.id);
+  await flush();
+  const commands = f.counts.commands.length;
+  f.api.repositories.length = 0;
+  unlock(); await held;
+  await assert.rejects(closed, /Repo 狀態已變更/);
+  assert.equal(f.counts.commands.length, commands);
+});
+
+test('failed detail reads remain retryable instead of caching an empty stash list', async (t) => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const runGit = f.service.runGit;
+  f.service.runGit = async (repo: unknown, args: string[]) => {
+    if (args[0] === 'stash') throw new Error('stash read failed');
+    return runGit(repo, args);
+  };
+  await assert.rejects(f.service.getRepositoryDetails(f.id), /stash read failed/);
+  assert.equal(f.service.detailsCache.has(f.id), false);
+  f.service.runGit = runGit;
+  assert.equal((await f.service.getRepositoryDetails(f.id)).branches.length, 1);
 });

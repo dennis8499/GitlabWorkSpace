@@ -1,0 +1,1040 @@
+{
+  "schema": "GitLabWorkspaceGitSummaryCommandBenchmark/v1",
+  "generatedAt": "2026-10-13T08:43:09.072Z",
+  "environment": {
+    "node": "v24.21.0",
+    "platform": "win32"
+  },
+  "methodology": "Compiled production modules extracted from each SHA-bound VSIX. Twenty registered repository fixtures; production list, detail cache, locking and workbench snapshot methods. Git output, native API output, identity validation and fingerprints are mocked. No real Git commands or network requests are performed.",
+  "limits": [
+    "Command/API invocation counts only; this does not measure or establish real Git, VS Code or GitLab latency.",
+    "Idle phase is 100 immediate cached reads, not a timed live Extension Host idle observation."
+  ],
+  "status": "PASS",
+  "baseline": {
+    "artifact": {
+      "path": ".gitlab-workspace-validation/skills-ux-20261013/baseline-0.22.0.vsix",
+      "sha256": "f2dd3eab70205b42bebc44d0173fad425ee28ec0539a722f8349584f720ac1c7",
+      "name": "gitlab-workspace",
+      "version": "0.22.0"
+    },
+    "repositories": 20,
+    "hasLazyDetails": false,
+    "phases": {
+      "coldSummary": {
+        "rawGitCommands": 80,
+        "nativeGetBranches": 20,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 0
+      },
+      "sharedDetailsRequests": {
+        "requests": 10,
+        "rawGitCommands": 0,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 0
+      },
+      "selectedWorkbench": {
+        "rawGitCommands": 1,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 3,
+        "identityValidations": 0
+      },
+      "idleCachedReads": {
+        "repetitions": 100,
+        "rawGitCommands": 0,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 0
+      }
+    },
+    "coldSummaryFields": [
+      "ahead",
+      "behind",
+      "branch",
+      "branches",
+      "busy",
+      "conflictCount",
+      "headCommit",
+      "id",
+      "name",
+      "path",
+      "recoveryRefs",
+      "stagedCount",
+      "stashes",
+      "tracking",
+      "unstagedCount"
+    ],
+    "total": {
+      "rawGitCommands": 81,
+      "nativeGetBranches": 20,
+      "nativeStatus": 0,
+      "nativeGetConfig": 3,
+      "identityValidations": 0
+    },
+    "commandTrace": [
+      {
+        "repository": "baseline-repo-0",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-0",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-0",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-0",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-2",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-2",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-2",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-2",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-1",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-1",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-1",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-1",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-3",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-3",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-3",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-3",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-4",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-4",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-4",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-4",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-5",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-5",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-5",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-5",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-6",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-6",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-6",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-6",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-7",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-7",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-7",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-7",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-10",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-10",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-10",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-10",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-8",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-8",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-8",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-8",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-11",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-11",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-11",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-11",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-9",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-9",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-9",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-9",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-12",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-12",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-12",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-12",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-14",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-14",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-14",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-14",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-13",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-13",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-13",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-13",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-15",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-15",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-15",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-15",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-16",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-16",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-16",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-16",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-17",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-17",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-17",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-17",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-18",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-18",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-18",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-18",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-19",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "baseline-repo-19",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "baseline-repo-19",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "baseline-repo-19",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "baseline-repo-0",
+        "args": [
+          "log",
+          "--topo-order",
+          "--all",
+          "--date=iso-strict",
+          "--format=%H%x00%P%x00%an%x00%aI%x00%s",
+          "-n",
+          "201"
+        ]
+      }
+    ]
+  },
+  "revision": {
+    "artifact": {
+      "path": "dist/gitlab-workspace-0.22.0.vsix",
+      "sha256": "fa2da28694dfda84193f8bcd0666d3a93ace26a3138fb418eeb8e6de21d775dd",
+      "name": "gitlab-workspace",
+      "version": "0.22.0"
+    },
+    "repositories": 20,
+    "hasLazyDetails": true,
+    "phases": {
+      "coldSummary": {
+        "rawGitCommands": 20,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 0
+      },
+      "sharedDetailsRequests": {
+        "requests": 10,
+        "rawGitCommands": 3,
+        "nativeGetBranches": 1,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 1
+      },
+      "selectedWorkbench": {
+        "rawGitCommands": 1,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 3,
+        "identityValidations": 0
+      },
+      "idleCachedReads": {
+        "repetitions": 100,
+        "rawGitCommands": 0,
+        "nativeGetBranches": 0,
+        "nativeStatus": 0,
+        "nativeGetConfig": 0,
+        "identityValidations": 0
+      }
+    },
+    "coldSummaryFields": [
+      "ahead",
+      "behind",
+      "branch",
+      "busy",
+      "conflictCount",
+      "headCommit",
+      "id",
+      "name",
+      "path",
+      "revision",
+      "stagedCount",
+      "tracking",
+      "unstagedCount"
+    ],
+    "total": {
+      "rawGitCommands": 24,
+      "nativeGetBranches": 1,
+      "nativeStatus": 0,
+      "nativeGetConfig": 3,
+      "identityValidations": 1
+    },
+    "commandTrace": [
+      {
+        "repository": "revision-repo-1",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-3",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-2",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-0",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-4",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-5",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-6",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-7",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-9",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-8",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-10",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-11",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-12",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-14",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-13",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-15",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-16",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-17",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-18",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-19",
+        "args": [
+          "symbolic-ref",
+          "--quiet",
+          "--short",
+          "HEAD"
+        ]
+      },
+      {
+        "repository": "revision-repo-0",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(*objectname)%00%(objectname)",
+          "refs/tags"
+        ]
+      },
+      {
+        "repository": "revision-repo-0",
+        "args": [
+          "stash",
+          "list",
+          "--format=%H%x00%gd%x00%s"
+        ]
+      },
+      {
+        "repository": "revision-repo-0",
+        "args": [
+          "for-each-ref",
+          "--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)",
+          "refs/gitlab-workspace/backups"
+        ]
+      },
+      {
+        "repository": "revision-repo-0",
+        "args": [
+          "log",
+          "--topo-order",
+          "--all",
+          "--date=iso-strict",
+          "--format=%H%x00%P%x00%an%x00%aI%x00%s",
+          "-n",
+          "201"
+        ]
+      }
+    ]
+  },
+  "coldReduction": {
+    "rawGitCommands": 60,
+    "nativeGetBranches": 20
+  }
+}

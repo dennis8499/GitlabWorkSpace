@@ -1,0 +1,12 @@
+{"workflow_kit_version": "0.22.0", "archive_sha256": "70c843930a23f66d41ab9100bd33a550877217d956550323ee9e7f600427c863", "python": "3.14.7 (tags/v3.14.7:823f032, Aug  5 2026, 10:51:32) [MSC v.1944 64 bit (AMD64)]", "profiles": ["group", "repository"]}
+test_final_saved_target_covers_mixed_and_untracked_but_excludes_generated_reports (__main__.LocalReviewTargetsTests.test_final_saved_target_covers_mixed_and_untracked_but_excludes_generated_reports) ... ok
+test_group_scope_captures_both_repo_sources_with_only_the_selected_seed (__main__.LocalReviewTargetsTests.test_group_scope_captures_both_repo_sources_with_only_the_selected_seed) ... ok
+test_local_targets_reject_remote_and_branch_inputs (__main__.LocalReviewTargetsTests.test_local_targets_reject_remote_and_branch_inputs) ... ok
+test_no_remote_staged_bug_and_final_saved_fix_are_distinct (__main__.LocalReviewTargetsTests.test_no_remote_staged_bug_and_final_saved_fix_are_distinct) ... ok
+test_repository_scope_isolates_selected_repo_from_an_installed_parent_group (__main__.LocalReviewTargetsTests.test_repository_scope_isolates_selected_repo_from_an_installed_parent_group) ... ok
+test_unborn_repository_supports_index_and_saved_sources_against_empty_tree (__main__.LocalReviewTargetsTests.test_unborn_repository_supports_index_and_saved_sources_against_empty_tree) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 59.892s
+
+OK

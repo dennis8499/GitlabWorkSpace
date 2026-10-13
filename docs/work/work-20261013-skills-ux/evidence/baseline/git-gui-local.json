@@ -1,0 +1,12 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-13T08:21:00.088Z",
+  "mode": "local-only",
+  "status": "FAIL",
+  "sourceRepository": "isolated generated Git seed",
+  "testedArtifact": {
+    "vsix": ".gitlab-workspace-validation/skills-ux-20261013/baseline-0.22.0.vsix",
+    "sha256": "f2dd3eab70205b42bebc44d0173fad425ee28ec0539a722f8349584f720ac1c7"
+  },
+  "error": "Test run failed with code 2147483651"
+}

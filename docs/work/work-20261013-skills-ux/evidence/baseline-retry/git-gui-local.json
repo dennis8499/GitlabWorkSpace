@@ -1,0 +1,102 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-13T08:25:26.883Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.141.0",
+  "testedArtifact": {
+    "vsix": ".gitlab-workspace-validation/skills-ux-20261013/baseline-0.22.0.vsix",
+    "sha256": "f2dd3eab70205b42bebc44d0173fad425ee28ec0539a722f8349584f720ac1c7"
+  },
+  "status": "FAIL",
+  "error": "open: idle Git GUI must not launch additional extension Git commands or native API requests\n+ actual - expected\n\n  {\n    auxiliaryCommands: 0,\n+   commands: 5,\n+   nativeApiCalls: 4\n-   commands: 0,\n-   nativeApiCalls: 0\n  }\n",
+  "workspaceFolders": [
+    "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791879854272-22224\\demo\\service"
+  ],
+  "nativeGitRepositoryState": {
+    "repositories": [
+      {
+        "id": "799405c7b1f166b8f32b95258efa5d1f",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791879854272-22224\\demo\\service",
+        "branch": "main",
+        "headCommit": "ed74a7b4b07a885fd4859073bd5673bb167abc98",
+        "tracking": "origin/main",
+        "ahead": 0,
+        "behind": 0,
+        "stagedCount": 0,
+        "unstagedCount": 1,
+        "conflictCount": 0,
+        "busy": false,
+        "branches": [
+          {
+            "name": "main",
+            "kind": "local",
+            "current": true,
+            "commit": "ed74a7b4b07a885fd4859073bd5673bb167abc98"
+          },
+          {
+            "name": "origin/main",
+            "kind": "remote",
+            "current": false,
+            "commit": "ed74a7b4b07a885fd4859073bd5673bb167abc98"
+          }
+        ],
+        "stashes": [],
+        "recoveryRefs": []
+      }
+    ],
+    "available": true,
+    "revision": 6
+  },
+  "windowFocused": true,
+  "nativeGitActivity": {
+    "commands": 18,
+    "auxiliaryCommands": 1,
+    "nativeApiCalls": 12,
+    "nativeStatusEvents": 5
+  },
+  "nativeWorkingChanges": [
+    {
+      "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791879854272-22224\\demo\\service",
+      "changes": [
+        "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1791879854272-22224\\demo\\service\\.workflow-kit-install.lock"
+      ]
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "799405c7b1f166b8f32b95258efa5d1f",
+      "action": "open"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60008,
+      "before": {
+        "commands": 13,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 8,
+        "nativeStatusEvents": 4
+      },
+      "after": {
+        "commands": 18,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 12,
+        "nativeStatusEvents": 5
+      },
+      "extensionDelta": {
+        "commands": 5,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 4
+      },
+      "vscodeGitLog": {
+        "before": 41,
+        "after": 50,
+        "backgroundDelta": 9
+      }
+    }
+  ],
+  "sourceRepository": "isolated generated Git seed"
+}

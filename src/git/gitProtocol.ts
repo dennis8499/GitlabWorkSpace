@@ -32,6 +32,12 @@ export interface GitRepositorySummary {
   unstagedCount: number;
   conflictCount: number;
   busy?: boolean;
+  revision: number;
+}
+
+export interface GitRepositoryDetails {
+  id: string;
+  revision: number;
   branches: GitBranchSummary[];
   stashes: GitStashSummary[];
   recoveryRefs: GitRecoveryRefSummary[];
@@ -65,7 +71,7 @@ export interface GitRebasePlan {
   containsMerge: boolean;
 }
 
-export interface GitRepositorySnapshot extends GitRepositorySummary {
+export interface GitRepositorySnapshot extends GitRepositorySummary, GitRepositoryDetails {
   /** Present only on a Commit action response; cancelling must not clear the draft. */
   commitCompleted?: boolean;
   remotes: string[];

@@ -22,6 +22,9 @@ async function mount() {
     repoButtons: () => [...dom.window.document.querySelectorAll('.repo-link')],
     sendState(state) {
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'state', state } }));
+    },
+    send(message) {
+      dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: message }));
     }
   };
 }
@@ -46,9 +49,7 @@ test('shows connection scope and dispatches each destination with accessible bus
   const repositoryId = 'a'.repeat(32);
   view.sendState({ connected: true, groupLabel: 'team/dotnet', gitAvailable: true, activeMode: 'git', selectedRepositoryId: repositoryId, repositories: [{
     id: repositoryId, name: 'project', path: 'C:\\workspace\\project', branch: 'main', tracking: 'origin/main',
-    stagedCount: 1, unstagedCount: 2, conflictCount: 0,
-    branches: [{ name: 'main', kind: 'local', current: true }],
-    stashes: [{ oid: 'b'.repeat(40), message: 'stash@{0} · before refactor' }], recoveryRefs: []
+    stagedCount: 1, unstagedCount: 2, conflictCount: 0, revision: 1
   }] });
   await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -68,6 +69,11 @@ test('shows connection scope and dispatches each destination with accessible bus
   view.dom.window.document.querySelector('.repo-disclosure').click();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.dom.window.document.querySelector('.repo-disclosure').getAttribute('aria-expanded'), 'true');
+  await waitFor(() => view.requests.some(request => request.type === 'repositoryDetails'));
+  view.send({ ...view.requests.at(-1), details: { id: repositoryId, revision: 1,
+    branches: [{ name: 'main', kind: 'local', current: true }],
+    stashes: [{ oid: 'b'.repeat(40), message: 'stash@{0} · before refactor' }], recoveryRefs: [] } });
+  await waitFor(() => view.dom.window.document.querySelector('.ref-link'));
   assert.match(view.dom.window.document.querySelector('.repo-details').textContent, /main/);
   view.repoButtons()[0].click();
   assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'openRepository', repositoryId });
@@ -88,6 +94,77 @@ test('shows connection scope and dispatches each destination with accessible bus
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.dom.window.document.querySelector('.action-message').textContent, '無法連線');
   assert.equal(view.buttons().every((button) => !button.disabled), true);
+});
+
+async function waitFor(predicate) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (predicate()) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.ok(predicate(), 'the sidebar update settled');
+}
+
+const repoId = 'c'.repeat(32);
+const summary = revision => ({ id: repoId, revision, name: 'service', path: 'C:\\workspace\\service', branch: 'main', stagedCount: 0, unstagedCount: 1, conflictCount: 0 });
+const stateFor = revision => ({ connected: false, gitAvailable: true, repositories: [summary(revision)] });
+const detailsFor = revision => ({ id: repoId, revision, branches: [{ name: `branch-${revision}`, kind: 'local', current: true }], stashes: [], recoveryRefs: [] });
+const detailsRequests = view => view.requests.filter(request => request.type === 'repositoryDetails');
+
+test('loads expanded Repo details only, with retry and correlated stale-response protection', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close());
+  view.sendState(stateFor(1));
+  await waitFor(() => view.repoButtons().length === 1);
+  assert.equal(detailsRequests(view).length, 0, 'collapsed Repos do not request refs or Stash');
+  view.dom.window.document.querySelector('.repo-disclosure').click();
+  await waitFor(() => detailsRequests(view).length === 1);
+  const first = detailsRequests(view).at(-1);
+  view.sendState(stateFor(1));
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(detailsRequests(view).length, 1, 'ordinary state updates share the in-flight read');
+  view.send({ ...first, error: 'Unable to read refs' });
+  await waitFor(() => view.dom.window.document.querySelector('.repo-details button')?.textContent === '重試載入');
+  view.dom.window.document.querySelector('.repo-details button').click();
+  await waitFor(() => detailsRequests(view).length === 2);
+  const second = detailsRequests(view).at(-1);
+  view.send({ ...first, details: detailsFor(1) });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(view.dom.window.document.querySelector('.ref-link'), null, 'superseded request cannot replace the retry');
+  view.send({ ...second, details: detailsFor(1) });
+  await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-1'));
+  view.sendState(stateFor(2));
+  await waitFor(() => detailsRequests(view).length === 3);
+  view.send({ ...detailsRequests(view).at(-1), details: detailsFor(2) });
+  await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-2'));
+});
+
+test('collapse, hidden views and removed Repos discard late details and reload on return', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close());
+  view.sendState(stateFor(1)); await waitFor(() => view.repoButtons().length);
+  const disclosure = () => view.dom.window.document.querySelector('.repo-disclosure');
+  disclosure().click(); await waitFor(() => detailsRequests(view).length === 1);
+  const collapsed = detailsRequests(view).at(-1);
+  disclosure().click();
+  await waitFor(() => view.requests.some(request => request.type === 'cancelRepositoryDetails'));
+  view.send({ ...collapsed, details: detailsFor(1) });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(view.dom.window.document.querySelector('.repo-details'), null);
+  disclosure().click(); await waitFor(() => detailsRequests(view).length === 2);
+  const hidden = detailsRequests(view).at(-1);
+  view.send({ type: 'visibility', visible: false });
+  view.send({ ...hidden, details: detailsFor(1) });
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(view.dom.window.document.querySelector('.ref-link'), null);
+  assert.equal(detailsRequests(view).length, 2);
+  view.send({ type: 'visibility', visible: true });
+  await waitFor(() => detailsRequests(view).length === 3);
+  const removed = detailsRequests(view).at(-1);
+  view.sendState({ connected: false, gitAvailable: true, repositories: [] });
+  await waitFor(() => !view.repoButtons().length);
+  view.send({ ...removed, details: detailsFor(1) });
+  view.sendState(stateFor(2));
+  await waitFor(() => detailsRequests(view).length === 4);
+  view.send({ ...detailsRequests(view).at(-1), details: detailsFor(2) });
+  await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-2'));
 });
 
 test('shows saved account summaries and dispatches supported account management actions', async t => {

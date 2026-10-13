@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { GitLabSession } from './connection/session';
+import type { GitRepositoryDetails } from './git/gitProtocol';
 import {
   isQuickActionsRequest,
   type QuickAction,
@@ -16,13 +17,16 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private busyAction?: QuickAction;
   private errorMessage?: string;
   private stateRevision = 0;
+  private viewGeneration = 0;
+  private readonly detailsRequests = new Map<string, string>();
   private readonly subscriptions: vscode.Disposable[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly session: GitLabSession,
     private readonly runAction: (action: QuickAction, repositoryId?: string) => Thenable<unknown> | Promise<unknown> | unknown,
-    private readonly getNavigationState?: () => Promise<Pick<QuickActionsState, 'activeMode' | 'repositories' | 'gitAvailable' | 'gitMessage' | 'accountOperation' | 'workflowKitPolicy'>>
+    private readonly getNavigationState?: () => Promise<Pick<QuickActionsState, 'activeMode' | 'repositories' | 'gitAvailable' | 'gitMessage' | 'accountOperation' | 'workflowKitPolicy'>>,
+    private readonly getRepositoryDetails?: (repositoryId: string) => Promise<GitRepositoryDetails>
   ) {}
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
@@ -33,10 +37,15 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     this.subscriptions.push(
       view.webview.onDidReceiveMessage((message: unknown) => {
         if (!isQuickActionsRequest(message)) return;
-        if (message.type === 'ready') this.sendState();
+        if (message.type === 'ready') { this.sendVisibility(); void this.sendState(); }
+        else if (message.type === 'repositoryDetails') void this.loadRepositoryDetails(message.repositoryId, message.requestId);
+        else if (message.type === 'cancelRepositoryDetails') this.detailsRequests.delete(message.repositoryId);
         else void this.perform(message.action, message.action === 'openRepository' ? message.repositoryId : undefined);
       }),
-      view.onDidChangeVisibility(() => { if (view.visible) this.sendState(); }),
+      view.onDidChangeVisibility(() => {
+        this.viewGeneration++; this.detailsRequests.clear(); this.sendVisibility();
+        if (view.visible) void this.sendState();
+      }),
       view.onDidDispose(() => { if (this.view === view) this.clearView(); })
     );
 
@@ -73,7 +82,33 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     }
   }
 
-  private sendState(): void {
+  private sendVisibility(): void {
+    if (this.view) void this.view.webview.postMessage({ type: 'visibility', visible: this.view.visible } satisfies QuickActionsResponse);
+  }
+
+  private async loadRepositoryDetails(repositoryId: string, requestId: string): Promise<void> {
+    const view = this.view, generation = this.viewGeneration;
+    if (!view?.visible) return;
+    this.detailsRequests.set(repositoryId, requestId);
+    const current = () => this.view === view && view.visible && generation === this.viewGeneration && this.detailsRequests.get(repositoryId) === requestId;
+    try {
+      // A collapse/hide in the same turn can cancel a read before it starts.
+      await Promise.resolve();
+      if (!current()) return;
+      if (!this.getRepositoryDetails) throw new Error('無法載入 Repo 詳細資料。');
+      const details = await this.getRepositoryDetails(repositoryId);
+      if (!current()) return;
+      await this.sendState();
+      if (current()) void view.webview.postMessage({ type: 'repositoryDetails', repositoryId, requestId, details } satisfies QuickActionsResponse);
+    } catch (error) {
+      if (current()) void view.webview.postMessage({ type: 'repositoryDetails', repositoryId, requestId,
+        error: error instanceof Error ? error.message : '無法載入 Repo 詳細資料。' } satisfies QuickActionsResponse);
+    } finally {
+      if (this.detailsRequests.get(repositoryId) === requestId) this.detailsRequests.delete(repositoryId);
+    }
+  }
+
+  private async sendState(): Promise<void> {
     if (!this.view) return;
     const view = this.view;
     const revision = ++this.stateRevision;
@@ -85,7 +120,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       busyAction: this.busyAction,
       errorMessage: this.errorMessage
     };
-    void Promise.resolve(this.getNavigationState?.()).then((navigation) => {
+    await Promise.resolve(this.getNavigationState?.()).then((navigation) => {
       if (this.view !== view || revision !== this.stateRevision) return;
       Object.assign(state, navigation);
       const message: QuickActionsResponse = { type: 'state', state };
@@ -97,6 +132,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   }
 
   private clearView(): void {
+    this.viewGeneration++; this.stateRevision++; this.detailsRequests.clear();
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
     this.view = undefined;
   }

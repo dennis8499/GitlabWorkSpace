@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
+import { canonicalSha256, type MergeReviewReportMetadata, type MergeReviewTask } from '../../src/workspace/mergeReviewReport';
 
 // Run real controller methods in the Extension Host with an in-memory GitLab substitute.
 // No windows, network writes, Git pushes or live projects are used by these tests.
@@ -10,11 +11,16 @@ const identity = { origin: 'https://gitlab.example.invalid', projectId: 10, mrIi
   sourceProjectId: 20, targetProjectId: 10, sourceBranch: 'feature', targetBranch: 'main', sourceSha, targetSha };
 const request = { project_id: 10, iid: 4, source_project_id: 20, target_project_id: 10,
   source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: sourceSha } };
+const groupRoot = 'C:/group', repoPath = 'C:/group/repo';
 
 function report(body = 'Incomplete review with P1 findings'): string {
-  const metadata = { schema: 'MergeReviewReport/v1', ...identity, comparisonBaseSha: targetSha,
-    mode: 'merge', repoPath: 'C:/group/repo', contextSha256: 'c'.repeat(64), reviewComplete: false,
-    bodySha256: createHash('sha256').update(body).digest('hex') };
+  const task: MergeReviewTask = { schema: 'MergeReviewTask/v2', ...identity, groupRoot, repoPath,
+    sourceRemoteUrl: identity.origin + '/group/source.git', targetRemoteUrl: identity.origin + '/group/repo.git', mode: 'merge' };
+  const metadata: MergeReviewReportMetadata = { schema: 'MergeReviewReport/v2', ...identity, comparisonBaseSha: targetSha,
+    mode: 'merge', groupRoot, repoPath, contextSha256: 'c'.repeat(64), reviewComplete: false,
+    contextSchema: 'merge-reviewer-workspace-context/v2', scope: 'group', task, taskSha256: canonicalSha256(task),
+    bodySha256: createHash('sha256').update(body).digest('hex'), bindingSha256: '' };
+  metadata.bindingSha256 = canonicalSha256(Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'bindingSha256')));
   return `${body}\n\n<!-- merge-review-report:${Buffer.from(JSON.stringify(metadata)).toString('base64')} -->\n`;
 }
 
@@ -23,6 +29,8 @@ function panel(client: Harness): Harness {
   return Object.assign(Object.create(WorkspacePanel.prototype), {
     session: { baseUrl: identity.origin, selectedGroup: { id: 3 }, getClient: async () => client },
     projects: [{ id: 10 }], currentUser: { id: 7 }, selectedMergeRequest: { request, discussions: [] },
+    groupRoot, getSkillsContext: () => ({ groupMatch: { status: 'matched', root: groupRoot,
+      repositories: [{ path: repoPath, projectId: 10, matched: true }] } }),
     mrWritesInFlight: new Set(), post: () => undefined, loadMergeRequest: async () => undefined,
     context: { globalState: {
       get: (key: string, fallback: unknown) => values.get(key) ?? fallback,
@@ -32,6 +40,12 @@ function panel(client: Harness): Harness {
 }
 
 suite('Group delivery and version-bound report controller', () => {
+  test('rejects edited report text before checking or publishing to GitLab', async () => {
+    let reads = 0, writes = 0;
+    const view = panel({ getMergeRequest: async () => { reads++; return request; }, createMergeRequestNote: async () => { writes++; } });
+    await assert.rejects(view.publishMergeReviewReport(10, 4, report().replace('P1', 'P0')), /正文摘要/);
+    assert.equal(reads, 0); assert.equal(writes, 0);
+  });
   test('publishes a valid incomplete report after rechecking the target immediately before writing', async () => {
     const calls: string[] = [];
     const client = {

@@ -3,7 +3,7 @@ import type { JSX } from 'preact';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { buildWikiGuideContext } from './codebaseWikiGuideData';
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
-  getSkillGuideCards, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
+  getSkillGuideCards, getSkillGuideFields, getMergeReviewTarget, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
 
 export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, onNavigate, kitInstalled, skillsContext, onSelectRepository, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
@@ -27,6 +27,10 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   const available = skillsContext ? skillsContext.availableFeatures.includes(card.id) : !!context.groupRoot && kitInstalled;
   const workIdAllowed = !skillsContext?.resumeOnly || !!skillsContext.installed.activeWorkIds?.includes(state.inputs['megin-resume.workId']?.trim());
   const ready = available && workIdAllowed && context.repositoryScanStatus === 'ready' && canCopySkillPrompt(card, state.inputs);
+  const reviewTarget = getMergeReviewTarget(state.inputs);
+  const behavior = card.id !== 'merge-repo' || reviewTarget === 'branch' ? card.behavior
+    : reviewTarget === 'staged' ? '對照本機 HEAD 與真實暫存區，只審查已暫存版本；不混入後續工作檔修改，也不需要 remote。'
+    : '對照本機 HEAD 與目前已儲存檔案，包含已暫存、未暫存與未忽略的未追蹤檔案；已暫存版本若被工作檔覆寫，只審查目前儲存版本。不需要 remote。';
   const unavailable = skillsContext ? skillsContext.reason ?? (!workIdAllowed ? '請選擇原本進行中的 Work ID。' : '')
     : !context.groupRoot ? '請先開啟 Group 本機工作區。' : !kitInstalled ? '請先安裝或更新工作流程包。'
     : context.repositoryScanStatus !== 'ready' ? context.repositoryScanError ?? '請等候本機 Repo 掃描完成。' : '';
@@ -58,8 +62,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
         <header class="wiki-guide-card-header"><div><span class="eyebrow">GitLab Workspace · {context.workflowKitVersion ?? '未安裝'}{skillsContext?.installed.upstreamVersions?.[tool] ? ` · ${skillsContext.installed.upstreamVersions[tool]}` : ''}</span><h2 id={`wiki-card-title-${card.id}`}>{card.title}</h2></div></header>
         <p class="wiki-guide-description">{card.description}</p>
         <p class="wiki-guide-output"><strong>預期產出：</strong>{card.output}</p>
-        <p class="wiki-guide-behavior"><strong>執行方式：</strong>{card.behavior}</p>
-        <div class="wiki-guide-fields">{card.fields.map(item => {
+        <p class="wiki-guide-behavior"><strong>執行方式：</strong>{behavior}</p>
+        <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).map(item => {
           const key = `${card.id}.${item.id}`;
           const value = state.inputs[key] ?? item.defaultValue ?? '';
           const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }));

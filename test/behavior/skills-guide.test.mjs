@@ -1,0 +1,93 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+import { JSDOM, VirtualConsole } from 'jsdom';
+
+const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
+const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
+const { version } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+
+function snapshot(profile) {
+  const groupRoot = 'C:/工作區 with spaces';
+  const repo = { name: 'service', path: `${groupRoot}/service`, matched: profile === 'group' };
+  const root = profile === 'group' ? groupRoot : repo.path;
+  const capabilities = ['merge-repo', 'merge-quick', ...(profile === 'group' ? ['merge-group'] : [])];
+  const installed = { status: 'installed', version, profile, capabilities, upstreamVersions: { 'merge-reviewer': '0.11.0' } };
+  return {
+    connected: profile === 'group', baseUrl: profile === 'group' ? 'https://gitlab.example.test' : undefined,
+    currentUser: profile === 'group' ? { id: 1, name: 'Tester' } : undefined,
+    group: profile === 'group' ? { id: 2, name: 'Team', full_path: 'team' } : undefined,
+    groups: [], projects: [], issues: [], mergeRequests: [], groupMilestones: [], groupIssueBoards: [],
+    groupRoot: profile === 'group' ? root : undefined, groupRepositories: [repo], groupRepositoryScanStatus: 'ready',
+    localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [], deliveryRecords: [], tools: [],
+    activeMode: 'sa', connectedScope: profile === 'group' ? 'group-scope' : undefined, instanceUserScope: 'tester',
+    workflowKit: installed, workflowKitInstallTarget: { root, manual: false, profile, state: installed },
+    workflowKitPackages: [], workflowKitSource: 'bundled', busy: false,
+    skillsContext: { mode: profile, root, revision: `${profile}-revision`, installed, availableFeatures: capabilities,
+      repositories: [repo], groupMatch: { status: profile === 'group' ? 'matched' : 'unverified',
+        root: profile === 'group' ? root : undefined, repositories: [repo] } }
+  };
+}
+
+async function mount(t, profile, saved) {
+  const errors = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', error => errors.push(error.stack ?? error.message));
+  const dom = new JSDOM(html, { url: 'https://skills.example.test', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole });
+  t.after(() => { dom.window.close(); assert.deepEqual(errors, []); });
+  dom.window.addEventListener('error', event => errors.push(event.error?.stack ?? event.message));
+  const requests = [];
+  let state = saved ?? { mode: 'sa' };
+  dom.window.acquireVsCodeApi = () => ({ postMessage: request => requests.push(request), getState: () => state,
+    setState: value => { state = JSON.parse(JSON.stringify(value)); } });
+  dom.window.eval(script);
+  const tick = async () => {
+    await new Promise(resolve => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve)));
+    await new Promise(resolve => setTimeout(resolve, 0));
+  };
+  await tick();
+  dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: snapshot(profile) } }));
+  await tick();
+  const document = dom.window.document;
+  const change = async (id, value, event = 'change') => {
+    const control = document.querySelector(id);
+    assert.ok(control, `missing ${id}`);
+    control.value = value; control.dispatchEvent(new dom.window.Event(event, { bubbles: true })); await tick();
+  };
+  return { dom, document, requests, tick, change, get savedState() { return state; } };
+}
+
+for (const profile of ['group', 'repository']) test(`${profile} review selector keeps branch drafts and supports local targets without a remote`, async t => {
+  const view = await mount(t, profile);
+  const { document, change } = view;
+  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'merge-repo');
+  assert.equal(document.querySelector('[id="wiki-input-merge-repo.target"]').value, '分支比較');
+  if (profile === 'group') await change('[id="wiki-input-merge-repo.repo"]', 'service', 'input');
+  await change('[id="wiki-input-merge-repo.base"]', 'main', 'input');
+  await change('[id="wiki-input-merge-repo.head"]', 'feature/review', 'input');
+  await change('[id="wiki-input-merge-repo.mode"]', '直接比較');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+
+  for (const [label, target] of [['已暫存內容', 'staged'], ['目前已儲存內容', 'uncommitted']]) {
+    await change('[id="wiki-input-merge-repo.target"]', label);
+    for (const field of ['base', 'head', 'mode', 'remote']) assert.equal(document.querySelector(`[id="wiki-input-merge-repo.${field}"]`), null);
+    assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+    const preview = document.querySelector('.wiki-prompt-preview').textContent;
+    assert.ok(preview.includes(`--scope ${profile === 'group' ? 'group' : 'repo'} --target ${target}`));
+    assert.doesNotMatch(preview, /--base|--head|--mode|--remote|--quick|feature\/review/);
+    assert.match(document.querySelector('.wiki-guide-behavior').textContent, /不需要 remote/);
+    document.querySelector('.wiki-copy-button').click(); await view.tick();
+    const copy = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
+    assert.equal(copy.featureId, 'merge-repo');
+    assert.equal(copy.inputs['merge-repo.target'], label);
+    assert.equal(copy.inputs['merge-repo.head'], 'feature/review', 'hidden branch drafts stay saved for the host to validate the selected target');
+  }
+  const reopened = await mount(t, profile, view.savedState);
+  assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.target"]').value, '目前已儲存內容');
+  assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.base"]'), null);
+  await reopened.change('[id="wiki-input-merge-repo.target"]', '分支比較');
+  assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.base"]').value, 'main');
+  assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value, 'feature/review');
+  assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.mode"]').value, '直接比較');
+  assert.equal(reopened.document.querySelector('.wiki-copy-button').disabled, false);
+});

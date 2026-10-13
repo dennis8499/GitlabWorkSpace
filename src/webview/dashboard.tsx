@@ -219,6 +219,8 @@ function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
   const [issueEditorDrafts, setIssueEditorDrafts] = useState<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
   useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
@@ -449,11 +451,13 @@ function App() {
         const operation = message.snapshot.connectedScope && message.snapshot.cloneOperation?.scopeKey === message.snapshot.connectedScope ? message.snapshot.cloneOperation : undefined;
         setCloneOperation(operation as Extract<WorkspaceResponse, { type: 'cloneOperation' }> | undefined);
         if (operation) applyCompletedSelection(operation);
+        if (modeRef.current !== message.snapshot.activeMode) setMobilePanel('list');
+        modeRef.current = message.snapshot.activeMode;
         setMode(message.snapshot.activeMode);
         setWorkflowKitSource(message.snapshot.workflowKitSource);
       } else if (message.type === 'issueNavigation') {
         setIssueNavigation(message.navigation);
-        if (message.navigation) { setMode('developer'); setMobilePanel('detail'); }
+        if (message.navigation) { modeRef.current = 'developer'; setMode('developer'); setMobilePanel('detail'); }
       } else if (message.type === 'issueResponse') {
         if (message.revision !== undefined && issueNavigationRef.current?.revision !== message.revision) return;
         window.dispatchEvent(new CustomEvent('workspaceIssueResponse', { detail: message.response }));
@@ -728,7 +732,7 @@ function App() {
     const query = (filters[key] ?? '').trim().toLocaleLowerCase();
     return !query || text.toLocaleLowerCase().includes(query);
   }
-  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
+  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); modeRef.current = next; setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
   function setFilter(key: WorkspaceMode, value: string): void { setFilters((current) => ({ ...current, [key]: value })); }
   function selectedIssueAction(issue: GitLabIssue): void {
     setMobilePanel('detail');
@@ -805,6 +809,12 @@ function App() {
     });
   }
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
+  const workspaceStatus = mode === 'developer' && selectedIssueProject && selectedIssue
+    ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}`
+    : snapshot.skillsContext?.root && (mode === 'sa' || !snapshot.groupRoot)
+      ? `Skills 工作區（${snapshot.skillsContext.mode === 'group' ? 'Group' : '單一 Repo'}）：${snapshot.skillsContext.root}`
+      : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}`
+        : snapshot.skillsContext?.reason ?? snapshot.workspaceRootError ?? '請在 VSCode 開啟本機工作區';
 
   return <main class="app-shell">
     <header class="topbar">
@@ -987,7 +997,7 @@ function App() {
       </section>
     </div>
 
-    <footer class="statusbar"><span>{selectedIssueProject && selectedIssue ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}` : snapshot.groupRoot ? `工作區：${snapshot.groupRoot}` : snapshot.workspaceRootError ?? '請在 VSCode 開啟 GitLab Group 工作區'}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
+    <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">處理中…</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
     {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!snapshot.busy} source={workflowKitSource}
       section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
       selectedPackageId={selectedWorkflowKitPackageId}

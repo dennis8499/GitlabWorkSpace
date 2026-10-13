@@ -49,6 +49,49 @@ class AutoHookIntegrationTests(unittest.TestCase):
     def enable(self):
         return self.integration.manage(self.root, "enable", sys.executable)
 
+    def test_never_managed_status_preserves_files_and_mtimes_but_existing_state_remains_locked(self):
+        def tree_state(root):
+            return {p.relative_to(root).as_posix(): (p.is_dir(), p.stat().st_mtime_ns,
+                    p.read_bytes() if p.is_file() else None) for p in [root, *root.rglob("*")]}
+
+        for kind in ("group", "repository"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix="ah-read-only-status-") as t:
+                root = Path(t).resolve()
+                if kind == "repository":
+                    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True,
+                                   capture_output=True)
+                (root / ".codex").mkdir()
+                (root / CONFIG).write_text('model = "personal-model"\n', encoding="utf-8")
+                (root / HOOKS).write_text('{"hooks": {}}\n', encoding="utf-8")
+                before = tree_state(root)
+                with patch.object(self.kit, "KitInstallLock", side_effect=AssertionError("read-only status acquired a write lock")), \
+                     patch.object(self.kit, "recover_incomplete", side_effect=AssertionError("never-managed status attempted recovery")):
+                    for _ in range(3):
+                        state = self.integration.manage(root, "status")
+                        self.assertEqual(("disabled", False, True), (state["status"], state["enabled"], state["stateKnown"]))
+                self.assertEqual(before, tree_state(root), "status must preserve directory/file mtimes and bytes")
+                self.assertFalse((root / self.kit.INSTALL_LOCK).exists())
+
+        # Existing runtime, installed metadata and recovery evidence retain the original lock protocol.
+        for relative in (self.kit.INSTALL_LOCK, self.kit.MARKER, ".gitlab-workspace/tool-installs",
+                         ".gitlab-workspace/maintenance-locks.json", ".codex/autohook"):
+            with self.subTest(existing=relative), tempfile.TemporaryDirectory(prefix="ah-managed-status-") as t:
+                root = Path(t).resolve()
+                evidence = root / relative
+                if relative in (".gitlab-workspace/tool-installs", ".codex/autohook"):
+                    evidence.mkdir(parents=True)
+                else:
+                    evidence.parent.mkdir(parents=True, exist_ok=True); evidence.write_bytes(b"fixture")
+                events = []
+                class Lock:
+                    def __enter__(self): events.append("lock")
+                    def __exit__(self, *_): events.append("unlock")
+                with patch.object(self.kit, "KitInstallLock", return_value=Lock()), \
+                     patch.object(self.kit, "recover_incomplete", side_effect=lambda _root: events.append("recover")), \
+                     patch.object(self.integration, "status", side_effect=lambda _root: events.append("status") or {"ok": True}):
+                    self.assertTrue(self.integration.manage(root, "status")["ok"])
+                self.assertEqual(["lock", "recover", "status", "unlock"], events)
+
     def test_offline_payload_is_optional_and_exact_in_both_profiles(self):
         for profile in ("group", "repository"):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory(prefix="ah-") as t:

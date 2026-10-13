@@ -2877,8 +2877,6 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.assertWorkflowKitReady();
     const revision = this.getSkillsContext().revision;
     const root = this.meginGroupRoot();
-    const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'git_review_context.py');
-    if (!await exists(script) || !(await readFile(script, 'utf8')).includes('--mr-context-base64')) throw new Error('請先安裝支援 Group 與 MR 快速審查的 MergeReviewer 0.6.0 以上。');
     const prompt = `$merge-reviewer 請審查 Group「${root}」下一層所有 Repo 的未提交內容。使用 git_review_context.py --group-root "${root}" --quick，分別審查固定的暫存區與工作檔快照，保留版本證據，輸出 Group 總覽與各 Repo 報告。`;
     await this.confirmSkillsContext(revision, 'merge-group');
     await vscode.env.clipboard.writeText(prompt);

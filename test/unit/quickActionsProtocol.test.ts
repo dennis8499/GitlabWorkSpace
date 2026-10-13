@@ -19,3 +19,16 @@ test('rejects unknown commands and malformed webview messages', () => {
   assert.equal(isQuickActionsRequest(null), false);
   assert.equal(isQuickActionsRequest('perform'), false);
 });
+
+test('bounds details requests to a repository identity and a correlated request', () => {
+  const repositoryId = 'a'.repeat(32);
+  assert.equal(isQuickActionsRequest({ type: 'repositoryDetails', repositoryId, requestId: 'details-1' }), true);
+  assert.equal(isQuickActionsRequest({ type: 'cancelRepositoryDetails', repositoryId }), true);
+  for (const message of [
+    { type: 'repositoryDetails', repositoryId: '../repo', requestId: 'details-1' },
+    { type: 'repositoryDetails', repositoryId, requestId: '' },
+    { type: 'repositoryDetails', repositoryId, requestId: 'x'.repeat(81) },
+    { type: 'repositoryDetails', repositoryId, requestId: 'details-1', command: 'git push' },
+    { type: 'cancelRepositoryDetails', repositoryId, requestId: 'details-1' }
+  ]) assert.equal(isQuickActionsRequest(message), false);
+});

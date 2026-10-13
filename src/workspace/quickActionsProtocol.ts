@@ -1,4 +1,4 @@
-import type { GitRepositorySummary } from '../git/gitProtocol';
+import type { GitRepositoryDetails, GitRepositorySummary } from '../git/gitProtocol';
 import type { GitLabAccount, AccountOperation } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { WorkspaceMode } from './workspaceProtocol';
@@ -8,6 +8,8 @@ export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'ope
 
 export type QuickActionsRequest =
   | { type: 'ready' }
+  | { type: 'repositoryDetails'; repositoryId: string; requestId: string }
+  | { type: 'cancelRepositoryDetails'; repositoryId: string }
   | { type: 'perform'; action: Exclude<QuickAction, 'openRepository'> }
   | { type: 'perform'; action: 'openRepository'; repositoryId: string };
 
@@ -27,16 +29,21 @@ export interface QuickActionsState {
   gitMessage?: string;
 }
 
-export interface QuickActionsResponse {
-  type: 'state';
-  state: QuickActionsState;
-}
+export type QuickActionsResponse =
+  | { type: 'state'; state: QuickActionsState }
+  | { type: 'visibility'; visible: boolean }
+  | { type: 'repositoryDetails'; repositoryId: string; requestId: string; details?: GitRepositoryDetails; error?: string };
 
 export function isQuickActionsRequest(value: unknown): value is QuickActionsRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const message = value as Record<string, unknown>;
   const keys = Object.keys(message);
   if (message.type === 'ready') return keys.length === 1 && keys[0] === 'type';
+  if (message.type === 'repositoryDetails') return keys.length === 3 && keys.includes('type') && keys.includes('repositoryId') && keys.includes('requestId') &&
+    typeof message.repositoryId === 'string' && /^[a-f0-9]{32}$/i.test(message.repositoryId) &&
+    typeof message.requestId === 'string' && /^[a-z0-9-]{1,80}$/i.test(message.requestId);
+  if (message.type === 'cancelRepositoryDetails') return keys.length === 2 && keys.includes('type') && keys.includes('repositoryId') &&
+    typeof message.repositoryId === 'string' && /^[a-f0-9]{32}$/i.test(message.repositoryId);
   if (message.type !== 'perform' || typeof message.action !== 'string') return false;
   if (message.action === 'openRepository') {
     return keys.length === 3 && keys.includes('type') && keys.includes('action') && keys.includes('repositoryId') &&

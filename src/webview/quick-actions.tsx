@@ -1,17 +1,21 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
-import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { QuickAction, QuickActionsResponse, QuickActionsState } from '../workspace/quickActionsProtocol';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { GitRepositoryDetails, GitRepositorySummary } from '../git/gitProtocol';
+import type { QuickAction, QuickActionsRequest, QuickActionsResponse, QuickActionsState } from '../workspace/quickActionsProtocol';
 import { AccountIdentity } from './AccountPanel';
 import { accountStatus } from '../connection/accountProtocol';
 import './quick-actions.css';
 
 interface VsCodeBridge {
-  postMessage(message:
-    | { type: 'ready' }
-    | { type: 'perform'; action: Exclude<QuickAction, 'openRepository'> }
-    | { type: 'perform'; action: 'openRepository'; repositoryId: string }
-  ): void;
+  postMessage(message: QuickActionsRequest): void;
+}
+
+interface RepositoryDetailsState {
+  revision: number;
+  status: 'loading' | 'ready' | 'error';
+  data?: GitRepositoryDetails;
+  error?: string;
 }
 
 declare function acquireVsCodeApi(): VsCodeBridge;
@@ -34,12 +38,41 @@ function GitSidebar() {
   const [state, setState] = useState<QuickActionsState>({ connected: false, activeMode: 'developer', repositories: [] });
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [visible, setVisible] = useState(true);
+  const [details, setDetails] = useState<Record<string, RepositoryDetailsState>>({});
+  const latestState = useRef(state);
+  const expandedRef = useRef(expanded);
+  const visibleRef = useRef(visible);
+  const detailsRef = useRef(details);
+  const requests = useRef(new Map<string, string>());
+  const requestSequence = useRef(0);
+  latestState.current = state; expandedRef.current = expanded; visibleRef.current = visible; detailsRef.current = details;
 
   useEffect(() => {
     const receive = (event: MessageEvent<unknown>) => {
-      const response = event.data as Partial<QuickActionsResponse> | undefined;
-      if (response?.type !== 'state' || !response.state || typeof response.state.connected !== 'boolean') return;
-      setState(response.state);
+      const response = event.data as QuickActionsResponse | undefined;
+      if (response?.type === 'state' && response.state && typeof response.state.connected === 'boolean') {
+        latestState.current = response.state; setState(response.state);
+      } else if (response?.type === 'visibility' && typeof response.visible === 'boolean') {
+        visibleRef.current = response.visible; setVisible(response.visible);
+        if (!response.visible) {
+          requests.current.clear();
+          setDetails(current => Object.fromEntries(Object.entries(current).filter(([, entry]) => entry.status !== 'loading')));
+        }
+      } else if (response?.type === 'repositoryDetails') {
+        const id = response.repositoryId;
+        if (!visibleRef.current || !expandedRef.current[id] || requests.current.get(id) !== response.requestId) return;
+        requests.current.delete(id);
+        const repository = latestState.current.repositories?.find(repo => repo.id === id);
+        if (!repository) return;
+        if (response.details && response.details.id === id && response.details.revision === repository.revision) {
+          setDetails(current => ({ ...current, [id]: { status: 'ready', revision: repository.revision, data: response.details } }));
+        } else if (response.error) {
+          setDetails(current => ({ ...current, [id]: { status: 'error', revision: repository.revision, error: response.error } }));
+        } else {
+          setDetails(current => { const next = { ...current }; delete next[id]; return next; });
+        }
+      }
     };
     window.addEventListener('message', receive);
     vscode.postMessage({ type: 'ready' });
@@ -49,6 +82,29 @@ function GitSidebar() {
   const repositories = useMemo(() => (state.repositories ?? []).filter((repo) =>
     (repo.name + ' ' + repo.path + ' ' + (repo.branch ?? '')).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
   ), [state.repositories, search]);
+
+  function requestDetails(repository: GitRepositorySummary): void {
+    const requestId = `details-${++requestSequence.current}`;
+    requests.current.set(repository.id, requestId);
+    setDetails(current => ({ ...current, [repository.id]: { status: 'loading', revision: repository.revision } }));
+    vscode.postMessage({ type: 'repositoryDetails', repositoryId: repository.id, requestId });
+  }
+
+  useEffect(() => {
+    const shown = new Set(visible ? repositories.filter(repo => expanded[repo.id]).map(repo => repo.id) : []);
+    for (const id of requests.current.keys()) if (!shown.has(id)) {
+      requests.current.delete(id);
+      vscode.postMessage({ type: 'cancelRepositoryDetails', repositoryId: id });
+    }
+    const ids = new Set((state.repositories ?? []).map(repo => repo.id));
+    if (Object.keys(detailsRef.current).some(id => !ids.has(id) || detailsRef.current[id].status === 'loading' && !requests.current.has(id))) {
+      setDetails(current => Object.fromEntries(Object.entries(current).filter(([id, entry]) => ids.has(id) && (entry.status !== 'loading' || requests.current.has(id)))));
+    }
+    for (const repository of repositories) {
+      const entry = detailsRef.current[repository.id];
+      if (shown.has(repository.id) && !requests.current.has(repository.id) && (!entry || entry.revision !== repository.revision)) requestDetails(repository);
+    }
+  }, [repositories, expanded, visible, details]);
 
   function navigate(action: Exclude<QuickAction, 'openRepository'>): void {
     if (!state.busyAction) vscode.postMessage({ type: 'perform', action });
@@ -115,14 +171,16 @@ function GitSidebar() {
               {expanded[repository.id] && <div class="repo-details">
                 <small class="repo-path" title={repository.path}>{repository.path}</small>
                 <strong>分支</strong>
-                {repository.branches.slice(0, 40).map((branch) => <span
+                {details[repository.id]?.status === 'loading' && <p role="status">正在載入分支與 Stash…</p>}
+                {details[repository.id]?.status === 'error' && <div role="status"><p>{details[repository.id].error}</p><button type="button" onClick={() => requestDetails(repository)}>重試載入</button></div>}
+                {(details[repository.id]?.data?.branches ?? []).slice(0, 40).map((branch) => <span
                   class={'ref-link' + (branch.current ? ' current' : '')}
                   key={branch.kind + branch.name} title={branch.name}
                 ><span aria-hidden="true">{branch.kind === 'tag' ? '◆' : branch.kind === 'remote' ? '↗' : '⑂'}</span>{branch.name}</span>)}
-                {repository.branches.length > 40 && <small>另有 {repository.branches.length - 40} 個分支</small>}
-                {repository.stashes.length > 0 && <>
+                {(details[repository.id]?.data?.branches.length ?? 0) > 40 && <small>另有 {details[repository.id].data!.branches.length - 40} 個分支</small>}
+                {!!details[repository.id]?.data?.stashes.length && <>
                   <strong>Stash</strong>
-                  {repository.stashes.slice(0, 10).map((stash) => <span class="ref-link" title={stash.oid} key={stash.oid}>◷ {stash.message}</span>)}
+                  {details[repository.id].data!.stashes.slice(0, 10).map((stash) => <span class="ref-link" title={stash.oid} key={stash.oid}>◷ {stash.message}</span>)}
                 </>}
                 <button class="repo-open-link" type="button" onClick={() => openRepository(repository.id)}>在工作台開啟版控</button>
               </div>}

@@ -9,7 +9,8 @@ import type { GitLabSession } from '../../src/connection/session';
 interface TestExtensionApi {
   session: GitLabSession;
   setFetchForTesting(fetcher: typeof fetch): void;
-  getGitRepositoryState(): Promise<{ repositories: Array<{ path: string; name: string; branches?: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> }>; available: boolean; message?: string }>;
+  getGitRepositoryState(): Promise<{ repositories: Array<{ id: string; path: string; name: string; branches?: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> }>; available: boolean; message?: string }>;
+  getGitRepositoryDetails?(repositoryId: string): Promise<{ branches: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> }>;
   getGitCommandCountForTesting(): number;
   getGitActivityForTesting(): { commands: number; auxiliaryCommands: number; nativeApiCalls: number; nativeStatusEvents: number };
   getWebviewMessageCountsForTesting(): { sent: number; received: number };
@@ -84,7 +85,8 @@ suite('Live GitLab Workspace Webview validation', function () {
       const discoveredRepository = initialGitState.repositories.find((repository) => path.resolve(repository.path).toLocaleLowerCase('en-US') === path.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
       assert.ok(discoveredRepository,
         `VS Code Git discovers the isolated demonstration Repo (${JSON.stringify(initialGitState)})`);
-      remoteBranchNames = discoveredRepository.branches?.filter((branch) => branch.kind === 'remote').map((branch) => branch.name) ?? [];
+      const discoveredDetails = api.getGitRepositoryDetails ? await api.getGitRepositoryDetails(discoveredRepository.id) : discoveredRepository;
+      remoteBranchNames = discoveredDetails.branches?.filter((branch) => branch.kind === 'remote').map((branch) => branch.name) ?? [];
       assert.ok(remoteBranchNames.includes('origin/main'), `the branch list uses canonical remote names (${remoteBranchNames.join(', ')})`);
       assert.ok(!remoteBranchNames.some((name) => name.startsWith('origin/origin/')), `remote names are not prefixed twice (${remoteBranchNames.join(', ')})`);
       await ui.waitUntil(`([...document.querySelectorAll('.git-repo-picker select option')].some((option) => option.textContent?.toLocaleLowerCase('en-US').includes('service')))`, 20_000,

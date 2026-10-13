@@ -6,7 +6,7 @@ const Mocha = testCliRequire('mocha');
 exports.run = function run() {
   const mocha = new Mocha({ ui: 'tdd', timeout: 120_000, color: false });
   const directory = path.join(__dirname, '..', 'out', 'test', 'extension');
-  for (const file of ['activation.test.js', 'groupWorkflow.test.js', 'liveValidation.test.js']) {
+  for (const file of ['activation.test.js', 'groupWorkflow.test.js', 'liveValidation.test.js', 'nativeDiff.test.js']) {
     mocha.addFile(path.join(directory, file));
   }
   return new Promise((resolve, reject) => {

@@ -63,11 +63,12 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   const [rightOpen, setRightOpen] = useState(false);
   const [hostWidth, setHostWidth] = useState(1200);
   const [rebaseTodos, setRebaseTodos] = useState<Record<string, GitRebaseTodoEntry[]>>({});
+  const [rebasePlanNotices, setRebasePlanNotices] = useState<Record<string, string>>({});
   const [historyViewport, setHistoryViewport] = useState({ top: 0, height: 600 });
   const historyListRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
   const resizeCleanup = useRef<() => void>();
-  const rebaseTargetByRepository = useRef(new Map<string, string>());
+  const rebaseSourceByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
   const requestPrefix = useRef(crypto.randomUUID());
   const restoring = useRef(!!initialState);
@@ -136,13 +137,17 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
           snapshotsRef.current = { ...current, [incoming.id]: next };
           return snapshotsRef.current;
         });
-        if (incoming.rebasePlan && incoming.id === selectedIdRef.current) setRebaseTodos((current) => {
-          const currentTodo = current[incoming.id];
-          const sameTarget = rebaseTargetByRepository.current.get(incoming.id) === incoming.rebasePlan!.target;
-          rebaseTargetByRepository.current.set(incoming.id, incoming.rebasePlan!.target);
-          return sameTarget && currentTodo && currentTodo.map((item) => item.hash).join(',') === incoming.rebasePlan!.commits.map((item) => item.hash).join(',')
-            ? current : { ...current, [incoming.id]: incoming.rebasePlan!.commits.map((commit) => ({ hash: commit.hash, action: 'pick' as const })) };
-        });
+        if (incoming.rebasePlan && incoming.id === selectedIdRef.current) {
+          const plan = incoming.rebasePlan;
+          const source = JSON.stringify([plan.target, plan.targetHash, plan.commits.map(commit => commit.hash), plan.containsMerge]);
+          const previousSource = rebaseSourceByRepository.current.get(incoming.id);
+          if (source !== previousSource) {
+            rebaseSourceByRepository.current.set(incoming.id, source);
+            setRebaseTodos(current => ({ ...current, [incoming.id]: plan.commits.map(commit => ({ hash: commit.hash, action: 'pick' as const })) }));
+            setRebasePlanNotices(current => ({ ...current, [incoming.id]: previousSource
+              ? 'Rebase 的來源版本已變更，已重設提交順序與操作，請重新確認。' : '' }));
+          }
+        }
         setRepositories((current) => current.map((repo) => repo.id === incoming.id ? incoming : repo));
         setErrorsByRepo((current) => ({ ...current, [incoming.id]: incoming.error ?? '' }));
       } else if (message.type === 'gitActionResult') {
@@ -520,6 +525,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
         target={rebaseDialogDetails?.ref ?? ''}
         pullSource={dialog.pullSource}
         entries={rebaseTodos[selectedId] ?? []}
+        sourceNotice={rebasePlanNotices[selectedId]}
         onChange={(entries) => setRebaseTodos((current) => ({ ...current, [selectedId]: entries }))}
       />}
       {dialog.kind === 'merge' && <><SelectField name="ref" label="來源分支／提交" defaultValue={dialog.value} values={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash))} labels={snapshot.branches.filter((branch) => !branch.current).map((branch) => branch.name).concat(snapshot.history.map((commit) => commit.hash.slice(0, 12) + ' · ' + commit.subject))} /><p class="subtle">來源會合併至目前分支：{snapshot.branch ?? 'Detached HEAD'}。</p></>}
@@ -535,9 +541,9 @@ function StashRow({ stash, onAction }: { stash: GitStashSummary; onAction: (oper
   return <div class="git-stash-row"><button class="git-ref-name" onClick={() => setOpen((value) => !value)} title={stash.oid}>{stash.message}</button><button class="quiet small" onClick={() => onAction('apply')}>操作</button>{open && <div class="git-stash-actions"><button onClick={() => onAction('apply')}>Apply</button><button onClick={() => onAction('pop')}>Pop</button><button onClick={() => onAction('drop')}>Drop…</button></div>}</div>;
 }
 
-function RebaseTodoEditor({ plan, target, pullSource, entries, onChange }: {
+function RebaseTodoEditor({ plan, target, pullSource, entries, sourceNotice, onChange }: {
   plan?: GitRebasePlan; target: string; pullSource?: { remote: string; branch: string };
-  entries: GitRebaseTodoEntry[]; onChange: (entries: GitRebaseTodoEntry[]) => void;
+  entries: GitRebaseTodoEntry[]; sourceNotice?: string; onChange: (entries: GitRebaseTodoEntry[]) => void;
 }) {
   const dragged = useRef<number>();
   function reorder(from: number, to: number): void {
@@ -552,6 +558,7 @@ function RebaseTodoEditor({ plan, target, pullSource, entries, onChange }: {
   }
   return <>
     <p class="subtle">目標：{target}{pullSource ? ' · Pull ' + pullSource.remote + '/' + pullSource.branch : ''}</p>
+    {sourceNotice && <p class="warning" role="status">{sourceNotice}</p>}
     {!plan ? <p role="status">正在載入提交範圍預覽…</p> : <>
       <p>依序處理 {plan.commits.length} 筆提交。可拖曳或使用上／下按鈕調整順序。</p>
       {plan.containsMerge && <div class="git-rebase-warning" role="alert"><strong>預覽含 Merge Commit</strong><span>確認後會套用標準線性歷史並展平此範圍內的 Merge 結構。</span><label class="git-checkbox"><input type="checkbox" name="flattenConfirmed" />我已檢視並確認展平</label></div>}

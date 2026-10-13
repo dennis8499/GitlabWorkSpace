@@ -1,0 +1,219 @@
+
+[main 2026-10-13T08:58:03.332Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main, active: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2a59476c9b\resources\app\node-compile-cache\main\v24.21.0-x64-c3a7e8f2)
+[main 2026-10-13T08:58:03.344Z] StorageMainService: creating application shared storage
+[main 2026-10-13T08:58:03.412Z] [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+[main 2026-10-13T08:58:03.412Z] [shared storage] Initializing fallback application storage (path: in-memory)
+[main 2026-10-13T08:58:03.416Z] Error: Error mutex already exists
+    at ea.installMutex (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2a59476c9b/resources/app/out/mainImpl.js:159:30235)
+[main 2026-10-13T08:58:03.448Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-13T08:58:03.448Z] update#setState disabled
+[main 2026-10-13T08:58:03.448Z] update#ctor - updates are disabled by the environment
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[AgentHost:renderer] Acquiring MessagePort to agent host...
+[main 2026-10-13T08:58:04.491Z] AgentHostProcessManager: agent host started
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost:renderer] MessagePort acquired, creating client...
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Started local extension host with pid 26696.
+Loading development extension at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace
+Extension 'github.copilot-chat' appears in product.json but enables LESS API proposals than the extension wants.
+package.json (LOSES): agentSessionsWorkspace
+agentsWindowConfiguration
+chatDebug
+chatHooks
+envIsConnectionMetered
+extensionsAny
+newSymbolNamesProvider
+interactive
+codeActionAI
+activeComment
+commentReveal
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+documentFiltersExclusive
+embeddings
+findTextInFiles
+findTextInFiles2
+languageModelToolSupportsModel
+findFiles2
+textSearchProvider
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+chatParticipantAdditions
+defaultChatParticipant
+contribSourceControlInputBoxMenu
+authLearnMore
+authIssuers
+testObserver
+aiTextSearchProvider
+chatParticipantPrivate
+chatProvider
+contribDebugCreateConfiguration
+chatReferenceDiagnostic
+textSearchProvider2
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelPricing
+inlineCompletionsAdditions
+chatStatusItem
+chatInputNotification
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+languageModelThinkingPart
+chatSessionsProvider
+devDeviceId
+contribEditorContentMenu
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+environmentPower
+terminalTitle
+toolInvocationApproveCombination
+chatSessionCustomizationProvider
+product.json (WINS): agentSessionsWorkspace
+agentsWindowConfiguration
+interactive
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+chatParticipantAdditions
+defaultChatParticipant
+embeddings
+chatProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+codeActionAI
+findTextInFiles
+findTextInFiles2
+textSearchProvider
+textSearchProvider2
+activeComment
+commentReveal
+contribSourceControlInputBoxMenu
+contribCommentEditorActionsMenu
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+extensionAffinity
+newSymbolNamesProvider
+findFiles2
+chatReferenceDiagnostic
+extensionsAny
+authLearnMore
+testObserver
+aiTextSearchProvider
+documentFiltersExclusive
+chatParticipantPrivate
+contribDebugCreateConfiguration
+inlineCompletionsAdditions
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelThinkingPart
+languageModelToolSupportsModel
+chatStatusItem
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+chatSessionsProvider
+chatSessionCustomizationProvider
+devDeviceId
+contribEditorContentMenu
+tokenInformation
+toolInvocationApproveCombination
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+chatHooks
+chatDebug
+envIsConnectionMetered
+environmentPower
+terminalTitle
+languageModelPricing
+chatInputNotification
+DELTA: authIssuers
+Proceeding with EXTRA proposals (authIssuers) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.
+[main 2026-10-13T08:58:05.683Z] [AgentHost:stderr] (node:31452) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+[RemoteAgentHostProtocol] Sending initialize: address=local clientId=aea3d1ed-5829-48c6-b3ed-4ab060999bf8 requestId=1
+[RemoteAgentHostProtocol] Initialized: address=local clientId=aea3d1ed-5829-48c6-b3ed-4ab060999bf8 durationMs=1184
+[AgentHost:renderer] Protocol connection established; clientId=aea3d1ed-5829-48c6-b3ed-4ab060999bf8
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+Unknown channel: agentHostClientProxy
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+Settings Sync: Account status changed from uninitialized to unavailable
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+  Account, preview and workspace Repo integration
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+    √ late Git reads are dropped after hiding, closing or leaving the panel while accepted writes finish
+    √ only the latest preview request can update selection, without loading Issue edit options
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+    √ workspace changes cancel the old scan and reject late progress and results
+    √ a pending delivery operation blocks account transitions until it finishes
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Unknown channel: agentHostClientProxy
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+(node:26696) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+Deprecated. Use ApiRepository.getRefs() instead.
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+    √ scanning registers deep Repos and worktrees with native VS Code Git and reconciles inventories (3864ms)
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+    √ opens the real offline administration Webview and handles its Log page request (431ms)
+  Local workflow kit installation
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+    √ Group policy defaults to enabled and resolves real user/workspace overrides for a fresh controller (303ms)
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ installs real bundled Skills into current and external folders without changing the offline Skills context (39744ms)
+  Native readonly Git Diff snapshots
+Deprecated. Use ApiRepository.getRefs() instead.
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MTc3MWQ2MGItMDY5MS00NjY2LTlmNWMtZmMwYWE5MjIwZGUw" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+    √ preserves text and binary bytes and releases each snapshot after the last native tab closes (3134ms)
+  Live GitLab Workspace Webview validation
+    - exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Group delivery and version-bound report controller
+    √ rejects edited report text before checking or publishing to GitLab
+    √ publishes a valid incomplete report after rechecking the target immediately before writing
+    √ stops publication when the target changes during reconciliation and leaves no uncertain write
+    √ reconciles an uncertain report response without creating a duplicate note
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available
+  16 passing (48s)
+  2 pending
+[main 2026-10-13T08:58:55.183Z] Extension host with pid 26696 exited with code: 0, signal: unknown.
+Exit code:   0

@@ -92,6 +92,10 @@ suite('Local workflow kit installation', () => {
           update: async (key: string, value: unknown) => { values.set(key, value); }
         } },
         packages: { listPackages: async () => [selected], getPackage: async () => selected },
+        // This focused fixture skips the constructor's workspace-refresh lifecycle.
+        // Keep real environment checks, status reads and installs, but do not start
+        // filesystem watchers that can refresh this partially initialized controller.
+        watchRepositoryRemotes: async () => undefined,
         sendSnapshot: () => undefined, post: () => undefined
       });
       await host.refreshWorkflowKit(false);

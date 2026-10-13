@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, legacyWikiInputs,
-  restoreSkillGuideState, skillGuideTools } from '../../src/webview/skillsGuideData';
+  restoreSkillGuideState, skillGuideTools, getSkillGuideFields } from '../../src/webview/skillsGuideData';
 
 const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0.15.0', repositories: [
   { name: 'service', path: 'C:\\工作區 with spaces\\service' }
@@ -121,4 +121,36 @@ test('native development prompts require exploration, approval and bounded indep
   assert.match(prompt, /新的獨立唯讀 reviewer/);
   assert.match(prompt, /第三次修正仍失敗.*回報未完成/);
   assert.match(prompt, /續作不重置次數/);
+  assert.match(card.behavior, /feature commits/);
+  assert.doesNotMatch(card.behavior, /Commit／Merge/);
+});
+
+test('local review targets use native boundaries without requiring or leaking saved branch inputs', () => {
+  for (const profile of ['group', 'repository'] as const) {
+    const card = getSkillGuideCard('merge-reviewer', 'merge-repo', profile);
+    const saved = restoreSkillGuideState();
+    Object.assign(saved.inputs, { 'merge-repo.repo': 'service', 'merge-repo.base': 'saved-base',
+      'merge-repo.head': 'saved-head', 'merge-repo.mode': '直接比較' });
+    assert.equal(saved.inputs['merge-repo.target'], '分支比較');
+    for (const [label, target, source] of [['已暫存內容', 'staged', 'index'], ['目前已儲存內容', 'uncommitted', '最終已儲存檔案']]) {
+      const inputs = { ...saved.inputs, 'merge-repo.target': label };
+      assert.equal(canCopySkillPrompt(card, inputs), true);
+      assert.equal(canCopySkillPrompt(card, { ...inputs, 'merge-repo.base': '', 'merge-repo.head': '', 'merge-repo.mode': 'obsolete' }), true);
+      assert.deepEqual(getSkillGuideFields(card, inputs).map(item => item.id), profile === 'group'
+        ? ['target', 'repo', 'output'] : ['target', 'output']);
+      const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
+      assert.ok(prompt.includes(`--scope ${profile === 'group' ? 'group' : 'repo'} --target ${target}`));
+      assert.ok(prompt.includes(profile === 'group' ? `--group-root ${JSON.stringify(context.groupRoot)}`
+        : `--workspace ${JSON.stringify(context.repositories[0].path)}`));
+      assert.match(prompt, new RegExp(source));
+      assert.match(prompt, /無需 remote 或 GitLab 連線，不 fetch/);
+      assert.doesNotMatch(prompt, /saved-base|saved-head|--base|--head|--mode|--remote|--quick|--include-working-tree/);
+      assert.equal(restoreSkillGuideState({ ...saved, inputs }).inputs['merge-repo.base'], 'saved-base');
+    }
+    assert.equal(canCopySkillPrompt(card, { ...saved.inputs, 'merge-repo.target': 'invalid target' }), false);
+    const branch = buildSkillGuidePrompt(card, saved.inputs, { ...context, profile, root: context.repositories[0].path });
+    assert.match(branch, /--target branch/);
+    assert.match(branch, /--base "saved-base" --head "saved-head" --mode direct/);
+    assert.equal(canCopySkillPrompt(card, { ...saved.inputs, 'merge-repo.base': '' }), false);
+  }
 });

@@ -53,7 +53,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
         gitAvailable: state.available,
         gitMessage: state.message
       };
-    }
+    },
+    repositoryId => gitRepositories.getRepositoryDetails(repositoryId)
   );
   workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories);
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
@@ -119,6 +120,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     session,
     setFetchForTesting: (fetcher: typeof fetch) => session.setFetchForTesting(fetcher),
     getGitRepositoryState: () => gitRepositories.getSummaryState(),
+    getGitRepositoryDetails: (repositoryId: string) => gitRepositories.getRepositoryDetails(repositoryId),
+    openNativeGitDiffForTesting: (repositoryId: string, filename: string, staged = false) => gitRepositories.openNativeDiff(repositoryId, filename, staged),
     getRepositoryInventoryForTesting: () => gitRepositories.getInventory(),
     scanWorkspaceForTesting: (signal: AbortSignal, onProgress: (state: import('./git/repositoryScanProtocol').RepositoryScanState) => void) =>
       gitRepositories.scanWorkspace(signal, onProgress),

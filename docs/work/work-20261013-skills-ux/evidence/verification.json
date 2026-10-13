@@ -1,0 +1,66 @@
+{
+  "schema": "GitLabWorkspaceSkillsUxVerification/v1",
+  "generatedAt": "2026-10-13T09:07:34.145855+00:00",
+  "clientTimezone": "Asia/Taipei",
+  "version": "0.22.0",
+  "status": "PASS_WITH_EXTERNAL_VALIDATION_PENDING",
+  "vsix": {
+    "path": "dist/gitlab-workspace-0.22.0.vsix",
+    "bytes": 3020089,
+    "sha256": "fa2da28694dfda84193f8bcd0666d3a93ace26a3138fb418eeb8e6de21d775dd"
+  },
+  "workflowKitZip": {
+    "path": "dist/gitlab-workspace-kit-0.22.0.zip",
+    "sha256": "e9b5385d87f74c24c46c035dee5153f5f87712f1866945ce45e3458a22776ad8"
+  },
+  "npmTest": {
+    "exitCode": 0,
+    "unitPassed": 289,
+    "webviewPassed": 71,
+    "issueScenariosPassed": 30,
+    "connectionScenariosPassed": 10,
+    "nodeReleaseTestsPassed": 26,
+    "pythonTestsPassed": 226,
+    "pythonSuites": [
+      18,
+      12,
+      20,
+      8,
+      6,
+      22,
+      4,
+      3,
+      88,
+      12,
+      27,
+      6
+    ],
+    "extensionHostPassed": 16,
+    "extensionHostPending": 2,
+    "evidence": "npm-test.txt"
+  },
+  "additionalChecks": {
+    "nativeDiffUnitPassed": 4,
+    "nativeDiffExtensionHost": "PASS",
+    "finalPackagedGitGui": "PASS",
+    "nativeCommitPushConfirmations": "PASS",
+    "compiledModuleParity": "PASS: 51 modules",
+    "typechecks": "PASS",
+    "packagedUiSmoke": "PASS: 8/8",
+    "packagedUiTenPercentBudget": "PASS",
+    "gitSummaryCommandBudget": "PASS",
+    "packageVerification": "PASS"
+  },
+  "pendingScope": [
+    "GitLab CE16/CE19 authenticated live validation: GLW_CE16_TOKEN and GLW_CE19_TOKEN unavailable",
+    "Megin real-work human approval/acceptance",
+    "Codex /hooks trust in a real session",
+    "VS Code 1.90.0 and Linux runtime validation"
+  ],
+  "notes": [
+    "The two normal Extension Host pending cases require separate local Git GUI/live GitLab environments. Final local Git GUI and native confirmations were run separately and passed.",
+    "The extra Diff close-event unit case was added after the full unit phase and passed in the additional 4-case provider run.",
+    "UI benchmark uses packaged assets and an isolated mock host; command benchmark mocks Git/native outputs. Neither establishes live GitLab latency.",
+    "No version was published."
+  ]
+}

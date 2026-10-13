@@ -643,7 +643,7 @@ When('the Group provides an accepted multi-Repo handoff', async function () {
     groupRoot: 'C:/workspace/group', baseUrl: 'https://gitlab.example.test', projects: [project, target],
     connected: true, currentUser: user, activeMode: 'developer', groups: [], issues: [issue],
     mergeRequests: [], groupMilestones: [], groupIssueBoards: [], tools: [], toolSource: 'bundled',
-    workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
+    workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled', upstreamVersions: { megin: '0.6.0' } },
     localRepositories: { 42: { state: 'ready', path: 'C:/workspace/group/project' } }, projectMembers: [],
     meginWorkItems: [{ workId: 'work-20261002-feature', status: 'active', planVersion: 'plan-1', issueProjectId: 42,
       issueIid: 7, projectPath: 'group/project' }],
@@ -665,7 +665,8 @@ Then('development tasks use Group paths and native review and verification resul
   assert.ok(resume, 'the existing matching Megin Work ID is available to resume');
   assert.equal(resume.value, 'work-20261002-feature');
   await this.click('複製任務並開啟 Codex CLI');
-  assert.match(this.workspaceActions.at(-1).text, /gitlab_mr/);
+  assert.match(this.workspaceActions.at(-1).text, /feature_handoff/);
+  assert.match(this.workspaceActions.at(-1).text, /舊工作必須沿用原套件、契約、指紋與交付流程/);
   assert.match(this.workspaceActions.at(-1).text, /續作 Work ID：work-20261002-feature/);
   assert.match(this.workspaceActions.at(-1).text, /C:\/workspace\/group/);
   assert.match(this.workspaceActions.at(-1).text, /First comment/);

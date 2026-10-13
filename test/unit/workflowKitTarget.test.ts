@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, realpath, rename, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -370,6 +370,49 @@ test('MR tasks and delivery evidence use verified remotes instead of canonical f
   }] };
   await host.validateWorkspaceHandoff(handoff);
   await assert.rejects(host.validateWorkspaceHandoff({ ...handoff, repositories: [{ ...handoff.repositories[0], repo_path: 'docs' }] }), /無法唯一對應/);
+});
+
+test('Group quick review opens with the actual current kit and rechecks its verified capability', async t => {
+  const [group] = await directories(t);
+  const root = path.resolve(__dirname, '../../..');
+  const installer = path.join(root, 'resources/workflow-kit-installer.py');
+  const archive = path.join(root, 'resources/offline-tools/workflow-kit.tar.xz');
+  const index = JSON.parse(await readFile(path.join(root, 'resources/offline-tools/manifest.json'), 'utf8'));
+  const execute = (args: string[]) => JSON.parse(execFileSync(process.execPath,
+    [path.join(root, 'scripts/run-python.mjs'), installer, ...args], { cwd: root, encoding: 'utf8', windowsHide: true }));
+  const installed = execute(['install', archive, group, index.version, 'bundled', '--format', 'tar.xz',
+    '--entry-root', 'workflow-kit', '--archive-sha256', index.archiveSha256]);
+  assert.equal(installed.version, index.version);
+  assert.equal((await readFile(path.join(group, '.agents/skills/merge-reviewer/scripts/git_review_context.py'), 'utf8'))
+    .includes('--mr-context-base64'), false, 'current native core registers MR arguments through the Workspace adapter');
+  const { host } = fixture([group], true);
+  host.context.extension.packageJSON.version = index.version;
+  let statusReads = 0, omitCapability = false, invalidateOnConfirmation = false;
+  host.runWorkflowKitHelper = async (args: string[], _timeout?: number, before?: () => Promise<void>) => {
+    await before?.();
+    if (args[0] === 'autohook') return { ok: true, root: group, status: 'disabled', enabled: false };
+    const state = execute(args);
+    if (args[0] === 'status') {
+      statusReads++;
+      if (omitCapability || invalidateOnConfirmation && statusReads > 2) state.capabilities = state.capabilities.filter((id: string) => id !== 'merge-group');
+    }
+    return state;
+  };
+  let copied = '', opened = 0;
+  vscode.env.clipboard.writeText = async text => { copied = text; };
+  host.openCodexTerminal = async () => { opened++; };
+  await host.openGroupQuickReview();
+  assert.match(copied, /git_review_context\.py --group-root.*--quick/);
+  assert.equal(opened, 1);
+  assert.ok(host.getSkillsContext().availableFeatures.includes('merge-group'));
+
+  copied = ''; statusReads = 0; omitCapability = true;
+  await assert.rejects(host.openGroupQuickReview(), /Skills 環境或版本已變更/);
+  assert.equal(copied, ''); assert.equal(opened, 1);
+
+  statusReads = 0; omitCapability = false; invalidateOnConfirmation = true;
+  await assert.rejects(host.openGroupQuickReview(), /Skills 環境或版本已變更/);
+  assert.equal(copied, ''); assert.equal(opened, 1, 'capability drift must stop before copying or opening Codex');
 });
 
 test('post-delivery Wiki copying rejects a context change during Issue reads', async t => {

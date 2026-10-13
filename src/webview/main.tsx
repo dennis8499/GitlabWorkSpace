@@ -184,7 +184,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   const [spentDate, setSpentDate] = useState('');
   const [detailTab, setDetailTab] = useState<'content' | 'development' | 'relations' | 'time'>('content');
   const savedDetailTabs = useRef(draftState?.tabs ?? {});
-  const [resumeWorkId, setResumeWorkId] = useState('');
+  const [resumeWorkId, setResumeWorkId] = useState<string | undefined>();
   const [recoveryProjectId, setRecoveryProjectId] = useState('');
   const [recoveryIssueIid, setRecoveryIssueIid] = useState('');
   const [deliveryExpanded, setDeliveryExpanded] = useState(false);
@@ -586,7 +586,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
   if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
-  useEffect(() => { setResumeWorkId(''); }, [issue?.id]);
+  useEffect(() => { setResumeWorkId(undefined); }, [issue?.id]);
   useEffect(() => {
     if (!issue || !detail) return;
     const wanted: Record<typeof detailTab, IssueDetailSection[]> = {
@@ -686,7 +686,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
             const legacyDelivery = /^0\.[0-6]\./.test(snapshot?.skillsContext?.installed.upstreamVersions?.megin ?? snapshot?.workflowKit?.upstreamVersions?.megin ?? '');
             const matchingWorks = (snapshot?.meginWorkItems ?? []).filter((item) => item.status !== 'complete' && item.status !== 'aborted' && item.issueIid === issue.iid &&
               (item.issueProjectId === detail.project.id || item.projectPath?.toLocaleLowerCase('en-US') === detail.project.path_with_namespace.toLocaleLowerCase('en-US')));
-            const selectedWorkId = matchingWorks.some((item) => item.workId === resumeWorkId) ? resumeWorkId : matchingWorks[0]?.workId;
+            const selectedWorkId = resumeWorkId === '' ? undefined
+              : matchingWorks.some((item) => item.workId === resumeWorkId) ? resumeWorkId : matchingWorks[0]?.workId;
             return <>
             {canDevelop ? <>
               {matchingWorks.length > 0 && <label class="field">延續既有 Megin 工作<select value={selectedWorkId ?? ''} onChange={(event) => setResumeWorkId(event.currentTarget.value)}><option value="">建立新工作（開始前仍會檢查重複 Work ID）</option>{matchingWorks.map((item) => <option value={item.workId}>{item.workId} · {item.status}{item.planVersion ? ` · ${item.planVersion}` : ''}</option>)}</select></label>}

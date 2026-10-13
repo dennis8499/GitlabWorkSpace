@@ -271,6 +271,13 @@ class Integration:
     def manage(self, root, action, codex=None):
         k = self.k
         if action == "status":
+            state_paths = [k["assert_safe"](root, relative, allow_missing=True) for relative in (
+                k["INSTALL_LOCK"], k["MARKER"], ".gitlab-workspace/tool-installs",
+                ".gitlab-workspace/maintenance-locks.json", RUNTIME.rstrip("/"))]
+            # Never-managed roots have no transaction or runtime to serialize.
+            # Creating an install lock just to read status dirties Git repositories.
+            if not any(path.exists() for path in state_paths):
+                return self.status(root)
             # Status uses the same lock so it cannot observe a half-applied overlay.
             with k["KitInstallLock"](k["assert_safe"](root, k["INSTALL_LOCK"], allow_missing=True)):
                 k["recover_incomplete"](root)
