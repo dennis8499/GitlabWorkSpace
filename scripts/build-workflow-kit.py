@@ -46,7 +46,7 @@ PINNED_SOURCES = (
         "asset": "megin-skills.zip",
         "filename": "megin-skills-0.8.0.zip",
         "version": "0.8.0",
-        "sha256": "37487d4c3f55b8e447425acb24740e759444743bc7fa7e17ce90697277f4ebd7",
+        "sha256": "12fc4f6740a76d7924e4c52279e176bd532a5ed8ecb5c80f088c44d5e16e8fde",
     },
     {
         "id": "merge-reviewer",
