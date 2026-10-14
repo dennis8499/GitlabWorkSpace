@@ -21,13 +21,12 @@ Baseline smoke 為 6 PASS／2 FAIL：1440 × 900 原生 select 鍵盤操作、�
 
 Revision 同一組 smoke 為 8 PASS／0 FAIL；普通及高對比窄版從預覽切到專案頁會回到 list，下載操作可見。兩版的所有量測與 smoke 均無外連請求或 runtime error。
 
-截圖包含 1440 × 900 Skills／設定、800 × 900 專案／Skills，以及高對比版本。已目視查看 Baseline Skills 桌面／高對比與 Revision 窄版專案／高對比 Skills 截圖，主要控制項未裁切，Revision 專案清單及下載區均呈現；截圖檢視與自動 smoke 不代表完整人工使用者驗收。高對比使用 VS Code body class 與 theme tokens，沒有模擬螢幕閱讀器或作業系統輔助技術。
+截圖包含 1440 × 900 Skills、800 × 900 專案／Skills，以及高對比版本。已目視查看 Baseline Skills 桌面／高對比與 Revision 窄版專案／高對比 Skills 截圖，主要控制項未裁切，Revision 專案清單及下載區均呈現；截圖檢視與自動 smoke 不代表完整人工使用者驗收。高對比使用 VS Code body class 與 theme tokens，沒有模擬螢幕閱讀器或作業系統輔助技術。
 
-重跑方式（於 repository 根目錄）：
+此目錄保留歷史量測；原始封裝與設定截圖已移除。驗證目前版本時，使用新的輸出目錄，不覆寫此處的歷史樣本：
 
 ```text
-node scripts/validate-packaged-ui.mjs --artifact .gitlab-workspace-validation/skills-ux-20261013/baseline-0.22.0.vsix --label baseline --output docs/work/work-20261013-skills-ux/evidence/packaged-ui
-node scripts/validate-packaged-ui.mjs --artifact dist/gitlab-workspace-0.22.0.vsix --label revision --baseline docs/work/work-20261013-skills-ux/evidence/packaged-ui/baseline.json --output docs/work/work-20261013-skills-ux/evidence/packaged-ui
+node scripts/validate-packaged-ui.mjs --artifact dist/gitlab-workspace-0.23.0.vsix --label revision --output .gitlab-workspace-validation/packaged-ui-current
 ```
 
 預設使用本機 Chrome，可透過 `--browser <executable>` 指定同一個瀏覽器版本。Git 指令與 native API 呼叫數須另看 backend unit／真實 VS Code Git GUI 證據，不由 mock bridge 的請求數推定。

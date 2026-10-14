@@ -6,29 +6,26 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
-import tarfile
+import zipfile
 
 WORKSPACE = Path(__file__).resolve().parents[3]
 STAGE = tempfile.TemporaryDirectory(prefix="workspace-delivery-evidence-")
 atexit.register(STAGE.cleanup)
 ROOT = Path(STAGE.name).resolve()
-ARCHIVE = WORKSPACE / "test/fixtures/workflow-kit-0.21.0/offline-tools/workflow-kit.tar.xz"
-with tarfile.open(ARCHIVE, "r:xz") as archive:
-    manifest = json.loads(archive.extractfile("workflow-kit/manifest.json").read())
-    expected = manifest["profiles"]["group"]["files"]
-    prefix = "workflow-kit/payload/.agents/skills/"
-    for entry in archive.getmembers():
-        if not entry.name.startswith(prefix):
-            continue
-        relative = entry.name.removeprefix(prefix)
-        skill = relative.split("/", 1)[0]
-        if skill != "merge-reviewer" and skill != "megin" and not skill.startswith("megin-"):
-            continue
+ARCHIVE = WORKSPACE / "test/fixtures/legacy-delivery-skills.zip"
+with zipfile.ZipFile(ARCHIVE) as archive:
+    manifest = json.loads(archive.read("manifest.json"))
+    if manifest["schema"] != "legacy-delivery-skills/v1":
+        raise ValueError("unknown frozen Skills fixture")
+    expected = manifest["files"]
+    if set(archive.namelist()) != {"manifest.json", *("skills/" + name for name in expected)}:
+        raise ValueError("frozen Skills fixture file set differs")
+    for relative, digest in expected.items():
         target = ROOT / "skills" / relative
-        if not entry.isfile() or not target.resolve().is_relative_to(ROOT / "skills"):
+        if not target.resolve().is_relative_to(ROOT / "skills"):
             raise ValueError("unsafe assembled payload path")
-        content = archive.extractfile(entry).read()
-        if hashlib.sha256(content).hexdigest() != expected[".agents/skills/" + relative]:
+        content = archive.read("skills/" + relative)
+        if hashlib.sha256(content).hexdigest() != digest:
             raise ValueError("assembled payload digest differs")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)

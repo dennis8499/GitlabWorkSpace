@@ -4,7 +4,7 @@
 
 ## 來源與修正
 
-Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 與 AutoHook 1.1.0 已同步同層本機來源。共 16 個 Skills，十三個原生 Megin Skills 與其他上游 Skill 原文未修改。兩種 profile 的整合包內容與修正前相同；這是本機整合驗證，不代表上游已發布這些版本。
+Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同步同層本機來源。共 16 個 Skills，十三個原生 Megin Skills 與其他上游 Skill 原文未修改。兩種 profile 的整合包內容與修正前相同；這是本機整合驗證，不代表上游已發布這些版本。
 
 - Group quick 以已驗證的 capability 判定，不再搜尋過時 CLI 字串。
 - Rebase 草稿依固定來源識別；背景更新保留使用者排序、動作與訊息，來源變更才重設並提示。
@@ -14,7 +14,6 @@ Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 與 Auto
 - Skills 狀態列使用實際模式與工作位置；Megin 文案對齊本機 feature commits。
 - Repo 清單改為輕量原生 Git 狀態；展開側欄或開啟版控才讀取詳細 refs／Stash／復原點，共用快取並拒絕過期回應。
 - 原生 Diff 使用唯讀 FileSystemProvider 保存原始 bytes；最後分頁關閉即釋放，包含開啟／關閉通知先後競態。
-- 從未管理的 Repo 查詢 AutoHook 狀態不再建立鎖檔；已管理狀態仍保留鎖定與交易恢復。
 - 更新舊 Wiki 選單、Megin BDD 與 MR v2 測試資料，未放寬 production 契約驗證。
 
 ## 功能矩陣
@@ -30,7 +29,7 @@ Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 與 Auto
 | Repo 延遲載入、快取、重試、生命週期 | 單元、介面與封裝指令量驗證通過 | 指令量 harness 不代表實機延遲 |
 | 原生 Diff bytes、唯讀與關閉釋放 | 四項單元與真實 Extension Host 回歸通過 | 使用隔離 Repo 驗證文字與二進位 bytes |
 | Git GUI 遠端操作與衝突恢復 | 最終 VSIX 隔離本機 bare remote 驗收通過 | 不代表 GitLab HTTPS／SSH 驗收 |
-| 整包安裝、更新、交易回復與 AutoHook | 安裝 12、交易 20、profile 8、AutoHook 22 項及真實 Host 安裝通過 | Codex `/hooks` 信任與真實人工核准未驗證 |
+| 整包安裝、更新、交易回復 | 安裝 12、交易 20、profile 8 項及真實 Host 安裝通過 | Codex `/hooks` 信任與真實人工核准未驗證 |
 | 鍵盤、窄視窗、高對比 | 最終封裝 smoke 8／8 通過 | 不代表螢幕閱讀器或完整人工可用性驗收 |
 
 ## 效能
@@ -58,7 +57,6 @@ Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 與 Auto
 - [最終 VSIX Git GUI](evidence/final-git-gui/git-gui-local.json) 在 VS Code 1.141.0 通過：開啟、選檔、暫存、Commit、隱藏各六十秒閒置均零額外 extension Git／native API 呼叫。測試使用隔離本機 bare remote；一般模式的確認決策使用測試 adapter，真正原生確認視窗另行驗收。
 - [真正原生確認視窗](evidence/final-native-confirmation/git-gui-local-native.json) 通過：在獨立暫存設定安裝最終 VSIX，以 Workbench DOM 操作 Commit／Push 確認視窗，並核對本機 bare remote 的實際 Commit。
 - [真實 VS Code 1.141.0 Extension Host](evidence/extension-host.txt)：16 項通過、2 項 pending；pending 本機 Git GUI 已由上述最終 VSIX 實測補足，另一項需要 GitLab Token。包含真實整包安裝、固定 MR 報告契約與原生 Diff。
-- [完整 `npm.cmd test` 原始結果](evidence/npm-test.txt) 以 exit code 0 結束：289 項單元、71 項介面、30 項 Issue／10 項連線情境、26 項 Node 發行檢查、226 項 Python 測試及 16 項 Extension Host 測試通過。另有三組 Megin discovery fixtures 通過。
 - 原生 Diff 關閉事件的追加案例在完整單元階段之後加入，另以[四項 provider 回歸](evidence/native-diff-unit.txt)全部通過；沒有把重複測試加總為唯一測試數。
 - [機器可讀驗證彙總](evidence/verification.json) 綁定最終 VSIX、組合包、測試數及尚未驗證範圍。
 

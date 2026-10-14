@@ -4,7 +4,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0
 
 ## 一次安裝整包
 
-在 VS Code 開啟要操作的專案資料夾，進入 **設定 → 工作區與 Skills → 共用專案根目錄**。專案下載、Skills 安裝與執行、Codex 及 AutoHook 共用此位置，預設為開啟的資料夾。同視窗有多個根資料夾時，先明確選擇本次操作的資料夾；也可設定自訂路徑。根目錄本身是有效 Git Repo 時採單專案流程，一般資料夾採整個工作區的流程，空資料夾亦可安裝。GitLab Group 僅作為遠端列表篩選，本機功能不需要整個工作區都對應同一 Group。下載及匯入組合包可免登入；需要 GitLab 操作時才個別驗證目標 Repo 的 remote 與身分。
+在 VS Code 開啟要操作的專案資料夾，進入 **設定 → 工作區與 Skills → 共用專案根目錄**。專案下載、Skills 安裝與執行、Codex 共用此位置，預設為開啟的資料夾。同視窗有多個根資料夾時，先明確選擇本次操作的資料夾；也可設定自訂路徑。根目錄本身是有效 Git Repo 時採單專案流程，一般資料夾採整個工作區的流程，空資料夾亦可安裝。GitLab Group 僅作為遠端列表篩選，本機功能不需要整個工作區都對應同一 Group。下載及匯入組合包可免登入；需要 GitLab 操作時才個別驗證目標 Repo 的 remote 與身分。
 
 安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 
@@ -98,7 +98,7 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 
 在 VSCode 工作區根目錄產生一份含 Checklist 的 `release-review-*.md`；已儲存工作區使用 .code-workspace 所在目錄，根目錄有歧義時先釐清。每次一份並保留歷史，使用 v3 中繼資料，舊 v1／v2 報告保留。報告結論優先，只列直接 P0／P1 阻擋，分開未完成證據與待核對條件。Checklist 供人工更新，狀態為待確認／已確認／未通過／不適用；核對人、日期與工單／驗證證據須保存，不適用須填理由。初始一律待確認，只有定義或申請工單不代表已建置／開通。人工紀錄限 release-checklist:start／end 區塊，原始判斷與固定正文不改寫。靜態檢查完成不等於上板準備完成；本次不自動連線驗證實際環境。暫存證據由原生 helper 管理，完成或中止均需清理。
 
-0.22.0 安裝器保留受信任的 0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1、0.20.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
+目前安裝器保留受信任的 0.13.2、0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。其他舊版整包不提供直接升級或回復相容性；未知安裝會阻擋覆寫。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
 
 ## 原生單 Repo 與版本限制
 
@@ -107,33 +107,6 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 單 Repo profile 名稱為 `repository`，CLI 使用 `--profile repository`，目標必須是實際 Git 根目錄。可使用 Wiki、原生 Megin 開發／續作、單 Repo 審查與上板檢查；Group quick、Issue 交付及 MR 任務入口保留於 Group。Wiki、工作紀錄、提示詞與 Codex 目錄跟隨所選情境。
 
 設定、Skills 頁及操作入口共用核對結果與安裝資訊。Skills 顯示目前根目錄實際整包／工具版本；舊版須更新才能啟動新任務。完整驗證過的進行中 Megin 工作可沿原根目錄、profile、版本及 Work ID 續作。切換畫面不會修改安裝；按安裝／更新才轉換 profile，沿用交易回復，並保留 Wiki、工作紀錄、報告和其他 Skills。進行中的工作會阻擋更新。
-
-## AutoHook
-
-AutoHook 1.2.0 是隨包附帶的工具，與 16 個 Skills 分開，兩種 profile 都安裝至 `.agents/gitlab-workspace-kit/autohook/`。新裝預設不勾選；在 **設定 → 工作區與 Skills → AutoHook** 以 **啟用 AutoHook** CheckBox 啟停，查看目前 Skills 路徑、隨包版本、執行版本、政策來源與狀態，另保留重新驗證或刷新。勾選狀態只來自專案實際安裝，查詢失敗顯示未知／錯誤，已啟用但異常者仍可取消勾選停用。
-
-公開政策快照、固定 commit、SHA-256 及條文對照隨包離線保存。核准先走固定規則，本機讀取／Git 查閱與預授權的指定專案測試／建置和檔案新增／更新可直接核准；其餘交由 Review Agent 依同一政策及可取得的授權內容審查。只有明確判定可執行才核准，需要人類決定、缺少證據、AI 執行失敗、輸出無效或逾時時維持原人工核准流程。Review Agent 透過本機 Codex CLI 使用目前登入，不需另外設定 API key。
-
-在同一張 AutoHook 設定卡選擇 **Review Agent 模型** 與 **思考強度**，只影響核准審查 Agent。模型及支援強度從本機 Codex 取得，可按 **刷新模型** 重試；模型清單讀取失敗時保留目前設定及停用控制。新裝預設 `gpt-6-luna`／`low`，AI 審查上限為 30 秒。未啟用時選好後勾選即可套用；已啟用時按 **儲存 Review Agent 設定**，成功後重新讀取實際設定。不同 Skills 根目錄各自保存，重新驗證及整包更新保留既有選擇。
-
-作用位置使用共用專案根目錄，與下載、Skills 安裝與執行及 Codex 啟動位置一致。啟用後的本機檔案位於 `.codex/autohook/`。沿用 `gitlabWorkspace.pythonPath`（Python 3.11+），原生 `codex.exe` 依序從 PATH、npm 套件內的原生執行檔及目前安裝的 Codex 擴充功能尋找，啟用、重新驗證與整包更新共用此規則。也可設定優先使用的 `gitlabWorkspace.autoHook.codexPath`，須填現有原生 `.exe` 的完整路徑；手動設定無效時會回報錯誤，不能直接填 `.cmd`、`.bat` 或 `.ps1`。狀態查詢與停用不需要 Codex；啟用需要 Windows PowerShell，其他平台或未安裝 Codex 時仍可安裝完整 Skills 包。
-
-啟用只管理三個核准設定及自己的 `PermissionRequest` handler，保留 Wiki 底稿、其他 Hooks 與設定。已啟用時，整包更新以新版 Wiki 底稿重新合成並同步更新還原備份，停用時恢復該底稿；已停用者維持停用。可驗證的既有 AutoHook 1.0.0／1.0.1／1.1.0 可納入管理；已啟用的舊版更新後使用固定規則加 AI 審查，未知內容或本機修改會阻擋覆寫。
-
-啟停、整包更新及回復共用安裝鎖與交易保護。先完成來源與相容性檢查，再停止自動核准並套用；最後才恢復啟用狀態。任何驗證或寫入失敗均取消整包更新並恢復前態。決策紀錄 `.codex/autohook/decisions.jsonl` 不列入覆寫或回復檔案。後續本機修改仍受回復保護。
-
-設定完成後請重新開啟 Codex，並在 `/hooks` 檢查及確認信任；工作台顯示的是本機設定狀態，不宣稱已驗證 Codex 信任。除工作台外，亦可使用同一個隨 VSIX 附帶的安裝器：
-
-```sh
-python -X utf8 -B resources/workflow-kit-installer.py autohook status <Skills根目錄>
-python -X utf8 -B resources/workflow-kit-installer.py autohook models <Skills根目錄> --codex <codex.exe路徑>
-python -X utf8 -B resources/workflow-kit-installer.py autohook enable <Skills根目錄> --codex <codex.exe路徑> --review-model gpt-6-luna --review-effort low
-python -X utf8 -B resources/workflow-kit-installer.py autohook configure <Skills根目錄> --review-model gpt-6-luna --review-effort low
-python -X utf8 -B resources/workflow-kit-installer.py autohook revalidate <Skills根目錄>
-python -X utf8 -B resources/workflow-kit-installer.py autohook disable <Skills根目錄>
-```
-
-`--codex` 可省略。安裝器從已封裝且逐檔驗證的 AutoHook 來源規劃變更，不執行目標專案內的 AutoHook 程式；相容性預檢與 `install --dry-run` 不修改目標專案。建置與安裝均不依賴旁邊的 AutoHook checkout。維護者使用 AutoHook 的 `scripts/package_release.py <輸出ZIP>` 產生可重現來源包，再更新固定來源 SHA-256。
 
 ## 交付後的 Wiki 知識回饋
 
@@ -145,8 +118,8 @@ python -X utf8 -B resources/workflow-kit-installer.py autohook disable <Skills�
 
 套件固定來源為 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0 與 ReleaseReviewer 0.3.0。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 與 MR 身分 adapter，歷史收據使用隔離唯讀 runtime。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。可加 `--validate-local-sources` 核對固定來源與相鄰來源樹完全相同，不自動改版或重設 SHA。套件建置會產生：
 
-- `gitlab-workspace-0.22.0.vsix`
-- `gitlab-workspace-kit-0.22.0.zip`
+- `gitlab-workspace-0.23.0.vsix`
+- `gitlab-workspace-kit-0.23.0.zip`
 - `SHA256SUMS`
 
 建置及發行測試涵蓋新裝、重複安裝、更新、失敗回復、程序中斷回復、套件與本機內容損壞、舊版清理、Megin 工作阻擋，以及 Group 規格、審查、精確 Commit、MR 報告與知識回饋流程。

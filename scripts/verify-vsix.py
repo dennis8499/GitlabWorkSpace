@@ -69,7 +69,7 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
     helper_name = "extension/resources/workflow-kit-installer.py"
     if archive_name not in members or manifest_name not in members or helper_name not in members:
         raise ValueError("VSIX is missing its offline workflow kit or installer")
-    for name in ("workflow-kit-installer.py", "workflow_kit_autohook.py"):
+    for name in ("workflow-kit-installer.py",):
         if archive.read("extension/resources/" + name) != (ROOT / "resources" / name).read_bytes():
             raise ValueError("VSIX contains an outdated workflow helper: " + name)
     if "extension/resources/tool-installer.py" in members:
@@ -137,11 +137,11 @@ def main() -> int:
                 "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
                 "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
                 "extension/resources/git-rebase-editor.cjs",
-                "extension/resources/workflow-kit-installer.py", "extension/resources/workflow_kit_autohook.py"
+                "extension/resources/workflow-kit-installer.py"
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
-            for relative in ("out/src/workspace/workspacePanel.js", "out/src/workspace/codexRuntime.js"):
+            for relative in ("out/src/workspace/workspacePanel.js", "out/src/workspace/workflowKitResult.js"):
                 if "extension/" + relative not in members or archive.read("extension/" + relative) != (ROOT / relative).read_bytes():
                     raise ValueError(f"VSIX contains outdated compiled workspace code: {relative}")
             if any(name.startswith(("extension/.github/", "extension/scripts/", "extension/.npm-cache/")) for name in members):

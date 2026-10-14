@@ -65,7 +65,7 @@ function createFixture() {
     workflowKitSource: 'bundled', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
     skillsContext: { mode: 'group', root: 'C:/fixture/team', revision: 'fixture-revision', installed, availableFeatures: features, resumeOnly: false,
       groupMatch: { status: 'matched', root: 'C:/fixture/team', repositories: matched }, repositories: matched },
-    accounts: [], tools: [], busy: false, autoHook: { root: 'C:/fixture/team', status: 'disabled', enabled: false, stateKnown: true, supported: false, bundledVersion: '1.1.0' } } };
+    accounts: [], tools: [], busy: false } };
 }
 const fixture = createFixture();
 const hostTheme = `:root { --vscode-font-family: 'Segoe UI', sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: Consolas, monospace;

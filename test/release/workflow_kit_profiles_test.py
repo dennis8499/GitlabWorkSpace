@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 import zipfile
@@ -21,6 +22,7 @@ class ProfileTests(unittest.TestCase):
     execute = harness.WorkflowKitInstallerTests.execute
     create_group = harness.WorkflowKitInstallerTests.create_group
     status = harness.WorkflowKitInstallerTests.status
+    snapshot = harness.WorkflowKitInstallerTests.snapshot
 
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="kit-profiles-")
@@ -71,6 +73,65 @@ class ProfileTests(unittest.TestCase):
         result, _ = self.execute("install", ARCHIVE, empty, VERSION, "bundled", "--format", "tar.xz",
             "--entry-root", "workflow-kit", "--archive-sha256", hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), "--profile", "repository")
         self.assertNotEqual(0, result.returncode, "native installation must target an actual Git root")
+
+    def test_wiki_defaults_preserve_project_settings_and_other_hooks(self):
+        configurations = {
+            "tables": '# personal note\nmodel = "personal"\n[features]\nhooks = false\ncustom = true\n[wiki_guard]\nmode = "target"\nextra = 9\n',
+            "dotted": '# personal note\nfeatures.hooks = false\nfeatures.custom = true\nwiki_guard.mode = "target"\n',
+            "inline": '# personal note\nfeatures = { hooks = false, custom = true }\nwiki_guard = { mode = "target", extra = 9 }\n',
+            "integer": '# personal note\nfeatures = { hooks = 1, custom = 2026-10-14 }\n',
+            "multiline": '# personal note\nmessage = """literal [features]\nhooks = false\n"""\n["features"]\n"hooks" = false\ncustom = [\n  "one", # array comment\n  "two"\n]\n',
+        }
+        custom = {"matcher": "custom", "hooks": [{"type": "command", "command": "python personal-hook.py"}]}
+        hooks = {"metadata": {"owner": "personal"}, "hooks": {"PermissionRequest": [custom], "SessionStart": [custom]}}
+        for profile in ("group", "repository"):
+            for name, config in configurations.items():
+                with self.subTest(profile=profile, syntax=name):
+                    target = self.base / (profile + "-" + name)
+                    (target / ".codex").mkdir(parents=True)
+                    if profile == "repository":
+                        subprocess.run(["git", "init", "--quiet", "-b", "main", str(target)], check=True, capture_output=True)
+                    config_path = target / ".codex/config.toml"
+                    hooks_path = target / ".codex/hooks.json"
+                    config_path.write_bytes(config.encode("utf-8"))
+                    original_hooks = (json.dumps(hooks, indent=2) + "\n").encode("utf-8")
+                    hooks_path.write_bytes(original_hooks)
+                    arguments = ("install", ARCHIVE, target, VERSION, "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
+                                 "--archive-sha256", hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), "--profile", profile)
+                    result, data = self.execute(*arguments)
+                    self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+                    expected = tomllib.loads(config)
+                    expected.setdefault("features", {})["hooks"] = True
+                    expected.setdefault("wiki_guard", {})["mode"] = "coexist"
+                    self.assertEqual(expected, tomllib.loads(config_path.read_text(encoding="utf-8")))
+                    self.assertIn("# personal note", config_path.read_text(encoding="utf-8"))
+                    actual_hooks = json.loads(hooks_path.read_bytes())
+                    self.assertEqual(hooks["metadata"], actual_hooks["metadata"])
+                    self.assertEqual([custom], actual_hooks["hooks"]["PermissionRequest"])
+                    self.assertEqual(1, actual_hooks["hooks"]["SessionStart"].count(custom))
+                    self.assertEqual("installed", self.status(target)["status"])
+                    before = (config_path.read_bytes(), hooks_path.read_bytes())
+                    repeated, unchanged = self.execute(*arguments)
+                    self.assertEqual(0, repeated.returncode, unchanged)
+                    self.assertEqual("unchanged", unchanged["status"])
+                    self.assertEqual(before, (config_path.read_bytes(), hooks_path.read_bytes()))
+                    rolled, output = self.execute("rollback", target, data["transaction"])
+                    self.assertEqual(0, rolled.returncode, output)
+                    self.assertEqual(config.encode("utf-8"), config_path.read_bytes())
+                    self.assertEqual(original_hooks, hooks_path.read_bytes())
+
+    def test_unreviewed_old_payload_is_rejected_without_replacing_project_files(self):
+        self.installed()
+        marker = self.repo / MARKER
+        data = json.loads(marker.read_bytes())
+        data["version"] = "0.22.0"
+        data["payloadSha256"] = "f" * 64
+        marker.write_text(json.dumps(data), encoding="utf-8")
+        before = self.snapshot(self.repo)
+        self.assertEqual("error", self.status(self.repo)["status"])
+        rejected, _ = self.apply()
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertEqual(before, self.snapshot(self.repo))
 
     def test_native_imported_zip_installs_in_a_worktree_and_rolls_back(self):
         linked = self.base / "linked-worktree"
@@ -149,15 +210,15 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(before, (target / MARKER).read_bytes())
                 self.assertEqual(('update-available', profile), (self.status(target)['status'], self.status(target)['profile']))
 
-    def test_frozen_021_work_keeps_original_package_then_upgrades_and_rolls_back(self):
-        fixture = ROOT / 'test/fixtures/workflow-kit-0.21.0'
-        archive = fixture / 'offline-tools/workflow-kit.tar.xz'
+    def test_frozen_018_work_keeps_original_package_then_upgrades_and_rolls_back(self):
+        fixture = ROOT / 'test/fixtures/workflow-kit-0.18.0'
+        archive = fixture / 'workflow-kit.tar.xz'
         for profile in ('group', 'repository'):
             with self.subTest(profile=profile):
-                target = self.base / ('old-021-' + profile); target.mkdir()
+                target = self.base / ('old-018-' + profile); target.mkdir()
                 subprocess.run(['git', '-C', str(target), 'init', '-q', '-b', 'master'], check=True)
                 run = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(Path(__file__).with_name('frozen_installer_runner.py')),
-                    str(fixture / 'workflow-kit-installer.py'), 'install', str(archive), str(target), '0.21.0', 'bundled',
+                    str(fixture / 'installer.py'), 'install', str(archive), str(target), '0.18.0', 'bundled',
                     '--format', 'tar.xz', '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(),
                     '--profile', profile], capture_output=True, text=True, encoding='utf-8')
                 self.assertEqual(0, run.returncode, run.stderr or run.stdout)

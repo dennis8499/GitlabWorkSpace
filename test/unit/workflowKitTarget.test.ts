@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -12,8 +12,6 @@ const configuredRoots = new Map<string, string>();
 const folderKey = 'gitlabWorkspace.projectFolder';
 let preferGroup: boolean | undefined;
 let resolvingPython: (() => void) | undefined;
-let codexExtensionRoot: string | undefined;
-let configuredCodexPath: string | undefined;
 const updates: any[] = [];
 const terminals: any[] = [];
 const vscode = {
@@ -21,12 +19,10 @@ const vscode = {
     workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
     workspaceFile: undefined as ReturnType<typeof uri> | undefined,
     getConfiguration: (_section?: string, resource?: ReturnType<typeof uri>) => ({ get: (key: string, fallback: unknown) => key === 'projectRoot' ? configuredRoots.get(resource?.toString() ?? '') ?? fallback
-      : key === 'autoHook.codexPath' ? configuredCodexPath ?? fallback : fallback,
+      : fallback,
       update: async (key: string, value: string, target: number) => { updates.push({ key, value, target, resource: resource?.toString() }); configuredRoots.set(resource?.toString() ?? '', value); } })
   },
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
-  extensions: { getExtension: (id: string) => id === 'openai.chatgpt' && codexExtensionRoot
-    ? { extensionUri: uri(codexExtensionRoot), extensionPath: codexExtensionRoot } : undefined },
   env: { openExternal: async (_uri: unknown) => true, clipboard: { writeText: async (_text: string) => undefined } },
   window: {
     createTerminal: (options: any) => { terminals.push(options); return { show: () => undefined, sendText: () => undefined }; },
@@ -57,7 +53,7 @@ const project = (id: number, name: string) => ({ id, name, path: name, path_with
 const argumentValue = (args: string[] | undefined, flag: string) => args?.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
 
 function fixture(folders: string[], connected = false, workspaceState = memory()) {
-  configuredRoots.clear(); preferGroup = undefined; updates.length = 0; resolvingPython = undefined; codexExtensionRoot = undefined; configuredCodexPath = undefined;
+  configuredRoots.clear(); preferGroup = undefined; updates.length = 0; resolvingPython = undefined;
   vscode.workspace.workspaceFile = undefined;
   vscode.workspace.workspaceFolders = folders.map(root => ({ uri: uri(root) }));
   vscode.window.showQuickPick = async () => undefined;
@@ -72,7 +68,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     workspaceMatch: { status: 'checking', repositories: [] }, projects: connected ? [project(1, 'service'), project(2, 'docs')] : [],
     workspaceSections: { projects: { status: connected ? 'ready' : 'idle' } },
     loadedScopeKey: connected ? 'https://gitlab.test|1|1' : undefined,
-    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' }, autoHookRefreshGeneration: 0, autoHookModelsGeneration: 0,
+    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' },
     workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
     workflowKitSelectingRoot: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
     currentUser: connected ? { id: 1 } : undefined,
@@ -83,11 +79,6 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     sendSnapshot: () => undefined, post: () => undefined,
     runWorkflowKitHelper: async (args: string[], _timeout?: number, beforeLaunch?: () => Promise<void>) => {
       await beforeLaunch?.(); calls.push(args);
-      if (args[0] === 'autohook' && args[1] === 'models') return { ok: true, models: [
-        { model: 'gpt-6-luna', display_name: 'GPT-6 Luna', default_reasoning_effort: 'low', supported_reasoning_efforts: ['low', 'medium', 'high'] },
-        { model: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol', default_reasoning_effort: 'medium', supported_reasoning_efforts: ['low', 'medium', 'high', 'xhigh'] }
-      ] };
-      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.2.0' };
       if (args[0] === 'install') {
         const profile = args[args.indexOf('--profile') + 1] as 'group' | 'repository';
         installed.set(args[2], profile);
@@ -121,7 +112,7 @@ test('all local features default to the opened Repo even when its origin matches
   const [, repo] = await directories(t); const { host, calls } = fixture([repo], true);
   await host.refreshWorkflowKit();
   assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.cloneRoot, repo);
-  assert.equal(host.getSkillsContext().root, repo); assert.equal(host.autoHookState.root, repo);
+  assert.equal(host.getSkillsContext().root, repo);
   assert.equal(host.getWorkflowKitPolicy().mode, 'repository');
   await host.installWorkflowKit('bundled');
   assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'repository');
@@ -141,7 +132,7 @@ test('switching GitLab Group does not change local paths or workflow', async t =
   host.session.selectedGroup = { id: 2 }; host.projects = [];
   await host.refreshWorkflowKit();
   assert.equal(host.getSkillsContext().mode, 'group'); assert.equal(host.getSkillsContext().root, group);
-  assert.equal(host.cloneRoot, group); assert.equal(host.autoHookState.root, group);
+  assert.equal(host.cloneRoot, group);
 });
 
 test('Codex uses the selected workspace folder and rejects a stale context', async t => {
@@ -176,20 +167,20 @@ test('legacy independent paths do not override the VS Code project root', async 
   await state.update('gitlabWorkspace.cloneRoot.legacy', other);
   const { host } = fixture([repo], false, state); await host.refreshWorkflowKit();
   assert.equal(host.cloneRoot, repo); assert.equal(host.getSkillsContext().root, repo);
-  assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.autoHookState.root, repo);
+  assert.equal(host.workflowKitInstallTarget.root, repo);
 });
 
-test('changing the shared root switches installation, Skills, Codex and AutoHook together', async t => {
+test('changing the shared root switches installation, Skills and Codex together', async t => {
   const [group, repo] = await directories(t); const { host, installed } = fixture([group]);
   installed.set(group, 'group'); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
   const oldRevision = host.getSkillsContext().revision;
   vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectProjectRoot();
   assert.equal(host.cloneRoot, repo); assert.equal(host.workflowKitInstallTarget.root, repo);
-  assert.equal(host.getSkillsContext().root, repo); assert.equal(host.autoHookState.root, repo);
+  assert.equal(host.getSkillsContext().root, repo);
   assert.notEqual(host.getSkillsContext().revision, oldRevision);
   assert.equal(updates.at(-1).target, 2); assert.equal(updates.at(-1).key, 'projectRoot');
   terminals.length = 0; await host.openCodexTerminal(host.getSkillsContext().revision); assert.equal(terminals[0].cwd, repo);
-  await host.resetWorkflowKitInstallRoot(); assert.equal(host.cloneRoot, group); assert.equal(host.autoHookState.root, group);
+  await host.resetWorkflowKitInstallRoot(); assert.equal(host.cloneRoot, group);
 });
 
 test('custom roots are saved per workspace folder and cancellation preserves the current setting', async t => {
@@ -207,7 +198,7 @@ test('ordinary folders work offline and an opened Repo subdirectory keeps its ow
   assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'group');
   const child = path.join(repo, 'src'); await mkdir(child); vscode.window.showOpenDialog = async () => [uri(child)];
   await host.selectProjectRoot(); assert.equal(host.cloneRoot, child);
-  assert.match(host.workflowKitInstallTarget.error, /Git 根目錄/); assert.equal(host.autoHookState.root, child);
+  assert.match(host.workflowKitInstallTarget.error, /Git 根目錄/);
   await assert.rejects(host.installWorkflowKit('bundled'), /Git 根目錄/);
   vscode.window.showOpenDialog = async () => [{ scheme: 'vscode-remote', fsPath: child }];
   await assert.rejects(host.selectProjectRoot(), /本機/);
@@ -232,8 +223,7 @@ test('late status reads cannot overwrite a newly configured project root', async
   const [group, repo, other] = await directories(t); const { host } = fixture([repo]);
   configuredRoots.set(uri(repo).toString(), group);
   let finish!: (value: unknown) => void, start!: () => void; const started = new Promise<void>(resolve => { start = resolve; });
-  host.runWorkflowKitHelper = async (args: string[]) => args[1] === group ? new Promise(resolve => { finish = resolve; start(); })
-    : args[0] === 'autohook' ? { ok: true, root: args[2], status: 'disabled', enabled: false } : { ok: true, status: 'missing' };
+  host.runWorkflowKitHelper = async (args: string[]) => args[1] === group ? new Promise(resolve => { finish = resolve; start(); }) : { ok: true, status: 'missing' };
   const old = host.refreshWorkflowKit(); await started;
   configuredRoots.set(uri(repo).toString(), other); await host.refreshWorkflowKit();
   finish({ ok: true, status: 'installed', version: 'old', profile: 'repository' }); await old;
@@ -344,7 +334,6 @@ test('Group quick review opens with the actual current kit and rechecks its veri
   let statusReads = 0, omitCapability = false, invalidateOnConfirmation = false;
   host.runWorkflowKitHelper = async (args: string[], _timeout?: number, before?: () => Promise<void>) => {
     await before?.();
-    if (args[0] === 'autohook') return { ok: true, root: group, status: 'disabled', enabled: false };
     const state = execute(args);
     if (args[0] === 'status') {
       statusReads++;
@@ -403,168 +392,19 @@ test('shared root drift during Python resolution prevents writes', async t => {
     { workflowKitHelper: () => 'unused.py' }), ['inspect'], 1000, check), /已變更/);
 });
 
-test('AutoHook follows the shared installation and Skills root', async t => {
-  const [group, repo] = await directories(t); const { host, calls } = fixture([group], true);
-  await host.refreshWorkflowKit(); const oldRevision = host.getSkillsContext().revision;
-  vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectProjectRoot();
-  assert.equal(host.autoHookState.root, repo); assert.equal(host.workflowKitInstallTarget.root, repo);
-  await host.manageAutoHook('disable', host.getSkillsContext().revision);
-  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'disable'), ['autohook', 'disable', repo]);
-  await assert.rejects(host.manageAutoHook('enable', oldRevision), /已變更/);
-});
-
-test('AutoHook discovers the registered Codex extension when PATH only provides a shim', { skip: process.platform !== 'win32' }, async t => {
-  const [group, repo] = await directories(t);
-  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository');
-  await host.refreshWorkflowKit();
-  codexExtensionRoot = path.join(group, 'Codex 中文 版本一');
-  const native = path.join(codexExtensionRoot, 'bin', process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64', 'codex.exe');
-  await mkdir(path.dirname(native), { recursive: true }); await writeFile(native, 'native fixture');
-  const shimDirectory = path.join(group, 'npm shim'); await mkdir(shimDirectory);
-  await writeFile(path.join(shimDirectory, 'codex.cmd'), 'this shim must never execute');
-  const pathKey = Object.keys(process.env).find(key => key.toUpperCase() === 'PATH') ?? 'Path';
-  const previousPath = process.env[pathKey];
-  t.after(() => { if (previousPath === undefined) delete process.env[pathKey]; else process.env[pathKey] = previousPath; });
-  const pathDirectories = (previousPath ?? '').split(';').filter(Boolean);
-  const keep = await Promise.all(pathDirectories.map(async directory => {
-    for (const name of ['codex.exe', 'codex.cmd', 'codex.bat', 'codex.ps1']) {
-      if (await stat(path.join(directory.replace(/^"|"$/g, ''), name)).then(info => info.isFile(), () => false)) return false;
-    }
-    return true;
-  }));
-  process.env[pathKey] = [shimDirectory, ...pathDirectories.filter((_, index) => keep[index])].join(';');
-  await host.manageAutoHook('enable', host.getSkillsContext().revision);
-  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'enable'), ['autohook', 'enable', repo, '--codex', native, '--review-model', 'gpt-6-luna', '--review-effort', 'low']);
-  codexExtensionRoot = path.join(group, 'Codex 中文 版本二');
-  const updated = path.join(codexExtensionRoot, 'bin', process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64', 'codex.exe');
-  await mkdir(path.dirname(updated), { recursive: true }); await writeFile(updated, 'updated native fixture');
-  await host.manageAutoHook('revalidate', host.getSkillsContext().revision);
-  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'revalidate'), ['autohook', 'revalidate', repo, '--codex', updated]);
-  await host.installWorkflowKit('bundled');
-  assert.deepEqual(calls.find(args => args[0] === 'install')?.slice(-2), ['--codex', updated]);
-  codexExtensionRoot = undefined;
-  await host.installWorkflowKit('bundled');
-  assert.equal(calls.filter(args => args[0] === 'install').at(-1)?.includes('--codex'), false);
-});
-
-test('AutoHook status and emergency disable do not look up a Codex installation', async t => {
-  const [, repo] = await directories(t);
-  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository');
-  await host.refreshWorkflowKit(); configuredCodexPath = 'missing.cmd';
-  const previous = vscode.extensions.getExtension;
-  t.after(() => { vscode.extensions.getExtension = previous; });
-  vscode.extensions.getExtension = () => { throw new Error('status and disable must not discover Codex'); };
-  await host.refreshAutoHook();
-  await host.manageAutoHook('disable', host.getSkillsContext().revision);
-  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'disable'), ['autohook', 'disable', repo]);
-});
-
 test('a failing helper process exposes its JSON error instead of the entire command', async t => {
   const [group, repo] = await directories(t);
-  const { host } = fixture([repo]); configuredCodexPath = 'missing.cmd';
+  const { host } = fixture([repo]);
   const script = path.join(group, 'failed-helper.cjs');
   host.workflowKitHelper = () => script; host.context.extensionUri = uri(repo);
   for (const stream of ['stdout', 'stderr']) {
-    await writeFile(script, `process.${stream}.write(JSON.stringify({ok:false,error:"A native codex.exe is required; use enable --codex <path-to-codex.exe>"})); process.exitCode=1;`);
-    await assert.rejects(WorkspacePanel!.prototype['runWorkflowKitHelper'].call(host, ['autohook', 'enable', repo], 1000), (error: Error) => {
-      assert.match(error.message, /gitlabWorkspace\.autoHook\.codexPath/);
-      assert.match(error.message, /無效/);
+    await writeFile(script, `process.${stream}.write(JSON.stringify({ok:false,error:"交易驗證失敗"})); process.exitCode=1;`);
+    await assert.rejects(WorkspacePanel!.prototype['runWorkflowKitHelper'].call(host, ['status', repo], 1000), (error: Error) => {
+      assert.equal(error.message, '交易驗證失敗');
       assert.doesNotMatch(error.message, /Command failed|failed-helper/);
       return true;
     });
   }
-});
-
-test('AutoHook rejects duplicate clicks and selection changes while an operation runs', async t => {
-  const [, repo, other] = await directories(t);
-  const { host, installed, calls } = fixture([repo, other]); installed.set(repo, 'repository');
-  await selectFolder(host, repo);
-  const helper = host.runWorkflowKitHelper;
-  let finish!: (value: unknown) => void, start!: () => void;
-  const started = new Promise<void>(resolve => { start = resolve; });
-  host.runWorkflowKitHelper = async (args: string[], timeout?: number, before?: () => Promise<void>) => {
-    if (args[0] !== 'autohook' || args[1] === 'status') return helper(args, timeout, before);
-    await before?.(); calls.push(args); start(); return new Promise(resolve => { finish = resolve; });
-  };
-  const operation = host.manageAutoHook('disable', host.getSkillsContext().revision); await started;
-  assert.equal(host.workflowKitSettingBusy, true);
-  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /等候/);
-  await assert.rejects(selectFolder(host, other), /等候/);
-  await assert.rejects(host.installWorkflowKit('bundled'), /正在進行/);
-  finish({ ok: true, enabled: false }); await operation;
-  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] === 'disable').length, 1);
-  assert.equal(host.workflowKitSettingBusy, false);
-});
-
-test('AutoHook checks Repo identity again immediately before launching Python', async t => {
-  const [, repo] = await directories(t);
-  const { host, installed, calls } = fixture([repo]); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
-  const helper = host.runWorkflowKitHelper;
-  host.runWorkflowKitHelper = async (args: string[], timeout?: number, before?: () => Promise<void>) => {
-    if (args[0] !== 'autohook' || args[1] === 'status') return helper(args, timeout, before);
-    execFileSync('git', ['-C', repo, 'remote', 'set-url', 'origin', 'https://changed.test/team/service.git']);
-    await before?.(); throw new Error('must not launch');
-  };
-  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /Repo 已變更/);
-  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] !== 'status').length, 0);
-});
-
-test('late AutoHook status cannot replace a new Skills root or a newer refresh', async t => {
-  const [, repo, other] = await directories(t);
-  const { host, installed } = fixture([repo, other]); installed.set(repo, 'repository'); installed.set(other, 'repository');
-  await selectFolder(host, repo);
-  const helper = host.runWorkflowKitHelper;
-  let finish!: (value: unknown) => void;
-  host.runWorkflowKitHelper = (args: string[], ...rest: unknown[]) => args[0] === 'autohook' && args[2] === repo
-    ? new Promise(resolve => { finish = resolve; }) : helper(args, ...rest);
-  const old = host.refreshAutoHook();
-  await selectFolder(host, other);
-  finish({ ok: true, root: repo, status: 'enabled', enabled: true, supported: true }); await old;
-  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.enabled, false);
-  // Same-root responses can be stale too.
-  host.runWorkflowKitHelper = () => new Promise(resolve => { finish = resolve; });
-  const pending = host.refreshAutoHook(); host.runWorkflowKitHelper = helper; await host.refreshAutoHook();
-  finish({ ok: true, root: other, status: 'enabled', enabled: true, supported: true }); await pending;
-  assert.equal(host.autoHookState.enabled, false);
-});
-
-test('AutoHook status errors retain emergency disable state but do not carry it to another root', async t => {
-  const [, repo, other] = await directories(t);
-  const { host } = fixture([repo, other]); await selectFolder(host, repo);
-  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true };
-  let reject!: (error: Error) => void;
-  const helper = host.runWorkflowKitHelper;
-  host.runWorkflowKitHelper = () => new Promise((_resolve, failure) => { reject = failure; });
-  const pending = host.refreshAutoHook();
-  assert.equal(host.autoHookState.status, 'checking'); assert.equal(host.autoHookState.enabled, true);
-  reject(new Error('status unavailable')); await pending;
-  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.stateKnown, false);
-  assert.equal(host.autoHookState.status, 'error'); assert.match(host.autoHookState.message, /status unavailable/);
-  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => {
-    if (args[0] === 'autohook') throw new Error('new root unavailable');
-    return helper(args, ...rest);
-  };
-  await selectFolder(host, other);
-  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.enabled, false);
-  assert.equal(host.autoHookState.stateKnown, false);
-});
-
-test('AutoHook re-reads actual state after a failed operation and rejects malformed status', async t => {
-  const [, repo] = await directories(t); const { host } = fixture([repo]); await host.refreshWorkflowKit();
-  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true };
-  const helper = host.runWorkflowKitHelper; let statuses = 0;
-  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => {
-    if (args[0] !== 'autohook') return helper(args, ...rest);
-    if (args[1] !== 'status') throw new Error('disable failed');
-    statuses++; return { root: repo, status: 'needs-revalidation', enabled: true, supported: true };
-  };
-  await assert.rejects(host.manageAutoHook('disable', host.getSkillsContext().revision), /disable failed/);
-  assert.equal(statuses, 1); assert.equal(host.workflowKitSettingBusy, false);
-  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.status, 'needs-revalidation');
-  host.runWorkflowKitHelper = async () => ({ root: repo, status: 'disabled' });
-  await host.refreshAutoHook();
-  assert.equal(host.autoHookState.status, 'error'); assert.equal(host.autoHookState.stateKnown, false);
-  assert.equal(host.autoHookState.enabled, true);
 });
 
 test('filesystem helpers are serialized and queued requests recheck before launch', async t => {
@@ -574,76 +414,10 @@ test('filesystem helpers are serialized and queued requests recheck before launc
   const order: string[] = [];
   const run = WorkspacePanel!.prototype['runWorkflowKitHelper'].bind(host);
   const first = run(['status'], 1000, async () => { order.push('first'); await waiting; throw new Error('first guard'); });
-  const second = run(['autohook'], 1000, () => { order.push('second'); throw new Error('second guard'); });
+  const second = run(['status'], 1000, () => { order.push('second'); throw new Error('second guard'); });
   const completed = Promise.all([assert.rejects(first, /first guard/), assert.rejects(second, /second guard/)]);
   await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(order, ['first']);
   release(); await completed; assert.deepEqual(order, ['first', 'second']);
-});
-
-test('AutoHook blocks enable on non-Windows and confirms trust instructions on Windows', async t => {
-  const [, repo] = await directories(t); const { host, installed } = fixture([repo]); installed.set(repo, 'repository');
-  await host.refreshWorkflowKit(); const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
-  t.after(() => Object.defineProperty(process, 'platform', platform));
-  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
-  await assert.rejects(host.manageAutoHook('enable', host.getSkillsContext().revision), /Windows/);
-  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-  const messages: any[] = []; host.post = (message: unknown) => messages.push(message);
-  await host.manageAutoHook('enable', host.getSkillsContext().revision);
-  assert.match(messages.at(-1).message, /重新開啟 Codex.*\/hooks.*信任/);
-});
-
-test('AutoHook reads installed reviewer settings and maps the Codex model catalog', async t => {
-  const [, repo] = await directories(t); const { host, calls } = fixture([repo]); await host.refreshWorkflowKit();
-  const helper = host.runWorkflowKitHelper;
-  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => args[1] === 'status' && args[0] === 'autohook'
-    ? { root: repo, status: 'enabled', enabled: true, supported: true, reviewer: { model: 'gpt-6.1-sol', reasoning_effort: 'high', timeout_seconds: 30 },
-        policyCoverage: { mode: 'fixed-rules-ai-review', equivalent_to_native: false, deterministic_rules: [], preauthorized_rules: [], manual_review: [], limitations: [] } }
-    : helper(args, ...rest);
-  await host.refreshAutoHook();
-  assert.deepEqual(host.autoHookState.reviewer, { model: 'gpt-6.1-sol', reasoningEffort: 'high', timeoutSeconds: 30 });
-  assert.equal(host.autoHookState.policyCoverage.mode, 'fixed-rules-ai-review');
-  await host.refreshAutoHookModels(host.getSkillsContext().revision);
-  assert.deepEqual(host.autoHookState.reviewerModels[1], { model: 'gpt-6.1-sol', displayName: 'GPT-6.1 Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'] });
-  assert.equal(host.autoHookState.reviewerModelsLoading, false);
-  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] === 'models').length, 1);
-});
-
-test('AutoHook configure sends reviewer choices and invalid selections never launch', async t => {
-  const [, repo] = await directories(t); const { host, calls } = fixture([repo]); await host.refreshWorkflowKit();
-  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
-  t.after(() => Object.defineProperty(process, 'platform', platform));
-  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-  host.autoHookCodexArguments = async () => ['--codex', 'C:/native/codex.exe'];
-  const reviewer = { model: 'gpt-6.1-sol', reasoningEffort: 'high', timeoutSeconds: 30 };
-  await host.manageAutoHook('configure', host.getSkillsContext().revision, reviewer);
-  assert.deepEqual(calls.find(args => args[1] === 'configure'), ['autohook', 'configure', repo, '--codex', 'C:/native/codex.exe', '--review-model', 'gpt-6.1-sol', '--review-effort', 'high']);
-  for (const bad of [{ ...reviewer, model: '--bad' }, { ...reviewer, reasoningEffort: 'low; exit' }, { ...reviewer, timeoutSeconds: 0 }]) {
-    await assert.rejects(host.manageAutoHook('configure', host.getSkillsContext().revision, bad), /設定無效/);
-  }
-  assert.equal(calls.filter(args => args[1] === 'configure').length, 1);
-  await assert.rejects(host.manageAutoHook('configure', 'stale', reviewer), /已變更/);
-});
-
-test('AutoHook model lookup failures retain installed state and stale catalogs cannot cross roots', async t => {
-  const [, repo, other] = await directories(t); const { host } = fixture([repo, other]); await selectFolder(host, repo);
-  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true,
-    reviewer: { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } };
-  const helper = host.runWorkflowKitHelper; let finish!: (value: unknown) => void;
-  host.runWorkflowKitHelper = (args: string[], ...rest: unknown[]) => args[1] === 'models'
-    ? new Promise(resolve => { finish = resolve; }) : helper(args, ...rest);
-  const old = host.refreshAutoHookModels(host.getSkillsContext().revision);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.reviewerModelsLoading, true);
-  await selectFolder(host, other);
-  finish({ models: [{ model: 'gpt-6-luna', default_reasoning_effort: 'low', supported_reasoning_efforts: ['low'] }] }); await old;
-  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.reviewerModels, undefined);
-  host.runWorkflowKitHelper = async () => { throw new Error('catalog unavailable'); };
-  await host.refreshAutoHookModels(host.getSkillsContext().revision);
-  assert.equal(host.autoHookState.status, 'disabled'); assert.equal(host.autoHookState.enabled, false);
-  assert.match(host.autoHookState.reviewerModelsError, /catalog unavailable/);
-  host.runWorkflowKitHelper = async () => ({ models: [{ model: 'gpt-6-luna', default_reasoning_effort: 'high', supported_reasoning_efforts: ['low'] }] });
-  await host.refreshAutoHookModels(host.getSkillsContext().revision);
-  assert.match(host.autoHookState.reviewerModelsError, /清單無效/);
 });
 
 test('stale project revisions cannot install into a newly selected root', async t => {
@@ -665,12 +439,11 @@ test('root selection locks before asynchronous resolution and blocks downloads u
   release(); await selecting; assert.equal(host.workflowKitSelectingRoot, false); assert.equal(updates.length, 0);
 });
 
-test('repository operations block installation and AutoHook writes at the shared root', async t => {
+test('repository operations block installation at the shared root', async t => {
   const [, repo] = await directories(t); const { host, calls } = fixture([repo]); await host.refreshWorkflowKit();
-  const revision = host.getSkillsContext().revision; host.repositoryOperationInProgress = true;
+  host.repositoryOperationInProgress = true;
   await assert.rejects(host.installWorkflowKit('bundled'), /等候/);
-  await assert.rejects(host.manageAutoHook('disable', revision), /等候/);
-  assert.equal(calls.some(args => args[0] === 'install' || args[0] === 'autohook' && args[1] === 'disable'), false);
+  assert.equal(calls.some(args => args[0] === 'install'), false);
 });
 
 test('a saved workspace keeps root overrides on its folder even before a second folder is added', async t => {

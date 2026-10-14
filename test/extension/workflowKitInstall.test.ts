@@ -24,7 +24,7 @@ suite('Local workflow kit installation', () => {
     }
   });
 
-  test('installs real bundled Skills and follows shared root changes for offline Skills and AutoHook', async function () {
+  test('installs real bundled Skills and follows shared root changes for offline Skills', async function () {
     this.timeout(120_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
@@ -117,7 +117,6 @@ suite('Local workflow kit installation', () => {
         assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 16);
         assert.equal(host.getSkillsContext().root, externalRoot);
         assert.equal(host.getSkillsContext().installed.profile, profile);
-        assert.equal(host.autoHookState.root, externalRoot);
         assert.notEqual(host.getSkillsContext().revision, skills.revision);
         assert.equal(vscode.workspace.workspaceFolders?.some(folder => folder.uri.fsPath === externalRoot), false);
       }

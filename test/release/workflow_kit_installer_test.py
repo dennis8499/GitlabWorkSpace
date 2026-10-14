@@ -233,7 +233,8 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                         entries[archive_path] += b"\nchanged native release payload\n"
                         manifest["files"][relative] = hashlib.sha256(entries[archive_path]).hexdigest()
                     elif mutation == "release-source":
-                        entries["workflow-kit/sources/release-reviewer-0.2.0.zip"] += b"changed source"
+                        asset = manifest["upstream"]["release-reviewer"]["asset"]
+                        entries[f"workflow-kit/sources/{asset}"] += b"changed source"
                     else:
                         relative = ".agents/skills/megin/unlisted.md"
                         content = b"not declared by any overlay\n"
@@ -261,7 +262,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"autohook": "1.2.0", "codebase-wiki": "0.6.0", "megin": "0.8.0", "merge-reviewer": "0.11.0", "release-reviewer": "0.2.0"},
+        self.assertEqual({"codebase-wiki": "0.6.0", "megin": "0.8.0", "merge-reviewer": "0.11.0", "release-reviewer": "0.3.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
         self.assertEqual({"codebase-wiki", "merge-reviewer"}, set(manifest["overlays"]))

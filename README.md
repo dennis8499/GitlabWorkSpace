@@ -28,7 +28,7 @@
 - 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動及 AutoHook 共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
+- 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
@@ -65,13 +65,11 @@
 
 設定會列出「核對中、已對應、不符、尚未驗證、根目錄不唯一、驗證失敗」與 Repo 原因。資料夾名稱不作為證據，也不採用其他 remote 代替 `origin`。切換畫面或設定只更新情境；按 **安裝／更新** 才套用對應 profile。Skills 顯示目前根目錄的實際整包及工具版本，舊版須更新才能建立新任務；通過原契約與 Skills 指紋驗證的未完成 Megin 工作可沿原 Work ID 續作。
 
-共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件與 AutoHook 狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
+共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
 GitLab Workspace v0.23.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.3.0，共 16 個 Skills。Megin 全部十三個 Skills 保留原生內容，Group v6 架構探索追查直接及間接消費端，未修改的受影響 Repo 提供固定驗證，不建立分支或交付。Group quick、標準、MR 與收據審查共用 portable v2 契約搜尋、影響鏈與逐 Repo 判定；MR task/report v2 綁定明確 Group 根目錄及精確 source／target SHA。單 Repo profile 以 `--scope repo` 限制於所選專案，Group 預設延伸所有具程式證據關聯的 Repo。
 
 **分析 → MergeReviewer → 指定 Repo 內容審查** 可選擇分支比較、已暫存內容或目前已儲存內容。後兩種不需要 remote 或 GitLab 連線：已暫存內容只看 index；目前已儲存內容看最終儲存版本，包含已暫存、未暫存及未忽略的未追蹤檔案。切回分支比較會保留原先填寫的版本。單 Repo 審查限制在所選專案，Group 審查以指定 Repo 為入口追查相關功能鏈。
-
-兩種 profile 另附 AutoHook 1.2.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，並選擇 Review Agent 模型與思考強度；預設 `gpt-6-luna`／`low`，每次 AI 審查最多 30 秒。固定規則命中時直接核准，其餘交由 Review Agent 依政策與可取得的授權內容判斷，只有明確可執行才自動核准；需人類決定、審查失敗或逾時維持原核准流程。設定只用於目前 Skills 根目錄的 Review Agent，啟用狀態與已套用設定以實際安裝為準。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
 
 0.22.0 支援受信任的 0.14.0 至 0.21.0 升級與交易回復；受信任的舊紀錄未含 profile 時視為 Group。安裝與 profile 轉換保留 Wiki、其他 Skills、工作紀錄、報告及使用者設定；Group／子 Repo 未完成工作、Git common-dir 鎖或管理檔案修改會阻擋更新。維護鎖涵蓋更新、回復及中斷恢復，舊工作沿用原套件、契約與指紋。ReleaseReviewer 的入口分支、關聯 Repo 固定本機預設 SHA、v3 單一 Release Report 內嵌人工部署 Checklist，存於 VSCode 工作區根目錄；聚焦直接 P0／P1 阻擋，分開未完成證據與待核對條件，歷史報告保留。
 
@@ -118,7 +116,6 @@ npm run package
 ## 授權
 
 目前 `package.json` 將套件授權標示為 `UNLICENSED`，儲存庫也未附開源授權檔。此文件不表示本專案採用 MIT 或其他開源授權。
-
 
 ## GitLab CE 16.11.10 Compatibility and Performance
 

@@ -27,11 +27,6 @@ MAX_EXPANDED_BYTES = 400 * 1024 * 1024
 
 PINNED_SOURCES = (
     {
-        "id": "autohook", "repository": "AutoHook", "asset": "autohook-1.2.0.zip",
-        "filename": "autohook-1.2.0.zip", "version": "1.2.0",
-        "sha256": "45af90f8e41fd57e2def35e9787984d3230f753256c492d6075561ed0cc2cf7a",
-    },
-    {
         "id": "codebase-wiki",
         "repository": "code-base-llm-wiki",
         "asset": "codebase-llm-wiki-codex.zip",
@@ -192,10 +187,8 @@ def sync_installer_metadata(manifest: dict) -> None:
         "TRUSTED_PREDECESSORS": trusted,
         "PROFILE_MANIFESTS": manifest["profiles"],
         "WIKI_INSTALLED_VERSION_SHA256": manifest["wikiInstalledVersionSha256"],
-        "AUTOHOOK_FILES": {p: h for p, h in manifest["files"].items() if p.startswith(".agents/gitlab-workspace-kit/autohook/")},
         "KIT_EXTENSION_FILES": {p: h for p, h in manifest["files"].items()
                                 if p.startswith((".agents/gitlab-workspace-kit/scripts/", ".agents/gitlab-workspace-kit/references/"))},
-        "AUTOHOOK_LEGACY": json.loads((PROFILE / "autohook-legacy.json").read_text(encoding="utf-8")),
         "WIKI_CONFIG_FILES": {name: content.decode("utf-8").replace('mode = "framework"', 'mode = "coexist"').replace('mode = "target"', 'mode = "coexist"')
                               for name, content in _wiki_config_files().items()},
     }
@@ -372,12 +365,7 @@ def build() -> dict[str, object]:
             "version": source["version"],
             "sha256": source["sha256"],
         }
-        if source["id"] == "autohook":
-            if set(selected) != {"autohook/" + name for name in ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json", "README.md", "policy-source.json", "guardian-policy.md", "guardian-policy-template.md", "UPSTREAM-LICENSE", "UPSTREAM-NOTICE", "reviewer.py", "review-schema.json", "review-instructions.md", "scan_powershell.ps1")}:
-                raise ValueError("AutoHook source archive has an unexpected file set.")
-            for name, data in selected.items():
-                files[f"payload/.agents/gitlab-workspace-kit/{name}"] = data
-        elif source["id"] == "codebase-wiki":
+        if source["id"] == "codebase-wiki":
             skill_prefix = ".agents/skills/codebase-wiki/"
             skill_files = {name[len(skill_prefix):]: data for name, data in selected.items() if name.startswith(skill_prefix)}
             if not skill_files or "SKILL.md" not in skill_files or "scripts/install-framework.py" not in skill_files:
@@ -459,7 +447,6 @@ def build() -> dict[str, object]:
         "upstream": upstream,
         "overlays": overlays,
         "sourceSummary": [
-            "AutoHook 1.2.0 combines fixed-rule approvals with an isolated local Codex Review Agent; the Skills-root checkbox enables both, with configurable reviewer model/effort and a 30-second AI deadline. New installations are disabled; enabled predecessors migrate to hybrid review, while explicit prompt/forbidden rules and uncertain decisions retain the original approval flow.",
             "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.8.0 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
             "Native MergeReviewer 0.11.0 unifies Group branch, staged, uncommitted, dual-source quick and receipt reviews with v2 fixed-source impact coverage; the Workspace MR adapter binds an explicit Group root and exact source/target SHAs to the same portable workflow.",

@@ -195,16 +195,16 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         self.assertFalse(context.exists())
         self.assertEqual([], list(self.group.glob("release-review-*.md")))
 
-    def test_0191_upgrade_and_rollback_preserve_old_release_skill_and_reports(self):
-        fixture = harness.ROOT / "test/fixtures/workflow-kit-0.19.1"
-        old_archive = fixture / "offline-tools/workflow-kit.tar.xz"
+    def test_018_upgrade_and_rollback_preserve_old_release_skill_and_reports(self):
+        fixture = harness.ROOT / "test/fixtures/workflow-kit-0.18.0"
+        old_archive = fixture / "workflow-kit.tar.xz"
         for profile in ("group", "repository"):
             with self.subTest(profile=profile):
                 target = self.create_group(self.root / profile)
                 if profile == "repository":
                     subprocess.run(["git", "init", "-b", "main", str(target)], check=True, capture_output=True, env=self.environment)
                 command = [sys.executable, "-X", "utf8", "-B", str(Path(__file__).with_name("frozen_installer_runner.py")), str(fixture / "installer.py"),
-                           "install", str(old_archive), str(target), "0.19.1", "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
+                           "install", str(old_archive), str(target), "0.18.0", "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
                            "--archive-sha256", hashlib.sha256(old_archive.read_bytes()).hexdigest(), "--profile", profile]
                 installed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=self.environment)
                 self.assertEqual(0, installed.returncode, installed.stdout + installed.stderr)
@@ -217,7 +217,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 rolled, output = self.execute("rollback", target, data["transaction"])
                 self.assertEqual(0, rolled.returncode, output)
                 self.assertEqual(old_skill, (target / ".agents/skills/release-reviewer/SKILL.md").read_bytes())
-                self.assertEqual("0.19.1", json.loads((target / harness.MARKER).read_text(encoding="utf-8"))["version"])
+                self.assertEqual("0.18.0", json.loads((target / harness.MARKER).read_text(encoding="utf-8"))["version"])
 
     def test_installed_group_supporting_uses_local_default_not_feature(self):
         peer = self.group / "consumer"

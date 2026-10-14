@@ -116,41 +116,6 @@ export interface InstalledWorkflowKitState {
   legacyPaths?: string[];
 }
 
-export interface AutoHookReviewerSettings {
-  model: string;
-  reasoningEffort: string;
-  timeoutSeconds: number;
-}
-
-export interface AutoHookReviewModel {
-  model: string;
-  displayName: string;
-  defaultReasoningEffort: string;
-  supportedReasoningEfforts: string[];
-}
-
-export interface AutoHookState {
-  root?: string;
-  supported: boolean;
-  enabled: boolean;
-  stateKnown?: boolean;
-  status: 'unavailable' | 'disabled' | 'enabled' | 'needs-revalidation' | 'error' | 'checking';
-  bundledVersion?: string;
-  runtimeVersion?: string;
-  trustRequired?: boolean;
-  reviewer?: AutoHookReviewerSettings;
-  reviewerModels?: AutoHookReviewModel[];
-  reviewerModelsLoading?: boolean;
-  reviewerModelsError?: string;
-  policySource?: { repository: string; revision: string; captured_on?: string };
-  policyCoverage?: {
-    mode: 'fixed-rules' | 'fixed-rules-ai-review'; equivalent_to_native: false;
-    deterministic_rules: string[]; preauthorized_rules: string[];
-    manual_review: string[]; limitations: string[];
-  };
-  message?: string;
-}
-
 export interface WorkflowKitInstallTarget {
   profile?: 'group' | 'repository';
   root?: string;
@@ -237,7 +202,6 @@ export interface WorkspaceSnapshot {
   timerVersion?: number;
   scopeEpoch?: number;
   workflowKit: InstalledWorkflowKitState;
-  autoHook?: AutoHookState;
   workflowKitInstallTarget: WorkflowKitInstallTarget;
   workflowKitPolicy?: WorkflowKitPolicy;
   workflowKitOperationBusy?: boolean;
@@ -344,9 +308,6 @@ export type WorkspaceRequest = (
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
-  | { type: 'refreshAutoHook' }
-  | { type: 'refreshAutoHookModels'; contextRevision: string }
-  | { type: 'manageAutoHook'; operation: 'enable' | 'disable' | 'revalidate' | 'configure'; contextRevision: string; reviewer?: AutoHookReviewerSettings }
   | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
   | { type: 'openWorkspaceFolder' }
   | { type: 'selectWorkflowKitInstallRoot' }

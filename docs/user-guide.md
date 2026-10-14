@@ -26,7 +26,7 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊 Repo 會開啟同一個版控工作台；切換 Repo 時，各 Repo 的提交草稿、提交與檔案選取分別保留，已暫存與未暫存的同名檔案也會分開記錄。工作台頂部保留 Group、帳號與設定，不再顯示重複的導覽列。側欄包含：
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
-- **專案**：查看遠端專案與本機狀態。下載、更新、Skills、Codex 與 AutoHook 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
+- **專案**：查看遠端專案與本機狀態。下載、更新、Skills、Codex 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
 - **分析**：開啟 **Skills 功能指引**，先選工具，再選功能。四個入口為 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer；預設為 Wiki 的 **開發規格（給 Megin）**，整包安裝／更新是共用按鈕。工具、功能和欄位依執行個體、帳號與 Group 保存，原有 Wiki 草稿會承接。提示詞會列出 Group 目錄中 Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
@@ -81,31 +81,17 @@ Skill 固定入口版本，明確遠端分支取得失敗就停止，保留本�
 
 開啟的專案根目錄本身為 Git Repo 時，自動使用單專案 Skills；一般資料夾則使用整個工作區的流程。未登入 GitLab、切換遠端 Group、不同來源或沒有 origin 的 Repo 均不改變本機根目錄，使用者不需設定 Group／Repo 模式。
 
-工作流程包與 Skills 執行、Codex 啟動及 AutoHook 使用同一個根目錄。**選擇共用根目錄** 可指定其他本機資料夾；取消會保留原位置，**恢復 VS Code 根目錄** 會還原所選專案資料夾。切換後讀取新位置的安裝與 AutoHook 狀態，原位置檔案保留。Repo 子目錄會提示需使用 Git 根目錄的 Skills 功能；程式不會自行升至上層。
+工作流程包與 Skills 執行、Codex 啟動使用同一個根目錄。**選擇共用根目錄** 可指定其他本機資料夾；取消會保留原位置，**恢復 VS Code 根目錄** 會還原所選專案資料夾。切換後讀取新位置的安裝狀態，原位置檔案保留。Repo 子目錄會提示需使用 Git 根目錄的 Skills 功能；程式不會自行升至上層。
 
 VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾，亦接受絕對路徑與相對路徑。多資料夾工作區的設定分別保存；單一資料夾直接使用。未開啟專案或尚未選擇根資料夾時，先完成選擇再操作。本機請求會核對專案版本，設定或資料夾變更後，舊請求需重新確認。已啟動的安裝交易固定原目標完成。
 
 確認安裝位置與唯一的組合包版本後按 **安裝／更新**。VSIX 內附版本為預設安裝來源；匯入的 ZIP 會複製到 VS Code 持久儲存區並以 SHA-256 去重，因此原始下載檔可在匯入後刪除。安裝期間固定目標位置並停用位置切換與重複安裝。安裝前會整體預檢 Skills、Wiki 設定、管理區塊與安裝紀錄，再以暫存與回復日誌套用；中途失敗或 VS Code／Python 程序中斷後，下一次檢查會先回復原狀。匯入 ZIP 或本機 Skill 若與套件版本、契約或摘要不符，會清楚阻擋安裝。
 
-套件安裝到選定資料夾的 `.agents/skills/`，含 15 個 Skills。`group` profile 保留既有 Group overlays；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。原生單 Repo 提供 Wiki、Megin 開發／續作、單 Repo 審查與上板檢查，提示詞不帶入 Group 鎖、兄弟 Repo 或 GitLab 交付契約。Issue 開發交付、Group quick 與 MR 任務入口只在 Group 流程提供。Wiki、`docs/work/`、報告及 Codex 啟動目錄都跟隨目前 Skills 情境。
+套件安裝到選定資料夾的 `.agents/skills/`，含 16 個 Skills。`group` profile 保留既有 Group overlays；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。原生單 Repo 提供 Wiki、Megin 開發／續作、單 Repo 審查與上板檢查，提示詞不帶入 Group 鎖、兄弟 Repo 或 GitLab 交付契約。Issue 開發交付、Group quick 與 MR 任務入口只在 Group 流程提供。Wiki、`docs/work/`、報告及 Codex 啟動目錄都跟隨目前 Skills 情境。
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 
-切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1 整包可升級至 0.20.0，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
-
-### AutoHook
-
-兩種本機流程均附帶 AutoHook 1.2.0，預設關閉。從 **設定 → 工作區與 Skills → AutoHook** 查看共用根目錄、隨包／執行版本、官方政策版本與狀態。勾選 **啟用 AutoHook** 會安裝啟用，取消勾選會停用，另保留 **重新驗證** 與 **刷新狀態**。切換共用根目錄後顯示新位置的狀態；不會把另一位置的啟用狀態套用過來。
-
-勾選狀態來自專案安裝，不另存 VS Code 布林設定；操作中禁止重複切換，結束後重新查詢。查詢失敗會顯示錯誤；上次已啟用者仍可取消勾選停用。需要重新驗證時維持勾選，不能視為已完成 Codex 信任。固定規則命中時直接核准，其餘由 Review Agent 依政策與可取得的授權內容確認；只有明確可執行才自動核准，需人類決定或 AI 審查失敗、逾時時保留人工核准。
-
-同一設定卡可選擇 **Review Agent 模型** 與 **思考強度**，預設 `gpt-6-luna`／`low`，每次 AI 審查最多 30 秒；只影響核准審查 Agent，使用本機 Codex 的登入狀態。模型及支援的強度由 Codex 提供，可按 **刷新模型** 重新查詢。未啟用時選好後勾選即可；已啟用時按 **儲存 Review Agent 設定**，畫面的「目前套用」以實際保存結果為準。模型清單失敗仍保留目前設定及停用控制。各 Skills 根目錄分別保存，重新驗證及整包更新保留選擇。
-
-啟用需要 Windows、Windows PowerShell 與原生 Codex CLI。Python 沿用 `gitlabWorkspace.pythonPath`；Codex 依序從 PATH 的 `codex.exe`、npm 套件內的原生執行檔及已安裝 Codex 擴充功能尋找。只有 npm shim 或 Codex 擴充功能時也能自動取得原生執行檔，擴充功能路徑跟隨目前安裝版本。也可在 VS Code 設定 `gitlabWorkspace.autoHook.codexPath`，手動設定優先，須填現有原生 `.exe` 的完整路徑；無效時會回報設定錯誤，`.cmd`、`.bat` 或 `.ps1` 不能直接用於 AutoHook。首次啟用、重新驗證及整包更新共用此尋找順序。狀態查詢與停用不依賴 Codex 路徑；其他平台或尚未安裝 Codex 的電腦仍可安裝 Skills。
-
-啟用後會保留 Wiki 底稿、其他設定與 Hooks；更新已啟用的整包會同步更新 AutoHook 並重新驗證，驗證失敗會停止整包更新。停用會恢復最新 Wiki 底稿，決策紀錄保留。未知安裝或本機修改會阻擋覆寫。設定完成後請重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證 Codex 信任狀態。
-
-互動驗收需在 CLI 與 VS Code Codex Chat 各開啟相同 Skills 根目錄的新工作階段，完成專案與 Hook 信任後，以 `sandbox_permissions = "require_escalated"` 要求單獨執行 PowerShell `Get-Location`，預期自動允許且 `.codex/autohook/decisions.jsonl` 記錄 `allow`／`read.location`。再要求同樣需核准、未命中固定規則的 `Write-Output 'AutoHook-ai-check'`，應交給 Review Agent；確認可執行時自動核准，決策紀錄應區分固定規則與 AI 審查。以缺少授權的風險操作確認保留人工核准，出現核准要求時取消，不實際執行。審查失敗或逾時也應保留核准要求。取消勾選並重開後，第一個命令也應回到原核准流程。未出現核准請求的普通命令不能驗證 Hook；自動化測試與工作台設定狀態均不能代替兩個客戶端的互動驗收。
+切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。受信任的 0.13.2、0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 整包可升級至目前版本；其他舊版整包不提供直接升級或回復相容性，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
 
 ## 專案與 Git 操作
 
@@ -152,7 +138,6 @@ Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依�
 可依時間、功能、帳號、等級、結果與關鍵字篩選，每頁 100 筆；點操作名稱查看詳情。**即時更新** 可開關，**匯出篩選結果** 會保存所有符合條件的 JSONL，不只目前頁。**清除全部 Log** 需確認。資料位於 VS Code 擴充套件的持久儲存區，分檔輪替，預設保留 **30 天、最多 50 MB**。不保存 Token、認證標頭、請求本文或完整指令輸出。儲存失敗會提示並顯示錯誤，原本功能操作仍可完成。
 
 Group 開發規格、驗收證據、鎖接手、固定版本審查與恢復步驟見 [Group 工作流程](group-workflow.md)。
-
 
 ## Version Support and Performance Behavior
 
