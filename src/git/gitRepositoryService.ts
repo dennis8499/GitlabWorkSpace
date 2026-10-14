@@ -145,20 +145,20 @@ export class GitRepositoryService implements vscode.Disposable {
     });
   }
 
-  async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void): Promise<RepositoryScanState> {
-    const task = () => this.scanWorkspaceInternal(signal, onProgress);
+  async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[]): Promise<RepositoryScanState> {
+    const task = () => this.scanWorkspaceInternal(signal, onProgress, roots);
     return this.gitlabSession.log?.run('projects', 'scanWorkspace', {}, task) ?? task();
   }
 
-  private async scanWorkspaceInternal(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void): Promise<RepositoryScanState> {
+  private async scanWorkspaceInternal(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[]): Promise<RepositoryScanState> {
     await this.initialization;
     const folders = vscode.workspace.workspaceFolders ?? [];
-    const state = await scanWorkspaceRepositories(folders.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath), {
+    const state = await scanWorkspaceRepositories(roots ?? folders.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath), {
       signal, onProgress: progress => onProgress({ ...progress, status: progress.status === 'completed' ? 'scanning' : progress.status }), gitPath: this.api?.git.path,
       excludes: vscode.workspace.getConfiguration('gitlabWorkspace').get<string[]>('repositoryScan.excludeDirectories', DEFAULT_SCAN_EXCLUDES),
       log: this.gitlabSession.log
     });
-    for (const folder of folders.filter(folder => folder.uri.scheme !== 'file')) state.errors.push({ path: folder.uri.toString(), message: '此工作區不是本機檔案資料夾，無法掃描。' });
+    for (const folder of roots ? [] : folders.filter(folder => folder.uri.scheme !== 'file')) state.errors.push({ path: folder.uri.toString(), message: '此工作區不是本機檔案資料夾，無法掃描。' });
     for (const repository of state.repositories) {
       if (signal.aborted) { state.status = 'cancelled'; break; }
       const started = Date.now();

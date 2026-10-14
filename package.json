@@ -169,12 +169,6 @@
     "configuration": {
       "title": "GitLab Workspace",
       "properties": {
-        "gitlabWorkspace.workflowKit.requireGroupEnvironment": {
-          "type": "boolean",
-          "default": true,
-          "scope": "window",
-          "description": "符合所選 GitLab Group 時使用 Group 流程；未對應時自動使用原生單 Repo 流程。關閉後固定使用單 Repo 流程。"
-        },
         "gitlabWorkspace.pythonPath": {
           "type": "string",
           "default": "python",
@@ -197,6 +191,12 @@
           "default": "",
           "scope": "window",
           "description": "AutoHook 使用的原生 codex.exe 完整路徑（選填，手動設定優先；留白依序尋找 PATH、npm 套件內的原生執行檔及已安裝的 Codex 擴充功能）。不接受 .cmd、.bat 或 .ps1。"
+        },
+        "gitlabWorkspace.projectRoot": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "專案下載、Skills 安裝與執行、Codex 及 AutoHook 共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。"
         }
       }
     }

@@ -5,7 +5,7 @@ import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
-import { groupRepositoryPath, projectFolderNames, sameLocalPath } from '../workspace/workspacePaths';
+import { groupRepositoryPath, projectFolderNames, projectRootRepositoryId, sameLocalPath } from '../workspace/workspacePaths';
 import { withGitDirectoryLock } from './repositoryOperationLock';
 
 export type CloneAction = 'clone' | 'update';
@@ -109,7 +109,8 @@ async function planClonesAsync(workspacePath: string, projects: readonly GitLabP
   const root = path.resolve(workspacePath);
   try { if (!(await stat(root)).isDirectory()) throw new Error('not a directory'); }
   catch { throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.'); }
-  const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, () => false);
+  const rootProjectId = await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
+  const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, () => false, rootProjectId);
   for (let offset = 0; offset < plans.length; offset += 4) await Promise.all(plans.slice(offset, offset + 4).map(async plan => {
     plan.action = await isPathPresentAsync(plan.targetPath) ? 'update' : 'clone';
   }));
@@ -117,12 +118,12 @@ async function planClonesAsync(workspacePath: string, projects: readonly GitLabP
 }
 
 function buildClonePlans(root: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
-  groupProjects: readonly GitLabProject[], folders: ReadonlyMap<number, string>, present: (target: string) => boolean): ClonePlan[] {
+  groupProjects: readonly GitLabProject[], folders: ReadonlyMap<number, string>, present: (target: string) => boolean, rootProjectId?: number): ClonePlan[] {
   const foldedPaths = new Set<string>();
   return projects.map((project) => {
     let targetPath: string;
     try {
-      targetPath = groupRepositoryPath(root, project, groupProjects, folders);
+      targetPath = groupRepositoryPath(root, project, groupProjects, folders, rootProjectId);
     } catch (error) {
       throw new ClonePreflightError(error instanceof Error ? error.message : 'The repository path is unsafe.');
     }
@@ -242,11 +243,12 @@ export async function syncLocalDefaultBranches(
   const folders = projectFolderNames(groupProjects);
   const handledPaths = new Set<string>();
   const root = path.resolve(workspacePath);
+  const rootProjectId = await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
 
   for (const project of projects) {
     let targetPath: string;
     try {
-      targetPath = groupRepositoryPath(root, project, groupProjects, folders);
+      targetPath = groupRepositoryPath(root, project, groupProjects, folders, rootProjectId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -397,7 +399,7 @@ async function inspectExistingRepository(
       throw new Error('not a plain directory');
     }
     const [workspaceRealPath, targetRealPath] = await Promise.all([realpath(workspacePath), realpath(targetPath)]);
-    if (!samePath(path.dirname(targetRealPath), workspaceRealPath)) {
+    if (!samePath(targetRealPath, workspaceRealPath) && !samePath(path.dirname(targetRealPath), workspaceRealPath)) {
       throw new Error('outside the selected folder');
     }
 

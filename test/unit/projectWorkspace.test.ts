@@ -6,12 +6,18 @@ import path from 'node:path';
 import test from 'node:test';
 import * as cloneService from '../../src/git/cloneService';
 
-const uri = (fsPath: string) => ({ scheme: 'file', fsPath });
+const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => 'file:' + fsPath });
+const roots = new Map<string, string>();
 const operations: Array<{ action: string; root: string; ids: number[] }> = [];
 const opened: string[] = [];
 let realOperations = false;
 const vscode = {
-  workspace: { workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }> },
+  workspace: { workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
+    getConfiguration: (_section?: string, resource?: ReturnType<typeof uri>) => ({
+      get: (key: string, fallback: unknown) => key === 'projectRoot' ? roots.get(resource?.toString() ?? '') ?? fallback : fallback,
+      update: async (_key: string, value: string) => { roots.set(resource?.toString() ?? '', value); }
+    }) },
+  ConfigurationTarget: { Workspace: 2, WorkspaceFolder: 3 },
   window: {
     showOpenDialog: async (_options: any): Promise<any> => undefined,
     showInformationMessage: async (..._args: any[]): Promise<string | undefined> => '開始',
@@ -48,7 +54,7 @@ function memory() {
     update: async (key: string, value: unknown) => { value === undefined ? values.delete(key) : values.set(key, value); } };
 }
 function controller(folders: string[], workspaceState = memory()) {
-  operations.length = 0; opened.length = 0; realOperations = false;
+  roots.clear(); operations.length = 0; opened.length = 0; realOperations = false;
   vscode.workspace.workspaceFolders = folders.map(folder => ({ uri: uri(folder) }));
   vscode.window.showOpenDialog = async () => undefined;
   vscode.window.showInformationMessage = async () => '開始';
@@ -60,7 +66,8 @@ function controller(folders: string[], workspaceState = memory()) {
     loadedScopeKey: 'https://gitlab.test|7|3', workspaceSections: { projects: { status: 'ready' } }, currentUser: { id: 7 },
     session: { baseUrl: 'https://gitlab.test', connectionEpoch: 1, selectedGroup: { id: 3, full_path: 'team' },
       getClient: async () => ({ getProject: async () => project }), getCloneCredentials: async () => ({ baseUrl: 'https://gitlab.test', token: 'fixture' }) },
-    context: { workspaceState }, sendSnapshot: () => undefined, post: () => undefined, refresh: async () => undefined
+    context: { workspaceState }, sendSnapshot: () => undefined, post: () => undefined, refresh: async () => undefined,
+    refreshWorkflowKit: async () => undefined, onWorkspaceFoldersChanged: () => undefined
   });
   return { host, workspaceState };
 }
@@ -82,13 +89,13 @@ async function fixture(t: test.TestContext) {
   return { root: await realpath(root), second: await realpath(second), repo };
 }
 
-test('mixed containers and unrelated Git API Repos permit project actions without enabling Group Skills', async t => {
+test('mixed containers use their opened root and ignore unrelated Git API Repos', async t => {
   const f = await fixture(t);
   const service = await f.repo(f.root, 'service', project.http_url_to_repo);
   await f.repo(f.root, 'no-origin');
   const unrelated = await f.repo(f.second, 'elsewhere', 'https://other.test/team/elsewhere.git');
   const { host } = controller([f.root]); host.gitRepositories = { getInventory: async () => [{ path: unrelated }] };
-  const match = await host.inspectEnvironment(); assert.equal(match.status, 'mismatched'); assert.equal(match.root, undefined);
+  const match = await host.inspectEnvironment(); assert.equal(match.status, 'matched'); assert.equal(match.root, f.root);
   await host.refreshProjectRoot();
   assert.equal(host.cloneRoot, f.root); assert.equal(host.groupRoot, undefined);
   assert.equal(host.projectLocalRepositoryStates[1].path, service);
@@ -98,34 +105,24 @@ test('mixed containers and unrelated Git API Repos permit project actions withou
   assert.deepEqual(opened, [f.root]);
 });
 
-test('Repo-only workspaces prefer the selected Group parent and accept a shared parent without matching origins', async t => {
+test('a single opened Repo uses its own root regardless of origin and multiple roots require selection', async t => {
   const f = await fixture(t); const service = await f.repo(f.root, 'renamed', project.http_url_to_repo);
-  const unrelated = await f.repo(f.second, 'other', 'https://other.test/other.git');
-  let host = controller([service, unrelated]).host;
-  assert.equal((await host.resolveProjectRoot()).root, f.root);
-  const noOrigin = await f.repo(f.root, 'no-origin');
-  host = controller([noOrigin]).host; assert.equal((await host.resolveProjectRoot()).root, f.root);
-  host = controller([noOrigin, unrelated]).host; assert.equal((await host.resolveProjectRoot()).root, undefined);
+  const other = await f.repo(f.second, 'other');
+  let host = controller([service]).host; assert.equal((await host.resolveProjectRoot()).root, service);
+  host = controller([other]).host; assert.equal((await host.resolveProjectRoot()).root, other);
+  host = controller([service, other]).host; assert.equal((await host.resolveProjectRoot()).root, undefined);
+  await host.selectProjectFolder(uri(other).toString()); assert.equal((await host.resolveProjectRoot()).root, other);
 });
 
-test('ambiguous locations support cancellation, scoped persistence, reopening and restoring automatic detection', async t => {
+test('workspace-folder selection persists and remote account changes leave its root intact', async t => {
   const f = await fixture(t); const { host, workspaceState } = controller([f.root, f.second]);
-  await host.refreshProjectRoot(); assert.equal(host.cloneRoot, undefined); assert.match(host.cloneRootError, /多個/);
-  vscode.window.showOpenDialog = async options => {
-    assert.equal(options.canSelectFiles, false); assert.equal(options.canSelectFolders, true); assert.equal(options.canSelectMany, false);
-    return [uri(f.second)];
-  };
-  await host.selectCloneRoot(); assert.equal(host.cloneRoot, f.second); assert.equal(host.cloneRootManual, true);
-  const reopened = controller([f.root, f.second], workspaceState).host;
-  await reopened.refreshProjectRoot(); await reopened.selectCloneRoot(); assert.equal(reopened.cloneRoot, f.second);
-  reopened.session.selectedGroup = { id: 4 }; await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, undefined);
-  reopened.session.selectedGroup = { id: 3 }; await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, f.second);
-  reopened.session.baseUrl = 'https://another.test'; await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, undefined);
-  reopened.session.baseUrl = 'https://gitlab.test'; reopened.currentUser = { id: 8 };
-  await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, undefined);
-  reopened.currentUser = { id: 7 }; await reopened.selectCloneRoot(true); assert.equal(reopened.cloneRoot, undefined);
-  vscode.workspace.workspaceFolders = [{ uri: uri(f.root) }]; await reopened.refreshProjectRoot();
-  assert.equal(reopened.cloneRoot, f.root); assert.equal(reopened.cloneRootManual, false);
+  await host.refreshProjectRoot(); assert.equal(host.cloneRoot, undefined); assert.match(host.cloneRootError, /選擇/);
+  await host.selectProjectFolder(uri(f.second).toString()); await host.refreshProjectRoot(); assert.equal(host.cloneRoot, f.second);
+  const reopened = controller([f.root, f.second], workspaceState).host; await reopened.refreshProjectRoot();
+  assert.equal(reopened.cloneRoot, f.second);
+  reopened.session.selectedGroup = { id: 4 }; reopened.session.baseUrl = 'https://another.test'; reopened.currentUser = { id: 8 };
+  await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, f.second);
+  vscode.workspace.workspaceFolders = [{ uri: uri(f.root) }]; await reopened.refreshProjectRoot(); assert.equal(reopened.cloneRoot, f.root);
 });
 
 test('first download works in an empty folder and cancellation preserves the selected projects', async t => {
@@ -146,12 +143,11 @@ test('target origin mismatches remain blocked by the real clone and update prefl
   assert.equal(execFileSync('git', ['-C', service, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim(), 'https://gitlab.test/other/service.git');
 });
 
-test('dialog and confirmation drift cannot redirect project operations or save a folder under the wrong Group', async t => {
-  const f = await fixture(t); const { host, workspaceState } = controller([f.root]);
-  const key = host.cloneRootStorageKey();
-  vscode.window.showOpenDialog = async () => { host.session.selectedGroup = { id: 4 }; return [uri(f.second)]; };
-  await assert.rejects(host.selectCloneRoot(), /已變更/); assert.equal(workspaceState.get(key), undefined);
-  host.session.selectedGroup = { id: 3 };
+test('dialog, credentials and confirmation drift cannot redirect project operations', async t => {
+  const f = await fixture(t); const { host } = controller([f.root]);
+  vscode.window.showOpenDialog = async () => { vscode.workspace.workspaceFolders = [{ uri: uri(f.second) }]; return [uri(f.second)]; };
+  await assert.rejects(host.selectProjectRoot(), /已變更/); assert.equal(roots.size, 0);
+  vscode.workspace.workspaceFolders = [{ uri: uri(f.root) }];
   vscode.window.showInformationMessage = async () => { host.workspaceFoldersGeneration++; return '開始'; };
   await assert.rejects(host.clone([1], false), /已變更/); assert.equal(operations.length, 0);
   await f.repo(f.root, 'service', project.http_url_to_repo);
@@ -159,12 +155,32 @@ test('dialog and confirmation drift cannot redirect project operations or save a
   await assert.rejects(host.syncRepos(), /已變更/); assert.equal(operations.length, 0);
 });
 
-test('late project root inspection cannot restore the previous Group location', async t => {
+test('late project root inspection cannot restore a previous selected folder', async t => {
   const f = await fixture(t); const { host } = controller([f.root]);
-  const resolve = host.resolveProjectRoot.bind(host); let finish!: (value: unknown) => void;
-  host.resolveProjectRoot = () => new Promise(done => { finish = done; });
-  const pending = host.refreshProjectRoot(); host.session.selectedGroup = { id: 4 };
-  host.resolveProjectRoot = resolve; vscode.workspace.workspaceFolders = [{ uri: uri(f.second) }];
-  await host.refreshProjectRoot(); finish({ root: f.root, manual: false }); await pending;
+  const resolve = host.resolveProjectContext.bind(host); let finish!: (value: unknown) => void;
+  host.resolveProjectContext = () => new Promise(done => { finish = done; });
+  const pending = host.refreshProjectRoot(); host.resolveProjectContext = resolve;
+  vscode.workspace.workspaceFolders = [{ uri: uri(f.second) }]; await host.refreshProjectRoot();
+  finish({ root: f.root, manual: false }); await pending;
   assert.equal(host.cloneRoot, f.second);
+});
+
+test('root settings changed while resolving credentials stop clone and sync before launch', async t => {
+  const f = await fixture(t); await f.repo(f.root, 'service', project.http_url_to_repo);
+  const { host } = controller([f.root]);
+  host.session.getCloneCredentials = async () => {
+    roots.set(uri(f.root).toString(), f.second);
+    return { baseUrl: 'https://gitlab.test', token: 'fixture' };
+  };
+  await assert.rejects(host.clone([1], false), /已變更/); assert.equal(operations.length, 0);
+  roots.clear(); await assert.rejects(host.syncRepos(), /已變更/); assert.equal(operations.length, 0);
+});
+
+test('repository scans use the selected shared root including an external custom folder', async t => {
+  const f = await fixture(t); const { host } = controller([f.root]); roots.set(uri(f.root).toString(), f.second);
+  await host.refreshProjectRoot(); let scanned: readonly string[] | undefined;
+  host.gitRepositories = { scanWorkspace: async (_signal: AbortSignal, _progress: unknown, targets: readonly string[]) => {
+    scanned = targets; return { status: 'completed', checkedDirectories: 0, repositories: [], errors: [], excludes: ['.git'] };
+  } };
+  host.refreshInventory = async () => undefined; await host.scanRepositories(); assert.deepEqual(scanned, [f.second]);
 });

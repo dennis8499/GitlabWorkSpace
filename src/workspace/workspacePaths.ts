@@ -189,19 +189,6 @@ export async function inspectWorkspaceFolder(
 
   absolutePath = topLevel;
   const parent = path.dirname(absolutePath);
-  let parentIsRepository = false;
-  try {
-    const result = await logGitCommand(['rev-parse'], parent, () => execFileAsync('git', ['-C', parent, 'rev-parse', '--show-toplevel'], {
-      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
-    }));
-    parentIsRepository = !!result.stdout.trim();
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { kind: 'unavailable', path: absolutePath, error: '找不到 Git，無法辨識 Group Repo。' };
-    }
-  }
-  if (parentIsRepository) return { kind: 'repository', path: absolutePath };
-
   let remotes: string[];
   try {
     const result = await logGitCommand(['config'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'config', '--null', '--get-all', 'remote.origin.url'], {
@@ -213,7 +200,8 @@ export async function inspectWorkspaceFolder(
     return { kind: 'unavailable', path: absolutePath, error: '無法讀取 Group Repo 的 remote。' };
   }
   const remoteFingerprint = createHash('sha256').update(JSON.stringify(remotes)).digest('hex');
-  const matched = remotes.length === 1 ? projects.find(project => matchesRemote(remotes[0], project)) : undefined;
+  const matches = remotes.length === 1 ? projects.filter(project => matchesRemote(remotes[0], project)) : [];
+  const matched = matches.length === 1 ? matches[0] : undefined;
   if (matched) {
     return { kind: 'group-repository', path: absolutePath, groupRoot: parent, projectId: matched.id, remoteFingerprint };
   }
@@ -254,8 +242,10 @@ export function groupRepositoryPath(
   root: string,
   project: GitLabProject,
   projects: readonly GitLabProject[],
-  folders: ReadonlyMap<number, string> = projectFolderNames(projects)
+  folders: ReadonlyMap<number, string> = projectFolderNames(projects),
+  rootProjectId?: number
 ): string {
+  if (project.id === rootProjectId) return resolve(root);
   const folder = folders.get(project.id);
   if (!folder || !/^[A-Za-z0-9_.-]+$/.test(folder) || folder === '.' || folder === '..' || /[. ]$/.test(folder) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(folder)) {
     throw new Error(`無法安全建立 Repo 路徑：${project.path_with_namespace}`);
@@ -287,10 +277,10 @@ export async function sameRealLocalPathAsync(first: string, second: string, plat
   catch { return sameLocalPath(first, second, platform); }
 }
 
-export function localRepositoryState(root: string, target: string): 'missing' | 'ready' | 'unsafe' {
+export function localRepositoryState(root: string, target: string, allowRoot = false): 'missing' | 'ready' | 'unsafe' {
   try {
     const rel = relative(resolve(root), resolve(target));
-    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
+    if ((!rel && !allowRoot) || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
     const stat = lstatSync(target);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return 'unsafe';
     return 'ready';
@@ -300,10 +290,10 @@ export function localRepositoryState(root: string, target: string): 'missing' | 
   }
 }
 
-export async function localRepositoryStateAsync(root: string, target: string): Promise<'missing' | 'ready' | 'unsafe'> {
+export async function localRepositoryStateAsync(root: string, target: string, allowRoot = false): Promise<'missing' | 'ready' | 'unsafe'> {
   try {
     const rel = relative(resolve(root), resolve(target));
-    if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
+    if ((!rel && !allowRoot) || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return 'unsafe';
     const stat = await lstat(target);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return 'unsafe';
     return 'ready';
@@ -311,4 +301,12 @@ export async function localRepositoryStateAsync(root: string, target: string): P
     if (error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') return 'missing';
     return 'unsafe';
   }
+}
+
+/** Only a uniquely associated repository may use the shared root itself. */
+export async function projectRootRepositoryId(root: string, projects: readonly GitLabProject[],
+  matchesRemote: (remote: string, project: GitLabProject) => boolean): Promise<number | undefined> {
+  if (!projects.length) return undefined;
+  const inspected = await inspectWorkspaceFolder(root, projects, matchesRemote);
+  return inspected.kind === 'group-repository' && sameLocalPath(inspected.path, root) ? inspected.projectId : undefined;
 }

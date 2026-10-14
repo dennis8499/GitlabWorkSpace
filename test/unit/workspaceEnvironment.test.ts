@@ -30,100 +30,77 @@ function fixture() {
   return { base, root: canonical(root), repo, inspect, cleanup: () => rmSync(base, { recursive: true, force: true }) };
 }
 
-test('all opened Repos and direct children match by origin, including renamed subgroup projects', async () => {
+test('the opened container chooses the workspace profile and associates each child independently', async () => {
   const f = fixture(); try {
     const first = f.repo('renamed', projects[0].http_url_to_repo);
     const second = f.repo('docs', projects[1].ssh_url_to_repo);
-    mkdirSync(path.join(first, 'src'));
-    const match = await f.inspect([f.root, path.join(first, 'src'), second]);
-    assert.equal(match.status, 'matched'); assert.equal(match.root, f.root);
+    const match = await f.inspect([f.root]);
+    assert.equal(match.status, 'matched'); assert.equal(match.root, f.root); assert.equal(match.profile, 'group');
+    assert.deepEqual(match.repositories.map(repo => repo.path).sort(), [first, second].sort());
     assert.deepEqual(match.repositories.map(repo => repo.projectId).sort(), [1, 2]);
-    assert.equal(match.repositories.length, 2, 'nested folders and direct children are deduplicated by Git root');
   } finally { f.cleanup(); }
 });
 
-test('a mixed Group or an unverified origin disables Group even when other remotes match', async () => {
+test('mixed, missing and ambiguous origins never disable the local workflow', async () => {
   const f = fixture(); try {
     f.repo('service', projects[0].http_url_to_repo);
-    const unrelated = f.repo('docs', 'https://other-host.test/team/subgroup/docs.git');
-    execFileSync('git', ['-C', unrelated, 'remote', 'add', 'upstream', projects[1].http_url_to_repo]);
-    let match = await f.inspect([f.root]);
-    assert.equal(match.status, 'mismatched'); assert.equal(match.root, undefined);
-    assert.equal(match.repositories.find(repo => repo.path === unrelated)?.matched, false);
-    const fingerprint = match.repositories.find(repo => repo.path === unrelated)?.remoteFingerprint;
-    execFileSync('git', ['-C', unrelated, 'remote', 'set-url', 'origin', projects[1].http_url_to_repo]);
+    const other = f.repo('docs', 'https://other-host.test/docs.git');
+    let match = await f.inspect([f.root]); assert.equal(match.status, 'matched');
+    assert.equal(match.repositories.find(repo => repo.path === other)?.matched, false);
+    const fingerprint = match.repositories.find(repo => repo.path === other)?.remoteFingerprint;
+    execFileSync('git', ['-C', other, 'remote', 'set-url', 'origin', projects[1].http_url_to_repo]);
+    match = await f.inspect([f.root]); assert.notEqual(match.repositories.find(repo => repo.path === other)?.remoteFingerprint, fingerprint);
+    assert.equal(match.repositories.find(repo => repo.path === other)?.projectId, 2);
+    execFileSync('git', ['-C', other, 'config', '--add', 'remote.origin.url', projects[0].http_url_to_repo]);
     match = await f.inspect([f.root]); assert.equal(match.status, 'matched');
-    assert.notEqual(match.repositories.find(repo => repo.path === unrelated)?.remoteFingerprint, fingerprint);
-    execFileSync('git', ['-C', unrelated, 'remote', 'remove', 'origin']);
-    match = await f.inspect([f.root]); assert.equal(match.status, 'mismatched');
-    assert.equal(match.repositories.length, 2, 'missing origin remains a native Repo candidate');
-    execFileSync('git', ['-C', unrelated, 'config', '--add', 'remote.origin.url', projects[1].http_url_to_repo]);
-    execFileSync('git', ['-C', unrelated, 'config', '--add', 'remote.origin.url', projects[0].http_url_to_repo]);
-    assert.equal((await f.inspect([f.root])).status, 'mismatched', 'multiple origin URLs are ambiguous');
+    assert.equal(match.repositories.find(repo => repo.path === other)?.projectId, undefined);
   } finally { f.cleanup(); }
 });
 
-test('an empty folder offers first download separately from a verified Group root', async () => {
+test('an empty container is a usable local root without GitLab login or selected Group', async () => {
   const f = fixture(); try {
-    const empty = await f.inspect([f.root]);
-    assert.equal(empty.status, 'unverified'); assert.equal(empty.root, undefined); assert.equal(empty.cloneRoot, f.root);
-    const offline = await f.inspect([f.root], { ...scope, connected: false });
-    assert.equal(offline.cloneRoot, undefined);
-    f.repo('any-name', projects[0].http_url_to_repo);
-    assert.equal((await f.inspect([f.root])).root, f.root);
+    const match = await f.inspect([f.root], { connected: false, groupSelected: false, projectsReady: false });
+    assert.equal(match.status, 'matched'); assert.equal(match.root, f.root); assert.equal(match.cloneRoot, f.root);
+    assert.equal(match.profile, 'group'); assert.deepEqual(match.repositories, []);
   } finally { f.cleanup(); }
 });
 
-test('worktrees resolve to their actual roots; matching Repos under multiple parents remain ambiguous', async () => {
+test('a Repo and linked worktree use their own roots without promoting to the parent', async () => {
   const f = fixture(); try {
     const repo = f.repo('service', projects[0].http_url_to_repo);
+    let match = await f.inspect([repo]); assert.equal(match.root, repo); assert.equal(match.profile, 'repository');
     execFileSync('git', ['-C', repo, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'baseline']);
-    const linked = path.join(f.root, 'linked');
-    execFileSync('git', ['-C', repo, 'worktree', 'add', '--quiet', '--detach', linked, 'HEAD']);
-    const match = await f.inspect([linked]); assert.equal(match.status, 'matched'); assert.equal(match.root, f.root);
-    assert.equal(match.repositories[0].path, canonical(linked));
-    const outside = f.repo('other-service', projects[0].http_url_to_repo, path.join(f.base, 'another'));
-    assert.equal((await f.inspect([repo, outside])).status, 'ambiguous');
-    const container = path.join(f.base, 'non-git'); mkdirSync(container);
-    assert.equal((await f.inspect([repo, container])).status, 'ambiguous', 'extra non-Git roots cannot be silently ignored');
+    const linked = path.join(f.root, 'linked'); execFileSync('git', ['-C', repo, 'worktree', 'add', '--quiet', '--detach', linked, 'HEAD']);
+    match = await f.inspect([linked]); assert.equal(match.root, canonical(linked)); assert.equal(match.profile, 'repository');
+    assert.equal((await f.inspect([repo, linked])).status, 'ambiguous');
   } finally { f.cleanup(); }
 });
 
-test('nested Git repositories remain native candidates and errors never imply a matched Group', async () => {
+test('nested Repos retain remote identity and broken siblings do not choose the workflow', async () => {
   const f = fixture(); try {
-    const parent = f.repo('parent');
-    const nested = f.repo('child', projects[0].http_url_to_repo, parent);
-    assert.equal((await f.inspect([nested])).status, 'mismatched');
-    const invalid = path.join(f.root, 'broken'); mkdirSync(invalid); writeFileSync(path.join(invalid, '.git'), 'not a Git directory');
-    const failed = await f.inspect([f.root]);
-    assert.equal(failed.status, 'error');
-    assert.ok(failed.repositories.some(repo => repo.path === parent), 'valid Repo candidates remain usable when a sibling is broken');
-    const offline = await f.inspect([nested], { ...scope, connected: false });
-    assert.equal(offline.status, 'unverified'); assert.equal(offline.repositories[0].path, nested);
-    const apiFailure = await f.inspect([nested], { ...scope, projectsReady: false });
-    assert.equal(apiFailure.status, 'unverified'); assert.equal(apiFailure.root, undefined);
+    const parent = f.repo('parent'); const nested = f.repo('child', projects[0].http_url_to_repo, parent);
+    const match = await f.inspect([nested], { connected: false, groupSelected: false, projectsReady: false });
+    assert.equal(match.root, nested); assert.equal(match.profile, 'repository'); assert.equal(match.repositories[0].projectId, 1);
+    const invalid = path.join(f.root, 'broken'); mkdirSync(invalid); writeFileSync(path.join(invalid, '.git'), 'invalid');
+    assert.equal((await f.inspect([f.root])).status, 'matched');
+    const failure = await f.inspect([invalid]); assert.equal(failure.status, 'error');
+    const child = path.join(parent, 'src'); mkdirSync(child);
+    const subdirectory = await f.inspect([child]); assert.equal(subdirectory.status, 'error'); assert.equal(subdirectory.root, child);
   } finally { f.cleanup(); }
 });
 
-test('Skills shares Group matching, native selection, version and verified resume capabilities', () => {
-  const repos = [{ path: '/group/a', name: 'a', matched: true }, { path: '/group/b', name: 'b', matched: true }];
-  const match: GroupWorkspaceMatch = { status: 'matched', root: '/group', repositories: repos };
-  const base = { preferGroup: true, match, installed: { status: 'installed' as const, profile: 'group' as const,
+test('Skills uses the local root profile and verifies installed versions and resume capabilities', () => {
+  const repos = [{ path: '/group/a', name: 'a', matched: false }, { path: '/group/b', name: 'b', matched: true }];
+  const match: GroupWorkspaceMatch = { status: 'matched', profile: 'group', root: '/group', repositories: repos };
+  const base = { match, installed: { status: 'installed' as const, profile: 'group' as const,
     version: '0.17.0', capabilities: ['merge-group', 'megin-workflow', 'megin-resume'] }, expectedVersion: '0.17.0', revision: 'one' };
-  assert.equal(resolveSkillsContext(base).mode, 'group');
-  assert.equal(resolveSkillsContext(base).root, '/group');
-  for (const status of ['mismatched', 'unverified', 'ambiguous', 'error'] as const) {
-    const result = resolveSkillsContext({ ...base, match: { ...match, status, root: undefined }, selectedRoot: repos[1].path });
-    assert.equal(result.mode, 'repository'); assert.equal(result.root, repos[1].path);
-    assert.deepEqual(result.availableFeatures, [], 'Group installation never enables native features');
-  }
-  assert.equal(resolveSkillsContext({ ...base, preferGroup: false }).mode, 'unavailable');
-  const native = { ...base, preferGroup: false, selectedRoot: repos[0].path, installed: { ...base.installed, profile: 'repository' as const } };
-  assert.equal(resolveSkillsContext(native).mode, 'repository');
+  assert.equal(resolveSkillsContext(base).mode, 'group'); assert.equal(resolveSkillsContext(base).root, '/group');
+  assert.equal(resolveSkillsContext({ ...base, preferGroup: false }).mode, 'group', 'legacy mode flags do not override the local profile');
+  const native = { ...base, match: { ...match, root: repos[0].path, profile: 'repository' as const }, installed: { ...base.installed, profile: 'repository' as const } };
+  assert.equal(resolveSkillsContext(native).mode, 'repository'); assert.deepEqual(resolveSkillsContext(native).repositories, [repos[0]]);
   assert.deepEqual(resolveSkillsContext({ ...native, installed: { ...native.installed, status: 'error' } }).availableFeatures, []);
   assert.deepEqual(resolveSkillsContext({ ...native, installed: { ...native.installed, version: '0.16.0' } }).availableFeatures, []);
   const old = resolveSkillsContext({ ...native, installed: { ...native.installed, status: 'work-in-progress', version: '0.16.0', activeWorkIds: ['work-20261010-old'] } });
   assert.equal(old.resumeOnly, true); assert.deepEqual(old.availableFeatures, ['megin-resume']);
-  assert.equal(resolveSkillsContext({ ...native, match: { ...match, status: 'checking' } }).mode, 'unavailable');
-  assert.equal(resolveSkillsContext({ ...native, selectedRoot: '/stale', match: { ...match, repositories: [repos[1]] } }).root, repos[1].path);
+  assert.equal(resolveSkillsContext({ ...native, match: { ...native.match, status: 'checking' } }).mode, 'unavailable');
 });

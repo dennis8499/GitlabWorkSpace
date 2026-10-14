@@ -73,6 +73,7 @@ suite('Account, preview and workspace Repo integration', () => {
       session: {}, gitRepositories: { scanWorkspace: async (signal: AbortSignal, progress: (state: RepositoryScanState) => void) => {
         await gate; cancelled = signal.aborted; progress(old); return old;
       } },
+      projectContext: { root: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? 'fixture' },
       workspaceFoldersGeneration: 0, inventoryGeneration: 0, localRepositoryScanGeneration: 0, actualRepositoryScanGeneration: 0,
       busy: true, sendSnapshot: () => undefined, refreshInventory: async () => undefined
     });

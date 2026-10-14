@@ -794,3 +794,25 @@ test('rejects unsafe local names, gives same-named projects stable ID folders, a
     rmSync(temp, { recursive: true, force: true });
   }
 });
+
+test('an opened repository updates itself and clones another project into its own child folder', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'clone-root-repo-'));
+  try {
+    const own = { ...project('alpha'), id: 1001 }; const other = { ...project('beta'), id: 1002 };
+    const root = path.join(temp, 'renamed-alpha'); mkdirSync(root);
+    git(['init', '--quiet', root]); git(['-C', root, 'remote', 'add', 'origin', own.http_url_to_repo]);
+    const actions: Array<{ action: string; target: string }> = [];
+    const result = await cloneProjects(root, [own, other], 'https://gitlab.example.test', dummyToken, undefined, {
+      groupProjects: [own, other],
+      updateRunner: async plan => { actions.push({ action: 'update', target: plan.targetPath }); return { state: 'updated' }; },
+      cloneRunner: async plan => { actions.push({ action: 'clone', target: plan.targetPath }); git(['init', '--quiet', plan.targetPath]); }
+    });
+    assert.deepEqual(actions, [{ action: 'update', target: root }, { action: 'clone', target: path.join(root, 'beta') }]);
+    assert.deepEqual(result.updated.map(p => p.id), [own.id]); assert.deepEqual(result.cloned.map(p => p.id), [other.id]);
+    const synced: string[] = [];
+    await syncLocalDefaultBranches(root, [own], 'https://gitlab.example.test', dummyToken, undefined, {
+      syncRunner: async plan => { synced.push(plan.targetPath); return { state: 'updated' }; }
+    });
+    assert.deepEqual(synced, [root]); assert.equal(existsSync(path.join(root, 'alpha')), false);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});

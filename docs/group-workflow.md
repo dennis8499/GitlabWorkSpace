@@ -4,7 +4,7 @@ GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0
 
 ## 一次安裝整包
 
-登入 GitLab 並選擇 Group，在 VS Code 開啟 Group 資料夾或該 Group 的 Repo，確認工作台已辨識工作區後，打開 **設定 → 工作區與 Skills**，確認唯一套件卡「GitLab Workspace 工作流程包」的版本與目前擴充功能一致，再按 **安裝／更新**。安裝位置預設為唯一已開啟的本機工作區資料夾；可用 **選擇資料夾** 指定其他本機位置，Git 根目錄安裝單 Repo 版，一般非 Git 資料夾安裝 Group 版。安裝位置不會切換 Skills／Codex 工作位置；請確認 Group 根目錄的套件狀態。「符合 Group 時使用 Group 流程」預設開啟；須核對所有已開啟 Repo 和 Group 資料夾的直屬 Repo，其唯一 origin 對應所選 Group（含子群組），並共用唯一非 Git 根目錄。未符合時自動切換原生單 Repo；關閉則固定單 Repo。專案下載與更新使用獨立的位置判定，允許混合不同 Group 的 Repo；空資料夾可先下載再核對。下載與匯入可免登入。若使用外部來源，從 GitLab Workspace 的 Gitea 或 GitHub Release 下載單一 ZIP，再匯入工作台。
+在 VS Code 開啟要操作的專案資料夾，進入 **設定 → 工作區與 Skills → 共用專案根目錄**。專案下載、Skills 安裝與執行、Codex 及 AutoHook 共用此位置，預設為開啟的資料夾。同視窗有多個根資料夾時，先明確選擇本次操作的資料夾；也可設定自訂路徑。根目錄本身是有效 Git Repo 時採單專案流程，一般資料夾採整個工作區的流程，空資料夾亦可安裝。GitLab Group 僅作為遠端列表篩選，本機功能不需要整個工作區都對應同一 Group。下載及匯入組合包可免登入；需要 GitLab 操作時才個別驗證目標 Repo 的 remote 與身分。
 
 安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
 
@@ -80,7 +80,7 @@ Group 快速審查提供修正參考，並不替代 Megin 的獨立審查或人�
 
 ## Merge Request 審查與報告
 
-Workspace 建立 `MergeReviewTask/v2`，必要 `groupRoot` 取自目前已核對的 Group，`repoPath` 為實際直屬 Git 根目錄。固定 MR source 與目前 target SHA，缺物件只 fetch 指定 SHA，無法取得即停止。預設使用 portable Group context/result v2，依修改契約追查其他 Repo 的直接與間接影響；只有明確 `--scope repo` 才縮小範圍。標準、Group quick、MR 與收據共用契約搜尋、影響鏈、逐 Repo 判定與缺口關卡；Group quick 保留獨立 index／working-tree 版本，不 fetch。
+Workspace 建立 `MergeReviewTask/v2`，必要 `groupRoot` 取自目前選定的共用專案根目錄，`repoPath` 為實際直屬 Git 根目錄。固定 MR source 與目前 target SHA，缺物件只 fetch 指定 SHA，無法取得即停止。預設使用 portable Group context/result v2，依修改契約追查其他 Repo 的直接與間接影響；只有明確 `--scope repo` 才縮小範圍。標準、Group quick、MR 與收據共用契約搜尋、影響鏈、逐 Repo 判定與缺口關卡；Group quick 保留獨立 index／working-tree 版本，不 fetch。
 
 `MergeReviewReport/v2` 綁定完整 task、context、正文及全部中繼資料摘要。匯入與發布核對目前 Group／Repo、MR 身分與最新雙方 SHA；連結 Megin 收據時重新執行唯讀原始證據驗證。修改內容、版本或證據漂移需重新審查。必要來源或鏈路未查清時保持審查未完成。預設 Markdown，可明確要求 JSON；結束後清理受管理暫存。
 
@@ -116,7 +116,7 @@ AutoHook 1.2.0 是隨包附帶的工具，與 16 個 Skills 分開，兩種 prof
 
 在同一張 AutoHook 設定卡選擇 **Review Agent 模型** 與 **思考強度**，只影響核准審查 Agent。模型及支援強度從本機 Codex 取得，可按 **刷新模型** 重試；模型清單讀取失敗時保留目前設定及停用控制。新裝預設 `gpt-6-luna`／`low`，AI 審查上限為 30 秒。未啟用時選好後勾選即可套用；已啟用時按 **儲存 Review Agent 設定**，成功後重新讀取實際設定。不同 Skills 根目錄各自保存，重新驗證及整包更新保留既有選擇。
 
-作用位置使用目前 Skills 的 Group 根目錄或所選單一 Repo，與另選的套件安裝位置分開；不逐一修改子 Repo。啟用後的本機檔案位於 `.codex/autohook/`。沿用 `gitlabWorkspace.pythonPath`（Python 3.11+），原生 `codex.exe` 依序從 PATH、npm 套件內的原生執行檔及目前安裝的 Codex 擴充功能尋找，啟用、重新驗證與整包更新共用此規則。也可設定優先使用的 `gitlabWorkspace.autoHook.codexPath`，須填現有原生 `.exe` 的完整路徑；手動設定無效時會回報錯誤，不能直接填 `.cmd`、`.bat` 或 `.ps1`。狀態查詢與停用不需要 Codex；啟用需要 Windows PowerShell，其他平台或未安裝 Codex 時仍可安裝完整 Skills 包。
+作用位置使用共用專案根目錄，與下載、Skills 安裝與執行及 Codex 啟動位置一致。啟用後的本機檔案位於 `.codex/autohook/`。沿用 `gitlabWorkspace.pythonPath`（Python 3.11+），原生 `codex.exe` 依序從 PATH、npm 套件內的原生執行檔及目前安裝的 Codex 擴充功能尋找，啟用、重新驗證與整包更新共用此規則。也可設定優先使用的 `gitlabWorkspace.autoHook.codexPath`，須填現有原生 `.exe` 的完整路徑；手動設定無效時會回報錯誤，不能直接填 `.cmd`、`.bat` 或 `.ps1`。狀態查詢與停用不需要 Codex；啟用需要 Windows PowerShell，其他平台或未安裝 Codex 時仍可安裝完整 Skills 包。
 
 啟用只管理三個核准設定及自己的 `PermissionRequest` handler，保留 Wiki 底稿、其他 Hooks 與設定。已啟用時，整包更新以新版 Wiki 底稿重新合成並同步更新還原備份，停用時恢復該底稿；已停用者維持停用。可驗證的既有 AutoHook 1.0.0／1.0.1／1.1.0 可納入管理；已啟用的舊版更新後使用固定規則加 AI 審查，未知內容或本機修改會阻擋覆寫。
 

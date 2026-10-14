@@ -8,47 +8,33 @@ import * as vscode from 'vscode';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
 
 suite('Local workflow kit installation', () => {
-  test('Group policy defaults to enabled and resolves real user/workspace overrides for a fresh controller', async () => {
-    const configuration = vscode.workspace.getConfiguration('gitlabWorkspace');
-    const setting = 'workflowKit.requireGroupEnvironment';
-    const previous = configuration.inspect<boolean>(setting);
-    assert.equal(previous?.defaultValue, true);
-    const hasWorkspace = !!vscode.workspace.workspaceFolders?.length || !!vscode.workspace.workspaceFile;
-    const fresh = () => Object.assign(Object.create(WorkspacePanel.prototype), { session: {}, pendingWorkspaceRefresh: false }).getAccountUiState().workflowKitPolicy;
+  test('the shared root setting defaults to the opened folder and supports workspace overrides', async () => {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const configuration = vscode.workspace.getConfiguration('gitlabWorkspace', folder?.uri);
+    const setting = 'projectRoot'; const previous = configuration.inspect<string>(setting);
+    const currentValue = () => vscode.workspace.getConfiguration('gitlabWorkspace', folder?.uri).get<string>(setting);
+    assert.equal(previous?.defaultValue, '');
+    const target = folder && (vscode.workspace.workspaceFile || (vscode.workspace.workspaceFolders?.length ?? 0) > 1)
+      ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
     try {
-      if (hasWorkspace) await configuration.update(setting, undefined, vscode.ConfigurationTarget.Workspace);
-      await configuration.update(setting, true, vscode.ConfigurationTarget.Global);
-      assert.equal(fresh().requireGroupEnvironment, true);
-      assert.equal(fresh().allowed, true, 'auto mode falls back to native Repo without GitLab');
-      assert.equal(fresh().mode, 'repository');
-      await configuration.update(setting, false, vscode.ConfigurationTarget.Global);
-      assert.equal(fresh().requireGroupEnvironment, false);
-      assert.equal(fresh().allowed, true);
-      if (hasWorkspace) {
-        await configuration.update(setting, true, vscode.ConfigurationTarget.Workspace);
-        assert.equal(fresh().requireGroupEnvironment, true);
-        await configuration.update(setting, false, vscode.ConfigurationTarget.Workspace);
-        assert.equal(fresh().requireGroupEnvironment, false);
-        assert.equal(fresh().settingTarget, 'workspace');
-      }
+      await configuration.update(setting, '', target); assert.equal(currentValue(), '');
+      await configuration.update(setting, 'custom', target); assert.equal(currentValue(), 'custom');
     } finally {
-      if (hasWorkspace) await configuration.update(setting, previous?.workspaceValue, vscode.ConfigurationTarget.Workspace);
-      await configuration.update(setting, previous?.globalValue, vscode.ConfigurationTarget.Global);
+      await configuration.update(setting, target === vscode.ConfigurationTarget.WorkspaceFolder ? previous?.workspaceFolderValue : previous?.workspaceValue, target);
     }
   });
 
-  test('installs real bundled Skills into current and external folders without changing the offline Skills context', async function () {
+  test('installs real bundled Skills and follows shared root changes for offline Skills and AutoHook', async function () {
     this.timeout(120_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
     // Wiki's native installer adds its own staging tree; avoid Windows MAX_PATH in the fixture.
     const tempBase = await realpath(os.tmpdir());
     const temporary = await mkdtemp(path.join(tempBase, 'gw-kit-'));
-    const configuration = vscode.workspace.getConfiguration('gitlabWorkspace');
-    const setting = 'workflowKit.requireGroupEnvironment';
-    const configurationTarget = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
-    const previous = configuration.inspect<boolean>(setting);
-    await configuration.update(setting, false, configurationTarget);
+    let configuration: vscode.WorkspaceConfiguration | undefined;
+    let previous: ReturnType<vscode.WorkspaceConfiguration['inspect']>;
+    const setting = 'projectRoot';
+    let configurationTarget = vscode.ConfigurationTarget.WorkspaceFolder;
     let host: any;
     let nativeRepository: { rootUri: vscode.Uri } | undefined;
     const originalWorkspace = vscode.workspace.workspaceFolders?.map(folder => ({ uri: folder.uri, name: folder.name })) ?? [];
@@ -77,7 +63,11 @@ suite('Local workflow kit installation', () => {
       const archivePath = path.join(extensionRoot, 'resources/offline-tools/workflow-kit.tar.xz');
       const selected = { id: 'bundled', archivePath, version: packageJSON.version, source: 'bundled',
         format: 'tar.xz', entryRoot: 'workflow-kit', sha256: createHash('sha256').update(await readFile(archivePath)).digest('hex') };
-      const values = new Map<string, unknown>([['gitlabWorkspace.workflowKit.installRoot', root]]);
+      configuration = vscode.workspace.getConfiguration('gitlabWorkspace', vscode.Uri.file(root));
+      previous = configuration.inspect<string>(setting);
+      configurationTarget = (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
+      await configuration.update(setting, '', configurationTarget);
+      const values = new Map<string, unknown>([['gitlabWorkspace.projectFolder', vscode.Uri.file(root).toString()]]);
       host = Object.assign(Object.create(WorkspacePanel.prototype), {
         disposed: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
         workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0, workflowKitStatusReads: new Map(),
@@ -104,8 +94,9 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.workflowKitInstallTarget.root, root);
       assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
       assert.equal(host.workflowKitInstallTarget.state.profile, 'repository');
-      assert.equal(host.workflowKitState.status, 'missing');
-      assert.equal(host.groupRoot, undefined);
+      assert.equal(host.workflowKitState.status, 'installed');
+      assert.equal(host.cloneRoot, root);
+      assert.equal(host.groupRoot, root);
       assert.equal((await readdir(path.join(root, '.agents/skills'))).length, 16);
       assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
       assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
@@ -116,7 +107,7 @@ suite('Local workflow kit installation', () => {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);
-        await host.context.workspaceState.update('gitlabWorkspace.workflowKit.installRoot', externalRoot);
+        await configuration.update(setting, externalRoot, configurationTarget);
         await host.refreshWorkflowKit(false);
         assert.equal(host.workflowKitInstallTarget.profile, profile);
         await host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled' });
@@ -124,9 +115,10 @@ suite('Local workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
         assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 16);
-        assert.equal(host.getSkillsContext().root, root);
-        assert.equal(host.getSkillsContext().installed.profile, 'repository');
-        assert.equal(host.getSkillsContext().revision, skills.revision);
+        assert.equal(host.getSkillsContext().root, externalRoot);
+        assert.equal(host.getSkillsContext().installed.profile, profile);
+        assert.equal(host.autoHookState.root, externalRoot);
+        assert.notEqual(host.getSkillsContext().revision, skills.revision);
         assert.equal(vscode.workspace.workspaceFolders?.some(folder => folder.uri.fsPath === externalRoot), false);
       }
     } finally {
@@ -135,6 +127,7 @@ suite('Local workflow kit installation', () => {
         host.remoteWatchers.forEach((watcher: vscode.Disposable) => watcher.dispose());
         if (host.remoteRefreshTimer) clearTimeout(host.remoteRefreshTimer);
       }
+      if (configuration) await configuration.update(setting, configurationTarget === vscode.ConfigurationTarget.WorkspaceFolder ? previous?.workspaceFolderValue : previous?.workspaceValue, configurationTarget);
       if (nativeRepository) await vscode.commands.executeCommand('git.close', nativeRepository.rootUri);
       if (fixtureAdded) {
         const restored = new Promise<void>(resolve => {
@@ -144,7 +137,6 @@ suite('Local workflow kit installation', () => {
         await restored;
       }
       if (process.cwd().toLocaleLowerCase().startsWith(temporary.toLocaleLowerCase() + path.sep)) process.chdir(originalCwd);
-      await configuration.update(setting, configurationTarget === vscode.ConfigurationTarget.Workspace ? previous?.workspaceValue : previous?.globalValue, configurationTarget);
       assert.equal(path.dirname(await realpath(temporary)), tempBase);
       await rm(temporary, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }

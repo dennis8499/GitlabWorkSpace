@@ -7,6 +7,7 @@ import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import type { GitLabAccount, AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
+import type { ProjectRootContext } from './projectRootProtocol';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
@@ -182,6 +183,7 @@ export interface WorkflowKitPackageSummary {
 }
 
 export interface WorkspaceSnapshot {
+  projectContext?: ProjectRootContext;
   connected: boolean;
   baseUrl?: string;
   instanceChecking?: boolean;
@@ -250,6 +252,7 @@ export interface WorkspaceSnapshot {
 
 export interface CloneOperationState {
   id: string;
+  projectRevision?: string;
   scopeKey?: string;
   phase: 'running' | 'completed' | 'cancelled' | 'failed';
   label: string;
@@ -262,7 +265,7 @@ export interface CloneOperationState {
   }>;
 }
 
-export type WorkspaceRequest =
+export type WorkspaceRequest = (
   | GitPanelRequest
   | { type: 'ready' }
   | GitPanelRequest
@@ -293,6 +296,9 @@ export type WorkspaceRequest =
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }
+  | { type: 'selectProjectFolder'; folderUri: string }
+  | { type: 'selectProjectRoot' }
+  | { type: 'resetProjectRoot' }
   | { type: 'selectCloneRoot' }
   | { type: 'resetCloneRoot' }
   | { type: 'openCodexTerminal'; revision: string }
@@ -341,13 +347,12 @@ export type WorkspaceRequest =
   | { type: 'refreshAutoHook' }
   | { type: 'refreshAutoHookModels'; contextRevision: string }
   | { type: 'manageAutoHook'; operation: 'enable' | 'disable' | 'revalidate' | 'configure'; contextRevision: string; reviewer?: AutoHookReviewerSettings }
-  | { type: 'selectSkillsRepository'; root: string }
   | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
-  | { type: 'setWorkflowKitRequireGroup'; enabled: boolean }
   | { type: 'openWorkspaceFolder' }
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
-  | { type: 'installWorkflowKit'; packageId: string };
+  | { type: 'installWorkflowKit'; packageId: string }
+) & { projectRevision?: string };
 
 export type WorkspaceResponse =
   | { type: 'openAccountManager'; intent: AccountPanelIntent }

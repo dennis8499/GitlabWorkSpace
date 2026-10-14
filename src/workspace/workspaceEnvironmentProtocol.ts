@@ -9,6 +9,7 @@ export interface WorkspaceRepositoryMatch {
 }
 export interface GroupWorkspaceMatch {
   status: 'checking' | 'matched' | 'mismatched' | 'unverified' | 'ambiguous' | 'error';
+  profile?: 'group' | 'repository';
   root?: string;
   cloneRoot?: string;
   reason?: string;

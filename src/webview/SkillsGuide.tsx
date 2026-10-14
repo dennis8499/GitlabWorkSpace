@@ -5,9 +5,8 @@ import { buildWikiGuideContext } from './codebaseWikiGuideData';
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, getMergeReviewTarget, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
 
-export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, onNavigate, kitInstalled, skillsContext, onSelectRepository, ...context }: SkillGuideContext & {
+export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, onNavigate, kitInstalled, skillsContext, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
-  onSelectRepository?: (root: string) => void;
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
   onCopy: (text: string, featureId: string) => void;
@@ -35,10 +34,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
     : !context.groupRoot ? '請先開啟 Group 本機工作區。' : !kitInstalled ? '請先安裝或更新工作流程包。'
     : context.repositoryScanStatus !== 'ready' ? context.repositoryScanError ?? '請等候本機 Repo 掃描完成。' : '';
   return <div class="wiki-guide skills-guide">
-    {skillsContext && <div class="skills-environment" role="status"><p>目前流程：{skillsContext.mode === 'group' ? 'Group' : '單一 Repo'} · {skillsContext.root ?? '尚未選擇 Repo'}</p>
-      {skillsContext.mode !== 'group' && <label class="field"><span>Skills Repo</span><select aria-label="Skills Repo" value={skillsContext.root ?? ''} onChange={event => onSelectRepository?.(event.currentTarget.value)}>
-        <option value="">請選擇 Repo</option>{skillsContext.groupMatch.repositories.map(repo => <option key={repo.path} value={repo.path}>{repo.name} · {repo.path}</option>)}
-      </select></label>}
+    {skillsContext && <div class="skills-environment" role="status"><p>專案根目錄：{skillsContext.root ?? '請先選擇專案資料夾'}</p>
       {skillsContext.resumeOnly && <p>可續作：{skillsContext.installed.activeWorkIds?.join('、')}</p>}
     </div>}
     <div class="skills-guide-controls">

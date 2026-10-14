@@ -28,7 +28,7 @@
 - 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，產生本機報告與人工 Checklist。
 - 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從設定一次安裝或更新 GitLab Workspace 工作流程包。預設安裝於目前 VS Code 專案資料夾，也可用原生資料夾選擇視窗指定其他本機位置；Git 根目錄安裝單 Repo 版，一般資料夾安裝 Group 版。安裝位置與 Skills／Codex 工作位置分開管理。下載與匯入可免登入；預設使用 VSIX 內附離線包，也可匯入單一 Release ZIP。
+- 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動及 AutoHook 共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
@@ -61,11 +61,11 @@
 
 工作台的 **開啟 Codex CLI** 會在目前 Skills 情境所選的 Group 或 Repo 根目錄開啟整合式終端並執行 `codex`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 
-只需使用單 Repo Skills 時，直接在 VS Code 開啟 Git Repo，再進入 **分析 → 整包安裝／更新**。**設定 → 工作區與 Skills** 的「符合 Group 時使用 Group 流程」預設開啟：全部 Repo 的 `origin` 對應所選 Group，且 Group 根目錄唯一時使用 Group；未登入、未選 Group、remote 不符或根目錄不唯一時自動使用原生單 Repo。關閉後固定使用單 Repo。唯一 Repo 自動選取，多個 Repo 時由 Skills Repo 選擇器指定，並記住此工作區的選擇。套件安裝資料夾另行選擇，預設為唯一已開啟的本機工作區資料夾，多根工作區或空視窗需先選擇；一般非 Git 資料夾可安裝 Group 版，Repo 子目錄需改選 Git 根目錄。安裝到外部資料夾不會切換 Skills 或 Codex 工作位置，恢復預設安裝位置也不清除 Skills Repo 選擇。
+直接在 VS Code 開啟要操作的專案資料夾，再進入 **設定 → 工作區與 Skills → 共用專案根目錄**。留白使用開啟的資料夾；同視窗有多個根資料夾時，先選擇本次操作的專案資料夾，選擇會依工作區保留。根目錄本身為 Git Repo 時使用單專案流程，一般資料夾使用整個工作區的流程，空資料夾亦可安裝。GitLab 帳號、遠端 Group 或其他 Repo 的 origin 不會改變本機根目錄。
 
 設定會列出「核對中、已對應、不符、尚未驗證、根目錄不唯一、驗證失敗」與 Repo 原因。資料夾名稱不作為證據，也不採用其他 remote 代替 `origin`。切換畫面或設定只更新情境；按 **安裝／更新** 才套用對應 profile。Skills 顯示目前根目錄的實際整包及工具版本，舊版須更新才能建立新任務；通過原契約與 Skills 指紋驗證的未完成 Megin 工作可沿原 Work ID 續作。
 
-此開關對應 VS Code 設定 `gitlabWorkspace.workflowKit.requireGroupEnvironment`，支援使用者設定及工作區覆寫。工作台開關在已開啟工作區時寫入工作區設定，空視窗寫入使用者設定，變更立即生效。側欄常駐顯示帳號摘要；右上角提供快速切換，完整登入、重新登入、登出及移除集中於 **設定 → 帳號與連線**，亦可執行 **GitLab Workspace: 管理 GitLab 帳號**。
+共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件與 AutoHook 狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
 GitLab Workspace v0.22.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0，共 16 個 Skills。Megin 全部十三個 Skills 保留原生內容，Group v6 架構探索追查直接及間接消費端，未修改的受影響 Repo 提供固定驗證，不建立分支或交付。Group quick、標準、MR 與收據審查共用 portable v2 契約搜尋、影響鏈與逐 Repo 判定；MR task/report v2 綁定明確 Group 根目錄及精確 source／target SHA。單 Repo profile 以 `--scope repo` 限制於所選專案，Group 預設延伸所有具程式證據關聯的 Repo。
 
