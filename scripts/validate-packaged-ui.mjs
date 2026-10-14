@@ -49,7 +49,7 @@ function createFixture() {
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
     'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'merge-group', 'merge-mr', 'release-review'];
   const installed = { status: 'installed', version: '0.22.0', profile: 'group', source: 'bundled', capabilities: features,
-    upstreamVersions: { 'codebase-wiki': '0.6.0', megin: '0.8.0', 'merge-reviewer': '0.11.0', 'release-reviewer': '0.2.0' } };
+    upstreamVersions: { 'codebase-wiki': '0.6.0', megin: '0.8.0', 'merge-reviewer': '0.11.0', 'release-reviewer': '0.3.0' } };
   const local = Object.fromEntries(projects.map(project => [project.id, { state: 'ready', path: repositories[project.id - 1].path }]));
   const matched = projects.map(project => ({ name: project.name, path: repositories[project.id - 1].path, projectId: project.id, matched: true, defaultBranch: 'main' }));
   return { repositories, snapshot: { connected: true, baseUrl: 'https://gitlab.invalid', currentUser: { id: 7, name: 'Fixture User', username: 'fixture-user' },

@@ -44,7 +44,9 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   assert.match(prompt, /固定合併前審查/);
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   assert.match(prompt, /base_sha 的整個 Repo/);
-  assert.match(prompt, /所選 Repo\/review-reports\//);
+  assert.match(prompt, /VSCode 工作區根目錄/);
+  assert.ok(prompt.includes(`--workspace 為 ${JSON.stringify(context.groupRoot)}`));
+  assert.equal(prompt.includes('Repo/review-reports'), false);
   assert.match(prompt, /檔名前綴 release-review/);
   assert.match(prompt, /失敗時停止，不使用過期資料/);
   assert.match(prompt, /只輸出 Markdown/);
@@ -70,7 +72,7 @@ test('release saved inputs migrate to three fields while MergeReviewer retains a
   });
   assert.ok(prompt.includes('"defaultBranch":"production/local"'));
   assert.match(prompt, /關聯 Repo 使用各自本機預設分支/);
-  assert.match(prompt, /獨立 Checklist/);
+  assert.match(prompt, /一份含 Checklist/);
 });
 
 test('review modes keep Group quick, native quick and explicit version contracts separate', () => {
@@ -153,4 +155,17 @@ test('local review targets use native boundaries without requiring or leaking sa
     assert.match(branch, /--base "saved-base" --head "saved-head" --mode direct/);
     assert.equal(canCopySkillPrompt(card, { ...saved.inputs, 'merge-repo.base': '' }), false);
   }
+});
+
+test('release prompt binds actual folder and saved multi-root workspace without adding user fields', () => {
+  const card = getSkillGuideCard('release-reviewer');
+  const inputs = { 'release-review.repo': 'service', 'release-review.base': 'main', 'release-review.head': 'feature' };
+  const workspaceRoot = 'C:\\actual workspace';
+  const workspaceFile = 'C:\\actual workspace\\review.code-workspace';
+  const prompt = buildSkillGuidePrompt(card, inputs, { ...context, workspaceRoot, workspaceFile });
+  assert.ok(prompt.includes(`--workspace 為 ${JSON.stringify(workspaceRoot)}`));
+  assert.ok(prompt.includes(`--workspace-file ${JSON.stringify(workspaceFile)}`));
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+  assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
+  assert.throws(() => buildSkillGuidePrompt(card, inputs, { repositories: [] }), /工作區根目錄/);
 });

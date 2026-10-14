@@ -79,7 +79,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
     def draft(self, manifest):
         evidence = [{"repo": "entry", "source": "head", "ref": self.head_sha, "path": "service.txt", "line_start": 1, "line_end": 1},
                     {"repo": "entry", "source": "merge-preview", "ref": manifest["merge_preview"]["tree_sha"], "path": "service.txt", "line_start": 1, "line_end": 1}]
-        return {"schema": "ReleaseReviewDraft/v2", "summary": "Installed native helper integration fixture.",
+        return {"schema": "ReleaseReviewDraft/v3", "summary": "Installed native helper integration fixture.",
                 "coverage": [{"path": "service.txt", "status": "reviewed", "evidence": evidence}],
                 "code_risks": [], "config_changes": [], "db_changes": [], "external_changes": [],
                 "supporting_coverage": [], "functional_chain": [], "chain_gaps": [],
@@ -89,7 +89,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 "tests_not_executed": ["No product execution or database connection in this fixture."], "limitations": []}
 
     def test_installed_native_payload_matches_pinned_archive(self):
-        archive_path = harness.ROOT / "resources/offline-tools/sources/release-reviewer-0.2.0.zip"
+        archive_path = harness.ROOT / "resources/offline-tools/sources/release-reviewer-0.3.0.zip"
         with zipfile.ZipFile(archive_path) as archive:
             expected = {item.filename.removeprefix("release-reviewer/"): archive.read(item)
                         for item in archive.infolist() if not item.is_dir()}
@@ -115,22 +115,74 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 output = json.loads(result.stdout)
                 report = Path(output["markdown_report"])
-                self.assertEqual(self.repo / "review-reports", report.parent)
+                self.assertEqual(self.group if profile == "group" else self.repo, report.parent)
+                self.assertEqual({"markdown_report"}, set(output))
                 self.assertTrue(report.name.startswith("release-review"))
                 body = report.read_text(encoding="utf-8")
-                for heading in ("## 程式風險", "## 新增設定提醒", "## 新增 DB 使用提醒"):
+                for heading in ("## 已確認阻擋項", "## 新增項目與 Checklist", "## 證據與版本紀錄"):
                     self.assertIn(heading, body)
                 self.assertNotIn("uncommitted local edit", body)
-                checklist = Path(output["checklist_report"])
-                self.assertIn(self.head_sha, checklist.read_text(encoding="utf-8"))
+                self.assertIn(self.head_sha, body)
+                self.assertEqual([report], list(report.parent.glob("release-review-*.md")))
                 metadata = json.loads(base64.b64decode(re.search(r"release-review-report:([A-Za-z0-9+/=]+)", body).group(1)))
-                self.assertEqual("ReleaseReviewReport/v2", metadata["schema"])
+                self.assertEqual("ReleaseReviewReport/v3", metadata["schema"])
                 self.assertTrue(metadata["review_complete"])
+                self.assertEqual("no-blockers-found", metadata["release_assessment"])
+                self.assertNotIn("checklist_file", metadata)
                 self.assertEqual([], list(report.parent.glob("*.json")))
                 self.assertFalse(context.exists())
                 self.assertEqual(index_before, (self.repo / ".git/index").read_bytes())
                 self.assertEqual(status_before, self.git("status", "--porcelain", "--untracked-files=no"))
                 self.assertEqual("uncommitted local edit\n", (self.repo / "service.txt").read_text(encoding="utf-8"))
+
+
+    def test_saved_workspace_single_report_and_editable_checklist_snapshot(self):
+        source = self.repo / "config_use.py"
+        source.write_text("import os\nURL = os.environ['BILLING_URL']\n", encoding="utf-8")
+        self.git("add", "config_use.py")
+        self.git("commit", "-m", "new required environment dependency", "--", "config_use.py")
+        self.head_sha = self.git("rev-parse", "HEAD")
+        saved = self.root / "saved workspace"
+        saved.mkdir()
+        workspace_file = saved / "review.code-workspace"
+        workspace_file.write_text(json.dumps({"folders": [{"path": str(self.repo)}]}), encoding="utf-8")
+        capture = self.helper("git_review_context.py", "--workspace", self.group, "--workspace-file", workspace_file,
+                              "--project", self.repo, "--base", "main", "--head", "feature")
+        self.assertEqual(0, capture.returncode, capture.stderr)
+        manifest = json.loads(capture.stdout)
+        context = Path(manifest["context_dir"])
+        self.addCleanup(lambda: self.helper("review_session.py", "cleanup", "--context-dir", context) if context.exists() else None)
+        data = self.draft(manifest)
+        final_proof = {"repo": "entry", "source": "merge-preview", "ref": manifest["merge_preview"]["tree_sha"],
+                       "path": "config_use.py", "line_start": 2, "line_end": 2}
+        data["coverage"].append({"path": "config_use.py", "status": "reviewed", "evidence": [
+            {**final_proof, "source": "head", "ref": self.head_sha}, final_proof]})
+        search = self.helper("evidence.py", "search", "--context-dir", context, "--source", "base", "--query", "BILLING_URL")
+        self.assertEqual(0, search.returncode, search.stderr)
+        data["config_changes"] = [{"id": "C-001", "kind": "environment-variable", "name": "BILLING_URL",
+            "description": "新增必要環境變數。", "baseline_reason": "整個 base 沒有此變數的既有使用。",
+            "baseline_searches": [json.loads(search.stdout)["search_id"]], "recommendation": "確認部署注入。",
+            "evidence": [final_proof], "definition_status": "external", "definition_evidence": []}]
+        draft = context / "draft.json"
+        draft.write_text(json.dumps(data), encoding="utf-8")
+        published = self.helper("release_report.py", "--context-dir", context, "--result", draft)
+        self.assertEqual(0, published.returncode, published.stderr)
+        output = json.loads(published.stdout)
+        self.assertEqual({"markdown_report"}, set(output))
+        report = Path(output["markdown_report"])
+        self.assertEqual(saved, report.parent)
+        self.assertEqual([report], list(saved.glob("*.md")))
+        text = report.read_text(encoding="utf-8")
+        body = text.split("\n<!-- release-review-report:")[0]
+        metadata = json.loads(base64.b64decode(re.search(r"release-review-report:([A-Za-z0-9+/=]+)", text).group(1)))
+        self.assertEqual("pending-confirmation", metadata["release_assessment"])
+        self.assertEqual(1, metadata["pending_count"])
+        edited = body.replace("| 待確認 | | | | |", "| 已確認 | SRE | 2026-10-14 | 已驗證部署注入 | |", 1)
+        self.assertNotEqual(body, edited)
+        fixed = edited.split("<!-- release-checklist:start -->")[0] + edited.split("<!-- release-checklist:end -->")[1]
+        self.assertEqual(metadata["static_body_sha256"], hashlib.sha256(fixed.encode("utf-8")).hexdigest())
+        report.write_text(text.replace(body, edited), encoding="utf-8")
+        self.assertFalse(context.exists())
 
     def test_failed_report_cleans_owned_context(self):
         context, manifest = self.capture()
@@ -141,7 +193,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         result = self.helper("release_report.py", "--context-dir", context, "--result", draft)
         self.assertNotEqual(0, result.returncode)
         self.assertFalse(context.exists())
-        self.assertFalse((self.repo / "review-reports").exists())
+        self.assertEqual([], list(self.group.glob("release-review-*.md")))
 
     def test_0191_upgrade_and_rollback_preserve_old_release_skill_and_reports(self):
         fixture = harness.ROOT / "test/fixtures/workflow-kit-0.19.1"
@@ -160,7 +212,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 applied, data = self.execute("install", harness.ARCHIVE, target, harness.VERSION, "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
                                             "--archive-sha256", hashlib.sha256(harness.ARCHIVE.read_bytes()).hexdigest(), "--profile", profile)
                 self.assertEqual(0, applied.returncode, data)
-                self.assertEqual("0.2.0", (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
+                self.assertEqual("0.3.0", (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
                 self.assertEqual("old report\n", (target / "review-reports/previous/report.md").read_text())
                 rolled, output = self.execute("rollback", target, data["transaction"])
                 self.assertEqual(0, rolled.returncode, output)

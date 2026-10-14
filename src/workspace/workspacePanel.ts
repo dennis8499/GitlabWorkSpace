@@ -1370,6 +1370,12 @@ export class WorkspacePanel implements vscode.Disposable {
     if (current.resumeOnly && !current.installed.activeWorkIds?.includes(request.inputs['megin-resume.workId']?.trim())) throw new Error('舊版僅能續作已驗證的既有 Work ID。');
     const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
+      workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
+      workspaceRoot: vscode.workspace.workspaceFile?.scheme === 'file'
+        ? path.dirname(vscode.workspace.workspaceFile.fsPath)
+        : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
+      workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1
+        && vscode.workspace.workspaceFile?.scheme !== 'file',
       repositories: current.repositories, repositoryScanStatus: 'ready' as const };
     await vscode.env.clipboard.writeText(`${buildWikiGuideContext(context)}\n\n${buildSkillGuidePrompt(card, request.inputs, context)}`);
     this.post({ type: 'message', message: '已複製目前環境的 Skills 提示詞。' });

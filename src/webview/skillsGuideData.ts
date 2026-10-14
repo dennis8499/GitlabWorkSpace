@@ -86,7 +86,7 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
   {
     tool: 'release-reviewer', id: 'release-review', title: '上板檢查',
     description: '指定 Repo、基礎分支與比較分支，審查上板風險及相關功能鏈。',
-    output: '繁體中文主報告與可填寫的人工 Checklist，涵蓋設定、DB、FTP、SFTP、Redis、Kafka 等新增依賴。',
+    output: '工作區根目錄的一份精簡 Release Report，包含直接上版阻擋與新增依賴人工 Checklist。',
     behavior: '固定合併前審查；Group 關聯 Repo 使用各自本機預設分支，不 fetch。靜態完成與防火牆、權限、建表等人工核對分開呈現。',
     fields: releaseFields()
   }
@@ -159,6 +159,10 @@ export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInput
 export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
   if (card.tool === 'codebase-wiki') return buildWikiGuidePrompt(card.id, inputs, context);
   if (card.destination) return '';
+  const releaseWorkspace = context.workspaceRoot ?? context.groupRoot ?? context.root;
+  if (card.tool === 'release-reviewer' && (context.workspaceRootAmbiguous || !releaseWorkspace)) {
+    throw new Error('無法辨識唯一 VSCode 工作區根目錄；請先儲存 multi-root 工作區或開啟明確資料夾。');
+  }
   const input = (id: string) => value(card, id, inputs).trim();
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
@@ -205,15 +209,17 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
       : '以本機 HEAD（尚無 Commit 時使用空樹）對照最終已儲存檔案，涵蓋已暫存、未暫存與未忽略的未追蹤檔案；若工作檔覆寫已暫存內容，只審查目前儲存版本。無需 remote 或 GitLab 連線，不 fetch。');
     else lines.push(`比較模式：${input('mode') || '合併前審查'}`);
   }
-  lines.push(context.profile === 'repository'
+  lines.push(card.tool === 'release-reviewer'
+    ? `使用目前工作區安裝的原生 Skill 與 helpers；命令工作目錄使用入口 Repo，內部 --workspace 為 ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? `，另傳 --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''}。保留本機未提交修改，報告根目錄由這份工作區資料固定。`
+    : context.profile === 'repository'
     ? `使用此 Repo 安裝的原生 Skill 與 helpers，工作目錄及 --workspace 均為 ${JSON.stringify(context.root)}。保留本機未提交修改，從固定版本查證。`
     : '使用安裝於本 Group 的 Skill 與 helpers。先解析實際 Repo；單 Repo helper 的工作目錄使用該 Repo，--workspace 指向此 Group。保留本機未提交修改，從固定版本查證。');
   if (card.tool === 'release-reviewer') lines.push(
     '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',
     `內部工作區資料（非額外使用者選項；傳入 --workspace-context-json）：${JSON.stringify({ repositories: context.repositories.map(repo => ({ name: repo.name, path: repo.path, defaultBranch: repo.defaultBranch ?? null })) })}`,
-    context.profile === 'repository' ? '此為單 Repo 環境；保留入口內的完整功能與相容性審查。' : '以指定 Repo 為入口追查 Group 的 API、事件、契約、DB 與快取功能鏈及未變更消費端。關聯 Repo 使用各自本機預設分支的已提交版本，固定 SHA、不 fetch、不改用目前 checkout；版本或鏈路缺口保持檢查未完成。',
+    '以指定 Repo 為入口追查明確工作區內相關 API、事件、契約、DB 與快取功能鏈及未變更消費端。關聯 Repo 使用各自本機預設分支的已提交版本，固定 SHA、不 fetch、不改用目前 checkout；版本或鏈路缺口保持檢查未完成。',
     '以 base_sha 的整個 Repo 原有使用為新增判斷基準。逐類檢查設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 及其他資源，涵蓋首次使用、部署定義、目標變更與新增權限；保留基礎搜尋證據。其他 Repo 可用不代表入口服務已有權限。',
-    '使用 ReleaseReviewDraft/v2 與 release_report.py 輸出主報告及獨立 Checklist Markdown，存於所選 Repo/review-reports/，檔名前綴 release-review。Checklist 初始待確認，核對防火牆、帳號／ACL、Table／欄位／Topic 建立、設定注入與新舊相容性，人工填核對人、日期及開通／套用後驗證證據；僅申請工單不算完成。此報告有獨立中繼資料，不當作 MR 報告匯入或發布。',
+    '只列直接阻止上版的 P0／P1，寫明 blocking_reason、條件、影響與最終版本證據。使用 ReleaseReviewDraft/v3 與 release_report.py，在 VSCode 工作區根目錄產生一份含 Checklist 的精簡 Release Report，檔名前綴 release-review；已儲存工作區使用 .code-workspace 所在目錄。每次一份並保留歷史，不傳 --report-dir。結論優先，分開已確認阻擋、檢查缺口與待核對條件。Checklist 初始待確認，人工填核對人、日期及開通／套用後驗證證據，不適用填理由；僅申請工單不算完成。只修改 release-checklist:start／end 內的核對紀錄，產生時判斷及固定正文保留。此報告不當作 MR 報告匯入或發布。',
     '預設靜態檢查；不複製機密值。實際環境設定、DB 建立或套用狀態標為未查證，不宣告已可上板。'
   );
   else lines.push('使用 review_report.py 產生繁體中文本機報告，保存固定版本證據、覆蓋範圍、實際執行的檢查與限制。');

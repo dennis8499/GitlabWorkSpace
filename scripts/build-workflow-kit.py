@@ -59,10 +59,10 @@ PINNED_SOURCES = (
     {
         "id": "release-reviewer",
         "repository": "ReleaseReviewer",
-        "asset": "release-reviewer-0.2.0.zip",
-        "filename": "release-reviewer-0.2.0.zip",
-        "version": "0.2.0",
-        "sha256": "0042d7519827a9ad350b8259ee111588cab7e4c70311158d9447872973f78179",
+        "asset": "release-reviewer-0.3.0.zip",
+        "filename": "release-reviewer-0.3.0.zip",
+        "version": "0.3.0",
+        "sha256": "aeee49157e16d876ca5ca9650f51f10448b568b84a8a25c35b2c9028e8960098",
     },
 )
 
@@ -463,7 +463,7 @@ def build() -> dict[str, object]:
             "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.8.0 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
             "Native MergeReviewer 0.11.0 unifies Group branch, staged, uncommitted, dual-source quick and receipt reviews with v2 fixed-source impact coverage; the Workspace MR adapter binds an explicit Group root and exact source/target SHAs to the same portable workflow.",
-            "Native ReleaseReviewer 0.2.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes v2 risk/resource reports plus separate manual deployment checklists without an overlay."
+            "Native ReleaseReviewer 0.3.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",
@@ -473,7 +473,7 @@ def build() -> dict[str, object]:
                 "analysisIssueFlow": "draft-ready-scn-manual-issue",
                 "developmentDelivery": "native-megin-formal-workflow",
                 "mergeRequestReview": "explicit-group-pinned-shas-task-report-v2",
-                "releaseReview": "entry-branches-group-chain-local-defaults-v2-manual-checklist",
+                "releaseReview": "entry-branches-group-chain-local-defaults-v3-single-workspace-report",
                 "wikiFeedback": "manual-after-all-local-repo-commits"
             },
             "files": {name: digest(files[f"payload/.agents/gitlab-workspace-kit/{name}"]) for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")}

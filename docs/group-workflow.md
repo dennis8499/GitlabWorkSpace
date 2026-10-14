@@ -1,6 +1,6 @@
 # Group 工作流程（GitLab Workspace 0.22.0）
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 與 16 個 Skills。Megin 全部十三個 Skills 保留原生內容；Group 僅套用 Wiki 與 MR 身分 adapter。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.3.0 與 16 個 Skills。Megin 全部十三個 Skills 保留原生內容；Group 僅套用 Wiki 與 MR 身分 adapter。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
 
 ## 一次安裝整包
 
@@ -96,7 +96,7 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 
 新增依賴以入口固定基礎版本整個 Repo 搜尋與語意核對，涵蓋首次使用、會隨部署套用的定義、目標改變及新增操作權限。設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 與其他可辨識外部服務各有核對項，包含防火牆、帳號／ACL、建表／Topic、目錄、主機金鑰、TTL 及契約相容性。同一資源已被其他 Repo 使用，不代表入口服務已有連線與權限。
 
-在入口 Repo 的 `review-reports/` 產生主報告 `release-review-*.md` 與同次版本 `-checklist.md`，使用獨立 v2 中繼資料，舊 v1 報告保留。主報告保留原始證據，Checklist 供人工更新，狀態為待確認／已確認／未通過／不適用；核對人、日期與工單／驗證證據須保存，不適用須填理由。初始一律待確認，只有定義或申請工單不代表已建置／開通。靜態檢查完成不等於上板準備完成；本次不自動連線驗證實際環境。暫存證據由原生 helper 管理，完成或中止均需清理。
+在 VSCode 工作區根目錄產生一份含 Checklist 的 `release-review-*.md`；已儲存工作區使用 .code-workspace 所在目錄，根目錄有歧義時先釐清。每次一份並保留歷史，使用 v3 中繼資料，舊 v1／v2 報告保留。報告結論優先，只列直接 P0／P1 阻擋，分開未完成證據與待核對條件。Checklist 供人工更新，狀態為待確認／已確認／未通過／不適用；核對人、日期與工單／驗證證據須保存，不適用須填理由。初始一律待確認，只有定義或申請工單不代表已建置／開通。人工紀錄限 release-checklist:start／end 區塊，原始判斷與固定正文不改寫。靜態檢查完成不等於上板準備完成；本次不自動連線驗證實際環境。暫存證據由原生 helper 管理，完成或中止均需清理。
 
 0.22.0 安裝器保留受信任的 0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.19.0、0.19.1、0.20.0 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
 
@@ -143,7 +143,7 @@ python -X utf8 -B resources/workflow-kit-installer.py autohook disable <Skills�
 
 ## 套件建置與發行
 
-套件固定來源為 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0 與 ReleaseReviewer 0.2.0。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 與 MR 身分 adapter，歷史收據使用隔離唯讀 runtime。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。可加 `--validate-local-sources` 核對固定來源與相鄰來源樹完全相同，不自動改版或重設 SHA。套件建置會產生：
+套件固定來源為 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0 與 ReleaseReviewer 0.3.0。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 與 MR 身分 adapter，歷史收據使用隔離唯讀 runtime。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。可加 `--validate-local-sources` 核對固定來源與相鄰來源樹完全相同，不自動改版或重設 SHA。套件建置會產生：
 
 - `gitlab-workspace-0.22.0.vsix`
 - `gitlab-workspace-kit-0.22.0.zip`
