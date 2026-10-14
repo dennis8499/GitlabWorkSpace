@@ -45,7 +45,7 @@ function createFixture() {
     history: Array.from({ length: 10 }, (_, index) => ({ hash: (index + 10).toString(16).padStart(40, '0'),
       parents: index === 9 ? [] : [(index + 11).toString(16).padStart(40, '0')], subject: `Fixture commit ${index + 1}`,
       author: 'Fixture User', date: '2026-10-13T00:00:00Z' })), configuredPullStrategy: 'merge' }));
-  const features = ['development-spec', 'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+  const features = ['megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
     'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'merge-group', 'merge-mr', 'release-review'];
   const installed = { status: 'installed', version: '0.22.0', profile: 'group', source: 'bundled', capabilities: features,

@@ -28,8 +28,8 @@ PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
 VERSION = '0.23.0'
-KIT_EXTENSION_FILES = {'.agents/gitlab-workspace-kit/references/megin-spec-export.md': '900c9292d93ee4126ebe2c44a7ef9b3aa666064075a4240fd30e62f3dea62b53',
- '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'a7b9b5559835cd1053c8ed3eb9a1cdf02c8395b58237c8c068b5a4eb7f443a19'}
+KIT_EXTENSION_FILES = {'.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
+ '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a'}
 WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                        'hooks = true\n'
                        '\n'
@@ -116,7 +116,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
                             'archaeology',
                             'audit',
                             'business-analysis',
-                            'development-spec',
                             'functional-exploration',
                             'ingest',
                             'lint',
@@ -136,8 +135,8 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
            'files': {'.agents/gitlab-workspace-kit/group-instructions.md': 'c68befb9cfc57ce5c0a3272427b190f32c7f2b763a95c42bdcbe25afd6e99f8b',
                      '.agents/gitlab-workspace-kit/legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
                      '.agents/gitlab-workspace-kit/profile.md': '839bcdca50c206b557e0778cbfe5887113c1b5b4c47af8ff4931faa454cc82c7',
-                     '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '900c9292d93ee4126ebe2c44a7ef9b3aa666064075a4240fd30e62f3dea62b53',
-                     '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'a7b9b5559835cd1053c8ed3eb9a1cdf02c8395b58237c8c068b5a4eb7f443a19',
+                     '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
+                     '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a',
                      '.agents/skills/codebase-wiki/SKILL.md': '88c8593603299f65b5025ec72d97222f7151c7a1b25331e88dc3b478cc7fe0bf',
                      '.agents/skills/codebase-wiki/VERSION': '97a5d6e540a6120d09c39ddb667e0e8e2bac7fcc2ffef813b82e08fd60365bce',
                      '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
@@ -396,7 +395,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
                                                      '.agents/skills/merge-reviewer/scripts/workspace_extension.py': 'd36cfa7a24f649170c2200c8d4505f487fa7e410137fdedf8f76a103abe6511e'},
                                            'replaced': {'.agents/skills/merge-reviewer/SKILL.md': {'overlay_sha256': '7eada5bbbe850763295dc9f7ebab64aacffb47cc8218b793566cc6ee72bdb78b',
                                                                                                    'upstream_sha256': '0e05c1a159cfbb42ccdd8841c025f43880a780010784c5fc9bfab0951329306f'}}}},
-           'payloadSha256': '35ec0462776c5e5de91713582f56df25b5c51b303dd21a7679b4e81d1b9074ec',
+           'payloadSha256': '6c2c8b23f157280c9062214875febc2bc40a8240caddfbc1666903ef49ac7bfd',
            'profileHashes': {'group-instructions.md': 'c68befb9cfc57ce5c0a3272427b190f32c7f2b763a95c42bdcbe25afd6e99f8b',
                              'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
                              'profile.md': '839bcdca50c206b557e0778cbfe5887113c1b5b4c47af8ff4931faa454cc82c7'},
@@ -421,7 +420,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
                                  'archaeology',
                                  'audit',
                                  'business-analysis',
-                                 'development-spec',
                                  'functional-exploration',
                                  'ingest',
                                  'lint',
@@ -439,8 +437,8 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
                 'files': {'.agents/gitlab-workspace-kit/group-instructions.md': '0aba4795bcab41f95c5395d7d71adbe3ce8a9528559e36a18e09b8e9be67b318',
                           '.agents/gitlab-workspace-kit/legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
                           '.agents/gitlab-workspace-kit/profile.md': '6f084be4f0741754a4cb692f578d156edbc19293cf235d60bf7fc4faed2d5491',
-                          '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '900c9292d93ee4126ebe2c44a7ef9b3aa666064075a4240fd30e62f3dea62b53',
-                          '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'a7b9b5559835cd1053c8ed3eb9a1cdf02c8395b58237c8c068b5a4eb7f443a19',
+                          '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
+                          '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a',
                           '.agents/skills/codebase-wiki/SKILL.md': '6fb668d3b0e779bb50f2628cab7f7532d8f94ca57e0de01a7c7bcfa4810d1c7b',
                           '.agents/skills/codebase-wiki/VERSION': '97a5d6e540a6120d09c39ddb667e0e8e2bac7fcc2ffef813b82e08fd60365bce',
                           '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
@@ -656,7 +654,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '1f29fb86114daa8744ef56b3a4f4
                           '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
                           '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025'},
                 'overlays': {},
-                'payloadSha256': '027ee40365c2a926fd40177392a683467c929e100d2ec62d79a767792de11a56',
+                'payloadSha256': 'b04a1abd855bde0144763e1db0f324b58014cebc4c70f4df32785316d1b47ddd',
                 'profileHashes': {'group-instructions.md': '0aba4795bcab41f95c5395d7d71adbe3ce8a9528559e36a18e09b8e9be67b318',
                                   'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
                                   'profile.md': '6f084be4f0741754a4cb692f578d156edbc19293cf235d60bf7fc4faed2d5491'},
@@ -730,7 +728,7 @@ SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWork
 AGENT_BLOCK_SHA256 = '1f29fb86114daa8744ef56b3a4f496d8263abbb37f8db42de685b45f39018f65'
 OVERLAY_HASHES = {'codebase-wiki': 'b2b257d292a1bff2618057c94d1fa815023881f0fec7d16e552fe8c2c6add66a',
  'merge-reviewer': '88b2b29fba4ff0b087699c43ffa78b7bc4e68188bb8d29d9a50338b29e65fcc9'}
-CURRENT_PAYLOAD_SHA256 = '35ec0462776c5e5de91713582f56df25b5c51b303dd21a7679b4e81d1b9074ec'
+CURRENT_PAYLOAD_SHA256 = '6c2c8b23f157280c9062214875febc2bc40a8240caddfbc1666903ef49ac7bfd'
 CURRENT_SKILL_FILES = {'.agents/skills/megin-architecture-exploration/SKILL.md': 'f7a966dc8bde19695b1cd62c43bb76af8a1766d562e12ffe3d5c024359081eca',
  '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
  '.agents/skills/megin-behavior-contract/SKILL.md': '840755db509a4ae595f8d635caecae29149e96be80453f7395330ce3948dac22',

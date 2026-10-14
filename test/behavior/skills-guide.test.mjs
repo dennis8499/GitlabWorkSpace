@@ -7,11 +7,11 @@ const html = await readFile(new URL('../../resources/issue-webview/dashboard.htm
 const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
 const { version } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 
-function snapshot(profile) {
+function snapshot(profile, features) {
   const groupRoot = 'C:/工作區 with spaces';
   const repo = { name: 'service', path: `${groupRoot}/service`, matched: profile === 'group' };
   const root = profile === 'group' ? groupRoot : repo.path;
-  const capabilities = ['merge-repo', 'merge-quick', ...(profile === 'group' ? ['merge-group'] : [])];
+  const capabilities = features ?? ['merge-repo', 'merge-quick', ...(profile === 'group' ? ['merge-group'] : [])];
   const installed = { status: 'installed', version, profile, capabilities, upstreamVersions: { 'merge-reviewer': '0.11.0' } };
   return {
     connected: profile === 'group', baseUrl: profile === 'group' ? 'https://gitlab.example.test' : undefined,
@@ -29,7 +29,7 @@ function snapshot(profile) {
   };
 }
 
-async function mount(t, profile, saved) {
+async function mount(t, profile, saved, features) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', error => errors.push(error.stack ?? error.message));
@@ -46,7 +46,7 @@ async function mount(t, profile, saved) {
     await new Promise(resolve => setTimeout(resolve, 0));
   };
   await tick();
-  dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: snapshot(profile) } }));
+  dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: snapshot(profile, features) } }));
   await tick();
   const document = dom.window.document;
   const change = async (id, value, event = 'change') => {
@@ -90,4 +90,58 @@ for (const profile of ['group', 'repository']) test(`${profile} review selector 
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value, 'feature/review');
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.mode"]').value, '直接比較');
   assert.equal(reopened.document.querySelector('.wiki-copy-button').disabled, false);
+});
+
+for (const profile of ['group', 'repository']) test(`${profile} Export Megin Spec unifies generation and existing specs with durable drafts`, async t => {
+  const features = ['megin-spec-export'];
+  const view = await mount(t, profile, undefined, features);
+  const { document, change } = view;
+  assert.deepEqual([...document.querySelector('[aria-label="Skills 功能"]').options].map(item => item.value), features);
+  assert.equal(document.querySelector('.wiki-guide-card h2').textContent, 'Export Megin Spec');
+  assert.equal(document.querySelector('[aria-label="Skills Repo"]'), null);
+  assert.equal(document.querySelector('[id="wiki-input-development-spec.delivery"]'), null);
+  const feature = '[id="wiki-input-megin-spec-export.feature"]';
+  const requirement = '[id="wiki-input-megin-spec-export.requirement"]';
+  const spec = '[id="wiki-input-megin-spec-export.existingSpec"]';
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  await change(feature, '退款', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
+  await change(requirement, '客服可發起退款。\n重複操作不得重複退款。', 'input');
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  const preview = document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(preview, /development_spec.*不依賴 Wiki、BA／SA／SD.*exports\/megin\//s);
+  document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const copied = view.requests.at(-1);
+  assert.equal(copied.type, 'copySkillGuidePrompt');
+  assert.equal(copied.featureId, 'megin-spec-export');
+  assert.equal(copied.revision, `${profile}-revision`);
+  assert.equal(copied.inputs['megin-spec-export.feature'], '退款');
+  assert.equal(view.requests.some(item => item.type === 'openCodexTerminal'), false);
+  await change(feature, '', 'input'); await change(requirement, '', 'input');
+  await change(spec, 'wiki/synthesis/refund-development-spec.md', 'input');
+  assert.equal(document.querySelector(feature).required, false);
+  assert.equal(document.querySelector(requirement).required, false);
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /既有規格.*refund-development-spec\.md.*既有 draft 或過時規格/s);
+  const reopened = await mount(t, profile, view.savedState, features);
+  assert.equal(reopened.document.querySelector(spec).value, 'wiki/synthesis/refund-development-spec.md');
+  assert.equal(reopened.document.querySelector('.wiki-copy-button').disabled, false);
+  await reopened.change(spec, '', 'input');
+  assert.equal(reopened.document.querySelector(feature).required, true);
+  assert.equal(reopened.document.querySelector('.wiki-copy-button').disabled, true);
+});
+
+for (const profile of ['group', 'repository']) test(`${profile} legacy development draft reopens in Export Megin Spec without another draft's path`, async t => {
+  const scope = `project:${snapshot(profile).skillsContext.root}:${profile}`;
+  const saved = { mode: 'sa', projectGuideScope: scope,
+    wikiGuideSelectionsByScope: { [scope]: 'development-spec' },
+    wikiGuideInputsByScope: { [scope]: { 'development-spec.scope': '退款', 'development-spec.requirement': '既有退款草稿',
+      'megin-spec-export.spec': 'wiki/synthesis/unrelated.md', 'megin-spec-export.scope': 'unrelated' } } };
+  const view = await mount(t, profile, saved, ['megin-spec-export']);
+  assert.equal(view.document.querySelector('[id="wiki-input-megin-spec-export.feature"]').value, '退款');
+  assert.equal(view.document.querySelector('[id="wiki-input-megin-spec-export.requirement"]').value, '既有退款草稿');
+  assert.equal(view.document.querySelector('[id="wiki-input-megin-spec-export.existingSpec"]').value, '');
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+  const reopened = await mount(t, profile, view.savedState, ['megin-spec-export']);
+  assert.equal(reopened.document.querySelector('[id="wiki-input-megin-spec-export.feature"]').value, '退款');
 });

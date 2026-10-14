@@ -53,13 +53,13 @@ Allow existing members to authenticate; registration is excluded.
 AuthService owns authentication and the token response.
 ## 3. 功能行為與限制
 POST /login is public. A wrong password returns HTTP 401 with error invalid_credentials and no token.
-Correct credentials return HTTP 200 and a token. Do not change existing token lifetime.
+Correct credentials return HTTP 200 and a token with a lifetime of 3600 seconds.
 ## 4. 相依契約與確認決策
 Request JSON has string account and password. Success JSON has string token.
 Missing account or password returns HTTP 400 with error missing_credentials. Requester confirmed these error codes.
 ## 5. 驗收情境
 - SCN-001: Given an existing member and a wrong password; When POST /login is sent; Then return 401, invalid_credentials and no token.
-- SCN-002: Given correct member credentials; When POST /login is sent; Then return 200 and a nonempty token with the existing lifetime.
+- SCN-002: Given correct member credentials; When POST /login is sent; Then return 200 and a nonempty token valid for 3600 seconds.
 - SCN-003: Given no password; When POST /login is sent; Then return 400 and missing_credentials.
 """
         return text.replace("適用專案", "適用 Repo") if profile == "group" else text
@@ -100,11 +100,62 @@ Missing account or password returns HTTP 400 with error missing_credentials. Req
                 self.assertIn("## 2. 適用 Repo", data.decode())
                 self.assertIn("missing_credentials", data.decode())
                 self.assertNotIn("wiki/", data.decode())
+                self.assertNotIn(str(root), data.decode())
                 self.assertFalse(self.export(root, "--apply", "--expected-sha256", check["spec_sha256"])["written"])
                 detached = root.parent / "independent-delivery.md"
                 detached.write_bytes(data)
                 spec.unlink()
-                self.assertIn("SCN-003", detached.read_text(encoding="utf-8"))
+                # Read only the detached delivery, with no Wiki, fixture or sibling
+                # files as input. This checks the handoff fixture, not Agent semantics.
+                handoff = detached.read_text(encoding="utf-8")
+                for contract in ("AuthService", "POST /login", "account and password", "3600 seconds",
+                                 "401", "invalid_credentials", "200", "400", "missing_credentials"):
+                    self.assertIn(contract, handoff)
+                scenarios = re.findall(r"(?m)^- (SCN-\d+): Given (.+); When (.+); Then (.+)$", handoff)
+                self.assertEqual(3, len(scenarios))
+                self.assertEqual(["SCN-001", "SCN-002", "SCN-003"], [scenario[0] for scenario in scenarios])
+                self.assertNotRegex(handoff, r"\[\[|\]\(|existing lifetime|existing rules|附件|詳見")
+
+    def test_both_profiles_reject_producer_paths_without_changing_existing_delivery(self):
+        for profile in ("group", "repository"):
+            with self.subTest(profile=profile):
+                root = self.install(profile)
+                good = self.draft(root, profile)
+                self.save(root, good)
+                check = self.export(root)
+                self.export(root, "--apply", "--expected-sha256", check["spec_sha256"])
+                output = root / "exports/megin/auth-r1.md"
+                original = output.read_bytes()
+                paths = [r"C:\Users\producer\AuthService", "C:/workspace/AuthService",
+                         r"\\server\share\AuthService", "//server/share/AuthService",
+                         "/home/producer/AuthService", "/Users/producer/AuthService", "/workspace/AuthService",
+                         '```json\n{"repo": "C:\\\\workspace\\\\AuthService"}\n```']
+                for repo_path in paths:
+                    spec = self.save(root, good.replace("AuthService owns", f"AuthService →\n{repo_path}\nAuthService owns"))
+                    rejected = self.export(root, "--apply", "--expected-sha256", hashlib.sha256(spec.read_bytes()).hexdigest(), ok=False)
+                    self.assertIn("logical names", " ".join(rejected["errors"]))
+                    self.assertEqual(original, output.read_bytes())
+                for root_path in (str(root), root.as_posix(), json.dumps(str(root))[1:-1]):
+                    spec = self.save(root, good.replace("Request JSON", f"Producer: `{root_path}`.\nRequest JSON"))
+                    before = {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+                    rejected = self.export(root, ok=False)
+                    self.assertIn("producer Skills root", " ".join(rejected["errors"]))
+                    self.assertEqual(before, {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()})
+                # API and deployment paths in the actual contract are portable.
+                self.save(root, good.replace("Request JSON", "Route /api/v1/login; deployment uses /opt/auth/config. Request JSON")
+                          .replace("AuthService owns", "AuthService (https://auth.example.test) owns")
+                          .replace("spec_revision: 1", "spec_revision: 2"))
+                self.assertTrue(self.export(root)["ok"])
+
+    def test_draft_and_unanswered_decisions_cannot_export(self):
+        root = self.install("repository")
+        good = self.draft(root, "repository")
+        spec = self.save(root, good)
+        for unresolved in (good, good.replace("spec_status: draft", "spec_status: ready").replace("blocking_questions: []", "blocking_questions: [Q-001]")):
+            spec.write_text(unresolved, encoding="utf-8")
+            rejected = self.export(root, ok=False)
+            self.assertIn("not ready", " ".join(rejected["errors"]))
+            self.assertFalse((root / "exports").exists())
 
     def test_failed_structure_or_review_checks_preserve_existing_output(self):
         root = self.install("group")

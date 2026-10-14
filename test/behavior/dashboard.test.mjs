@@ -641,15 +641,15 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.page-heading h1').textContent, 'Skills 功能指引');
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
-  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-development-spec');
+  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-megin-spec-export');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
   assert.deepEqual([...document.querySelectorAll('.wiki-guide-selector option')].map(option => option.value), [
-    'development-spec', 'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+    'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
   const selector = document.querySelector('.wiki-guide-selector select');
-  assert.equal(selector.value, 'development-spec');
+  assert.equal(selector.value, 'megin-spec-export');
   const devPreview = document.querySelector('.wiki-prompt-preview');
   assert.ok(devPreview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
   assert.ok(devPreview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
@@ -658,11 +658,10 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   selector.value = 'megin-spec-export';
   selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  const spec = document.querySelector('[id="wiki-input-megin-spec-export.spec"]');
+  const spec = document.querySelector('[id="wiki-input-megin-spec-export.existingSpec"]');
   spec.value = 'wiki/synthesis/refund-development-spec.md';
   spec.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const exportScope = document.querySelector('[id="wiki-input-megin-spec-export.scope"]');
-  exportScope.value = 'refund'; exportScope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   assert.match(view.requests.at(-1).text, /megin-spec-export.*refund-development-spec\.md/s);
@@ -833,9 +832,9 @@ test('an installed custom folder does not enable the Group guide when the Group 
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const scope = document.querySelector('[id="wiki-input-development-spec.scope"]');
+  const scope = document.querySelector('[id="wiki-input-megin-spec-export.feature"]');
   scope.value = 'Retry behavior'; scope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const requirement = document.querySelector('[id="wiki-input-development-spec.requirement"]');
+  const requirement = document.querySelector('[id="wiki-input-megin-spec-export.requirement"]');
   requirement.value = 'Describe retry behavior'; requirement.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
@@ -865,7 +864,7 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   view.sendSnapshot(groupB);
   await view.tick();
-  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'development-spec');
+  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'megin-spec-export');
   selector.value = 'query';
   selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
   await view.tick();
@@ -891,7 +890,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const query = document.querySelector('[id="wiki-input-development-spec.scope"]');
+  const query = document.querySelector('[id="wiki-input-megin-spec-export.feature"]');
   query.value = 'Retry behavior';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
@@ -1728,7 +1727,7 @@ function setSkillsContext(state, mode = 'repository', matching = {}) {
   const root = mode === 'group' ? state.groupRoot : state.workflowKitInstallTarget.root;
   setProjectContext(state, root, state.workflowKitInstallTarget.manual);
   const repositories = [{ name: 'alpha', path: 'C:/local/repo', matched: true }, { name: 'beta', path: 'C:/local/other', matched: true }];
-  const features = ['development-spec', 'query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
+  const features = ['megin-spec-export', 'query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
     ...(mode === 'group' ? ['merge-group', 'merge-mr'] : [])];
   state.skillsContext = { mode, root, revision: `revision-${root}`, groupMatch: { status: mode === 'group' ? 'matched' : 'mismatched',
     root: mode === 'group' ? root : undefined, repositories, ...matching }, repositories: mode === 'group' ? repositories : repositories.filter(repo => repo.path === root),

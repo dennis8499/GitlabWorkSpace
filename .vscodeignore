@@ -1,5 +1,6 @@
 .gitignore
-*.log
+**/*.log
+.verification/**
 .github/**
 .gitlab-workspace-validation/**
 scripts/**

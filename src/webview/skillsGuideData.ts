@@ -1,5 +1,5 @@
 import {
-  buildWikiGuidePrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, wikiGuideCards,
+  buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
 } from './codebaseWikiGuideData';
 
@@ -107,6 +107,7 @@ export function getSkillGuideCards(profile: 'group' | 'repository' = 'group'): r
 }
 
 export function getSkillGuideCard(tool: SkillGuideToolId, id?: string, profile: 'group' | 'repository' = 'group'): SkillGuideCard {
+  if (tool === 'codebase-wiki' && id === 'development-spec') id = DEFAULT_WIKI_GUIDE_CARD_ID;
   const cards = getSkillGuideCards(profile);
   const defaultId = skillGuideTools.find(item => item.id === tool)!.defaultCard;
   return cards.find(card => card.tool === tool && card.id === id)
@@ -119,13 +120,14 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   const tool = skillGuideTools.some(item => item.id === saved?.tool) ? saved!.tool : 'codebase-wiki';
   const selections = Object.fromEntries(skillGuideTools.map(item => [item.id,
     getSkillGuideCard(item.id, saved?.selections?.[item.id] ?? (item.id === 'codebase-wiki' ? legacySelection : undefined)).id]));
-  const inputs = { ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs };
+  const inputs = migrateWikiGuideInputs({ ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs },
+    saved?.selections?.['codebase-wiki'] ?? legacySelection);
   for (const key of Object.keys(inputs)) if (key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length))) delete inputs[key];
   return { tool, selections, inputs };
 }
 
 export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputValues {
-  const ids = new Set(wikiGuideCards.map(card => card.id));
+  const ids = new Set([...wikiGuideCards.map(card => card.id), 'development-spec']);
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => ids.has(key.split('.')[0])));
 }
 
@@ -139,11 +141,13 @@ export function getMergeReviewTarget(inputs: SkillGuideInputValues): 'branch' | 
 }
 
 export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInputValues): readonly SkillGuideField[] {
+  if (card.tool === 'codebase-wiki') return getWikiGuideFields(card, inputs);
   return card.id === 'merge-repo' && getMergeReviewTarget(inputs) !== 'branch'
     ? card.fields.filter(item => !['base', 'head', 'mode'].includes(item.id)) : card.fields;
 }
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
+  if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
   if (card.id === 'release-review' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) return false;
   if (card.destination || !getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
@@ -152,7 +156,6 @@ export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       && (item.kind === 'textarea' || !/[\r\n\0]/.test(input));
   })) return false;
   if (card.id === 'release-review' && ['base', 'head'].some(id => /^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value(card, id, inputs).trim()) || /[~^]|\.\.|@\{/.test(value(card, id, inputs)))) return false;
-  if (card.id === 'megin-spec-export' && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value(card, 'scope', inputs).trim())) return false;
   return card.id !== 'megin-resume' || /^work-\d{8}-[a-z0-9-]+$/.test(value(card, 'workId', inputs).trim());
 }
 

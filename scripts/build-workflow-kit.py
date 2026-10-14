@@ -471,7 +471,7 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
-    capabilities = sorted(["development-spec", "megin-spec-export", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
+    capabilities = sorted(["megin-spec-export", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
                            "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
                            "megin-workflow", "megin-resume", "merge-repo", "merge-quick", "merge-group", "merge-mr", "release-review"])
     native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}

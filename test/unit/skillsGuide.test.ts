@@ -16,7 +16,7 @@ test('four tool entrances retain Wiki drafts and use existing Issue/MR destinati
   assert.equal(getSkillGuideCard('megin').destination, 'developer');
   assert.equal(getSkillGuideCard('merge-reviewer', 'merge-mr').destination, 'reviewer');
   assert.equal(canCopySkillPrompt(getSkillGuideCard('megin'), state.inputs), false);
-  assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'development-spec');
+  assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'megin-spec-export');
 });
 
 test('full ingest and Megin export remain available through the shared Skills entry', () => {
@@ -27,7 +27,31 @@ test('full ingest and Megin export remain available through the shared Skills en
   const exportCard = getSkillGuideCard('codebase-wiki', 'megin-spec-export');
   const exportInputs = { 'megin-spec-export.scope': 'refund', 'megin-spec-export.spec': 'wiki/synthesis/refund-development-spec.md' };
   assert.equal(canCopySkillPrompt(exportCard, exportInputs), true);
-  assert.equal(canCopySkillPrompt(exportCard, { ...exportInputs, 'megin-spec-export.scope': '../escape' }), false);
+  assert.equal(canCopySkillPrompt(exportCard, { ...exportInputs, 'megin-spec-export.spec': 'wiki/spec.md\nextra' }), false);
+});
+
+test('Megin spec migration preserves both legacy drafts without mixing them or overwriting new inputs', () => {
+  const legacy = { 'development-spec.scope': '退款', 'development-spec.requirement': '客服可發起退款。',
+    'development-spec.delivery': '只產生規格', 'megin-spec-export.spec': 'wiki/synthesis/login-development-spec.md',
+    'megin-spec-export.scope': 'login' };
+  const development = restoreSkillGuideState(undefined, legacy, 'development-spec');
+  assert.equal(development.selections['codebase-wiki'], 'megin-spec-export');
+  assert.equal(development.inputs['megin-spec-export.feature'], '退款');
+  assert.equal(development.inputs['megin-spec-export.requirement'], '客服可發起退款。');
+  assert.equal(development.inputs['megin-spec-export.existingSpec'], '');
+  assert.equal(development.inputs['megin-spec-export.spec'], legacy['megin-spec-export.spec']);
+  assert.deepEqual(restoreSkillGuideState(development), development);
+  const exported = restoreSkillGuideState(undefined, legacy, 'megin-spec-export');
+  assert.equal(exported.inputs['megin-spec-export.feature'], '');
+  assert.equal(exported.inputs['megin-spec-export.requirement'], '');
+  assert.equal(exported.inputs['megin-spec-export.existingSpec'], legacy['megin-spec-export.spec']);
+  assert.equal(legacyWikiInputs(exported.inputs)['development-spec.scope'], '退款');
+  const edited = restoreSkillGuideState({ ...development, selections: { 'codebase-wiki': 'development-spec' },
+    inputs: { ...development.inputs, 'megin-spec-export.feature': '新名稱', 'megin-spec-export.requirement': '新需求',
+      'megin-spec-export.existingSpec': 'wiki/synthesis/edited.md' } });
+  assert.equal(edited.inputs['megin-spec-export.feature'], '新名稱');
+  assert.equal(edited.inputs['megin-spec-export.requirement'], '新需求');
+  assert.equal(edited.inputs['megin-spec-export.existingSpec'], 'wiki/synthesis/edited.md');
 });
 
 test('release checks require manual Repo/base/head and preserve literal Unicode paths and refs', () => {

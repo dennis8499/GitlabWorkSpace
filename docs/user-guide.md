@@ -27,7 +27,7 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看遠端專案與本機狀態。下載、更新、Skills、Codex 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
-- **分析**：開啟 **Skills 功能指引**，先選工具，再選功能。四個入口為 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer；預設為 Wiki 的 **開發規格（給 Megin）**，整包安裝／更新是共用按鈕。工具、功能和欄位依執行個體、帳號與 Group 保存，原有 Wiki 草稿會承接。提示詞會列出 Group 目錄中 Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
+- **分析**：開啟 **Skills 功能指引**，先選工具，再選功能。四個入口為 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer；預設為 Wiki 的 **Export Megin Spec**，整包安裝／更新是共用按鈕。新需求與既有規格共用此入口，舊規格草稿與選取會承接。工具、功能和欄位依目前專案保存。提示詞會列出實際 Git Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
 
@@ -50,9 +50,11 @@ Issue 詳情分成四個任務分頁：
 
 指派對象、標籤與里程碑集中於 **屬性**。訂閱、待辦、移動、複製和刪除位於具名的 **更多 Issue 操作**。按鈕依帳號權限與 GitLab API 能力顯示。建立 Issue 時先選專案、標題與描述；其他欄位可接著填寫。成功後新 Issue 立即在同一工作台開啟，即使它沒有指派給你。
 
-「分析」頁各功能的 **複製提示詞** 只會複製到剪貼簿；貼到 Group 根目錄的 Codex CLI 後，由 Codex 執行該功能。提示詞會列出實際 Group 與本機 Repo 範圍；知識來源以 `Repo/檔案路徑` 標示，執行時仍需回到實際來源查證。規格保持 draft／ready 狀態、SCN 與人工建立 Issue 流程。交付完成並保存所有 Repo 證據後，可複製 Wiki 更新任務，回查來源後維護 Group Wiki 的 index、log 與人工 notes；任務會區分本機 commit 與 MR 是否合併。
+「分析」頁各功能的 **複製提示詞** 只會複製到剪貼簿；貼到目前共用專案根目錄的 Codex CLI 後，由 Codex 執行該功能。內容由固定功能模板、表單輸入、實際根目錄／Repo 清單及套件版本組成，不會即時讀取 `SKILL.md` 生成。必填欄位、掃描、套件版本與功能可用性須通過檢查；複製時重新核對環境，環境變更後須重新確認。知識來源在產生端查證，Group 引用使用 `Repo/檔案路徑`。規格保持 draft／ready、SCN 與人工建立 Issue 流程。交付完成並保存所有 Repo 證據後，可複製 Wiki 更新任務，回查來源後維護 Group Wiki 的 index、log 與人工 notes；任務會區分本機 commit 與 MR 是否合併。
 
-Clone 或開發前才需要設定本機工作目錄。每個 GitLab 群組各自保存工作目錄；如果 Issue 屬於其他群組，閱讀和討論仍可用，工作台會提示要到設定選擇對應目錄。
+**Export Megin Spec** 填寫功能名稱與需求敘述；也可選填既有 `wiki/synthesis/` 規格路徑，此時名稱與需求可留空。任務從來源查證、必要決策釐清、規格整理、自足性複查一路接續匯出。未決問題保留 draft，完成才交付 `exports/megin/<scope>-r<spec_revision>.md`。接手端有同一系統的程式碼，單檔須寫清必要背景、既有行為、權限、契約、例外與 SCN，不依賴原 Wiki、附件或電腦路徑；不自動啟動 Megin 或建立 Issue。詳見[Wiki 工作流程](wiki-workflows.md)。
+
+專案下載、Skills 安裝與 Codex 使用共用專案根目錄。切換 GitLab 帳號或 Group 不會切換本機目錄；多資料夾工作區需明確選擇目前專案資料夾。
 
 ## Skills 功能指引與上板檢查
 
@@ -63,7 +65,7 @@ Wiki 提供原始碼優先的功能探索（含來源、覆蓋與缺口），一
 執行上板檢查：
 
 1. 在 **分析** 選 **ReleaseReviewer → 上板檢查**。
-2. 指定 **Repo 名稱或路徑、基礎分支、比較分支**。單 Repo 環境由 **Skills Repo** 選擇器提供 Repo；Group 填入口 Repo。本機分支可填 `main`，遠端分支須明確填 `origin/main`；不接受 Tag、commit SHA 或 HEAD。
+2. 指定 **Repo 名稱或路徑、基礎分支、比較分支**。單 Repo 環境直接使用共用專案根目錄，不另選 Skills Repo；Group 填入口 Repo。本機分支可填 `main`，遠端分支須明確填 `origin/main`；不接受 Tag、commit SHA 或 HEAD。
 3. 固定 **合併前審查**，只提供上述三項輸入，在 VSCode 工作區根目錄輸出一份含人工 Checklist 的精簡 Release Report。舊表單的直接比較與 JSON 設定會移除，MergeReviewer 既有選項保留。
 4. 預覽並複製提示詞，貼入從目前情境的 Group 或 Repo 根目錄啟動的 Codex CLI。必填欄位、工作流程包或 Repo 掃描未就緒時，複製按鈕會停用。
 
@@ -75,9 +77,7 @@ Skill 固定入口版本，明確遠端分支取得失敗就停止，保留本�
 
 在 **設定 → 工作區與 Skills** 管理一個套件：「GitLab Workspace 工作流程包」。預設來源是 **VSIX 內附離線包**；也可切到 GitLab Workspace 的 Gitea 或 GitHub Release，下載單一組合包 ZIP 後按 **匯入 ZIP**。擴充功能會檢查 ZIP 路徑、連結、檔案數量、解壓容量、套件版本與逐檔摘要，再保存檔案摘要。擴充功能不會查詢 Release API，也不會自動下載附件。套件版本與目前擴充功能版本必須相同。
 
-**設定 → 工作區與 Skills** 的「符合 Group 時使用 Group 流程」預設開啟。所有已開啟 Repo，以及 Group 資料夾內的直屬 Repo，必須以實際 Git 根目錄及唯一 `origin` URL 對應所選 GitLab Group 的專案（包含子群組），且共用唯一非 Git 根目錄，才使用 Group 流程。資料夾名稱不作為證據。未登入、未選 Group、清單尚未驗證、Repo 不符或根目錄不唯一時，Skills 自動使用原生單 Repo 流程；關閉開關則固定單 Repo。
-
-設定顯示核對結果與相關 Repo 原因；工作區、帳號、Group、設定及 remote 改變會重新核對。空 Group 資料夾是「尚未驗證」，可作為首次下載位置；下載後再核對，通過才啟用 Group Skills。首次下載位置與已驗證 Group 根目錄分開處理。
+在 **設定 → 工作區與 Skills** 選定共用專案根目錄；同視窗多個資料夾時，先選本次操作的專案資料夾。分析頁顯示相同根目錄，不另提供 Skills Repo 選擇器或 Group／Repo 模式開關。設定、工作區或 remote 改變會重新核對當前情境與安裝狀態。
 
 開啟的專案根目錄本身為 Git Repo 時，自動使用單專案 Skills；一般資料夾則使用整個工作區的流程。未登入 GitLab、切換遠端 Group、不同來源或沒有 origin 的 Repo 均不改變本機根目錄，使用者不需設定 Group／Repo 模式。
 

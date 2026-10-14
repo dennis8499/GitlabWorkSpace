@@ -66,7 +66,7 @@ Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `revie
 
 在 **分析** 的功能選單選擇 Wiki 功能後，頁面只顯示該功能區塊。提示詞會帶入目前 Group、Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑（包含未對應 GitLab 的 Repo），以及目前 Manifest 版本；掃描完成前不提供複製。AI 任務入口會先確認整包已安裝或目前存在 Megin 工作；尚未安裝時，會導向整包管理卡。
 
-開發規格保留 `draft`／`ready` 狀態、blocking questions 與 SCN 情境驗證。只有需求問題都處理完、規格驗證通過後，才由使用者手動建立 GitLab Issue；規格流程不會自動建立 Issue。
+**Export Megin Spec** 統一新需求與既有規格的處理。功能名稱與需求為新規格的必填輸入；填寫既有規格路徑時可留空。先完成來源查證、必要決策釐清、規格整理及單檔自足性複查，再匯出 `exports/megin/<scope>-r<spec_revision>.md`。保留 `draft`／`ready`、blocking questions 與 SCN 情境；未答問題或檢查失敗不交付、不覆寫舊檔。接手環境有同一系統程式碼，必要規則與背景須全部內嵌，不依賴原 Wiki、其他文件或本機 Repo 絕對路徑。規格流程不自動啟動 Megin 或建立 Issue。
 
 從 Issue 複製開發任務時，工作台會帶入 Issue 正文、討論、目前 GitLab 身分、Issue 專案識別及實際 Repo 路徑。若 Group 中已有相同 Issue／Repo 的 Megin 工作，可選擇 Work ID 產生續作任務；任務會要求先讀取該工作既有 `workflow.md`、核准計畫與證據。
 
@@ -88,7 +88,7 @@ MR 審查、Push 或合併是各自獨立的狀態。已產生報告不代表 MR
 
 ## 上板檢查與四工具指引
 
-「分析」頁是四個主要工具的 Skills 功能指引。先選工具再選功能；安裝／更新為共用入口，Megin 與 MR 導覽沿用既有工作台流程。指引的工具選取、功能與輸入依帳號及 Group，或所選 Repo 根目錄保存，舊 Wiki 指引草稿會承接。
+「分析」頁是四個主要工具的 Skills 功能指引。先選工具再選功能，預設 Wiki 的 Export Megin Spec；安裝／更新為共用入口，Megin 與 MR 導覽沿用既有工作台流程。所有操作共用目前專案根目錄，不另選 Skills Repo。指引的工具選取、功能與輸入依目前專案根目錄保存，舊 Wiki 指引草稿會承接。複製內容由固定模板、輸入與實際本機情境組成，不會即時讀取 Skill；複製時仍重新核對環境與安裝可用性。
 
 ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前審查；不接受 tag、commit、HEAD、直接比較或 JSON 選項。單 Repo 的 Repo 由所選根目錄提供；Group 手動指定入口 Repo。提示詞帶入既有工作區 Repo 清單、專案預設分支及整包版本，這些是內部情境，不增加第四個使用者輸入。舊 ReleaseReviewer 表單的模式／輸出設定會移除，MergeReviewer 既有選項保留。
 

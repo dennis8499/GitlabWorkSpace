@@ -23,6 +23,28 @@ from ingest_coverage import safe_path
 GROUP_SECTIONS = tuple(s.replace("適用專案", "適用 Repo") for s in SECTIONS)
 
 
+def portability_errors(delivery: str, root: Path) -> list[str]:
+    """Reject producer locations, without mistaking API or deployment contracts for Repo paths."""
+    errors: list[str] = []
+    # JSON/code examples can escape Windows separators; check those as well as prose.
+    def normalize(value: str) -> str:
+        return value.replace("\\\\", "\\").replace("\\", "/").casefold().rstrip("/")
+
+    normalized = normalize(delivery)
+    producer_roots = {normalize(value) for path in (str(root), root.as_posix())
+                      for value in (path, json.dumps(path)[1:-1])}
+    if any(len(value) > 3 and value in normalized for value in producer_roots):
+        errors.append("portable specifications cannot contain the producer Skills root")
+    repos = re.search(r"(?ms)^## 2\. 適用 Repo\n(.*?)(?=^## 3\.)", delivery)
+    if repos:
+        # Only the Repo identity section is subject to this heuristic. A confirmed
+        # API route or a deployment path elsewhere is still a legitimate contract.
+        absolute = r"(?i)(?:(?<!\w)[a-z]:[\\/]|\\\\[^\\/\s]+[\\/]|(?<![:/])//[^/\s]+/|(?<![\w:/])/(?:home|users|root|tmp|private|workspaces?|projects?|repos?|mnt|media|srv|opt|var|app|code|src)/)"
+        if re.search(absolute, repos[1]):
+            errors.append("target Repos must use logical names and responsibilities, not absolute local paths")
+    return errors
+
+
 def prepare(root: Path, relative: str, scope: str) -> tuple[Path, bytes, dict]:
     root = root.absolute()
     if not root.is_dir() or is_reparse_point(root) or root.resolve() != root:
@@ -59,6 +81,7 @@ def prepare(root: Path, relative: str, scope: str) -> tuple[Path, bytes, dict]:
     delivery = ("---\ntitle: " + json.dumps(title, ensure_ascii=False) + "\nformat: megin-development-spec/v1\n"
                 + f"spec_revision: {meta['spec_revision']}\nspec_status: ready\n---\n\n" + body)
     errors = structural_errors(delivery, GROUP_SECTIONS, portable=True)
+    errors.extend(portability_errors(delivery, root))
     if errors:
         raise ValueError("standalone export failed: " + "; ".join(errors))
     target = safe_path(root, f"exports/megin/{scope}-r{meta['spec_revision']}.md")

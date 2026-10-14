@@ -1,4 +1,4 @@
-# Wiki 更新、全量 Ingest 與 Megin 獨立交付（0.21.0）
+# Wiki 更新、全量 Ingest 與 Export Megin Spec
 
 工作流程包固定 Wiki 0.6.0；Group 和 repository profile 均提供以下能力。Megin
 匯出位於 `.agents/gitlab-workspace-kit/` 共用擴充，原生 Wiki Skill 保留上游內容。
@@ -27,14 +27,19 @@ untracked、ignored 和巢狀 Repo 的安全來源。
 
 ## Megin 獨立規格
 
-可選「開發規格 → 產生並匯出」，或用「匯出 Megin 獨立規格」指定既有 ready 規格。
-前者先逐題釐清必要決策，不要求先產生 BA／SA／SD。未答必要問題或未完成 Agent 語意
-檢查保持 draft。舊 ready 規格也需補上當前正文與版次的檢查紀錄。
+「Codebase LLM Wiki → Export Megin Spec」提供單一入口。新需求填功能名稱與需求敘述；
+也可填既有規格路徑，此時名稱與需求可留空，從該文件接續處理。先查證來源，再逐題
+釐清必要決策、整理規格、自足性複查並匯出，不要求先產生 BA／SA／SD，也不重複確認
+匯出。既有 draft 或過時規格先釐清、更新；未答必要問題或未完成 Agent 語意檢查保持
+draft，列出問題而不交付。舊 ready 規格也需補上當前正文與版次的檢查紀錄。
 
 交付為單檔 `exports/megin/<scope>-r<spec_revision>.md`，只保留必要版本資訊與五段：
 目的與範圍、適用 Repo、功能行為與限制、相依契約與確認決策、SCN 驗收情境。實作
-必要的規則、權限、例外結果與介面欄位都在正文；來源證據保留於 Wiki 原件。移走
-交付檔後仍可整理實作任務與 Given／When／Then 結果，不需其他 Wiki 或附件。
+必要的背景、既有行為、規則、權限、例外結果與介面欄位都在正文；「沿用現有規則」
+須補成具體內容。Repo 用邏輯名稱及職責識別，來源證據保留於 Wiki 原件。接手 Megin
+有同一系統的程式碼，但不需原 Wiki、BA／SA／SD、附件、外部連結或原電腦路徑，就能
+整理實作任務與 Given／When／Then 結果。匯出檢查另攔截來源根目錄外洩及 Repo 段落中
+可辨識的絕對本機路徑；正式 API 路由與部署契約仍可寫入對應功能段落。
 
 ```sh
 python .agents/gitlab-workspace-kit/scripts/export-megin-spec.py --root . --spec wiki/synthesis/refund-development-spec.md --scope refund
@@ -43,7 +48,8 @@ python .agents/gitlab-workspace-kit/scripts/export-megin-spec.py --root . --spec
 
 檢查失敗不修改既有交付；同版次檔案內容不可不同，實質更新須升 spec_revision 並重新
 審查。匯出檢查包含結構、已記錄的 Agent 語意檢查、來源摘要及本機文件／未解析連結；
-腳本不會自行判斷業務規則足夠或自動建立 GitLab Issue。
+腳本不會自行判斷業務規則足夠，不自動啟動 Megin 或建立 GitLab Issue。這是工作台共用
+擴充；原版 Wiki／Megin 來源包及固定版本不變。
 
 ## 驗證範圍
 
