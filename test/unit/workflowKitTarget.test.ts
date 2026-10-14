@@ -67,7 +67,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     workspaceMatch: { status: 'checking', repositories: [] }, projects: connected ? [project(1, 'service'), project(2, 'docs')] : [],
     workspaceSections: { projects: { status: connected ? 'ready' : 'idle' } },
     loadedScopeKey: connected ? 'https://gitlab.test|1|1' : undefined,
-    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' }, autoHookRefreshGeneration: 0,
+    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' }, autoHookRefreshGeneration: 0, autoHookModelsGeneration: 0,
     workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
     workflowKitSelectingRoot: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
     currentUser: connected ? { id: 1 } : undefined,
@@ -78,7 +78,11 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     sendSnapshot: () => undefined, post: () => undefined,
     runWorkflowKitHelper: async (args: string[], _timeout?: number, beforeLaunch?: () => Promise<void>) => {
       await beforeLaunch?.(); calls.push(args);
-      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.1.0' };
+      if (args[0] === 'autohook' && args[1] === 'models') return { ok: true, models: [
+        { model: 'gpt-6-luna', display_name: 'GPT-6 Luna', default_reasoning_effort: 'low', supported_reasoning_efforts: ['low', 'medium', 'high'] },
+        { model: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol', default_reasoning_effort: 'medium', supported_reasoning_efforts: ['low', 'medium', 'high', 'xhigh'] }
+      ] };
+      if (args[0] === 'autohook') return { ok: true, root: args[2], status: 'disabled', supported: process.platform === 'win32', enabled: false, bundledVersion: '1.2.0' };
       if (args[0] === 'install') {
         const profile = args[args.indexOf('--profile') + 1] as 'group' | 'repository';
         installed.set(args[2], profile);
@@ -488,7 +492,7 @@ test('AutoHook discovers the registered Codex extension when PATH only provides 
   }));
   process.env[pathKey] = [shimDirectory, ...pathDirectories.filter((_, index) => keep[index])].join(';');
   await host.manageAutoHook('enable', host.getSkillsContext().revision);
-  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'enable'), ['autohook', 'enable', repo, '--codex', native]);
+  assert.deepEqual(calls.find(args => args[0] === 'autohook' && args[1] === 'enable'), ['autohook', 'enable', repo, '--codex', native, '--review-model', 'gpt-6-luna', '--review-effort', 'low']);
   codexExtensionRoot = path.join(group, 'Codex 中文 版本二');
   const updated = path.join(codexExtensionRoot, 'bin', process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64', 'codex.exe');
   await mkdir(path.dirname(updated), { recursive: true }); await writeFile(updated, 'updated native fixture');
@@ -644,4 +648,58 @@ test('AutoHook blocks enable on non-Windows and confirms trust instructions on W
   const messages: any[] = []; host.post = (message: unknown) => messages.push(message);
   await host.manageAutoHook('enable', host.getSkillsContext().revision);
   assert.match(messages.at(-1).message, /重新開啟 Codex.*\/hooks.*信任/);
+});
+
+test('AutoHook reads installed reviewer settings and maps the Codex model catalog', async t => {
+  const [, repo] = await directories(t); const { host, calls } = fixture([repo]); await host.refreshWorkflowKit();
+  const helper = host.runWorkflowKitHelper;
+  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => args[1] === 'status' && args[0] === 'autohook'
+    ? { root: repo, status: 'enabled', enabled: true, supported: true, reviewer: { model: 'gpt-6.1-sol', reasoning_effort: 'high', timeout_seconds: 30 },
+        policyCoverage: { mode: 'fixed-rules-ai-review', equivalent_to_native: false, deterministic_rules: [], preauthorized_rules: [], manual_review: [], limitations: [] } }
+    : helper(args, ...rest);
+  await host.refreshAutoHook();
+  assert.deepEqual(host.autoHookState.reviewer, { model: 'gpt-6.1-sol', reasoningEffort: 'high', timeoutSeconds: 30 });
+  assert.equal(host.autoHookState.policyCoverage.mode, 'fixed-rules-ai-review');
+  await host.refreshAutoHookModels(host.getSkillsContext().revision);
+  assert.deepEqual(host.autoHookState.reviewerModels[1], { model: 'gpt-6.1-sol', displayName: 'GPT-6.1 Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'] });
+  assert.equal(host.autoHookState.reviewerModelsLoading, false);
+  assert.equal(calls.filter(args => args[0] === 'autohook' && args[1] === 'models').length, 1);
+});
+
+test('AutoHook configure sends reviewer choices and invalid selections never launch', async t => {
+  const [, repo] = await directories(t); const { host, calls } = fixture([repo]); await host.refreshWorkflowKit();
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  t.after(() => Object.defineProperty(process, 'platform', platform));
+  Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+  host.autoHookCodexArguments = async () => ['--codex', 'C:/native/codex.exe'];
+  const reviewer = { model: 'gpt-6.1-sol', reasoningEffort: 'high', timeoutSeconds: 30 };
+  await host.manageAutoHook('configure', host.getSkillsContext().revision, reviewer);
+  assert.deepEqual(calls.find(args => args[1] === 'configure'), ['autohook', 'configure', repo, '--codex', 'C:/native/codex.exe', '--review-model', 'gpt-6.1-sol', '--review-effort', 'high']);
+  for (const bad of [{ ...reviewer, model: '--bad' }, { ...reviewer, reasoningEffort: 'low; exit' }, { ...reviewer, timeoutSeconds: 0 }]) {
+    await assert.rejects(host.manageAutoHook('configure', host.getSkillsContext().revision, bad), /設定無效/);
+  }
+  assert.equal(calls.filter(args => args[1] === 'configure').length, 1);
+  await assert.rejects(host.manageAutoHook('configure', 'stale', reviewer), /已變更/);
+});
+
+test('AutoHook model lookup failures retain installed state and stale catalogs cannot cross roots', async t => {
+  const [, repo, other] = await directories(t); const { host } = fixture([repo, other]); await host.selectSkillsRepository(repo);
+  host.autoHookState = { root: repo, status: 'enabled', enabled: true, stateKnown: true, supported: true,
+    reviewer: { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } };
+  const helper = host.runWorkflowKitHelper; let finish!: (value: unknown) => void;
+  host.runWorkflowKitHelper = (args: string[], ...rest: unknown[]) => args[1] === 'models'
+    ? new Promise(resolve => { finish = resolve; }) : helper(args, ...rest);
+  const old = host.refreshAutoHookModels(host.getSkillsContext().revision);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(host.autoHookState.enabled, true); assert.equal(host.autoHookState.reviewerModelsLoading, true);
+  await host.selectSkillsRepository(other);
+  finish({ models: [{ model: 'gpt-6-luna', default_reasoning_effort: 'low', supported_reasoning_efforts: ['low'] }] }); await old;
+  assert.equal(host.autoHookState.root, other); assert.equal(host.autoHookState.reviewerModels, undefined);
+  host.runWorkflowKitHelper = async () => { throw new Error('catalog unavailable'); };
+  await host.refreshAutoHookModels(host.getSkillsContext().revision);
+  assert.equal(host.autoHookState.status, 'disabled'); assert.equal(host.autoHookState.enabled, false);
+  assert.match(host.autoHookState.reviewerModelsError, /catalog unavailable/);
+  host.runWorkflowKitHelper = async () => ({ models: [{ model: 'gpt-6-luna', default_reasoning_effort: 'high', supported_reasoning_efforts: ['low'] }] });
+  await host.refreshAutoHookModels(host.getSkillsContext().revision);
+  assert.match(host.autoHookState.reviewerModelsError, /清單無效/);
 });

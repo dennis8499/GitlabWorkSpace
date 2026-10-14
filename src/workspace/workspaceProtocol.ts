@@ -115,6 +115,19 @@ export interface InstalledWorkflowKitState {
   legacyPaths?: string[];
 }
 
+export interface AutoHookReviewerSettings {
+  model: string;
+  reasoningEffort: string;
+  timeoutSeconds: number;
+}
+
+export interface AutoHookReviewModel {
+  model: string;
+  displayName: string;
+  defaultReasoningEffort: string;
+  supportedReasoningEfforts: string[];
+}
+
 export interface AutoHookState {
   root?: string;
   supported: boolean;
@@ -124,9 +137,13 @@ export interface AutoHookState {
   bundledVersion?: string;
   runtimeVersion?: string;
   trustRequired?: boolean;
+  reviewer?: AutoHookReviewerSettings;
+  reviewerModels?: AutoHookReviewModel[];
+  reviewerModelsLoading?: boolean;
+  reviewerModelsError?: string;
   policySource?: { repository: string; revision: string; captured_on?: string };
   policyCoverage?: {
-    mode: 'fixed-rules'; equivalent_to_native: false;
+    mode: 'fixed-rules' | 'fixed-rules-ai-review'; equivalent_to_native: false;
     deterministic_rules: string[]; preauthorized_rules: string[];
     manual_review: string[]; limitations: string[];
   };
@@ -322,7 +339,8 @@ export type WorkspaceRequest =
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
   | { type: 'refreshAutoHook' }
-  | { type: 'manageAutoHook'; operation: 'enable' | 'disable' | 'revalidate'; contextRevision: string }
+  | { type: 'refreshAutoHookModels'; contextRevision: string }
+  | { type: 'manageAutoHook'; operation: 'enable' | 'disable' | 'revalidate' | 'configure'; contextRevision: string; reviewer?: AutoHookReviewerSettings }
   | { type: 'selectSkillsRepository'; root: string }
   | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
   | { type: 'setWorkflowKitRequireGroup'; enabled: boolean }

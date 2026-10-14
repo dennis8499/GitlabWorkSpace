@@ -18,8 +18,10 @@ SETTINGS = RUNTIME + "settings.json"
 CONFIG = ".codex/config.toml"
 HOOKS = ".codex/hooks.json"
 ASSETS = ("autohook.py", "project_config.py", "parse_powershell.ps1", "default.rules", "policy.json",
-          "policy-source.json", "guardian-policy.md", "guardian-policy-template.md", "UPSTREAM-LICENSE", "UPSTREAM-NOTICE")
+          "policy-source.json", "guardian-policy.md", "guardian-policy-template.md", "UPSTREAM-LICENSE", "UPSTREAM-NOTICE",
+          "reviewer.py", "review-schema.json", "review-instructions.md", "scan_powershell.ps1")
 RUNTIME_PATHS = {RUNTIME + name for name in (*ASSETS, ".gitignore", "settings.json")}
+V11_RUNTIME_PATHS = {RUNTIME + name for name in (*ASSETS[:10], ".gitignore", "settings.json")}
 LEGACY_RUNTIME_PATHS = {RUNTIME + name for name in (*ASSETS[:5], ".gitignore", "settings.json")}
 
 
@@ -35,10 +37,11 @@ class Integration:
     def required_paths(self, journal):
         if journal.get("action") == "autohook":
             action = journal.get("autohookOperation")
-            if action not in ("enable", "disable", "revalidate"):
+            if action not in ("enable", "disable", "revalidate", "configure"):
                 self.fail("Unknown AutoHook transaction operation.")
             version = journal.get("installed_manifest", {}).get("upstream", {}).get("autohook", {}).get("version")
-            paths = LEGACY_RUNTIME_PATHS if version in ("1.0.0", "1.0.1") else RUNTIME_PATHS
+            paths = (LEGACY_RUNTIME_PATHS if version in ("1.0.0", "1.0.1") else
+                     V11_RUNTIME_PATHS if version == "1.1.0" else RUNTIME_PATHS)
             return {SETTINGS} if action == "disable" else paths | {CONFIG, HOOKS}
         return self.k["transaction_paths"]() - RUNTIME_PATHS - {"wiki"}
 
@@ -62,7 +65,7 @@ class Integration:
                     self.fail("Bundled AutoHook source integrity check failed.")
                 (source / relative.removeprefix(PREFIX)).write_bytes(raw)
         # Import only verified sources; do not execute code from the runtime directory.
-        previous = sys.modules.pop("project_config", None)
+        previous = {name: sys.modules.pop(name, None) for name in ("project_config", "reviewer")}
         sys.path.insert(0, str(source))
         try:
             spec = importlib.util.spec_from_file_location("kit_pinned_autohook", source / "autohook.py")
@@ -72,9 +75,10 @@ class Integration:
             self.module = module
         finally:
             sys.path.remove(str(source))
-            sys.modules.pop("project_config", None)
-            if previous is not None:
-                sys.modules["project_config"] = previous
+            for name, old_module in previous.items():
+                sys.modules.pop(name, None)
+                if old_module is not None:
+                    sys.modules[name] = old_module
         return self.module
 
     def settings(self, root, *, verify_assets=True):
@@ -85,7 +89,7 @@ class Integration:
         try:
             value = json.loads(raw)
             app._validate_settings(value, root, require_policy=False)
-            if value.get("policy_version") not in ("1.0.0", "1.0.1", "1.1.0"):
+            if value.get("policy_version") not in ("1.0.0", "1.0.1", "1.1.0", "1.2.0"):
                 self.fail("AutoHook runtime version is not reviewed.")
             if verify_assets:
                 app._validate_assets(value, root / RUNTIME)
@@ -98,7 +102,12 @@ class Integration:
                         self.fail("AutoHook runtime is not a reviewed source: " + name)
             command = value["hook_handler"].get("command", "")
             match = re.match(r"^& '((?:[^']|'')+)' ", command)
-            if not match or app._hook_handler(root, match[1].replace("''", "'")) != value["hook_handler"]:
+            if not match:
+                self.fail("AutoHook handler differs from its project launcher.")
+            expected_handler = app._hook_handler(root, match[1].replace("''", "'"))
+            if value["policy_version"] in ("1.0.0", "1.0.1", "1.1.0"):
+                expected_handler.update(timeout=10, statusMessage="AutoHook: project approval rules")
+            if expected_handler != value["hook_handler"]:
                 self.fail("AutoHook handler differs from its project launcher.")
             return value
         except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError, app.AutoHookError) as error:
@@ -119,7 +128,8 @@ class Integration:
         hooks = app._load_hooks(baseline[HOOKS])
         app._remove_handler(hooks, settings["hook_handler"])
         hooks["hooks"].setdefault("PermissionRequest", []).append(
-            {"matcher": "^(Bash|apply_patch)$", "hooks": [settings["hook_handler"]]})
+            {"matcher": app.HOOK_MATCHER if settings["policy_version"] == "1.2.0" else "^(Bash|apply_patch)$",
+             "hooks": [settings["hook_handler"]]})
         expected = {CONFIG: text.encode("utf-8"), HOOKS: app._json_bytes(hooks)}
         for name, installed_key in ((CONFIG, "config_installed"), (HOOKS, "hooks_installed")):
             if app._unpack(settings[installed_key]) != expected[name]:
@@ -185,7 +195,7 @@ class Integration:
         try:
             plan = app.prepare_enable(root, target / PREFIX, codex=codex or settings["codex_path"],
                                       powershell=settings["powershell_path"], base_files=base)
-        except (app.AutoHookError, OSError, ValueError, RuntimeError) as error:
+        except (app.AutoHookError, app.reviewer.ReviewerError, OSError, ValueError, RuntimeError) as error:
             self.fail("AutoHook validation failed; the entire kit update was cancelled: " + str(error))
         for name, raw in plan.files.items():
             path = target / name
@@ -200,14 +210,15 @@ class Integration:
         try:
             plan = app.prepare_enable(root, root / PREFIX, codex=codex or settings["codex_path"],
                 powershell=settings["powershell_path"], base_files=self.baseline(root))
-        except (app.AutoHookError, OSError, ValueError, RuntimeError) as error:
+        except (app.AutoHookError, app.reviewer.ReviewerError, OSError, ValueError, RuntimeError) as error:
             self.fail("AutoHook validation failed; the entire kit update was cancelled: " + str(error))
         return all(self.read(root, name) == raw for name, raw in plan.files.items())
 
     def status(self, root):
         result = {"ok": True, "root": str(root), "supported": os.name == "nt", "status": "disabled",
                   "enabled": False, "bundledVersion": self.k["UPSTREAM"]["autohook"]["version"],
-                  "trustRequired": True, "stateKnown": False}
+                  "trustRequired": True, "stateKnown": False,
+                  "reviewer": {"model": "gpt-6-luna", "reasoning_effort": "low", "timeout_seconds": 30}}
         try:
             raw = self.read(root, SETTINGS)
             if raw is not None:
@@ -221,7 +232,8 @@ class Integration:
             result.update(policySource=metadata["policy_source"], policyCoverage=metadata["policy_coverage"])
             settings = self.settings(root)
             if settings:
-                result.update(enabled=settings.get("enabled") is True, runtimeVersion=settings["policy_version"])
+                result.update(enabled=settings.get("enabled") is True, runtimeVersion=settings["policy_version"],
+                              reviewer=settings.get("reviewer", {"model": "gpt-6-luna", "reasoning_effort": "low", "timeout_seconds": 30}))
             if not settings or not result["enabled"]:
                 return result
             self.baseline(root)
@@ -268,8 +280,15 @@ class Integration:
                 self.fail("AutoHook disabled state changed.")
             self.k["_atomic_json"](target, json.loads(disabled))
 
-    def manage(self, root, action, codex=None):
+    def manage(self, root, action, codex=None, review_model=None, review_effort=None):
         k = self.k
+        if action == "models":
+            app = self.native()
+            try:
+                settings = self.settings(root)
+                return {"ok": True, **app.models(codex or (settings["codex_path"] if settings else None))}
+            except (app.AutoHookError, app.reviewer.ReviewerError, OSError, ValueError, RuntimeError) as error:
+                self.fail(str(error))
         if action == "status":
             state_paths = [k["assert_safe"](root, relative, allow_missing=True) for relative in (
                 k["INSTALL_LOCK"], k["MARKER"], ".gitlab-workspace/tool-installs",
@@ -297,12 +316,12 @@ class Integration:
                     plan = app.prepare_disable(root)
                 else:
                     settings = self.settings(root)
-                    if action == "revalidate" and (not settings or settings.get("enabled") is not True):
+                    if action in ("revalidate", "configure") and (not settings or settings.get("enabled") is not True):
                         self.fail("AutoHook is disabled; enable it explicitly before revalidating.")
                     plan = app.prepare_enable(root, Path(app.__file__).parent,
                         codex=codex or (settings["codex_path"] if settings else None),
-                        base_files=self.baseline(root))
-            except (app.AutoHookError, OSError, ValueError, RuntimeError) as error:
+                        base_files=self.baseline(root), review_model=review_model, review_effort=review_effort)
+            except (app.AutoHookError, app.reviewer.ReviewerError, OSError, ValueError, RuntimeError) as error:
                 self.fail(str(error))
             if not plan.files:
                 return {"ok": True, **plan.result}

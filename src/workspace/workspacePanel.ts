@@ -22,7 +22,7 @@ import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphN
 import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
-  AutoHookState, BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
+  AutoHookReviewModel, AutoHookReviewerSettings, AutoHookState, BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
   CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, MeginWorkSummary, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
 import type { WorkflowKitPackage } from './toolPackages';
@@ -156,6 +156,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitSettingBusy = false;
   private autoHookState: AutoHookState = { status: 'unavailable', supported: process.platform === 'win32', enabled: false };
   private autoHookRefreshGeneration = 0;
+  private autoHookModelsGeneration = 0;
   private workflowKitHelperQueue?: Promise<void>;
   private workflowKitRefreshGeneration = 0;
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
@@ -832,7 +833,8 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
       case 'refreshWorkflowKit': await this.refreshWorkflowKit(); break;
       case 'refreshAutoHook': await this.refreshAutoHook(); break;
-      case 'manageAutoHook': await this.manageAutoHook(request.operation, request.contextRevision); break;
+      case 'refreshAutoHookModels': await this.refreshAutoHookModels(request.contextRevision); break;
+      case 'manageAutoHook': await this.manageAutoHook(request.operation, request.contextRevision, request.reviewer); break;
       case 'setWorkflowKitRequireGroup': await this.setWorkflowKitRequireGroup(request.enabled); break;
       case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
       case 'selectWorkflowKitInstallRoot': await this.selectWorkflowKitInstallRoot(); break;
@@ -3573,15 +3575,19 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       const value = await this.runWorkflowKitHelper(['autohook', 'status', root], 60_000);
       if (!['disabled', 'enabled', 'needs-revalidation', 'error'].includes(String(value.status)) || value.root !== root || typeof value.enabled !== 'boolean') throw new Error('AutoHook status response is invalid.');
-      next = { root, status: value.status as AutoHookState['status'], supported: value.supported === true, enabled: value.enabled === true,
+      next = { ...previous, root, status: value.status as AutoHookState['status'], supported: value.supported === true, enabled: value.enabled === true,
         stateKnown: value.stateKnown !== false,
         bundledVersion: typeof value.bundledVersion === 'string' ? value.bundledVersion : undefined,
         runtimeVersion: typeof value.runtimeVersion === 'string' ? value.runtimeVersion : undefined,
         trustRequired: true, message: typeof value.message === 'string' ? value.message : undefined };
+      if (value.reviewer !== undefined) {
+        const reviewer = value.reviewer as Record<string, unknown>;
+        next.reviewer = this.validateAutoHookReviewer({ model: reviewer.model, reasoningEffort: reviewer.reasoning_effort, timeoutSeconds: reviewer.timeout_seconds });
+      } else next.reviewer = undefined;
       const source = value.policySource as AutoHookState['policySource'];
       const coverage = value.policyCoverage as AutoHookState['policyCoverage'];
       if (source && typeof source.repository === 'string' && /^[0-9a-f]{40}$/.test(source.revision)) next.policySource = source;
-      if (coverage?.mode === 'fixed-rules' && coverage.equivalent_to_native === false &&
+      if ((coverage?.mode === 'fixed-rules' || coverage?.mode === 'fixed-rules-ai-review') && coverage.equivalent_to_native === false &&
           [coverage.deterministic_rules, coverage.preauthorized_rules, coverage.manual_review, coverage.limitations].every(items => Array.isArray(items) && items.every(item => typeof item === 'string'))) next.policyCoverage = coverage;
     } catch (error) { next = { ...previous, root, status: 'error', supported: process.platform === 'win32', enabled: previous?.enabled === true, stateKnown: false, message: readableError(error) }; }
     if (generation !== this.autoHookRefreshGeneration || this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== root) return;
@@ -3589,8 +3595,51 @@ export class WorkspacePanel implements vscode.Disposable {
     if (publish) this.sendSnapshot();
   }
 
-  private async manageAutoHook(operation: 'enable' | 'disable' | 'revalidate', revision: string): Promise<void> {
-    if (!['enable', 'disable', 'revalidate'].includes(operation) || typeof revision !== 'string') throw new Error('AutoHook 操作無效。');
+  private validateAutoHookReviewer(value: unknown): AutoHookReviewerSettings {
+    const reviewer = value as Partial<AutoHookReviewerSettings> | undefined;
+    if (!reviewer || typeof reviewer.model !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(reviewer.model) ||
+        typeof reviewer.reasoningEffort !== 'string' || !/^[a-z][a-z0-9_-]{0,31}$/.test(reviewer.reasoningEffort) || reviewer.timeoutSeconds !== 30) {
+      throw new Error('Review Agent 模型或思考強度設定無效。');
+    }
+    return { model: reviewer.model, reasoningEffort: reviewer.reasoningEffort, timeoutSeconds: 30 };
+  }
+
+  private async refreshAutoHookModels(revision: string): Promise<void> {
+    const context = this.getSkillsContext();
+    const root = context.root;
+    if (!root || context.revision !== revision || this.workflowKitSettingBusy || this.workflowKitInstallation) return;
+    const generation = ++this.autoHookModelsGeneration;
+    const current = () => generation === this.autoHookModelsGeneration && this.getSkillsContext().root === root && this.getSkillsContext().revision === revision;
+    this.autoHookState = { ...(this.autoHookState?.root === root ? this.autoHookState : undefined), root,
+      status: this.autoHookState?.root === root ? this.autoHookState.status : 'unavailable',
+      supported: process.platform === 'win32', enabled: this.autoHookState?.root === root && this.autoHookState.enabled,
+      reviewerModelsLoading: true, reviewerModelsError: undefined };
+    this.sendSnapshot();
+    try {
+      const value = await this.runWorkflowKitHelper(['autohook', 'models', root, ...await this.autoHookCodexArguments()], 60_000);
+      if (!Array.isArray(value.models) || value.models.length === 0) throw new Error('Codex 未回傳可用的 Review Agent 模型。');
+      const models: AutoHookReviewModel[] = value.models.map((entry: Record<string, unknown>) => {
+        const efforts = entry.supported_reasoning_efforts;
+        this.validateAutoHookReviewer({ model: entry.model, reasoningEffort: entry.default_reasoning_effort, timeoutSeconds: 30 });
+        if (!Array.isArray(efforts) || efforts.length === 0 || !efforts.every(effort => typeof effort === 'string' && /^[a-z][a-z0-9_-]{0,31}$/.test(effort)) || !efforts.includes(entry.default_reasoning_effort)) {
+          throw new Error('Codex 模型思考強度清單無效。');
+        }
+        return { model: entry.model as string, displayName: typeof entry.display_name === 'string' ? entry.display_name : entry.model as string,
+          defaultReasoningEffort: entry.default_reasoning_effort as string, supportedReasoningEfforts: [...new Set(efforts)] as string[] };
+      });
+      if (!current()) return;
+      this.autoHookState = { ...this.autoHookState, reviewerModels: models, reviewerModelsLoading: false, reviewerModelsError: undefined };
+    } catch (error) {
+      if (!current()) return;
+      this.autoHookState = { ...this.autoHookState, reviewerModelsLoading: false, reviewerModelsError: readableError(error) };
+    }
+    this.sendSnapshot();
+  }
+
+  private async manageAutoHook(operation: 'enable' | 'disable' | 'revalidate' | 'configure', revision: string, reviewer?: AutoHookReviewerSettings): Promise<void> {
+    if (!['enable', 'disable', 'revalidate', 'configure'].includes(operation) || typeof revision !== 'string') throw new Error('AutoHook 操作無效。');
+    const selection = operation === 'enable' || operation === 'configure'
+      ? this.validateAutoHookReviewer(reviewer ?? (operation === 'enable' ? { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } : undefined)) : undefined;
     if (this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting || this.workflowKitSettingBusy) throw new Error('請等候目前 Skills 操作完成。');
     const original = this.getSkillsContext();
     if (!original.root || original.revision !== revision) throw new Error('Skills 工作位置已變更，請重新整理後再操作 AutoHook。');
@@ -3600,14 +3649,15 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitSettingBusy = true; this.autoHookRefreshGeneration++; this.sendSnapshot();
     try {
       await this.workflowKitStatusReads.get(localPathKey(original.root));
-      const args = ['autohook', operation, original.root, ...(operation === 'disable' ? [] : await this.autoHookCodexArguments())];
+      const args = ['autohook', operation, original.root, ...(operation === 'disable' ? [] : await this.autoHookCodexArguments()),
+        ...(selection ? ['--review-model', selection.model, '--review-effort', selection.reasoningEffort] : [])];
       await this.runWorkflowKitHelper(args, 60_000, async () => {
         checkAccess();
         if (this.getSkillsContext().revision !== revision || this.getSkillsContext().root !== original.root ||
             JSON.stringify(await this.inspectEnvironment()) !== environment) throw new Error('Skills 工作位置或 Repo 已變更，已取消 AutoHook 操作。');
         checkAccess();
       });
-      this.post({ type: 'message', message: operation === 'disable' ? 'AutoHook 已停用。' : 'AutoHook 已設定。請重新開啟 Codex，並在 /hooks 確認信任。' });
+      this.post({ type: 'message', message: operation === 'disable' ? 'AutoHook 已停用。' : operation === 'configure' ? 'Review Agent 設定已儲存。' : 'AutoHook 已設定。請重新開啟 Codex，並在 /hooks 確認信任。' });
     } finally {
       this.workflowKitSettingBusy = false;
       await this.refreshWorkflowKit();

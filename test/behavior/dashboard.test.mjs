@@ -1162,7 +1162,7 @@ test('AutoHook checkbox enables/disables once, uses the Skills revision and keep
   checkbox.click(); checkbox.click();
   assert.equal(checkbox.checked, false, 'wait for actual installation rather than optimistic state');
   assert.equal(view.requests.filter(item => item.type === 'manageAutoHook').length, 1);
-  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'enable', contextRevision: state.skillsContext.revision });
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'enable', contextRevision: state.skillsContext.revision, reviewer: { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } });
   view.sendSnapshot({ ...state, workflowKitOperationBusy: true }); await view.tick();
   assert.ok([...card.querySelectorAll('button, input')].every(item => item.disabled));
   const active = structuredClone(state); active.autoHook = { ...state.autoHook, enabled: true, status: 'enabled', runtimeVersion: '1.1.0' };
@@ -1223,7 +1223,7 @@ test('AutoHook reload reads installed state and a different Skills root cannot r
     const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
     const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
     const card = document.querySelector('.autohook-card'), checkbox = card.querySelector('input');
-    assert.equal(checkbox.checked, true); assert.match(card.textContent, /官方政策版本：dddddddddddd.*部分本機讀取.*預授權.*無法完整重現/s);
+    assert.equal(checkbox.checked, true); assert.match(card.textContent, /官方政策版本：dddddddddddd.*部分本機讀取.*預授權.*Review Agent.*人工核准/s);
     const next = structuredClone(state); next.skillsContext.root = 'D:/different'; next.skillsContext.revision = 'new-root';
     view.sendSnapshot(next); await view.tick();
     assert.equal(checkbox.checked, false); assert.equal(checkbox.disabled, true);
@@ -2013,4 +2013,53 @@ test('offline Skills footer shows the selected Repo and its actionable state wit
   unavailable.skillsContext = { ...unavailable.skillsContext, mode: 'unavailable', root: undefined, reason: '請選擇目前 VS Code 工作區的 Repo。' };
   view.sendSnapshot(unavailable); await view.tick();
   assert.match(document.querySelector('.statusbar').textContent, /請選擇目前 VS Code 工作區的 Repo/);
+});
+
+test('AutoHook reviewer model and effort apply to enable and save at the actual Skills root', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: false, status: 'disabled', stateKnown: true,
+    reviewerModels: [
+      { model: 'gpt-6-luna', displayName: 'GPT-6 Luna', defaultReasoningEffort: 'low', supportedReasoningEfforts: ['low', 'medium'] },
+      { model: 'gpt-6.1-sol', displayName: 'GPT-6.1 Sol', defaultReasoningEffort: 'high', supportedReasoningEfforts: ['medium', 'high', 'xhigh'] }
+    ] };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const card = document.querySelector('.autohook-card');
+  const model = card.querySelector('[aria-label="Review Agent 模型"]'), effort = card.querySelector('[aria-label="Review Agent 思考強度"]');
+  const save = [...card.querySelectorAll('button')].find(item => item.textContent === '儲存 Review Agent 設定');
+  assert.equal(view.requests.at(-1).type, 'refreshAutoHookModels');
+  assert.equal(view.requests.at(-1).contextRevision, state.skillsContext.revision);
+  assert.equal(model.value, 'gpt-6-luna'); assert.equal(effort.value, 'low'); assert.equal(save.disabled, true);
+  model.value = 'gpt-6.1-sol'; model.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(effort.value, 'high'); assert.deepEqual([...effort.options].map(item => item.value), ['medium', 'high', 'xhigh']);
+  effort.value = 'xhigh'; effort.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  card.querySelector('input[type="checkbox"]').click();
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'enable', contextRevision: state.skillsContext.revision,
+    reviewer: { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh', timeoutSeconds: 30 } });
+  const active = { ...state, autoHook: { ...state.autoHook, enabled: true, status: 'enabled', reviewer: { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh', timeoutSeconds: 30 } } };
+  view.sendSnapshot(active); await view.tick(); assert.equal(save.disabled, true);
+  model.value = 'gpt-6-luna'; model.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(effort.value, 'low'); assert.equal(save.disabled, false); save.click();
+  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'manageAutoHook', operation: 'configure', contextRevision: state.skillsContext.revision,
+    reviewer: { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } });
+  assert.match(card.textContent, /目前套用：gpt-6.1-sol／xhigh/);
+  view.sendSnapshot({ ...active, autoHook: { ...active.autoHook, reviewer: { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 } } });
+  await view.tick(); assert.equal(save.disabled, true); assert.match(card.textContent, /目前套用：gpt-6-luna／low/);
+});
+
+test('AutoHook catalog loading and failure preserve emergency disable and root-specific reviewer settings', async t => {
+  const state = snapshot('sa'); setSkillsContext(state, 'group');
+  state.autoHook = { root: state.skillsContext.root, supported: true, enabled: true, status: 'enabled', stateKnown: true,
+    reviewer: { model: 'custom-model', reasoningEffort: 'high', timeoutSeconds: 30 }, reviewerModelsLoading: true };
+  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const card = document.querySelector('.autohook-card'), checkbox = card.querySelector('input[type="checkbox"]');
+  const model = card.querySelector('[aria-label="Review Agent 模型"]');
+  assert.equal(model.value, 'custom-model'); assert.equal(model.disabled, true); assert.equal(checkbox.disabled, false);
+  view.sendSnapshot({ ...state, autoHook: { ...state.autoHook, reviewerModelsLoading: false, reviewerModelsError: 'offline' } }); await view.tick();
+  assert.match(card.textContent, /模型清單讀取失敗：offline.*目前設定仍保留/s); assert.equal(model.value, 'custom-model');
+  const next = structuredClone(state); next.skillsContext.root = 'D:/new'; next.skillsContext.revision = 'next-root';
+  next.autoHook = { root: next.skillsContext.root, supported: true, enabled: false, status: 'disabled', stateKnown: true };
+  view.sendSnapshot(next); await view.tick(); assert.equal(model.value, 'gpt-6-luna');
+  assert.equal(view.requests.at(-1).type, 'refreshAutoHookModels'); assert.equal(view.requests.at(-1).contextRevision, 'next-root');
 });

@@ -317,7 +317,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
         self.assertEqual("1.0.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
         with self.fake_tools():
             self.install()
-            self.assertEqual("1.1.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+            self.assertEqual("1.2.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
             self.assertEqual("installed", self.kit.inspect_status(self.root, harness.VERSION)["status"])
             baseline = self.integration.baseline(self.root)
             self.integration.manage(self.root, "disable")
@@ -362,7 +362,7 @@ class AutoHookIntegrationTests(unittest.TestCase):
                             self.assertEqual("enabled" if enabled else "disabled", state["status"])
                             self.assertFalse(state["policyCoverage"]["equivalent_to_native"])
                             if enabled:
-                                self.assertEqual("1.1.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+                                self.assertEqual("1.2.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
                                 self.integration.manage(self.root, "disable")
                         self.assertIn(b'color = "blue"', (self.root / CONFIG).read_bytes())
                         self.assertIn(custom, json.loads((self.root / HOOKS).read_bytes())["hooks"]["SessionStart"])
@@ -552,6 +552,88 @@ class AutoHookIntegrationTests(unittest.TestCase):
                     self.assertEqual(before, self.snapshot())
                 finally:
                     self.root = original
+
+    @unittest.skipUnless(os.name == "nt", "Windows enable")
+    def test_reviewer_configuration_survives_revalidation_update_and_reenable(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.install()
+        expected = {"model": "gpt-6-sol", "reasoning_effort": "high", "timeout_seconds": 30}
+        with self.fake_tools():
+            self.integration.manage(self.root, "enable", sys.executable,
+                                    review_model=expected["model"], review_effort=expected["reasoning_effort"])
+            self.assertEqual(expected, self.integration.status(self.root)["reviewer"])
+            self.integration.manage(self.root, "configure", review_model="gpt-6-astra", review_effort="medium")
+            expected.update(model="gpt-6-astra", reasoning_effort="medium")
+            self.integration.manage(self.root, "revalidate")
+            self.install("repository")
+            self.assertEqual(expected, self.integration.status(self.root)["reviewer"])
+            self.integration.manage(self.root, "disable")
+            self.assertEqual(expected, self.integration.status(self.root)["reviewer"])
+            self.enable()
+            self.assertEqual(expected, json.loads((self.root / SETTINGS).read_bytes())["reviewer"])
+
+    def test_model_catalog_does_not_install_or_change_project_state(self):
+        app = self.integration.native()
+        expected = {"models": [{"model": "gpt-6-luna", "display_name": "GPT-6 Luna",
+                    "default_reasoning_effort": "low", "supported_reasoning_efforts": ["low", "medium"]}]}
+        before = self.snapshot()
+        with patch.object(app, "models", return_value=expected) as models:
+            self.assertEqual({"ok": True, **expected}, self.integration.manage(self.root, "models", "fixture.exe"))
+            models.assert_called_once_with("fixture.exe")
+        self.assertEqual(before, self.snapshot())
+        self.assertFalse((self.root / self.kit.INSTALL_LOCK).exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows enable")
+    def test_invalid_reviewer_configuration_is_atomic_and_cannot_reenable_disabled(self):
+        self.install()
+        with self.fake_tools():
+            self.enable()
+            before = self.snapshot()
+            with self.assertRaises(self.kit.KitError):
+                self.integration.manage(self.root, "configure", review_effort="not-an-effort")
+            self.assertEqual(before, self.snapshot())
+            self.integration.manage(self.root, "disable")
+            stopped = self.snapshot()
+            with self.assertRaisesRegex(self.kit.KitError, "disabled"):
+                self.integration.manage(self.root, "configure", review_model="gpt-6-sol", review_effort="low")
+            self.assertEqual(stopped, self.snapshot())
+
+    @unittest.skipUnless(os.name == "nt", "Windows enable")
+    def test_110_enabled_runtime_migrates_to_hybrid_defaults(self):
+        import zipfile
+        self.install()
+        archive = ROOT / "resources/offline-tools/sources/autohook-1.1.0.zip"
+        self.assertEqual("4e2cb7d3328330158bae47793b3883eb84c36d35215c21c0da3bb14ace0b857d",
+                         hashlib.sha256(archive.read_bytes()).hexdigest())
+        with tempfile.TemporaryDirectory(prefix="ah-110-") as temporary:
+            source = Path(temporary)
+            with zipfile.ZipFile(archive) as package:
+                for name in self.integration.native().V11_ASSETS:
+                    (source / name).write_bytes(package.read("autohook/" + name))
+            previous = sys.modules.pop("project_config", None)
+            sys.path.insert(0, str(source))
+            try:
+                spec = importlib.util.spec_from_file_location("autohook_110_migration", source / "autohook.py")
+                old = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = old
+                spec.loader.exec_module(old)
+            finally:
+                sys.path.remove(str(source))
+                sys.modules.pop("project_config", None)
+                if previous is not None:
+                    sys.modules["project_config"] = previous
+            with patch.object(old, "_compatibility_probe", return_value="codex-cli fixture"):
+                old.enable(self.root, source, codex=sys.executable)
+        self.assertEqual("1.1.0", json.loads((self.root / SETTINGS).read_bytes())["policy_version"])
+        before = self.integration.baseline(self.root)
+        with self.fake_tools():
+            self.install()
+            state = self.integration.status(self.root)
+            self.assertEqual("enabled", state["status"])
+            self.assertEqual({"model": "gpt-6-luna", "reasoning_effort": "low", "timeout_seconds": 30}, state["reviewer"])
+            self.assertEqual("1.2.0", state["runtimeVersion"])
+            self.integration.manage(self.root, "disable")
+        self.assertEqual(before, {name: (self.root / name).read_bytes() for name in (CONFIG, HOOKS)})
 
 
 if __name__ == "__main__":

@@ -110,13 +110,15 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 
 ## AutoHook
 
-AutoHook 1.1.0 是隨包附帶的工具，與 16 個 Skills 分開，兩種 profile 都安裝至 `.agents/gitlab-workspace-kit/autohook/`。新裝預設不勾選；在 **設定 → 工作區與 Skills → AutoHook** 以 **啟用 AutoHook** CheckBox 啟停，查看目前 Skills 路徑、隨包版本、執行版本、政策來源與狀態，另保留重新驗證或刷新。勾選狀態只來自專案實際安裝，查詢失敗顯示未知／錯誤，已啟用但異常者仍可取消勾選停用。
+AutoHook 1.2.0 是隨包附帶的工具，與 16 個 Skills 分開，兩種 profile 都安裝至 `.agents/gitlab-workspace-kit/autohook/`。新裝預設不勾選；在 **設定 → 工作區與 Skills → AutoHook** 以 **啟用 AutoHook** CheckBox 啟停，查看目前 Skills 路徑、隨包版本、執行版本、政策來源與狀態，另保留重新驗證或刷新。勾選狀態只來自專案實際安裝，查詢失敗顯示未知／錯誤，已啟用但異常者仍可取消勾選停用。
 
-公開政策快照、固定 commit、SHA-256 及條文對照隨包離線保存；執行時不呼叫 AI 或下載資料。固定讀取／Git 查閱只涵蓋部分官方政策；指定專案測試／建置與新增／更新檔案屬於專案預授權，不能保證專案程式沒有外部副作用。對話授權、憑證／外傳判斷、破壞與規則外情境保留人工決定，無法完整重現原生 AI 審查。
+公開政策快照、固定 commit、SHA-256 及條文對照隨包離線保存。核准先走固定規則，本機讀取／Git 查閱與預授權的指定專案測試／建置和檔案新增／更新可直接核准；其餘交由 Review Agent 依同一政策及可取得的授權內容審查。只有明確判定可執行才核准，需要人類決定、缺少證據、AI 執行失敗、輸出無效或逾時時維持原人工核准流程。Review Agent 透過本機 Codex CLI 使用目前登入，不需另外設定 API key。
+
+在同一張 AutoHook 設定卡選擇 **Review Agent 模型** 與 **思考強度**，只影響核准審查 Agent。模型及支援強度從本機 Codex 取得，可按 **刷新模型** 重試；模型清單讀取失敗時保留目前設定及停用控制。新裝預設 `gpt-6-luna`／`low`，AI 審查上限為 30 秒。未啟用時選好後勾選即可套用；已啟用時按 **儲存 Review Agent 設定**，成功後重新讀取實際設定。不同 Skills 根目錄各自保存，重新驗證及整包更新保留既有選擇。
 
 作用位置使用目前 Skills 的 Group 根目錄或所選單一 Repo，與另選的套件安裝位置分開；不逐一修改子 Repo。啟用後的本機檔案位於 `.codex/autohook/`。沿用 `gitlabWorkspace.pythonPath`（Python 3.11+），原生 `codex.exe` 依序從 PATH、npm 套件內的原生執行檔及目前安裝的 Codex 擴充功能尋找，啟用、重新驗證與整包更新共用此規則。也可設定優先使用的 `gitlabWorkspace.autoHook.codexPath`，須填現有原生 `.exe` 的完整路徑；手動設定無效時會回報錯誤，不能直接填 `.cmd`、`.bat` 或 `.ps1`。狀態查詢與停用不需要 Codex；啟用需要 Windows PowerShell，其他平台或未安裝 Codex 時仍可安裝完整 Skills 包。
 
-啟用只管理三個核准設定及自己的 `PermissionRequest` handler，保留 Wiki 底稿、其他 Hooks 與設定。已啟用時，整包更新以新版 Wiki 底稿重新合成並同步更新還原備份，停用時恢復該底稿；已停用者維持停用。可驗證的既有 AutoHook 1.0.0／1.0.1 可納入管理，未知內容或本機修改會阻擋覆寫。
+啟用只管理三個核准設定及自己的 `PermissionRequest` handler，保留 Wiki 底稿、其他 Hooks 與設定。已啟用時，整包更新以新版 Wiki 底稿重新合成並同步更新還原備份，停用時恢復該底稿；已停用者維持停用。可驗證的既有 AutoHook 1.0.0／1.0.1／1.1.0 可納入管理；已啟用的舊版更新後使用固定規則加 AI 審查，未知內容或本機修改會阻擋覆寫。
 
 啟停、整包更新及回復共用安裝鎖與交易保護。先完成來源與相容性檢查，再停止自動核准並套用；最後才恢復啟用狀態。任何驗證或寫入失敗均取消整包更新並恢復前態。決策紀錄 `.codex/autohook/decisions.jsonl` 不列入覆寫或回復檔案。後續本機修改仍受回復保護。
 
@@ -124,7 +126,9 @@ AutoHook 1.1.0 是隨包附帶的工具，與 16 個 Skills 分開，兩種 prof
 
 ```sh
 python -X utf8 -B resources/workflow-kit-installer.py autohook status <Skills根目錄>
-python -X utf8 -B resources/workflow-kit-installer.py autohook enable <Skills根目錄> --codex <codex.exe路徑>
+python -X utf8 -B resources/workflow-kit-installer.py autohook models <Skills根目錄> --codex <codex.exe路徑>
+python -X utf8 -B resources/workflow-kit-installer.py autohook enable <Skills根目錄> --codex <codex.exe路徑> --review-model gpt-6-luna --review-effort low
+python -X utf8 -B resources/workflow-kit-installer.py autohook configure <Skills根目錄> --review-model gpt-6-luna --review-effort low
 python -X utf8 -B resources/workflow-kit-installer.py autohook revalidate <Skills根目錄>
 python -X utf8 -B resources/workflow-kit-installer.py autohook disable <Skills根目錄>
 ```

@@ -405,7 +405,7 @@ class TransactionTests(unittest.TestCase):
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
         paths.extend(ROOT / "resources/offline-tools/sources" / p for p in
-                     ("autohook-1.1.0.zip", "codebase-llm-wiki-codex-0.6.0.zip", "megin-skills-0.6.0.zip", "megin-skills-0.8.0.zip", "merge-reviewer-0.11.0.zip", "release-reviewer-0.2.0.zip"))
+                     ("autohook-1.2.0.zip", "codebase-llm-wiki-codex-0.6.0.zip", "megin-skills-0.6.0.zip", "megin-skills-0.8.0.zip", "merge-reviewer-0.11.0.zip", "release-reviewer-0.2.0.zip"))
         for path in paths:
             target = source / path.relative_to(ROOT)
             target.parent.mkdir(parents=True, exist_ok=True)

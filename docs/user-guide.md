@@ -95,15 +95,17 @@ Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依�
 
 ### AutoHook
 
-兩種 profile 都附帶 AutoHook 1.1.0，預設關閉。從 **設定 → 工作區與 Skills → AutoHook** 查看 Skills 路徑、隨包／執行版本、官方政策版本與狀態。勾選 **啟用 AutoHook** 會安裝啟用，取消勾選會停用，另保留 **重新驗證** 與 **刷新狀態**。操作跟隨目前 Skills 的 Group 根目錄或單一 Repo，不跟隨另外指定的安裝位置，也不修改子 Repo。
+兩種 profile 都附帶 AutoHook 1.2.0，預設關閉。從 **設定 → 工作區與 Skills → AutoHook** 查看 Skills 路徑、隨包／執行版本、官方政策版本與狀態。勾選 **啟用 AutoHook** 會安裝啟用，取消勾選會停用，另保留 **重新驗證** 與 **刷新狀態**。操作跟隨目前 Skills 的 Group 根目錄或單一 Repo，不跟隨另外指定的安裝位置，也不修改子 Repo。
 
-勾選狀態來自專案安裝，不另存 VS Code 布林設定；操作中禁止重複切換，結束後重新查詢。查詢失敗會顯示錯誤；上次已啟用者仍可取消勾選停用。需要重新驗證時維持勾選，不能視為已完成 Codex 信任。固定規則涵蓋部分讀取／Git 查閱；勾選同時預授權指定專案測試／建置與檔案新增／更新，未審查專案程式的全部副作用，其餘保留人工核准。
+勾選狀態來自專案安裝，不另存 VS Code 布林設定；操作中禁止重複切換，結束後重新查詢。查詢失敗會顯示錯誤；上次已啟用者仍可取消勾選停用。需要重新驗證時維持勾選，不能視為已完成 Codex 信任。固定規則命中時直接核准，其餘由 Review Agent 依政策與可取得的授權內容確認；只有明確可執行才自動核准，需人類決定或 AI 審查失敗、逾時時保留人工核准。
+
+同一設定卡可選擇 **Review Agent 模型** 與 **思考強度**，預設 `gpt-6-luna`／`low`，每次 AI 審查最多 30 秒；只影響核准審查 Agent，使用本機 Codex 的登入狀態。模型及支援的強度由 Codex 提供，可按 **刷新模型** 重新查詢。未啟用時選好後勾選即可；已啟用時按 **儲存 Review Agent 設定**，畫面的「目前套用」以實際保存結果為準。模型清單失敗仍保留目前設定及停用控制。各 Skills 根目錄分別保存，重新驗證及整包更新保留選擇。
 
 啟用需要 Windows、Windows PowerShell 與原生 Codex CLI。Python 沿用 `gitlabWorkspace.pythonPath`；Codex 依序從 PATH 的 `codex.exe`、npm 套件內的原生執行檔及已安裝 Codex 擴充功能尋找。只有 npm shim 或 Codex 擴充功能時也能自動取得原生執行檔，擴充功能路徑跟隨目前安裝版本。也可在 VS Code 設定 `gitlabWorkspace.autoHook.codexPath`，手動設定優先，須填現有原生 `.exe` 的完整路徑；無效時會回報設定錯誤，`.cmd`、`.bat` 或 `.ps1` 不能直接用於 AutoHook。首次啟用、重新驗證及整包更新共用此尋找順序。狀態查詢與停用不依賴 Codex 路徑；其他平台或尚未安裝 Codex 的電腦仍可安裝 Skills。
 
 啟用後會保留 Wiki 底稿、其他設定與 Hooks；更新已啟用的整包會同步更新 AutoHook 並重新驗證，驗證失敗會停止整包更新。停用會恢復最新 Wiki 底稿，決策紀錄保留。未知安裝或本機修改會阻擋覆寫。設定完成後請重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證 Codex 信任狀態。
 
-互動驗收需在 CLI 與 VS Code Codex Chat 各開啟相同 Skills 根目錄的新工作階段，完成專案與 Hook 信任後，以 `sandbox_permissions = "require_escalated"` 要求單獨執行 PowerShell `Get-Location`，預期自動允許且 `.codex/autohook/decisions.jsonl` 記錄 `allow`／`read.location`。再要求同樣需核准的 `Write-Output 'AutoHook-manual-check'`，預期保留人工核准，取消即可。取消勾選並重開後，第一個命令也應回到原核准流程。未出現核准請求的普通命令不能驗證 Hook；自動化測試與工作台設定狀態均不能代替兩個客戶端的互動驗收。
+互動驗收需在 CLI 與 VS Code Codex Chat 各開啟相同 Skills 根目錄的新工作階段，完成專案與 Hook 信任後，以 `sandbox_permissions = "require_escalated"` 要求單獨執行 PowerShell `Get-Location`，預期自動允許且 `.codex/autohook/decisions.jsonl` 記錄 `allow`／`read.location`。再要求同樣需核准、未命中固定規則的 `Write-Output 'AutoHook-ai-check'`，應交給 Review Agent；確認可執行時自動核准，決策紀錄應區分固定規則與 AI 審查。以缺少授權的風險操作確認保留人工核准，出現核准要求時取消，不實際執行。審查失敗或逾時也應保留核准要求。取消勾選並重開後，第一個命令也應回到原核准流程。未出現核准請求的普通命令不能驗證 Hook；自動化測試與工作台設定狀態均不能代替兩個客戶端的互動驗收。
 
 ## 專案與 Git 操作
 

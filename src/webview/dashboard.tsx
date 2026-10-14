@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type {
-  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
+  AutoHookReviewerSettings, AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import type { DeliveryFormState, TimeEdit } from './issue-workflow';
@@ -1058,6 +1058,13 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
   const policy = snapshot.workflowKitPolicy ?? workflowKitPolicy({ requireGroupEnvironment: true, connected: snapshot.connected, groupSelected: !!snapshot.group, groupRoot: snapshot.groupRoot, workspaceRootError: snapshot.workspaceRootError, hasWorkspace: !!snapshot.groupRoot });
   const kitBusy = !!snapshot.workflowKitOperationBusy;
   const autoHook = snapshot.autoHook?.root === snapshot.skillsContext?.root ? snapshot.autoHook : undefined;
+  const [reviewerDraft, setReviewerDraft] = useState<AutoHookReviewerSettings>(() => autoHook?.reviewer ?? { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 });
+  useEffect(() => {
+    setReviewerDraft(autoHook?.reviewer ?? { model: 'gpt-6-luna', reasoningEffort: 'low', timeoutSeconds: 30 });
+  }, [snapshot.skillsContext?.root, autoHook?.reviewer?.model, autoHook?.reviewer?.reasoningEffort]);
+  useEffect(() => {
+    if (snapshot.skillsContext?.root && autoHook?.supported !== false) post({ type: 'refreshAutoHookModels', contextRevision: snapshot.skillsContext.revision });
+  }, [snapshot.skillsContext?.root, snapshot.skillsContext?.revision]);
   const [autoHookPending, setAutoHookPending] = useState(false);
   const autoHookRequest = useRef(false);
   useEffect(() => {
@@ -1073,10 +1080,15 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
   }, [post]);
   const hookBusy = operationBusy || kitBusy || autoHookPending || autoHook?.status === 'checking';
   const hookKnown = autoHook?.stateKnown !== false && ['disabled', 'enabled', 'needs-revalidation'].includes(autoHook?.status ?? '');
-  const manageHook = (operation: 'enable' | 'disable' | 'revalidate') => {
+  const reviewModels = autoHook?.reviewerModels ?? [];
+  const selectedReviewModel = reviewModels.find(item => item.model === reviewerDraft.model);
+  const reviewEfforts = selectedReviewModel?.supportedReasoningEfforts ?? [reviewerDraft.reasoningEffort];
+  const reviewerChanged = reviewerDraft.model !== (autoHook?.reviewer?.model ?? 'gpt-6-luna') || reviewerDraft.reasoningEffort !== (autoHook?.reviewer?.reasoningEffort ?? 'low');
+  const manageHook = (operation: 'enable' | 'disable' | 'revalidate' | 'configure') => {
     if (autoHookRequest.current || hookBusy || !snapshot.skillsContext?.root) return;
     autoHookRequest.current = true; setAutoHookPending(true);
-    post({ type: 'manageAutoHook', operation, contextRevision: snapshot.skillsContext.revision });
+    post({ type: 'manageAutoHook', operation, contextRevision: snapshot.skillsContext.revision,
+      ...(operation === 'enable' || operation === 'configure' ? { reviewer: reviewerDraft } : {}) });
   };
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace 設定</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工作區與工具'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
@@ -1139,14 +1151,35 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
     <section class="tool-card autohook-card" aria-label="AutoHook">
       <div class="panel-title"><strong>AutoHook{autoHook?.bundledVersion ? ` v${autoHook.bundledVersion}` : ''}</strong><span class="pill">{({ unavailable: '尚未就緒', disabled: '未啟用', enabled: '已設定', 'needs-revalidation': '需要重新驗證', error: '需要處理', checking: '檢查中' })[autoHook?.status ?? 'unavailable']}</span></div>
       <p>作用位置：{snapshot.skillsContext?.root ?? '尚未選擇 Skills 工作位置'}</p>
-      <p class="subtle">隨包附帶，預設關閉。只作用於目前 Skills 根目錄；已啟用時會隨整包更新並重新驗證。</p>
+      <p class="subtle">隨包附帶，預設關閉。固定規則先快速核准，其餘交由 Review Agent 判斷；需要人類決定時保留原核准流程。只作用於目前 Skills 根目錄。</p>
       <label class="skills-policy-toggle"><input type="checkbox" aria-label="啟用 AutoHook" checked={autoHook?.enabled === true}
         disabled={hookBusy || !snapshot.skillsContext?.root || (!autoHook?.enabled && (!hookKnown || !autoHook?.supported || snapshot.skillsContext.installed.status !== 'installed'))}
         onChange={event => { const enable = event.currentTarget.checked; event.currentTarget.checked = autoHook?.enabled === true; manageHook(enable ? 'enable' : 'disable'); }} /><span>啟用 AutoHook</span></label>
       {(!autoHook || autoHook.stateKnown === false) && <p class="warning" role="status">目前啟用狀態尚未確認，請刷新狀態。{autoHook?.enabled ? '保留上次已啟用狀態，可取消勾選以停用。' : ''}</p>}
+      <p class="subtle">下列 AI 設定只用於 Review Agent。預設 gpt-6-luna、low，每次審查最多 30 秒。</p>
+      <label class="field">Review Agent 模型<select aria-label="Review Agent 模型" value={reviewerDraft.model}
+        disabled={hookBusy || !hookKnown || !autoHook?.supported || autoHook?.reviewerModelsLoading || !snapshot.skillsContext?.root}
+        onChange={event => { const model = reviewModels.find(item => item.model === event.currentTarget.value); if (model) setReviewerDraft({ model: model.model, reasoningEffort: model.defaultReasoningEffort, timeoutSeconds: 30 }); }}>
+        {!selectedReviewModel && <option value={reviewerDraft.model}>{reviewerDraft.model}（目前設定）</option>}
+        {reviewModels.map(model => <option value={model.model}>{model.displayName}</option>)}
+      </select></label>
+      <label class="field">思考強度<select aria-label="Review Agent 思考強度" value={reviewerDraft.reasoningEffort}
+        disabled={hookBusy || !hookKnown || !autoHook?.supported || autoHook?.reviewerModelsLoading || !snapshot.skillsContext?.root}
+        onChange={event => setReviewerDraft({ ...reviewerDraft, reasoningEffort: event.currentTarget.value })}>
+        {!reviewEfforts.includes(reviewerDraft.reasoningEffort) && <option value={reviewerDraft.reasoningEffort}>{reviewerDraft.reasoningEffort}（目前設定）</option>}
+        {reviewEfforts.map(effort => <option value={effort}>{effort}</option>)}
+      </select></label>
+      {autoHook?.reviewerModelsLoading && <p class="subtle" role="status">正在讀取 Codex 可用模型…</p>}
+      {autoHook?.reviewerModelsError && <p class="warning" role="status">模型清單讀取失敗：{autoHook.reviewerModelsError}。目前設定仍保留。</p>}
+      {autoHook?.enabled && <p class="subtle">目前套用：{autoHook.reviewer?.model ?? 'gpt-6-luna'}／{autoHook.reviewer?.reasoningEffort ?? 'low'}。</p>}
+      <div class="button-row">
+        <button type="button" disabled={hookBusy || !hookKnown || !autoHook?.supported || !autoHook?.enabled || !reviewerChanged} onClick={() => manageHook('configure')}>儲存 Review Agent 設定</button>
+        <button class="quiet small" type="button" disabled={hookBusy || !autoHook?.supported || autoHook?.reviewerModelsLoading || !snapshot.skillsContext?.root}
+          onClick={() => snapshot.skillsContext && post({ type: 'refreshAutoHookModels', contextRevision: snapshot.skillsContext.revision })}>刷新模型</button>
+      </div>
       {autoHook?.runtimeVersion && <p>本機執行版本：{autoHook.runtimeVersion}</p>}
       {autoHook?.policySource && <p class="subtle">官方政策版本：{autoHook.policySource.revision.slice(0, 12)}{autoHook.policySource.captured_on ? `（${autoHook.policySource.captured_on}）` : ''}</p>}
-      {autoHook?.policyCoverage && <p class="subtle">固定規則涵蓋部分本機讀取與 Git 查閱；勾選同時預授權指定的專案測試／建置和檔案新增／更新。專案程式的副作用仍需自行確認，其餘交回人工核准，無法完整重現原生 AI 審查。</p>}
+      {autoHook?.policyCoverage && <p class="subtle">固定規則涵蓋部分本機讀取、Git 查閱及預授權的專案測試／建置和檔案新增／更新。其他請求由 Review Agent 依政策審查；明確判定可執行才核准，需要人類決定或審查失敗、逾時時維持人工核准。</p>}
       {autoHook?.supported === false && <p role="status">啟用需要 Windows、Windows PowerShell 與支援 Hooks 的 Codex CLI。</p>}
       {autoHook?.message && <p class="warning" role="status">{autoHook.message}</p>}
       {autoHook?.enabled && <p class="subtle">設定檢查不包含 Codex 的信任狀態。請重新開啟 Codex，並在 /hooks 檢查及確認信任。</p>}

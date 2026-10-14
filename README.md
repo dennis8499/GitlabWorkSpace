@@ -71,7 +71,7 @@ GitLab Workspace v0.22.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0
 
 **分析 → MergeReviewer → 指定 Repo 內容審查** 可選擇分支比較、已暫存內容或目前已儲存內容。後兩種不需要 remote 或 GitLab 連線：已暫存內容只看 index；目前已儲存內容看最終儲存版本，包含已暫存、未暫存及未忽略的未追蹤檔案。切回分支比較會保留原先填寫的版本。單 Repo 審查限制在所選專案，Group 審查以指定 Repo 為入口追查相關功能鏈。
 
-兩種 profile 另附 AutoHook 1.1.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，保留重新驗證與刷新狀態；勾選狀態以目前 Skills 根目錄實際安裝為準。隨包保存官方政策版本、原文與雜湊，固定規則只涵蓋部分政策，指定專案測試／建置和檔案新增／更新屬於勾選後的預授權。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
+兩種 profile 另附 AutoHook 1.2.0，預設關閉，不增加 Skills 數量。在 **設定 → 工作區與 Skills → AutoHook** 勾選／取消 **啟用 AutoHook**，並選擇 Review Agent 模型與思考強度；預設 `gpt-6-luna`／`low`，每次 AI 審查最多 30 秒。固定規則命中時直接核准，其餘交由 Review Agent 依政策與可取得的授權內容判斷，只有明確可執行才自動核准；需人類決定、審查失敗或逾時維持原核准流程。設定只用於目前 Skills 根目錄的 Review Agent，啟用狀態與已套用設定以實際安裝為準。啟用需要 Windows、Windows PowerShell 及支援 Hooks 的原生 Codex CLI；已啟用時隨整包更新並驗證，失敗會取消整包更新。設定完成後須重新開啟 Codex，並在 `/hooks` 確認信任；工作台不驗證信任狀態。操作與共存規則見[AutoHook 說明](docs/group-workflow.md#autohook)。
 
 0.22.0 支援受信任的 0.14.0 至 0.21.0 升級與交易回復；受信任的舊紀錄未含 profile 時視為 Group。安裝與 profile 轉換保留 Wiki、其他 Skills、工作紀錄、報告及使用者設定；Group／子 Repo 未完成工作、Git common-dir 鎖或管理檔案修改會阻擋更新。維護鎖涵蓋更新、回復及中斷恢復，舊工作沿用原套件、契約與指紋。ReleaseReviewer 的入口分支、關聯 Repo 固定本機預設 SHA、v2 報告與人工部署 Checklist 契約維持原有規則。
 
