@@ -435,3 +435,31 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .account-menu .connection:not(.connected) i { background: var(--vscode-descriptionForeground, #9ba7b4); }
 .account-popover.account-manager { max-height: min(65vh, 520px); overflow-y: auto; }
 .account-popover.account-manager > button { width: 100%; margin-top: 8px; }
+/* Tool-specific analysis panels and shared operation receipts. */
+.skills-environment { border:1px solid var(--vscode-panel-border); border-radius:8px; padding:14px 18px; background:var(--vscode-editor-background); margin-bottom:16px; }
+.skills-environment p { margin:8px 0; }
+.skills-root { overflow-wrap:anywhere; font-size:12px; }
+.skills-readiness { margin-left:12px; color:var(--vscode-descriptionForeground); font-size:12px; }
+.skills-environment-actions,.skills-action-bar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.skills-environment-actions { justify-content:space-between; }
+.skills-tool-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:18px; }
+.skills-tool-tabs button { display:flex; justify-content:center; align-items:center; gap:8px; min-height:46px; background:var(--vscode-editor-background); border:1px solid var(--vscode-panel-border); }
+.skills-tool-tabs button.active { border-color:var(--vscode-focusBorder); background:var(--vscode-list-activeSelectionBackground); color:var(--vscode-list-activeSelectionForeground); }
+.skills-tool-tabs small { opacity:.75; }
+.skills-workspace { display:grid; grid-template-columns:240px minmax(0,1fr); gap:20px; align-items:start; }
+.skills-feature-navigation h3 { font-size:11px; color:var(--vscode-descriptionForeground); margin:16px 10px 6px; }
+.skills-feature-navigation section:first-child h3 { margin-top:0; }
+.skills-feature-navigation button { display:block; width:100%; text-align:left; background:transparent; border:1px solid transparent; padding:9px 10px; line-height:1.4; }
+.skills-feature-navigation button.active { background:var(--vscode-list-activeSelectionBackground); color:var(--vscode-list-activeSelectionForeground); border-color:var(--vscode-focusBorder); }
+.skills-workspace .wiki-guide-card { width:100%; min-width:0; }
+.skills-action-bar { margin-top:14px; }
+.skills-next-step { margin-top:14px; color:var(--vscode-descriptionForeground); font-size:12px; line-height:1.6; }
+.skills-process { margin:12px 0; color:var(--vscode-descriptionForeground); }
+.skills-process ol { display:flex; flex-wrap:wrap; gap:8px 26px; padding-left:24px; }
+.operation-feedback:empty { display:none; }
+.operation-status { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 12px; font-size:12px; border-left:3px solid var(--vscode-focusBorder); background:var(--vscode-editor-background); margin:6px 0; overflow-wrap:anywhere; }
+.operation-status.failed { border-color:var(--vscode-errorForeground); }
+.operation-status.succeeded { border-color:var(--vscode-testing-iconPassed); }
+.workspace-operation-area { padding:0 20px; max-height:115px; overflow:auto; }
+@media(max-width:960px) { .skills-workspace { grid-template-columns:minmax(0,1fr); gap:14px; } .skills-feature-navigation { display:flex; flex-wrap:wrap; gap:12px; } .skills-feature-navigation section { flex:1 1 180px; } .skills-feature-navigation h3 { margin-top:0; } }
+@media(max-width:520px) { .skills-tool-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .skills-tool-tabs button { font-size:12px; } .skills-environment { padding:12px; } }

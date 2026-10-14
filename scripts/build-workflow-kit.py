@@ -41,15 +41,15 @@ PINNED_SOURCES = (
         "asset": "megin-skills.zip",
         "filename": "megin-skills-0.8.0.zip",
         "version": "0.8.0",
-        "sha256": "12fc4f6740a76d7924e4c52279e176bd532a5ed8ecb5c80f088c44d5e16e8fde",
+        "sha256": "81c530799f72c661bfe56e1c04dedaeb0c4534d5f387363821f85c95ff137ed8",
     },
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.11.0.zip",
-        "filename": "merge-reviewer-0.11.0.zip",
-        "version": "0.11.0",
-        "sha256": "a452d1ab97328fb83c9de05064a46d57438b0b46d731c58ccae7fdc016799ea8",
+        "asset": "merge-reviewer-0.12.0.zip",
+        "filename": "merge-reviewer-0.12.0.zip",
+        "version": "0.12.0",
+        "sha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
     },
     {
         "id": "release-reviewer",
@@ -57,7 +57,7 @@ PINNED_SOURCES = (
         "asset": "release-reviewer-0.3.0.zip",
         "filename": "release-reviewer-0.3.0.zip",
         "version": "0.3.0",
-        "sha256": "aeee49157e16d876ca5ca9650f51f10448b568b84a8a25c35b2c9028e8960098",
+        "sha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
     },
 )
 
@@ -252,107 +252,22 @@ def _wiki_config_files() -> dict[str, bytes]:
     return {name: selected[name] for name in (".codex/config.toml", ".codex/hooks.json")}
 
 
-def legacy_receipt_runtime() -> dict[str, bytes]:
-    """Retain only read-only historical Group receipt dependencies, never the old workflow."""
-    import ast
-    frozen = SOURCES / "megin-skills-0.6.0.zip"
-    selected, _ = checked_zip(frozen, "7cbe18d8403500ddf64f27105d615985f47fbae3359cf6b485bfff1ccd7d910f")
-    modules = {PurePosixPath(p).stem: data.decode("utf-8") for p, data in selected.items()
-               if p.startswith("megin/scripts/") and p.endswith(".py")}
-    old = PROFILE / "overlays/megin/.agents/skills/megin/scripts"
-    for name in ("delivery_receipt", "group_quality_gate", "group_workspace", "simulation_policy"):
-        modules[name] = (old / (name + ".py")).read_text(encoding="utf-8")
-    trees = {name: ast.parse(source) for name, source in modules.items()}
-    definitions = {}
-    for name, tree in trees.items():
-        definitions[name] = {node.name: node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
-    selected_nodes: dict[str, set[str]] = {}
-    pending = [("delivery_receipt", "export_receipt")]
-    forbidden = {"main", "claim", "release", "deliver", "prepare", "write_receipt", "save_result"}
-    while pending:
-        name, symbol = pending.pop()
-        first = name not in selected_nodes
-        chosen = selected_nodes.setdefault(name, set())
-        if symbol in chosen:
-            continue
-        if symbol in forbidden:
-            raise ValueError(f"Historical receipt runtime unexpectedly requires mutation: {name}.{symbol}")
-        chosen.add(symbol)
-        nodes = [definitions[name][symbol]] if symbol in definitions[name] else []
-        if first:
-            nodes.extend(n for n in trees[name].body if isinstance(n, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign)))
-        aliases = {}
-        for node in ast.walk(trees[name]):
-            if isinstance(node, ast.Import):
-                aliases.update({item.asname or item.name: (item.name, None) for item in node.names if item.name in modules})
-            if isinstance(node, ast.ImportFrom) and node.module in modules:
-                aliases.update({item.asname or item.name: (node.module, item.name) for item in node.names})
-        for node in nodes:
-            for child in ast.walk(node):
-                if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load):
-                    if child.id in definitions[name]:
-                        pending.append((name, child.id))
-                    if child.id in aliases and aliases[child.id][1]:
-                        pending.append(aliases[child.id])
-                if isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name) and child.value.id in aliases:
-                    target, imported = aliases[child.value.id]
-                    if imported is None:
-                        pending.append((target, child.attr))
-                if isinstance(child, ast.ImportFrom) and child.module in modules:
-                    pending.extend((child.module, item.name) for item in child.names)
-    result = {}
-    for name, chosen in selected_nodes.items():
-        nodes = [node for node in trees[name].body if isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign))
-                 or isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in chosen
-                 or isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)]
-        # Drop unused local imports whose definitions were intentionally not retained.
-        filtered = []
-        for node in nodes:
-            if isinstance(node, ast.ImportFrom) and node.module in modules:
-                node.names = [item for item in node.names if item.name in selected_nodes.get(node.module, set())]
-                if not node.names:
-                    continue
-            if isinstance(node, ast.Import):
-                node.names = [item for item in node.names if item.name not in modules or item.name in selected_nodes]
-                if not node.names:
-                    continue
-            filtered.append(node)
-        code = ast.unparse(ast.Module(body=filtered, type_ignores=[])) + "\n"
-        compile(code, name + ".py", "exec")
-        result[name + ".py"] = code.encode("utf-8")
-    result["verify.py"] = b'''"""Read-only historical Group v1 receipt validation; no workflow or writer CLI."""
-import json, sys
-from pathlib import Path
-sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from delivery_receipt import export_receipt
-if __name__ == '__main__':
-    print(json.dumps(export_receipt(Path(sys.argv[1]), sys.argv[2]), ensure_ascii=False))
-'''
-    return result
-
-
 def validate_local_sources() -> None:
-    """Opt-in parity check against reviewed sibling source trees, without repinning."""
-    for source_id, directory in (("megin", ROOT.parent / "Megin/.agents/skills"),
-                                  ("merge-reviewer", ROOT.parent / "MergeReviewer/skills")):
-        pin = next(item for item in PINNED_SOURCES if item['id'] == source_id)
-        archived, _ = checked_zip(SOURCES / pin['filename'], pin['sha256'])
-        expected = {p: data for p, data in archived.items()
-                    if len(PurePosixPath(p).parts) > 1 and PurePosixPath(p).parts[0].startswith(source_id)}
-        actual = {}
-        for path in sorted(directory.rglob('*')):
-            if path.is_symlink():
-                raise ValueError(f'Local source contains a symlink: {path}')
-            if (path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc', '.pyo')
-                    and path.relative_to(directory).parts[0].startswith(source_id)):
-                actual[path.relative_to(directory).as_posix()] = path.read_bytes()
-        if expected != actual:
-            different = sorted(p for p in set(expected) | set(actual) if expected.get(p) != actual.get(p))
-            raise ValueError(f'{source_id} pinned archive differs from local source: {different[:8]}')
+    """Compare all four sibling sources without repinning or changing artifacts."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('kit_local_sources', ROOT / 'scripts/workflow-kit-sources.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.check(compare_local=True)
 
 
 def build() -> dict[str, object]:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('kit_source_check', ROOT / 'scripts/workflow-kit-sources.py')
+    source_checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(source_checker)
+    source_checker.check(compare_local=False)
+    snapshots = json.loads(source_checker.SNAPSHOTS.read_text(encoding='utf-8'))['sources']
     files: dict[str, bytes] = {}
     upstream: dict[str, dict[str, str]] = {}
     megin_skill_names: set[str] = set()
@@ -416,16 +331,7 @@ def build() -> dict[str, object]:
         "codebase-wiki": apply_overlay(
             files, "codebase-wiki", overlay_root / "codebase-wiki",
         ),
-        "merge-reviewer": apply_overlay(
-            files, "merge-reviewer", overlay_root / "merge-reviewer",
-            ".agents/skills/merge-reviewer/",
-            excluded=("scripts/group_review.py", "references/group-review.md"),
-        ),
     }
-    for name, data in legacy_receipt_runtime().items():
-        relative = ".agents/skills/merge-reviewer/scripts/legacy_receipt_runtime/" + name
-        files["payload/" + relative] = data
-        overlays["merge-reviewer"]["added"][relative] = digest(data)
 
     for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md"):
         source_path = PROFILE / name
@@ -445,11 +351,13 @@ def build() -> dict[str, object]:
         "version": KIT_VERSION,
         "workspaceContract": 2,
         "upstream": upstream,
+        "sourceSnapshots": {tool: {key: record[key] for key in ('sourceKind', 'commit', 'dirty', 'treeSha256', 'archiveSha256')}
+                            for tool, record in snapshots.items()},
         "overlays": overlays,
         "sourceSummary": [
             "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.8.0 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
-            "Native MergeReviewer 0.11.0 unifies Group branch, staged, uncommitted, dual-source quick and receipt reviews with v2 fixed-source impact coverage; the Workspace MR adapter binds an explicit Group root and exact source/target SHAs to the same portable workflow.",
+            "Native MergeReviewer 0.12.0 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report. No Workspace overlay or MR-specific report adapter is applied.",
             "Native ReleaseReviewer 0.3.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
         ],
         "customProfile": {
@@ -459,7 +367,7 @@ def build() -> dict[str, object]:
                 "sourceReferences": "Repo/path",
                 "analysisIssueFlow": "draft-ready-scn-manual-issue",
                 "developmentDelivery": "native-megin-formal-workflow",
-                "mergeRequestReview": "explicit-group-pinned-shas-task-report-v2",
+                "mergeRequestReview": "branch-review-handoff-manual-comment",
                 "releaseReview": "entry-branches-group-chain-local-defaults-v3-single-workspace-report",
                 "wikiFeedback": "manual-after-all-local-repo-commits"
             },
@@ -473,7 +381,7 @@ def build() -> dict[str, object]:
     ).encode("utf-8"))
     capabilities = sorted(["megin-spec-export", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
                            "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
-                           "megin-workflow", "megin-resume", "merge-repo", "merge-quick", "merge-group", "merge-mr", "release-review"])
+                           "megin-workflow", "megin-resume", "merge-repo", "release-review"])
     native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}
     manifest["capabilities"] = capabilities
     manifest["wikiInstalledVersionSha256"] = digest(files["framework/VERSION"])
@@ -482,7 +390,7 @@ def build() -> dict[str, object]:
                   "profileHashes": manifest["customProfile"]["files"], "skills": skill_names, "capabilities": capabilities,
                   "agentBlockSha256": digest((PROFILE / "group-instructions.md").read_text(encoding="utf-8").strip().encode("utf-8"))},
         "repository": {"files": native_hashes, "payloadSha256": digest(json.dumps(native_hashes, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")),
-                       "overlays": {}, "skills": skill_names, "capabilities": [item for item in capabilities if item not in ("merge-group", "merge-mr")],
+                       "overlays": {}, "skills": skill_names, "capabilities": capabilities,
                        "profileHashes": {name: native_hashes[".agents/gitlab-workspace-kit/" + name] for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")},
                        "agentBlockSha256": digest(native_payload[".agents/gitlab-workspace-kit/group-instructions.md"].decode("utf-8").replace('\r\n', '\n').replace('\r', '\n').strip().encode("utf-8"))}
     }

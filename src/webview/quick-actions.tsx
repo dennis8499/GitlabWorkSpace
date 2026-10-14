@@ -186,8 +186,9 @@ function GitSidebar() {
               </div>}
             </div>)}</div>}
     </section>
-    <p class="action-message" role="status" aria-live="polite">{state.busyAction ? '正在開啟…' : state.errorMessage ?? ''}</p>
+    <p class="action-message" role="status" aria-live="polite">{state.busyAction ? `正在${operationLabels[state.busyAction] ?? '處理作業'}…` : state.errorMessage ?? ''}</p>
   </main>;
 }
 
 render(<GitSidebar />, document.getElementById('quick-actions')!);
+import { operationLabels } from '../workspace/operations';

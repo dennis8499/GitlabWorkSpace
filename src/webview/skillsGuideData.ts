@@ -15,6 +15,7 @@ export interface SkillGuideState {
   tool: SkillGuideToolId;
   selections: Partial<Record<SkillGuideToolId, string>>;
   inputs: SkillGuideInputValues;
+  migrationNotice?: string;
 }
 
 export const skillGuideTools: ReadonlyArray<{ id: SkillGuideToolId; title: string; defaultCard: string }> = [
@@ -26,12 +27,6 @@ export const skillGuideTools: ReadonlyArray<{ id: SkillGuideToolId; title: strin
 
 const field = (id: string, label: string, options: Partial<SkillGuideField> = {}): SkillGuideField => ({ id, label, ...options });
 const repoField = () => field('repo', 'Repo 名稱或路徑', { required: true, placeholder: '例如 OrderService 或 C:\\projects\\OrderService' });
-const versionFields = (): SkillGuideField[] => [repoField(),
-  field('base', '基礎版本', { required: true, placeholder: '例如 origin/main、v1.0.0 或 commit SHA' }),
-  field('head', '比較版本', { required: true, placeholder: '例如 origin/feature/payment、v1.1.0 或 commit SHA' }),
-  field('mode', '比較模式', { kind: 'select', defaultValue: '合併前審查', options: ['合併前審查', '直接比較'] })
-];
-const outputField = () => field('output', '報告格式', { kind: 'select', defaultValue: 'Markdown', options: ['Markdown', 'Markdown＋JSON'] });
 const releaseFields = (): SkillGuideField[] => [repoField(),
   field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
   field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' })
@@ -54,34 +49,11 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
     fields: [field('workId', 'Work ID', { required: true, placeholder: 'work-20261010-payment-retry' })]
   },
   {
-    tool: 'merge-reviewer', id: 'merge-repo', title: '指定 Repo 內容審查',
-    description: '選擇分支比較、已暫存內容或目前已儲存內容，審查變更及相關功能鏈。',
-    output: '有固定版本證據、覆蓋範圍及限制的本機審查報告。',
-    behavior: '由 Skill 解析版本並擷取證據；合併前審查使用整合預覽，直接比較以 head 為準。',
-    fields: [field('target', '審查內容', { kind: 'select', defaultValue: '分支比較',
-      options: ['分支比較', '已暫存內容', '目前已儲存內容'] }), ...versionFields(), outputField()]
-  },
-  {
-    tool: 'merge-reviewer', id: 'merge-quick', title: '單一 Repo 快速審查',
-    description: '以指定遠端的預設分支為基礎，快速審查一個 Repo。',
-    output: '單一 Repo 的本機審查報告與固定版本證據。',
-    behavior: '原生 quick 模式會確認遠端預設分支並可能 fetch；可明確選擇納入本機修改。',
-    fields: [repoField(), field('remote', '遠端名稱', { required: true, defaultValue: 'origin' }),
-      field('workingTree', '納入本機修改', { kind: 'select', defaultValue: '否', options: ['否', '是'] }), outputField()]
-  },
-  {
-    tool: 'merge-reviewer', id: 'merge-group', title: 'Group 未提交內容快速審查',
-    description: '審查 Group 直屬本機 Repo 的暫存區與工作檔快照。',
-    output: 'Group 總覽與各 Repo 的本機審查報告。',
-    behavior: 'Group quick 不 fetch；固定並分別審查暫存區與工作檔，不推定 MR 身分。',
-    fields: [outputField()]
-  },
-  {
-    tool: 'merge-reviewer', id: 'merge-mr', title: 'GitLab MR 審查',
-    description: '從「待審查」選擇 MR，由工作台建立綁定真實 Repo 與來源／目標 SHA 的任務。',
-    output: '具有 MR 身分與固定 SHA 的審查報告，可沿用現有匯入與發布流程。',
-    behavior: '在待審查頁確認 MR 並啟動審查；報告發布前重新核對版本。',
-    fields: [], destination: 'reviewer'
+    tool: 'merge-reviewer', id: 'merge-repo', title: '分支合併審查',
+    description: '指定一個 Repo 與兩個明確分支，以 Codex 原生 Code Review 審查變更及相關消費端。',
+    output: '所選 Repo 的 review-reports/merge-review-*.md，一份繁體中文 v3 Merge Report。',
+    behavior: '固定分支差異、合併預覽與必要背景；明確遠端分支會同步，失敗停止。宣告工作區內有多個 Repo 時只追查相關功能鏈。',
+    fields: releaseFields()
   },
   {
     tool: 'release-reviewer', id: 'release-review', title: '上板檢查',
@@ -94,7 +66,7 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
 
 export function getSkillGuideCards(profile: 'group' | 'repository' = 'group'): readonly SkillGuideCard[] {
   if (profile === 'group') return skillGuideCards;
-  return skillGuideCards.filter(card => card.id !== 'merge-group' && card.id !== 'merge-mr').map(card => {
+  return skillGuideCards.map(card => {
     if (card.id === 'megin-workflow') return { ...card, title: '單一 Repo 開發流程', destination: undefined,
       description: '在選定的 Git Repo 啟動原生 Megin 開發工作。',
       output: 'Repo 內的 Work ID、核准計畫、驗證、人工驗收與本機交付紀錄。',
@@ -122,8 +94,18 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
     getSkillGuideCard(item.id, saved?.selections?.[item.id] ?? (item.id === 'codebase-wiki' ? legacySelection : undefined)).id]));
   const inputs = migrateWikiGuideInputs({ ...createDefaultWikiGuideInputs(), ...defaults, ...legacyInputs, ...saved?.inputs },
     saved?.selections?.['codebase-wiki'] ?? legacySelection);
-  for (const key of Object.keys(inputs)) if (key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length))) delete inputs[key];
-  return { tool, selections, inputs };
+  const removedMode = ['merge-quick', 'merge-group', 'merge-mr'].includes(saved?.selections?.['merge-reviewer'] ?? '')
+    || !!inputs['merge-repo.target'] && inputs['merge-repo.target'] !== '分支比較'
+    || inputs['merge-repo.mode'] === '直接比較' || inputs['merge-repo.output'] === 'Markdown＋JSON';
+  for (const key of Object.keys(inputs)) {
+    if (/^merge-(quick|group|mr)\./.test(key)) delete inputs[key];
+    for (const prefix of ['release-review.', 'merge-repo.']) {
+      if (key.startsWith(prefix) && !['repo', 'base', 'head', ...(prefix === 'merge-repo.' ? ['confirmationRequired'] : [])].includes(key.slice(prefix.length))) delete inputs[key];
+    }
+  }
+  if (removedMode) inputs['merge-repo.confirmationRequired'] = 'true';
+  const migrationNotice = removedMode ? 'MergeReviewer 已更新為分支審查。原先選擇的模式已移除，請確認 Repo 與兩個分支後再複製。' : saved?.migrationNotice;
+  return { tool, selections, inputs, ...(migrationNotice ? { migrationNotice } : {}) };
 }
 
 export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputValues {
@@ -135,43 +117,40 @@ function value(card: SkillGuideCard, id: string, inputs: SkillGuideInputValues):
   return inputs[`${card.id}.${id}`] ?? card.fields.find(item => item.id === id)?.defaultValue ?? '';
 }
 
-export function getMergeReviewTarget(inputs: SkillGuideInputValues): 'branch' | 'staged' | 'uncommitted' {
-  return inputs['merge-repo.target'] === '已暫存內容' ? 'staged'
-    : inputs['merge-repo.target'] === '目前已儲存內容' ? 'uncommitted' : 'branch';
-}
-
 export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInputValues): readonly SkillGuideField[] {
   if (card.tool === 'codebase-wiki') return getWikiGuideFields(card, inputs);
-  return card.id === 'merge-repo' && getMergeReviewTarget(inputs) !== 'branch'
-    ? card.fields.filter(item => !['base', 'head', 'mode'].includes(item.id)) : card.fields;
+  return card.fields;
 }
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
-  if (card.id === 'release-review' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) return false;
+  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head'].includes(key.slice(card.id.length + 1)))) return false;
   if (card.destination || !getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
     const input = value(card, item.id, inputs);
     return (!item.required || !!input.trim()) && (item.kind !== 'select' || !!item.options?.includes(input))
       && (item.kind === 'textarea' || !/[\r\n\0]/.test(input));
   })) return false;
-  if (card.id === 'release-review' && ['base', 'head'].some(id => /^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value(card, id, inputs).trim()) || /[~^]|\.\.|@\{/.test(value(card, id, inputs)))) return false;
+  if (['release-review', 'merge-repo'].includes(card.id) && ['base', 'head'].some(id => !isExplicitBranch(value(card, id, inputs)))) return false;
   return card.id !== 'megin-resume' || /^work-\d{8}-[a-z0-9-]+$/.test(value(card, 'workId', inputs).trim());
+}
+
+export function isExplicitBranch(input: string): boolean {
+  const branch = input.trim();
+  return !!branch && !/^(?:HEAD|refs\/tags\/.*|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(branch)
+    && !/^[/-]|[\s\x00-\x20\x7f~^:?*\[\\]|\.\.|@\{|\/\/|\/$|\.lock$|\.$/.test(branch);
 }
 
 export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
   if (card.tool === 'codebase-wiki') return buildWikiGuidePrompt(card.id, inputs, context);
   if (card.destination) return '';
   const releaseWorkspace = context.workspaceRoot ?? context.groupRoot ?? context.root;
-  if (card.tool === 'release-reviewer' && (context.workspaceRootAmbiguous || !releaseWorkspace)) {
+  if (['release-reviewer', 'merge-reviewer'].includes(card.tool) && (context.workspaceRootAmbiguous || !releaseWorkspace)) {
     throw new Error('無法辨識唯一 VSCode 工作區根目錄；請先儲存 multi-root 工作區或開啟明確資料夾。');
   }
   const input = (id: string) => value(card, id, inputs).trim();
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
-  const json = card.tool !== 'release-reviewer' && input('output') === 'Markdown＋JSON';
-  const reviewTarget = getMergeReviewTarget(inputs);
-  const localReview = card.id === 'merge-repo' && reviewTarget !== 'branch';
   if (context.profile === 'repository' && card.id === 'megin-workflow') return [
     `$megin 請在 Repo ${JSON.stringify(context.root)} 執行下列開發需求：`, input('task'),
     '使用此 Repo 安裝的原生 Megin 全部十三個 Skills。新工作使用 Repo v3，先中立釐清問題、受眾、成果與驗收，完整探索目前功能及架構，分開記錄事實、假設、需求與技術建議；精確計畫取得明確核准後才開始 BDD／TDD 實作，保留實際 red／green 原始證據。',
@@ -189,34 +168,19 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
     '先讀取 docs/work/<Work ID>/workflow.md、核准計畫及 evidence，確認原有 Issue 與 Repo 契約，從最早尚未完成的階段繼續。',
     '沿用原有 Work ID、原套件、契約版本、Skills 指紋、Group／Repo 鎖、計畫與驗收版本，以及追加式審查歷程，修正次數不得重置；若紀錄不存在或無法確認，先釐清。保留該版本的獨立審查、實際驗證、人工驗收與交付流程，舊工作不自動遷移。'
   ].join('\n');
-  const opening = localReview
-    ? `$merge-reviewer 請審查下列 Repo 的${reviewTarget === 'staged' ? '已暫存內容' : '目前已儲存內容'}與相關功能鏈。`
-    : card.id === 'merge-group'
-    ? `$merge-reviewer 請審查 Group ${JSON.stringify(context.groupRoot ?? '')} 下一層所有有效 Repo 的未提交內容，使用 git_review_context.py --group-root <此 Group> --quick。分別審查固定的暫存區與工作檔快照，輸出 Group 總覽與各 Repo 報告；不 fetch，也不推定 MR 身分。`
-    : card.id === 'merge-quick'
-      ? `$merge-reviewer 請對下列 Repo 執行原生單 Repo quick 審查（--quick --remote ${quoted('remote')}${input('workingTree') === '是' ? ' --include-working-tree' : ''}）。${input('workingTree') === '是' ? '納入固定的本機修改快照。' : '只審查已提交內容。'}`
-      : `$${card.tool} 請依下列明確輸入執行${card.tool === 'release-reviewer' ? '上板檢查' : '版本審查'}。`;
-  const lines = [opening];
-  if (card.id !== 'merge-group') lines.push(`專案名稱：${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')}`);
-  if ((card.id === 'merge-repo' && !localReview) || card.id === 'release-review') lines.push(
+  const lines = [
+    `$${card.tool} 請依下列明確輸入執行${card.tool === 'release-reviewer' ? '上板檢查' : '分支合併審查'}。`,
+    `專案名稱：${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')}`,
     `基礎分支：${quoted('base')}`, `比較分支：${quoted('head')}`,
-    'Repo 有多個候選時先釐清；不猜測基礎或比較版本。短分支名稱代表本機分支；origin/main 等明確遠端分支須取得最新指定版本，失敗時停止，不使用過期資料。'
+    'Repo 有多個候選時先釐清；不猜測基礎或比較版本。短分支名稱代表本機分支；origin/main 等明確遠端分支須取得最新指定版本，失敗時停止，不使用過期資料。',
+    `使用目前工作區安裝的原生 Skill 與 helpers；命令工作目錄使用入口 Repo，內部 --workspace 為 ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? `，另傳 --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''}。保留本機未提交修改，工作區邊界由這份資料固定。`
+  ];
+  if (card.tool === 'merge-reviewer') lines.push(
+    '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、quick、暫存、未提交、直接比較、MR 任務或 JSON 選項。',
+    `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')}。`,
+    '使用 Codex 原生 Code Review 及 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3。只以所選 Repo 為審查起點；宣告的工作區內有至少兩個不同 Git 根目錄時，依固定證據追查必要契約與消費端，其他 Repo 使用各自擷取時的 HEAD。',
+    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit>-<head-commit>.md，一份繁體中文 Merge Report。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
   );
-  if (card.id === 'merge-repo') {
-    const repository = context.profile === 'repository';
-    const boundary = repository ? `--workspace ${JSON.stringify(context.root)}` : `--group-root ${JSON.stringify(context.groupRoot)}`;
-    const project = repository ? JSON.stringify(context.root) : quoted('repo');
-    lines.push(`原生 helper：git_review_context.py ${boundary} --scope ${repository ? 'repo' : 'group'} --target ${reviewTarget} --project ${project}${localReview ? '' : ` --base ${quoted('base')} --head ${quoted('head')} --mode ${input('mode') === '直接比較' ? 'direct' : 'merge'}`}。`);
-    if (localReview) lines.push(reviewTarget === 'staged'
-      ? '以本機 HEAD（尚無 Commit 時使用空樹）對照真實暫存區，僅審查 index 快照；後續工作檔修改不混入暫存版本。無需 remote 或 GitLab 連線，不 fetch。'
-      : '以本機 HEAD（尚無 Commit 時使用空樹）對照最終已儲存檔案，涵蓋已暫存、未暫存與未忽略的未追蹤檔案；若工作檔覆寫已暫存內容，只審查目前儲存版本。無需 remote 或 GitLab 連線，不 fetch。');
-    else lines.push(`比較模式：${input('mode') || '合併前審查'}`);
-  }
-  lines.push(card.tool === 'release-reviewer'
-    ? `使用目前工作區安裝的原生 Skill 與 helpers；命令工作目錄使用入口 Repo，內部 --workspace 為 ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? `，另傳 --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''}。保留本機未提交修改，報告根目錄由這份工作區資料固定。`
-    : context.profile === 'repository'
-    ? `使用此 Repo 安裝的原生 Skill 與 helpers，工作目錄及 --workspace 均為 ${JSON.stringify(context.root)}。保留本機未提交修改，從固定版本查證。`
-    : '使用安裝於本 Group 的 Skill 與 helpers。先解析實際 Repo；單 Repo helper 的工作目錄使用該 Repo，--workspace 指向此 Group。保留本機未提交修改，從固定版本查證。');
   if (card.tool === 'release-reviewer') lines.push(
     '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',
     `內部工作區資料（非額外使用者選項；傳入 --workspace-context-json）：${JSON.stringify({ repositories: context.repositories.map(repo => ({ name: repo.name, path: repo.path, defaultBranch: repo.defaultBranch ?? null })) })}`,
@@ -225,8 +189,7 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
     '只列直接阻止上版的 P0／P1，寫明 blocking_reason、條件、影響與最終版本證據。使用 ReleaseReviewDraft/v3 與 release_report.py，在 VSCode 工作區根目錄產生一份含 Checklist 的精簡 Release Report，檔名前綴 release-review；已儲存工作區使用 .code-workspace 所在目錄。每次一份並保留歷史，不傳 --report-dir。結論優先，分開已確認阻擋、檢查缺口與待核對條件。Checklist 初始待確認，人工填核對人、日期及開通／套用後驗證證據，不適用填理由；僅申請工單不算完成。只修改 release-checklist:start／end 內的核對紀錄，產生時判斷及固定正文保留。此報告不當作 MR 報告匯入或發布。',
     '預設靜態檢查；不複製機密值。實際環境設定、DB 建立或套用狀態標為未查證，不宣告已可上板。'
   );
-  else lines.push('使用 review_report.py 產生繁體中文本機報告，保存固定版本證據、覆蓋範圍、實際執行的檢查與限制。');
-  lines.push(json ? '明確要求附加 JSON：報告 helper 使用 --include-json。' : '報告格式：只輸出 Markdown。',
+  lines.push('報告格式：只輸出 Markdown。',
     'context 與草稿留在本次受管理的系統暫存目錄；成功、失敗或中止都清理本次 context。最後提供本機報告連結、重要發現與缺口。');
   return lines.join('\n');
 }

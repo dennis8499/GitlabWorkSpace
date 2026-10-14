@@ -1,0 +1,530 @@
+
+> gitlab-workspace@0.24.0 test:release
+> node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_transactions_test.py && node scripts/run-python.mjs test/release/workflow_kit_profiles_test.py && node scripts/run-python.mjs test/release/release_reviewer_integration_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/release/megin_spec_export_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/delivery-evidence/run_tests.py && node scripts/run-python.mjs test/release/local_review_targets_test.py
+
+✔ compares 10 cold sessions and 300 warm/search samples within the 10 percent budget (8.1663ms)
+✔ fails when a latency or memory sample regresses by more than 10 percent (0.9779ms)
+✔ compares complete baseline samples even when the baseline misses an absolute performance threshold (0.4496ms)
+✔ blocks a baseline with Extension Host test failures even when it has complete samples (0.2629ms)
+✔ blocks incomplete, mismatched or identical-artifact comparisons (0.2836ms)
+✔ the managed load plan creates exactly 20 projects, 500 issues, 50 merge requests and 200 graph nodes (4.6836ms)
+✔ load-plan helpers reject incomplete project inventories and preserve graph ordering across repositories (2.331ms)
+✔ fixture paths on Windows compare case-insensitively after normalization (1.7039ms)
+✔ fixture paths still reject a different run or checkout directory (0.4877ms)
+✔ portable cold sessions have distinct roots matching the environment override (2.9793ms)
+✔ normal profiles preserve CLI paths and unsafe profile IDs are rejected (2.0995ms)
+✔ an interrupted load rerun reuses the existing Issue and records it only once (1.7592ms)
+✔ a two-way REST issue link found in GitLab response fields is recorded without a duplicate POST (1.1709ms)
+✔ the live API client backs off across repeated 429 responses with a zero Retry-After header (37.5345ms)
+✔ load cleanup refuses an unrecorded project and preserves its manifest and workspace (8.539ms)
+✔ load cleanup accepts Windows path case changes and deletes only an exactly owned fixture (9.9218ms)
+✔ finds Python and Python launcher commands on Windows (1.8161ms)
+✔ selects only Python 3.11 or newer and sets explicit UTF-8 streams (0.9792ms)
+✔ [BDD-REL-001] accepts a tag when manifest, lockfile, and main ancestry agree (4.1615ms)
+✔ [BDD-REL-001] rejects malformed tags and mismatched manifests (1.366ms)
+✔ [BDD-REL-002] derives the VSIX filename from package name and version (0.6266ms)
+✔ [BDD-REL-004] marks only v0.1.0 and semantic prerelease versions as prereleases (0.3521ms)
+✔ [BDD-REL-003] verifies Linux and Windows releases before gated publication (1.5122ms)
+✔ keeps the build read-only and grants write access only to the release job (0.3545ms)
+✔ runs Xvfb only on Linux and runs the full suite directly on Windows (0.5148ms)
+✔ fails on an existing release and chooses prerelease only for v0.1.0 or a SemVer prerelease suffix (0.6113ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 285.1886
+{"ok": true, "archive": "resources\\offline-tools\\workflow-kit.tar.xz", "releaseZip": "dist\\gitlab-workspace-kit-0.24.0.zip", "bytes": 2513176, "sha256": "65e05a049f287a72a2d05fd117ad65d8a7825d79a89b319efa7ebc7280a35ecb", "releaseZipSha256": "7010ebbe6b2f9d2a78814d1599bfda80d28dd73e197e31a0968e52a2e3072e3c", "files": 484}
+npm.cmd : ..................
+位於 線路:2 字元:1
++ npm.cmd run test:release *> .gitlab-workspace-validation/0.24.0/relea ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (..................:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.663s
+
+OK
+test_child_work_common_dir_locks_and_maintenance_race_block_replacement (__main__.WorkflowKitInstallerTests.test_child_
+work_common_dir_locks_and_maintenance_race_block_replacement) ... ok
+test_failed_update_and_process_crash_restore_the_previous_install (__main__.WorkflowKitInstallerTests.test_failed_updat
+e_and_process_crash_restore_the_previous_install) ... ok
+test_fresh_and_existing_wiki_installations_preserve_user_state (__main__.WorkflowKitInstallerTests.test_fresh_and_exist
+ing_wiki_installations_preserve_user_state) ... ok
+test_install_and_status_reject_missing_directories_and_files (__main__.WorkflowKitInstallerTests.test_install_and_statu
+s_reject_missing_directories_and_files) ... ok
+test_install_failure_at_first_middle_and_final_operation_rolls_back (__main__.WorkflowKitInstallerTests.test_install_fa
+ilure_at_first_middle_and_final_operation_rolls_back) ... ok
+test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback (__main__.WorkflowKitInstallerTests.
+test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback) ... ok
+test_manifest_pins_all_sources_and_the_workspace_profile (__main__.WorkflowKitInstallerTests.test_manifest_pins_all_sou
+rces_and_the_workspace_profile) ... ok
+test_megin_lock_and_approved_work_block_install_and_update (__main__.WorkflowKitInstallerTests.test_megin_lock_and_appr
+oved_work_block_install_and_update) ... ok
+test_modified_install_and_legacy_tools_block_updates_with_repair_paths (__main__.WorkflowKitInstallerTests.test_modifie
+d_install_and_legacy_tools_block_updates_with_repair_paths) ... ok
+test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths (__main__.WorkflowKitInstallerTests.test_tar_an
+d_zip_inspect_enforce_version_contract_hashes_and_safe_paths) ... ok
+test_unicode_space_and_windows_parent_alias_resolve_to_same_group (__main__.WorkflowKitInstallerTests.test_unicode_spac
+e_and_windows_parent_alias_resolve_to_same_group) ... ok
+test_uninstalled_status_is_read_only_in_git_and_plain_roots (__main__.WorkflowKitInstallerTests.test_uninstalled_status
+_is_read_only_in_git_and_plain_roots) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 94.127s
+
+OK
+test_changed_archive_rejected_even_when_caller_rehashes_it (__main__.TransactionTests.test_changed_archive_rejected_eve
+n_when_caller_rehashes_it) ... ok
+test_dry_run_leaves_group_bytes_and_directories_unchanged (__main__.TransactionTests.test_dry_run_leaves_group_bytes_an
+d_directories_unchanged) ... ok
+test_failed_real_upgrade_restores_predecessor_and_existing_receipts (__main__.TransactionTests.test_failed_real_upgrade
+_restores_predecessor_and_existing_receipts) ... ok
+test_fresh_rollback_preserves_user_files (__main__.TransactionTests.test_fresh_rollback_preserves_user_files) ... ok
+test_interrupted_recovery_checks_identity_and_all_edits_before_restoring (__main__.TransactionTests.test_interrupted_re
+covery_checks_identity_and_all_edits_before_restoring) ... ok
+test_real_014_failed_upgrade_restores_new_skill_and_old_profile (__main__.TransactionTests.test_real_014_failed_upgrade
+_restores_new_skill_and_old_profile) ... ok
+test_real_014_install_upgrade_and_exact_rollback (__main__.TransactionTests.test_real_014_install_upgrade_and_exact_rol
+lback) ... ok
+test_real_015_failed_upgrade_restores_exact_previous_installation (__main__.TransactionTests.test_real_015_failed_upgra
+de_restores_exact_previous_installation) ... ok
+test_real_015_install_upgrade_and_exact_rollback (__main__.TransactionTests.test_real_015_install_upgrade_and_exact_rol
+lback) ... ok
+test_repeated_install_is_byte_identical_and_keeps_original_journal (__main__.TransactionTests.test_repeated_install_is_
+byte_identical_and_keeps_original_journal) ... ok
+test_reviewed_aspire_patch_is_a_supported_predecessor (__main__.TransactionTests.test_reviewed_aspire_patch_is_a_suppor
+ted_predecessor) ... ok
+test_reviewed_payload_upgrade_with_the_same_version (__main__.TransactionTests.test_reviewed_payload_upgrade_with_the_s
+ame_version) ... ok
+test_reviewed_predecessor_upgrade_and_rollback (__main__.TransactionTests.test_reviewed_predecessor_upgrade_and_rollbac
+k) ... ok
+test_rollback_rejects_changed_identity_missing_paths_and_changed_backups (__main__.TransactionTests.test_rollback_rejec
+ts_changed_identity_missing_paths_and_changed_backups) ... ok
+test_rollback_rejects_later_edits_before_changing_any_file (__main__.TransactionTests.test_rollback_rejects_later_edits
+_before_changing_any_file) ... ok
+test_self_rehashed_profile_is_not_a_trusted_predecessor (__main__.TransactionTests.test_self_rehashed_profile_is_not_a_
+trusted_predecessor) ... ok
+test_synced_predecessor_version_upgrade_and_rollback (__main__.TransactionTests.test_synced_predecessor_version_upgrade
+_and_rollback) ... ok
+test_unknown_predecessor_rejected_even_with_self_consistent_file_hashes (__main__.TransactionTests.test_unknown_predece
+ssor_rejected_even_with_self_consistent_file_hashes) ... ok
+test_unknown_release_reviewer_directory_is_preserved_on_upgrade (__main__.TransactionTests.test_unknown_release_reviewe
+r_directory_is_preserved_on_upgrade) ... ok
+test_windows_checkout_and_git_archive_have_identical_bundle_digests (__main__.TransactionTests.test_windows_checkout_an
+d_git_archive_have_identical_bundle_digests) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 141.488s
+
+OK
+test_conversion_failure_restores_original_profile_and_rejects_tampering (__main__.ProfileTests.test_conversion_failure_
+restores_original_profile_and_rejects_tampering) ... ok
+test_explicit_profile_conversion_and_rollback_keep_personal_content (__main__.ProfileTests.test_explicit_profile_conver
+sion_and_rollback_keep_personal_content) ... ok
+test_frozen_018_work_keeps_original_package_then_upgrades_and_rolls_back (__main__.ProfileTests.test_frozen_018_work_ke
+eps_original_package_then_upgrades_and_rolls_back) ... ok
+test_frozen_023_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_023_profiles_u
+pgrade_and_rollback_preserve_original_bytes) ... ok
+test_native_imported_zip_installs_in_a_worktree_and_rolls_back (__main__.ProfileTests.test_native_imported_zip_installs
+_in_a_worktree_and_rolls_back) ... ok
+test_native_payload_is_fixed_upstream_and_has_its_own_capabilities (__main__.ProfileTests.test_native_payload_is_fixed_
+upstream_and_has_its_own_capabilities) ... ok
+test_native_work_requires_verified_contract_fingerprint_and_blocks_conversion (__main__.ProfileTests.test_native_work_r
+equires_verified_contract_fingerprint_and_blocks_conversion) ... ok
+test_true_016_legacy_record_without_profile_upgrades_to_native_and_rolls_back (__main__.ProfileTests.test_true_016_lega
+cy_record_without_profile_upgrades_to_native_and_rolls_back) ... ok
+test_true_017_profiles_upgrade_and_restore_original_fingerprints (__main__.ProfileTests.test_true_017_profiles_upgrade_
+and_restore_original_fingerprints) ... ok
+test_unreviewed_old_payload_is_rejected_without_replacing_project_files (__main__.ProfileTests.test_unreviewed_old_payl
+oad_is_rejected_without_replacing_project_files) ... ok
+test_wiki_defaults_preserve_project_settings_and_other_hooks (__main__.ProfileTests.test_wiki_defaults_preserve_project
+_settings_and_other_hooks) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 159.521s
+
+OK
+test_018_upgrade_and_rollback_preserve_old_release_skill_and_reports (__main__.ReleaseReviewerIntegrationTests.test_018
+_upgrade_and_rollback_preserve_old_release_skill_and_reports) ... ok
+test_failed_report_cleans_owned_context (__main__.ReleaseReviewerIntegrationTests.test_failed_report_cleans_owned_conte
+xt) ... ok
+test_installed_cli_both_profiles_reports_checklists_and_dirty_state (__main__.ReleaseReviewerIntegrationTests.test_inst
+alled_cli_both_profiles_reports_checklists_and_dirty_state) ... ok
+test_installed_group_supporting_uses_local_default_not_feature (__main__.ReleaseReviewerIntegrationTests.test_installed
+_group_supporting_uses_local_default_not_feature) ... ok
+test_installed_native_payload_matches_pinned_archive (__main__.ReleaseReviewerIntegrationTests.test_installed_native_pa
+yload_matches_pinned_archive) ... ok
+test_saved_workspace_single_report_and_editable_checklist_snapshot (__main__.ReleaseReviewerIntegrationTests.test_saved
+_workspace_single_report_and_editable_checklist_snapshot) ... ok
+test_self_rehashed_release_skill_is_rejected (__main__.ReleaseReviewerIntegrationTests.test_self_rehashed_release_skill
+_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 67.520s
+
+OK
+test_native_skill_bytes_inventory_and_unchanged_consumers_without_writer_branches (__main__.InstalledGroupWorkflowTests
+.test_native_skill_bytes_inventory_and_unchanged_consumers_without_writer_branches) ... ok
+test_native_v3_branch_capture_keeps_one_seed_and_related_heads (__main__.InstalledGroupWorkflowTests.test_native_v3_bra
+nch_capture_keeps_one_seed_and_related_heads) ... ok
+test_removed_capture_routes_fail_without_changing_repositories (__main__.InstalledGroupWorkflowTests.test_removed_captu
+re_routes_fail_without_changing_repositories) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 19.027s
+
+OK
+test_apply_rejects_source_drift_and_changed_check_identity (__main__.MeginSpecExportTests.test_apply_rejects_source_dri
+ft_and_changed_check_identity) ... ok
+test_both_profiles_export_an_independent_file_without_changing_wiki (__main__.MeginSpecExportTests.test_both_profiles_e
+xport_an_independent_file_without_changing_wiki) ... ok
+test_both_profiles_reject_producer_paths_without_changing_existing_delivery (__main__.MeginSpecExportTests.test_both_pr
+ofiles_reject_producer_paths_without_changing_existing_delivery) ... ok
+test_draft_and_unanswered_decisions_cannot_export (__main__.MeginSpecExportTests.test_draft_and_unanswered_decisions_ca
+nnot_export) ... ok
+test_failed_structure_or_review_checks_preserve_existing_output (__main__.MeginSpecExportTests.test_failed_structure_or
+_review_checks_preserve_existing_output) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 34.142s
+
+OK
+test_group_root_alias_is_resolved_before_evidence_containment (test_gitlab_delivery.GitLabDeliveryTests.test_group_root
+_alias_is_resolved_before_evidence_containment) ... ok
+test_group_root_alias_supports_contract_snapshot_and_completed_delivery (test_gitlab_delivery.GitLabDeliveryTests.test_
+group_root_alias_supports_contract_snapshot_and_completed_delivery) ... ok
+test_index_or_evidence_drift_stops_without_commit (test_gitlab_delivery.GitLabDeliveryTests.test_index_or_evidence_drif
+t_stops_without_commit) ... ok
+test_missing_or_modified_evidence_scope_revision_remote_and_content_are_rejected (test_gitlab_delivery.GitLabDeliveryTe
+sts.test_missing_or_modified_evidence_scope_revision_remote_and_content_are_rejected) ... ok
+test_native_planning_validation_requires_frozen_ids_and_predeclared_handoff (test_gitlab_delivery.GitLabDeliveryTests.t
+est_native_planning_validation_requires_frozen_ids_and_predeclared_handoff) ... ok
+test_partial_commit_save_failure_recovers_without_duplicate (test_gitlab_delivery.GitLabDeliveryTests.test_partial_comm
+it_save_failure_recovers_without_duplicate) ... ok
+test_saved_completion_with_failed_workflow_write_recovers_without_recommit (test_gitlab_delivery.GitLabDeliveryTests.te
+st_saved_completion_with_failed_workflow_write_recovers_without_recommit) ... ok
+test_single_repo_staged_new_file_completes_without_local_merge (test_gitlab_delivery.GitLabDeliveryTests.test_single_re
+po_staged_new_file_completes_without_local_merge) ... ok
+test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes (test_workspace_hardening.WorkspaceHardeningT
+ests.test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes) ... ok
+test_bundle_builder_rejects_skill_file_symlinks (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_builder_r
+ejects_skill_file_symlinks) ... ok
+test_claim_blocks_unupgraded_active_v1_group_work (test_workspace_hardening.WorkspaceHardeningTests.test_claim_blocks_u
+nupgraded_active_v1_group_work) ... ok
+test_claim_refuses_a_different_active_group_work_record (test_workspace_hardening.WorkspaceHardeningTests.test_claim_re
+fuses_a_different_active_group_work_record) ... ok
+test_completion_record_alone_cannot_release_the_group_lock (test_workspace_hardening.WorkspaceHardeningTests.test_compl
+etion_record_alone_cannot_release_the_group_lock) ... ok
+test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits (test_workspace_hardening.WorkspaceHardeningTe
+sts.test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits) ... ok
+test_completion_release_requires_complete_workflow_status (test_workspace_hardening.WorkspaceHardeningTests.test_comple
+tion_release_requires_complete_workflow_status) ... ok
+test_dangling_group_config_symlink_is_not_treated_as_missing (test_workspace_hardening.WorkspaceHardeningTests.test_dan
+gling_group_config_symlink_is_not_treated_as_missing) ... ok
+test_delivery_gate_rejects_a_failed_compatibility_check (test_workspace_hardening.WorkspaceHardeningTests.test_delivery
+_gate_rejects_a_failed_compatibility_check) ... ok
+test_fingerprint_changes_when_a_skill_resource_changes (test_workspace_hardening.WorkspaceHardeningTests.test_fingerpri
+nt_changes_when_a_skill_resource_changes) ... ok
+test_fingerprint_is_stable_and_ignores_python_caches (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint
+_is_stable_and_ignores_python_caches) ... ok
+test_gate_must_match_the_workflow_phase (test_workspace_hardening.WorkspaceHardeningTests.test_gate_must_match_the_work
+flow_phase) ... ok
+test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot (test_workspace_hardening.WorkspaceHardeni
+ngTests.test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot) ... ok
+test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting (test_workspace_hardening.Wor
+kspaceHardeningTests.test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting) ... ok
+test_group_settings_reject_invalid_git_branch_components (test_workspace_hardening.WorkspaceHardeningTests.test_group_s
+ettings_reject_invalid_git_branch_components) ... ok
+test_group_snapshot_distinguishes_lf_and_crlf_bytes (test_workspace_hardening.WorkspaceHardeningTests.test_group_snapsh
+ot_distinguishes_lf_and_crlf_bytes) ... ok
+test_interrupted_lock_write_never_publishes_a_partial_lock (test_workspace_hardening.WorkspaceHardeningTests.test_inter
+rupted_lock_write_never_publishes_a_partial_lock) ... ok
+test_invalid_group_settings_fail_with_a_clear_error (test_workspace_hardening.WorkspaceHardeningTests.test_invalid_grou
+p_settings_fail_with_a_clear_error) ... ok
+test_lock_blocks_other_writer_and_is_not_automatically_released (test_workspace_hardening.WorkspaceHardeningTests.test_
+lock_blocks_other_writer_and_is_not_automatically_released) ... ok
+test_missing_group_settings_preserve_existing_repo_discovery (test_workspace_hardening.WorkspaceHardeningTests.test_mis
+sing_group_settings_preserve_existing_repo_discovery) ... ok
+test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order (test_workspace_hardening.WorkspaceHardenin
+gTests.test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order) ... ok
+test_only_one_concurrent_writer_can_claim_the_group (test_workspace_hardening.WorkspaceHardeningTests.test_only_one_con
+current_writer_can_claim_the_group) ... ok
+test_record_validation_rejects_handoff_cycles_and_wrong_merge_order (test_workspace_hardening.WorkspaceHardeningTests.t
+est_record_validation_rejects_handoff_cycles_and_wrong_merge_order) ... ok
+test_record_validation_rejects_malformed_configuration_source_type (test_workspace_hardening.WorkspaceHardeningTests.te
+st_record_validation_rejects_malformed_configuration_source_type) ... ok
+test_record_validation_stops_when_installed_skills_drift (test_workspace_hardening.WorkspaceHardeningTests.test_record_
+validation_stops_when_installed_skills_drift) ... ok
+test_release_requires_explicit_stopped_writer_and_reason (test_workspace_hardening.WorkspaceHardeningTests.test_release
+_requires_explicit_stopped_writer_and_reason) ... ok
+test_review_gate_reports_malformed_check_status_without_crashing (test_workspace_hardening.WorkspaceHardeningTests.test
+_review_gate_reports_malformed_check_status_without_crashing) ... ok
+test_review_skill_preserves_legacy_contract_without_downgrading_new_work (test_workspace_hardening.WorkspaceHardeningTe
+sts.test_review_skill_preserves_legacy_contract_without_downgrading_new_work) ... ok
+test_single_repo_completion_checks_no_ff_merge_parents_and_tree (test_workspace_hardening.WorkspaceHardeningTests.test_
+single_repo_completion_checks_no_ff_merge_parents_and_tree) ... ok
+test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers (test_workspace_hardening.WorkspaceHarde
+ningTests.test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers) ... ok
+test_workflow_cannot_mark_complete_before_completion_gate_passes (test_workspace_hardening.WorkspaceHardeningTests.test
+_workflow_cannot_mark_complete_before_completion_gate_passes) ... ok
+test_writer_transfer_requires_stopped_owner_and_records_the_reason (test_workspace_hardening.WorkspaceHardeningTests.te
+st_writer_transfer_requires_stopped_owner_and_records_the_reason) ... ok
+test_check_rejects_feature_branch_from_a_different_base (test_group_workflow.GroupWorkflowTests.test_check_rejects_feat
+ure_branch_from_a_different_base) ... ok
+test_check_requires_an_explicit_repo_working_directory (test_group_workflow.GroupWorkflowTests.test_check_requires_an_e
+xplicit_repo_working_directory) ... ok
+test_contract_binds_each_remote_url (test_group_workflow.GroupWorkflowTests.test_contract_binds_each_remote_url) ... ok
+test_contract_cannot_select_a_repo_outside_the_group (test_group_workflow.GroupWorkflowTests.test_contract_cannot_selec
+t_a_repo_outside_the_group) ... ok
+test_delivery_stops_when_remote_base_advanced (test_group_workflow.GroupWorkflowTests.test_delivery_stops_when_remote_b
+ase_advanced) ... ok
+test_group_root_inside_a_git_repo_is_rejected (test_group_workflow.GroupWorkflowTests.test_group_root_inside_a_git_repo
+_is_rejected) ... ok
+test_group_snapshot_and_delivery_digest_include_file_mode (test_group_workflow.GroupWorkflowTests.test_group_snapshot_a
+nd_delivery_digest_include_file_mode) ... ok
+test_group_snapshot_covers_each_repo_and_group_plan (test_group_workflow.GroupWorkflowTests.test_group_snapshot_covers_
+each_repo_and_group_plan) ... ok
+test_group_snapshot_rejects_a_repo_path_that_is_not_a_direct_child (test_group_workflow.GroupWorkflowTests.test_group_s
+napshot_rejects_a_repo_path_that_is_not_a_direct_child) ... ok
+test_multi_repo_delivery_commits_feature_branches_without_merging_base (test_group_workflow.GroupWorkflowTests.test_mul
+ti_repo_delivery_commits_feature_branches_without_merging_base) ... ok
+test_new_record_validator_requires_v3_without_changing_v2_snapshot_support (test_group_workflow.GroupWorkflowTests.test
+_new_record_validator_requires_v3_without_changing_v2_snapshot_support) ... ok
+test_partial_multi_repo_feature_commit_is_preserved_while_remaining_repo_resumes (test_group_workflow.GroupWorkflowTest
+s.test_partial_multi_repo_feature_commit_is_preserved_while_remaining_repo_resumes) ... ok
+test_remote_credentials_are_omitted_from_approved_work_record (test_group_workflow.GroupWorkflowTests.test_remote_crede
+ntials_are_omitted_from_approved_work_record) ... ok
+test_review_rejects_staged_product_changes (test_group_workflow.GroupWorkflowTests.test_review_rejects_staged_product_c
+hanges) ... ok
+test_single_repo_delivery_gate_and_no_ff_merge (test_group_workflow.GroupWorkflowTests.test_single_repo_delivery_gate_a
+nd_no_ff_merge) ... ok
+test_submodule_gitlink_mode_and_commit_match_delivery_index (test_group_workflow.GroupWorkflowTests.test_submodule_gitl
+ink_mode_and_commit_match_delivery_index) ... ok
+test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes (test_workspace_hardening.WorkspaceHardeningT
+ests.test_bundle_build_is_repeatable_and_excludes_caches_with_normalized_modes) ... ok
+test_bundle_builder_rejects_skill_file_symlinks (test_workspace_hardening.WorkspaceHardeningTests.test_bundle_builder_r
+ejects_skill_file_symlinks) ... ok
+test_claim_blocks_unupgraded_active_v1_group_work (test_workspace_hardening.WorkspaceHardeningTests.test_claim_blocks_u
+nupgraded_active_v1_group_work) ... ok
+test_claim_refuses_a_different_active_group_work_record (test_workspace_hardening.WorkspaceHardeningTests.test_claim_re
+fuses_a_different_active_group_work_record) ... ok
+test_completion_record_alone_cannot_release_the_group_lock (test_workspace_hardening.WorkspaceHardeningTests.test_compl
+etion_record_alone_cannot_release_the_group_lock) ... ok
+test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits (test_workspace_hardening.WorkspaceHardeningTe
+sts.test_completion_rejects_a_forged_delivery_gate_receipt_with_real_commits) ... ok
+test_completion_release_requires_complete_workflow_status (test_workspace_hardening.WorkspaceHardeningTests.test_comple
+tion_release_requires_complete_workflow_status) ... ok
+test_dangling_group_config_symlink_is_not_treated_as_missing (test_workspace_hardening.WorkspaceHardeningTests.test_dan
+gling_group_config_symlink_is_not_treated_as_missing) ... ok
+test_delivery_gate_rejects_a_failed_compatibility_check (test_workspace_hardening.WorkspaceHardeningTests.test_delivery
+_gate_rejects_a_failed_compatibility_check) ... ok
+test_fingerprint_changes_when_a_skill_resource_changes (test_workspace_hardening.WorkspaceHardeningTests.test_fingerpri
+nt_changes_when_a_skill_resource_changes) ... ok
+test_fingerprint_is_stable_and_ignores_python_caches (test_workspace_hardening.WorkspaceHardeningTests.test_fingerprint
+_is_stable_and_ignores_python_caches) ... ok
+test_gate_must_match_the_workflow_phase (test_workspace_hardening.WorkspaceHardeningTests.test_gate_must_match_the_work
+flow_phase) ... ok
+test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot (test_workspace_hardening.WorkspaceHardeni
+ngTests.test_group_setting_changes_do_not_rewrite_an_approved_resolution_or_snapshot) ... ok
+test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting (test_workspace_hardening.Wor
+kspaceHardeningTests.test_group_settings_apply_explicit_repo_default_discovery_precedence_without_allowlisting) ... ok
+test_group_settings_reject_invalid_git_branch_components (test_workspace_hardening.WorkspaceHardeningTests.test_group_s
+ettings_reject_invalid_git_branch_components) ... ok
+test_group_snapshot_distinguishes_lf_and_crlf_bytes (test_workspace_hardening.WorkspaceHardeningTests.test_group_snapsh
+ot_distinguishes_lf_and_crlf_bytes) ... ok
+test_interrupted_lock_write_never_publishes_a_partial_lock (test_workspace_hardening.WorkspaceHardeningTests.test_inter
+rupted_lock_write_never_publishes_a_partial_lock) ... ok
+test_invalid_group_settings_fail_with_a_clear_error (test_workspace_hardening.WorkspaceHardeningTests.test_invalid_grou
+p_settings_fail_with_a_clear_error) ... ok
+test_lock_blocks_other_writer_and_is_not_automatically_released (test_workspace_hardening.WorkspaceHardeningTests.test_
+lock_blocks_other_writer_and_is_not_automatically_released) ... ok
+test_missing_group_settings_preserve_existing_repo_discovery (test_workspace_hardening.WorkspaceHardeningTests.test_mis
+sing_group_settings_preserve_existing_repo_discovery) ... ok
+test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order (test_workspace_hardening.WorkspaceHardenin
+gTests.test_multi_repo_completion_requires_each_real_feature_commit_in_merge_order) ... ok
+test_only_one_concurrent_writer_can_claim_the_group (test_workspace_hardening.WorkspaceHardeningTests.test_only_one_con
+current_writer_can_claim_the_group) ... ok
+test_record_validation_rejects_handoff_cycles_and_wrong_merge_order (test_workspace_hardening.WorkspaceHardeningTests.t
+est_record_validation_rejects_handoff_cycles_and_wrong_merge_order) ... ok
+test_record_validation_rejects_malformed_configuration_source_type (test_workspace_hardening.WorkspaceHardeningTests.te
+st_record_validation_rejects_malformed_configuration_source_type) ... ok
+test_record_validation_stops_when_installed_skills_drift (test_workspace_hardening.WorkspaceHardeningTests.test_record_
+validation_stops_when_installed_skills_drift) ... ok
+test_release_requires_explicit_stopped_writer_and_reason (test_workspace_hardening.WorkspaceHardeningTests.test_release
+_requires_explicit_stopped_writer_and_reason) ... ok
+test_review_gate_reports_malformed_check_status_without_crashing (test_workspace_hardening.WorkspaceHardeningTests.test
+_review_gate_reports_malformed_check_status_without_crashing) ... ok
+test_review_skill_preserves_legacy_contract_without_downgrading_new_work (test_workspace_hardening.WorkspaceHardeningTe
+sts.test_review_skill_preserves_legacy_contract_without_downgrading_new_work) ... ok
+test_single_repo_completion_checks_no_ff_merge_parents_and_tree (test_workspace_hardening.WorkspaceHardeningTests.test_
+single_repo_completion_checks_no_ff_merge_parents_and_tree) ... ok
+test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers (test_workspace_hardening.WorkspaceHarde
+ningTests.test_v3_record_validates_and_rejects_duplicate_missing_or_inconsistent_headers) ... ok
+test_workflow_cannot_mark_complete_before_completion_gate_passes (test_workspace_hardening.WorkspaceHardeningTests.test
+_workflow_cannot_mark_complete_before_completion_gate_passes) ... ok
+test_writer_transfer_requires_stopped_owner_and_records_the_reason (test_workspace_hardening.WorkspaceHardeningTests.te
+st_writer_transfer_requires_stopped_owner_and_records_the_reason) ... ok
+
+----------------------------------------------------------------------
+Ran 88 tests in 384.067s
+
+OK
+discovery rule regression tests passed: language, routing, protocol, workflow, and scenario contracts
+material checker regression tests passed: source snapshots, historical cases, Repo fixture references, and duplicate IDs
+all-local-Repo fixture passed: four clean direct roots, one nested root, one ordinary folder
+test_actual_red_green_initial_pass_and_historical_full_receipt (test_group_v4.GroupV4Tests.test_actual_red_green_initia
+l_pass_and_historical_full_receipt) ... To C:\Users\denni\AppData\Local\Temp\tmphsecis8p\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmphsecis8p\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_correction_pass_and_four_failed_attempts_persist_on_resume (test_group_v4.GroupV4Tests.test_correction_pass_and_fo
+ur_failed_attempts_persist_on_resume) ... To C:\Users\denni\AppData\Local\Temp\tmpkj7vyhy9\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+To C:\Users\denni\AppData\Local\Temp\tmp35lnhsag\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_gitlab_handoff_and_group_receipt_binding_use_v4_policy (test_group_v4.GroupV4Tests.test_gitlab_handoff_and_group_r
+eceipt_binding_use_v4_policy) ... To C:\Users\denni\AppData\Local\Temp\tmpc64cr9dr\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_v4_claim_blocks_missing_approval_and_contract_downgrade (test_group_v4.GroupV4Tests.test_v4_claim_blocks_missing_a
+pproval_and_contract_downgrade) ... To C:\Users\denni\AppData\Local\Temp\tmpalcxo5kh\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_actual_windows_junction_rejected (test_improvements.BoundaryTests.test_actual_windows_junction_rejected) ... ok
+test_real_git_root_and_worktree (test_improvements.BoundaryTests.test_real_git_root_and_worktree) ... Preparing worktre
+e (new branch 'topic')
+ok
+test_reparse_candidates_are_not_read (test_improvements.BoundaryTests.test_reparse_candidates_are_not_read) ... ok
+test_unchanged_support_is_allowed_but_cannot_be_only_anchor (test_improvements.SupportingEvidenceTests.test_unchanged_s
+upport_is_allowed_but_cannot_be_only_anchor) ... ok
+test_existing_contract_is_compatible (test_improvements.TraceTests.test_existing_contract_is_compatible) ... ok
+test_missing_assertion_and_check_are_rejected (test_improvements.TraceTests.test_missing_assertion_and_check_are_reject
+ed) ... ok
+test_commit_bytes_are_used_instead_of_live_consumer (test_improvements.VerificationInputTests.test_commit_bytes_are_use
+d_instead_of_live_consumer) ... ok
+test_optional_inputs_preserve_legacy_snapshot (test_improvements.VerificationInputTests.test_optional_inputs_preserve_l
+egacy_snapshot) ... ok
+test_wrong_digest_unknown_check_and_path_escape_rejected (test_improvements.VerificationInputTests.test_wrong_digest_un
+known_check_and_path_escape_rejected) ... ok
+test_completed_export_rejects_missing_fixed_input_proof (test_workflows.DeliveryReplayTests.test_completed_export_rejec
+ts_missing_fixed_input_proof) ... To C:\Users\denni\AppData\Local\Temp\tmp7aqllp_f\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmp7aqllp_f\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_cross_repo_receipt_matches_sorted_acceptance_not_delivery_order (test_workflows.DeliveryReplayTests.test_cross_rep
+o_receipt_matches_sorted_acceptance_not_delivery_order) ... To C:\Users\denni\AppData\Local\Temp\tmpm02ytrp_\group\stor
+age\contracts.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpm02ytrp_\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpm02ytrp_\group\storage\client.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpm02ytrp_\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_export_cannot_overwrite_native_evidence_or_other_receipt (test_workflows.DeliveryReplayTests.test_export_cannot_ov
+erwrite_native_evidence_or_other_receipt) ... To C:\Users\denni\AppData\Local\Temp\tmp_5tatec4\group\storage\service.gi
+t
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_fixed_inputs_are_in_snapshot_and_check_evidence (test_workflows.DeliveryReplayTests.test_fixed_inputs_are_in_snaps
+hot_and_check_evidence) ... To C:\Users\denni\AppData\Local\Temp\tmp0qqeguwl\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmp0qqeguwl\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_historical_receipt_report_tamper_and_version_drift (test_workflows.DeliveryReplayTests.test_historical_receipt_rep
+ort_tamper_and_version_drift) ... To C:\Users\denni\AppData\Local\Temp\tmpjrwaxumv\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history (test_workflows.DeliveryReplayTests.test_
+isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history) ... To C:\Users\denni\AppData\Local\Temp\tmpu
+vlm5u9x\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ERROR
+test_linked_correction_preserves_ancestry_and_old_completion (test_workflows.DeliveryReplayTests.test_linked_correction
+_preserves_ancestry_and_old_completion) ... To C:\Users\denni\AppData\Local\Temp\tmpafo59pb1\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+Switched to a new branch 'feature/work-20261008-correction'
+ok
+test_native_false_gate_and_protected_plan_tamper_rejected (test_workflows.DeliveryReplayTests.test_native_false_gate_an
+d_protected_plan_tamper_rejected) ... To C:\Users\denni\AppData\Local\Temp\tmphc1om1zu\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+To C:\Users\denni\AppData\Local\Temp\tmpa5alotl5\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_partial_commit_save_failure_resumes_without_duplicate_commit (test_workflows.DeliveryReplayTests.test_partial_comm
+it_save_failure_resumes_without_duplicate_commit) ... To C:\Users\denni\AppData\Local\Temp\tmpl9w7fxlv\group\storage\co
+ntracts.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpl9w7fxlv\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_fixed_report_and_group_support_capture_cleanup (test_workflows.NativeReportTests.test_fixed_report_and_group_suppo
+rt_capture_cleanup) ... To C:\Users\denni\AppData\Local\Temp\tmp9c24a_y8\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_group_support_rejects_git_symlink_even_when_blob_exists (test_workflows.NativeReportTests.test_group_support_rejec
+ts_git_symlink_even_when_blob_exists) ... ok
+test_materialization_junction_and_gate_alias_rejected (test_workflows.NativeReportTests.test_materialization_junction_a
+nd_gate_alias_rejected) ... To C:\Users\denni\AppData\Local\Temp\tmpseo8ejkg\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpseo8ejkg\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_delegation_cannot_waive_production_acceptance (test_workflows.RunnerAndPolicyTests.test_delegation_cannot_waive_pr
+oduction_acceptance) ... ok
+test_preflight_pass_failure_missing_and_duplicate (test_workflows.RunnerAndPolicyTests.test_preflight_pass_failure_miss
+ing_and_duplicate) ... ok
+
+======================================================================
+ERROR: test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history (test_workflows.DeliveryReplayTest
+s.test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\test\overlays\delivery-evidence\test_workflows.py", line
+129, in test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history
+    for name,data in builder.legacy_receipt_runtime().items():(runtime/name).write_bytes(data)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'build_legacy_runtime_test' has no attribute 'legacy_receipt_runtime'
+
+----------------------------------------------------------------------
+Ran 27 tests in 166.417s
+
+FAILED (errors=1)

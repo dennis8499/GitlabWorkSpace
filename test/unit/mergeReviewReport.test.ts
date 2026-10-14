@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { canonicalSha256, parseMergeReviewReport, validateReportIdentity, type MergeReviewReportMetadata, type MergeReviewTask } from '../../src/workspace/mergeReviewReport';
+import { canonicalSha256, parseMergeReviewReport, validateReportIdentity, type MergeReviewReportMetadata, type MergeReviewTask } from '../fixtures/legacy-review/mergeReviewReport';
 
 const body = '# 審查報告\n\n部分範圍尚未確認，已發現 P1 問題。';
 const task: MergeReviewTask = {

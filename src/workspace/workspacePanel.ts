@@ -17,9 +17,9 @@ import { workflowKitFailure } from './workflowKitResult';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
-import { parseMergeReviewReport, validateReportIdentity, type MergeReviewIdentity, type ImportedMergeReviewReport } from './mergeReviewReport';
+import { OperationTracker, operationLabels, operationResource } from './operations';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
-import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, buildReviewerPrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
+import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
 import type {
   BranchFreshness, DeliveryPreview, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
@@ -94,6 +94,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private actualRepositoriesRoot?: string;
   private actualRepositoryScanStatus: WorkspaceSnapshot['groupRepositoryScanStatus'] = 'idle';
   private actualRepositoryScanError?: string;
+  private actualRepositoryScanTask?: { key: string; task: Promise<void> };
   private actualRepositoryScanGeneration = 0;
   private workspaceMatch: GroupWorkspaceMatch = { status: 'checking', repositories: [] };
   private skillsEnvironmentGeneration = 0;
@@ -154,6 +155,10 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitImporting = false;
   private workflowKitHelperQueue?: Promise<void>;
   private workflowKitRefreshGeneration = 0;
+  private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installation: WorkflowKitInstallTarget | undefined; task: Promise<void> };
+  private operationTracker?: OperationTracker;
+  private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => this.post({ type: 'operationChanged', operation })); }
+  private readonly skillBranchReads = new Map<string, Promise<string[]>>();
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
   private workflowKitPackages: WorkflowKitPackage[] = [];
   private meginWorkItems: MeginWorkSummary[] = [];
@@ -231,6 +236,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
     this.gitRepositoryChanges = gitRepositories?.onDidChangeRepositoryList(() => {
+      this.skillBranchReads.clear();
       this.gitRepositoryListDirty = true;
       this.scheduleGitRepositoryListSend();
       void this.refreshInventory();
@@ -294,7 +300,8 @@ export class WorkspacePanel implements vscode.Disposable {
       html = html.replace(/<script([^>]*)>/, `<script nonce="${nonce}"$1>`);
       panel.webview.html = html;
       const messageListener = panel.webview.onDidReceiveMessage((message: unknown) => {
-        void this.handleMessage(message).catch((error: unknown) => this.post({ type: 'error', message: readableError(error) }));
+        void this.handleMessage(message).catch((error: unknown) => this.post({ type: 'error', message: readableError(error),
+          scopeRevision: message && typeof message === 'object' && 'operationScope' in message && typeof message.operationScope === 'string' ? message.operationScope : undefined }));
       });
       panel.onDidDispose(() => {
         messageListener.dispose();
@@ -469,6 +476,28 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private post(message: unknown): void {
+    if (message && typeof message === 'object' && 'type' in message) {
+      if (message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object'
+        && 'requestId' in message.response && 'error' in message.response && typeof message.response.error === 'string') {
+        for (const operation of this.operations.list()) {
+          if (operation.action === 'issueRequest' && operation.correlationId === message.response.requestId) this.operations.noteError(operation.requestId, message.response.error);
+        }
+      }
+      if (message.type === 'gitActionResult' && 'requestId' in message && 'error' in message && typeof message.error === 'string') {
+        for (const operation of this.operations.list()) {
+          if (operation.action === 'gitAction' && operation.correlationId === message.requestId) this.operations.noteError(operation.requestId, message.error);
+        }
+      }
+      if (message.type === 'cloneOperation' && 'items' in message && Array.isArray(message.items)) {
+        const items = message.items as CloneOperationState['items'];
+        const active = items.find(item => item.state === 'starting' || item.state === 'progress');
+        for (const operation of this.operations.list(this.operationScope())) {
+          if (['clone', 'syncRepos'].includes(operation.action)) this.operations.update(operation.requestId, {
+            phase: active ? `正在處理 ${active.projectPath}` : '正在核對 Repo 結果…', total: items.length,
+            completed: items.filter(item => ['completed', 'updated', 'upToDate', 'skipped', 'failed'].includes(item.state)).length });
+        }
+      }
+    }
     if (message && typeof message === 'object' && 'type' in message && 'message' in message &&
       (message.type === 'error' || message.type === 'gitError') && typeof message.message === 'string') {
       this.session.log?.record({ feature: message.type === 'gitError' ? 'git' : 'workspace', action: 'operationError', result: 'error', message: message.message });
@@ -581,12 +610,29 @@ export class WorkspacePanel implements vscode.Disposable {
   private async handleMessage(value: unknown): Promise<void> {
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
     const request = value as WorkspaceRequest;
+    if (request.operationId !== undefined && (typeof request.operationId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(request.operationId))) throw new Error('操作識別碼無效，請重新載入工作台。');
+    if (request.operationScope !== undefined && (typeof request.operationScope !== 'string' || request.operationScope.length > 500)) throw new Error('工作區識別資料無效，請重新載入工作台。');
     const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin'].includes(request.type);
     const issueWrite = request.type === 'issueRequest' && ['create', 'update', 'invoke', 'upload'].includes(request.request?.type);
-    const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'publishMergeReviewReport', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
+    const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
     if (write && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
     if (write) this.writesInFlight++;
-    const task = () => this.dispatchMessage(value);
+    const execute = async (): Promise<void | 'failed' | 'cancelled'> => {
+      if (track && request.operationScope && request.operationScope !== this.operationScope()) throw new Error('工作區已變更，請重新執行操作。');
+      await this.dispatchMessage(value);
+      if (request.type === 'clone' || request.type === 'syncRepos') {
+        if (this.cloneOperation?.phase === 'cancelled') return 'cancelled';
+        if (this.cloneOperation?.phase === 'failed' || this.cloneOperation?.items.some(item => item.state === 'failed')) return 'failed';
+      }
+      if (request.type === 'scanRepositories' && this.repositoryScan?.status === 'cancelled') return 'cancelled';
+    };
+    const track = request.operationId && request.type !== 'loadSkillBranches' && operationLabels[request.type]
+      && (request.type !== 'issueRequest' || issueWrite) && (request.type !== 'gitAction' || isGitWriteAction(request.action));
+    const task = async () => { if (!track) { await execute(); return; } await this.operations.run({ requestId: request.operationId!, scopeRevision: request.operationScope ?? this.operationScope(),
+      resourceKey: operationResource(request), action: request.type, label: operationLabels[request.type] ?? 'Git 作業',
+      correlationId: request.type === 'issueRequest' && 'requestId' in request.request ? request.request.requestId
+        : request.type === 'gitAction' ? request.requestId : undefined,
+      phase: '正在處理…', status: 'queued', startedAt: Date.now() }, execute); };
     try {
       if (quiet) await task();
       else await this.runLogged(issueWrite ? 'issue.' + request.request.type + (request.request.type === 'invoke' ? '.' + request.request.action : '') : request.type, task,
@@ -659,13 +705,14 @@ export class WorkspacePanel implements vscode.Disposable {
         if (request.mode === 'reviewer') this.loadActiveModeSections('reviewer');
         if (request.mode === 'developer') this.loadActiveModeSections('developer');
         if (request.mode === 'git') this.scheduleGitRepositoryListSend();
-        if (request.mode === 'sa' && this.groupRoot && this.actualRepositoryScanStatus !== 'scanning') {
+        if (request.mode === 'sa' && this.groupRoot && (this.actualRepositoriesRoot !== this.groupRoot || ['idle', 'error'].includes(this.actualRepositoryScanStatus))) {
           void this.refreshActualRepositories(this.groupRoot, this.connectedScopeKey() ?? 'offline');
         }
         break;
       case 'issueRequest':
         try { await this.issuePanels.handle(request.request, request.revision); }
-        catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error) } }); }
+        catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error) } });
+          if (['create', 'update', 'invoke', 'upload'].includes(request.request.type)) throw error; }
         break;
       case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
       case 'connect': await this.connect(); break;
@@ -814,10 +861,8 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'refreshMergeRequest': await this.loadMergeRequest(request.projectId, request.iid); break;
       case 'loadMergeRequestSection': await this.loadMergeRequestSection(request.section, request.projectId, request.iid); break;
       case 'postMergeRequestNote': await this.postMergeRequestNote(request.projectId, request.iid, request.body); break;
-      case 'openMergeReviewTask': await this.openMergeReviewTask(request.projectId, request.iid); break;
-      case 'openGroupQuickReview': await this.openGroupQuickReview(); break;
-      case 'importMergeReviewReport': await this.importMergeReviewReport(request.projectId, request.iid, request.text); break;
-      case 'publishMergeReviewReport': await this.publishMergeReviewReport(request.projectId, request.iid, request.text); break;
+      case 'openBranchReview': await this.openBranchReview(request.projectId, request.iid); break;
+      case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
@@ -844,6 +889,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!scope || this.disposed || this.panel?.visible === false) return;
     if (mode === 'reviewer') void this.loadWorkspaceSection('mergeRequests');
     if (mode === 'developer') {
+      void this.loadWorkspaceSection('issues');
       void this.loadWorkspaceSection('boards');
       void this.loadWorkspaceSection('milestones');
     }
@@ -918,11 +964,12 @@ export class WorkspacePanel implements vscode.Disposable {
     for (const [section, generation] of this.workspaceSectionGenerations) this.workspaceSectionGenerations.set(section, generation + 1);
   }
 
-  private async loadWorkspaceSection(section: 'mergeRequests' | 'milestones' | 'boards', forceNetwork = false): Promise<void> {
+  private async loadWorkspaceSection(section: 'issues' | 'mergeRequests' | 'milestones' | 'boards', forceNetwork = false): Promise<void> {
     if (this.disposed || this.panel?.visible === false) return;
     const group = this.session.selectedGroup;
     const connectedScope = this.connectedScopeKey();
     if (!group || !connectedScope || !this.session.baseUrl || !this.currentUser) return;
+    if (section === 'issues' && !this.groupProjectScopeReady()) return;
     const previous = this.workspaceSections[section];
     if (!forceNetwork && (previous?.status === 'ready' || previous?.status === 'loading')) return;
     const generation = (this.workspaceSectionGenerations.get(section) ?? 0) + 1;
@@ -933,21 +980,23 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workspaceSectionAborts.set(section, controller);
     const key = groupWorkspaceReadKey(group.id, section);
     try {
-      const value = await this.session.cachedRead<GitLabMergeRequest[] | GitLabMilestone[] | GitLabIssueBoard[]>(key, (client) => {
+      const value = await this.session.cachedRead<GitLabIssue[] | GitLabMergeRequest[] | GitLabMilestone[] | GitLabIssueBoard[]>(key, (client) => {
+        if (section === 'issues') return client.listAssignedGroupIssues(group.id);
         if (section === 'mergeRequests') return client.listGroupMergeRequests(group.id, this.currentUser?.id);
         if (section === 'milestones') return client.listGroupMilestones(group.id);
         return client.listGroupIssueBoards(group.id);
       }, { force: forceNetwork, signal: controller.signal });
       if (controller.signal.aborted || this.disposed || generation !== this.workspaceSectionGenerations.get(section) || connectedScope !== this.connectedScopeKey()) return;
-      if (section === 'mergeRequests') this.mergeRequests = value as GitLabMergeRequest[];
+      if (section === 'issues') this.issues = (value as GitLabIssue[]).filter(issue => this.projects.some(project => project.id === issue.project_id));
+      else if (section === 'mergeRequests') this.mergeRequests = value as GitLabMergeRequest[];
       else if (section === 'milestones') { this.groupMilestones = value as GitLabMilestone[]; this.groupMilestonesError = undefined; }
       else { this.groupIssueBoards = value as GitLabIssueBoard[]; this.groupIssueBoardsError = undefined; }
       this.setWorkspaceSectionState(section, 'ready', undefined, false);
     } catch (error) {
       if (controller.signal.aborted || this.disposed || generation !== this.workspaceSectionGenerations.get(section) || connectedScope !== this.connectedScopeKey()) return;
       const message = readableError(error);
-      if (section === 'milestones') { this.groupMilestones = []; this.groupMilestonesError = message; }
-      if (section === 'boards') { this.groupIssueBoards = []; this.groupIssueBoardsError = message; }
+      if (section === 'milestones') { this.groupMilestonesError = message; }
+      if (section === 'boards') { this.groupIssueBoardsError = message; }
       this.setWorkspaceSectionState(section, 'error', message, false);
     }
     if (this.workspaceSectionAborts.get(section) === controller) this.workspaceSectionAborts.delete(section);
@@ -1000,6 +1049,7 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     this.busy = true;
     this.post({ type: 'busy', value: true, label: '正在更新工作台' });
+    void this.refreshWorkflowKit().catch(error => this.post({ type: 'error', message: readableError(error) }));
     try {
       if (!this.session.baseUrl) {
         this.invalidateProjectRoot();
@@ -1084,26 +1134,27 @@ export class WorkspacePanel implements vscode.Disposable {
         return;
       }
       this.setWorkspaceSectionState('projects', 'loading', undefined, false);
-      this.setWorkspaceSectionState('issues', 'loading', undefined, false);
+      const loadIssues = this.activeMode === 'developer';
+      if (loadIssues) this.setWorkspaceSectionState('issues', 'loading', undefined, false);
+      else if (options.forceNetwork) this.setWorkspaceSectionState('issues', 'idle', undefined, false);
       const projectTask = this.session.cachedRead(
         `group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), readOptions
       );
-      const issueTask = this.session.cachedRead(
+      const issueTask = loadIssues ? this.session.cachedRead(
         `group/${group.id}/assigned-issues`, (readClient) => readClient.listAssignedGroupIssues(group.id), readOptions
-      );
+      ) : Promise.resolve(this.issues);
       const [projectResult, issueResult] = await Promise.allSettled([projectTask, issueTask]);
       if (generation !== this.requestGeneration || this.session.selectedGroup?.id !== group.id) return;
-      const projects = projectResult.status === 'fulfilled' ? projectResult.value : [];
+      const projects = projectResult.status === 'fulfilled' ? projectResult.value : this.projects;
       this.projects = projects;
       this.setWorkspaceSectionState('projects', projectResult.status === 'fulfilled' ? 'ready' : 'error',
         projectResult.status === 'rejected' ? readableError(projectResult.reason) : undefined, false);
-      if (issueResult.status === 'fulfilled') {
+      if (!loadIssues) { /* Issue data loads when its page is opened. */ } else if (issueResult.status === 'fulfilled') {
         const projectIds = new Set(projects.map((project) => project.id));
         this.issues = issueResult.value.filter((issue) => projectIds.has(issue.project_id));
         this.setWorkspaceSectionState('issues', projectResult.status === 'fulfilled' ? 'ready' : 'error',
           projectResult.status === 'rejected' ? 'Issue project scope could not be verified because the project list failed to load.' : undefined, false);
       } else {
-        this.issues = [];
         this.setWorkspaceSectionState('issues', 'error', readableError(issueResult.reason), false);
       }
       this.sendSnapshot();
@@ -1256,7 +1307,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private assertProjectContextMutable(): void {
-    if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.accountTransitionBusy ||
+    if (this.busy && !this.refreshTask || this.writesInFlight || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
+        this.repositoryOperationInProgress || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.accountTransitionBusy ||
         this.workflowKitInstallation || this.workflowKitImporting) {
       throw new Error('請等候目前專案操作完成後再變更根目錄。');
     }
@@ -1348,11 +1400,27 @@ export class WorkspacePanel implements vscode.Disposable {
       defaultBranch: this.projects.find(project => project.id === repo.projectId)?.default_branch?.trim() || undefined })) };
     const installed = match.root && this.skillsWorkflowKitStateRoot && sameLocalPath(match.root, this.skillsWorkflowKitStateRoot)
       ? this.skillsWorkflowKitState : { status: 'missing' as const };
-    const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision, match, installed])).digest('hex');
-    return resolveSkillsContext({ match, installed, expectedVersion: String(this.context.extension.packageJSON.version), revision });
+    const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision, match, installed,
+      vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined])).digest('hex');
+    const workspaceFile = vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined;
+    return { ...resolveSkillsContext({ match, installed, expectedVersion: String(this.context.extension.packageJSON.version), revision }),
+      workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
+        : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
+      workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile };
+  }
+
+  private operationScope(): string {
+    return `${this.connectedScopeKey() ?? 'offline'}:${this.projectContext?.revision ?? this.groupRoot ?? 'none'}`;
+  }
+
+  private operationPhase(action: string, phase: string): void {
+    for (const operation of this.operations.list(this.operationScope())) {
+      if (operation.action === action && operation.status === 'running') this.operations.update(operation.requestId, { phase });
+    }
   }
 
   private async copySkillGuidePrompt(request: Extract<WorkspaceRequest, { type: 'copySkillGuidePrompt' }>): Promise<void> {
+    this.operationPhase('copySkillGuidePrompt', '核對目前環境與 Skills…');
     const previous = this.getSkillsContext();
     if (request.revision !== previous.revision) throw new Error('Skills 環境已變更，請重新確認提示詞。');
     await this.refreshWorkflowKit();
@@ -1370,11 +1438,21 @@ export class WorkspacePanel implements vscode.Disposable {
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1
         && vscode.workspace.workspaceFile?.scheme !== 'file',
       repositories: current.repositories, repositoryScanStatus: 'ready' as const };
+    this.operationPhase('copySkillGuidePrompt', '寫入剪貼簿…');
     await vscode.env.clipboard.writeText(`${buildWikiGuideContext(context)}\n\n${buildSkillGuidePrompt(card, request.inputs, context)}`);
     this.post({ type: 'message', message: '已複製目前環境的 Skills 提示詞。' });
   }
 
-  private async refreshActualRepositories(root: string, _connectedScope: string): Promise<void> {
+  private refreshActualRepositories(root: string, connectedScope: string): Promise<void> {
+    const key = `${localPathKey(root)}:${connectedScope}:${this.workspaceFoldersGeneration}:${this.skillsEnvironmentGeneration}`;
+    if (this.actualRepositoryScanTask?.key === key) return this.actualRepositoryScanTask.task;
+    const task = this.refreshActualRepositoriesNow(root, connectedScope);
+    const entry = { key, task }; this.actualRepositoryScanTask = entry;
+    void task.finally(() => { if (this.actualRepositoryScanTask === entry) this.actualRepositoryScanTask = undefined; }).catch(() => undefined);
+    return task;
+  }
+
+  private async refreshActualRepositoriesNow(root: string, _connectedScope: string): Promise<void> {
     const generation = ++this.actualRepositoryScanGeneration;
     const workspaceGeneration = this.workspaceFoldersGeneration;
     const current = async (): Promise<boolean> => {
@@ -1383,7 +1461,7 @@ export class WorkspacePanel implements vscode.Disposable {
       return !this.disposed && generation === this.actualRepositoryScanGeneration && workspaceGeneration === this.workspaceFoldersGeneration &&
         currentRoot === this.groupRoot && matches;
     };
-    this.actualRepositories = [];
+    if (!this.actualRepositoriesRoot || !sameLocalPath(root, this.actualRepositoriesRoot)) this.actualRepositories = [];
     this.actualRepositoriesRoot = root;
     this.actualRepositoryScanStatus = 'scanning';
     this.actualRepositoryScanError = undefined;
@@ -1395,7 +1473,6 @@ export class WorkspacePanel implements vscode.Disposable {
       this.actualRepositoryScanStatus = 'ready';
     } catch (error) {
       if (!await current()) return;
-      this.actualRepositories = [];
       this.actualRepositoryScanStatus = 'error';
       this.actualRepositoryScanError = readableError(error);
     }
@@ -1988,6 +2065,10 @@ export class WorkspacePanel implements vscode.Disposable {
     const cloneRoot = this.projectContext?.root;
     const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
+      operationScope: this.operationScope(),
+      operations: this.operations.list(this.operationScope()),
+      projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
+        this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitImporting),
       projectContext: this.projectContext,
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
@@ -2125,7 +2206,9 @@ export class WorkspacePanel implements vscode.Disposable {
         : error instanceof TypeError || error instanceof Error && /fetch failed|network|timeout|timed out|ECONN|ENOTFOUND|certificate/i.test(error.message)
           ? '無法連線 GitLab，請檢查網址、網路或憑證後重試。'
           : readableError(error);
-      reply({ error: token ? message.split(token).join('[redacted]') : message });
+      const safeMessage = token ? message.split(token).join('[redacted]') : message;
+      if (request.operationId) this.operations.noteError(request.operationId, safeMessage);
+      reply({ error: safeMessage });
     } finally {
       if (ownsTransition) {
         this.accountLoginRequestId = undefined;
@@ -2270,6 +2353,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async openCodexTerminal(expectedRevision?: string): Promise<void> {
+    this.operationPhase('openCodexTerminal', '核對 Codex 工作目錄與 Skills…');
     await this.refreshWorkflowKit();
     const skills = this.getSkillsContext();
     if (expectedRevision !== undefined && skills.revision !== expectedRevision) throw new Error('Skills 環境已變更，請重新確認 Codex 啟動位置。');
@@ -2278,8 +2362,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (process.platform === 'win32') {
       const options = windowsCodexTerminalOptions();
       if (!options) {
-        await vscode.window.showErrorMessage('找不到 Windows Codex CLI。請安裝 codex.exe 或 codex.cmd，將所在資料夾加入 PATH，然後重新啟動 VS Code。');
-        return;
+        throw new Error('找不到 Windows Codex CLI。請安裝 codex.exe 或 codex.cmd，將所在資料夾加入 PATH，然後重新啟動 VS Code。');
       }
       const windowsTerminal = vscode.window.createTerminal({ name: 'Codex CLI', cwd: root, ...options });
       windowsTerminal.show();
@@ -2804,103 +2887,50 @@ export class WorkspacePanel implements vscode.Disposable {
     await this.publishMergeRequestText(projectId, iid, body);
   }
 
-  private async liveReviewIdentity(projectId: number, iid: number): Promise<{ identity: MergeReviewIdentity; request: GitLabMergeRequest }> {
+  private async openBranchReview(projectId: number, iid: number): Promise<void> {
     this.requireGroupProject(projectId);
-    requireIssueIid(iid);
+    const epoch = this.session.connectionEpoch;
     const client = await this.session.getClient();
     const request = await client.getMergeRequest(projectId, iid);
-    const sourceProjectId = request.source_project_id ?? projectId;
-    const targetProjectId = request.target_project_id ?? projectId;
-    if (targetProjectId !== projectId) throw new Error('MR 目標專案與目前專案不一致。');
-    const [source, target] = await Promise.all([
-      client.getRepositoryBranch(sourceProjectId, request.source_branch),
-      client.getRepositoryBranch(targetProjectId, request.target_branch)
-    ]);
-    const head = request.diff_refs?.head_sha ?? request.sha;
-    if (!head || head !== source.commit.id) throw new Error('MR 與來源分支版本尚未一致，請重新整理後審查。');
-    return { request, identity: {
-      origin: this.session.baseUrl!.replace(/\/$/, ''), projectId, mrIid: iid,
-      sourceProjectId, targetProjectId, sourceBranch: request.source_branch, targetBranch: request.target_branch,
-      sourceSha: head, targetSha: target.commit.id
-    } };
+    if (epoch !== this.session.connectionEpoch) return;
+    const skills = this.getSkillsContext();
+    if (!skills.root) throw new Error('請先選擇本機專案資料夾，再準備分支審查。');
+    const project = this.projects.find(item => item.id === request.target_project_id || item.id === projectId);
+    const repositories = skills.groupMatch.repositories.filter(repo => repo.projectId === project?.id);
+    const fork = request.source_project_id !== request.target_project_id;
+    const unique = !fork && repositories.length === 1;
+    const inputs = {
+      'merge-repo.repo': unique ? repositories[0].path : '',
+      'merge-repo.base': unique ? `origin/${request.target_branch}` : '',
+      'merge-repo.head': unique ? `origin/${request.source_branch}` : '',
+    };
+    await this.navigateTo('sa');
+    if (epoch !== this.session.connectionEpoch) return;
+    this.post({ type: 'branchReviewReady', revision: this.getSkillsContext().revision, inputs,
+      notice: unique ? undefined : '此 MR 為 fork 或無法唯一對應本機 Repo。請選擇含兩個明確分支的 Repo，再準備審查。' });
   }
 
-  private async openMergeReviewTask(projectId: number, iid: number): Promise<void> {
-    await this.assertWorkflowKitReady();
-    const revision = this.getSkillsContext().revision;
-    const root = this.meginGroupRoot();
-    const { identity, request } = await this.liveReviewIdentity(projectId, iid);
-    const client = await this.session.getClient();
-    const [target, source] = await Promise.all([client.getProject(identity.targetProjectId), client.getProject(identity.sourceProjectId)]);
-    const repoPath = this.matchedGroupRepository(target.id);
-    if (await localRepositoryStateAsync(root, repoPath, sameLocalPath(root, repoPath)) !== 'ready') throw new Error('MR 的目標 Repo 尚未下載，或本機路徑不安全。');
-    const remotes = (await git(repoPath, ['remote'])).split(/\r?\n/).filter(Boolean);
-    const urls = await Promise.all(remotes.map((remote) => git(repoPath, ['remote', 'get-url', remote])));
-    if (!urls.some((url) => projectRemoteMatches(url.trim(), target))) throw new Error('本機 Repo remote 與 MR 目標專案不一致。');
-    if (!isAllowedGitRemote(identity.origin, source.http_url_to_repo) || !isAllowedGitRemote(identity.origin, target.http_url_to_repo)) throw new Error('MR remote 不屬於目前 GitLab。');
-    const taskBase64 = Buffer.from(JSON.stringify({ schema: 'MergeReviewTask/v2', ...identity, repoPath, groupRoot: root,
-      sourceRemoteUrl: source.http_url_to_repo, targetRemoteUrl: target.http_url_to_repo, mode: 'merge' }), 'utf8').toString('base64');
-    const prompt = buildReviewerPrompt(target, request, root, source, { repoPath, taskBase64, sourceSha: identity.sourceSha, targetSha: identity.targetSha });
-    await this.confirmSkillsContext(revision, 'merge-mr');
-    await vscode.env.clipboard.writeText(prompt);
-    await this.openCodexTerminal(revision);
-    this.post({ type: 'message', message: '已固定實際 Repo 與來源／目標 SHA。請貼上任務審查，完成後匯入報告。' });
-  }
-
-  private async openGroupQuickReview(): Promise<void> {
-    await this.assertWorkflowKitReady();
-    const revision = this.getSkillsContext().revision;
-    const root = this.meginGroupRoot();
-    const prompt = `$merge-reviewer 請審查 Group「${root}」下一層所有 Repo 的未提交內容。使用 git_review_context.py --group-root "${root}" --quick，分別審查固定的暫存區與工作檔快照，保留版本證據，輸出 Group 總覽與各 Repo 報告。`;
-    await this.confirmSkillsContext(revision, 'merge-group');
-    await vscode.env.clipboard.writeText(prompt);
-    await this.openCodexTerminal(revision);
-    this.post({ type: 'message', message: '已複製整個 Group 的未提交內容審查任務。' });
-  }
-
-  private async importMergeReviewReport(projectId: number, iid: number, text?: string): Promise<void> {
-    if (text === undefined) {
-      const picked = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { '審查報告': ['md', 'json'] }, openLabel: '匯入審查報告' });
-      if (!picked?.[0]) return;
-      text = await readFile(picked[0].fsPath, 'utf8');
+  private async loadSkillBranches(repo: string, revision: string): Promise<void> {
+    const skills = this.getSkillsContext();
+    if (revision !== skills.revision) return;
+    const matches = skills.repositories.filter(item => item.name === repo || sameLocalPath(item.path, repo));
+    if (matches.length !== 1) { this.post({ type: 'skillBranches', revision, repo, branches: [], error: '請從本機 Repo 候選選擇唯一項目' }); return; }
+    const key = `${revision}:${matches[0].path}`;
+    let task = this.skillBranchReads.get(key);
+    if (!task) {
+      task = execFileAsync(this.gitRepositories?.gitExecutable ?? 'git', ['for-each-ref', '--format=%(refname:short)', '--count=1000', 'refs/heads', 'refs/remotes'],
+        { cwd: matches[0].path, timeout: 15_000, maxBuffer: 256_000, windowsHide: true,
+          env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' } }).then(result => result.stdout.trim().split(/\r?\n/).filter(branch => branch && !branch.endsWith('/HEAD')));
+      this.skillBranchReads.set(key, task);
+      void task.catch(() => this.skillBranchReads.delete(key));
+      while (this.skillBranchReads.size > 32) this.skillBranchReads.delete(this.skillBranchReads.keys().next().value!);
     }
-    const report = parseMergeReviewReport(text);
-    const { identity } = await this.liveReviewIdentity(projectId, iid);
-    await this.validateBoundMergeReviewReport(report, identity);
-    this.post({ type: 'mergeReviewReportImported', projectId, iid, text: report.text,
-      sourceSha: report.metadata.sourceSha, targetSha: report.metadata.targetSha });
-    this.post({ type: 'message', message: '已核對報告正文、MR 身分及來源／目標版本。' });
-  }
-
-  private async publishMergeReviewReport(projectId: number, iid: number, text: string): Promise<void> {
-    const report = parseMergeReviewReport(text);
-    const { identity } = await this.liveReviewIdentity(projectId, iid);
-    await this.validateBoundMergeReviewReport(report, identity);
-    await this.publishMergeRequestText(projectId, iid, report.text, undefined, async () => {
-      const current = await this.liveReviewIdentity(projectId, iid);
-      await this.validateBoundMergeReviewReport(report, current.identity);
-    });
-  }
-
-  private async validateBoundMergeReviewReport(report: ImportedMergeReviewReport, identity: MergeReviewIdentity): Promise<void> {
-    const root = this.meginGroupRoot();
-    validateReportIdentity(report, { ...identity, groupRoot: root, repoPath: this.matchedGroupRepository(identity.targetProjectId) });
-    if (!report.metadata.megin_binding) return;
-    await this.assertWorkflowKitReady();
-    const revision = this.getSkillsContext().revision;
-    const script = path.join(root, '.agents', 'skills', 'merge-reviewer', 'scripts', 'mr_contract.py');
-    const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python');
-    const python = await resolvePythonRuntime(configured);
-    const temporary = await mkdtemp(path.join(os.tmpdir(), 'gitlab-workspace-mr-proof-'));
-    const reportPath = path.join(temporary, 'report.md');
     try {
-      await writeFile(reportPath, report.text, 'utf8');
-      await execFileAsync(python.executable, [...python.args, '-I', '-B', '-X', 'utf8', script,
-        '--verify-report', reportPath, '--task-base64', Buffer.from(JSON.stringify(report.metadata.task), 'utf8').toString('base64')],
-      { cwd: root, env: { ...python.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }, timeout: 4 * 60_000, maxBuffer: 256_000, windowsHide: true });
-      if (this.getSkillsContext().revision !== revision || !sameLocalPath(this.meginGroupRoot(), root)) throw new Error('審查證據驗證期間工作區已變更。');
-    } catch (error) { throw new Error(`Megin 收據原始證據驗證未通過；請重新審查。${readableError(error)}`); }
-    finally { await unlink(reportPath).catch(() => undefined); await rmdir(temporary).catch(() => undefined); }
+      const branches = await task;
+      if (revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, branches });
+    } catch (error) {
+      if (revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, branches: [], error: readableError(error) });
+    }
   }
 
   private async replyMergeRequest(projectId: number, iid: number, discussionId: string, body: string): Promise<void> {
@@ -3429,7 +3459,18 @@ export class WorkspacePanel implements vscode.Disposable {
     return task;
   }
 
-  private async refreshWorkflowKit(publish = true): Promise<void> {
+  private refreshWorkflowKit(publish = true): Promise<void> {
+    const signature = this.projectContextSignature(), projects = this.projects, installation = this.workflowKitInstallation;
+    const pending = this.workflowKitRefreshTask;
+    if (pending && pending.signature === signature && pending.projects === projects && pending.installation === installation) return pending.task;
+    const task = this.refreshWorkflowKitNow(publish);
+    const entry = { signature, projects, installation, task };
+    this.workflowKitRefreshTask = entry;
+    void task.finally(() => { if (this.workflowKitRefreshTask === entry) this.workflowKitRefreshTask = undefined; }).catch(() => undefined);
+    return task;
+  }
+
+  private async refreshWorkflowKitNow(publish = true): Promise<void> {
     const generation = ++this.workflowKitRefreshGeneration;
     const environmentGeneration = ++this.skillsEnvironmentGeneration;
     const signature = this.projectContextSignature();
@@ -3453,9 +3494,10 @@ export class WorkspacePanel implements vscode.Disposable {
     const target: WorkflowKitInstallTarget = installation ?? { root: context.root, manual: context.manual,
       profile: match.profile, error: context.error ?? (match.status === 'error' ? match.reason : undefined),
       state: { status: context.root ? 'checking' : 'missing' } };
+    const sameRoot = this.skillsWorkflowKitStateRoot === context.root;
     this.workflowKitInstallTarget = target;
     this.workflowKitStateRoot = context.root; this.skillsWorkflowKitStateRoot = context.root;
-    this.workflowKitState = this.skillsWorkflowKitState = { status: context.root ? 'checking' : 'missing' };
+    if (!sameRoot || !this.skillsWorkflowKitState || this.skillsWorkflowKitState.status === 'missing') this.workflowKitState = this.skillsWorkflowKitState = { status: context.root ? 'checking' : 'missing' };
     if (publish) this.sendSnapshot();
     const [packages, state] = await Promise.all([this.packages.listPackages(),
       context.root && !target.error ? this.readWorkflowKitState(context.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })]);
@@ -3518,7 +3560,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting) throw new Error('目前有技能包操作正在進行，請等候完成。');
     const target = this.workflowKitInstallTarget;
     if (!target.root || target.error) throw new Error(target.error ?? '請先選擇技能包安裝資料夾。');
-    if (this.busy || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(target.state.status)) {
+    if (this.busy && !this.refreshTask || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(target.state.status)) {
       throw new Error(target.state.message ?? '請等候檢查完成，或先處理目前安裝位置的工作與衝突。');
     }
     const root = target.root;

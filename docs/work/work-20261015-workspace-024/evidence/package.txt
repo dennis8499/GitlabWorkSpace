@@ -1,0 +1,110 @@
+
+> gitlab-workspace@0.24.0 package
+> npm run compile && npm run build:webview && node scripts/package-extension.mjs && node scripts/run-python.mjs scripts/verify-vsix.py
+
+
+> gitlab-workspace@0.24.0 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+> gitlab-workspace@0.24.0 build:webview
+> npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs
+
+
+> gitlab-workspace@0.24.0 typecheck:webview
+> tsc -p tsconfig.webview.json
+
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 71 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/dashboard.html    0.44 kB │ gzip:   0.27 kB
+resources/issue-webview/dashboard.css    76.67 kB │ gzip:  14.53 kB
+resources/issue-webview/dashboard.js    310.48 kB │ gzip: 102.32 kB
+
+✓ built in 117ms
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 13 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/sidebar-webview/sidebar.html   0.45 kB │ gzip: 0.30 kB
+resources/sidebar-webview/sidebar.css    9.68 kB │ gzip: 2.39 kB
+resources/sidebar-webview/sidebar.js    23.79 kB │ gzip: 9.52 kB
+
+✓ built in 45ms
+{"ok": true, "archive": "resources\\offline-tools\\workflow-kit.tar.xz", "releaseZip": "dist\\gitlab-workspace-kit-0.24.0.zip", "bytes": 2513176, "sha256": "65e05a049f287a72a2d05fd117ad65d8a7825d79a89b319efa7ebc7280a35ecb", "releaseZipSha256": "7010ebbe6b2f9d2a78814d1599bfda80d28dd73e197e31a0968e52a2e3072e3c", "files": 484}
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> gitlab-workspace@0.24.0 vscode:prepublish
+> npm run compile && npm run build:webview
+
+
+> gitlab-workspace@0.24.0 compile
+> node scripts/clean-compiled.mjs && tsc -p .
+
+
+> gitlab-workspace@0.24.0 build:webview
+> npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs
+
+
+> gitlab-workspace@0.24.0 typecheck:webview
+> tsc -p tsconfig.webview.json
+
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 71 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/issue-webview/dashboard.html    0.44 kB │ gzip:   0.27 kB
+resources/issue-webview/dashboard.css    76.67 kB │ gzip:  14.53 kB
+resources/issue-webview/dashboard.js    310.48 kB │ gzip: 102.32 kB
+
+✓ built in 102ms
+vite v8.3.1 building client environment for production...
+transforming...
+✓ 13 modules transformed.
+rendering chunks...
+computing gzip size...
+resources/sidebar-webview/sidebar.html   0.45 kB │ gzip: 0.30 kB
+resources/sidebar-webview/sidebar.css    9.68 kB │ gzip: 2.39 kB
+resources/sidebar-webview/sidebar.js    23.79 kB │ gzip: 9.52 kB
+
+✓ built in 83ms
+npm.cmd :  WARNING  LICENSE, LICENSE.md, or LICENSE.txt not found
+位於 線路:2 字元:143
++ ... .24.0.vsix; npm.cmd run package *> .gitlab-workspace-validation/0.24. ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ( WARNING  LICEN...E.txt not found:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+ INFO  Files included in the VSIX:
+gitlab-workspace-0.24.0.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ package.json [9.99 KB]
+   ├─ readme.md [15.15 KB]
+   ├─ docs/
+   │  ├─ group-workflow.md [17.01 KB]
+   │  ├─ troubleshooting.md [6.55 KB]
+   │  ├─ user-guide.md [25.57 KB]
+   │  ├─ wiki-workflows.md [4.24 KB]
+   │  └─ windows-acceptance.md [5.73 KB]
+   ├─ out/
+   │  └─ src/ (54 files) [764.84 KB]
+   └─ resources/
+      ├─ git-rebase-editor.cjs [1.1 KB]
+      ├─ gitlab-workspace.svg [0.33 KB]
+      ├─ workflow-kit-installer.py [612.23 KB]
+      ├─ issue-webview/ (3 files) [378.52 KB]
+      ├─ offline-tools/ (3 files) [2.43 MB]
+      └─ sidebar-webview/ (3 files) [33.14 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\dist\gitlab-workspace-0.24.0.vsix (75 files, 2.88 MB)
+Optimized dist\gitlab-workspace-0.24.0.vsix with per-file STORE/DEFLATE-9 selection (3021123 bytes)
+Wrote deterministic SHA256SUMS for 2 release assets.
+Verified dist\gitlab-workspace-0.24.0.vsix and dist\gitlab-workspace-kit-0.24.0.zip v0.24.0 (3021123 bytes; matching payloads and SHA256SUMS)

@@ -1,3 +1,4 @@
+// Frozen historical v2 reader fixture; excluded from release artifacts.
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 

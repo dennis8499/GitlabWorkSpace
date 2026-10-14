@@ -56,22 +56,17 @@ Issue 詳情分成四個任務分頁：
 
 專案下載、Skills 安裝與 Codex 使用共用專案根目錄。切換 GitLab 帳號或 Group 不會切換本機目錄；多資料夾工作區需明確選擇目前專案資料夾。
 
-## Skills 功能指引與上板檢查
+## 分析與四工具
 
-新 Megin 工作先中立釐清問題、受眾、成果與驗收，完整盤點目前功能，再取得精確計畫的明確核准。BDD 情境、測試斷言、實作、Review 與人工驗收均須可追溯，保存實際 red／green 原始證據。初審後最多三次修正重審，每次使用新的獨立唯讀 reviewer；通過後進入驗證與人工驗收。第三次修正仍失敗會回報未完成，續作沿用原契約、指紋與修正次數。
+先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、Megin、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、執行方式、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
 
-Wiki 提供原始碼優先的功能探索（含來源、覆蓋與缺口），一般查詢維持 Wiki 優先。功能探索原始碼唯讀，不執行目標程式或測試，只有明確要求保存才產生授權文件。Wiki 保留規格、建立／查詢知識、品質維護、健檢、BA／SA／SD、ADR、分析保存、NotebookLM 匯出及程式碼考古。Megin 介紹完整開發流程，提供 **前往我的工作** 和指定 Work ID 續作；子 Skills 依既有流程協作。MergeReviewer 提供手動 Repo／版本審查、單 Repo quick、Group 未提交快審，以及 **前往待審查** 的 MR 入口。
+Wiki 提供閱讀探索、知識維護、BA／SA／SD、Megin Spec 與匯出。Megin 提供開始工作、續作 Work ID 與十三個 Skills 的流程說明；Group 開發導向「我的工作」，單 Repo 可輸入需求。MergeReviewer 只需 Repo、基礎分支、比較分支；支援實際 Repo／分支候選及手動輸入，舊模式須重新確認，產出一份本機 v3 Markdown Merge Report。
 
-執行上板檢查：
+ReleaseReviewer 同樣只接受三項分支輸入，以入口變更追查宣告工作區內相關功能鏈；關聯 Repo 使用各自本機預設分支。在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report，已儲存工作區使用 `.code-workspace` 所在目錄。阻擋、證據缺口與環境待核對條件分開呈現；人工確認需核對人、日期與開通／套用後證據，工單申請不算完成。
 
-1. 在 **分析** 選 **ReleaseReviewer → 上板檢查**。
-2. 指定 **Repo 名稱或路徑、基礎分支、比較分支**。單 Repo 環境直接使用共用專案根目錄，不另選 Skills Repo；Group 填入口 Repo。本機分支可填 `main`，遠端分支須明確填 `origin/main`；不接受 Tag、commit SHA 或 HEAD。
-3. 固定 **合併前審查**，只提供上述三項輸入，在 VSCode 工作區根目錄輸出一份含人工 Checklist 的精簡 Release Report。舊表單的直接比較與 JSON 設定會移除，MergeReviewer 既有選項保留。
-4. 預覽並複製提示詞，貼入從目前情境的 Group 或 Repo 根目錄啟動的 Codex CLI。必填欄位、工作流程包或 Repo 掃描未就緒時，複製按鈕會停用。
+按 **複製提示詞** 後再按 **開啟 Codex CLI**，貼上執行並查看產出。複製前仍會驗證目前環境與套件；畫面顯示等待、檢查、複製、成功或失敗，可在失敗後重試。AI 分析進度由 Codex 呈現。表單依根目錄與工具保存；根目錄或帳號切換後，舊回應不套用至新環境。
 
-Skill 固定入口版本，明確遠端分支取得失敗就停止，保留本機未提交修改。Group 從入口變更追查上下游 API、事件、契約、DB 與快取，包含未變更消費端；關聯 Repo 固定本機預設分支的已提交 SHA，不 fetch 或使用 checkout 分支。預設分支名稱來自既有專案資料或本機遠端 HEAD，無法取得版本、Repo 或鏈路證據就保持「檢查未完成」。
-
-新增判斷搜尋入口整個基礎版本，涵蓋首次使用、部署資源定義、目標改變及新增權限需求；分列設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 與其他資源提醒。報告直接位於目前 VSCode 工作區根目錄，已儲存工作區則使用 .code-workspace 所在目錄；未儲存 multi-root 先釐清，不猜位置。每次只產生一份含 Checklist 的 `release-review-*.md`，重名續號並保留歷史。每項核對初始為待確認，人工填核對人、日期及開通／套用後證據，不適用須填理由；申請工單不算已開通。v3 報告首段呈現產生時上版判斷，只列直接 P0／P1 阻擋；缺口與待核對條件分開。只填寫 release-checklist:start／end 內的人工紀錄，固定正文與原始判斷保留，舊 v1／v2 報告保留。靜態完成不等於上板準備完成，實際環境未連線查證。完成、失敗或中止均清理本次受管理的暫存證據。
+待審查頁的 **前往分支審查** 可帶入可確認的 MR 分支候選，fork 或映射不明時要求補齊。完成後可把報告作一般留言發布，核准與合併由使用者決定。
 
 ## 安裝開發工具
 
@@ -87,7 +82,7 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 確認安裝位置與唯一的組合包版本後按 **安裝／更新**。VSIX 內附版本為預設安裝來源；匯入的 ZIP 會複製到 VS Code 持久儲存區並以 SHA-256 去重，因此原始下載檔可在匯入後刪除。安裝期間固定目標位置並停用位置切換與重複安裝。安裝前會整體預檢 Skills、Wiki 設定、管理區塊與安裝紀錄，再以暫存與回復日誌套用；中途失敗或 VS Code／Python 程序中斷後，下一次檢查會先回復原狀。匯入 ZIP 或本機 Skill 若與套件版本、契約或摘要不符，會清楚阻擋安裝。
 
-套件安裝到選定資料夾的 `.agents/skills/`，含 16 個 Skills。`group` profile 保留既有 Group overlays；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。原生單 Repo 提供 Wiki、Megin 開發／續作、單 Repo 審查與上板檢查，提示詞不帶入 Group 鎖、兄弟 Repo 或 GitLab 交付契約。Issue 開發交付、Group quick 與 MR 任務入口只在 Group 流程提供。Wiki、`docs/work/`、報告及 Codex 啟動目錄都跟隨目前 Skills 情境。
+套件安裝到選定資料夾的 `.agents/skills/`，含 16 個 Skills。`group` profile 僅套用 Wiki 必要覆寫；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。單 Repo 的 Wiki、Megin 開發／續作以此 Repo 為範圍；分支審查與上版檢查只選一個入口 Repo，關聯證據依實際 VS Code 宣告的工作區邊界取得。已儲存 `.code-workspace` 會一併帶入，不能自行向上擴張。Issue 開發交付使用 Group 契約。Wiki、`docs/work/`、報告及 Codex 啟動目錄遵循各工具的產出規則。
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 

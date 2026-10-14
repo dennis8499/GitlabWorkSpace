@@ -670,8 +670,9 @@ Then('development tasks use Group paths and native review and verification resul
   assert.match(this.workspaceActions.at(-1).text, /續作 Work ID：work-20261002-feature/);
   assert.match(this.workspaceActions.at(-1).text, /C:\/workspace\/group/);
   assert.match(this.workspaceActions.at(-1).text, /First comment/);
-  await this.click('審查 Group 未提交內容');
-  assert.equal(this.workspaceActions.at(-1).type, 'openGroupQuickReview');
+  await this.click('開啟分析與分支審查');
+  assert.equal(this.workspaceActions.at(-1).type, 'setMode');
+  assert.equal(this.workspaceActions.at(-1).mode, 'sa');
   assert.match(this.root.body.textContent, /APPROVED（independent-reviewer）/);
   assert.match(this.root.body.textContent, /native-test: passed \(3 tests\)/);
   assert.match(this.root.body.textContent, /acceptance-3/);

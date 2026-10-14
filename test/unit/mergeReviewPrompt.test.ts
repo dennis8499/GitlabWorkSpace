@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { GitLabMergeRequest, GitLabProject } from '../../src/api/types';
-import { buildReviewerPrompt } from '../../src/workspace/issueDrafts';
+import { buildReviewerPrompt } from '../fixtures/legacy-review/mergeReviewPrompt';
 
 test('embeds the pinned MergeReview MR task in the copied prompt without a task file', () => {
   const project = { id: 10, path_with_namespace: 'group/orders' } as GitLabProject;

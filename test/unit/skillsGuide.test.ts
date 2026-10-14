@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, legacyWikiInputs,
-  restoreSkillGuideState, skillGuideTools, getSkillGuideFields } from '../../src/webview/skillsGuideData';
+  restoreSkillGuideState, skillGuideTools, getSkillGuideFields, getSkillGuideCards } from '../../src/webview/skillsGuideData';
 
 const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0.15.0', repositories: [
   { name: 'service', path: 'C:\\工作區 with spaces\\service' }
 ], repositoryScanStatus: 'ready' as const };
+
+test('both Analysis profiles expose exactly the frozen package capability inventory', () => {
+  const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../resources/offline-tools/source-snapshots.json'), 'utf8'));
+  for (const profile of ['group', 'repository'] as const) {
+    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(), snapshot.capabilities[profile]);
+  }
+});
 
 test('four tool entrances retain Wiki drafts and use existing Issue/MR destinations', () => {
   const state = restoreSkillGuideState(undefined, { 'query.question': '退款流程？\n請附來源。' }, 'query');
@@ -14,7 +23,8 @@ test('four tool entrances retain Wiki drafts and use existing Issue/MR destinati
   assert.ok(buildSkillGuidePrompt(getSkillGuideCard(state.tool, 'query'), state.inputs, context).includes(state.inputs['query.question']));
   for (const tool of skillGuideTools) assert.equal(getSkillGuideCard(tool.id).tool, tool.id);
   assert.equal(getSkillGuideCard('megin').destination, 'developer');
-  assert.equal(getSkillGuideCard('merge-reviewer', 'merge-mr').destination, 'reviewer');
+  assert.equal(getSkillGuideCard('merge-reviewer', 'merge-mr').id, 'merge-repo');
+  assert.equal(getSkillGuideCard('merge-reviewer').destination, undefined);
   assert.equal(canCopySkillPrompt(getSkillGuideCard('megin'), state.inputs), false);
   assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'megin-spec-export');
 });
@@ -81,42 +91,6 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   for (const ref of ['HEAD', 'refs/tags/v1', 'f'.repeat(40), 'main~1']) assert.equal(canCopySkillPrompt(card, { ...inputs, 'release-review.head': ref }), false);
 });
 
-test('release saved inputs migrate to three fields while MergeReviewer retains advanced modes', () => {
-  const saved = restoreSkillGuideState();
-  saved.inputs = { ...saved.inputs, 'release-review.repo': 'service', 'release-review.base': 'main', 'release-review.head': 'feature/payment',
-    'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON', 'merge-repo.mode': '直接比較', 'merge-repo.output': 'Markdown＋JSON' };
-  const restored = restoreSkillGuideState(saved);
-  assert.equal(restored.inputs['release-review.mode'], undefined);
-  assert.equal(restored.inputs['release-review.output'], undefined);
-  assert.equal(restored.inputs['merge-repo.mode'], '直接比較');
-  assert.equal(restored.inputs['merge-repo.output'], 'Markdown＋JSON');
-  assert.equal(canCopySkillPrompt(getSkillGuideCard('release-reviewer'), restored.inputs), true);
-  const prompt = buildSkillGuidePrompt(getSkillGuideCard('release-reviewer'), restored.inputs, {
-    ...context, repositories: [{ ...context.repositories[0], defaultBranch: 'production/local' }]
-  });
-  assert.ok(prompt.includes('"defaultBranch":"production/local"'));
-  assert.match(prompt, /關聯 Repo 使用各自本機預設分支/);
-  assert.match(prompt, /一份含 Checklist/);
-});
-
-test('review modes keep Group quick, native quick and explicit version contracts separate', () => {
-  const state = restoreSkillGuideState();
-  const group = buildSkillGuidePrompt(getSkillGuideCard('merge-reviewer', 'merge-group'), state.inputs, context);
-  assert.match(group, /--group-root.*--quick/);
-  assert.match(group, /不 fetch/);
-  assert.equal(group.includes('專案名稱：'), false);
-  const inputs = { ...state.inputs, 'merge-quick.repo': 'service', 'merge-repo.repo': 'service',
-    'merge-repo.base': 'main', 'merge-repo.head': 'feature/payment' };
-  const quick = buildSkillGuidePrompt(getSkillGuideCard('merge-reviewer', 'merge-quick'), inputs, context);
-  assert.match(quick, /--quick --remote "origin"/);
-  assert.equal(quick.includes('--include-working-tree'), false);
-  assert.match(buildSkillGuidePrompt(getSkillGuideCard('merge-reviewer', 'merge-quick'), { ...inputs, 'merge-quick.workingTree': '是' }, context), /--include-working-tree/);
-  const explicit = buildSkillGuidePrompt(getSkillGuideCard('merge-reviewer', 'merge-repo'), inputs, context);
-  assert.match(explicit, /基礎分支："main"/);
-  assert.match(explicit, /比較分支："feature\/payment"/);
-  assert.equal(explicit.includes('--quick'), false);
-});
-
 test('resume requires a real Work ID format and state round trips without losing tool inputs', () => {
   const state = restoreSkillGuideState();
   const card = getSkillGuideCard('megin', 'megin-resume');
@@ -151,36 +125,6 @@ test('native development prompts require exploration, approval and bounded indep
   assert.doesNotMatch(card.behavior, /Commit／Merge/);
 });
 
-test('local review targets use native boundaries without requiring or leaking saved branch inputs', () => {
-  for (const profile of ['group', 'repository'] as const) {
-    const card = getSkillGuideCard('merge-reviewer', 'merge-repo', profile);
-    const saved = restoreSkillGuideState();
-    Object.assign(saved.inputs, { 'merge-repo.repo': 'service', 'merge-repo.base': 'saved-base',
-      'merge-repo.head': 'saved-head', 'merge-repo.mode': '直接比較' });
-    assert.equal(saved.inputs['merge-repo.target'], '分支比較');
-    for (const [label, target, source] of [['已暫存內容', 'staged', 'index'], ['目前已儲存內容', 'uncommitted', '最終已儲存檔案']]) {
-      const inputs = { ...saved.inputs, 'merge-repo.target': label };
-      assert.equal(canCopySkillPrompt(card, inputs), true);
-      assert.equal(canCopySkillPrompt(card, { ...inputs, 'merge-repo.base': '', 'merge-repo.head': '', 'merge-repo.mode': 'obsolete' }), true);
-      assert.deepEqual(getSkillGuideFields(card, inputs).map(item => item.id), profile === 'group'
-        ? ['target', 'repo', 'output'] : ['target', 'output']);
-      const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
-      assert.ok(prompt.includes(`--scope ${profile === 'group' ? 'group' : 'repo'} --target ${target}`));
-      assert.ok(prompt.includes(profile === 'group' ? `--group-root ${JSON.stringify(context.groupRoot)}`
-        : `--workspace ${JSON.stringify(context.repositories[0].path)}`));
-      assert.match(prompt, new RegExp(source));
-      assert.match(prompt, /無需 remote 或 GitLab 連線，不 fetch/);
-      assert.doesNotMatch(prompt, /saved-base|saved-head|--base|--head|--mode|--remote|--quick|--include-working-tree/);
-      assert.equal(restoreSkillGuideState({ ...saved, inputs }).inputs['merge-repo.base'], 'saved-base');
-    }
-    assert.equal(canCopySkillPrompt(card, { ...saved.inputs, 'merge-repo.target': 'invalid target' }), false);
-    const branch = buildSkillGuidePrompt(card, saved.inputs, { ...context, profile, root: context.repositories[0].path });
-    assert.match(branch, /--target branch/);
-    assert.match(branch, /--base "saved-base" --head "saved-head" --mode direct/);
-    assert.equal(canCopySkillPrompt(card, { ...saved.inputs, 'merge-repo.base': '' }), false);
-  }
-});
-
 test('release prompt binds actual folder and saved multi-root workspace without adding user fields', () => {
   const card = getSkillGuideCard('release-reviewer');
   const inputs = { 'release-review.repo': 'service', 'release-review.base': 'main', 'release-review.head': 'feature' };
@@ -192,4 +136,39 @@ test('release prompt binds actual folder and saved multi-root workspace without 
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { repositories: [] }), /工作區根目錄/);
+});
+
+test('native branch review uses only three inputs and actual saved workspace boundaries', () => {
+  const card = getSkillGuideCard('merge-reviewer');
+  assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+  const inputs = { 'merge-repo.repo': 'service', 'merge-repo.base': 'main', 'merge-repo.head': 'feature/payment' };
+  assert.equal(canCopySkillPrompt(card, inputs), true);
+  for (const invalid of ['HEAD', 'refs/tags/v1', 'a'.repeat(40), 'main~1', 'main..feature', '-bad', 'bad ref']) {
+    assert.equal(canCopySkillPrompt(card, { ...inputs, 'merge-repo.head': invalid }), false, invalid);
+  }
+  assert.equal(canCopySkillPrompt(card, { ...inputs, 'merge-repo.mode': '直接比較' }), false);
+  const prompt = buildSkillGuidePrompt(card, inputs, { ...context, workspaceRoot: 'C:/declared', workspaceFile: 'C:/declared/team.code-workspace' });
+  assert.match(prompt, /merge-reviewer-workspace-context\/v3/);
+  assert.match(prompt, /--workspace-file "C:\/declared\/team.code-workspace"/);
+  assert.match(prompt, /只輸出 Markdown/);
+  assert.doesNotMatch(prompt, /--quick|--mode|--scope|--target|--include-json|--mr-context/);
+  assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
+});
+
+test('removed review modes migrate with explicit branch confirmation and preserve Wiki drafts', () => {
+  const saved = { tool: 'merge-reviewer' as const, selections: { 'merge-reviewer': 'merge-group' }, inputs: {
+    'merge-repo.repo': 'service', 'merge-repo.base': 'main', 'merge-repo.head': 'feature/payment',
+    'merge-repo.target': '已暫存內容', 'merge-repo.output': 'Markdown＋JSON', 'merge-group.output': 'Markdown',
+    'query.question': '退款？' } };
+  const state = restoreSkillGuideState(saved);
+  assert.equal(state.selections['merge-reviewer'], 'merge-repo');
+  assert.ok(state.migrationNotice);
+  assert.equal(state.inputs['merge-repo.confirmationRequired'], 'true');
+  assert.equal(state.inputs['merge-repo.target'], undefined);
+  assert.equal(state.inputs['merge-group.output'], undefined);
+  assert.equal(state.inputs['query.question'], '退款？');
+  assert.equal(canCopySkillPrompt(getSkillGuideCard('merge-reviewer'), state.inputs), false);
+  assert.deepEqual(restoreSkillGuideState(state), state);
+  delete state.inputs['merge-repo.confirmationRequired'];
+  assert.equal(canCopySkillPrompt(getSkillGuideCard('merge-reviewer'), state.inputs), true);
 });

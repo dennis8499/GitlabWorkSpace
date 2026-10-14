@@ -25,12 +25,20 @@
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；提示詞帶入 Group、Repo 與套件版本，可複製到 Codex CLI。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report。
-- 在 Group 產生開發規格、執行多 Repo 快速審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
+- 在「分析 → Skills 功能指引」選擇 Wiki、Megin、MergeReviewer 或 ReleaseReviewer；四工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製與開啟 Codex CLI 分開操作。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report。
+- 在 Group 產生開發規格、以明確分支執行單一 Repo 與相關功能鏈審查；在開發與交付分頁載入 Megin 交接證據、精確 Commit、Push 並建立 MR；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.24.0 更新
+
+整合本機最新 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0；來源包含尚未提交的修改，固定 ZIP、commit、內容 SHA-256 及修改狀態。四工具共 16 個 Skills、17 項工作台功能。
+
+MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Markdown Merge Report；待審查頁可帶入分支候選，完成後由使用者作一般留言發布。舊快速／未提交／MR 專用報告流程已移除。舊 Megin 工作保留原套件續作，完成後再更新。
+
+操作立即顯示處理狀態、階段、結果與錯誤；同一資源的重複操作會合併或阻擋。本機環境先載入，Issue 與 MR 資料依頁面需要讀取；暖切頁不重新全量掃描。詳見[本次驗證紀錄](docs/work/work-20261015-workspace-024/README.md)。
 
 ## 需求
 
@@ -67,11 +75,11 @@
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.23.0 的 VSIX 與組合包共用版本，固定原生 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.3.0，共 16 個 Skills。Megin 全部十三個 Skills 保留原生內容，Group v6 架構探索追查直接及間接消費端，未修改的受影響 Repo 提供固定驗證，不建立分支或交付。Group quick、標準、MR 與收據審查共用 portable v2 契約搜尋、影響鏈與逐 Repo 判定；MR task/report v2 綁定明確 Group 根目錄及精確 source／target SHA。單 Repo profile 以 `--scope repo` 限制於所選專案，Group 預設延伸所有具程式證據關聯的 Repo。
+GitLab Workspace v0.24.0 的 VSIX 與組合包共用版本，整合本機 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。來源 commit、修改狀態與 SHA-256 隨封包保存。
 
-**分析 → MergeReviewer → 指定 Repo 內容審查** 可選擇分支比較、已暫存內容或目前已儲存內容。後兩種不需要 remote 或 GitLab 連線：已暫存內容只看 index；目前已儲存內容看最終儲存版本，包含已暫存、未暫存及未忽略的未追蹤檔案。切回分支比較會保留原先填寫的版本。單 Repo 審查限制在所選專案，Group 審查以指定 Repo 為入口追查相關功能鏈。
+**分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-0.22.0 支援受信任的 0.14.0 至 0.21.0 升級與交易回復；受信任的舊紀錄未含 profile 時視為 Group。安裝與 profile 轉換保留 Wiki、其他 Skills、工作紀錄、報告及使用者設定；Group／子 Repo 未完成工作、Git common-dir 鎖或管理檔案修改會阻擋更新。維護鎖涵蓋更新、回復及中斷恢復，舊工作沿用原套件、契約與指紋。ReleaseReviewer 的入口分支、關聯 Repo 固定本機預設 SHA、v3 單一 Release Report 內嵌人工部署 Checklist，存於 VSCode 工作區根目錄；聚焦直接 P0／P1 阻擋，分開未完成證據與待核對條件，歷史報告保留。
+0.24.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。進行中的 Megin 工作沿原套件續作，完成後再更新。
 
 歷史 GitLab 交付與模擬流程保留於原套件；新版不套用舊 Megin 覆層。歷史 Group v1 收據使用隔離唯讀驗證器，原生 Repo／Group v2 收據核對完整原始證據與固定 Git 物件。安裝器提供 `install --dry-run` 與保留交易的 `rollback`；操作見[Group 工作流程](docs/group-workflow.md)。固定來源版本與摘要見組合包 Manifest。
 
@@ -99,6 +107,7 @@ npm ci
 接著在 VS Code 按 `F5`。常用指令：
 
 ```sh
+npm run check:kit-sources
 npm run compile
 npm run build:webview
 npm test

@@ -1,0 +1,399 @@
+{
+  "schema": "GitLabWorkspaceArtifactPayload/v1",
+  "status": "PASS",
+  "version": "0.24.0",
+  "artifact": {
+    "path": "dist/gitlab-workspace-0.24.0.vsix",
+    "sha256": "cb99cc85c0d89beea9d0c042db52614a31d4fe9ceae9e22067adbb481f8445d5",
+    "bytes": 3021123
+  },
+  "compiledProductionModules": 54,
+  "files": [
+    {
+      "path": "out/src/api/gitLabClient.js",
+      "sha256": "db62fa26bafe2f5f9a53a6eeb1bc746bd727be175b157573dc5748b71df4671f",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/gitLabReadCache.js",
+      "sha256": "0c40d4b9f8990888a371a8e94d8643381d9065ee816231444250326f3996afe5",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/gitLabReadGate.js",
+      "sha256": "727f4779cde69809924e6ec62ce6a47828b352854fd0339b74a043e6bef24079",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/gitLabReadKeys.js",
+      "sha256": "30515066bbc63377173389d59254f729302864c7b3b9f28432d8fe1c7a3c242b",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/graphqlCapabilities.js",
+      "sha256": "fd781f041df76f8343afd672b6e304fbd94e63669876ebdf05039a55c421fc49",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/types.js",
+      "sha256": "b0d2bc4142d0c62d43f996aaeb64f22c4889ac853f8a3765758b505d972d0149",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/api/urlPolicy.js",
+      "sha256": "4d353b4b5725c341ba1074b567fab8e8688037ae9e5e383c9b6fe0a0a8a3e540",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/connection/accountProtocol.js",
+      "sha256": "7dbb7c5fe58a27afc9e0bdc6c424d8dc0cf97647732124f6842a4dd92df7152d",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/connection/accountStore.js",
+      "sha256": "582eef2a0fbed5d95973343d7cbc548c1627399b871932b5365e9a3b5b2effc0",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/connection/session.js",
+      "sha256": "c3acc04b88c7715af42b79566d0361fc897b56db7d39c31c2f19e439394c013b",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/extension.js",
+      "sha256": "8525055a11cc25cc20780f509acad922aa993e62b3dc5f60bedd5361a3069323",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/cloneService.js",
+      "sha256": "2ea3556fe865f6038a1cb2f35c06bc01b0ef429860297813836b26b601a7d98a",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitCommandLog.js",
+      "sha256": "51c19424f22208b0b34f160cebebd6264106193de96946129538208e7e5b71fb",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitDiffFileSystemProvider.js",
+      "sha256": "c71dfda3987602102d1c731131f0d1b02e4fd1d152f64a74fe75d733ae2f930a",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitDiffSelection.js",
+      "sha256": "c07efc77d5b864fc33441a508c4910b1173a8fcef5d7e12db62277fa1144b530",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitGraphLayout.js",
+      "sha256": "0f44d9c4e695e9e695b7c31b068e634dce99dcc48cc7811579d5687387ecb297",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitProtocol.js",
+      "sha256": "eaa3d5329e60cfe8ffa0099ea7af24167023efd62d9fe3941685baaffba1e1e7",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitRefreshScheduler.js",
+      "sha256": "5a450d01395db7dca7e4540193e23e1b093b5bde9c489ff10e45d315f8b1c462",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitRepositoryService.js",
+      "sha256": "34a50898bffa68806265c504c9295afcd44d8ebbf6de5a1bf93fabeb424caf78",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/gitStateFingerprint.js",
+      "sha256": "8acccafe21b5a63a51bf77a5e9301ce0764a55b32bcbd6058630259b439f6ab2",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/repositoryOperationLock.js",
+      "sha256": "54589ac267929da6aaf3581e3bd800a902960caa2bc97ae0d8b7fc83b3b2e91f",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/repositoryScanner.js",
+      "sha256": "f13973cda8260441f1226402749ad500dffe4dc2cf9dde9cc42e0b0f582b20a6",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/git/repositoryScanProtocol.js",
+      "sha256": "7f4a4da504dfdbc8d441a499168ab4095f65dd2d328c81c990335dbea4b0dda3",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/issues/issuePanel.js",
+      "sha256": "9959c88f158c6b9f42f98c9ef77a949a1bbd63287dbfecbb552d267069de84c9",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/issues/protocol.js",
+      "sha256": "18812c8b67184dbc12be120fb3343dcddfa610a659e35221e38d1369ee63bc4e",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/logging/logProtocol.js",
+      "sha256": "b6a150abc609d84c022fc91cfeb24afb9c7dab8476f76621b65923d3e67e0287",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/logging/operationLog.js",
+      "sha256": "5445c53f5f0d93b899559f9f27172681812f228d8a14fbfc8d9eac8a29bba244",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/quickActionsView.js",
+      "sha256": "33672d2e22a0b6cccc71058c62c43c4e7e7bbe51544d78f130c22082e539c6cd",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/webview/codebaseWikiGuideData.js",
+      "sha256": "93d0a568fbbdfa4cb7e94c01b347e445917a0291a7b12bdf4ab87365b226d274",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/webview/dashboardState.js",
+      "sha256": "661dc1c263d5355876f45d21433d9285fde2d963d553be55a152ec913fcaee10",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/webview/gitUiState.js",
+      "sha256": "688fb4ade7df526a0bc31b5d1f4ccc039cd01a6593ffa400b3ae2db1a11acb97",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/webview/skillsGuideData.js",
+      "sha256": "6c2469925034b986c0901aba594940f8d4ed3c8796d026140590eb59a49052dc",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/webview/virtualWindow.js",
+      "sha256": "5bb31e41c11976ce01cec96cb86baab3c14e08b0b7e6bb8e02ea9dacb6f59e66",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/deliveryGate.js",
+      "sha256": "4424137b34e09e752321128bd9f4584afd1af0bd2c46a9b478ab961924171145",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/issueDrafts.js",
+      "sha256": "7859d92deb87949eeeb017879cd59d70d31ca3e3524dab11bd5f208dad262c50",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/issueGraph.js",
+      "sha256": "500fe13ca9e110b110962e50d73fa78c27048db4fead692d434c6caa0ab2a1d3",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/meginHandoff.js",
+      "sha256": "b88058a222146bf3b1747e6f1a0d4dbadfe6aa2a250155cadf0d87bb0a53c040",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/operations.js",
+      "sha256": "65f20fecb829a183e469e8634d998fbd0a8fa06a3302722cc7fba3713d0b3342",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/projectRoot.js",
+      "sha256": "5c0b23289f211efcc30b13ec42c2fa781f9df255bc78b801e8da19a212060b3b",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/projectRootProtocol.js",
+      "sha256": "2683e45a94a9fb6b63471d86c7ef73460f9e5a8464ed3db5c98fd3be3bee5fa3",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/pythonRuntime.js",
+      "sha256": "b65292c738cff8a40a111f766c523f39eda8981c543854da5ac185e064895321",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/quickActionsProtocol.js",
+      "sha256": "fd23ea94e4e374bd9bb6a7e8290605cd06505ffcc014e7a21056ff1003ca7eb2",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/repositorySelection.js",
+      "sha256": "320d326597f20b36d8ba61b8bb04bd4dca75117d3492aac186184bf14675d004",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/skillsContext.js",
+      "sha256": "8910ea343c90c22667299920a4f2fd678c26ea453c77bc243b8a546b724ca6e4",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/timeTracker.js",
+      "sha256": "cc22407ebdc2ba069ced654f1536cf8c0a410b70af0e5979946b1b37800c91e5",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/toolPackages.js",
+      "sha256": "88cc6b641777e1eb25699b837dd65df80e48e37e212a01ba702ea1113db08b76",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/windowsTerminal.js",
+      "sha256": "a4f51c366b77bc4493899d3bc811603bcc8e84ec1c078068f5a16dc2b4706756",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workflowKitPolicy.js",
+      "sha256": "a47e95c3e7aa095cf71ce3faa65e9dd02838ddb94eebc7b4848686a8107bde36",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workflowKitResult.js",
+      "sha256": "0825d5b38337f1494ad1cbd14afb78e1e653e681abb88261bf139a40f5862231",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workspaceEnvironment.js",
+      "sha256": "fb75c1d4be567d77079cef54a21206c707f84531259e239204a2898dc7edcc5b",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workspaceEnvironmentProtocol.js",
+      "sha256": "9137c5aefd0642970c878f928fa096e5b40df660a00945a2dabc404cc0be980a",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workspacePanel.js",
+      "sha256": "b6112e1c1f0f41d26e71113fcae46484a4c08b112f82bd94d1521bb07ecd9008",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workspacePaths.js",
+      "sha256": "522c5b2b6a00b0b1669090912d8951d7e8c3eb31d90b0cb2f168c6702dd9e1f1",
+      "status": "PASS"
+    },
+    {
+      "path": "out/src/workspace/workspaceProtocol.js",
+      "sha256": "82e42e41f4f2ad40e02bc14e51d8479494313c07548f28396cd01f2f4686c1b2",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/workflow-kit-installer.py",
+      "sha256": "d5dc26afbe2bc5b90393f987a1db7d6a9ba0b94afd51a4f6a3987a747e441735",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/offline-tools/source-snapshots.json",
+      "sha256": "5e0f437a5196dceb70a07e91d34d9aff0f359d982378c724b4c8162ae1301155",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/issue-webview/dashboard.js",
+      "sha256": "317b0e825e3e5f1376106db4d2d017bb2f803abff18318fafce3e8f71e52ea3b",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/issue-webview/dashboard.css",
+      "sha256": "8aa5f87dff907bcc2c20b06311fec42d37c3b8266831bf3b5b4537a0667b7ede",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/sidebar-webview/sidebar.js",
+      "sha256": "4cd7cefebfc4c70ec540f5e33604cffaf610925dd45086e2a37d2ef987b65cd5",
+      "status": "PASS"
+    },
+    {
+      "path": "resources/sidebar-webview/sidebar.css",
+      "sha256": "e54b695b041c19a6eb3dda66af5f1412c38b309f3287bd774ce416d1c5985716",
+      "status": "PASS"
+    }
+  ],
+  "profiles": {
+    "group": {
+      "capabilities": [
+        "adr",
+        "archaeology",
+        "audit",
+        "business-analysis",
+        "functional-exploration",
+        "ingest",
+        "lint",
+        "megin-resume",
+        "megin-spec-export",
+        "megin-workflow",
+        "merge-repo",
+        "notebooklm-export",
+        "query",
+        "release-review",
+        "synthesis",
+        "system-analysis",
+        "system-design"
+      ],
+      "payloadSha256": "a9b9be74dee3f8cd7a875eafca1845c039f0ddc85cfcf53c2b76dd35cde4e26d"
+    },
+    "repository": {
+      "capabilities": [
+        "adr",
+        "archaeology",
+        "audit",
+        "business-analysis",
+        "functional-exploration",
+        "ingest",
+        "lint",
+        "megin-resume",
+        "megin-spec-export",
+        "megin-workflow",
+        "merge-repo",
+        "notebooklm-export",
+        "query",
+        "release-review",
+        "synthesis",
+        "system-analysis",
+        "system-design"
+      ],
+      "payloadSha256": "f0cf21a96c9679aad3a6d6d2f0c791ecd6d8fb543264879f91003a2b05bcb0cc"
+    }
+  },
+  "sourceSnapshots": {
+    "codebase-wiki": {
+      "archiveSha256": "292c5172f225ddfca5f0212acac3ad33156759cecbb66b0594fb89c6f1080e9a",
+      "commit": "3276ac08a76a40a672062e4d85754e21f09f0c24",
+      "dirty": false,
+      "sourceKind": "local-snapshot",
+      "treeSha256": "fb31354e894331c64ecfb74f7bb55a8a6c82a985a645337b9b1a9a8902909b81"
+    },
+    "megin": {
+      "archiveSha256": "81c530799f72c661bfe56e1c04dedaeb0c4534d5f387363821f85c95ff137ed8",
+      "commit": "f7a8899020d95af1e3881ab5501cd1cd5861473d",
+      "dirty": false,
+      "sourceKind": "local-snapshot",
+      "treeSha256": "c23ffcc786b7c844dc65e40ba7cd667030be997ea0ac80a805d054bc503bb405"
+    },
+    "merge-reviewer": {
+      "archiveSha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
+      "commit": "4b20381c054afca139b59c0e695875c3f8de52a9",
+      "dirty": true,
+      "sourceKind": "local-snapshot",
+      "treeSha256": "554a6f1e26aeffddd74a805388418af62d471eed9d878837d0b5764a41f75592"
+    },
+    "release-reviewer": {
+      "archiveSha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
+      "commit": "b333e22187dba5d7106d7255574dc4dc8dc5c739",
+      "dirty": true,
+      "sourceKind": "local-snapshot",
+      "treeSha256": "b27ac90d13747fea6830e7ffd24861092c5365decda5ffb0d722f756363e3801"
+    }
+  }
+}

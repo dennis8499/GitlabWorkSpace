@@ -1,0 +1,15 @@
+node : test_v3_branch_reports_preserve_index_and_saved_modifications_in_both_profiles (__main__.LocalReviewTargetsTests
+.test_v3_branch_reports_preserve_index_and_saved_modifications_in_both_profiles) ... ok
+位於 線路:2 字元:1
++ node scripts/run-python.mjs test/release/local_review_targets_test.py ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (test_v3_branch_...rofiles) ... ok:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+test_versions_and_removed_user_options_are_rejected (__main__.LocalReviewTargetsTests.test_versions_and_removed_user_op
+tions_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 14.070s
+
+OK

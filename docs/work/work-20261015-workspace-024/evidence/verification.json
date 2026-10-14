@@ -1,0 +1,210 @@
+{
+  "schema": "GitLabWorkspace024Verification/v1",
+  "version": "0.24.0",
+  "status": "PASS",
+  "assets": [
+    {
+      "name": "gitlab-workspace-0.24.0.vsix",
+      "bytes": 3021123,
+      "sha256": "cb99cc85c0d89beea9d0c042db52614a31d4fe9ceae9e22067adbb481f8445d5"
+    },
+    {
+      "name": "gitlab-workspace-kit-0.24.0.zip",
+      "bytes": 11079421,
+      "sha256": "7010ebbe6b2f9d2a78814d1599bfda80d28dd73e197e31a0968e52a2e3072e3c"
+    }
+  ],
+  "sources": {
+    "ok": true,
+    "schema": "GitLabWorkspaceSourceCheck/v1",
+    "localCompared": true,
+    "sources": [
+      {
+        "tool": "codebase-wiki",
+        "version": "0.6.0",
+        "files": 105,
+        "sourceDirty": false,
+        "archiveSha256": "292c5172f225ddfca5f0212acac3ad33156759cecbb66b0594fb89c6f1080e9a",
+        "status": "PASS"
+      },
+      {
+        "tool": "megin",
+        "version": "0.8.0",
+        "files": 58,
+        "sourceDirty": false,
+        "archiveSha256": "81c530799f72c661bfe56e1c04dedaeb0c4534d5f387363821f85c95ff137ed8",
+        "status": "PASS"
+      },
+      {
+        "tool": "merge-reviewer",
+        "version": "0.12.0",
+        "files": 12,
+        "sourceDirty": true,
+        "archiveSha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
+        "status": "PASS"
+      },
+      {
+        "tool": "release-reviewer",
+        "version": "0.3.0",
+        "files": 14,
+        "sourceDirty": true,
+        "archiveSha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
+        "status": "PASS"
+      }
+    ],
+    "workspaceFilesChecked": 43,
+    "capabilities": {
+      "group": [
+        "adr",
+        "archaeology",
+        "audit",
+        "business-analysis",
+        "functional-exploration",
+        "ingest",
+        "lint",
+        "megin-resume",
+        "megin-spec-export",
+        "megin-workflow",
+        "merge-repo",
+        "notebooklm-export",
+        "query",
+        "release-review",
+        "synthesis",
+        "system-analysis",
+        "system-design"
+      ],
+      "repository": [
+        "adr",
+        "archaeology",
+        "audit",
+        "business-analysis",
+        "functional-exploration",
+        "ingest",
+        "lint",
+        "megin-resume",
+        "megin-spec-export",
+        "megin-workflow",
+        "merge-repo",
+        "notebooklm-export",
+        "query",
+        "release-review",
+        "synthesis",
+        "system-analysis",
+        "system-design"
+      ]
+    }
+  },
+  "capabilityInventory": {
+    "group": 17,
+    "repository": 17,
+    "skills": 16,
+    "meginSkills": 13
+  },
+  "tests": {
+    "unit": {
+      "passed": 299
+    },
+    "behavior": {
+      "passed": 72
+    },
+    "bdd": {
+      "scenarios": 40,
+      "steps": 175
+    },
+    "release": {
+      "status": "PASS",
+      "stages": {
+        "policyAndRunner": 26,
+        "legacyToolInstaller": 18,
+        "installer": 12,
+        "transactions": 20,
+        "profiles": 11,
+        "releaseReviewer": 7,
+        "nativeGroup": 3,
+        "meginSpec": 5,
+        "historicalMegin": 88,
+        "historicalDelivery": 27,
+        "nativeBranches": 2
+      },
+      "execution": "Main chain passed through 88 historical Megin cases; after correcting a test fixture reference, the remaining 27 historical delivery and 2 native branch cases passed in separate runs."
+    },
+    "extensionHost": {
+      "version": "1.90.0",
+      "passed": 13,
+      "pendingOptionalLiveCases": 2,
+      "isolatedProfile": true,
+      "launchFlags": [
+        "--no-sandbox",
+        "--disable-gpu",
+        "--disable-gpu-sandbox"
+      ],
+      "acceptedProductionModulesUnchanged": 54
+    }
+  },
+  "operationGates": {
+    "concurrentRequests": 5,
+    "environmentInspections": 1,
+    "packageLists": 1,
+    "statusReads": 1,
+    "repoScans": 1,
+    "warmAnalysisRoundTrips": 3,
+    "additionalFullScans": 0
+  },
+  "performance": {
+    "status": "PASS",
+    "comparison": {
+      "status": "PASS",
+      "metrics": {
+        "warmNavigationP95Ms": {
+          "baseline": 30.6,
+          "revision": 30.5,
+          "increasePercent": -0.327,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "repoSearchP95Ms": {
+          "baseline": 48.5,
+          "revision": 48.2,
+          "increasePercent": -0.619,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "rendererRetainedHeapP95Bytes": {
+          "baseline": 6534632,
+          "revision": 6586844,
+          "increasePercent": 0.799,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "rendererRetainedHeapMaxBytes": {
+          "baseline": 6534660,
+          "revision": 6586992,
+          "increasePercent": 0.801,
+          "limitPercent": 10,
+          "status": "PASS"
+        }
+      },
+      "note": "Observed comparison only. Frame scheduling, GC, machine load and instrumentation add noise; a threshold failure is reported as measured and must not be rewritten as a pass."
+    },
+    "earlierRuns": [
+      {
+        "stage": "initial",
+        "status": "FAIL",
+        "artifactSha256": "cc98c1d6d41712a1797e4fd497a1aaf14abcda4c6aa7898d543f2d040592010b"
+      },
+      {
+        "stage": "controlled-before-caption",
+        "status": "PASS",
+        "artifactSha256": "a5d2952b30936d09f300decd3b1a63bca70f54da0f9099f34a19c7a9c47cd325"
+      }
+    ],
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex"
+  },
+  "limits": [
+    "No live GitLab server acceptance or AI semantic analysis was performed.",
+    "High contrast uses emulated VS Code theme tokens; no screen-reader acceptance.",
+    "Installed VS Code 1.141.1 failed during its Windows AppContainer startup; native tests used supported VS Code 1.90.0 with isolated test launch flags.",
+    "One ignored Wiki Python import cache was created before bytecode writes were disabled. Auto-review rejected its cleanup as outside GitlabWorkSpace scope; it remains unchanged."
+  ],
+  "published": false
+}

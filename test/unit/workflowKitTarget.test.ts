@@ -292,23 +292,24 @@ test('copying rechecks versions and rejects stale context and unknown old Work I
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /既有 Work ID/);
 });
 
-test('MR tasks and delivery evidence use verified remotes instead of canonical folder names', async t => {
+test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
   const [group, repo] = await directories(t);
   const { host } = fixture([group], true);
-  host.runWorkflowKitHelper = async () => ({ ok: true, status: 'installed', version: '0.17.0', profile: 'group', capabilities: ['merge-mr'] });
   const target = project(1, 'service');
-  host.session.getClient = async () => ({ getProject: async () => target });
-  host.liveReviewIdentity = async () => ({ identity: { origin: 'https://gitlab.test', projectId: 1, mrIid: 2,
-    targetProjectId: 1, sourceProjectId: 1, sourceSha: 'a'.repeat(40), targetSha: 'b'.repeat(40), sourceBranch: 'feature', targetBranch: 'main' },
-    request: { web_url: `${target.web_url}/-/merge_requests/2`, source_branch: 'feature', target_branch: 'main' } });
-  host.openCodexTerminal = async () => undefined;
-  let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
-  await host.openMergeReviewTask(1, 2);
-  assert.ok(copied.includes(repo), 'the MR task must use the renamed actual Git root');
-  const encodedTask = copied.match(/--mr-context-base64 "([A-Za-z0-9+/=]+)"/)?.[1];
-  assert.ok(encodedTask);
-  const task = JSON.parse(Buffer.from(encodedTask, 'base64').toString('utf8'));
-  assert.equal(task.schema, 'MergeReviewTask/v2'); assert.equal(task.groupRoot, group);
+  host.session.getClient = async () => ({ getMergeRequest: async () => ({ project_id: 1, target_project_id: 1, source_project_id: 1,
+    source_branch: 'feature', target_branch: 'main' }) });
+  host.navigateTo = async () => undefined;
+  let result: any;
+  host.post = (message: any) => { if (message.type === 'branchReviewReady') result = message; };
+  await host.refreshWorkflowKit();
+  await host.openBranchReview(1, 2);
+  assert.equal(result.inputs['merge-repo.repo'], repo);
+  assert.equal(result.inputs['merge-repo.base'], 'origin/main');
+  assert.equal(result.inputs['merge-repo.head'], 'origin/feature');
+  host.session.getClient = async () => ({ getMergeRequest: async () => ({ project_id: 1, target_project_id: 1, source_project_id: 2,
+    source_branch: 'feature', target_branch: 'main' }) });
+  await host.openBranchReview(1, 2);
+  assert.equal(result.inputs['merge-repo.repo'], ''); assert.match(result.notice, /fork/);
   const handoff = { group_root: group, gitlab: { origin: 'https://gitlab.test' }, state: 'complete', repositories: [{
     gitlab_project_id: 1, gitlab_namespace: target.path_with_namespace, repo_path: path.basename(repo), remote_url: target.http_url_to_repo
   }] };
@@ -316,46 +317,48 @@ test('MR tasks and delivery evidence use verified remotes instead of canonical f
   await assert.rejects(host.validateWorkspaceHandoff({ ...handoff, repositories: [{ ...handoff.repositories[0], repo_path: 'docs' }] }), /無法唯一對應/);
 });
 
-test('Group quick review opens with the actual current kit and rechecks its verified capability', async t => {
-  const [group] = await directories(t);
-  const root = path.resolve(__dirname, '../../..');
-  const installer = path.join(root, 'resources/workflow-kit-installer.py');
-  const archive = path.join(root, 'resources/offline-tools/workflow-kit.tar.xz');
-  const index = JSON.parse(await readFile(path.join(root, 'resources/offline-tools/manifest.json'), 'utf8'));
-  const execute = (args: string[]) => JSON.parse(execFileSync(process.execPath,
-    [path.join(root, 'scripts/run-python.mjs'), installer, ...args], { cwd: root, encoding: 'utf8', windowsHide: true }));
-  const installed = execute(['install', archive, group, index.version, 'bundled', '--format', 'tar.xz',
-    '--entry-root', 'workflow-kit', '--archive-sha256', index.archiveSha256]);
-  assert.equal(installed.version, index.version);
-  assert.equal((await readFile(path.join(group, '.agents/skills/merge-reviewer/scripts/git_review_context.py'), 'utf8'))
-    .includes('--mr-context-base64'), false, 'current native core registers MR arguments through the Workspace adapter');
-  const { host } = fixture([group], true);
-  host.context.extension.packageJSON.version = index.version;
-  let statusReads = 0, omitCapability = false, invalidateOnConfirmation = false;
-  host.runWorkflowKitHelper = async (args: string[], _timeout?: number, before?: () => Promise<void>) => {
-    await before?.();
-    const state = execute(args);
-    if (args[0] === 'status') {
-      statusReads++;
-      if (omitCapability || invalidateOnConfirmation && statusReads > 1) state.capabilities = state.capabilities.filter((id: string) => id !== 'merge-group');
-    }
-    return state;
-  };
-  let copied = '', opened = 0;
-  vscode.env.clipboard.writeText = async text => { copied = text; };
-  host.openCodexTerminal = async () => { opened++; };
-  await host.openGroupQuickReview();
-  assert.match(copied, /git_review_context\.py --group-root.*--quick/);
-  assert.equal(opened, 1);
-  assert.ok(host.getSkillsContext().availableFeatures.includes('merge-group'));
+test('concurrent Skills and Repo checks run once and warm Analysis navigation adds no full scans', async t => {
+  const [group] = await directories(t); const { host } = fixture([group], true);
+  let reads = 0, packages = 0, resolutions = 0, scans = 0;
+  const original = host.runWorkflowKitHelper, listPackages = host.packages.listPackages, resolve = host.resolveProjectContext;
+  host.packages.listPackages = async () => { packages++; return listPackages(); };
+  host.resolveProjectContext = async () => { resolutions++; return resolve.call(host); };
+  host.runWorkflowKitHelper = async (...args: any[]) => { reads++; await new Promise(resolve => setTimeout(resolve, 20)); return original(...args); };
+  await Promise.all(Array.from({ length: 5 }, () => host.refreshWorkflowKit()));
+  assert.equal(reads, 1); assert.equal(packages, 1); assert.equal(resolutions, 1);
+  host.refreshActualRepositoriesNow = async () => { scans++; await new Promise(resolve => setTimeout(resolve, 20)); };
+  await Promise.all(Array.from({ length: 5 }, () => host.refreshActualRepositories(group, host.connectedScopeKey())));
+  assert.equal(scans, 1);
+  host.actualRepositoriesRoot = group; host.actualRepositoryScanStatus = 'ready';
+  host.context.globalState = memory(); host.hideIssueGraph = () => undefined;
+  for (let count = 0; count < 3; count++) {
+    await host.dispatchMessage({ type: 'setMode', mode: 'clone' });
+    await host.dispatchMessage({ type: 'setMode', mode: 'sa' });
+  }
+  assert.equal(scans, 1); assert.equal(reads, 1); assert.equal(packages, 1); assert.equal(resolutions, 1);
+});
 
-  copied = ''; statusReads = 0; omitCapability = true;
-  await assert.rejects(host.openGroupQuickReview(), /Skills 環境或版本已變更/);
-  assert.equal(copied, ''); assert.equal(opened, 1);
-
-  statusReads = 0; omitCapability = false; invalidateOnConfirmation = true;
-  await assert.rejects(host.openGroupQuickReview(), /Skills 環境或版本已變更/);
-  assert.equal(copied, ''); assert.equal(opened, 1, 'capability drift must stop before copying or opening Codex');
+test('Repo refresh retains the current list until replacement and preserves it on failure', async t => {
+  const [group, repo, other] = await directories(t); const { host } = fixture([group]);
+  await host.refreshWorkflowKit(); host.actualRepositoryScanGeneration = 0;
+  const old = [{ name: 'old', path: repo }], replacement = [{ name: 'new', path: other }];
+  host.actualRepositoriesRoot = group; host.actualRepositories = old;
+  const paths = require('../../src/workspace/workspacePaths') as typeof import('../../src/workspace/workspacePaths');
+  const scanner = paths.scanLocalGroupRepositories;
+  t.after(() => { paths.scanLocalGroupRepositories = scanner; });
+  let release!: (value: any[]) => void;
+  paths.scanLocalGroupRepositories = () => new Promise(resolve => { release = resolve; });
+  const pending = host.refreshActualRepositories(group, 'offline');
+  assert.equal(host.actualRepositoryScanStatus, 'scanning'); assert.equal(host.actualRepositories, old);
+  release(replacement); await pending;
+  assert.equal(host.actualRepositoryScanStatus, 'ready'); assert.equal(host.actualRepositories, replacement);
+  paths.scanLocalGroupRepositories = async () => { throw new Error('temporarily unavailable'); };
+  await host.refreshActualRepositories(group, 'offline');
+  assert.equal(host.actualRepositoryScanStatus, 'error'); assert.match(host.actualRepositoryScanError, /unavailable/);
+  assert.equal(host.actualRepositories, replacement);
+  host.groupRoot = other;
+  await host.refreshActualRepositories(other, 'offline');
+  assert.deepEqual(host.actualRepositories, [], 'a different environment must not retain the previous Repo list');
 });
 
 test('post-delivery Wiki copying rejects a context change during Issue reads', async t => {
@@ -452,4 +455,19 @@ test('a saved workspace keeps root overrides on its folder even before a second 
   vscode.window.showOpenDialog = async () => [uri(group)]; await host.selectProjectRoot();
   assert.equal(updates.at(-1).target, vscode.ConfigurationTarget.WorkspaceFolder);
   assert.equal(updates.at(-1).resource, uri(repo).toString());
+});
+
+test('Git write feedback preserves handled failure reasons and does not serialize readonly selection', async t => {
+  const [, repo] = await directories(t); const { host } = fixture([repo]); await host.refreshWorkflowKit();
+  const messages: any[] = [];
+  host.panel = { visible: true, webview: { postMessage: (message: unknown) => { messages.push(message); return Promise.resolve(true); } } };
+  host.webviewReady = true; host.post = (WorkspacePanel.prototype as any).post;
+  host.dispatchMessage = async (request: any) => { host.post({ type: 'gitActionResult', requestId: request.requestId, error: 'branch is protected' }); };
+  const scope = host.operationScope();
+  await host.handleMessage({ type: 'gitAction', requestId: 'git-write', operationId: 'write', operationScope: scope, repoId: 'repo', action: { type: 'push', remote: 'origin', branch: 'main' } });
+  const receipt = messages.filter(message => message.type === 'operationChanged').at(-1).operation;
+  assert.equal(receipt.status, 'failed'); assert.equal(receipt.phase, '處理失敗'); assert.equal(receipt.error, 'branch is protected');
+  const before = messages.filter(message => message.type === 'operationChanged').length;
+  await host.handleMessage({ type: 'gitAction', requestId: 'git-read', operationId: 'read', operationScope: scope, repoId: 'repo', action: { type: 'readCommit', hash: 'a'.repeat(40) } });
+  assert.equal(messages.filter(message => message.type === 'operationChanged').length, before);
 });

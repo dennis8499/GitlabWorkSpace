@@ -88,7 +88,7 @@ test('shows connection scope and dispatches each destination with accessible bus
   view.sendState({ connected: true, groupLabel: 'team/dotnet', busyAction: 'openProjects' });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.buttons().every((button) => button.disabled), true);
-  assert.equal(view.dom.window.document.querySelector('[aria-live="polite"]').textContent, '正在開啟…');
+  assert.equal(view.dom.window.document.querySelector('[aria-live="polite"]').textContent, '正在開啟專案…');
 
   view.sendState({ connected: true, groupLabel: 'team/dotnet', errorMessage: '無法連線' });
   await new Promise((resolve) => setTimeout(resolve, 0));

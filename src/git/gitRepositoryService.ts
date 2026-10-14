@@ -130,6 +130,7 @@ type GitWarningPromptHandler = (message: string, options: vscode.MessageOptions,
 type GitActionTraceHandler = (event: { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string }) => void;
 
 export class GitRepositoryService implements vscode.Disposable {
+  get gitExecutable(): string | undefined { return this.api?.git.path; }
   private pendingActions = 0;
   get hasActiveOperations(): boolean { return this.activeOperations.size > 0 || this.pendingActions > 0; }
 

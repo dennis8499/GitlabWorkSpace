@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
-import { canonicalSha256, type MergeReviewReportMetadata, type MergeReviewTask } from '../../src/workspace/mergeReviewReport';
 
 // Run real controller methods in the Extension Host with an in-memory GitLab substitute.
 // No windows, network writes, Git pushes or live projects are used by these tests.
@@ -12,17 +10,6 @@ const identity = { origin: 'https://gitlab.example.invalid', projectId: 10, mrIi
 const request = { project_id: 10, iid: 4, source_project_id: 20, target_project_id: 10,
   source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: sourceSha } };
 const groupRoot = 'C:/group', repoPath = 'C:/group/repo';
-
-function report(body = 'Incomplete review with P1 findings'): string {
-  const task: MergeReviewTask = { schema: 'MergeReviewTask/v2', ...identity, groupRoot, repoPath,
-    sourceRemoteUrl: identity.origin + '/group/source.git', targetRemoteUrl: identity.origin + '/group/repo.git', mode: 'merge' };
-  const metadata: MergeReviewReportMetadata = { schema: 'MergeReviewReport/v2', ...identity, comparisonBaseSha: targetSha,
-    mode: 'merge', groupRoot, repoPath, contextSha256: 'c'.repeat(64), reviewComplete: false,
-    contextSchema: 'merge-reviewer-workspace-context/v2', scope: 'group', task, taskSha256: canonicalSha256(task),
-    bodySha256: createHash('sha256').update(body).digest('hex'), bindingSha256: '' };
-  metadata.bindingSha256 = canonicalSha256(Object.fromEntries(Object.entries(metadata).filter(([key]) => key !== 'bindingSha256')));
-  return `${body}\n\n<!-- merge-review-report:${Buffer.from(JSON.stringify(metadata)).toString('base64')} -->\n`;
-}
 
 function panel(client: Harness): Harness {
   const values = new Map<string, unknown>();
@@ -40,60 +27,17 @@ function panel(client: Harness): Harness {
 }
 
 suite('Group delivery and version-bound report controller', () => {
-  test('rejects edited report text before checking or publishing to GitLab', async () => {
-    let reads = 0, writes = 0;
-    const view = panel({ getMergeRequest: async () => { reads++; return request; }, createMergeRequestNote: async () => { writes++; } });
-    await assert.rejects(view.publishMergeReviewReport(10, 4, report().replace('P1', 'P0')), /正文摘要/);
-    assert.equal(reads, 0); assert.equal(writes, 0);
-  });
-  test('publishes a valid incomplete report after rechecking the target immediately before writing', async () => {
-    const calls: string[] = [];
-    const client = {
-      getMergeRequest: async () => request,
-      getRepositoryBranch: async (projectId: number) => {
-        calls.push(projectId === 20 ? 'source' : 'target');
-        return { commit: { id: projectId === 20 ? sourceSha : targetSha } };
-      },
-      listMergeRequestDiscussions: async () => { calls.push('reconcile'); return []; },
-      createMergeRequestNote: async (_project: number, _iid: number, text: string) => {
-        calls.push('write'); assert.match(text, /merge-review-report:/);
-      }
-    };
-    await panel(client).publishMergeReviewReport(10, 4, report());
-    assert.equal(calls.at(-1), 'write');
-    assert.equal(calls.filter((c) => c === 'target').length, 2);
-    assert.ok(calls.lastIndexOf('target') > calls.indexOf('reconcile'));
-  });
-
-  test('stops publication when the target changes during reconciliation and leaves no uncertain write', async () => {
-    let targetReads = 0, writes = 0;
-    const client = {
-      getMergeRequest: async () => request,
-      getRepositoryBranch: async (projectId: number) => ({ commit: { id: projectId === 20 ? sourceSha : ++targetReads === 1 ? targetSha : 'd'.repeat(40) } }),
-      listMergeRequestDiscussions: async () => [],
-      createMergeRequestNote: async () => { writes++; }
-    };
-    const view = panel(client);
-    await assert.rejects(view.publishMergeReviewReport(10, 4, report()), /版本已變更/);
-    assert.equal(writes, 0);
-    assert.deepEqual(view.pendingMrWrites(), []);
-  });
-
-  test('reconciles an uncertain report response without creating a duplicate note', async () => {
-    const notes: Array<{ body: string }> = [];
-    let writes = 0;
-    const client = {
-      getMergeRequest: async () => request,
-      getRepositoryBranch: async (projectId: number) => ({ commit: { id: projectId === 20 ? sourceSha : targetSha } }),
-      listMergeRequestDiscussions: async () => notes.length ? [{ notes }] : [],
-      createMergeRequestNote: async (_project: number, _iid: number, text: string) => {
-        writes++; notes.push({ body: text }); throw new Error('response lost');
-      }
-    };
-    const view = panel(client);
-    await view.publishMergeReviewReport(10, 4, report());
-    await view.publishMergeReviewReport(10, 4, report());
+  test('manual comments recheck the current MR head and reconcile a lost response', async () => {
+    const notes: Array<{ body: string }> = []; let writes = 0;
+    const view = panel({ getMergeRequest: async () => request, listMergeRequestDiscussions: async () => notes.length ? [{ notes }] : [],
+      createMergeRequestNote: async (_project: number, _iid: number, text: string) => { writes++; notes.push({ body: text }); throw new Error('response lost'); } });
+    await view.postMergeRequestNote(10, 4, 'Merge Report: Repo\nStatic findings');
+    await view.postMergeRequestNote(10, 4, 'Merge Report: Repo\nStatic findings');
     assert.equal(writes, 1);
+    view.session.getClient = async () => ({ getMergeRequest: async () => ({ ...request, diff_refs: { head_sha: targetSha } }) });
+    await assert.rejects(view.postMergeRequestNote(10, 4, 'New note'), /SHA 已變更/);
+    assert.equal(typeof view.publishMergeReviewReport, 'undefined');
+    assert.equal(typeof view.openGroupQuickReview, 'undefined');
   });
 
   test('recovers an already pushed immutable commit before invoking Git or requesting credentials', async () => {

@@ -1,0 +1,1180 @@
+{
+  "schema": "GitLabWorkspacePackagedUiVerification/v1",
+  "label": "revision",
+  "capturedAt": "2026-10-14T17:55:22.448Z",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.24.0.vsix",
+    "sha256": "cb99cc85c0d89beea9d0c042db52614a31d4fe9ceae9e22067adbb481f8445d5"
+  },
+  "assets": [
+    {
+      "name": "issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "bytes": 443
+    },
+    {
+      "name": "issue-webview/dashboard.js",
+      "sha256": "317b0e825e3e5f1376106db4d2d017bb2f803abff18318fafce3e8f71e52ea3b",
+      "bytes": 310487
+    },
+    {
+      "name": "issue-webview/dashboard.css",
+      "sha256": "8aa5f87dff907bcc2c20b06311fec42d37c3b8266831bf3b5b4537a0667b7ede",
+      "bytes": 76676
+    },
+    {
+      "name": "sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "bytes": 459
+    },
+    {
+      "name": "sidebar-webview/sidebar.js",
+      "sha256": "4cd7cefebfc4c70ec540f5e33604cffaf610925dd45086e2a37d2ef987b65cd5",
+      "bytes": 23795
+    },
+    {
+      "name": "sidebar-webview/sidebar.css",
+      "sha256": "e54b695b041c19a6eb3dda66af5f1412c38b309f3287bd774ce416d1c5985716",
+      "bytes": 9681
+    }
+  ],
+  "harnessSha256": "25d92ee04abcda64cee7761b538ed8a15ec41377c228999c3d3ad9b6eab1bb83",
+  "fixtureSha256": "0c88cc79c592938bd52c8cf9d89b3417aca28ed5e69c0d36b91f1e45a798ec6f",
+  "browserVersion": "155.0.8059.79",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "measurement": {
+    "rounds": 10,
+    "samplesPerRound": 30,
+    "repoCount": 20,
+    "dashboardWidth": 1440,
+    "sidebarWidth": 300,
+    "height": 900,
+    "latency": "UI postMessage/input capture to matching rendered DOM followed by two requestAnimationFrame callbacks; excludes Playwright input delivery",
+    "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "comparisonLimitPercent": 10
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "warmNavigationMs": {
+        "samples": [
+          29.5,
+          28.7,
+          29,
+          29.3,
+          30.2,
+          29.5,
+          30.6,
+          28.5,
+          29.4,
+          30.7,
+          28.3,
+          29.9,
+          29,
+          28.6,
+          29.2,
+          28.1,
+          30.2,
+          28.6,
+          29.2,
+          29.2,
+          29.5,
+          29.2,
+          29.4,
+          29.1,
+          29.6,
+          28.7,
+          28.4,
+          29.2,
+          29.9,
+          28.9
+        ],
+        "p95": 30.6
+      },
+      "repoSearchMs": {
+        "samples": [
+          26.8,
+          44.2,
+          29.2,
+          29,
+          47.4,
+          26.9,
+          29.3,
+          29.9,
+          29.6,
+          28.7,
+          47.6,
+          29.8,
+          29.1,
+          29,
+          29.4,
+          29,
+          48,
+          30,
+          31,
+          30.6,
+          29.5,
+          29.9,
+          47,
+          30.6,
+          29.3,
+          30.4,
+          30.6,
+          30.7,
+          47.4,
+          30.4
+        ],
+        "p95": 47.6
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5897548,
+          "totalSize": 6733824,
+          "embedderHeapUsedSize": 2795000,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540044,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 3141408,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586640,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2750160,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 2,
+      "warmNavigationMs": {
+        "samples": [
+          29.6,
+          28.8,
+          29.1,
+          29.6,
+          28.6,
+          29.7,
+          26.4,
+          30.1,
+          29.8,
+          29.3,
+          29.7,
+          29.2,
+          30,
+          30.6,
+          27.5,
+          31.1,
+          30.4,
+          25.8,
+          26.7,
+          40.8,
+          26,
+          27.2,
+          28.3,
+          28.8,
+          28.9,
+          29.1,
+          28,
+          28.4,
+          29,
+          29.2
+        ],
+        "p95": 31.1
+      },
+      "repoSearchMs": {
+        "samples": [
+          28,
+          46.2,
+          29.6,
+          30,
+          47.5,
+          28.4,
+          29.6,
+          29.2,
+          29.1,
+          30.4,
+          47.1,
+          29.3,
+          30,
+          30.5,
+          30.7,
+          29.6,
+          48.3,
+          29.7,
+          28.3,
+          30.9,
+          28.1,
+          29.9,
+          48.1,
+          29.8,
+          30.7,
+          30.2,
+          30,
+          30.1,
+          48.5,
+          30.3
+        ],
+        "p95": 48.3
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5892096,
+          "totalSize": 6471680,
+          "embedderHeapUsedSize": 2762432,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540120,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2954848,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586716,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2755128,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 3,
+      "warmNavigationMs": {
+        "samples": [
+          28.6,
+          29.7,
+          30.1,
+          29.6,
+          30.4,
+          29.4,
+          29.5,
+          29.9,
+          31.2,
+          28.8,
+          30.2,
+          29.3,
+          29.3,
+          29.8,
+          30.1,
+          29.9,
+          28.2,
+          29.6,
+          25.1,
+          28.2,
+          29.4,
+          28.9,
+          29.1,
+          25.7,
+          25.9,
+          29.9,
+          27,
+          28.1,
+          29.4,
+          29.7
+        ],
+        "p95": 30.4
+      },
+      "repoSearchMs": {
+        "samples": [
+          27.8,
+          30,
+          31.7,
+          29.9,
+          46.4,
+          29.4,
+          29.3,
+          31,
+          30.1,
+          30,
+          48.5,
+          30.3,
+          30.1,
+          30.6,
+          29.9,
+          30.4,
+          48.9,
+          30.4,
+          30.2,
+          47.2,
+          29.2,
+          29.6,
+          48.2,
+          29.2,
+          28,
+          30.8,
+          29.3,
+          29.7,
+          48.2,
+          30.7
+        ],
+        "p95": 48.5
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5897376,
+          "totalSize": 6471680,
+          "embedderHeapUsedSize": 2761616,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6539992,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 3165056,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586588,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2754312,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 4,
+      "warmNavigationMs": {
+        "samples": [
+          27.6,
+          29.2,
+          27.5,
+          29.5,
+          29.4,
+          27.6,
+          28.7,
+          28.3,
+          29.2,
+          29.9,
+          28.3,
+          29,
+          28.2,
+          28.2,
+          29.4,
+          29.1,
+          30.5,
+          29.8,
+          28.9,
+          29.2,
+          28.9,
+          29.1,
+          28.1,
+          27.5,
+          29.9,
+          28.2,
+          29.3,
+          29.1,
+          30.6,
+          29.9
+        ],
+        "p95": 30.5
+      },
+      "repoSearchMs": {
+        "samples": [
+          28.5,
+          29.6,
+          29.4,
+          30,
+          48.5,
+          29.9,
+          28.9,
+          48.3,
+          29.1,
+          28.1,
+          46.2,
+          29.9,
+          30.4,
+          30.6,
+          28.4,
+          28.5,
+          47.2,
+          30.1,
+          31.2,
+          31.3,
+          31.2,
+          29.9,
+          47.4,
+          29.3,
+          30.8,
+          30.1,
+          30.2,
+          30.1,
+          47.9,
+          29.9
+        ],
+        "p95": 48.3
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5892144,
+          "totalSize": 6995968,
+          "embedderHeapUsedSize": 2762432,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540224,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 2975248,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586820,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2755128,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 5,
+      "warmNavigationMs": {
+        "samples": [
+          28.8,
+          28.6,
+          29.2,
+          29.8,
+          28.2,
+          29.4,
+          29,
+          29.7,
+          29.3,
+          28.2,
+          29,
+          29.3,
+          27.1,
+          27.5,
+          29.1,
+          28.9,
+          28.1,
+          29.4,
+          30.1,
+          29.4,
+          27.8,
+          27.6,
+          28.9,
+          28.2,
+          28.8,
+          30.9,
+          29,
+          29.3,
+          30,
+          28.9
+        ],
+        "p95": 30.1
+      },
+      "repoSearchMs": {
+        "samples": [
+          29.1,
+          30.4,
+          29.2,
+          30.8,
+          47.5,
+          29.2,
+          30.7,
+          29.6,
+          30.2,
+          30.1,
+          48.7,
+          29.5,
+          28.7,
+          30.2,
+          30.7,
+          30.5,
+          48.1,
+          29.1,
+          30.2,
+          30.4,
+          30,
+          30.9,
+          47.8,
+          30.7,
+          31.3,
+          30.2,
+          29,
+          30,
+          48.8,
+          29.8
+        ],
+        "p95": 48.7
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5892136,
+          "totalSize": 6733824,
+          "embedderHeapUsedSize": 2762432,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540140,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 2975248,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586732,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2755128,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 6,
+      "warmNavigationMs": {
+        "samples": [
+          28.6,
+          29,
+          28.7,
+          29.5,
+          29.4,
+          26.8,
+          27.5,
+          28.8,
+          29,
+          30.5,
+          28.1,
+          27.4,
+          29.6,
+          29.4,
+          28.8,
+          29.9,
+          29.5,
+          29.6,
+          28.1,
+          28.8,
+          27.7,
+          28.7,
+          28.5,
+          29,
+          29.2,
+          28.7,
+          29.6,
+          29.7,
+          29.8,
+          28.8
+        ],
+        "p95": 29.9
+      },
+      "repoSearchMs": {
+        "samples": [
+          31.8,
+          30.6,
+          29.1,
+          29.9,
+          47.9,
+          28.6,
+          29.9,
+          29.8,
+          29.5,
+          29.2,
+          46.4,
+          29.6,
+          29.2,
+          29.8,
+          30.6,
+          29.7,
+          47.4,
+          30.6,
+          29.6,
+          30.1,
+          30.1,
+          30.4,
+          48.5,
+          31.3,
+          30.8,
+          30.8,
+          30.8,
+          29.8,
+          47.8,
+          29.9
+        ],
+        "p95": 47.9
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5897448,
+          "totalSize": 6471680,
+          "embedderHeapUsedSize": 2762160,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6539932,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 2854824,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586528,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2754856,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 7,
+      "warmNavigationMs": {
+        "samples": [
+          28.4,
+          28.6,
+          28.8,
+          29.1,
+          30.1,
+          30,
+          29.7,
+          29,
+          29.6,
+          26.4,
+          31,
+          29.4,
+          29.6,
+          29.4,
+          29.2,
+          29.1,
+          29.7,
+          30.4,
+          27.6,
+          27.2,
+          29.3,
+          28.5,
+          29.4,
+          29,
+          26.5,
+          29,
+          27.3,
+          30.3,
+          28.8,
+          30.5
+        ],
+        "p95": 30.5
+      },
+      "repoSearchMs": {
+        "samples": [
+          30,
+          28.5,
+          29.6,
+          29.1,
+          48.1,
+          29.6,
+          29.6,
+          46.8,
+          30,
+          30.1,
+          47.8,
+          28.3,
+          29.8,
+          30.5,
+          31.3,
+          29.2,
+          46.3,
+          29.4,
+          30.2,
+          30.1,
+          28.8,
+          30.8,
+          47.7,
+          29.7,
+          30.4,
+          30.9,
+          30.2,
+          30.2,
+          48.4,
+          28.8
+        ],
+        "p95": 48.1
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5892076,
+          "totalSize": 6733824,
+          "embedderHeapUsedSize": 2791936,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540188,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 3160608,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586840,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2749544,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 8,
+      "warmNavigationMs": {
+        "samples": [
+          28.7,
+          28.3,
+          30.1,
+          28.6,
+          28.8,
+          29.1,
+          29.6,
+          29.7,
+          29.6,
+          29.6,
+          28.8,
+          29.7,
+          28.4,
+          29.8,
+          28.6,
+          28.7,
+          30,
+          30.8,
+          30.3,
+          28.7,
+          30.2,
+          29.7,
+          31.3,
+          28.8,
+          29.8,
+          27.7,
+          29.4,
+          28.7,
+          29.4,
+          28.7
+        ],
+        "p95": 30.8
+      },
+      "repoSearchMs": {
+        "samples": [
+          31.6,
+          30.4,
+          29.1,
+          29.5,
+          46.9,
+          29.6,
+          29.8,
+          30.6,
+          30.4,
+          29.6,
+          47.7,
+          28.7,
+          29.6,
+          44,
+          29.7,
+          30.3,
+          47.6,
+          29.8,
+          30.5,
+          30.8,
+          29.8,
+          30.8,
+          48.3,
+          29.9,
+          30.6,
+          30.8,
+          30.8,
+          30.2,
+          46.1,
+          29.9
+        ],
+        "p95": 47.7
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5892176,
+          "totalSize": 6995968,
+          "embedderHeapUsedSize": 2791792,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540248,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2968808,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586844,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2749400,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 9,
+      "warmNavigationMs": {
+        "samples": [
+          26.8,
+          29.2,
+          29.1,
+          28.8,
+          30.5,
+          30.4,
+          29.5,
+          29.3,
+          29.4,
+          26,
+          27.3,
+          29.4,
+          28.8,
+          26.4,
+          28.6,
+          29.7,
+          28.2,
+          28.3,
+          29.8,
+          30.4,
+          29.5,
+          30.1,
+          29.9,
+          28.7,
+          26.6,
+          27.7,
+          29.1,
+          29.6,
+          30.6,
+          28.4
+        ],
+        "p95": 30.5
+      },
+      "repoSearchMs": {
+        "samples": [
+          33,
+          30.3,
+          30.4,
+          29.8,
+          48.5,
+          30.3,
+          30.8,
+          31.6,
+          30.5,
+          29.9,
+          47.8,
+          25.6,
+          28.5,
+          29,
+          29.9,
+          30.2,
+          47.2,
+          30.2,
+          29.9,
+          29.7,
+          30,
+          30.5,
+          49.2,
+          28.5,
+          30.1,
+          28.9,
+          30.2,
+          29.2,
+          47.7,
+          28.7
+        ],
+        "p95": 48.5
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5897580,
+          "totalSize": 6733824,
+          "embedderHeapUsedSize": 2761616,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6540468,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 2797864,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6586992,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2718296,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 10,
+      "warmNavigationMs": {
+        "samples": [
+          26,
+          25.4,
+          29.1,
+          29.1,
+          29.5,
+          30.2,
+          30.3,
+          30.1,
+          30.4,
+          30.7,
+          30.5,
+          29.9,
+          30.9,
+          29.7,
+          31.3,
+          26.9,
+          28.1,
+          28.6,
+          29.3,
+          28.9,
+          29.6,
+          29.1,
+          29.5,
+          28.9,
+          29.3,
+          27.1,
+          29.3,
+          29.2,
+          29.5,
+          29.2
+        ],
+        "p95": 30.9
+      },
+      "repoSearchMs": {
+        "samples": [
+          29.3,
+          46,
+          29.7,
+          30.8,
+          44.8,
+          29.1,
+          29.4,
+          30.3,
+          31.3,
+          29.6,
+          45.7,
+          29.6,
+          29.6,
+          46.4,
+          27.9,
+          28.1,
+          45.2,
+          27.2,
+          29,
+          48,
+          26.1,
+          30.1,
+          47.4,
+          28.6,
+          29.9,
+          30.3,
+          30.4,
+          31.2,
+          48.2,
+          29.9
+        ],
+        "p95": 48
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 5895520,
+          "totalSize": 6471680,
+          "embedderHeapUsedSize": 2762160,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6537848,
+          "totalSize": 7397376,
+          "embedderHeapUsedSize": 3149840,
+          "backingStorageSize": 317459
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6584500,
+          "totalSize": 7135232,
+          "embedderHeapUsedSize": 2754856,
+          "backingStorageSize": 317497
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    }
+  ],
+  "metrics": {
+    "warmNavigationP95Ms": 30.5,
+    "repoSearchP95Ms": 48.2,
+    "rendererRetainedHeapP95Bytes": 6586844,
+    "rendererRetainedHeapMaxBytes": 6586992
+  },
+  "smoke": {
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "1440x900 Skills tools keyboard navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "settings keyboard focus remains in dialog and Escape restores trigger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "sidebar disclosure supports keyboard and fixed local branch details",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "1440x900 packaged UI has no horizontal body overflow",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 preview survives refresh and projects remain visible after sidebar navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 Skills controls fit and retain keyboard focus",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 high contrast preview survives refresh and projects remain visible after sidebar navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 high contrast Skills controls fit and retain keyboard focus",
+        "status": "PASS",
+        "detail": null
+      }
+    ],
+    "screenshots": [
+      "revision-1440-skills.png",
+      "revision-1440-settings.png",
+      "revision-800-projects.png",
+      "revision-800-skills.png",
+      "revision-800-highcontrast-projects.png",
+      "revision-800-highcontrast-skills.png"
+    ],
+    "blockedNetworkRequests": [],
+    "runtimeErrors": [],
+    "limits": "Automated layout/keyboard checks and screenshot capture; screenshots still require human visual review. High contrast emulates VS Code body class and theme tokens, not OS assistive technology."
+  },
+  "performanceStatus": "MEASURED",
+  "comparison": {
+    "status": "PASS",
+    "metrics": {
+      "warmNavigationP95Ms": {
+        "baseline": 30.6,
+        "revision": 30.5,
+        "increasePercent": -0.327,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "repoSearchP95Ms": {
+        "baseline": 48.5,
+        "revision": 48.2,
+        "increasePercent": -0.619,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "rendererRetainedHeapP95Bytes": {
+        "baseline": 6534632,
+        "revision": 6586844,
+        "increasePercent": 0.799,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "rendererRetainedHeapMaxBytes": {
+        "baseline": 6534660,
+        "revision": 6586992,
+        "increasePercent": 0.801,
+        "limitPercent": 10,
+        "status": "PASS"
+      }
+    },
+    "note": "Observed comparison only. Frame scheduling, GC, machine load and instrumentation add noise; a threshold failure is reported as measured and must not be rewritten as a pass."
+  }
+}

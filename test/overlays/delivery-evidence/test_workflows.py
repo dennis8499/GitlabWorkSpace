@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -123,10 +124,19 @@ class DeliveryReplayTests(unittest.TestCase):
     def test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history(self):
         with tempfile.TemporaryDirectory() as tmp:
             f=Fixture(tmp);receipt=f.complete()
-            spec=importlib.util.spec_from_file_location('build_legacy_runtime_test',WORKSPACE/'scripts/build-workflow-kit.py')
-            builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+            prefix='workflow-kit/payload/.agents/skills/merge-reviewer/scripts/'
+            with tarfile.open(WORKSPACE/'test/fixtures/workflow-kit-0.23.0/workflow-kit.tar.xz', 'r:xz') as kit:
+                manifest=json.load(kit.extractfile('workflow-kit/manifest.json'))
+                frozen={member.name[len(prefix):]:kit.extractfile(member).read() for member in kit.getmembers()
+                        if member.isfile() and member.name.startswith(prefix)}
+            for name,data in frozen.items():
+                self.assertEqual(manifest['files']['.agents/skills/merge-reviewer/scripts/'+name],hashlib.sha256(data).hexdigest())
             runtime=Path(tmp)/'historical-runtime';runtime.mkdir()
-            for name,data in builder.legacy_receipt_runtime().items():(runtime/name).write_bytes(data)
+            for name,data in frozen.items():
+                if name.startswith('legacy_receipt_runtime/'):
+                    relative=name.removeprefix('legacy_receipt_runtime/')
+                    self.assertEqual(Path(relative).name,relative)
+                    (runtime/relative).write_bytes(data)
             for name in ('group_workspace.py','delivery_receipt.py'):
                 source=(runtime/name).read_text(encoding='utf-8')
                 for writer in ('def claim(', 'def release(', 'def write_receipt(', 'def main('):
@@ -135,10 +145,9 @@ class DeliveryReplayTests(unittest.TestCase):
             self.assertEqual(0,result.returncode,result.stderr)
             self.assertEqual(receipt,json.loads(result.stdout))
             # Old Task/Report v1 and megin-mr-binding/v2 remain history only,
-            # checked by the current adapter and isolated proof dependencies.
-            adapter=Path(tmp)/'current-adapter';adapter.mkdir()
-            source=WORKSPACE/'resources/workflow-kit/overlays/merge-reviewer/scripts'
-            for name in ('mr_contract.py','group_delivery_binding.py'):shutil.copyfile(source/name,adapter/name)
+            # checked only by the frozen 0.23 adapter and its proof dependencies.
+            adapter=Path(tmp)/'frozen-adapter';adapter.mkdir()
+            for name in ('mr_contract.py','group_delivery_binding.py'):(adapter/name).write_bytes(frozen[name])
             shutil.copytree(runtime,adapter/'legacy_receipt_runtime')
             task=f.task();binding=db.bind_delivery(receipt,task)
             manifest={'mr_context':task,'head_sha':task['sourceSha'],'base_sha':task['targetSha'],

@@ -96,12 +96,13 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         self.assertIn("Group", workflow.read_text(encoding="utf-8"))
         for path in (megin / "scripts/unified_workflow.py", megin / "scripts/workspace_context.py",
                      megin / "scripts/workspace_lock.py", reviewer / "scripts/review_workspace.py",
-                     reviewer / "scripts/mr_contract.py"):
+                     reviewer / "scripts/review_session.py"):
             with self.subTest(path=path):
                 self.assertTrue(path.is_file())
         self.assertFalse((megin / 'scripts/gitlab_delivery.py').exists())
         self.assertFalse((reviewer / 'scripts/group_review.py').exists())
-        self.assertTrue((reviewer / 'scripts/legacy_receipt_runtime/verify.py').is_file())
+        self.assertFalse((reviewer / 'scripts/legacy_receipt_runtime/verify.py').exists())
+        self.assertFalse((reviewer / 'scripts/mr_contract.py').exists())
 
         state_path = wiki / "install-state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -221,12 +222,12 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                     manifest_path = "workflow-kit/manifest.json"
                     manifest = json.loads(entries[manifest_path].decode("utf-8"))
                     if mutation == "overlay-payload":
-                        relative = next(iter(manifest["overlays"]["merge-reviewer"]["replaced"]))
+                        relative = next(iter(manifest["overlays"]["codebase-wiki"]["replaced"]))
                         archive_path = f"workflow-kit/payload/{relative}"
                         entries[archive_path] += b"\nchanged after overlay pinning\n"
                         manifest["files"][relative] = hashlib.sha256(entries[archive_path]).hexdigest()
                     elif mutation == "overlay-manifest":
-                        manifest["overlays"]["merge-reviewer"]["added"][".agents/skills/merge-reviewer/unlisted.md"] = "0" * 64
+                        manifest["overlays"]["codebase-wiki"]["added"][".agents/skills/codebase-wiki/unlisted.md"] = "0" * 64
                     elif mutation == "release-payload":
                         relative = ".agents/skills/release-reviewer/scripts/release_report.py"
                         archive_path = f"workflow-kit/payload/{relative}"
@@ -262,10 +263,10 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"codebase-wiki": "0.6.0", "megin": "0.8.0", "merge-reviewer": "0.11.0", "release-reviewer": "0.3.0"},
+        self.assertEqual({"codebase-wiki": "0.6.0", "megin": "0.8.0", "merge-reviewer": "0.12.0", "release-reviewer": "0.3.0"},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
-        self.assertEqual({"codebase-wiki", "merge-reviewer"}, set(manifest["overlays"]))
+        self.assertEqual({"codebase-wiki"}, set(manifest["overlays"]))
         self.assertTrue(all(overlay["added"] or overlay["replaced"]
                             for overlay in manifest["overlays"].values()))
         self.assertEqual(64, len(manifest["payloadSha256"]))

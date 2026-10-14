@@ -1,0 +1,14 @@
+
+node : [3292:1015/004920.567:ERROR:components\os_crypt\sync\os_crypt_win.cc:106] Failed to decrypt: 系統找不到指定的檔案。 (0x2)
+位於 線路:2 字元:212
++ ... lyContinue; node scripts/run-extension-tests.mjs *> .gitlab-workspace ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([3292:1015/0049...找不到指定的檔案。 (0x2):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+[3292:1015/004920.568:ERROR:components\os_crypt\sync\os_crypt_win.cc:78] Failed to encrypt: 系統找不到指定的檔案。 (0x2)
+[3292:1015/004920.584:FATAL:electron\shell\browser\win\install_dir_access.cc:52] Sandboxed processes cannot read C:\Use
+rs\denni\AppData\Local\Programs\Microsoft VS Code\7baac39ec3: its ACL has an entry for an AppContainer package SID but
+none for ALL APPLICATION PACKAGES, so Windows denies the sandbox token access. Grant it with: icacls "C:\Users\denni\Ap
+pData\Local\Programs\Microsoft VS Code\7baac39ec3" /grant *S-1-15-2-1:(OI)(CI)(RX)
+Exit code:   2147483651

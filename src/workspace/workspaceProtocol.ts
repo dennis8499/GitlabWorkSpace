@@ -9,6 +9,7 @@ import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { ProjectRootContext } from './projectRootProtocol';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
+import type { WorkspaceOperationState } from './operations';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git' | 'admin';
@@ -134,6 +135,9 @@ export interface SkillsContext {
   availableFeatures: string[];
   resumeOnly: boolean;
   reason?: string;
+  workspaceRoot?: string;
+  workspaceFile?: string;
+  workspaceRootAmbiguous?: boolean;
 }
 
 export interface WorkflowKitPackageSummary {
@@ -148,6 +152,9 @@ export interface WorkflowKitPackageSummary {
 }
 
 export interface WorkspaceSnapshot {
+  projectOperationBusy?: boolean;
+  operationScope?: string;
+  operations?: WorkspaceOperationState[];
   projectContext?: ProjectRootContext;
   connected: boolean;
   baseUrl?: string;
@@ -292,10 +299,8 @@ export type WorkspaceRequest = (
   | { type: 'refreshMergeRequest'; projectId: number; iid: number }
   | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
-  | { type: 'openMergeReviewTask'; projectId: number; iid: number }
-  | { type: 'openGroupQuickReview' }
-  | { type: 'importMergeReviewReport'; projectId: number; iid: number; text?: string }
-  | { type: 'publishMergeReviewReport'; projectId: number; iid: number; text: string }
+  | { type: 'openBranchReview'; projectId: number; iid: number }
+  | { type: 'loadSkillBranches'; repo: string; revision: string }
   | { type: 'replyMergeRequest'; projectId: number; iid: number; discussionId: string; body: string }
   | { type: 'approveMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
@@ -313,9 +318,12 @@ export type WorkspaceRequest = (
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
   | { type: 'installWorkflowKit'; packageId: string }
-) & { projectRevision?: string };
+) & { projectRevision?: string; operationId?: string; operationScope?: string };
 
 export type WorkspaceResponse =
+  | { type: 'operationChanged'; operation: WorkspaceOperationState }
+  | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
+  | { type: 'skillBranches'; revision: string; repo: string; branches: string[]; error?: string }
   | { type: 'openAccountManager'; intent: AccountPanelIntent }
   | { type: 'accountLoginResult'; requestId: string; error?: string; name?: string }
   | { type: 'logsPage'; requestId: string; page: LogPage }
@@ -328,12 +336,11 @@ export type WorkspaceResponse =
   | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; error?: string }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; scopeRevision?: string }
   | { type: 'draftBundle'; bundle: IssueDraftBundle }
   | { type: 'draftResults'; analysisId: string; results: DraftIssueResult[] }
   | { type: 'deliveryPreview'; delivery: DeliveryPreview }
   | { type: 'deliveryProgress'; delivery: DeliveryPreview }
-  | { type: 'mergeReviewReportImported'; projectId: number; iid: number; text: string; sourceSha: string; targetSha: string }
   | { type: 'draftOptions'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'similarIssues'; items: Array<{ draftId: string; projectPath: string; issues: Array<{ iid: number; title: string; webUrl: string }> }> }
   | { type: 'issueResponse'; response: IssuePanelResponse; revision?: number }

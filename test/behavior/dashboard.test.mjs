@@ -1,3 +1,4 @@
+const { operationResource } = await import('../../out/src/workspace/operations.js');
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -298,7 +299,14 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
   let state = initialState;
   dom.window.acquireVsCodeApi = () => ({
-    postMessage: (message) => requests.push(message),
+    postMessage: (message) => {
+      const { operationId, operationScope, ...payload } = message;
+      requests.push(payload);
+      if (operationId) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: {
+        type: 'operationChanged', operation: { requestId: operationId, scopeRevision: operationScope,
+          resourceKey: operationResource(message), action: message.type, label: 'Fixture operation', status: 'succeeded', phase: '已完成', startedAt: Date.now() }
+      } })));
+    },
     getState: () => state,
     setState: (value) => { state = JSON.parse(JSON.stringify(value)); }
   });
@@ -454,10 +462,10 @@ test('account menu supports selecting saved identities, logging in, adding and r
   buttons[1].click();
   assert.equal(view.requests.at(-1).type, 'switchAccount');
   assert.equal(view.requests.at(-1).accountId, 'second');
-  buttons[2].click();
+  await view.tick(); buttons[2].click();
   assert.equal(view.requests.at(-1).type, 'addAccount');
   assert.equal(view.requests.at(-1).accountId, 'third');
-  [...document.querySelectorAll('.account-manager button')].find(button => button.textContent.includes('新增 GitLab 帳號')).click();
+  await view.tick(); [...document.querySelectorAll('.account-manager button')].find(button => button.textContent.includes('新增 GitLab 帳號')).click();
   assert.equal(view.requests.at(-1).type, 'addAccount');
   assert.equal(view.requests.at(-1).accountId, undefined);
   [...document.querySelectorAll('.account-manager button')].find(button => button.textContent === '管理帳號與連線').click();
@@ -466,7 +474,7 @@ test('account menu supports selecting saved identities, logging in, adding and r
   assert.equal(document.querySelectorAll('.account-card').length, 3);
   document.querySelector('button[aria-label="移除 Second 帳號"]').click();
   assert.equal(view.requests.at(-1).type, 'removeAccount');
-  document.querySelector('button[aria-label="登出 First 帳號"]').click();
+  await view.tick(); document.querySelector('button[aria-label="登出 First 帳號"]').click();
   assert.equal(view.requests.at(-1).type, 'disconnect');
 });
 
@@ -643,20 +651,19 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-megin-spec-export');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
-  assert.deepEqual([...document.querySelectorAll('.wiki-guide-selector option')].map(option => option.value), [
+  assert.deepEqual([...document.querySelectorAll('.skills-feature-navigation button')].map(button => button.id.replace('skill-feature-','')).sort(), [
     'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
-  ]);
+  ].sort());
 
-  const selector = document.querySelector('.wiki-guide-selector select');
-  assert.equal(selector.value, 'megin-spec-export');
+  assert.equal(selectedSkillFeature(document), 'megin-spec-export');
   const devPreview = document.querySelector('.wiki-prompt-preview');
   assert.ok(devPreview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
   assert.ok(devPreview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
   assert.equal(devPreview.textContent.includes('team/alpha'), false);
 
-  selector.value = 'megin-spec-export';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  selectSkillFeature(document, 'megin-spec-export');
+   await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   const spec = document.querySelector('[id="wiki-input-megin-spec-export.existingSpec"]');
   spec.value = 'wiki/synthesis/refund-development-spec.md';
@@ -667,8 +674,8 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.match(view.requests.at(-1).text, /megin-spec-export.*refund-development-spec\.md/s);
   assert.match(view.requests.at(-1).text, /exports\/megin\/<scope>-r<spec_revision>\.md/);
 
-  selector.value = 'query';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillFeature(document, 'query');
+
   await view.tick();
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-query');
@@ -696,8 +703,8 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   await view.tick();
   assert.match(document.querySelector('.toast').textContent, /Prompt copied/);
 
-  selector.value = 'functional-exploration';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillFeature(document, 'functional-exploration');
+
   await view.tick();
   assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-functional-exploration');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
@@ -707,15 +714,15 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.match(view.requests.at(-1).text, /不執行目標程式或測試/);
   assert.match(view.requests.at(-1).text, /不保存文件/);
 
-  selector.value = 'audit';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillFeature(document, 'audit');
+
   await view.tick();
   const auditScope = document.querySelector('[id="wiki-input-audit.scope"]');
   auditScope.value = 'src/payments';
   auditScope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
-  selector.value = 'query';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillFeature(document, 'query');
+
   await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, query.value);
   assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
@@ -724,7 +731,7 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
 
   const reopened = await mount(view.savedState, selectedGroup);
   t.after(() => reopened.dom.window.close());
-  assert.equal(reopened.dom.window.document.querySelector('.wiki-guide-selector select').value, 'query');
+  assert.equal(selectedSkillFeature(reopened.dom.window.document), 'query');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-query.question"]').value, query.value);
 
   document.querySelector('.skills-install-button').click();
@@ -741,7 +748,7 @@ test('offline installation exposes the shared root, reset, errors and busy state
   assert.equal(document.querySelector('.project-root-path').textContent, 'C:/local/repo');
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
   button('選擇共用根目錄').click(); assert.equal(view.requests.at(-1).type, 'selectProjectRoot');
-  button('恢復 VS Code 根目錄').click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
+  await view.tick(); button('恢復 VS Code 根目錄').click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
   for (const status of ['checking', 'installing', 'work-in-progress', 'needs-cleanup']) {
     state.workflowKitInstallTarget.state = { status }; view.sendSnapshot(state); await view.tick();
     assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
@@ -850,9 +857,8 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope' }, snapshot('sa'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const selector = document.querySelector('.wiki-guide-selector select');
-  selector.value = 'query';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillFeature(document, 'query');
+
   await view.tick();
   const query = document.querySelector('[id="wiki-input-query.question"]');
   query.value = 'Team A query';
@@ -864,9 +870,9 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   view.sendSnapshot(groupB);
   await view.tick();
-  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'megin-spec-export');
-  selector.value = 'query';
-  selector.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  assert.equal(selectedSkillFeature(document), 'megin-spec-export');
+  selectSkillFeature(document, 'query');
+
   await view.tick();
   query.value = 'Team B query';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
@@ -874,7 +880,7 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
 
   view.sendSnapshot(snapshot('sa'));
   await view.tick();
-  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'query');
+  assert.equal(selectedSkillFeature(document), 'query');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A query');
   assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
   assert.equal(view.savedState.wikiGuideSelectionsByScope['another-group-scope'], 'query');
@@ -895,7 +901,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  assert.ok(document.querySelector('.wiki-guide-selector select'));
+  assert.ok(document.querySelector('.skills-feature-navigation'));
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
 test('four Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
@@ -905,15 +911,16 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const change = async (selector, value, event = 'change') => {
+    if (selectSkillControl(document,selector,value)) { await view.tick(); return; }
     const input = document.querySelector(selector);
     input.value = value;
     input.dispatchEvent(new view.dom.window.Event(event, { bubbles: true }));
     await view.tick();
   };
-  assert.equal(document.querySelectorAll('.skills-tool-selector option').length, 4);
+  assert.equal(document.querySelectorAll('.skills-tool-tabs [role=tab]').length, 4);
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'release-reviewer');
-  assert.equal(document.querySelector('.wiki-guide-selector select').value, 'release-review');
+  assert.equal(selectedSkillFeature(document), 'release-review');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   await change('[id="wiki-input-release-review.repo"]', 'C:/工作區 with spaces/service', 'input');
   await change('[id="wiki-input-release-review.base"]', 'origin/main', 'input');
@@ -940,8 +947,8 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   await change('.skills-tool-selector select', 'codebase-wiki');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'merge-reviewer');
-  await change('.wiki-guide-selector select', 'merge-group');
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /--group-root.*--quick/);
+  await change('.wiki-guide-selector select', 'merge-repo');
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /merge-reviewer-workspace-context\/v3/);
   await change('.skills-tool-selector select', 'release-reviewer');
 
   const groupB = snapshot('sa');
@@ -950,7 +957,7 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   view.sendSnapshot(groupB);
   await view.tick();
-  assert.equal(document.querySelector('.skills-tool-selector select').value, 'codebase-wiki');
+  assert.equal(selectedSkillTool(document), 'codebase-wiki');
   await change('.skills-tool-selector select', 'release-reviewer');
   assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, '');
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
@@ -958,13 +965,13 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
 
   view.sendSnapshot(snapshot('sa'));
   await view.tick();
-  assert.equal(document.querySelector('.skills-tool-selector select').value, 'release-reviewer');
+  assert.equal(selectedSkillTool(document), 'release-reviewer');
   assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'C:/工作區 with spaces/service');
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
   assert.equal(view.savedState.skillsGuideByScope['another-group-scope'].inputs['release-review.repo'], 'other-service');
   const reopened = await mount(view.savedState, snapshot('sa'));
   t.after(() => reopened.dom.window.close());
-  assert.equal(reopened.dom.window.document.querySelector('.skills-tool-selector select').value, 'release-reviewer');
+  assert.equal(selectedSkillTool(reopened.dom.window.document), 'release-reviewer');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-release-review.head"]').value, 'feature/payment');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-release-review.output"]'), null);
   reopened.dom.window.document.querySelector('.skills-install-button').click();
@@ -976,9 +983,8 @@ test('release guide retains multiple field inputs dispatched before the next rep
   const view = await mount({ mode: 'sa' }, snapshot('sa'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const tool = document.querySelector('.skills-tool-selector select');
-  tool.value = 'release-reviewer';
-  tool.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  selectSkillTool(document, 'release-reviewer');
+
   await view.tick();
   for (const [key, value] of Object.entries({ repo: 'service', base: 'origin/main', head: 'feature/payment' })) {
     const input = document.querySelector(`[id="wiki-input-release-review.${key}"]`);
@@ -992,28 +998,15 @@ test('release guide retains multiple field inputs dispatched before the next rep
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
 
-test('Megin and MR guide buttons use existing workbench navigation', async (t) => {
-  const view = await mount({ mode: 'sa' }, snapshot('sa'));
-  t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const choose = async (selector, value) => {
-    const input = document.querySelector(selector);
-    input.value = value;
-    input.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
-    await view.tick();
-  };
-  await choose('.skills-tool-selector select', 'megin');
-  assert.equal(document.querySelector('.wiki-copy-button'), null);
-  document.querySelector('.skills-navigate-button').click();
-  await view.tick();
-  assert.ok(view.requests.some(request => request.type === 'setMode' && request.mode === 'developer'));
-  view.sendSnapshot(snapshot('sa'));
-  await view.tick();
-  await choose('.skills-tool-selector select', 'merge-reviewer');
-  await choose('.wiki-guide-selector select', 'merge-mr');
-  document.querySelector('.skills-navigate-button').click();
-  await view.tick();
-  assert.ok(view.requests.some(request => request.type === 'setMode' && request.mode === 'reviewer'));
+test('Megin navigates to Issue work while native branch review stays in analysis', async t => {
+  const view=await mount({mode:'sa'},snapshot('sa')); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
+  selectSkillTool(document,'megin'); await view.tick();
+  document.querySelector('.skills-navigate-button').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type==='setMode').mode,'developer');
+  view.sendSnapshot(snapshot('sa')); await view.tick(); selectSkillTool(document,'merge-reviewer'); await view.tick();
+  assert.equal(document.querySelector('.skills-navigate-button'),null);
+  assert.ok(document.querySelector('[id="wiki-input-merge-repo.base"]'));
+  assert.equal(document.querySelector('.wiki-copy-button').disabled,true);
 });
 
 test('copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes', async (t) => {
@@ -1078,7 +1071,7 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   assert.match(document.querySelector('.clone-root-line').textContent, /mixed/);
   document.querySelector('.clone-submit').click(); assert.equal(view.requests.at(-1).type, 'clone');
   const sync = [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新本機預設分支');
-  sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
+  await view.tick(); sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
   document.querySelector('.clone-select-root').click(); await view.tick();
   const reset = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '恢復 VS Code 根目錄');
   reset.click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
@@ -1583,58 +1576,19 @@ test('shows the sanitized Git error details in the repository operation results'
   assert.equal(view.dom.window.document.querySelector('.operation-state.failed')?.textContent, message);
 });
 
-test('binds imported reports to both SHAs without adding approval or merge gates', async (t) => {
-  const current = snapshot('reviewer');
-  current.instance = { enterprise: true, warnings: [] };
-  const sourceSha = 'a'.repeat(40), targetSha = 'b'.repeat(40);
-  const request = { id: 41, iid: 4, project_id: 1, source_project_id: 2, target_project_id: 1,
-    title: 'Fork change', state: 'opened', source_branch: 'feature', target_branch: 'main',
-    web_url: 'https://gitlab.example.test/team/alpha/-/merge_requests/4', diff_refs: { head_sha: sourceSha } };
-  current.mergeRequests = [request];
-  current.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } }, warnings: [],
-    freshness: { state: 'current', checkedAt: new Date().toISOString() }, sourceSha, targetSha };
-  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, current);
-  t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const button = (label) => [...document.querySelectorAll('button')].find((node) => node.textContent === label);
-  button('審查報告').click();
-  await view.tick();
-  assert.equal(button('發布審查報告').disabled, true);
-  assert.equal(button('核准').disabled, false);
-  assert.equal(button('合併 MR').disabled, false);
-  button('複製審查任務並開啟 Codex CLI').click();
-  await view.tick();
-  assert.equal(view.requests.at(-1).type, 'openMergeReviewTask');
-  const textarea = document.querySelector('.reviewer-detail textarea');
-  textarea.value = 'Legacy plain text';
-  textarea.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  assert.equal(view.savedState.scopedData['team-scope'].reports['1!4'].text, 'Legacy plain text', 'the report draft is saved before the next render');
-  await view.tick();
-  assert.equal(button('發布審查報告').disabled, true);
-  button('作一般留言發布').click();
-  await view.tick();
-  assert.equal(view.requests.at(-1).type, 'postMergeRequestNote');
-  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message', { data: {
-    type: 'mergeReviewReportImported', projectId: 1, iid: 4, text: 'Incomplete P1 report', sourceSha, targetSha
-  } }));
-  await view.tick();
-  assert.equal(button('發布審查報告').disabled, false);
-  button('發布審查報告').click();
-  await view.tick();
-  assert.equal(view.requests.at(-1).type, 'publishMergeReviewReport');
-  view.sendSnapshot({ ...current, selectedMergeRequest: { ...current.selectedMergeRequest, targetSha: 'c'.repeat(40) } });
-  await view.tick();
-  assert.equal(button('發布審查報告').disabled, true);
-  assert.equal(button('核准').disabled, false);
-  button('核准').click();
-  await view.tick();
-  assert.equal(view.requests.at(-1).type, 'approveMergeRequest');
-  assert.equal(view.requests.at(-1).sha, sourceSha);
-  button('合併 MR').click();
-  await view.tick();
-  assert.equal(view.requests.at(-1).type, 'mergeMergeRequest');
+test('MR reports publish as manual comments while approval and merge remain SHA based', async t => {
+  const data=snapshot('reviewer'); const request={id:41,iid:4,project_id:1,title:'Review',state:'opened',source_branch:'feature',target_branch:'main',diff_refs:{head_sha:gitHead}};
+  data.mergeRequests=[request]; data.selectedMergeRequest={request,diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};
+  const view=await mount({mode:'reviewer'},data); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
+  [...document.querySelectorAll('[role=tab]')].find(button => button.textContent==='審查報告').click(); await view.tick();
+  const input=document.querySelector('.reviewer-detail textarea'); input.value='Merge Report: service\nStatic findings'; input.dispatchEvent(new view.dom.window.Event('input',{bubbles:true})); await view.tick();
+  const buttons=[...document.querySelectorAll('.reviewer-detail button')];
+  assert.equal(buttons.some(button => /匯入報告|核對貼上|發布審查報告/.test(button.textContent)),false);
+  assert.equal(buttons.find(button => button.textContent==='核准').disabled,false);
+  assert.equal(buttons.find(button => button.textContent==='合併 MR').disabled,false);
+  buttons.find(button => button.textContent==='作一般留言發布').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type==='postMergeRequestNote').body,input.value);
 });
-
 
 test('Webview reconstruction restores Git drafts and selections and acknowledges a completed write without resending it', async (t) => {
   const view = await mountGit(t);
@@ -1745,12 +1699,13 @@ test('native Skills shares selected Repo, real versions, functions, prompts and 
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const change = async (selector, value, event = 'change') => {
+    if (selectSkillControl(document,selector,value)) { await view.tick(); return; }
     const control = document.querySelector(selector); control.value = value;
     control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
   };
-  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /0.17.0.*0.4.0/);
+  assert.match(document.querySelector('.skills-guide').textContent, /0.17.0.*0.4.0/);
   await change('[aria-label="Skills 工具"]', 'megin');
-  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /單一 Repo 開發流程/);
+  assert.match(document.querySelector('.skills-guide').textContent, /單一 Repo 開發流程/);
   assert.equal(document.querySelector('.skills-navigate-button'), null);
   await change('[id="wiki-input-megin-workflow.task"]', '實作可重試的付款 API', 'input');
   const prompt = document.querySelector('.wiki-prompt-preview').textContent;
@@ -1765,7 +1720,7 @@ test('native Skills shares selected Repo, real versions, functions, prompts and 
   document.querySelector('.skills-codex-button').click();
   assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'openCodexTerminal', revision: state.skillsContext.revision });
   await change('[aria-label="Skills 工具"]', 'merge-reviewer');
-  assert.deepEqual([...document.querySelector('[aria-label="Skills 功能"]').options].map(option => option.value), ['merge-repo', 'merge-quick']);
+  assert.deepEqual([...document.querySelectorAll('.skills-feature-navigation button')].map(button => button.id.replace('skill-feature-','')), ['merge-repo']);
   assert.equal(document.querySelector('[id="wiki-input-merge-repo.repo"]'), null);
   state.projectContext.folders = [{ uri: 'file:repo', name: 'repo', path: 'C:/local/repo' }, { uri: 'file:other', name: 'other', path: 'C:/local/other' }];
   state.projectContext.selectedFolderUri = 'file:repo'; view.sendSnapshot(state); await view.tick();
@@ -1792,9 +1747,10 @@ test('legacy Skills only resumes verified Work IDs and never displays another ro
   context.reason = '舊版僅可續作既有 Megin 工作；完成後請更新。';
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /0.16.0/);
+  assert.match(document.querySelector('.skills-guide').textContent, /0.16.0/);
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   const change = async (selector, value, event = 'change') => {
+    if (selectSkillControl(document,selector,value)) { await view.tick(); return; }
     const control = document.querySelector(selector); control.value = value;
     control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
   };
@@ -1808,8 +1764,8 @@ test('legacy Skills only resumes verified Work IDs and never displays another ro
   document.querySelector('.wiki-copy-button').click(); assert.equal(view.requests.at(-1).featureId, 'megin-resume');
   context.installed = { status: 'missing' }; context.availableFeatures = []; context.resumeOnly = false;
   view.sendSnapshot(state); await view.tick();
-  assert.match(document.querySelector('.wiki-guide-card-header').textContent, /未安裝/);
-  assert.doesNotMatch(document.querySelector('.wiki-guide-card-header').textContent, /0.9.0|0.16.0/);
+  assert.match(document.querySelector('.skills-guide').textContent, /未安裝/);
+  assert.doesNotMatch(document.querySelector('.skills-guide').textContent, /0.9.0|0.16.0/);
 });
 
 test('Issue development distinguishes default continuation, explicit new work and selected continuation', async t => {
@@ -1887,3 +1843,13 @@ test('offline Skills footer shows the selected Repo and its actionable state wit
   view.sendSnapshot(unavailable); await view.tick();
   assert.match(document.querySelector('.statusbar').textContent, /請選擇目前 VS Code 工作區的 Repo/);
 });
+
+function selectedSkillFeature(document) { return document.querySelector('.skills-feature-navigation [aria-current="true"]').id.replace('skill-feature-',''); }
+function selectedSkillTool(document) { return document.querySelector('.skills-tool-tabs [aria-selected="true"]').id.replace('skill-tool-',''); }
+function selectSkillFeature(document, value) { const button=document.getElementById('skill-feature-'+value); assert.ok(button,'missing feature '+value); button.click(); }
+function selectSkillTool(document, value) { const button=document.getElementById('skill-tool-'+value); assert.ok(button,'missing tool '+value); button.click(); }
+function selectSkillControl(document, selector, value) {
+  if (/Skills 工具|skills-tool-selector/.test(selector)) { selectSkillTool(document,value); return true; }
+  if (/Skills 功能|wiki-guide-selector/.test(selector)) { selectSkillFeature(document,value); return true; }
+  return false;
+}

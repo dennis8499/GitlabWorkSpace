@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "schema": "GitLabWorkspaceSourceCheck/v1",
+  "localCompared": true,
+  "sources": [
+    {
+      "tool": "codebase-wiki",
+      "version": "0.6.0",
+      "files": 105,
+      "sourceDirty": false,
+      "archiveSha256": "292c5172f225ddfca5f0212acac3ad33156759cecbb66b0594fb89c6f1080e9a",
+      "status": "PASS"
+    },
+    {
+      "tool": "megin",
+      "version": "0.8.0",
+      "files": 58,
+      "sourceDirty": false,
+      "archiveSha256": "81c530799f72c661bfe56e1c04dedaeb0c4534d5f387363821f85c95ff137ed8",
+      "status": "PASS"
+    },
+    {
+      "tool": "merge-reviewer",
+      "version": "0.12.0",
+      "files": 12,
+      "sourceDirty": true,
+      "archiveSha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
+      "status": "PASS"
+    },
+    {
+      "tool": "release-reviewer",
+      "version": "0.3.0",
+      "files": 14,
+      "sourceDirty": true,
+      "archiveSha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
+      "status": "PASS"
+    }
+  ],
+  "workspaceFilesChecked": 43,
+  "capabilities": {
+    "group": [
+      "adr",
+      "archaeology",
+      "audit",
+      "business-analysis",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "megin-resume",
+      "megin-spec-export",
+      "megin-workflow",
+      "merge-repo",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design"
+    ],
+    "repository": [
+      "adr",
+      "archaeology",
+      "audit",
+      "business-analysis",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "megin-resume",
+      "megin-spec-export",
+      "megin-workflow",
+      "merge-repo",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design"
+    ]
+  }
+}
