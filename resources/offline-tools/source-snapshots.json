@@ -231,29 +231,29 @@
       "version": "0.8.0"
     },
     "merge-reviewer": {
-      "archiveSha256": "560e68155ee77d3e7af8c61c67386fe5a055c299da829a2b21b8875f7297aa49",
-      "commit": "e08db768a5d03b0b0cd9763041d56cf56247eff9",
+      "archiveSha256": "a36d743c059aef8542bce52ba2b96bc015fd1d9986ecf50a4fc4e4fba0edcce2",
+      "commit": "26fcf4d419dea2d3ac0579590d4d3ca5d93a45c8",
       "dirty": false,
       "entryRoot": "merge-reviewer",
-      "filename": "merge-reviewer-0.12.0.zip",
+      "filename": "merge-reviewer-0.12.1.zip",
       "files": {
-        "SKILL.md": "9ce186c4ca9d1f8729511ede17e6c41b3ae868b1ee98c3489542f5af371412bf",
-        "VERSION": "8a932413d42f95082f8323447652379a4885e328329efca3a67ec9c793c09940",
+        "SKILL.md": "ba00557e6b946a2654cc23b7114ff46d295a768d29cba47451a53b1ae7c74a5c",
+        "VERSION": "f6ee69bf1c4b27a242266ccb5aeb4aa8c8306345b9ebe4ff7335b8c940452b81",
         "agents/openai.yaml": "ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377",
-        "references/report-style.md": "69b41024f2a0c696c1ea33881058cb1809ca18eb9c337d255d1be8e541ae0104",
+        "references/report-style.md": "6dd70a1b7db718c8ea00b98e973040bd43a888cc35556375057353985de7b628",
         "references/review-rules.md": "bb5317d0c26833c1de0695beb653c2e73e5f6552993b01ec1d5a3b4e644eb9eb",
-        "references/usage.md": "5a7e8c928f214e5fd4bf21feebc8c8a1aafec3a294cff7975b0e68c7c6433dd2",
-        "references/workspace-review.md": "1fb4843b1d8982a7f3070e5b2cddd5b618ad58a41d3336292004ce2bafba3013",
+        "references/usage.md": "444de71670c44be03d7ea006c662e02953f467cada042cd5b26c24014bb31005",
+        "references/workspace-review.md": "57cf497d8824152e6f4eedc1daa1e9253e4144452de2aedb4a79f31b4bf48b2c",
         "scripts/git_review_context.py": "e639f87f5c04230478cad2c133d69b84b7d726a9f462c4e7c68fde39baf7ad57",
         "scripts/review_report.py": "6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3",
         "scripts/review_session.py": "5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea",
         "scripts/review_workspace.py": "ba8bd34e39e80bf5a86920be5788452ed3d703dec4f2bfb0b2cb442c4103be39",
-        "scripts/workspace_report.py": "72abc53b3fa7b00b55a99645b14f4dad89660b2e08948b768b7bae63e2e8a63d"
+        "scripts/workspace_report.py": "45eb51ad64df0274fb5b600de14ab33cc2f5f1d2fa56c95f253845a92a007ad9"
       },
       "repository": "MergeReviewer",
       "sourceKind": "local-snapshot",
-      "treeSha256": "4a639a1431586e4c967d06a8db64b0880a727a28931407a91d55b5340b64d2f2",
-      "version": "0.12.0"
+      "treeSha256": "51e7ea0958f9007623a71c58d0cc2510327592cc4c426e0a87f059581e1d18de",
+      "version": "0.12.1"
     },
     "release-reviewer": {
       "archiveSha256": "a482db2395462c1848d9bdb9b60e7eee781d9bafbe646cad7c715c350c3618a4",
@@ -326,6 +326,6 @@
     "resources/workflow-kit/profile.md": "59106cc2eaf0e0ad2bfa444e77811768820b22a1a3b1e3c49d17aacb30232595",
     "resources/workflow-kit/repository-instructions.md": "e6364cff46e5acdc52dba09187678bc37255a078ac4dac18d0a71ce35a51d80d",
     "resources/workflow-kit/repository-profile.md": "cd4b5e6da74418172299af1f4a60c48cfc5f2dd59f9ee1228f70e50ff28d6311",
-    "resources/workflow-kit/trusted-predecessors.json": "703d97132f7f85a350ac236f200c114656f7d28ca51331b1d22fff94f9c907eb"
+    "resources/workflow-kit/trusted-predecessors.json": "e788ae24856d29159eb46c4a5e855f99027a71ac9ceda396082dad920b53b293"
   }
 }

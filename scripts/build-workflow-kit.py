@@ -46,10 +46,10 @@ PINNED_SOURCES = (
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.12.0.zip",
-        "filename": "merge-reviewer-0.12.0.zip",
-        "version": "0.12.0",
-        "sha256": "560e68155ee77d3e7af8c61c67386fe5a055c299da829a2b21b8875f7297aa49",
+        "asset": "merge-reviewer-0.12.1.zip",
+        "filename": "merge-reviewer-0.12.1.zip",
+        "version": "0.12.1",
+        "sha256": "a36d743c059aef8542bce52ba2b96bc015fd1d9986ecf50a4fc4e4fba0edcce2",
     },
     {
         "id": "release-reviewer",
@@ -357,7 +357,7 @@ def build() -> dict[str, object]:
         "sourceSummary": [
             "Native Codebase LLM Wiki 0.6.0 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.8.0 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
-            "Native MergeReviewer 0.12.0 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report. No Workspace overlay or MR-specific report adapter is applied.",
+            "Native MergeReviewer 0.12.1 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Full SHAs remain in the appendix. No Workspace overlay or MR-specific report adapter is applied.",
             "Native ReleaseReviewer 0.3.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
         ],
         "customProfile": {

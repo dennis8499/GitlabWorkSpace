@@ -23,3 +23,5 @@ test/fixtures/workflow-kit-0.18.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.18.0/*.tar.xz binary !eol
 test/fixtures/workflow-kit-0.23.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.23.0/*.tar.xz binary !eol
+test/fixtures/workflow-kit-0.24.0/*.py text eol=lf
+test/fixtures/workflow-kit-0.24.0/*.tar.xz binary !eol

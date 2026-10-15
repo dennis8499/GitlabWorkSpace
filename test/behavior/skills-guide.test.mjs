@@ -12,7 +12,7 @@ function snapshot(profile, features) {
   const repo = { name: 'service', path: `${groupRoot}/service`, matched: profile === 'group' };
   const root = profile === 'group' ? groupRoot : repo.path;
   const capabilities = features ?? ['merge-repo'];
-  const installed = { status: 'installed', version, profile, capabilities, upstreamVersions: { 'merge-reviewer': '0.12.0' } };
+  const installed = { status: 'installed', version, profile, capabilities, upstreamVersions: { 'merge-reviewer': '0.12.1' } };
   return {
     connected: profile === 'group', baseUrl: profile === 'group' ? 'https://gitlab.example.test' : undefined,
     currentUser: profile === 'group' ? { id: 1, name: 'Tester' } : undefined,
@@ -75,6 +75,8 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   await change('[id="wiki-input-merge-repo.head"]','feature/review','input');
   assert.equal(document.querySelector('.wiki-copy-button').disabled,false);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/merge-reviewer-workspace-context\/v3/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/<base-commit前8碼>-<head-commit前8碼>\.md/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/比較資訊/);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');

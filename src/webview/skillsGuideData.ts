@@ -179,7 +179,7 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
     '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、quick、暫存、未提交、直接比較、MR 任務或 JSON 選項。',
     `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')}。`,
     '使用 Codex 原生 Code Review 及 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3。只以所選 Repo 為審查起點；宣告的工作區內有至少兩個不同 Git 根目錄時，依固定證據追查必要契約與消費端，其他 Repo 使用各自擷取時的 HEAD。',
-    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit>-<head-commit>.md，一份繁體中文 Merge Report。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
+    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit前8碼>-<head-commit前8碼>.md，一份繁體中文 Merge Report。結論後列出比較資訊：Repo／路徑、輸入分支與實際 ref、8 碼 commit、合併方向及共同祖先到比較分支的主要差異範圍；完整 SHA 保留在技術附錄。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
   );
   if (card.tool === 'release-reviewer') lines.push(
     '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',

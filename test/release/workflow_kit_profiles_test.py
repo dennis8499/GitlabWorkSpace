@@ -56,26 +56,32 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual("- status: complete\n", (self.repo / "docs/work/previous-work/workflow.md").read_text(encoding="utf-8"))
         self.assertIn("Keep this user text.", (self.repo / "AGENTS.md").read_text(encoding="utf-8"))
 
-    def test_frozen_023_profiles_upgrade_and_rollback_preserve_original_bytes(self):
-        fixture=ROOT/'test/fixtures/workflow-kit-0.23.0'
+    def assert_frozen_profiles_upgrade_and_rollback(self, version):
+        fixture=ROOT/f'test/fixtures/workflow-kit-{version}'
         for profile in ('group','repository'):
             with self.subTest(profile=profile):
                 target=self.base/('previous-'+profile); target.mkdir()
                 if profile=='repository': subprocess.run(['git','init','-q','-b','main',str(target)],check=True,capture_output=True)
                 old_archive=fixture/'workflow-kit.tar.xz'
                 old=subprocess.run([sys.executable,'-X','utf8','-B',str(fixture/'installer.py'),'install',str(old_archive),str(target),
-                    '0.23.0','bundled','--format','tar.xz','--entry-root','workflow-kit','--archive-sha256',hashlib.sha256(old_archive.read_bytes()).hexdigest(),
+                    version,'bundled','--format','tar.xz','--entry-root','workflow-kit','--archive-sha256',hashlib.sha256(old_archive.read_bytes()).hexdigest(),
                     '--profile',profile],capture_output=True,text=True,encoding='utf-8')
                 self.assertEqual(0,old.returncode,old.stdout+old.stderr)
                 before=self.snapshot(target)
                 result,data=self.execute('install',ARCHIVE,target,VERSION,'bundled','--format','tar.xz','--entry-root','workflow-kit',
                     '--archive-sha256',hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(),'--profile',profile)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-                self.assertEqual('0.12.0',data['upstreamVersions']['merge-reviewer'])
+                self.assertEqual('0.12.1',data['upstreamVersions']['merge-reviewer'])
                 self.assertNotIn('merge-mr',data['capabilities'])
                 result,_=self.execute('rollback',target,data['transaction'])
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 self.assertEqual(before,self.snapshot(target))
+
+    def test_frozen_023_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        self.assert_frozen_profiles_upgrade_and_rollback('0.23.0')
+
+    def test_frozen_024_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        self.assert_frozen_profiles_upgrade_and_rollback('0.24.0')
 
     def test_native_payload_is_fixed_upstream_and_has_its_own_capabilities(self):
         self.installed()

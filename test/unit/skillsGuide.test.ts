@@ -151,6 +151,9 @@ test('native branch review uses only three inputs and actual saved workspace bou
   assert.match(prompt, /merge-reviewer-workspace-context\/v3/);
   assert.match(prompt, /--workspace-file "C:\/declared\/team.code-workspace"/);
   assert.match(prompt, /只輸出 Markdown/);
+  assert.match(prompt, /<base-commit前8碼>-<head-commit前8碼>\.md/);
+  assert.match(prompt, /比較資訊：Repo／路徑、輸入分支與實際 ref/);
+  assert.match(prompt, /完整 SHA 保留在技術附錄/);
   assert.doesNotMatch(prompt, /--quick|--mode|--scope|--target|--include-json|--mr-context/);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
 });
