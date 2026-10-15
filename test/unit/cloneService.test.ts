@@ -209,6 +209,26 @@ if ([WorkspaceShortPath]::GetShortPathName($env:GITLAB_WORKSPACE_TEST_LONG_PATH,
     assert.equal(updates, 1);
     assert.equal(result.completed.length, 1);
     assert.equal(sameRealLocalPath(alias, workspace), true);
+
+    const own = { ...project('workspace-root'), id: 1001 };
+    const child = { ...project('new-child'), id: 1002 };
+    git(['init', '--quiet', workspace]);
+    git(['-C', workspace, 'remote', 'add', 'origin', own.http_url_to_repo]);
+    const actions: Array<{ action: string; target: string }> = [];
+    const rooted = await cloneProjects(alias, [own, child], 'https://gitlab.example.test', dummyToken, undefined, {
+      groupProjects: [own, child],
+      updateRunner: async plan => { actions.push({ action: 'update', target: plan.targetPath }); return { state: 'updated' }; },
+      cloneRunner: async plan => { actions.push({ action: 'clone', target: plan.targetPath }); git(['init', '--quiet', plan.targetPath]); }
+    });
+    assert.deepEqual(actions, [{ action: 'update', target: alias }, { action: 'clone', target: path.join(alias, child.path) }]);
+    assert.deepEqual(rooted.updated.map(item => item.id), [own.id]);
+    assert.deepEqual(rooted.cloned.map(item => item.id), [child.id]);
+    const synced: string[] = [];
+    await syncLocalDefaultBranches(alias, [own], 'https://gitlab.example.test', dummyToken, undefined, {
+      syncRunner: async plan => { synced.push(plan.targetPath); return { state: 'updated' }; }
+    });
+    assert.deepEqual(synced, [alias]);
+    assert.equal(existsSync(path.join(workspace, own.path)), false);
   } finally {
     const actualTemp = realpathSync.native(temp);
     assert.equal(path.dirname(actualTemp).toLowerCase(), realpathSync.native(os.tmpdir()).toLowerCase());

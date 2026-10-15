@@ -308,5 +308,5 @@ export async function projectRootRepositoryId(root: string, projects: readonly G
   matchesRemote: (remote: string, project: GitLabProject) => boolean): Promise<number | undefined> {
   if (!projects.length) return undefined;
   const inspected = await inspectWorkspaceFolder(root, projects, matchesRemote);
-  return inspected.kind === 'group-repository' && sameLocalPath(inspected.path, root) ? inspected.projectId : undefined;
+  return inspected.kind === 'group-repository' && await sameRealLocalPathAsync(inspected.path, root) ? inspected.projectId : undefined;
 }

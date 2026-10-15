@@ -19,6 +19,8 @@
 
 本機 Extension Host 使用既有 VS Code 1.90.0、隔離的暫存使用者與擴充功能目錄，以及僅套用於測試程序的啟動旗標；延續本機交付時已驗證的環境。先前 UI 與效能量測保留於本機交付紀錄。
 
+初次 Windows CI 發現 8.3 短路徑與完整 Git 根目錄的字串比較不一致，會把已開啟 Repo 誤判成新的子目錄 Clone。發版前改以既有的實際路徑比對處理，回歸案例同時驗證更新自身、新增其他子 Repo，以及同步預設分支；保留首次失敗 CI，修正後以新 Commit 重新驗證。
+
 版本 Tag 須指向已包含在 `main` 的提交，且與 `package.json`、`package-lock.json` 一致。正式附件為 `gitlab-workspace-0.24.0.vsix`、`gitlab-workspace-kit-0.24.0.zip` 與 `SHA256SUMS`；下載後核對摘要、兩種封裝 payload、16 個 Skills 及兩個 profile 的 Reviewer 內容。
 
 正式附件與 CI 連結見 [v0.24.0 Release](https://github.com/dennis8499/GitlabWorkSpace/releases/tag/v0.24.0)。本機交付紀錄中的舊 0.24.0 摘要屬歷史封包；正式安裝請使用 Release 附件與其 `SHA256SUMS`。
