@@ -1,6 +1,6 @@
 # Group 工作流程（GitLab Workspace 0.22.0）
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0 與 16 個 Skills。Megin 全部十三個 Skills 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生 v3 分支審查。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2、ReleaseReviewer 0.3.1 與 16 個 Skills。Megin 全部十三個 Skills 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生 v3 分支審查。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
 
 ## 一次安裝整包
 
@@ -82,7 +82,7 @@ Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `revie
 
 在「待審查」選擇 MR，按 **前往分支審查**。工作台確認目前 MR 資料及本機 Repo 映射，再帶入 Repo、基礎分支、比較分支；fork 或映射不明時留空並說明待補條件。核對表單後按 **複製提示詞**，再 **開啟 Codex CLI**、貼上執行。支援 Group 與單 Repo 工作區。
 
-MergeReviewer 0.12.0 只接受一個 Repo 與明確分支；使用 Codex 原生 Code Review、v3 固定證據與合併預覽。多 Repo 延伸由宣告的工作區決定，只追查相關契約與消費端，其他 Repo 使用擷取時的 HEAD。報告只產生一份 `<Repo>/review-reports/merge-review-*.md`，不發布 MR 留言。
+MergeReviewer 0.12.2 只接受一個 Repo 與明確分支；使用 Codex 原生 Code Review、v3 固定證據與合併預覽。多 Repo 延伸由宣告的工作區決定，只追查相關契約與消費端，其他 Repo 使用擷取時的 HEAD。報告只產生一份 `<Repo>/review-reports/merge-review-*.md`，不發布 MR 留言。
 
 在待審查頁貼上報告可 **作一般留言發布**；核准與合併沿用 GitLab 權限、能力及 SHA 核對。舊報告可閱讀，已移除 quick、暫存、未提交、直接比較、MR 任務、JSON 報告與 v2 匯入驗證入口，不自動轉換舊模式。
 
@@ -116,7 +116,7 @@ ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前�
 
 ## 套件建置與發行
 
-套件固定來源為 Codebase LLM Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0 與 ReleaseReviewer 0.3.0。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生內容；歷史驗證器只保留於測試 fixtures。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。使用下方的唯讀來源核對命令比對本機內容，不會自動改版或重設 SHA。套件建置會產生：
+套件固定來源為 Codebase LLM Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2 與 ReleaseReviewer 0.3.1。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生內容；歷史驗證器只保留於測試 fixtures。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。使用下方的唯讀來源核對命令比對本機內容，不會自動改版或重設 SHA。套件建置會產生：
 
 - `gitlab-workspace-0.24.0.vsix`
 - `gitlab-workspace-kit-0.24.0.zip`

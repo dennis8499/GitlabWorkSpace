@@ -58,7 +58,7 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
         self.assertFalse((self.megin/'gitlab_delivery.py').exists())
         self.assertFalse((self.megin/'group_workspace.py').exists())
         self.assertFalse((self.reviewer/'group_review.py').exists())
-        with zipfile.ZipFile(ROOT/'resources/offline-tools/sources/megin-skills-0.8.0.zip') as source:
+        with zipfile.ZipFile(ROOT/'resources/offline-tools/sources/megin-skills-0.8.1.zip') as source:
             for name in source.namelist():
                 if name.startswith('megin') and '/' in name:
                     self.assertEqual(source.read(name),(self.tools/name).read_bytes(),name)

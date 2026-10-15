@@ -38,7 +38,7 @@ class LocalReviewTargetsTests(unittest.TestCase):
             if installed.returncode:
                 raise AssertionError(installed.stdout + installed.stderr)
             metadata = json.loads(installed.stdout)
-            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, "0.12.1"):
+            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, "0.12.2"):
                 raise AssertionError(metadata)
             cls.scripts[profile] = destination / ".agents/skills/merge-reviewer/scripts"
 

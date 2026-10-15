@@ -43,7 +43,11 @@ def local_entries(tool: str) -> tuple[str, dict[str, bytes]]:
         release = load_module('wiki_release_sources', repo / 'tools/release.py')
         version = release.read_version(repo)
         return version, dict(release.package_entries(repo, release.package_files(repo, 'codex'), 'codex', version))
-    directory = repo / ('.agents/skills' if tool == 'megin' else f'skills/{tool}')
+    if tool == 'megin':
+        release = load_module('megin_release_sources', repo / '.agents/skills/megin/scripts/validate_skills.py')
+        version = (repo / 'VERSION').read_text(encoding='utf-8').strip()
+        return version, release.package_files(repo / '.agents/skills')
+    directory = repo / f'skills/{tool}'
     if not directory.is_dir():
         raise ValueError(f'Missing local source: {directory}')
     entries = {}
@@ -53,10 +57,8 @@ def local_entries(tool: str) -> tuple[str, dict[str, bytes]]:
         if not path.is_file() or '__pycache__' in path.parts or path.suffix in ('.pyc', '.pyo'):
             continue
         name = path.relative_to(directory).as_posix()
-        if tool == 'megin' and not name.split('/')[0].startswith('megin'):
-            continue
         entries[name] = path.read_bytes()
-    version_path = repo / ('VERSION' if tool == 'megin' else f'skills/{tool}/VERSION')
+    version_path = repo / f'skills/{tool}/VERSION'
     version = version_path.read_text(encoding='utf-8').strip()
     return version, entries
 

@@ -1,0 +1,23 @@
+{
+  "local_npm_test": {
+    "command": [
+      "npm.cmd",
+      "test"
+    ],
+    "exit_code": 1,
+    "seconds": 1737.94
+  },
+  "source_archive_versions": {
+    "codebase-wiki": "0.6.1",
+    "megin": "0.8.1",
+    "merge-reviewer": "0.12.2",
+    "release-reviewer": "0.3.1"
+  },
+  "isolated_vscode": "1.90.0",
+  "extension_host_retry": {
+    "exit_code": 0,
+    "seconds": 18.99,
+    "passing": 13,
+    "pending_live": 2
+  }
+}

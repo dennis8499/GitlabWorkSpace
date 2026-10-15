@@ -46,7 +46,7 @@ class ProfileTests(unittest.TestCase):
         result, data = self.apply(profile)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual(profile, data["profile"])
-        self.assertEqual("0.8.0", data["upstreamVersions"]["megin"])
+        self.assertEqual("0.8.1", data["upstreamVersions"]["megin"])
         return data
 
     def assert_preserved(self):
@@ -71,7 +71,7 @@ class ProfileTests(unittest.TestCase):
                 result,data=self.execute('install',ARCHIVE,target,VERSION,'bundled','--format','tar.xz','--entry-root','workflow-kit',
                     '--archive-sha256',hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(),'--profile',profile)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-                self.assertEqual('0.12.1',data['upstreamVersions']['merge-reviewer'])
+                self.assertEqual('0.12.2',data['upstreamVersions']['merge-reviewer'])
                 self.assertNotIn('merge-mr',data['capabilities'])
                 result,_=self.execute('rollback',target,data['transaction'])
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
@@ -82,6 +82,9 @@ class ProfileTests(unittest.TestCase):
 
     def test_frozen_024_profiles_upgrade_and_rollback_preserve_original_bytes(self):
         self.assert_frozen_profiles_upgrade_and_rollback('0.24.0')
+
+    def test_frozen_0241_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        self.assert_frozen_profiles_upgrade_and_rollback('0.24.1')
 
     def test_native_payload_is_fixed_upstream_and_has_its_own_capabilities(self):
         self.installed()
@@ -180,7 +183,7 @@ class ProfileTests(unittest.TestCase):
         native = self.installed()
         self.assertEqual("repository", self.status(self.repo)["profile"])
         path = ".agents/skills/codebase-wiki/references/development-spec-workflow.md"
-        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.6.0.zip") as upstream:
+        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.6.1.zip") as upstream:
             name = next(name for name in upstream.namelist() if name.endswith(path))
             self.assertEqual(upstream.read(name), (self.repo / path).read_bytes())
         self.assert_preserved()
