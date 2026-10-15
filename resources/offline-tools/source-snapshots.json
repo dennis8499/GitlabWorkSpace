@@ -231,9 +231,9 @@
       "version": "0.8.0"
     },
     "merge-reviewer": {
-      "archiveSha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
-      "commit": "4b20381c054afca139b59c0e695875c3f8de52a9",
-      "dirty": true,
+      "archiveSha256": "560e68155ee77d3e7af8c61c67386fe5a055c299da829a2b21b8875f7297aa49",
+      "commit": "e08db768a5d03b0b0cd9763041d56cf56247eff9",
+      "dirty": false,
       "entryRoot": "merge-reviewer",
       "filename": "merge-reviewer-0.12.0.zip",
       "files": {
@@ -242,7 +242,7 @@
         "agents/openai.yaml": "ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377",
         "references/report-style.md": "69b41024f2a0c696c1ea33881058cb1809ca18eb9c337d255d1be8e541ae0104",
         "references/review-rules.md": "bb5317d0c26833c1de0695beb653c2e73e5f6552993b01ec1d5a3b4e644eb9eb",
-        "references/usage.md": "5056555300aa4386924f616bc05f0a674ba9b41a781ec282c2f65110cd88044f",
+        "references/usage.md": "5a7e8c928f214e5fd4bf21feebc8c8a1aafec3a294cff7975b0e68c7c6433dd2",
         "references/workspace-review.md": "1fb4843b1d8982a7f3070e5b2cddd5b618ad58a41d3336292004ce2bafba3013",
         "scripts/git_review_context.py": "e639f87f5c04230478cad2c133d69b84b7d726a9f462c4e7c68fde39baf7ad57",
         "scripts/review_report.py": "6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3",
@@ -252,13 +252,13 @@
       },
       "repository": "MergeReviewer",
       "sourceKind": "local-snapshot",
-      "treeSha256": "554a6f1e26aeffddd74a805388418af62d471eed9d878837d0b5764a41f75592",
+      "treeSha256": "4a639a1431586e4c967d06a8db64b0880a727a28931407a91d55b5340b64d2f2",
       "version": "0.12.0"
     },
     "release-reviewer": {
-      "archiveSha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
-      "commit": "b333e22187dba5d7106d7255574dc4dc8dc5c739",
-      "dirty": true,
+      "archiveSha256": "a482db2395462c1848d9bdb9b60e7eee781d9bafbe646cad7c715c350c3618a4",
+      "commit": "f822d87f9b9c05309618f6a76456fed1c00e8318",
+      "dirty": false,
       "entryRoot": "release-reviewer",
       "filename": "release-reviewer-0.3.0.zip",
       "files": {

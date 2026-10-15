@@ -72,3 +72,7 @@ Wiki 依閱讀探索、知識維護、分析文件、規格與匯出導覽；Meg
 未執行真實 GitLab 連線驗收或 AI 語意分析；AI 進度與結果由 Codex 呈現。高對比使用 VS Code theme tokens 模擬，沒有螢幕閱讀器驗收。已安裝的 VS Code 1.141.1 在 Windows AppContainer 初始化失敗，原生驗收使用受支援的 1.90.0 與隔離的暫存 profile／測試啟動旗標；沒有更改應用程式 ACL 或使用者設定，診斷見[啟動紀錄](evidence/extension-current-startup.txt)。
 
 四來源的受版本控制內容保持原狀。來源核對早期曾在 Wiki 產生一個忽略的 `tools/__pycache__/release.cpython-314.pyc`；程式已禁止再寫入 bytecode。自動審查拒絕清理此快取，理由是超出只修改 GitlabWorkSpace 的範圍，因此該檔保留；它不屬於封包範圍，也不影響來源 SHA 核對。
+
+## 後續正式發版
+
+本頁保留本機交付當時的來源狀態、封包摘要與測試紀錄。兩個 Reviewer 完成獨立正式發版後，0.24.0 改固定正式 Release ZIP 與乾淨 Commit，重新建置及驗證；來源與發版程序另見[正式發版來源與驗證](release.md)。

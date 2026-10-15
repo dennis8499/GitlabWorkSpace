@@ -49,7 +49,7 @@ PINNED_SOURCES = (
         "asset": "merge-reviewer-0.12.0.zip",
         "filename": "merge-reviewer-0.12.0.zip",
         "version": "0.12.0",
-        "sha256": "2f88ca5d3af8aaae2e33ccbde7c9309e5ee3e0b0aebb02a396ae765fe1dd60a5",
+        "sha256": "560e68155ee77d3e7af8c61c67386fe5a055c299da829a2b21b8875f7297aa49",
     },
     {
         "id": "release-reviewer",
@@ -57,7 +57,7 @@ PINNED_SOURCES = (
         "asset": "release-reviewer-0.3.0.zip",
         "filename": "release-reviewer-0.3.0.zip",
         "version": "0.3.0",
-        "sha256": "0acacb157857919f7373db6b63b5636589abe99ca2637d9b67e5f3ac323f4ae9",
+        "sha256": "a482db2395462c1848d9bdb9b60e7eee781d9bafbe646cad7c715c350c3618a4",
     },
 )
 

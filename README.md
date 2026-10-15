@@ -34,11 +34,11 @@
 
 ## 0.24.0 更新
 
-整合本機最新 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0；來源包含尚未提交的修改，固定 ZIP、commit、內容 SHA-256 及修改狀態。四工具共 16 個 Skills、17 項工作台功能。
+整合 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0；兩個 Reviewer 使用正式 Release ZIP，固定已提交的來源 commit、內容 SHA-256 及乾淨狀態。四工具共 16 個 Skills、17 項工作台功能。
 
 MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Markdown Merge Report；待審查頁可帶入分支候選，完成後由使用者作一般留言發布。舊快速／未提交／MR 專用報告流程已移除。舊 Megin 工作保留原套件續作，完成後再更新。
 
-操作立即顯示處理狀態、階段、結果與錯誤；同一資源的重複操作會合併或阻擋。本機環境先載入，Issue 與 MR 資料依頁面需要讀取；暖切頁不重新全量掃描。詳見[本次驗證紀錄](docs/work/work-20261015-workspace-024/README.md)。
+操作立即顯示處理狀態、階段、結果與錯誤；同一資源的重複操作會合併或阻擋。本機環境先載入，Issue 與 MR 資料依頁面需要讀取；暖切頁不重新全量掃描。詳見[本機驗證紀錄](docs/work/work-20261015-workspace-024/README.md)及[正式發版來源與驗證](docs/work/work-20261015-workspace-024/release.md)。
 
 ## 需求
 
@@ -75,7 +75,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.24.0 的 VSIX 與組合包共用版本，整合本機 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。來源 commit、修改狀態與 SHA-256 隨封包保存。
+GitLab Workspace v0.24.0 的 VSIX 與組合包共用版本，整合 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。兩個 Reviewer 的正式來源 ZIP、已提交 commit、乾淨狀態與 SHA-256 隨封包保存。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
