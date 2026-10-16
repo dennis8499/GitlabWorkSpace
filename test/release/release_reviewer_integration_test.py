@@ -89,7 +89,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 "tests_not_executed": ["No product execution or database connection in this fixture."], "limitations": []}
 
     def test_installed_native_payload_matches_pinned_archive(self):
-        archive_path = harness.ROOT / "resources/offline-tools/sources/release-reviewer-0.3.1.zip"
+        archive_path = harness.ROOT / "resources/offline-tools/sources/release-reviewer-0.4.0.zip"
         with zipfile.ZipFile(archive_path) as archive:
             expected = {item.filename.removeprefix("release-reviewer/"): archive.read(item)
                         for item in archive.infolist() if not item.is_dir()}
@@ -109,9 +109,35 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                     self.scripts = self.repo / ".agents/skills/release-reviewer/scripts"
                 context, manifest = self.capture(self.group if profile == "group" else self.repo)
                 self.assertEqual(profile, manifest["scope"])
+                worklist = json.loads((context / "review-worklist.json").read_text(encoding="utf-8"))
+                self.assertEqual("ReleaseReviewWorklist/v1", worklist["schema"])
+                skeleton = json.loads((context / "review-result-draft.json").read_text(encoding="utf-8"))
+                self.assertTrue(all(row["status"] == "not-reviewed" for row in skeleton["coverage"] + skeleton["dependency_coverage"]))
+                batch = self.helper("evidence.py", "batch", "--context-dir", context, "--requests", context / "review-worklist.json")
+                self.assertEqual(0, batch.returncode, batch.stderr)
+                results = json.loads(batch.stdout)
+                self.assertTrue(results["complete"])
+                self.assertEqual(len(worklist["requests"]), len(results["results"]))
+                self.assertTrue(all(row["ok"] for row in results["results"]))
+                self.assertNotIn("uncommitted local edit", batch.stdout)
+                requests = context / "followup.json"
+                requests.write_text(json.dumps([
+                    {"action": "search", "source": "base", "query": "old behavior"},
+                    {"action": "search", "source": "base", "query": "fixture missing text"},
+                ]), encoding="utf-8-sig")
+                batch = self.helper("evidence.py", "batch", "--context-dir", context, "--requests", requests)
+                self.assertEqual(0, batch.returncode, batch.stderr)
+                searches = json.loads(batch.stdout)["results"]
+                self.assertTrue(all(row["ok"] and row["result"]["search_id"] for row in searches))
+                self.assertEqual([], searches[1]["result"]["matches"])
                 draft = context / "draft.json"
-                draft.write_text(json.dumps(self.draft(manifest)), encoding="utf-8")
-                result = self.helper("release_report.py", "--context-dir", context, "--result", draft)
+                draft.write_text('{"schema":', encoding="utf-8-sig")
+                failed = self.helper("release_report.py", "--context-dir", context, "--result", draft, "--retain-on-validation-error")
+                self.assertEqual(3, failed.returncode, failed.stderr)
+                self.assertTrue(json.loads(failed.stderr)["context_retained"])
+                self.assertTrue(context.exists())
+                draft.write_text(json.dumps(self.draft(manifest)), encoding="utf-8-sig")
+                result = self.helper("release_report.py", "--context-dir", context, "--result", draft, "--retain-on-validation-error")
                 self.assertEqual(0, result.returncode, result.stderr)
                 output = json.loads(result.stdout)
                 report = Path(output["markdown_report"])
@@ -134,6 +160,13 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 self.assertEqual(index_before, (self.repo / ".git/index").read_bytes())
                 self.assertEqual(status_before, self.git("status", "--porcelain", "--untracked-files=no"))
                 self.assertEqual("uncommitted local edit\n", (self.repo / "service.txt").read_text(encoding="utf-8"))
+                failed_context, failed_manifest = self.capture(self.group if profile == "group" else self.repo)
+                failed_manifest["schema"] = "invalid-context-schema"
+                (failed_context / "manifest.json").write_text(json.dumps(failed_manifest), encoding="utf-8")
+                failed = self.helper("release_report.py", "--context-dir", failed_context,
+                                     "--result", failed_context / "review-result-draft.json", "--retain-on-validation-error")
+                self.assertEqual(2, failed.returncode, failed.stderr)
+                self.assertFalse(failed_context.exists())
 
 
     def test_saved_workspace_single_report_and_editable_checklist_snapshot(self):
@@ -212,7 +245,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 applied, data = self.execute("install", harness.ARCHIVE, target, harness.VERSION, "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
                                             "--archive-sha256", hashlib.sha256(harness.ARCHIVE.read_bytes()).hexdigest(), "--profile", profile)
                 self.assertEqual(0, applied.returncode, data)
-                self.assertEqual("0.3.1", (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
+                self.assertEqual("0.4.0", (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
                 self.assertEqual("old report\n", (target / "review-reports/previous/report.md").read_text())
                 rolled, output = self.execute("rollback", target, data["transaction"])
                 self.assertEqual(0, rolled.returncode, output)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -38,7 +39,7 @@ class LocalReviewTargetsTests(unittest.TestCase):
             if installed.returncode:
                 raise AssertionError(installed.stdout + installed.stderr)
             metadata = json.loads(installed.stdout)
-            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, "0.12.2"):
+            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, "0.13.0"):
                 raise AssertionError(metadata)
             cls.scripts[profile] = destination / ".agents/skills/merge-reviewer/scripts"
 
@@ -68,19 +69,41 @@ class LocalReviewTargetsTests(unittest.TestCase):
                 before=(self.git(repo,'status','--porcelain=v1'),self.git(repo,'show',':app.py'),(repo/'app.py').read_bytes())
                 scripts=self.scripts[profile]
                 result=self.command(sys.executable,'-X','utf8','-B',scripts/'git_review_context.py','--workspace',repo,
-                    '--project',repo,'--base','main','--head','feature/change')
-                manifest=json.loads(result.stdout); context=Path(manifest['context_dir'])
+                    '--project',repo,'--base','main','--head','feature/change','--summary')
+                summary=json.loads(result.stdout); context=Path(summary['context_dir'])
+                self.assertEqual('merge-reviewer-workspace-summary/v1',summary['schema'])
+                manifest=json.loads(Path(summary['manifest_path']).read_text(encoding='utf-8'))
                 self.addCleanup(lambda scripts=scripts,context=context: self.command(sys.executable,'-B',scripts/'review_session.py','cleanup','--context-dir',context) if context.exists() else None)
                 self.assertEqual('merge-reviewer-workspace-context/v3',manifest['schema'])
                 self.assertFalse(manifest['extension_enabled'])
-                draft={'schema':'merge-reviewer-workspace-result/v3','summary':'Fixture leaves semantic review incomplete.',
-                    'coverage':[{**row,'status':'not-reviewed','reason':'Not reviewed by this fixture.'} for row in manifest['required_coverage']],
-                    'findings':[],'next_steps':[],'tests_executed':[],'tests_not_executed':['Static fixture.'],'limitations':[]}
+                seed=next(row for row in manifest['repositories'] if row['id']==manifest['selected_repo'])
+                base_sha,head_sha=seed['sources']['base']['ref'],seed['sources']['head']['ref']
+                requests=context/'reads.json'
+                requests.write_text(json.dumps([{key:row[key] for key in ('repo','source','path')}
+                    for row in manifest['required_coverage']]),encoding='utf-8')
+                batch=self.command(sys.executable,'-X','utf8','-B',scripts/'review_workspace.py','batch-read',
+                    '--context-dir',context,'--requests-file',requests)
+                reads=json.loads(batch.stdout)['reads']
+                self.assertEqual(len(manifest['required_coverage']),len(reads))
+                self.assertTrue(all(row['ref']==seed['sources'][row['source']]['ref'] for row in reads))
+                self.assertTrue(all('saved = True' not in json.dumps(row) for row in reads))
+                requests.write_text(json.dumps([{'query':'value','repo':[seed['id']]}]),encoding='utf-8')
+                batch=self.command(sys.executable,'-X','utf8','-B',scripts/'review_workspace.py','batch-search',
+                    '--context-dir',context,'--requests-file',requests)
+                self.assertTrue(json.loads(batch.stdout)['searches'])
+                draft={'schema':'merge-reviewer-workspace-result/v3','summary':'Static evidence formatting fixture.',
+                    'coverage':[{**row,'status':'reviewed','evidence':[{
+                        **row,'ref':seed['sources'][row['source']]['ref'],'line_start':1,'line_end':1
+                    }]} for row in manifest['required_coverage']],
+                    'findings':[{'id':'F-001','priority':'P2','title':'Fixture value changes',
+                        'impact':'Fixture consumers receive a different value.','trigger':'Read the changed fixture.',
+                        'expected':'The fixture value is 1.','actual':'The fixture value is 2.',
+                        'recommendation':'Confirm the intended fixture value.','owner':'開發','scenario_source':'code-derived',
+                        'evidence':[{'repo':seed['id'],'source':'head','ref':head_sha,'path':'app.py','line_start':1,'line_end':1}]}],
+                    'next_steps':[],'tests_executed':[],'tests_not_executed':['Static fixture; no product execution.'],'limitations':[]}
                 result_file=context/'draft.json'; result_file.write_text(json.dumps(draft),encoding='utf-8')
                 published=self.command(sys.executable,'-X','utf8','-B',scripts/'review_report.py','--context-dir',context,'--result',result_file).stdout.strip()
                 report=Path(published); self.assertEqual(repo/'review-reports',report.parent)
-                seed=next(row for row in manifest['repositories'] if row['id']==manifest['selected_repo'])
-                base_sha,head_sha=seed['sources']['base']['ref'],seed['sources']['head']['ref']
                 self.assertRegex(report.name,rf'^merge-review-\d{{8}}T\d{{12}}Z-{base_sha[:8]}-{head_sha[:8]}\.md$')
                 text=report.read_text(encoding='utf-8')
                 self.assertIn('Merge Report: service',text)
@@ -89,9 +112,12 @@ class LocalReviewTargetsTests(unittest.TestCase):
                 self.assertIn(f'| 比較分支 | `feature/change` | `refs/heads/feature/change` | `{head_sha[:8]}` |',comparison)
                 self.assertIn('- 合併方向：`feature/change` → `main`',comparison)
                 self.assertIn(f'- 主要差異範圍（共同祖先 → 比較分支）：`{base_sha[:8]}` → `{head_sha[:8]}`',comparison)
-                appendix=text.split('## 技術附錄\n',1)[1]
-                self.assertIn(f'`{base_sha}`',appendix)
-                self.assertIn(f'`{head_sha}`',appendix)
+                self.assertNotIn('技術附錄',text)
+                self.assertEqual(['問題描述','重現原因','預期結果','實際結果','證據','建議改善方式'],
+                    re.findall(r'^\*\*([^*]+)\*\*$',text,flags=re.MULTILINE))
+                self.assertIn(f'`service/app.py:1–1`（來源：`head`；固定版本：`{head_sha}`）',text)
+                self.assertIn('\n```\nvalue = 2\n```\n',text)
+                self.assertIn('依程式推導，未實際重現',text)
                 self.assertFalse(context.exists())
                 after=(self.git(repo,'status','--porcelain=v1'),self.git(repo,'show',':app.py'),(repo/'app.py').read_bytes())
                 # The only new file is the requested review report.

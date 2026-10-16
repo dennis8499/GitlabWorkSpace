@@ -177,19 +177,24 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
   ];
   if (card.tool === 'merge-reviewer') lines.push(
     '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、quick、暫存、未提交、直接比較、MR 任務或 JSON 選項。',
-    `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')}。`,
+    `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')} --summary。`,
     '使用 Codex 原生 Code Review 及 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3。只以所選 Repo 為審查起點；宣告的工作區內有至少兩個不同 Git 根目錄時，依固定證據追查必要契約與消費端，其他 Repo 使用各自擷取時的 HEAD。',
-    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit前8碼>-<head-commit前8碼>.md，一份繁體中文 Merge Report。結論後列出比較資訊：Repo／路徑、輸入分支與實際 ref、8 碼 commit、合併方向及共同祖先到比較分支的主要差異範圍；完整 SHA 保留在技術附錄。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
+    '摘要提供 context_dir 與 manifest_path，完整固定證據仍在 manifest；已知且互不相依的讀取與搜尋使用 review_workspace.py batch-read／batch-search，依技能指引追查後續線索並完成全部覆蓋。',
+    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit前8碼>-<head-commit前8碼>.md，一份繁體中文 Merge Report。結論後列出比較資訊：Repo／路徑、輸入分支與實際 ref、8 碼 commit、合併方向及共同祖先到比較分支的主要差異範圍。每項問題依序呈現問題描述、重現原因、預期結果、實際結果、證據、建議改善方式；非空文字證據提供 line_start／line_end，只引用必要固定行段，附 Repo／路徑、行號、來源及完整 ref，空檔案標示 0 行。逐檔覆蓋與功能鏈完整參與內部驗證。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
   );
   if (card.tool === 'release-reviewer') lines.push(
     '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',
     `內部工作區資料（非額外使用者選項；傳入 --workspace-context-json）：${JSON.stringify({ repositories: context.repositories.map(repo => ({ name: repo.name, path: repo.path, defaultBranch: repo.defaultBranch ?? null })) })}`,
     '以指定 Repo 為入口追查明確工作區內相關 API、事件、契約、DB 與快取功能鏈及未變更消費端。關聯 Repo 使用各自本機預設分支的已提交版本，固定 SHA、不 fetch、不改用目前 checkout；版本或鏈路缺口保持檢查未完成。',
+    '擷取後先用 evidence.py batch --context-dir <context_dir> --requests <context_dir>/review-worklist.json 批次閱讀固定證據；review-result-draft.json 是尚未審查的草稿骨架，逐項完成語意審查後才標記 reviewed。批次結果逐項核對 ok、error 與完整搜尋紀錄，依線索補充讀取及搜尋。',
     '以 base_sha 的整個 Repo 原有使用為新增判斷基準。逐類檢查設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 及其他資源，涵蓋首次使用、部署定義、目標變更與新增權限；保留基礎搜尋證據。其他 Repo 可用不代表入口服務已有權限。',
     '只列直接阻止上版的 P0／P1，寫明 blocking_reason、條件、影響與最終版本證據。使用 ReleaseReviewDraft/v3 與 release_report.py，在 VSCode 工作區根目錄產生一份含 Checklist 的精簡 Release Report，檔名前綴 release-review；已儲存工作區使用 .code-workspace 所在目錄。每次一份並保留歷史，不傳 --report-dir。結論優先，分開已確認阻擋、檢查缺口與待核對條件。Checklist 初始待確認，人工填核對人、日期及開通／套用後驗證證據，不適用填理由；僅申請工單不算完成。只修改 release-checklist:start／end 內的核對紀錄，產生時判斷及固定正文保留。此報告不當作 MR 報告匯入或發布。',
     '預設靜態檢查；不複製機密值。實際環境設定、DB 建立或套用狀態標為未查證，不宣告已可上板。'
   );
   lines.push('報告格式：只輸出 Markdown。',
-    'context 與草稿留在本次受管理的系統暫存目錄；成功、失敗或中止都清理本次 context。最後提供本機報告連結、重要發現與缺口。');
+    'context 與草稿留在本次受管理的系統暫存目錄。',
+    card.tool === 'release-reviewer'
+      ? 'release_report.py 使用 --retain-on-validation-error；exit 3 代表可修正草稿錯誤，保留同次 context 修正後完整重驗。成功、其他失敗或放棄修稿時清理本次 context；中止時執行 review_session.py cleanup。最後提供本機報告連結、重要發現與缺口。'
+      : '成功、失敗或中止都清理本次 context。最後提供本機報告連結、重要發現與缺口。');
   return lines.join('\n');
 }

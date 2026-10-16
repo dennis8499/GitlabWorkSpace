@@ -1,0 +1,92 @@
+{
+  "npmTest": {
+    "exitCode": 1,
+    "seconds": 1286.79,
+    "nodeTestTotals": [
+      "304",
+      "74",
+      "26"
+    ],
+    "pythonSuiteTotals": [
+      "18",
+      "12",
+      "20",
+      "15",
+      "7",
+      "3",
+      "5",
+      "88",
+      "27",
+      "2",
+      "2"
+    ],
+    "extensionPassing": [
+      "13"
+    ],
+    "extensionPending": [
+      "2"
+    ],
+    "hostRecovery": {
+      "isolatedExitCode": 0,
+      "allPreviousChainedStagesPassed": true
+    }
+  },
+  "sources": {
+    "codebase-wiki": {
+      "repository": "code-base-llm-wiki",
+      "version": "0.6.1",
+      "commit": "670448aed308d92b8154bb0aaf88989b9374ef1b",
+      "dirty": false,
+      "archiveSha256": "d9b10390028d70a26b473737de582c4b2cf2286d019c03f3d0673f81602bf8ce",
+      "treeSha256": "7c9cdf649d4c29b7340e3d147a5c2165b8c30f8361229a15b128703a895366c2"
+    },
+    "megin": {
+      "repository": "Megin",
+      "version": "0.8.1",
+      "commit": "dbed74202828bb979788bfa8f191c6d94168fb1b",
+      "dirty": false,
+      "archiveSha256": "2cd73766cd19de5ad26d6437ee50d5c9f3a37f6e67b7193c440e5c3b8d303395",
+      "treeSha256": "db00e79fdc543c44b64a8679151cda3e0ef62858ab6c0d6bd8b84eac72a761bb"
+    },
+    "merge-reviewer": {
+      "repository": "MergeReviewer",
+      "version": "0.13.0",
+      "commit": "749973780c0804f8c9d822fba2dbfbf2fc5a7275",
+      "dirty": false,
+      "archiveSha256": "d79281b8279ad440b7b7c758323f600ca6ca6b8df6ef3d2bded13191ed0de96a",
+      "treeSha256": "7db9953243c6f6a8530f71f747a82ec21d3fa4d3c09e8b39d67a23de426df517"
+    },
+    "release-reviewer": {
+      "repository": "ReleaseReviewer",
+      "version": "0.4.0",
+      "commit": "1c319fec3a3db228326d31d792bb2a2adf3287a2",
+      "dirty": false,
+      "archiveSha256": "03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9",
+      "treeSha256": "dd0a31929d71d121da1f6e118d0c742568e44d5c234b57113b57385f903317d2"
+    }
+  },
+  "predecessor": {
+    "zip_sha256": "ef28ff14041ae386dfebc5895f1a33099b231401d36a239e96634dac3bc8127f",
+    "profiles": [
+      "group",
+      "repository"
+    ],
+    "entries": 493
+  },
+  "candidateOfficialPayloads": [
+    {
+      "tool": "merge-reviewer",
+      "files": 13,
+      "skillPayloadIdentical": true,
+      "candidateArchiveSha256": "58582f95d46fe7422bb5806d9d2daa51b82392c5f4788a66d24746f778f6b81b",
+      "officialArchiveSha256": "d79281b8279ad440b7b7c758323f600ca6ca6b8df6ef3d2bded13191ed0de96a"
+    },
+    {
+      "tool": "release-reviewer",
+      "files": 18,
+      "skillPayloadIdentical": true,
+      "candidateArchiveSha256": "03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9",
+      "officialArchiveSha256": "03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9"
+    }
+  ]
+}

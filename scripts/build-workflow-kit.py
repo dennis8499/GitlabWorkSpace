@@ -46,18 +46,18 @@ PINNED_SOURCES = (
     {
         "id": "merge-reviewer",
         "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.12.2.zip",
-        "filename": "merge-reviewer-0.12.2.zip",
-        "version": "0.12.2",
-        "sha256": "81f7ceebeb32dfe38b62acd0885ae380d5c693ad32f315f6a12f6278406a61fb",
+        "asset": "merge-reviewer-0.13.0.zip",
+        "filename": "merge-reviewer-0.13.0.zip",
+        "version": "0.13.0",
+        "sha256": "d79281b8279ad440b7b7c758323f600ca6ca6b8df6ef3d2bded13191ed0de96a",
     },
     {
         "id": "release-reviewer",
         "repository": "ReleaseReviewer",
-        "asset": "release-reviewer-0.3.1.zip",
-        "filename": "release-reviewer-0.3.1.zip",
-        "version": "0.3.1",
-        "sha256": "40b4b9eca3b8f8c08b0cecbda5c96dbd998d8bd4050b523135e8afdb36f9cfd5",
+        "asset": "release-reviewer-0.4.0.zip",
+        "filename": "release-reviewer-0.4.0.zip",
+        "version": "0.4.0",
+        "sha256": "03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9",
     },
 )
 
@@ -357,8 +357,8 @@ def build() -> dict[str, object]:
         "sourceSummary": [
             "Native Codebase LLM Wiki 0.6.1 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
             "Native Megin 0.8.1 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
-            "Native MergeReviewer 0.12.2 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Full SHAs remain in the appendix. No Workspace overlay or MR-specific report adapter is applied.",
-            "Native ReleaseReviewer 0.3.1 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
+            "Native MergeReviewer 0.13.0 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete refs; the technical appendix is omitted while full validation is retained. No Workspace overlay or MR-specific report adapter is applied.",
+            "Native ReleaseReviewer 0.4.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
         ],
         "customProfile": {
             "name": "GitlabWorkSpace",

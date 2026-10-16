@@ -67,12 +67,30 @@ class ProfileTests(unittest.TestCase):
                     version,'bundled','--format','tar.xz','--entry-root','workflow-kit','--archive-sha256',hashlib.sha256(old_archive.read_bytes()).hexdigest(),
                     '--profile',profile],capture_output=True,text=True,encoding='utf-8')
                 self.assertEqual(0,old.returncode,old.stdout+old.stderr)
+                if version == '0.24.3':
+                    for name, content in {
+                        'wiki/personal-note.md': '# Preserved personal Wiki\n',
+                        '.agents/skills/personal-helper/SKILL.md': 'Personal helper stays.\n',
+                        'docs/work/preserved-work/workflow.md': '- status: complete\n',
+                        'review-reports/previous/report.md': 'Previous review stays.\n',
+                    }.items():
+                        path = target / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(content, encoding='utf-8')
+                    with (target / 'AGENTS.md').open('a', encoding='utf-8') as stream:
+                        stream.write('\nKeep personal workspace instructions.\n')
                 before=self.snapshot(target)
                 result,data=self.execute('install',ARCHIVE,target,VERSION,'bundled','--format','tar.xz','--entry-root','workflow-kit',
                     '--archive-sha256',hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(),'--profile',profile)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-                self.assertEqual('0.12.2',data['upstreamVersions']['merge-reviewer'])
+                self.assertEqual('0.13.0',data['upstreamVersions']['merge-reviewer'])
                 self.assertNotIn('merge-mr',data['capabilities'])
+                if version == '0.24.3':
+                    current = self.snapshot(target)
+                    for name in ('wiki/personal-note.md', '.agents/skills/personal-helper/SKILL.md',
+                                 'docs/work/preserved-work/workflow.md', 'review-reports/previous/report.md'):
+                        self.assertEqual(before[name], current[name])
+                    self.assertIn('Keep personal workspace instructions.', (target / 'AGENTS.md').read_text(encoding='utf-8'))
                 result,_=self.execute('rollback',target,data['transaction'])
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 self.assertEqual(before,self.snapshot(target))
@@ -88,6 +106,9 @@ class ProfileTests(unittest.TestCase):
 
     def test_frozen_0242_profiles_upgrade_and_rollback_preserve_original_bytes(self):
         self.assert_frozen_profiles_upgrade_and_rollback('0.24.2')
+
+    def test_frozen_0243_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        self.assert_frozen_profiles_upgrade_and_rollback('0.24.3')
 
     def test_native_payload_is_fixed_upstream_and_has_its_own_capabilities(self):
         self.installed()

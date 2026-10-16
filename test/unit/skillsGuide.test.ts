@@ -86,7 +86,11 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   assert.match(prompt, /只輸出 Markdown/);
   assert.equal(prompt.includes('--include-json'), false);
   assert.match(prompt, /環境設定、DB 建立或套用狀態標為未查證/);
-  assert.match(prompt, /成功、失敗或中止都清理/);
+  assert.match(prompt, /review-worklist\.json/);
+  assert.match(prompt, /review-result-draft\.json.*尚未審查/);
+  assert.match(prompt, /--retain-on-validation-error/);
+  assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
+  assert.match(prompt, /成功、其他失敗或放棄修稿時清理/);
   assert.throws(() => buildSkillGuidePrompt(card, { ...inputs, 'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON' }, context), /只接受 Repo/);
   for (const ref of ['HEAD', 'refs/tags/v1', 'f'.repeat(40), 'main~1']) assert.equal(canCopySkillPrompt(card, { ...inputs, 'release-review.head': ref }), false);
 });
@@ -153,7 +157,12 @@ test('native branch review uses only three inputs and actual saved workspace bou
   assert.match(prompt, /只輸出 Markdown/);
   assert.match(prompt, /<base-commit前8碼>-<head-commit前8碼>\.md/);
   assert.match(prompt, /比較資訊：Repo／路徑、輸入分支與實際 ref/);
-  assert.match(prompt, /完整 SHA 保留在技術附錄/);
+  assert.match(prompt, /--summary/);
+  assert.match(prompt, /batch-read／batch-search/);
+  assert.match(prompt, /問題描述、重現原因、預期結果、實際結果、證據、建議改善方式/);
+  assert.match(prompt, /line_start／line_end/);
+  assert.match(prompt, /行號、來源及完整 ref/);
+  assert.doesNotMatch(prompt, /技術附錄/);
   assert.doesNotMatch(prompt, /--quick|--mode|--scope|--target|--include-json|--mr-context/);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
 });
