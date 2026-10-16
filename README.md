@@ -138,7 +138,7 @@ npm run package
 
 ## 版本發行
 
-發行流程會比對 Git 標籤、`package.json` 與 `package-lock.json` 的版本，並確認發行提交已合併至 `main`。推送符合版本號的 `v<版本>` 標籤後，GitHub Actions 會執行測試並建立含 VSIX、單一組合包 ZIP 與 SHA256SUMS 的 GitHub Release。操作細節請參考[貢獻指南](CONTRIBUTING.md)。
+跨專案發版使用[工作區 Release 工具](docs/releasing.md)：指定目標版本後，自動編排上游正式附件、工作台整合、完整 CI、發布與下載驗證，並支援失敗續跑。Tag 版本須與套件及鎖定檔一致，提交須包含於 `main`；同一候選可重用七天內完整成功的主分支 CI 成果，缺少有效證據時執行完整驗證。正式附件為 VSIX、單一組合包 ZIP 與 SHA256SUMS。
 
 ## 授權
 

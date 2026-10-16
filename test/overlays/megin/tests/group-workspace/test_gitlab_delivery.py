@@ -5,7 +5,9 @@ import sys
 import unittest
 from unittest import mock
 
-from test_workspace_hardening import WorkspaceHardeningTests, ROOT, WORK_ID
+import test_workspace_hardening as hardening
+
+ROOT, WORK_ID = hardening.ROOT, hardening.WORK_ID
 
 sys.path.insert(0, str(ROOT / ".agents/skills/megin/scripts"))
 import gitlab_delivery as delivery
@@ -13,7 +15,7 @@ import group_workspace as workspace
 import group_quality_gate as quality
 
 
-class GitLabDeliveryTests(WorkspaceHardeningTests):
+class GitLabDeliveryTests(hardening.WorkspaceHardeningTests):
     def test_group_root_alias_is_resolved_before_evidence_containment(self):
         alias = self.group / ".." / self.group.name
         relative = f"docs/work/{WORK_ID}"
@@ -172,7 +174,7 @@ class GitLabDeliveryTests(WorkspaceHardeningTests):
 
 
 # Keep inherited fixtures, not duplicate the older suite in this new test module.
-for _name in list(WorkspaceHardeningTests.__dict__):
+for _name in list(hardening.WorkspaceHardeningTests.__dict__):
     if _name.startswith("test_"):
         setattr(GitLabDeliveryTests, _name, None)
 

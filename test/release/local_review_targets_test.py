@@ -15,6 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+CURRENT_SOURCES = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']
 
 
 class LocalReviewTargetsTests(unittest.TestCase):
@@ -39,7 +40,7 @@ class LocalReviewTargetsTests(unittest.TestCase):
             if installed.returncode:
                 raise AssertionError(installed.stdout + installed.stderr)
             metadata = json.loads(installed.stdout)
-            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, "0.13.0"):
+            if (metadata["profile"], metadata["upstreamVersions"]["merge-reviewer"]) != (profile, CURRENT_SOURCES['merge-reviewer']['version']):
                 raise AssertionError(metadata)
             cls.scripts[profile] = destination / ".agents/skills/merge-reviewer/scripts"
 

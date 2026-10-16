@@ -7,135 +7,128 @@ on:
     tags:
       - 'v*'
   pull_request:
+  workflow_dispatch:
   workflow_call:
+
+concurrency:
+  group: release-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
+  select:
+    name: Select exact main CI proof
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    outputs:
+      reuse_run_id: ${{ steps.proof.outputs.reuse_run_id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Reuse only complete trusted main proof within seven days
+        id: proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -X utf8 -B scripts/release_ci.py select --output "$GITHUB_OUTPUT"
+
   build:
-    name: Validate on ${{ matrix.os }} with Python ${{ matrix.python-version }} and VS Code ${{ matrix.vscode-version }}
+    needs: select
+    if: ${{ always() && (needs.select.result == 'skipped' || (needs.select.result == 'success' && needs.select.outputs.reuse_run_id == '')) }}
+    name: Validate [${{ matrix.cell }}]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - cell: linux-py3.11-stable
+            os: ubuntu-latest
             python-version: '3.11'
-            vscode-version: stable
-          - os: windows-2022
+            vscode-version: 'stable'
+          - cell: windows-py3.11-1.90.0
+            os: windows-2022
             python-version: '3.11'
-            vscode-version: 1.90.0
-          - os: windows-2022
+            vscode-version: '1.90.0'
+          - cell: windows-py3.11-stable
+            os: windows-2022
             python-version: '3.11'
-            vscode-version: stable
-          - os: windows-2022
+            vscode-version: 'stable'
+          - cell: windows-py3.14-stable
+            os: windows-2022
             python-version: '3.14'
-            vscode-version: stable
+            vscode-version: 'stable'
     env:
       VSCODE_TEST_VERSION: ${{ matrix.vscode-version }}
+      GITLAB_WORKSPACE_VALIDATION_DIR: .gitlab-workspace-validation/ci
     steps:
-      - name: Check out full history
+      - name: Check out exact source
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install locked dependencies
         run: npm ci
-
       - name: Validate tag, manifest, lockfile, and main ancestry
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: npm run check:release
-
-      - name: Run tests with a virtual display
+      - name: Run full tests and package once with a virtual display
         if: runner.os == 'Linux'
         run: xvfb-run -a npm test
-
-      - name: Run tests on Windows
+      - name: Run full tests and package once on Windows
         if: runner.os == 'Windows'
         run: npm test
-
-      - name: Package and verify VSIX
-        run: npm run package
-
-      - name: Save verified release assets for the release job
+      - name: Test release provenance and publication contracts
+        run: python -X utf8 -B scripts/test_release_ci.py -v
+      - name: Record complete cell and canonical asset provenance
+        run: python -X utf8 -B scripts/release_ci.py record --cell "${{ matrix.cell }}" --artifact-dir ".release-ci/${{ matrix.cell }}"
+      - name: Save exact validated proof and assets for fourteen days
         uses: actions/upload-artifact@v7
-        if: matrix.os == 'ubuntu-latest'
         with:
-          name: release-assets
-          path: |
-            dist/*.vsix
-            dist/gitlab-workspace-kit-*.zip
-            dist/SHA256SUMS
+          name: release-ci-${{ github.sha }}-${{ matrix.cell }}-${{ github.run_attempt }}
+          path: .release-ci/${{ matrix.cell }}/*
+          retention-days: 14
+          include-hidden-files: true
           if-no-files-found: error
 
   publish:
-    name: Create GitHub Release
-    needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    name: Promote verified bytes to formal Release
+    needs: [select, build]
+    if: ${{ always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && needs.select.result == 'success' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && needs.select.outputs.reuse_run_id != '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
-      - name: Download the verified release assets
-        uses: actions/download-artifact@v8
+      - uses: actions/checkout@v7
         with:
-          name: release-assets
-          path: dist
-
-      - name: Create release with the extension, workflow kit, and checksums
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Verify proof and publish idempotently without rebuilding
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          vsix_assets=(dist/*.vsix)
-          kit_assets=(dist/gitlab-workspace-kit-*.zip)
-          if [[ ${#vsix_assets[@]} -ne 1 || ${#kit_assets[@]} -ne 1 || ! -f dist/SHA256SUMS ]]; then
-            echo "Expected one VSIX, one workflow kit ZIP, and SHA256SUMS." >&2
-            exit 1
-          fi
-
-          expected_asset="gitlab-workspace-${TAG_NAME#v}.vsix"
-          expected_kit="gitlab-workspace-kit-${TAG_NAME#v}.zip"
-          if [[ "$(basename "${vsix_assets[0]}")" != "$expected_asset" || "$(basename "${kit_assets[0]}")" != "$expected_kit" ]]; then
-            echo "Unexpected release artifact names; expected $expected_asset and $expected_kit." >&2
-            exit 1
-          fi
-          (cd dist && sha256sum --check SHA256SUMS)
-
-          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG_NAME already exists; refusing to overwrite it." >&2
-            exit 1
-          fi
-
-          release_args=(
-            "$TAG_NAME"
-            "${vsix_assets[0]}"
-            "${kit_assets[0]}"
-            "dist/SHA256SUMS"
-            --title "$TAG_NAME"
-            --verify-tag
-            --generate-notes
-            --repo "$GITHUB_REPOSITORY"
-          )
-          if [[ "$TAG_NAME" == "v0.1.0" || "$TAG_NAME" =~ ^v[^+]*- ]]; then
-            release_args+=(--prerelease)
-          fi
-
-          gh release create "${release_args[@]}"
+          REUSE_RUN_ID: ${{ needs.select.outputs.reuse_run_id }}
+        run: python -X utf8 -B scripts/release_ci.py publish --run-id "$REUSE_RUN_ID" --fallback-current-run --output release-publication.json
+      - name: Save verified formal asset digests
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-publication-${{ github.sha }}-${{ github.run_attempt }}
+          path: release-publication.json
+          retention-days: 14
+          if-no-files-found: error

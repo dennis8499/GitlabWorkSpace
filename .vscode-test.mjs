@@ -2,7 +2,7 @@ import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig({
   files: 'out/test/extension/**/*.test.js',
-  workspaceFolder: 'test/fixtures/host.code-workspace',
+  workspaceFolder: process.env.GITLAB_WORKSPACE_TEST_WORKSPACE || 'test/fixtures/host.code-workspace',
   launchArgs: ['--disable-workspace-trust', '--skip-welcome', '--skip-release-notes',
     ...(process.env.GITLAB_WORKSPACE_TEST_TMP ? [`--user-data-dir=${process.env.GITLAB_WORKSPACE_TEST_TMP}/user-data`,
       `--extensions-dir=${process.env.GITLAB_WORKSPACE_TEST_TMP}/extensions`, `--logsPath=${process.env.GITLAB_WORKSPACE_TEST_TMP}/logs`] : []),

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "resources/workflow-kit-installer.py"
 ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
+CURRENT_SOURCES = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']
 RELEASE_ZIP = ROOT / f"dist/gitlab-workspace-kit-{VERSION}.zip"
 SKILLS = (
     "codebase-wiki", "megin", "megin-architecture-exploration", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
@@ -263,7 +264,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         spec.loader.exec_module(module)
         manifest, _ = module.import_package(ARCHIVE, "tar.xz", VERSION)
         self.assertEqual(list(SKILLS), manifest["skills"])
-        self.assertEqual({"codebase-wiki": "0.6.1", "megin": "0.8.1", "merge-reviewer": "0.13.0", "release-reviewer": "0.4.0"},
+        self.assertEqual({name: item['version'] for name, item in CURRENT_SOURCES.items()},
                          {name: item["version"] for name, item in manifest["upstream"].items()})
         self.assertEqual(2, manifest["workspaceContract"])
         self.assertEqual({"codebase-wiki"}, set(manifest["overlays"]))
@@ -271,7 +272,11 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                             for overlay in manifest["overlays"].values()))
         self.assertEqual(64, len(manifest["payloadSha256"]))
         self.assertEqual(64, len(manifest["customProfile"]["files"]["profile.md"]))
-        self.assertTrue(manifest["sourceSummary"])
+        labels = {'codebase-wiki': 'Codebase LLM Wiki', 'megin': 'Megin',
+                  'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer'}
+        self.assertEqual(len(labels), len(manifest['sourceSummary']))
+        for note, (tool, label) in zip(manifest['sourceSummary'], labels.items()):
+            self.assertTrue(note.startswith(f"Native {label} {CURRENT_SOURCES[tool]['version']} "), note)
         self.assertEqual(16, data["skills"])
 
     def test_fresh_and_existing_wiki_installations_preserve_user_state(self) -> None:

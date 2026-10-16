@@ -12,6 +12,7 @@ const root = resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 const lockfile = JSON.parse(readFileSync(resolve(root, 'package-lock.json'), 'utf8'));
 const workflow = readFileSync(resolve(root, '.github/workflows/release.yml'), 'utf8');
+const releaseHelper = readFileSync(resolve(root, 'scripts/release_ci.py'), 'utf8');
 const results = [];
 
 function scenario(id, check) {
@@ -56,10 +57,12 @@ scenario('BDD-REL-003', () => {
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run check:release/);
   assert.match(workflow, /xvfb-run\s+-a\s+npm test/);
-  assert.match(workflow, /npm run package/);
-  assert.match(workflow, /needs:\s*build/);
+  assert.doesNotMatch(workflow, /run: npm run package/);
+  assert.match(workflow, /needs:\s*\[select, build\]/);
   assert.match(workflow, /if-no-files-found:\s*error/);
-  assert.match(workflow, /gh release view[\s\S]*?exit 1/);
+  assert.match(workflow, /release_ci.py publish/);
+  assert.match(workflow, /--fallback-current-run/);
+  assert.match(releaseHelper, /Existing release asset conflicts/);
   assert.doesNotMatch(workflow, /--clobber/);
 });
 
@@ -68,11 +71,13 @@ scenario('BDD-REL-004', () => {
   assert.equal(releaseIsPrerelease('v1.2.3-beta.1'), true);
   assert.equal(releaseIsPrerelease('v1.2.3+build-7'), false);
   assert.equal(releaseIsPrerelease('v1.2.3'), false);
-  assert.match(workflow, /TAG_NAME.*v0\.1\.0.*\^v\[\^\+\]\*-/s);
+  assert.match(releaseHelper, /Stable X.Y.Z version required/);
+  assert.match(releaseHelper, /Existing release prerelease status conflicts with version/);
 });
 
 scenario('BDD-REL-005', () => {
-  assert.equal(manifest.version, '0.2.0');
+  assert.equal(manifest.version, lockfile.version);
+  assert.equal(manifest.version, lockfile.packages[''].version);
   assert.ok(existsSync(resolve(root, 'dist', releaseAssetName(manifest))));
 });
 

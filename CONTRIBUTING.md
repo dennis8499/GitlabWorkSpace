@@ -34,7 +34,13 @@ npm run test:extension
 npm test
 ```
 
-`npm test` 依序執行單元測試、行為測試、VSIX 打包與驗證、發行流程測試及 VS Code Extension Host 測試。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
+`npm test` 先檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 與工作流程包各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
+
+各獨立測試與 `npm run package` 仍會自動準備必要建置。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令核對來源與產物的 SHA-256；來源、測試、建置腳本或產物改變後，須重新準備。多個命令不可共用目錄同時建置；驗證器使用工作目錄鎖避免互相刪除產物。
+
+發行流程的 Python 測試預設使用兩個獨立 process，個別保留暫存夾與日誌；可透過 `GITLAB_WORKSPACE_TEST_WORKERS=1` 改為串行（接受 1–16）。每次執行的命令、退出碼、耗時及日誌位置寫入 `.gitlab-workspace-validation/runs/<時間>-<PID>/timings.json`；`GITLAB_WORKSPACE_VALIDATION_DIR` 可指定本次尚未使用的證據目錄。`test/release/*_test.py` 與 `scripts/*.test.mjs` 會自動納入，新增測試須遵循這些命名。
+
+Extension Host 每次建立全新的使用者、擴充功能與日誌目錄，移除繼承的 Electron／VS Code 宿主執行環境，並保留明確指定的 `VSCODE_EXECUTABLE_PATH` 與 `VSCODE_TEST_VERSION`。`extension-host.json` 記錄實際執行檔、版本及移除的環境變數名稱；缺少安裝或指定版本不符會在長時間回歸前失敗。
 
 Git GUI 的本機整合驗證使用獨立的工作目錄、VS Code 設定檔及產生的 bare remote，不需要 GitLab 帳號：
 

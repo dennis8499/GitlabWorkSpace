@@ -3,6 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { releaseAssetName } from './release-policy.mjs';
+import { assertPrepared } from './validation-runtime.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'));
@@ -20,15 +21,18 @@ function runPython(script) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+const prepared = process.argv.slice(2).includes('--prepared');
+if (prepared) await assertPrepared(repositoryRoot, ['compile', 'webview', 'kit']);
 await mkdir(join(repositoryRoot, 'dist'), { recursive: true });
-runPython('scripts/build-workflow-kit.py');
+if (!prepared) runPython('scripts/build-workflow-kit.py');
 
 const result = spawnSync(process.execPath, [
   vsceCommand,
   'package',
   '--out', outputPath,
   '--allow-missing-repository'
-], { cwd: repositoryRoot, stdio: 'inherit' });
+], { cwd: repositoryRoot, stdio: 'inherit', windowsHide: true,
+  env: { ...process.env, ...(prepared ? { GITLAB_WORKSPACE_PREPARED: '1' } : {}) } });
 
 if (result.error) {
   throw result.error;

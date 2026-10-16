@@ -66,6 +66,16 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def source_summary(upstream: dict[str, dict[str, str]]) -> list[str]:
+    """Keep human-readable source notes bound to the same pins as the payload."""
+    return [
+        f"Native Codebase LLM Wiki {upstream['codebase-wiki']['version']} is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
+        f"Native Megin {upstream['megin']['version']} supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
+        f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete refs; the technical appendix is omitted while full validation is retained. No Workspace overlay or MR-specific report adapter is applied.",
+        f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
+    ]
+
+
 def checked_path(raw: str) -> PurePosixPath:
     if not raw or "\\" in raw or "\x00" in raw:
         raise ValueError("封裝包含無效路徑。")
@@ -354,12 +364,7 @@ def build() -> dict[str, object]:
         "sourceSnapshots": {tool: {key: record[key] for key in ('sourceKind', 'commit', 'dirty', 'treeSha256', 'archiveSha256')}
                             for tool, record in snapshots.items()},
         "overlays": overlays,
-        "sourceSummary": [
-            "Native Codebase LLM Wiki 0.6.1 is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-            "Native Megin 0.8.1 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
-            "Native MergeReviewer 0.13.0 accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete refs; the technical appendix is omitted while full validation is retained. No Workspace overlay or MR-specific report adapter is applied.",
-            "Native ReleaseReviewer 0.4.0 accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
-        ],
+        "sourceSummary": source_summary(upstream),
         "customProfile": {
             "name": "GitlabWorkSpace",
             "knowledgeRoot": "wiki/",

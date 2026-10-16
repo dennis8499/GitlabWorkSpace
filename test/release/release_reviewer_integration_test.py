@@ -89,7 +89,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 "tests_not_executed": ["No product execution or database connection in this fixture."], "limitations": []}
 
     def test_installed_native_payload_matches_pinned_archive(self):
-        archive_path = harness.ROOT / "resources/offline-tools/sources/release-reviewer-0.4.0.zip"
+        archive_path = harness.ROOT / "resources/offline-tools/sources" / harness.CURRENT_SOURCES['release-reviewer']['filename']
         with zipfile.ZipFile(archive_path) as archive:
             expected = {item.filename.removeprefix("release-reviewer/"): archive.read(item)
                         for item in archive.infolist() if not item.is_dir()}
@@ -245,7 +245,8 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 applied, data = self.execute("install", harness.ARCHIVE, target, harness.VERSION, "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
                                             "--archive-sha256", hashlib.sha256(harness.ARCHIVE.read_bytes()).hexdigest(), "--profile", profile)
                 self.assertEqual(0, applied.returncode, data)
-                self.assertEqual("0.4.0", (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
+                self.assertEqual(harness.CURRENT_SOURCES['release-reviewer']['version'],
+                                 (target / ".agents/skills/release-reviewer/VERSION").read_text().strip())
                 self.assertEqual("old report\n", (target / "review-reports/previous/report.md").read_text())
                 rolled, output = self.execute("rollback", target, data["transaction"])
                 self.assertEqual(0, rolled.returncode, output)

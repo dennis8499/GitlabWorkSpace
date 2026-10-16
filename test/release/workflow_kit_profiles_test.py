@@ -16,6 +16,7 @@ import zipfile
 import workflow_kit_installer_test as harness
 
 ROOT, ARCHIVE, VERSION, MARKER = harness.ROOT, harness.ARCHIVE, harness.VERSION, harness.MARKER
+CURRENT_SOURCES = harness.CURRENT_SOURCES
 
 
 class ProfileTests(unittest.TestCase):
@@ -46,7 +47,7 @@ class ProfileTests(unittest.TestCase):
         result, data = self.apply(profile)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual(profile, data["profile"])
-        self.assertEqual("0.8.1", data["upstreamVersions"]["megin"])
+        self.assertEqual(CURRENT_SOURCES['megin']['version'], data["upstreamVersions"]["megin"])
         return data
 
     def assert_preserved(self):
@@ -60,14 +61,14 @@ class ProfileTests(unittest.TestCase):
         fixture=ROOT/f'test/fixtures/workflow-kit-{version}'
         for profile in ('group','repository'):
             with self.subTest(profile=profile):
-                target=self.base/('previous-'+profile); target.mkdir()
+                target=self.base/('previous-'+version+'-'+profile); target.mkdir()
                 if profile=='repository': subprocess.run(['git','init','-q','-b','main',str(target)],check=True,capture_output=True)
                 old_archive=fixture/'workflow-kit.tar.xz'
                 old=subprocess.run([sys.executable,'-X','utf8','-B',str(fixture/'installer.py'),'install',str(old_archive),str(target),
                     version,'bundled','--format','tar.xz','--entry-root','workflow-kit','--archive-sha256',hashlib.sha256(old_archive.read_bytes()).hexdigest(),
                     '--profile',profile],capture_output=True,text=True,encoding='utf-8')
                 self.assertEqual(0,old.returncode,old.stdout+old.stderr)
-                if version == '0.24.3':
+                if tuple(map(int, version.split('.'))) >= (0, 24, 3):
                     for name, content in {
                         'wiki/personal-note.md': '# Preserved personal Wiki\n',
                         '.agents/skills/personal-helper/SKILL.md': 'Personal helper stays.\n',
@@ -83,9 +84,9 @@ class ProfileTests(unittest.TestCase):
                 result,data=self.execute('install',ARCHIVE,target,VERSION,'bundled','--format','tar.xz','--entry-root','workflow-kit',
                     '--archive-sha256',hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(),'--profile',profile)
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-                self.assertEqual('0.13.0',data['upstreamVersions']['merge-reviewer'])
+                self.assertEqual(CURRENT_SOURCES['merge-reviewer']['version'], data['upstreamVersions']['merge-reviewer'])
                 self.assertNotIn('merge-mr',data['capabilities'])
-                if version == '0.24.3':
+                if tuple(map(int, version.split('.'))) >= (0, 24, 3):
                     current = self.snapshot(target)
                     for name in ('wiki/personal-note.md', '.agents/skills/personal-helper/SKILL.md',
                                  'docs/work/preserved-work/workflow.md', 'review-reports/previous/report.md'):
@@ -109,6 +110,24 @@ class ProfileTests(unittest.TestCase):
 
     def test_frozen_0243_profiles_upgrade_and_rollback_preserve_original_bytes(self):
         self.assert_frozen_profiles_upgrade_and_rollback('0.24.3')
+
+    def test_additional_frozen_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        covered = {'0.23.0', '0.24.0', '0.24.1', '0.24.2', '0.24.3'}
+        candidates = []
+        for fixture in (ROOT / 'test/fixtures').glob('workflow-kit-*'):
+            version = fixture.name.removeprefix('workflow-kit-')
+            if version in covered or not all(part.isdigit() for part in version.split('.')) or len(version.split('.')) != 3:
+                continue
+            if tuple(map(int, version.split('.'))) < (0, 23, 0) or not (fixture / 'workflow-kit.tar.xz').is_file():
+                continue
+            import tarfile
+            with tarfile.open(fixture / 'workflow-kit.tar.xz', 'r:xz') as archive:
+                manifest = json.load(archive.extractfile('workflow-kit/manifest.json'))
+            if {'group', 'repository'} <= set(manifest.get('profiles', {})):
+                candidates.append(version)
+        for version in sorted(candidates, key=lambda item: tuple(map(int, item.split('.')))):
+            with self.subTest(version=version):
+                self.assert_frozen_profiles_upgrade_and_rollback(version)
 
     def test_native_payload_is_fixed_upstream_and_has_its_own_capabilities(self):
         self.installed()
@@ -207,7 +226,7 @@ class ProfileTests(unittest.TestCase):
         native = self.installed()
         self.assertEqual("repository", self.status(self.repo)["profile"])
         path = ".agents/skills/codebase-wiki/references/development-spec-workflow.md"
-        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources/codebase-llm-wiki-codex-0.6.1.zip") as upstream:
+        with zipfile.ZipFile(ROOT / "resources/offline-tools/sources" / CURRENT_SOURCES['codebase-wiki']['filename']) as upstream:
             name = next(name for name in upstream.namelist() if name.endswith(path))
             self.assertEqual(upstream.read(name), (self.repo / path).read_bytes())
         self.assert_preserved()

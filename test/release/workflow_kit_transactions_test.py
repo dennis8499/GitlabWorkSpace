@@ -403,8 +403,8 @@ class TransactionTests(unittest.TestCase):
                                     "resources/workflow-kit-installer.py")]
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
-        paths.extend(ROOT / "resources/offline-tools/sources" / p for p in
-                     ("codebase-llm-wiki-codex-0.6.1.zip", "megin-skills-0.6.0.zip", "megin-skills-0.8.1.zip", "merge-reviewer-0.13.0.zip", "release-reviewer-0.4.0.zip"))
+        sources = {record['filename'] for record in harness.CURRENT_SOURCES.values()} | {'megin-skills-0.6.0.zip'}
+        paths.extend(ROOT / 'resources/offline-tools/sources' / name for name in sorted(sources))
         paths.extend((ROOT / "scripts/workflow-kit-sources.py", ROOT / "resources/offline-tools/source-snapshots.json"))
         for path in paths:
             target = source / path.relative_to(ROOT)

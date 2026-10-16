@@ -17,6 +17,19 @@ sources = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sources)
 
 
+class SourceSummaryTests(unittest.TestCase):
+    def test_source_notes_follow_each_new_pin_instead_of_a_historical_version(self):
+        spec = importlib.util.spec_from_file_location('workflow_kit_summary_test', ROOT / 'scripts/build-workflow-kit.py')
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        versions = {'codebase-wiki': '91.2.3', 'megin': '92.3.4',
+                    'merge-reviewer': '93.4.5', 'release-reviewer': '94.5.6'}
+        notes = builder.source_summary({tool: {'version': version} for tool, version in versions.items()})
+        self.assertEqual(4, len(notes))
+        for note, tool, label in zip(notes, versions, ('Codebase LLM Wiki', 'Megin', 'MergeReviewer', 'ReleaseReviewer')):
+            self.assertTrue(note.startswith(f'Native {label} {versions[tool]} '), note)
+
+
 class SourcePackageTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix='kit-upstream-source-')
