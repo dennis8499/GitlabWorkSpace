@@ -413,7 +413,7 @@ test('a successful MR write expires its Group review list and leaves unrelated c
   await session.connect('http://127.0.0.1:' + (server.address() as AddressInfo).port, 'unit-only-cache-token');
   await session.setSelectedGroup({ id: 42, name: 'Group', full_path: 'group', web_url: '' });
   const key = groupWorkspaceReadKey(42, 'mergeRequests');
-  const read = () => session.cachedRead(key, client => client.listGroupMergeRequests(42, 7));
+  const read = () => session.cachedRead(key, client => client.listGroupMergeRequests(42));
   let unrelatedReads = 0;
   const unrelated = () => session.cachedRead('group/99/boards', async () => { unrelatedReads++; return [99]; });
   assert.equal((await read())[0].title, 'Before write'); await read(); await unrelated();

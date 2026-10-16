@@ -884,10 +884,10 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private loadActiveModeSections(mode: WorkspaceMode): void {
+  private loadActiveModeSections(mode: WorkspaceMode, forceNetwork = false): void {
     const scope = this.connectedScopeKey();
     if (!scope || this.disposed || this.panel?.visible === false) return;
-    if (mode === 'reviewer') void this.loadWorkspaceSection('mergeRequests');
+    if (mode === 'reviewer') void this.loadWorkspaceSection('mergeRequests', forceNetwork);
     if (mode === 'developer') {
       void this.loadWorkspaceSection('issues');
       void this.loadWorkspaceSection('boards');
@@ -982,7 +982,7 @@ export class WorkspacePanel implements vscode.Disposable {
     try {
       const value = await this.session.cachedRead<GitLabIssue[] | GitLabMergeRequest[] | GitLabMilestone[] | GitLabIssueBoard[]>(key, (client) => {
         if (section === 'issues') return client.listAssignedGroupIssues(group.id);
-        if (section === 'mergeRequests') return client.listGroupMergeRequests(group.id, this.currentUser?.id);
+        if (section === 'mergeRequests') return client.listGroupMergeRequests(group.id);
         if (section === 'milestones') return client.listGroupMilestones(group.id);
         return client.listGroupIssueBoards(group.id);
       }, { force: forceNetwork, signal: controller.signal });
@@ -1198,7 +1198,7 @@ export class WorkspacePanel implements vscode.Disposable {
         void this.refreshActualRepositories(root, scopeKey);
       }
       this.sendSnapshot();
-      this.loadActiveModeSections(this.activeMode);
+      this.loadActiveModeSections(this.activeMode, options.forceNetwork === true);
       const projectIds = new Set(projects.map((project) => project.id));
       if (this.selectedIssueBoardId !== undefined && this.workspaceSections.boards?.status === 'ready') {
         if (!this.groupIssueBoards.some((board) => board.id === this.selectedIssueBoardId)) {

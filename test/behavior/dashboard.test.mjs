@@ -1576,6 +1576,84 @@ test('shows the sanitized Git error details in the repository operation results'
   assert.equal(view.dom.window.document.querySelector('.operation-state.failed')?.textContent, message);
 });
 
+test('MR filters show all, reviewer-only and assigned-only requests and combine with search', async t => {
+  const data = snapshot('reviewer');
+  const me = data.currentUser;
+  const other = { id: 8, username: 'other', name: 'Other User' };
+  const request = (iid, projectId, title, reviewers, assignees) => ({
+    id: iid, iid, project_id: projectId, title, state: 'opened', reviewers, assignees, author: other,
+    source_branch: `feature/mr-${iid}`, target_branch: 'main'
+  });
+  data.mergeRequests = [
+    request(1, 1, 'Reviewer only', [me], []),
+    request(2, 1, 'Assignee only', [], [me]),
+    request(3, 2, 'Both roles', [me], [me]),
+    request(4, 2, 'Neither role', [other], [other])
+  ];
+  data.sections = { mergeRequests: { status: 'ready' } };
+  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const rowIds = () => [...document.querySelectorAll('.reviewer-layout .work-row .row-title')]
+    .map(row => Number(row.textContent.match(/!(\d+)/)[1]));
+  const chooseFilter = async label => {
+    [...document.querySelectorAll('.reviewer-layout .filter-tabs button')].find(button => button.textContent === label).click();
+    await view.tick();
+  };
+  const search = async value => {
+    const input = document.querySelector('input[aria-label="搜尋 MR"]');
+    input.value = value; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+    await view.tick();
+  };
+  assert.deepEqual(rowIds(), [1, 2, 3, 4]);
+  await chooseFilter('指定我為 Reviewer'); assert.deepEqual(rowIds(), [1, 3]);
+  await search('only'); assert.deepEqual(rowIds(), [1]);
+  await chooseFilter('指派給我'); assert.deepEqual(rowIds(), [2]);
+  await search(''); assert.deepEqual(rowIds(), [2, 3]);
+  await chooseFilter('全部'); assert.deepEqual(rowIds(), [1, 2, 3, 4]);
+  await search('team/beta'); assert.deepEqual(rowIds(), [3, 4]);
+  await chooseFilter('指定我為 Reviewer'); assert.deepEqual(rowIds(), [3]);
+  await search('feature/mr-2'); assert.deepEqual(rowIds(), []);
+  assert.match(document.querySelector('.reviewer-layout .list-column').textContent, /沒有符合目前條件的 MR/);
+  await chooseFilter('指派給我'); assert.deepEqual(rowIds(), [2]);
+  assert.doesNotMatch(document.querySelector('.reviewer-layout .list-column').textContent, /沒有符合目前條件的 MR/);
+});
+
+test('MR empty results appear only after a successful load and respect the current account and Group', async t => {
+  const data = { ...snapshot('reviewer'), sections: { mergeRequests: { status: 'ready' } } };
+  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const list = () => document.querySelector('.reviewer-layout .list-column').textContent;
+  assert.match(list(), /沒有符合目前條件的 MR/);
+  for (const status of ['idle', 'loading', 'error']) {
+    view.sendSnapshot({ ...data, sections: { mergeRequests: { status, error: 'Network unavailable' } } });
+    await view.tick();
+    assert.doesNotMatch(list(), /沒有符合目前條件的 MR/);
+    if (status === 'loading') assert.match(document.body.textContent, /待審查 MR載入中/);
+    if (status === 'error') assert.match(document.body.textContent, /待審查 MR載入失敗/);
+  }
+  const rows = [
+    { id: 1, iid: 1, project_id: 1, title: 'First reviewer', state: 'opened', reviewers: [data.currentUser], source_branch: 'first', target_branch: 'main' },
+    { id: 2, iid: 2, project_id: 1, title: 'Second reviewer', state: 'opened', reviewers: [{ id: 8 }], source_branch: 'second', target_branch: 'main' }
+  ];
+  view.sendSnapshot({ ...data, mergeRequests: rows }); await view.tick();
+  [...document.querySelectorAll('.reviewer-layout .filter-tabs button')].find(button => button.textContent === '指定我為 Reviewer').click();
+  await view.tick();
+  const titles = () => [...document.querySelectorAll('.reviewer-layout .work-row .row-title')].map(row => row.textContent.trim());
+  assert.deepEqual(titles(), ['!1　First reviewer']);
+  const secondAccount = { ...data, mergeRequests: rows, currentUser: { id: 8, username: 'second', name: 'Second' },
+    instanceUserScope: 'second-account', connectedScope: 'second-account-scope' };
+  view.sendSnapshot(secondAccount); await view.tick();
+  [...document.querySelectorAll('.reviewer-layout .filter-tabs button')].find(button => button.textContent === '指定我為 Reviewer').click();
+  await view.tick();
+  assert.deepEqual(titles(), ['!2　Second reviewer']);
+  view.sendSnapshot({ ...secondAccount, group: { ...data.group, id: 99 }, connectedScope: 'another-group-scope', mergeRequests: [] });
+  await view.tick();
+  assert.deepEqual(titles(), []);
+  assert.match(list(), /沒有符合目前條件的 MR/);
+});
+
 test('MR reports publish as manual comments while approval and merge remain SHA based', async t => {
   const data=snapshot('reviewer'); const request={id:41,iid:4,project_id:1,title:'Review',state:'opened',source_branch:'feature',target_branch:'main',diff_refs:{head_sha:gitHead}};
   data.mergeRequests=[request]; data.selectedMergeRequest={request,diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};

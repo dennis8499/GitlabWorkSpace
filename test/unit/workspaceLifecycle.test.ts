@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { GitLabClient } from '../../src/api/gitLabClient';
+import { GitLabReadCache } from '../../src/api/gitLabReadCache';
+import type { GitLabMergeRequest } from '../../src/api/types';
 
 function fixture() {
   const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
@@ -59,6 +62,83 @@ test('MR invalidation reloads a visible review list and leaves hidden sections l
   host.panel.visible = false;
   host.invalidateWorkspaceReads({ groupIds: [42], projectId: 101, resource: 'mergeRequests' });
   assert.equal(host.workspaceSections.mergeRequests.status, 'idle');
+});
+
+test('manual Workspace refresh reloads a ready empty MR list through the read cache', async () => {
+  const { host } = fixture();
+  const user = { id: 7, name: 'Me', username: 'me' };
+  const group = { id: 42, name: 'Team', full_path: 'team', web_url: '' };
+  const cache = new GitLabReadCache();
+  let remoteRows: GitLabMergeRequest[] = [];
+  let mrReads = 0;
+  const client = new GitLabClient('https://gitlab.test', 'test-only-token', async input => {
+    const pathname = new URL(String(input)).pathname;
+    let body: unknown;
+    if (pathname === '/api/v4/user') body = user;
+    else if (pathname === '/api/v4/groups') body = [group];
+    else if (pathname === '/api/v4/groups/42/projects') body = [];
+    else if (pathname === '/api/v4/groups/42/merge_requests') { mrReads++; body = remoteRows; }
+    else throw new Error(`Unexpected request: ${pathname}`);
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  Object.assign(host, {
+    currentUser: user, loadedScopeKey: 'https://gitlab.test|7|42',
+    workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0,
+    projects: [], issues: [], mergeRequests: [], groupIssueBoards: [],
+    context: { globalState: { get: () => undefined } }, timer: { setScope: async () => undefined },
+    syncTimerPolling: () => undefined, schedulePendingWorkspaceRefresh: () => undefined,
+    refreshWorkflowKit: async () => undefined, refreshProjectRoot: async () => undefined,
+    resolveWorkspaceRoot: async () => ({ match: { status: 'unverified', repositories: [] } }),
+    repositoryStateKey: () => undefined,
+    session: {
+      baseUrl: 'https://gitlab.test', selectedGroup: group,
+      ensureInstanceChecked: async () => undefined, updateCurrentUser: async () => undefined,
+      cachedRead: (key: string, load: (readClient: GitLabClient) => Promise<unknown>, options: { force?: boolean; signal?: AbortSignal }) =>
+        cache.get(key, signal => load(client.withReadSignal(signal)), options)
+    }
+  });
+  const sectionTasks: Promise<unknown>[] = [];
+  const loadSection = host.loadWorkspaceSection.bind(host);
+  host.loadWorkspaceSection = (...args: unknown[]) => {
+    const task = loadSection(...args); sectionTasks.push(task); return task;
+  };
+  await host.loadWorkspaceSection('mergeRequests');
+  assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
+  assert.deepEqual(host.mergeRequests, []);
+  assert.equal(mrReads, 1);
+
+  remoteRows = [{ id: 11, project_id: 101, iid: 1, state: 'opened', title: 'New MR',
+    web_url: 'https://gitlab.test/team/project/-/merge_requests/1', source_branch: 'feature', target_branch: 'main' }];
+  await host.refresh();
+  await Promise.all(sectionTasks.splice(0));
+  assert.equal(mrReads, 1, 'ordinary refresh reuses the ready list');
+  await host.dispatchMessage({ type: 'refresh' });
+  await Promise.all(sectionTasks.splice(0));
+  assert.equal(mrReads, 2, 'manual refresh sends another MR request despite the cached empty result');
+  assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
+  assert.deepEqual(host.mergeRequests, remoteRows);
+});
+
+test('cancelled MR reads cannot publish after an account or Group switch', async t => {
+  for (const scope of ['account', 'group']) await t.test(scope, async () => {
+    const { host } = fixture();
+    let finish!: (rows: unknown[]) => void;
+    let signal!: AbortSignal;
+    host.mergeRequests = [];
+    host.session.cachedRead = (_key: string, _load: unknown, options: { signal: AbortSignal }) => {
+      signal = options.signal;
+      return new Promise(resolve => { finish = resolve; });
+    };
+    const read = host.loadWorkspaceSection('mergeRequests');
+    if (scope === 'account') host.currentUser = { id: 8 };
+    else host.session.selectedGroup = { id: 43 };
+    host.resetWorkspaceSections();
+    assert.equal(signal.aborted, true);
+    finish([{ project_id: 101, iid: 1, title: 'Previous scope' }]);
+    await read;
+    assert.deepEqual(host.mergeRequests, []);
+    assert.equal(host.workspaceSections.mergeRequests, undefined);
+  });
 });
 
 test('a restored view uses the Host snapshot and delivers pending notices without a new scan', async () => {

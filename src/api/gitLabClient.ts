@@ -373,10 +373,9 @@ export class GitLabClient {
     );
   }
 
-  async listGroupMergeRequests(groupId: number, currentUserId?: number): Promise<GitLabMergeRequest[]> {
-    if (!Number.isSafeInteger(currentUserId) || !currentUserId) throw new GitLabApiError('The current GitLab user is not available for the review list.');
+  async listGroupMergeRequests(groupId: number): Promise<GitLabMergeRequest[]> {
     const requests = await this.getPages<GitLabMergeRequest>(
-      `groups/${encodeURIComponent(String(groupId))}/merge_requests?scope=all&state=opened&reviewer_id=${encodeURIComponent(String(currentUserId))}&per_page=100`
+      `groups/${encodeURIComponent(String(groupId))}/merge_requests?scope=all&state=opened&per_page=100`
     );
     const byId = new Map<string, GitLabMergeRequest>();
     for (const request of requests) {

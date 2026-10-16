@@ -32,6 +32,10 @@
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
+## 0.24.3 更新
+
+修正「待審查」清單：全部顯示目前 Group 與子群組內有權限查看的所有未結案 MR，再依「指定我為 Reviewer」或「指派給我」篩選。手動重新整理會強制重抓 MR，成功載入但零筆時顯示明確提示。加入分頁、篩選、帳號／Group 切換及重新整理回歸測試，並支援正式 0.24.2 工作流程包的雙 profile 升級與交易回復。
+
 ## 0.24.2 更新
 
 同步 Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2 與 ReleaseReviewer 0.3.1 的正式安裝包。十六個 Skills 使用更新的 Concise 輸出、意圖路由與按需載入指引；Group Wiki 入口同步更新。加入正式 0.24.1 的雙 profile 升級與回復驗證。
@@ -85,11 +89,11 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.24.2 的 VSIX 與組合包共用版本，整合 Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2、ReleaseReviewer 0.3.1，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。兩個 Reviewer 的正式來源 ZIP、已提交 commit、乾淨狀態與 SHA-256 隨封包保存。
+GitLab Workspace v0.24.3 的 VSIX 與組合包共用版本，整合 Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2、ReleaseReviewer 0.3.1，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。兩個 Reviewer 的正式來源 ZIP、已提交 commit、乾淨狀態與 SHA-256 隨封包保存。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-0.24.2 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。進行中的 Megin 工作沿原套件續作，完成後再更新。
+0.24.3 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。進行中的 Megin 工作沿原套件續作，完成後再更新。
 
 歷史 GitLab 交付與模擬流程保留於原套件；新版不套用舊 Megin 覆層。歷史 Group v1 收據使用隔離唯讀驗證器，原生 Repo／Group v2 收據核對完整原始證據與固定 Git 物件。安裝器提供 `install --dry-run` 與保留交易的 `rollback`；操作見[Group 工作流程](docs/group-workflow.md)。固定來源版本與摘要見組合包 Manifest。
 
@@ -140,7 +144,7 @@ npm run package
 
 - The minimum supported server version is GitLab Community Edition 16.11.10. Version metadata and GraphQL capabilities are probed independently. If version metadata is unavailable, confirmed APIs remain available and the UI says that the minimum version could not be verified.
 - Capability discovery requests only the GraphQL types used by the extension and supports both the legacy Project/projectPath and newer Namespace/namespacePath shapes. Missing optional schema fields or permissions disable only the affected operation and explain why.
-- CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list uses the 16.11-compatible scope=all&reviewer_id filter, and all changed files load through paginated /diffs.
+- CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list loads all accessible opened Merge Requests in the selected Group and its subgroups with the 16.11-compatible scope=all&state=opened query. The All, Reviewer and Assigned tabs filter this complete list locally; manually refreshing the review page reloads it from GitLab. All changed files load through paginated /diffs.
 - The initial workspace waits only for projects, assigned Issues, and the current user. Merge Requests, Boards, milestones, Issue relations, time data, discussions, and the graph load when their mode or tab is opened.
 - Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.

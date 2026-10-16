@@ -86,6 +86,9 @@ class ProfileTests(unittest.TestCase):
     def test_frozen_0241_profiles_upgrade_and_rollback_preserve_original_bytes(self):
         self.assert_frozen_profiles_upgrade_and_rollback('0.24.1')
 
+    def test_frozen_0242_profiles_upgrade_and_rollback_preserve_original_bytes(self):
+        self.assert_frozen_profiles_upgrade_and_rollback('0.24.2')
+
     def test_native_payload_is_fixed_upstream_and_has_its_own_capabilities(self):
         self.installed()
         state = self.status(self.repo)
