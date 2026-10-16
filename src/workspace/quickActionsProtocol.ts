@@ -3,7 +3,7 @@ import type { GitLabAccount, AccountOperation } from '../connection/accountProto
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { WorkspaceMode } from './workspaceProtocol';
 
-export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository'
+export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications'
   | 'addAccount' | 'switchAccount' | 'logoutAccount' | 'removeAccount' | 'manageAccounts';
 
 export type QuickActionsRequest =
@@ -21,7 +21,7 @@ export interface QuickActionsState {
   workflowKitPolicy?: WorkflowKitPolicy;
   groupLabel?: string;
   busyAction?: QuickAction;
-  errorMessage?: string;
+  notificationUnreadCount?: number;
   activeMode?: WorkspaceMode;
   selectedRepositoryId?: string;
   repositories?: GitRepositorySummary[];
@@ -52,5 +52,5 @@ export function isQuickActionsRequest(value: unknown): value is QuickActionsRequ
   return keys.length === 2 && keys.includes('type') && keys.includes('action') &&
     (message.action === 'openWorkspace' || message.action === 'openMyWork' || message.action === 'openProjects' ||
       message.action === 'openAnalysis' || message.action === 'openReviewer' || message.action === 'openGit' || message.action === 'openAdmin' ||
-      message.action === 'addAccount' || message.action === 'switchAccount' || message.action === 'logoutAccount' || message.action === 'removeAccount' || message.action === 'manageAccounts');
+      message.action === 'addAccount' || message.action === 'switchAccount' || message.action === 'logoutAccount' || message.action === 'removeAccount' || message.action === 'manageAccounts' || message.action === 'openNotifications');
 }

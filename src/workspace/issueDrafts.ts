@@ -1,5 +1,6 @@
 import type { GitLabIssue, GitLabIssueDiscussion, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
 import type { IssueDraft, IssueDraftBundle } from './workspaceProtocol';
+import { OUTPUT_STYLE_PROMPT } from './outputStyle';
 
 const MAX_BUNDLE_BYTES = 256 * 1024;
 const ANALYSIS_MARKER = /<!-- gitlab-workspace:analysis=([A-Za-z0-9._:-]{1,128}):draft=([A-Za-z0-9._:-]{1,128}) -->/;
@@ -92,6 +93,7 @@ export function buildDeveloperPrompt(project: GitLabProject, issue: GitLabIssue,
     '人工驗收後依原生 megin-finishing-delivery 與 unified_workflow.py deliver 完成本機 feature commits，保留接受版本及鎖；完成關卡通過才釋放鎖。不要自行 Push、建立 MR、合併或部署。後續 GitLab 操作由使用者另行決定。',
     context.workId ? '續作前先讀取該 Work ID 的 workflow.md、核准 plan 與 evidence，核對它綁定同一個 Project 和 Issue，再從記錄的 phase/status 繼續；舊工作必須沿用原套件、契約、指紋與交付流程，不套用上述新工作版本。' : '',
     '交付摘要請記錄主要改動、驗收條件與實際執行的驗證。',
+    OUTPUT_STYLE_PROMPT,
     '',
     'GitLab Issue 正文：',
     issue.description ?? '（Issue 沒有額外描述。）',
@@ -124,6 +126,7 @@ export function buildPostDeliveryWikiUpdatePrompt(input: PostDeliveryWikiPromptI
   const checks = input.checks.map((item) => `${item.id}: ${item.status}${item.executed === undefined ? '' : ` (${item.executed})`}`).join('; ');
   return [
     '$codebase-wiki 請根據已完成的 GitLab Workspace 本機交付更新 Group 共用 Wiki。先讀取現有 wiki/index.md、wiki/log.md 與相關頁面，再回到下列固定 Repo commit 核對來源；引用使用 Repo/檔案路徑並標出 commit。',
+    OUTPUT_STYLE_PROMPT,
     `Group 工作區：${input.groupRoot}`,
     `Group Wiki：${input.wikiPath}`,
     `GitLab Issue：${input.issue.projectPath}#${input.issue.iid} ${input.issue.webUrl}`,

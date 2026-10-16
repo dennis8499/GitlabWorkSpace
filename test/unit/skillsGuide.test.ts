@@ -9,6 +9,19 @@ const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0
   { name: 'service', path: 'C:\\工作區 with spaces\\service' }
 ], repositoryScanStatus: 'ready' as const };
 
+test('all executable guide prompts route optional output style once and preserve workflow contracts', () => {
+  for (const profile of ['group', 'repository'] as const) {
+    for (const card of getSkillGuideCards(profile).filter(item => !item.destination)) {
+      const inputs = Object.fromEntries(card.fields.map(field => [`${card.id}.${field.id}`,
+        field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
+      const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
+      assert.equal(prompt.split('載入 $output-style').length - 1, 1, `${profile}/${card.id}`);
+      assert.match(prompt, /未安裝時沿用原 Skill 的 output style/);
+      assert.match(prompt, /保留原 Skill 的必要欄位、證據、審查狀態/);
+    }
+  }
+});
+
 test('both Analysis profiles expose exactly the frozen package capability inventory', () => {
   const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../resources/offline-tools/source-snapshots.json'), 'utf8'));
   for (const profile of ['group', 'repository'] as const) {

@@ -25,7 +25,7 @@ SKILLS = (
     "codebase-wiki", "megin", "megin-architecture-exploration", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
     "megin-finishing-delivery", "megin-human-acceptance", "megin-implementation-execution",
     "megin-project-knowledge", "megin-requirements-discovery", "megin-technical-planning",
-    "megin-test-driven-development", "megin-verification-before-completion", "merge-reviewer", "release-reviewer",
+    "megin-test-driven-development", "megin-verification-before-completion", "merge-reviewer", "output-style", "release-reviewer",
 )
 MARKER = ".gitlab-workspace/tool-manifests/workflow-kit.json"
 
@@ -191,7 +191,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):
             result, data = self.execute("inspect", archive, "--format", archive_format, "--expected-version", VERSION)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertEqual(16, data["skills"])
+            self.assertEqual(len(SKILLS), data["skills"])
             self.assertEqual(VERSION, data["version"])
 
         mismatch, mismatch_data = self.execute("inspect", ARCHIVE, "--format", "tar.xz", "--expected-version", "0.8.9")
@@ -215,7 +215,8 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             traversal_result, _ = self.execute("inspect", traversal, "--format", "zip", "--expected-version", VERSION)
             self.assertNotEqual(0, traversal_result.returncode)
 
-            for mutation in ("overlay-payload", "overlay-manifest", "undeclared-file", "release-payload", "release-source"):
+            for mutation in ("overlay-payload", "overlay-manifest", "undeclared-file", "release-payload", "release-source",
+                             "kit-skill-payload", "kit-skill-extra", "kit-skill-missing"):
                 with self.subTest(mutation=mutation):
                     damaged_overlay = Path(temporary) / f"{mutation}.zip"
                     with zipfile.ZipFile(RELEASE_ZIP) as source:
@@ -237,6 +238,20 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                     elif mutation == "release-source":
                         asset = manifest["upstream"]["release-reviewer"]["asset"]
                         entries[f"workflow-kit/sources/{asset}"] += b"changed source"
+                    elif mutation == "kit-skill-payload":
+                        relative = ".agents/skills/output-style/SKILL.md"
+                        archive_path = f"workflow-kit/payload/{relative}"
+                        entries[archive_path] += b"\nchanged kit-owned Skill\n"
+                        manifest["files"][relative] = hashlib.sha256(entries[archive_path]).hexdigest()
+                    elif mutation == "kit-skill-extra":
+                        relative = ".agents/skills/output-style/unlisted.md"
+                        content = b"not a pinned kit-owned resource\n"
+                        entries[f"workflow-kit/payload/{relative}"] = content
+                        manifest["files"][relative] = hashlib.sha256(content).hexdigest()
+                    elif mutation == "kit-skill-missing":
+                        relative = ".agents/skills/output-style/references/examples.md"
+                        del entries[f"workflow-kit/payload/{relative}"]
+                        del manifest["files"][relative]
                     else:
                         relative = ".agents/skills/megin/unlisted.md"
                         content = b"not declared by any overlay\n"
@@ -277,14 +292,22 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         self.assertEqual(len(labels), len(manifest['sourceSummary']))
         for note, (tool, label) in zip(manifest['sourceSummary'], labels.items()):
             self.assertTrue(note.startswith(f"Native {label} {CURRENT_SOURCES[tool]['version']} "), note)
-        self.assertEqual(16, data["skills"])
+        prefix = ".agents/skills/output-style/"
+        for relative in ("SKILL.md", "agents/openai.yaml", "references/examples.md"):
+            resource = prefix + relative
+            expected = hashlib.sha256((ROOT / "resources/workflow-kit/skills/output-style" / relative).read_bytes()).hexdigest()
+            self.assertEqual(expected, manifest["files"][resource])
+            for profile in ("group", "repository"):
+                self.assertIn("output-style", manifest["profiles"][profile]["skills"])
+                self.assertEqual(expected, manifest["profiles"][profile]["files"][resource])
+        self.assertEqual(len(SKILLS), data["skills"])
 
     def test_fresh_and_existing_wiki_installations_preserve_user_state(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kit-fresh-") as temporary:
             group = self.create_group(Path(temporary))
             result, installed = self.install(group)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertEqual(16, installed["skills"])
+            self.assertEqual(len(SKILLS), installed["skills"])
             self.assertTrue((group / "wiki/index.md").is_file())
             self.assertTrue((group / "wiki/log.md").is_file())
             self.assertIn("Keep this user text.", (group / "AGENTS.md").read_text(encoding="utf-8"))
@@ -455,7 +478,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                     self.assertEqual("missing", self.status(target)["status"])
                     result, installed = self.install(target, archive=archive, archive_format=archive_format)
                     self.assertEqual(0, result.returncode, installed)
-                    self.assertEqual(16, installed["skills"])
+                    self.assertEqual(len(SKILLS), installed["skills"])
                     self.assertEqual("installed", self.status(target)["status"])
                     self.assert_group_overlays(target)
                     after = self.snapshot(target)

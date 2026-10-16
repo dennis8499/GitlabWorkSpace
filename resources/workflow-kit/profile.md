@@ -2,6 +2,13 @@
 
 This Group installs Codebase LLM Wiki, Megin, MergeReviewer, and ReleaseReviewer together through GitLab Workspace. Keep their upstream Skills intact and use this profile as the Group-level adapter.
 
+Before human-readable output, load `$output-style` from this Group's selected
+`.agents/skills/output-style/SKILL.md` when present. It selects concise,
+explanatory, learning or formal presentation automatically; a user's explicit
+`style` wins. It replaces other Skills' fallback presentation, preserving their
+artifact, evidence and workflow contracts. Without it, retain the selected Skill's
+original output style. This changes no Claude or host configuration.
+
 ## Group and repositories
 
 - Start the Codex CLI at the selected, non-Git Group root. A Group contains direct-child Git repositories; each selected repository remains an independent Git repository.

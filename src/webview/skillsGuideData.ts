@@ -1,3 +1,4 @@
+import { withOutputStyle } from '../workspace/outputStyle';
 import {
   buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
@@ -52,7 +53,7 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
     tool: 'merge-reviewer', id: 'merge-repo', title: '分支合併審查',
     description: '指定一個 Repo 與兩個明確分支，以 Codex 原生 Code Review 審查變更及相關消費端。',
     output: '所選 Repo 的 review-reports/merge-review-*.md，一份繁體中文 v3 Merge Report。',
-    behavior: '固定分支差異、合併預覽與必要背景；明確遠端分支會同步，失敗停止。宣告工作區內有多個 Repo 時只追查相關功能鏈。',
+    behavior: '開始前凍結分支、合併預覽與相關 Repo 證據；明確遠端分支先同步，失敗停止。後續分支更新不改變本次快照，結論僅適用固定 SHA；證據不足保留待人工確認。',
     fields: releaseFields()
   },
   {
@@ -142,6 +143,10 @@ export function isExplicitBranch(input: string): boolean {
 }
 
 export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
+  return withOutputStyle(buildSkillGuideTaskPrompt(card, inputs, context));
+}
+
+function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues, context: SkillGuideContext): string {
   if (card.tool === 'codebase-wiki') return buildWikiGuidePrompt(card.id, inputs, context);
   if (card.destination) return '';
   const releaseWorkspace = context.workspaceRoot ?? context.groupRoot ?? context.root;
@@ -180,6 +185,8 @@ export function buildSkillGuidePrompt(card: SkillGuideCard, inputs: SkillGuideIn
     `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')} --summary。`,
     '使用 Codex 原生 Code Review 及 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3。只以所選 Repo 為審查起點；宣告的工作區內有至少兩個不同 Git 根目錄時，依固定證據追查必要契約與消費端，其他 Repo 使用各自擷取時的 HEAD。',
     '摘要提供 context_dir 與 manifest_path，完整固定證據仍在 manifest；已知且互不相依的讀取與搜尋使用 review_workspace.py batch-read／batch-search，依技能指引追查後續線索並完成全部覆蓋。',
+    '開始語意審查前完成自足快照：固定 base／head、合併預覽、相關 Repo 與適用指示，後續讀取、搜尋及驗證只使用 owned context。擷取後雲端或本機分支移動不使本次快照失效、不自動重審；報告明列擷取時間，結論僅適用本次固定 SHA。',
+    '證據不足而需要人工核對的事項填入選填 pending_confirmations，連結固定變更並說明缺少證據、核對方式及負責角色；已有證據仍須嚴格驗證，不把壞 ref／行號降格成待確認。有待確認項不得宣告通過，保留所有已確認問題，報告附人工勾選、核對人、日期與確認證據欄。',
     '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit前8碼>-<head-commit前8碼>.md，一份繁體中文 Merge Report。結論後列出比較資訊：Repo／路徑、輸入分支與實際 ref、8 碼 commit、合併方向及共同祖先到比較分支的主要差異範圍。每項問題依序呈現問題描述、重現原因、預期結果、實際結果、證據、建議改善方式；非空文字證據提供 line_start／line_end，只引用必要固定行段，附 Repo／路徑、行號、來源及完整 ref，空檔案標示 0 行。逐檔覆蓋與功能鏈完整參與內部驗證。保留有證據支持的問題、必要缺口及下一步；未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
   );
   if (card.tool === 'release-reviewer') lines.push(

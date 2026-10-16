@@ -29,7 +29,7 @@ export function OperationFeedback({ resourceKey, scopeRevision, initialOperation
       return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
     });
   }, [scopeRevision, initialOperations]);
-  const visible = operations.filter(item => !resourceKey || item.resourceKey === resourceKey).slice(-3);
+  const visible = operations.filter(item => (item.status === 'queued' || item.status === 'running') && (!resourceKey || item.resourceKey === resourceKey)).slice(-3);
   return <div class="operation-feedback" aria-live="polite">{visible.map(item => <div key={item.requestId}
     class={`operation-status ${item.status}`} role={item.status === 'failed' ? 'alert' : 'status'}>
     {(item.status === 'running' || item.status === 'queued') && <span class="spinner" />}

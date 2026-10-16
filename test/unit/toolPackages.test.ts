@@ -26,7 +26,8 @@ test('lists a single bundled kit first, then Gitea and GitHub imports for the ex
     const manifestPath = path.join(root, 'manifest.json');
     await writeFile(bundledPath, bundledBytes);
     await writeFile(releaseZip, zipBytes);
-    await writeFile(manifestPath, JSON.stringify(createIndex(bundledBytes, zipBytes)));
+    await writeFile(manifestPath, JSON.stringify({ ...createIndex(bundledBytes, zipBytes),
+      skills: ['wiki-fixture', 'review-fixture', 'output-style'] }));
     const manager = new WorkflowKitPackageManager(storage, bundledPath, manifestPath, '0.10.0');
     const importedRecords: string[] = [];
     for (const source of ['github', 'gitea'] as const) {
@@ -39,6 +40,7 @@ test('lists a single bundled kit first, then Gitea and GitHub imports for the ex
     const packages = await manager.listPackages();
     assert.deepEqual(packages.map((item) => item.source), ['bundled', 'gitea', 'github']);
     assert.equal(packages.length, 3);
+    assert.equal(packages.find(item => item.source === 'bundled')?.skillCount, 3);
     assert.equal((await manager.getPackage(importedRecords[1]!)).version, '0.10.0');
     assert.equal(packages.find((item) => item.source === 'bundled')?.assetName, 'workflow-kit.tar.xz');
     const conflictingArchive = path.join(sourceDir, 'gitea-conflicting.zip');

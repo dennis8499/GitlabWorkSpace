@@ -24,42 +24,33 @@ ROOT_NAME = "workflow-kit"
 MAX_FILES = 12000
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_EXPANDED_BYTES = 400 * 1024 * 1024
+KIT_SKILLS = ("output-style",)
 
-PINNED_SOURCES = (
-    {
-        "id": "codebase-wiki",
-        "repository": "code-base-llm-wiki",
-        "asset": "codebase-llm-wiki-codex.zip",
-        "filename": "codebase-llm-wiki-codex-0.6.1.zip",
-        "version": "0.6.1",
-        "sha256": "d9b10390028d70a26b473737de582c4b2cf2286d019c03f3d0673f81602bf8ce",
-        "root": "codebase-llm-wiki-codex-0.6.1",
-    },
-    {
-        "id": "megin",
-        "repository": "Megin",
-        "asset": "megin-skills.zip",
-        "filename": "megin-skills-0.8.1.zip",
-        "version": "0.8.1",
-        "sha256": "2cd73766cd19de5ad26d6437ee50d5c9f3a37f6e67b7193c440e5c3b8d303395",
-    },
-    {
-        "id": "merge-reviewer",
-        "repository": "MergeReviewer",
-        "asset": "merge-reviewer-0.13.0.zip",
-        "filename": "merge-reviewer-0.13.0.zip",
-        "version": "0.13.0",
-        "sha256": "d79281b8279ad440b7b7c758323f600ca6ca6b8df6ef3d2bded13191ed0de96a",
-    },
-    {
-        "id": "release-reviewer",
-        "repository": "ReleaseReviewer",
-        "asset": "release-reviewer-0.4.0.zip",
-        "filename": "release-reviewer-0.4.0.zip",
-        "version": "0.4.0",
-        "sha256": "03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9",
-    },
-)
+PINNED_SOURCES = ({'id': 'codebase-wiki',
+  'repository': 'code-base-llm-wiki',
+  'asset': 'codebase-llm-wiki-codex.zip',
+  'filename': 'codebase-llm-wiki-codex-0.6.2.zip',
+  'version': '0.6.2',
+  'sha256': 'f91be4557fb67084e246168428a98e9372d9b1b78c4e6db85bd5ead7360acf9b',
+  'root': 'codebase-llm-wiki-codex-0.6.2'},
+ {'id': 'megin',
+  'repository': 'Megin',
+  'asset': 'megin-skills.zip',
+  'filename': 'megin-skills-0.8.2.zip',
+  'version': '0.8.2',
+  'sha256': '8cc53e59163016dc96526c6c8df115991d68fc920e57ad34572b8d5d1d3cd687'},
+ {'id': 'merge-reviewer',
+  'repository': 'MergeReviewer',
+  'asset': 'merge-reviewer-0.14.0.zip',
+  'filename': 'merge-reviewer-0.14.0.zip',
+  'version': '0.14.0',
+  'sha256': '673f7644abea51e20c92eb3e202d67c62d4a7417ef9f7c4d0bde30c14fcd2c2b'},
+ {'id': 'release-reviewer',
+  'repository': 'ReleaseReviewer',
+  'asset': 'release-reviewer-0.4.1.zip',
+  'filename': 'release-reviewer-0.4.1.zip',
+  'version': '0.4.1',
+  'sha256': '5411cf3ef0500328ed830bf353ac06435f37139082de8b621c56fd62359fb633'})
 
 
 def digest(data: bytes) -> str:
@@ -271,6 +262,31 @@ def validate_local_sources() -> None:
     module.check(compare_local=True)
 
 
+def kit_skill_files() -> dict[str, bytes]:
+    """Collect kit-owned Skills once for both profiles without modifying upstream."""
+    files: dict[str, bytes] = {}
+    source_root = PROFILE / "skills"
+    if source_root.is_symlink() or getattr(source_root, "is_junction", lambda: False)() or not source_root.is_dir():
+        raise ValueError("Missing or unsafe kit Skills directory")
+    for name in KIT_SKILLS:
+        directory = source_root / name
+        if directory.is_symlink() or getattr(directory, "is_junction", lambda: False)() or not directory.is_dir():
+            raise ValueError(f"Missing or unsafe kit Skill: {name}")
+        if not (directory / "SKILL.md").is_file():
+            raise ValueError(f"Kit Skill is missing SKILL.md: {name}")
+        for path in sorted(directory.rglob("*")):
+            if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+                raise ValueError(f"Kit Skill resources cannot be links: {path}")
+            if not path.is_file() or "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo"):
+                continue
+            relative = checked_path(path.relative_to(directory).as_posix())
+            data = path.read_bytes()
+            if len(data) > MAX_FILE_BYTES:
+                raise ValueError(f"Kit Skill resource exceeds file limit: {path}")
+            files[f".agents/skills/{name}/{relative}"] = data
+    return files
+
+
 def build() -> dict[str, object]:
     import importlib.util
     spec = importlib.util.spec_from_file_location('kit_source_check', ROOT / 'scripts/workflow-kit-sources.py')
@@ -332,6 +348,12 @@ def build() -> dict[str, object]:
             relative = checked_path(path.relative_to(common).as_posix())
             files[f"payload/.agents/gitlab-workspace-kit/{relative}"] = path.read_bytes()
 
+    for name, data in kit_skill_files().items():
+        destination = f"payload/{name}"
+        if destination in files:
+            raise ValueError(f"Kit Skill conflicts with upstream: {name}")
+        files[destination] = data
+
     native_payload = {name[len("payload/"):]: data for name, data in files.items() if name.startswith("payload/")}
     for source, destination in (("repository-profile.md", "profile.md"), ("repository-instructions.md", "group-instructions.md"), ("legacy-cleanup.md", "legacy-cleanup.md")):
         native_payload[".agents/gitlab-workspace-kit/" + destination] = (PROFILE / source).read_bytes()
@@ -349,9 +371,9 @@ def build() -> dict[str, object]:
             raise ValueError(f"GitLab Workspace profile file is missing: {name}")
         files[f"payload/.agents/gitlab-workspace-kit/{name}"] = source_path.read_bytes()
 
-    skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *megin_skill_names})
-    if len(skill_names) != 16:
-        raise ValueError(f"Expected sixteen Skills, found {len(skill_names)}.")
+    skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *megin_skill_names, *KIT_SKILLS})
+    if len(skill_names) != 17:
+        raise ValueError(f"Expected seventeen Skills, found {len(skill_names)}.")
     total = sum(len(value) for value in files.values())
     if len(files) > MAX_FILES or total > MAX_EXPANDED_BYTES:
         raise ValueError("組合包解壓容量超過限制。")

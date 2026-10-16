@@ -10,6 +10,7 @@ import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { ProjectRootContext } from './projectRootProtocol';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { WorkspaceOperationState } from './operations';
+import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'developer' | 'reviewer' | 'git' | 'admin';
@@ -143,6 +144,7 @@ export interface SkillsContext {
 export interface WorkflowKitPackageSummary {
   id: string;
   version: string;
+  skillCount?: number;
   source: ToolSource;
   assetName: string;
   format: ToolArchiveFormat;
@@ -152,6 +154,7 @@ export interface WorkflowKitPackageSummary {
 }
 
 export interface WorkspaceSnapshot {
+  notifications?: NotificationSnapshot;
   projectOperationBusy?: boolean;
   operationScope?: string;
   operations?: WorkspaceOperationState[];
@@ -236,7 +239,7 @@ export interface CloneOperationState {
   }>;
 }
 
-export type WorkspaceRequest = (
+export type WorkspaceRequest = (NotificationRequest
   | GitPanelRequest
   | { type: 'ready' }
   | GitPanelRequest
@@ -321,6 +324,8 @@ export type WorkspaceRequest = (
 ) & { projectRevision?: string; operationId?: string; operationScope?: string };
 
 export type WorkspaceResponse =
+  | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
+  | { type: 'openNotifications' }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; branches: string[]; error?: string }

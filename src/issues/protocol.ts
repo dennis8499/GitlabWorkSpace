@@ -117,8 +117,8 @@ export type IssuePanelResponse =
   | { type: 'projectData'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'detailData'; data: IssueDetailData }
   | { type: 'detailPatch'; issueId: number; patch: Partial<IssueDetailData> }
-  | { type: 'reply'; requestId: string; result?: unknown; error?: string }
+  | { type: 'reply'; requestId: string; result?: unknown; error?: string; notificationOnly?: boolean }
   | { type: 'busy'; value: boolean }
   | { type: 'cancelled' }
-  | { type: 'error'; message: string }
+  | { type: 'error'; message: string; notificationOnly?: boolean }
   | { type: 'deleted' };

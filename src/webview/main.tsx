@@ -542,7 +542,7 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
           imageRequests.current.delete(message.requestId);
           if (message.error) { if (url) failedImages.current.add(url); setError(message.error); }
           else if (url && (message.result as { dataUrl?: string })?.dataUrl) setImages((current) => ({ ...current, [url]: (message.result as { dataUrl: string }).dataUrl }));
-        } else if (message.error) setError(message.error);
+        } else if (message.error) { if (!message.notificationOnly) setError(message.error); }
         else if (message.requestId.startsWith('preview-')) setPreviewHtml((message.result as { html?: string })?.html ?? '');
         else if (message.requestId.startsWith('note-')) {
           const id = Number(message.requestId.split('-')[1]);
@@ -572,7 +572,8 @@ export function IssueView({ onBack, snapshot, navigation, onWorkspaceRequest, on
         submittedIssueForm.current = null;
         busyRef.current = false;
         if (message.message.includes('changed in GitLab')) conflictDraft.current = formRef.current;
-        setError(message.message); setBusy(false);
+        if (!message.notificationOnly) setError(message.message);
+        setBusy(false);
       }
       else if (message.type === 'cancelled') { pendingAction.current = null; pendingReplyDiscussion.current = null; pendingSubmission.current = null; busyRef.current = false; setBusy(false); }
       else if (message.type === 'busy') { busyRef.current = message.value; setBusy(message.value); }

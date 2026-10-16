@@ -1,3 +1,5 @@
+import { withOutputStyle } from '../workspace/outputStyle';
+
 export type WikiGuideInputValues = Record<string, string>;
 
 export interface WikiGuideField {
@@ -50,7 +52,7 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
   {
     id: 'install', title: '安裝／設定',
     description: '透過 GitLab Workspace 一次管理所有工作 Skills 與 Group 規則。',
-    output: '整包含 16 個 Skills、固定來源版本、Group Wiki 設定及安裝紀錄。',
+    output: '整包含 manifest 列出的 Skills、固定來源版本、Group Wiki 設定及安裝紀錄。',
     behavior: '使用工具抽屜的單一套件卡安裝或更新；檢查失敗時整包回復。',
     fields: []
   },
@@ -208,6 +210,10 @@ export function buildWikiGuideContext(context: WikiGuideContext): string {
 }
 
 export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
+  return withOutputStyle(buildWikiGuideTaskPrompt(cardId, inputs, context));
+}
+
+function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
   const card = wikiGuideCards.find((candidate) => candidate.id === (cardId === 'development-spec' ? DEFAULT_WIKI_GUIDE_CARD_ID : cardId));
   if (!card) throw new Error(`未知的 Codebase LLM Wiki 功能：${cardId}`);
   inputs = migrateWikiGuideInputs(inputs, cardId === 'development-spec' ? cardId : undefined);

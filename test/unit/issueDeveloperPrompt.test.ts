@@ -45,4 +45,6 @@ test('new Issue tasks tell Megin to reuse an unfinished project and Issue Work I
   assert.match(prompt, /docs\/work\/\*\/workflow\.md/);
   assert.match(prompt, /相同 GitLab Project ID 與 Issue IID/);
   assert.match(prompt, /不要自行 Push、建立 MR/);
+  assert.match(prompt, /載入 \$output-style/);
+  assert.match(prompt, /未安裝時沿用原 Skill 的 output style/);
 });

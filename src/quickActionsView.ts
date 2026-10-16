@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { NotificationCenter } from './notifications/notificationCenter';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { GitLabSession } from './connection/session';
@@ -15,19 +16,20 @@ export type { QuickAction } from './workspace/quickActionsProtocol';
 export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private view?: vscode.WebviewView;
   private busyAction?: QuickAction;
-  private errorMessage?: string;
   private stateRevision = 0;
   private viewGeneration = 0;
   private readonly detailsRequests = new Map<string, string>();
   private readonly subscriptions: vscode.Disposable[] = [];
+  private readonly notificationSubscription?: { dispose(): void };
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly session: GitLabSession,
     private readonly runAction: (action: QuickAction, repositoryId?: string) => Thenable<unknown> | Promise<unknown> | unknown,
     private readonly getNavigationState?: () => Promise<Pick<QuickActionsState, 'activeMode' | 'repositories' | 'gitAvailable' | 'gitMessage' | 'accountOperation' | 'workflowKitPolicy'>>,
-    private readonly getRepositoryDetails?: (repositoryId: string) => Promise<GitRepositoryDetails>
-  ) {}
+    private readonly getRepositoryDetails?: (repositoryId: string) => Promise<GitRepositoryDetails>,
+    private readonly notifications?: NotificationCenter
+  ) { this.notificationSubscription = notifications?.onDidChange(() => { if (this.view?.visible) void this.sendState(); }); }
 
   async resolveWebviewView(view: vscode.WebviewView): Promise<void> {
     this.clearView();
@@ -61,21 +63,23 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
 
   refresh(): void {
     if (!this.view?.visible) return;
-    this.errorMessage = undefined;
     this.sendState();
   }
 
-  dispose(): void { this.clearView(); }
+  dispose(): void { this.clearView(); this.notificationSubscription?.dispose(); }
 
   private async perform(action: QuickAction, repositoryId?: string): Promise<void> {
+    if (action === 'openNotifications') {
+      try { await this.runAction(action); } catch { /* The command owns its error receipt. */ }
+      return;
+    }
     if (this.busyAction) return;
     this.busyAction = action;
-    this.errorMessage = undefined;
     this.sendState();
     try {
       await this.runAction(action, repositoryId);
-    } catch (error) {
-      this.errorMessage = error instanceof Error ? error.message : String(error);
+    } catch {
+      // Command entrypoints publish their result to the shared message center.
     } finally {
       this.busyAction = undefined;
       this.sendState();
@@ -118,7 +122,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       activeAccountId: this.session.activeAccountId,
       groupLabel: this.session.selectedGroup?.full_path,
       busyAction: this.busyAction,
-      errorMessage: this.errorMessage
+      notificationUnreadCount: this.notifications?.snapshot().unreadCount ?? 0
     };
     await Promise.resolve(this.getNavigationState?.()).then((navigation) => {
       if (this.view !== view || revision !== this.stateRevision) return;

@@ -18,6 +18,14 @@ development specifications and NotebookLM export also use their branch's source-
 
 ## Output style
 
+Before human-readable output, check for `output-style/SKILL.md` under the current
+selected Skills root. When installed, load `$output-style` and let its task-based
+mode or the user's explicit style replace the fallback presentation rules below.
+Keep this workflow's required artifact structure, evidence and completion records.
+When that Skill is absent, use the existing standalone fallback below.
+
+### Standalone fallback
+
 Apply [Claude Code Concise](https://code.claude.com/docs/en/output-styles#concise)
 to progress, answers, and new or updated human-readable artifacts on both hosts:
 

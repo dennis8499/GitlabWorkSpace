@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { NotificationCenter } from '../notifications/notificationCenter';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile, spawn } from 'node:child_process';
 import { access, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
@@ -241,7 +242,8 @@ export class GitRepositoryService implements vscode.Disposable {
   readonly onDidChangeRepositoryList = this.repositoryListEmitter.event;
   readonly onDidMessage = this.panelEmitter.event;
 
-  constructor(private readonly extensionUri: vscode.Uri, private readonly storageUri: vscode.Uri, session: GitLabSession) {
+  constructor(private readonly extensionUri: vscode.Uri, private readonly storageUri: vscode.Uri, session: GitLabSession,
+    private readonly notifications?: NotificationCenter) {
     this.gitlabSession = session;
     this.initialization = this.initialize();
   }
@@ -401,7 +403,8 @@ export class GitRepositoryService implements vscode.Disposable {
         await vscode.commands.executeCommand('git.openMergeEditor', uri);
         return;
       } catch {
-        await vscode.window.showInformationMessage('無法開啟 VS Code Merge Editor，改用文字編輯器顯示衝突檔案。');
+        this.notifications?.publish({ message: '無法開啟 VS Code Merge Editor，改用文字編輯器顯示衝突檔案。', title: '開啟衝突檔案',
+          origin: { accountId: this.gitlabSession.activeAccountId, baseUrl: this.gitlabSession.baseUrl, root: repository.rootUri.fsPath } });
       }
     }
     const document = await vscode.workspace.openTextDocument(uri);

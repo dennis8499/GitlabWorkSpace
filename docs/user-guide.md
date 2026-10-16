@@ -2,6 +2,12 @@
 
 GitLab Workspace 將專案、Skills 功能指引、Issue 討論與交付集中在同一個工作台。單 Repo Skills 可直接開啟本機 Git Repo 使用，不需要登入 GitLab 或選擇 Group；每次操作一個所選 Repo。使用 GitLab Issue、MR 或 Group 協作時，再連線 GitLab 並選擇群組。閱讀或討論 Issue 不需要設定本機工作目錄。
 
+操作結果統一顯示於右上角訊息中心；側欄或「GitLab Workspace: 開啟訊息中心」指令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。
+
+安裝 Output Style 後，各工具優先依當前產出自動選擇精簡、詳解、教學或正式文件風格；未安裝時沿用原 Skill 的輸出規則。可在提示詞使用 `$output-style style=explanatory` 等指定風格；正式報告的必要欄位、證據、Checklist 與核准要求不因風格改變。
+
+MergeReviewer 開始前凍結 base／head、合併預覽及相關 Repo 證據。後續雲端更新不打斷本次審查，報告結論僅適用列出的固定 SHA；要檢查新版需另啟新審查。證據不足的必要事項列為待人工確認，不宣告通過；人工核對區可填核對人、日期與證據，原始審查結論保留。
+
 ## 視窗與 GitLab 相容版本
 
 工作台會限制在 VS Code Webview 的可用視窗內；內容較長時可在主要區域捲動，清單、圖譜與設定面板也各自保留捲動列。工作台右上方的放大圖示可放大目前編輯器群組；再按一次會還原原本的分割配置，工作中的草稿、選取項目與捲動位置會留在同一個工作台中。
@@ -82,7 +88,7 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 確認安裝位置與唯一的組合包版本後按 **安裝／更新**。VSIX 內附版本為預設安裝來源；匯入的 ZIP 會複製到 VS Code 持久儲存區並以 SHA-256 去重，因此原始下載檔可在匯入後刪除。安裝期間固定目標位置並停用位置切換與重複安裝。安裝前會整體預檢 Skills、Wiki 設定、管理區塊與安裝紀錄，再以暫存與回復日誌套用；中途失敗或 VS Code／Python 程序中斷後，下一次檢查會先回復原狀。匯入 ZIP 或本機 Skill 若與套件版本、契約或摘要不符，會清楚阻擋安裝。
 
-套件安裝到選定資料夾的 `.agents/skills/`，含 16 個 Skills。`group` profile 僅套用 Wiki 必要覆寫；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。單 Repo 的 Wiki、Megin 開發／續作以此 Repo 為範圍；分支審查與上版檢查只選一個入口 Repo，關聯證據依實際 VS Code 宣告的工作區邊界取得。已儲存 `.code-workspace` 會一併帶入，不能自行向上擴張。Issue 開發交付使用 Group 契約。Wiki、`docs/work/`、報告及 Codex 啟動目錄遵循各工具的產出規則。
+套件安裝到選定資料夾的 `.agents/skills/`，含 17 個 Skills（清單以套件 manifest 為準）。`group` profile 僅套用 Wiki 必要覆寫；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。單 Repo 的 Wiki、Megin 開發／續作以此 Repo 為範圍；分支審查與上版檢查只選一個入口 Repo，關聯證據依實際 VS Code 宣告的工作區邊界取得。已儲存 `.code-workspace` 會一併帶入，不能自行向上擴張。Issue 開發交付使用 Group 契約。Wiki、`docs/work/`、報告及 Codex 啟動目錄遵循各工具的產出規則。
 
 Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
 

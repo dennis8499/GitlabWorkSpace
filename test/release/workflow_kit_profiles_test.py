@@ -142,6 +142,9 @@ class ProfileTests(unittest.TestCase):
         for module in ("review_workspace.py", "workspace_report.py"):
             self.assertTrue((self.repo / ".agents/skills/merge-reviewer/scripts" / module).is_file())
         self.assertFalse((self.repo / ".agents/skills/merge-reviewer/scripts/legacy_group_review.py").exists())
+        for relative in ("SKILL.md", "agents/openai.yaml", "references/examples.md"):
+            self.assertEqual((ROOT / "resources/workflow-kit/skills/output-style" / relative).read_bytes(),
+                             (self.repo / ".agents/skills/output-style" / relative).read_bytes())
         self.assert_preserved()
         empty = self.base / "empty"; empty.mkdir()
         result, _ = self.execute("install", ARCHIVE, empty, VERSION, "bundled", "--format", "tar.xz",

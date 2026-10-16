@@ -63,6 +63,8 @@ test('post-delivery Wiki task carries fixed local evidence and keeps merge state
     'merge_requests/18',
     '本機 commit 已完成不代表 MR 已合併',
     '保留人工 notes',
+    '載入 $output-style',
+    '未安裝時沿用原 Skill 的 output style',
     'wiki/index.md',
     'wiki/log.md'
   ]) {

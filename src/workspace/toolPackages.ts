@@ -33,6 +33,7 @@ interface BundledManifest {
   releaseZipSha256: string;
   workspaceContract: number;
   payloadFiles: number;
+  skills?: string[];
 }
 
 export interface WorkflowKitPackage extends WorkflowKitPackageSummary {
@@ -72,7 +73,9 @@ export class WorkflowKitPackageManager {
       packages.push(await this.withAvailability({
         id: packageId(manifest.version, 'bundled', manifest.archiveSha256), version: manifest.version,
         source: 'bundled', assetName: manifest.archive, format: 'tar.xz', entryRoot: 'workflow-kit',
-        available: false, archivePath: this.bundledArchivePath, sha256: manifest.archiveSha256
+        available: false, archivePath: this.bundledArchivePath, sha256: manifest.archiveSha256,
+        skillCount: Array.isArray(manifest.skills) && manifest.skills.every(skill => typeof skill === 'string')
+          ? new Set(manifest.skills).size : undefined
       }));
     }
     return packages.sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || compareVersions(b.version, a.version));

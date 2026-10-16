@@ -18,6 +18,8 @@ import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
 import { OperationTracker, operationLabels, operationResource } from './operations';
+import { NotificationCenter } from '../notifications/notificationCenter';
+import type { NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
@@ -114,6 +116,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private viewGeneration = 0;
   private viewReadAbort = new AbortController();
   private readonly pendingViewNotices: unknown[] = [];
+  private pendingNotificationsOpen = false;
   private restoredOnce = false;
   private readonly gitWriteReceipts = new Map<string, Extract<GitPanelMessage, { type: 'gitActionResult' }>>();
   private groupMilestones: GitLabMilestone[] = [];
@@ -157,7 +160,11 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitRefreshGeneration = 0;
   private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installation: WorkflowKitInstallTarget | undefined; task: Promise<void> };
   private operationTracker?: OperationTracker;
-  private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => this.post({ type: 'operationChanged', operation })); }
+  private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => {
+    this.notifications.recordOperation(operation);
+    this.post({ type: 'operationChanged', operation });
+  }); }
+  private get notifications(): NotificationCenter { return this.notificationCenter ??= new NotificationCenter(); }
   private readonly skillBranchReads = new Map<string, Promise<string[]>>();
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
   private workflowKitPackages: WorkflowKitPackage[] = [];
@@ -196,8 +203,10 @@ export class WorkspacePanel implements vscode.Disposable {
     private readonly session: GitLabSession,
     private readonly issuePanels: IssuePanels,
     private readonly syncSidebarState?: () => void | Promise<void>,
-    private readonly gitRepositories?: GitRepositoryService
+    private readonly gitRepositories?: GitRepositoryService,
+    private notificationCenter?: NotificationCenter
   ) {
+    context.subscriptions.push(this.notifications.onDidChange(() => this.post({ type: 'notificationsChanged', snapshot: this.notifications.snapshot() })));
     this.timer = new IssueTimeTracker(context.globalState);
     session.setBeforeTransition(async () => {
       this.assertAccountTransitionAllowed();
@@ -300,8 +309,7 @@ export class WorkspacePanel implements vscode.Disposable {
       html = html.replace(/<script([^>]*)>/, `<script nonce="${nonce}"$1>`);
       panel.webview.html = html;
       const messageListener = panel.webview.onDidReceiveMessage((message: unknown) => {
-        void this.handleMessage(message).catch((error: unknown) => this.post({ type: 'error', message: readableError(error),
-          scopeRevision: message && typeof message === 'object' && 'operationScope' in message && typeof message.operationScope === 'string' ? message.operationScope : undefined }));
+        void this.handleMessage(message).catch(() => undefined);
       });
       panel.onDidDispose(() => {
         messageListener.dispose();
@@ -379,6 +387,17 @@ export class WorkspacePanel implements vscode.Disposable {
   }
   private logQueryCount = 0;
   getLogQueryCountForTesting(): number { return this.logQueryCount; }
+
+  getNotificationOrigin(): NotificationOrigin {
+    return { accountId: this.session.activeAccountId, baseUrl: this.session.baseUrl,
+      groupId: this.session.selectedGroup?.id, root: this.projectContext?.root ?? this.groupRoot };
+  }
+
+  async openNotifications(): Promise<void> {
+    this.pendingNotificationsOpen = true;
+    await this.show(undefined, { refresh: false });
+    if (this.webviewReady) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
+  }
 
   async refreshFromSidebar(): Promise<void> {
     this.issueOpenGeneration++;
@@ -477,6 +496,26 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private post(message: unknown): void {
     if (message && typeof message === 'object' && 'type' in message) {
+      const value = message as WorkspaceResponse;
+      if (value.type === 'message' || value.type === 'error' || value.type === 'gitError') {
+        this.notifications.publish({ level: value.type === 'message' ? 'info' : 'error', message: value.message,
+          origin: this.getNotificationOrigin() });
+        if (value.type === 'message') return;
+      } else if (value.type === 'gitActionResult' && value.error) {
+        const operation = this.operations.list().find(item => item.action === 'gitAction' && item.correlationId === value.requestId);
+        this.notifications.publish({ operationId: operation?.requestId ?? `git-${value.requestId}`, title: '版控操作', level: 'error', message: value.error });
+      } else if (value.type === 'issueResponse' && (value.response.type === 'error' || value.response.type === 'reply') && value.response.notificationOnly) {
+        this.notifications.publish({ level: 'error', title: 'Issue 操作', message: value.response.type === 'error' ? value.response.message : value.response.error ?? '' });
+      } else if (value.type === 'draftBundle') {
+        this.notifications.publish({ message: `已匯入 ${value.bundle.drafts.length} 張 Issue 草稿。` });
+      } else if (value.type === 'draftResults') {
+        const failed = value.results.filter(item => item.state === 'failed').length;
+        this.notifications.publish({ level: failed ? 'warn' : 'info', message: `Issue 已建立或確認 ${value.results.length - failed} 張${failed ? `，${failed} 張失敗；重試只會處理未建立項目` : ''}。` });
+      } else if (value.type === 'deliveryPreview' || value.type === 'deliveryProgress') {
+        this.notifications.publish({ level: value.delivery.error ? 'error' : 'info', message: value.delivery.error ?? '交付進度已保存。' });
+      }
+    }
+    if (message && typeof message === 'object' && 'type' in message) {
       if (message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object'
         && 'requestId' in message.response && 'error' in message.response && typeof message.response.error === 'string') {
         for (const operation of this.operations.list()) {
@@ -503,11 +542,15 @@ export class WorkspacePanel implements vscode.Disposable {
       this.session.log?.record({ feature: message.type === 'gitError' ? 'git' : 'workspace', action: 'operationError', result: 'error', message: message.message });
     }
     if (!this.disposed && (!this.panel || this.panel.visible === false || !this.webviewReady) && message && typeof message === 'object' && 'type' in message &&
-      (message.type === 'message' || message.type === 'error' || message.type === 'gitError' || message.type === 'accountLoginResult' ||
+      (message.type === 'accountLoginResult' ||
         message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object' && 'type' in message.response && message.response.type === 'reply')) {
       this.pendingViewNotices.push(message);
       if (this.pendingViewNotices.length > 128) this.pendingViewNotices.shift();
     }
+    this.sendViewMessage(message);
+  }
+
+  private sendViewMessage(message: unknown): void {
     if (this.panel && this.panel.visible !== false && this.webviewReady && !this.disposed) {
       this.webviewMessagesSent++;
       void this.panel.webview.postMessage(message);
@@ -571,7 +614,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.gitRepositoryListDirty = true;
       this.gitRepositories.setActivePanelRepository(this.panel?.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined, false);
       if (this.panel?.visible && this.activeMode === 'git') await this.sendGitRepositories();
-      for (const receipt of this.gitWriteReceipts.values()) this.post(receipt);
+      for (const receipt of this.gitWriteReceipts.values()) this.sendViewMessage(receipt);
       return;
     }
     if (request.type === 'gitOpenRepository') {
@@ -608,11 +651,31 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async handleMessage(value: unknown): Promise<void> {
+    const request = value as Partial<WorkspaceRequest> | undefined;
+    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin',
+      'publishNotification', 'markNotificationsRead', 'markAllNotificationsRead', 'removeNotification', 'clearNotifications', 'gitReady', 'gitAcknowledgeResult'];
+    if (!request || typeof request.type !== 'string' || quiet.includes(request.type)) {
+      try { await this.handleOperationMessage(value); }
+      catch (error) { this.notifications.publish({ level: 'error', message: readableError(error), origin: this.getNotificationOrigin() }); throw error; }
+      return;
+    }
+    await this.notifications.run({ operationId: typeof request.operationId === 'string' ? request.operationId : randomUUID(),
+      title: operationLabels[request.type] ?? 'GitLab Workspace', origin: this.getNotificationOrigin() }, async () => {
+      try { await this.handleOperationMessage(value); }
+      catch (error) {
+        this.post({ type: 'error', message: readableError(error), scopeRevision: request.operationScope });
+        throw error;
+      }
+    });
+  }
+
+  private async handleOperationMessage(value: unknown): Promise<void> {
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return;
     const request = value as WorkspaceRequest;
     if (request.operationId !== undefined && (typeof request.operationId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(request.operationId))) throw new Error('操作識別碼無效，請重新載入工作台。');
     if (request.operationScope !== undefined && (typeof request.operationScope !== 'string' || request.operationScope.length > 500)) throw new Error('工作區識別資料無效，請重新載入工作台。');
-    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin'].includes(request.type);
+    const quiet = ['queryLogs', 'setLogVisibility', 'ready', 'cloneSelection', 'setIssueGraphVisibility', 'cancelRepositoryScan', 'submitAccountLogin',
+      'publishNotification', 'markNotificationsRead', 'markAllNotificationsRead', 'removeNotification', 'clearNotifications'].includes(request.type);
     const issueWrite = request.type === 'issueRequest' && ['create', 'update', 'invoke', 'upload'].includes(request.request?.type);
     const write = issueWrite || ['mutateIssueRelations', 'createIssueDrafts', 'startTimer', 'pauseTimer', 'resumeTimer', 'stopTimer', 'addManualTime', 'updateTimeEntry', 'acknowledgeTimeEntry', 'submitTimeEntry', 'postMergeRequestNote', 'replyMergeRequest', 'approveMergeRequest', 'mergeMergeRequest', 'prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'installWorkflowKit'].includes(request.type);
     if (write && this.accountTransitionBusy) throw new Error('帳號正在切換，請稍後再執行操作。');
@@ -678,11 +741,28 @@ export class WorkspacePanel implements vscode.Disposable {
           void this.loadMergeRequest(projectId, iid).catch(error => this.post({ type: 'error', message: readableError(error) }));
         }
         this.post({ type: 'issueNavigation', navigation: this.issueNavigation });
-        for (const notice of this.pendingViewNotices.splice(0)) this.post(notice);
+        for (const notice of this.pendingViewNotices.splice(0)) this.sendViewMessage(notice);
+        if (this.pendingNotificationsOpen) { this.post({ type: 'openNotifications' }); this.pendingNotificationsOpen = false; }
         this.publishAccountPanel();
         break;
       }
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
+      case 'publishNotification':
+        if (!['info', 'warn', 'error'].includes(request.level) || typeof request.message !== 'string' || request.message.length > 4096) break;
+        this.notifications.publish({ level: request.level, message: request.message, origin: this.getNotificationOrigin(),
+          operationId: typeof request.operationId === 'string' ? request.operationId : undefined }); break;
+      case 'markNotificationsRead':
+        if (Number.isSafeInteger(request.revision) && request.revision >= 0 && Array.isArray(request.ids) && request.ids.length <= 500 && request.ids.every(id => typeof id === 'string' && id.length <= 160)) this.notifications.markRead(request.ids, request.revision);
+        break;
+      case 'markAllNotificationsRead':
+        if (Number.isSafeInteger(request.revision) && request.revision >= 0) this.notifications.markAllRead(request.revision);
+        break;
+      case 'removeNotification':
+        if (typeof request.id === 'string' && request.id.length <= 160) this.notifications.remove(request.id);
+        break;
+      case 'clearNotifications':
+        if (Number.isSafeInteger(request.revision) && request.revision >= 0) this.notifications.clear(request.revision);
+        break;
       case 'retryInstanceCheck':
         if (this.instanceCheckBusy) break;
         this.instanceCheckBusy = true;
@@ -711,7 +791,9 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       case 'issueRequest':
         try { await this.issuePanels.handle(request.request, request.revision); }
-        catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error) } });
+        catch (error) { this.post({ type: 'issueResponse', revision: request.revision, response: { type: 'error', message: readableError(error),
+          notificationOnly: ['create', 'update', 'invoke', 'upload'].includes(request.request.type) &&
+            !(error instanceof Error && error.name === 'IssueValidationError') && !(error instanceof GitLabApiError && [400, 409, 422].includes(error.status ?? 0)) } });
           if (['create', 'update', 'invoke', 'upload'].includes(request.request.type)) throw error; }
         break;
       case 'closeIssue': this.issueOpenGeneration++; this.issueOpenAbort?.abort(); this.issuePanels.close(); break;
@@ -2065,6 +2147,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const cloneRoot = this.projectContext?.root;
     const projectRepositoryKey = this.repositoryStateKey(this.connectedScopeKey() ?? '', cloneRoot, this.projects);
     const snapshot: WorkspaceSnapshot = {
+      notifications: this.notifications.snapshot(),
       operationScope: this.operationScope(),
       operations: this.operations.list(this.operationScope()),
       projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
@@ -2137,8 +2220,8 @@ export class WorkspacePanel implements vscode.Disposable {
       workflowKitPolicy: this.getWorkflowKitPolicy(),
       workflowKitOperationBusy: this.workflowKitSelectingRoot || this.workflowKitImporting || !!this.workflowKitInstallation,
       workflowKitSource: this.workflowKitSource(),
-      workflowKitPackages: this.workflowKitPackages.map(({ id, version, source, assetName, format, entryRoot, available, error }) =>
-        ({ id, version, source, assetName, format, entryRoot, available, error })),
+      workflowKitPackages: this.workflowKitPackages.map(({ id, version, source, assetName, format, entryRoot, available, error, skillCount }) =>
+        ({ id, version, source, assetName, format, entryRoot, available, error, skillCount })),
       meginWorkItems: this.meginWorkItems,
       deliveryRecords: this.deliveryRecords()
         .filter((item) => item.groupId === group?.id && item.userId === this.currentUser?.id)

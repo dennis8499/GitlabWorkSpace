@@ -6,6 +6,10 @@ import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, Iss
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { mapWithConcurrency } from '../workspace/issueGraph';
 
+class IssueValidationError extends Error {
+  constructor(message: string) { super(message); this.name = 'IssueValidationError'; }
+}
+
 function safeError(error: unknown): string {
   if (error instanceof GitLabConflictError || error instanceof GitLabApiError) return error.message;
   if (error instanceof Error && !/token|authorization|private-token/i.test(error.message)) return error.message;
@@ -13,12 +17,12 @@ function safeError(error: unknown): string {
 }
 
 function requiredString(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required.`);
+  if (typeof value !== 'string' || !value.trim()) throw new IssueValidationError(`${label} is required.`);
   return value;
 }
 
 function requiredId(value: unknown, label: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new Error(`${label} is invalid.`);
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new IssueValidationError(`${label} is invalid.`);
   return value;
 }
 
@@ -32,40 +36,40 @@ function optionalId(value: unknown): number | undefined {
 
 function optionalDate(value: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Date must use YYYY-MM-DD.');
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new IssueValidationError('Date must use YYYY-MM-DD.');
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error('Enter a valid calendar date in YYYY-MM-DD format.');
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new IssueValidationError('Enter a valid calendar date in YYYY-MM-DD format.');
   return value;
 }
 
 function quickActionDuration(value: string): string {
   const duration = requiredString(value, 'Duration').trim();
   if (duration.length > 80 || !/^(?:\d+(?:\.\d+)?\s*(?:mo|w|d|h|m|s)\s*)+$/i.test(duration)) {
-    throw new Error('Use a GitLab time duration such as 45m, 1h, or 1h 30m.');
+    throw new IssueValidationError('Use a GitLab time duration such as 45m, 1h, or 1h 30m.');
   }
   const amounts = [...duration.matchAll(/(\d+(?:\.\d+)?)\s*(?:mo|w|d|h|m|s)/gi)].map((match) => Number(match[1]));
-  if (!amounts.some((amount) => amount > 0)) throw new Error('Time duration must be greater than zero.');
+  if (!amounts.some((amount) => amount > 0)) throw new IssueValidationError('Time duration must be greater than zero.');
   return duration;
 }
 
 function safeLinkUrl(value: unknown, baseUrl: string): URL {
   let url: URL;
   try { url = new URL(requiredString(value, 'URL')); }
-  catch { throw new Error('This link is not safe to open.'); }
+  catch { throw new IssueValidationError('This link is not safe to open.'); }
   const base = new URL(baseUrl);
   if (url.username || url.password || (url.protocol !== 'https:' && url.origin !== base.origin)) {
-    throw new Error('This link is not safe to open.');
+    throw new IssueValidationError('This link is not safe to open.');
   }
   return url;
 }
 
 function createInput(raw: unknown): IssueCreateInput {
-  if (!raw || typeof raw !== 'object') throw new Error('Invalid issue form.');
+  if (!raw || typeof raw !== 'object') throw new IssueValidationError('Invalid issue form.');
   const input = raw as Record<string, unknown>;
   const title = requiredString(input.title, 'Title').trim();
-  if (title.length > 1024) throw new Error('Title is too long.');
+  if (title.length > 1024) throw new IssueValidationError('Title is too long.');
   if (input.labels !== undefined && (!Array.isArray(input.labels) || !input.labels.every((label) => typeof label === 'string'))) {
-    throw new Error('Invalid labels.');
+    throw new IssueValidationError('Invalid labels.');
   }
   return {
     title,
@@ -80,10 +84,10 @@ function createInput(raw: unknown): IssueCreateInput {
 }
 
 function updateInput(raw: unknown): IssueUpdateInput {
-  if (!raw || typeof raw !== 'object') throw new Error('Invalid issue update.');
+  if (!raw || typeof raw !== 'object') throw new IssueValidationError('Invalid issue update.');
   const input = raw as Record<string, unknown>;
   if (input.labels !== undefined && (!Array.isArray(input.labels) || !input.labels.every((label) => typeof label === 'string'))) {
-    throw new Error('Invalid labels.');
+    throw new IssueValidationError('Invalid labels.');
   }
   const result: IssueUpdateInput = {};
   if (typeof input.title === 'string') result.title = requiredString(input.title, 'Title').trim();
@@ -665,7 +669,7 @@ export class IssuePanels implements vscode.Disposable {
         }
         this.post({ type: 'reply', requestId, result: true });
       } catch (error) {
-        this.post({ type: 'reply', requestId, error: safeError(error) });
+        this.post({ type: 'reply', requestId, error: safeError(error), notificationOnly: true });
       }
       return;
     }
@@ -757,7 +761,7 @@ export class IssuePanels implements vscode.Disposable {
         }
         this.post({ type: 'reply', requestId, result });
       } catch (error) {
-        this.post({ type: 'reply', requestId, error: safeError(error) });
+        this.post({ type: 'reply', requestId, error: safeError(error), notificationOnly: request.type === 'upload' });
       }
       return;
     }

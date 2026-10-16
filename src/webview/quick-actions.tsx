@@ -22,7 +22,7 @@ declare function acquireVsCodeApi(): VsCodeBridge;
 const vscode = acquireVsCodeApi();
 
 const destinations: Array<{
-  id: Exclude<QuickAction, 'openRepository' | 'openWorkspace'>;
+  id: Exclude<QuickAction, 'openRepository' | 'openWorkspace' | 'openNotifications'>;
   mode: NonNullable<QuickActionsState['activeMode']>;
   label: string;
   icon: string;
@@ -131,6 +131,8 @@ function GitSidebar() {
       type="button" disabled={!!state.busyAction} onClick={() => navigate('openWorkspace')}>
       <span aria-hidden="true">⌂</span><span>工作台</span>
     </button>
+    <button class="action-button notification-link" type="button" onClick={() => vscode.postMessage({ type: 'perform', action: 'openNotifications' })}
+      aria-label={`訊息中心，${state.notificationUnreadCount ?? 0} 筆未讀`}><span aria-hidden="true">♧</span><span>訊息中心</span><span class="count">{state.notificationUnreadCount ?? 0}</span></button>
     <nav class="workspace-shortcuts" aria-label="工作流程">
       {destinations.map((destination) => <button
         key={destination.id}
@@ -186,7 +188,7 @@ function GitSidebar() {
               </div>}
             </div>)}</div>}
     </section>
-    <p class="action-message" role="status" aria-live="polite">{state.busyAction ? `正在${operationLabels[state.busyAction] ?? '處理作業'}…` : state.errorMessage ?? ''}</p>
+    <p class="action-message" role="status" aria-live="polite">{state.busyAction ? `正在${operationLabels[state.busyAction] ?? '處理作業'}…` : ''}</p>
   </main>;
 }
 

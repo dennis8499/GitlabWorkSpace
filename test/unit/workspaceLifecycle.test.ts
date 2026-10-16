@@ -48,7 +48,8 @@ test('hidden panels abort reads, stop notifications and retain MR data and timer
   assert.deepEqual(host.selectedMergeRequest.diffs, ['cached']);
   assert.equal(host.timer, timer); assert.equal(timer.phase, 'running'); assert.equal(host.issueSuspended, true);
   host.post({ type: 'message', message: 'Write completed' });
-  assert.equal(messages.length, 0); assert.equal(host.pendingViewNotices.length, 1);
+  assert.equal(messages.length, 0); assert.equal(host.pendingViewNotices.length, 0);
+  assert.equal(host.notifications.snapshot().items[0].messages[0], 'Write completed');
 });
 
 test('MR invalidation reloads a visible review list and leaves hidden sections lazy', async () => {
@@ -141,17 +142,20 @@ test('cancelled MR reads cannot publish after an account or Group switch', async
   });
 });
 
-test('a restored view uses the Host snapshot and delivers pending notices without a new scan', async () => {
+test('a restored view keeps notification history and delivers protocol receipts without replaying notices', async () => {
   const { host, messages } = fixture();
   host.restoredOnce = true; host.loadedScopeKey = 'https://gitlab.test|7|42';
   host.workspaceSections = { projects: { status: 'ready' }, issues: { status: 'ready' } };
-  host.pendingViewNotices.push({ type: 'message', message: 'Completed while hidden' });
+  host.post({ type: 'message', message: 'Completed while hidden' });
+  host.pendingViewNotices.push({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: 'copy-one', result: true } });
   host.refresh = () => { throw new Error('Unexpected refresh'); };
   host.refreshInventory = () => { throw new Error('Unexpected inventory scan'); };
   host.loadActiveModeSections = () => undefined;
   await host.dispatchMessage({ type: 'ready' });
   assert.equal(host.snapshots, 1); assert.equal(host.pendingViewNotices.length, 0);
-  assert.ok(messages.some(message => message.type === 'message' && message.message === 'Completed while hidden'));
+  assert.equal(messages.some(message => message.type === 'message'), false);
+  assert.equal(host.notifications.snapshot().items.length, 1);
+  assert.ok(messages.some(message => message.type === 'issueResponse' && message.response.requestId === 'copy-one'));
 });
 
 test('graph requests force network reads only when explicitly requested', async () => {
@@ -162,6 +166,43 @@ test('graph requests force network reads only when explicitly requested', async 
   await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: 'scope', forceNetwork: true });
   await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: 'scope', forceNetwork: 'true' });
   assert.deepEqual(calls, [{ scope: 'scope', force: false }, { scope: 'scope', force: true }, { scope: 'scope', force: false }]);
+});
+
+test('notification protocol changes shared session state without operations, and replayed replies cannot restore cleared notices', async () => {
+  const { host, messages } = fixture();
+  host.panel.visible = false; host.webviewReady = false;
+  host.post({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: 'copy-failed', error: 'Clipboard failed', notificationOnly: true } });
+  assert.equal(host.pendingViewNotices.length, 1); assert.equal(host.notifications.snapshot().items.length, 1);
+  const before = host.notifications.snapshot();
+  await host.handleMessage({ type: 'markAllNotificationsRead', revision: before.revision });
+  assert.equal(host.notifications.snapshot().unreadCount, 0); assert.equal(host.operations.list().length, 0);
+  await host.handleMessage({ type: 'clearNotifications', revision: host.notifications.snapshot().revision });
+  assert.equal(host.notifications.snapshot().items.length, 0);
+  host.panel.visible = true; host.webviewReady = true;
+  for (const notice of host.pendingViewNotices.splice(0)) host.sendViewMessage(notice);
+  assert.equal(host.notifications.snapshot().items.length, 0);
+  assert.equal(messages.at(-1).response.requestId, 'copy-failed');
+  await host.handleMessage({ type: 'publishNotification', message: 'Local draft recovered', level: 'info' });
+  const item = host.notifications.snapshot().items[0];
+  assert.equal(item.origin.groupId, 42);
+  await host.handleMessage({ type: 'removeNotification', id: item.id });
+  assert.equal(host.notifications.snapshot().items.length, 0); assert.equal(host.operations.list().length, 0);
+});
+
+test('operation notifications retain their origin after an account or Group transition', async () => {
+  const { host } = fixture();
+  host.session.activeAccountId = 'old-account'; host.projectContext = { root: 'C:/old' };
+  let resume!: () => void;
+  host.dispatchMessage = async () => {
+    await new Promise<void>(resolve => { resume = resolve; });
+    host.post({ type: 'message', message: 'Previous operation finished' });
+  };
+  const action = host.handleMessage({ type: 'copy', text: 'text', operationId: 'old-operation' });
+  host.session.activeAccountId = 'new-account'; host.session.selectedGroup = { id: 43 }; host.projectContext = { root: 'C:/new' };
+  resume(); await action;
+  const item = host.notifications.snapshot().items[0];
+  assert.equal(item.origin.accountId, 'old-account'); assert.equal(item.origin.groupId, 42); assert.equal(item.origin.root, 'C:/old');
+  assert.equal(item.messages.length, 1); assert.equal(item.messages[0], 'Previous operation finished');
 });
 
 test('an authorized Git write finishes once while hidden and its receipt survives until acknowledged', async () => {

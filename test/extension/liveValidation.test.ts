@@ -1045,8 +1045,10 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   await openMenuAction(2);
   await ui.setChecked('.git-dialog input[name="force"]', true);
   await submitGuiAction();
-  const leaseRaceError = await ui.text('.dashboard-error');
+  await ui.click('.notifications-trigger');
+  const leaseRaceError = await ui.text('.notification-drawer');
   assert.ok(leaseRaceError?.includes('SHA'), `The Git GUI reports a remote SHA drift instead of overwriting it (${leaseRaceError ?? 'no error'}).`);
+  await ui.click('.notification-drawer .drawer-heading button');
   assert.equal(runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0], raceCommit,
     'Force-with-lease preserves the concurrent remote update.');
   assert.equal(runGit(['rev-parse', 'HEAD']), amendedHead, 'A rejected Force Push leaves the local branch unchanged.');

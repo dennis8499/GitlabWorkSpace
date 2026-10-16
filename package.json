@@ -1,26 +1,7 @@
 {
-  "name": "gitlab-workspace",
-  "displayName": "GitLab Workspace",
-  "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
-  "version": "0.24.4",
-  "publisher": "local-dev",
-  "license": "UNLICENSED",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dennis8499/GitlabWorkSpace.git"
-  },
-  "engines": {
-    "vscode": "^1.90.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "extensionKind": [
-    "ui"
-  ],
-  "main": "./out/src/extension.js",
   "activationEvents": [
     "onCommand:gitlabWorkspace.openWorkspace",
+    "onCommand:gitlabWorkspace.openNotifications",
     "onCommand:gitlabWorkspace.openCloneMode",
     "onCommand:gitlabWorkspace.openSaMode",
     "onCommand:gitlabWorkspace.openDeveloperMode",
@@ -38,35 +19,20 @@
     "onCommand:gitlabWorkspace.openAdmin",
     "onCommand:gitlabWorkspace.scanRepositories"
   ],
+  "categories": [
+    "Other"
+  ],
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "gitlabWorkspace",
-          "title": "GitLab Workspace",
-          "icon": "resources/gitlab-workspace.svg"
-        }
-      ]
-    },
-    "views": {
-      "gitlabWorkspace": [
-        {
-          "type": "webview",
-          "id": "gitlabWorkspace.quickActions",
-          "name": "工作台導覽",
-          "contextualTitle": "GitLab Workspace 工作台導覽",
-          "icon": "resources/gitlab-workspace.svg",
-          "visibility": "visible",
-          "initialSize": 2
-        }
-      ]
-    },
     "commands": [
       {
+        "command": "gitlabWorkspace.openNotifications",
+        "title": "GitLab Workspace: 訊息中心"
+      },
+      {
         "command": "gitlabWorkspace.openWorkspace",
-        "title": "GitLab Workspace: 開啟工作台",
+        "icon": "$(layout)",
         "shortTitle": "開啟工作台",
-        "icon": "$(layout)"
+        "title": "GitLab Workspace: 開啟工作台"
       },
       {
         "command": "gitlabWorkspace.openCloneMode",
@@ -94,21 +60,21 @@
       },
       {
         "command": "gitlabWorkspace.connect",
-        "title": "GitLab Workspace: 連線 GitLab",
+        "icon": "$(plug)",
         "shortTitle": "連線 GitLab",
-        "icon": "$(plug)"
+        "title": "GitLab Workspace: 連線 GitLab"
       },
       {
         "command": "gitlabWorkspace.selectGroup",
-        "title": "GitLab Workspace: 選擇 Group",
+        "icon": "$(organization)",
         "shortTitle": "選擇 Group",
-        "icon": "$(organization)"
+        "title": "GitLab Workspace: 選擇 Group"
       },
       {
         "command": "gitlabWorkspace.refresh",
-        "title": "GitLab Workspace: 重新整理工作台",
+        "icon": "$(refresh)",
         "shortTitle": "重新整理",
-        "icon": "$(refresh)"
+        "title": "GitLab Workspace: 重新整理工作台"
       },
       {
         "command": "gitlabWorkspace.cloneRepositories",
@@ -116,18 +82,18 @@
       },
       {
         "command": "gitlabWorkspace.cloneAllRepositories",
-        "title": "GitLab Workspace: 下載或更新全部專案",
-        "icon": "$(cloud-download)"
+        "icon": "$(cloud-download)",
+        "title": "GitLab Workspace: 下載或更新全部專案"
       },
       {
         "command": "gitlabWorkspace.cloneSelectedRepositories",
-        "title": "GitLab Workspace: 下載或更新選取專案",
-        "icon": "$(checklist)"
+        "icon": "$(checklist)",
+        "title": "GitLab Workspace: 下載或更新選取專案"
       },
       {
         "command": "gitlabWorkspace.syncLocalDefaultBranches",
-        "title": "GitLab Workspace: 更新本機預設分支",
-        "icon": "$(sync)"
+        "icon": "$(sync)",
+        "title": "GitLab Workspace: 更新本機預設分支"
       },
       {
         "command": "gitlabWorkspace.createIssue",
@@ -167,61 +133,62 @@
       }
     ],
     "configuration": {
-      "title": "GitLab Workspace",
       "properties": {
+        "gitlabWorkspace.projectRoot": {
+          "default": "",
+          "description": "專案下載、Skills 安裝與執行、Codex 共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。",
+          "scope": "resource",
+          "type": "string"
+        },
         "gitlabWorkspace.pythonPath": {
-          "type": "string",
           "default": "python",
-          "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。"
+          "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。",
+          "type": "string"
         },
         "gitlabWorkspace.repositoryScan.excludeDirectories": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
           "default": [
             ".git",
             "node_modules",
             ".venv"
           ],
-          "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。"
-        },
-        "gitlabWorkspace.projectRoot": {
-          "type": "string",
-          "default": "",
-          "scope": "resource",
-          "description": "專案下載、Skills 安裝與執行、Codex 共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。"
+          "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
-      }
+      },
+      "title": "GitLab Workspace"
+    },
+    "views": {
+      "gitlabWorkspace": [
+        {
+          "contextualTitle": "GitLab Workspace 工作台導覽",
+          "icon": "resources/gitlab-workspace.svg",
+          "id": "gitlabWorkspace.quickActions",
+          "initialSize": 2,
+          "name": "工作台導覽",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "icon": "resources/gitlab-workspace.svg",
+          "id": "gitlabWorkspace",
+          "title": "GitLab Workspace"
+        }
+      ]
     }
   },
-  "scripts": {
-    "compile": "node scripts/clean-compiled.mjs && tsc -p .",
-    "typecheck:webview": "tsc -p tsconfig.webview.json",
-    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
-    "watch": "tsc -watch -p .",
-    "prepare:validation": "node scripts/run-validation.mjs prepare",
-    "test:unit": "node scripts/run-validation.mjs unit",
-    "test:unit:prepared": "node scripts/run-validation.mjs unit --prepared",
-    "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
-    "test:behavior": "node scripts/run-validation.mjs behavior",
-    "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
-    "test:extension": "node scripts/run-validation.mjs extension",
-    "test:extension:prepared": "node scripts/run-validation.mjs extension --prepared",
-    "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
-    "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
-    "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
-    "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
-    "test:release": "node scripts/run-validation.mjs release",
-    "test:release:prepared": "node scripts/run-validation.mjs release --prepared",
-    "test": "node scripts/run-validation.mjs all",
-    "check:release": "node scripts/check-release.mjs",
-    "package": "node scripts/run-validation.mjs package",
-    "package:prepared": "node scripts/run-validation.mjs package --prepared",
-    "verify:package": "node scripts/run-python.mjs scripts/verify-vsix.py",
-    "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
-    "check:kit-sources": "node scripts/run-python.mjs scripts/workflow-kit-sources.py"
+  "dependencies": {
+    "d3-force": "^3.0.0",
+    "dompurify": "^3.4.16",
+    "preact": "^10.29.8"
   },
+  "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
   "devDependencies": {
     "@cucumber/cucumber": "^13.2.1",
     "@types/d3-force": "^3.0.10",
@@ -237,15 +204,53 @@
     "vite": "^8.3.1",
     "vitest": "^5.0.1"
   },
+  "displayName": "GitLab Workspace",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "license": "UNLICENSED",
+  "main": "./out/src/extension.js",
+  "name": "gitlab-workspace",
   "overrides": {
-    "serialize-javascript": "^7.0.6",
     "@vscode/test-cli": {
       "diff": "^8.0.4"
-    }
+    },
+    "serialize-javascript": "^7.0.6"
   },
-  "dependencies": {
-    "d3-force": "^3.0.0",
-    "dompurify": "^3.4.16",
-    "preact": "^10.29.8"
-  }
+  "publisher": "local-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dennis8499/GitlabWorkSpace.git"
+  },
+  "scripts": {
+    "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
+    "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
+    "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
+    "check:kit-sources": "node scripts/run-python.mjs scripts/workflow-kit-sources.py",
+    "check:release": "node scripts/check-release.mjs",
+    "compile": "node scripts/clean-compiled.mjs && tsc -p .",
+    "package": "node scripts/run-validation.mjs package",
+    "package:prepared": "node scripts/run-validation.mjs package --prepared",
+    "prepare:validation": "node scripts/run-validation.mjs prepare",
+    "test": "node scripts/run-validation.mjs all",
+    "test:behavior": "node scripts/run-validation.mjs behavior",
+    "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
+    "test:extension": "node scripts/run-validation.mjs extension",
+    "test:extension:prepared": "node scripts/run-validation.mjs extension --prepared",
+    "test:git-gui": "npm run package && node scripts/run-live-extension-tests.mjs --git-gui",
+    "test:git-gui:local": "npm run package && node scripts/run-live-extension-tests.mjs --local-git-gui",
+    "test:live": "npm run package && node scripts/run-live-extension-tests.mjs",
+    "test:release": "node scripts/run-validation.mjs release",
+    "test:release:prepared": "node scripts/run-validation.mjs release --prepared",
+    "test:unit": "node scripts/run-validation.mjs unit",
+    "test:unit:prepared": "node scripts/run-validation.mjs unit --prepared",
+    "typecheck:webview": "tsc -p tsconfig.webview.json",
+    "verify:package": "node scripts/run-python.mjs scripts/verify-vsix.py",
+    "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
+    "watch": "tsc -watch -p ."
+  },
+  "version": "0.25.0"
 }

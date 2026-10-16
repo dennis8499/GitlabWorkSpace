@@ -162,7 +162,9 @@ class TransactionTests(unittest.TestCase):
         self.assertIn(".agents/skills/release-reviewer", preview["changed_paths"])
         self.assertEqual(before, self.snapshot(self.group))
         update = self.apply()
-        self.assertEqual(16, update["skills"])
+        self.assertEqual(len(harness.SKILLS), update["skills"])
+        self.assertEqual(list(harness.SKILLS), json.loads((self.group / MARKER).read_text(encoding="utf-8"))["skills"])
+        self.assertTrue((self.group / ".agents/skills/output-style/SKILL.md").is_file())
         self.assertEqual("installed", self.status(self.group)["status"])
         for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
                          "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
@@ -170,6 +172,7 @@ class TransactionTests(unittest.TestCase):
         result, data = self.execute("rollback", self.group, update["transaction"])
         self.assertEqual(0, result.returncode, data)
         self.assertFalse((self.group / ".agents/skills/release-reviewer").exists())
+        self.assertFalse((self.group / ".agents/skills/output-style").exists())
         self.assertEqual(before, self.snapshot(self.group))
         self.assertEqual("update-available", self.status(self.group)["status"])
 
@@ -198,7 +201,9 @@ class TransactionTests(unittest.TestCase):
         self.assertTrue(preview["changed_paths"])
         self.assertEqual(before, self.snapshot(self.group))
         update = self.apply()
-        self.assertEqual(16, update["skills"])
+        self.assertEqual(len(harness.SKILLS), update["skills"])
+        self.assertEqual(list(harness.SKILLS), json.loads((self.group / MARKER).read_text(encoding="utf-8"))["skills"])
+        self.assertTrue((self.group / ".agents/skills/output-style/SKILL.md").is_file())
         self.assertEqual("installed", self.status(self.group)["status"])
         for relative in ("wiki/index.md", "docs/work/previous-work/workflow.md",
                          "review-reports/previous/report.md", ".agents/skills/personal-helper/SKILL.md"):
@@ -206,6 +211,7 @@ class TransactionTests(unittest.TestCase):
         result, data = self.execute("rollback", self.group, update["transaction"])
         self.assertEqual(0, result.returncode, data)
         self.assertTrue((self.group / ".agents/skills/release-reviewer/SKILL.md").is_file())
+        self.assertFalse((self.group / ".agents/skills/output-style").exists())
         self.assertEqual(before, self.snapshot(self.group))
         self.assertEqual("update-available", self.status(self.group)["status"])
 

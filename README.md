@@ -21,6 +21,7 @@
 - VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。後臺管理入口位於工作台設定。
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
 - 後臺管理可篩選、查看及匯出本機操作 Log；預設保留 30 天、最多 50 MB。
+- 操作結果集中於訊息中心，支援未讀、詳情及清除；本次工作階段最多保留 500 筆，重開面板保留，Extension Host 重啟後清空。
 - Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset，並合併背景更新、共用讀取快取，避免 Git 狀態通知造成指令迴圈。
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
@@ -31,6 +32,12 @@
 - 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.25.0 更新
+
+MergeReviewer 開始前建立自足的固定證據快照；後續分支更新不改變本次結論，報告明列適用 SHA，證據不足保留待人工確認與人工核對欄位。全部非互動操作通知改由訊息中心呈現。新增 Output Style Skill：依一般問答、原理分析、教學與正式文件切換；已安裝時優先，未安裝時沿用各工具原風格，必要報告欄位與證據契約保留。
+
+本機候選包來源、內容摘要與 dirty 狀態記錄於 source-snapshots；發布狀態以正式 Release 為準。
 
 ## 0.24.4 更新
 
@@ -93,11 +100,11 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.24.4 的 VSIX 與組合包共用版本，整合 Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.13.0、ReleaseReviewer 0.4.0，共 16 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。兩個 Reviewer 的正式來源 ZIP、已提交 commit、乾淨狀態與 SHA-256 隨封包保存。
+GitLab Workspace v0.25.0 的 VSIX 與組合包共用版本，整合 Wiki 0.6.2、Megin 0.8.2、MergeReviewer 0.14.0、ReleaseReviewer 0.4.1，共 17 個 Skills。Megin 保留十三個原生 Skills；Group 僅套用 Wiki 必要覆寫。MergeReviewer 使用 v3 分支審查與合併預覽，只追查宣告工作區內相關功能鏈。四個來源的本機快照 ZIP、來源 commit、dirty 狀態與 SHA-256 隨封包保存。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-0.24.4 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。進行中的 Megin 工作沿原套件續作，完成後再更新。
+0.25.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。進行中的 Megin 工作沿原套件續作，完成後再更新。
 
 歷史 GitLab 交付與模擬流程保留於原套件；新版不套用舊 Megin 覆層。歷史 Group v1 收據使用隔離唯讀驗證器，原生 Repo／Group v2 收據核對完整原始證據與固定 Git 物件。安裝器提供 `install --dry-run` 與保留交易的 `rollback`；操作見[Group 工作流程](docs/group-workflow.md)。固定來源版本與摘要見組合包 Manifest。
 

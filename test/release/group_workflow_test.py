@@ -10,6 +10,8 @@ import tempfile
 import unittest
 import zipfile
 
+import workflow_kit_installer_test as harness
+
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = json.loads((ROOT / 'package.json').read_text(encoding='utf-8'))['version']
 CURRENT_SOURCES = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']
@@ -35,7 +37,8 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
         bundle = ROOT / 'resources/offline-tools/workflow-kit.tar.xz'
         installed = self.helper(ROOT/'resources/workflow-kit-installer.py','install',bundle,self.group,VERSION,'bundled',
              '--format','tar.xz','--entry-root','workflow-kit','--archive-sha256',hashlib.sha256(bundle.read_bytes()).hexdigest())
-        self.assertEqual(16,installed['skills'])
+        self.assertEqual(len(harness.SKILLS),installed['skills'])
+        self.assertEqual(list(harness.SKILLS),json.loads((self.group/harness.MARKER).read_text(encoding='utf-8'))['skills'])
         self.tools = self.group/'.agents/skills'
         self.reviewer = self.tools/'merge-reviewer/scripts'
         self.megin = self.tools/'megin/scripts'

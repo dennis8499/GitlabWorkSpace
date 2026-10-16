@@ -43,7 +43,7 @@ test('renders workspace navigation and keeps destinations available before conne
   assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'openMyWork' });
 });
 
-test('shows connection scope and dispatches each destination with accessible busy and error feedback', async (t) => {
+test('shows connection scope, progress and the shared unread message-center entry', async (t) => {
   const view = await mount();
   t.after(() => view.dom.window.close());
   const repositoryId = 'a'.repeat(32);
@@ -90,10 +90,14 @@ test('shows connection scope and dispatches each destination with accessible bus
   assert.equal(view.buttons().every((button) => button.disabled), true);
   assert.equal(view.dom.window.document.querySelector('[aria-live="polite"]').textContent, '正在開啟專案…');
 
-  view.sendState({ connected: true, groupLabel: 'team/dotnet', errorMessage: '無法連線' });
+  view.sendState({ connected: true, groupLabel: 'team/dotnet', notificationUnreadCount: 4 });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(view.dom.window.document.querySelector('.action-message').textContent, '無法連線');
+  assert.equal(view.dom.window.document.querySelector('.action-message').textContent, '');
   assert.equal(view.buttons().every((button) => !button.disabled), true);
+  const messages = view.dom.window.document.querySelector('.notification-link');
+  assert.match(messages.getAttribute('aria-label'), /4 筆未讀/);
+  messages.click();
+  assert.deepEqual(hostValues(view.requests.at(-1)), { type: 'perform', action: 'openNotifications' });
 });
 
 async function waitFor(predicate) {

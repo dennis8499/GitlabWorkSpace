@@ -96,8 +96,8 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
        manifest.get("payloadFiles") != len(zip_payload["group"]) or tar_payload != zip_payload or \
        any(zip_payload[name] != zip_manifest.get("profiles", {}).get(name, {}).get("files") for name in ("group", "repository")):
         raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group and native Repo payloads")
-    if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 16 or len(set(manifest["skills"])) != 16 or not {"release-reviewer", "megin-architecture-exploration"} <= set(manifest["skills"]):
-        raise ValueError("Workflow kit must include sixteen Skills including native Megin architecture exploration")
+    if not isinstance(manifest.get("skills"), list) or len(manifest["skills"]) != 17 or len(set(manifest["skills"])) != 17 or not {"release-reviewer", "megin-architecture-exploration", "output-style"} <= set(manifest["skills"]):
+        raise ValueError("Workflow kit must include seventeen Skills including native Megin architecture exploration and Output Style")
     return {archive_name, manifest_name}, manifest
 
 

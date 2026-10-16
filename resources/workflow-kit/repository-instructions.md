@@ -2,6 +2,12 @@
 
 This Git repository uses the native single-repository workflow. First read `.agents/gitlab-workspace-kit/profile.md`, then invoke the corresponding locally installed Skill. Use this repository root for Codex, knowledge and work records. Review helpers use the actual declared VSCode workspace, including its saved `.code-workspace` boundary when present. The repository profile governs local tasks even when an ancestor contains a Group profile.
 
+For human-readable output, use the installed `$output-style` at
+`.agents/skills/output-style/SKILL.md` before the selected workflow's fallback
+style. Its automatic or explicitly requested mode preserves required artifact
+structure, evidence and completion gates. If absent, keep that Skill's original
+output style; never change host settings merely to select a mode.
+
 For `megin-spec-export` or generate-and-export, also read the kit-only reference
 `.agents/gitlab-workspace-kit/references/megin-spec-export.md` and export the
 checked standalone five-section artifact under this Repo's `exports/megin/`.

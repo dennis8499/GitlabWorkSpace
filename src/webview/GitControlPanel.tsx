@@ -54,7 +54,6 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>(() => Object.fromEntries(restoredWrites.map(write => [write.repoId, write.label])));
   const [readingByRepo, setReadingByRepo] = useState<Record<string, string>>({});
   const [errorsByRepo, setErrorsByRepo] = useState<Record<string, string>>({});
-  const [notice, setNotice] = useState('');
   const [query, setQuery] = useState(initialState?.query ?? '');
   const [historyFilter, setHistoryFilter] = useState(initialState?.historyFilter ?? '');
   const [searchPosition, setSearchPosition] = useState(0);
@@ -154,7 +153,6 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
         const context = requests.current.get(message.requestId);
         if (!context) {
           if (message.write) {
-            setNotice(message.error ?? '先前的 Git 操作已完成。');
             post({ type: 'gitAcknowledgeResult', requestId: message.requestId });
           }
           return;
@@ -175,8 +173,8 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
           setReadingByRepo((current) => ({ ...current, [context.repoId]: '' }));
         }
         persist();
-        if (context.write || latestReadByRepo.current.get(context.repoId) === message.requestId) setErrorsByRepo((current) => ({ ...current, [context.repoId]: message.error ?? '' }));
-      } else if (message.type === 'gitError') setErrorsByRepo((current) => ({ ...current, [selectedIdRef.current]: message.message }));
+        if (!context.write && latestReadByRepo.current.get(context.repoId) === message.requestId) setErrorsByRepo((current) => ({ ...current, [context.repoId]: message.error ?? '' }));
+      }
     };
     window.addEventListener('message', receive);
     post({ type: 'gitReady' });
@@ -241,7 +239,6 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
     requests.current.set(id, { repoId: selectedId, action, key, write });
     inFlight.current.set(key, id);
     closeMenus();
-    setNotice('');
     persist();
     post({ type: 'gitAction', repoId: selectedId, requestId: id, action });
   }
@@ -510,7 +507,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
           </> : <div class="git-empty-list">正在讀取提交內容…</div>}<button class="git-return-worktree" onClick={() => setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined })}>← 返回工作中變更</button></div>}
         </aside>
       </div>
-      <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="git-tracking" title={snapshot.tracking}>↗ {snapshot.tracking}</span>}<span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : notice || (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
+      <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="git-tracking" title={snapshot.tracking}>↗ {snapshot.tracking}</span>}<span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
     </> : <div class="git-empty-state"><GitIcon name="repo" /><h2>{available === false ? 'VS Code 內建 Git 尚未啟用' : repositories.length ? '正在開啟 Repo…' : available === undefined ? '正在尋找本機 Repo…' : '找不到本機 Git Repo'}</h2><p>{serviceMessage || (available === false ? '請啟用 VS Code 內建 Git，再重新整理。' : '開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。')}</p><button onClick={() => post({ type: 'gitReady' })}>重新整理</button></div>}
     {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" role="dialog" aria-modal="true" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
       {dialog.kind === 'branch' && <Field name="name" label="新分支名稱" placeholder="feature/my-change" autoFocus />}

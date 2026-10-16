@@ -74,6 +74,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
       <div class="skills-environment-actions"><span>工作流程包 {context.workflowKitVersion ?? '未安裝'}</span>
         <button class="secondary skills-install-button" type="button" onClick={onOpenSettings}>{kitInstalled ? '整包安裝／更新' : '準備環境與 Skills'}</button></div>
       {skillsContext?.resumeOnly && <p>舊版可續作：{skillsContext.installed.activeWorkIds?.join('、')}</p>}
+      <p class="subtle">已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 <code>$output-style style=explanatory</code> 指定詳解。</p>
       {unavailable && <p class="skills-environment-reason" role="status">{unavailable}</p>}
     </section>
     <nav class="skills-tool-tabs" role="tablist" aria-label="Skills 工具">{skillGuideTools.map((item, index) => <button key={item.id}

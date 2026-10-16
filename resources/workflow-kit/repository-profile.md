@@ -2,6 +2,13 @@
 
 Use the installed native Codebase LLM Wiki, Megin, MergeReviewer and ReleaseReviewer Skills from this Git repository root. Wiki and Megin tasks stay in this repository. Review tasks select exactly one Repo and use the actual declared VSCode workspace for related evidence. Source references identify the actual repository. Keep knowledge under `wiki/`, work records under `docs/work/<Work ID>/` and MergeReviewer reports under `review-reports/`; ReleaseReviewer writes directly at the explicit VSCode workspace root.
 
+Before human-readable output, load `$output-style` from this Repo's selected
+`.agents/skills/output-style/SKILL.md` when present. It selects concise,
+explanatory, learning or formal presentation automatically; a user's explicit
+`style` wins. It replaces other Skills' fallback presentation, preserving their
+artifact, evidence and workflow contracts. Without it, retain the selected Skill's
+original output style. This changes no Claude or host configuration.
+
 Use native Megin's repository workflow, approved plan, Repo lock, independent review, executed verification, human acceptance and local delivery gates. Keep all thirteen native Megin Skills together. Preserve the original Work ID, installed Skills fingerprint and approved versions when resuming a task.
 
 MergeReviewer uses only an explicit Repo and base/head branches, Codex-native review and the native v3 evidence contract. No quick, staged, uncommitted, direct, MR-task or JSON options. The actual declared VSCode workspace controls related Repo discovery; supporting Repos use their captured HEAD. Publish one Markdown Merge Report under the selected Repo/review-reports. Keep Megin independent review and acceptance separate. Use system temporary evidence and clean the owned session on completion or interruption.

@@ -125,6 +125,57 @@ class LocalReviewTargetsTests(unittest.TestCase):
                 self.assertEqual(before[0],after[0].replace('?? review-reports/','').strip())
                 self.assertEqual(before[1:],after[1:])
 
+    def test_installed_frozen_snapshot_survives_source_gc_and_preserves_pending_confirmations(self):
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile), tempfile.TemporaryDirectory(prefix='frozen-installed-review-') as temporary:
+                repo = self.create_repo(Path(temporary).resolve() / 'service')
+                scripts = self.scripts[profile]
+                captured = self.command(sys.executable, '-X', 'utf8', '-B', scripts / 'git_review_context.py',
+                    '--workspace', repo, '--project', repo, '--base', 'main', '--head', 'feature/change', '--summary')
+                summary = json.loads(captured.stdout)
+                context = Path(summary['context_dir'])
+                self.addCleanup(lambda scripts=scripts, context=context: self.command(sys.executable, '-B',
+                    scripts / 'review_session.py', 'cleanup', '--context-dir', context) if context.exists() else None)
+                manifest = json.loads(Path(summary['manifest_path']).read_text(encoding='utf-8'))
+                self.assertEqual('frozen-start/v1', manifest['snapshot_policy'])
+                seed = next(row for row in manifest['repositories'] if row['id'] == manifest['selected_repo'])
+                head = seed['sources']['head']['ref']
+                self.git(repo, 'switch', '--detach', 'main')
+                self.git(repo, 'branch', '-D', 'feature/change')
+                self.git(repo, 'reflog', 'expire', '--expire=now', '--all')
+                self.git(repo, 'gc', '--prune=now')
+                absent = self.command('git', '-C', repo, 'cat-file', '-e', head, ok=False)
+                self.assertNotEqual(0, absent.returncode, 'fixture must actually remove the captured source commit')
+                requests = context / 'reads.json'
+                requests.write_text(json.dumps([{key: row[key] for key in ('repo', 'source', 'path')}
+                    for row in manifest['required_coverage']]), encoding='utf-8')
+                reads = json.loads(self.command(sys.executable, '-X', 'utf8', '-B', scripts / 'review_workspace.py',
+                    'batch-read', '--context-dir', context, '--requests-file', requests).stdout)['reads']
+                self.assertEqual(len(manifest['required_coverage']), len(reads))
+                self.assertTrue(any(row['ref'] == head for row in reads))
+                requests.write_text(json.dumps([{'query': 'value', 'repo': [seed['id']]}]), encoding='utf-8')
+                self.assertTrue(json.loads(self.command(sys.executable, '-X', 'utf8', '-B', scripts / 'review_workspace.py',
+                    'batch-search', '--context-dir', context, '--requests-file', requests).stdout)['searches'])
+                draft = {'schema': 'merge-reviewer-workspace-result/v3', 'summary': 'Fixture reviewed against its frozen versions.',
+                    'coverage': [{**row, 'status': 'reviewed', 'evidence': [{**row,
+                        'ref': seed['sources'][row['source']]['ref'], 'line_start': 1, 'line_end': 1}]}
+                        for row in manifest['required_coverage']],
+                    'findings': [], 'next_steps': [], 'tests_executed': [], 'tests_not_executed': ['Static fixture.'],
+                    'limitations': [], 'pending_confirmations': [{'id': 'Q-001', 'title': 'Confirm expected value',
+                        'reason': 'The external acceptance condition is unavailable.',
+                        'missing_evidence': 'Approved acceptance record.', 'verification': 'QA checks the approved acceptance record.',
+                        'owner': 'QA', 'related_changes': [manifest['required_coverage'][0]], 'evidence': []}]}
+                result_file = context / 'draft.json'
+                result_file.write_text(json.dumps(draft), encoding='utf-8')
+                report = Path(self.command(sys.executable, '-X', 'utf8', '-B', scripts / 'review_report.py',
+                    '--context-dir', context, '--result', result_file).stdout.strip())
+                text = report.read_text(encoding='utf-8')
+                self.assertIn('Q-001', text)
+                self.assertIn('待人工確認', text)
+                self.assertNotIn('**可以合併**', text)
+                self.assertIn(head[:8], text)
+                self.assertFalse(context.exists())
+
     def test_versions_and_removed_user_options_are_rejected(self):
         with tempfile.TemporaryDirectory(prefix='invalid-branch-review-') as temporary:
             repo=self.create_repo(Path(temporary).resolve()/'service'); script=self.scripts['repository']/'git_review_context.py'

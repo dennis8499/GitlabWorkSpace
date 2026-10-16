@@ -1,6 +1,6 @@
-# Group 工作流程（GitLab Workspace 0.22.0）
+# Group 工作流程
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2、ReleaseReviewer 0.3.1 與 16 個 Skills。Megin 全部十三個 Skills 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生 v3 分支審查。安裝入口、版本選擇與更新都以整包為單位；VSIX 內附離線包是預設來源。
+GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.2、Megin 0.8.2、MergeReviewer 0.14.0、ReleaseReviewer 0.4.1 與 Output Style，共 17 個 Skills。Megin 十三個原生 Skills 保留；Group 僅套用 Wiki 必要覆寫。Output Style 已安裝時優先，否則保留各工具原風格。MergeReviewer 開始前建立自足快照，報告僅適用固定 SHA，必要待人工確認項不視為通過。安裝、版本選擇與更新均以整包為單位；VSIX 內附離線包為預設來源。
 
 ## 一次安裝整包
 

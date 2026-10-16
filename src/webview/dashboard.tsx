@@ -18,6 +18,8 @@ import type { WikiGuideInputValues } from './codebaseWikiGuideData';
 import { legacyWikiInputs, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
 import { OperationFeedback } from './OperationFeedback';
+import { NotificationDrawer } from './NotificationDrawer';
+import type { NotificationSnapshot } from '../notifications/notificationProtocol';
 import { operationLabels, operationResource, operationConcurrencyKey, type WorkspaceOperationState } from '../workspace/operations';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
 import { isGitWriteAction } from '../git/gitProtocol';
@@ -188,7 +190,6 @@ function durationInput(value: number): string {
   const seconds = value % 60;
   return `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}${seconds ? `${seconds}s` : ''}` || '1m';
 }
-function safeError(message: string): string { return message.replace(/\s+/g, ' ').slice(0, 1000); }
 function TimerStatus({ instanceUserScope, initialTimers, version }: { instanceUserScope?: string; initialTimers: WorkspaceTimerEntry[]; version: number }) {
   const [timers, setTimers] = useState(initialTimers);
   const applied = useRef({ scope: instanceUserScope, version });
@@ -307,8 +308,17 @@ function App() {
   const [recoveredManualTime, setRecoveredManualTime] = useState<ManualTimeDraft | undefined>(initialManualTimeState.recoveredManualTime);
   const [timeEdits, setTimeEdits] = useState<Record<string, { duration: string; summary: string; spentAt: string }>>(initial?.timeEdits ?? {});
   const [issueDetailSearch, setIssueDetailSearch] = useState(initial?.scopeKey ? initial?.scopedData?.[initial.scopeKey]?.issueDetailSearch ?? initial?.issueDetailSearch ?? '' : initial?.issueDetailSearch ?? '');
-  const [toast, setToast] = useState('');
-  const [errorNotice, setErrorNotice] = useState('');
+  const [notifications, setNotifications] = useState<NotificationSnapshot>();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationReturnFocus = useRef<HTMLElement>();
+  const retiredNotificationSessions = useRef(new Set<string>());
+  const receiveNotifications = (next: NotificationSnapshot) => setNotifications(current => {
+    if (retiredNotificationSessions.current.has(next.sessionId)) return current;
+    if (current?.sessionId === next.sessionId && current.revision >= next.revision) return current;
+    if (current && current.sessionId !== next.sessionId) retiredNotificationSessions.current.add(current.sessionId);
+    return next;
+  });
+  const notify = (message: string, level: 'info' | 'warn' | 'error' = 'info') => post({ type: 'publishNotification', level, message });
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState('');
   const [skillBranches, setSkillBranches] = useState<{ repo: string; branches: string[]; error?: string }>();
@@ -383,6 +393,8 @@ function App() {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const message = event.data;
       if (!message) return;
+      if (message.type === 'notificationsChanged') { receiveNotifications(message.snapshot); return; }
+      if (message.type === 'openNotifications') { setToolDrawer(false); setNotificationsOpen(true); return; }
       if (message.type === 'operationChanged') {
         if (message.operation.scopeRevision !== operationScope) return;
         if (['succeeded', 'failed', 'cancelled'].includes(message.operation.status)) pendingOperations.delete(operationConcurrencyKey(message.operation));
@@ -406,6 +418,7 @@ function App() {
         return;
       }
       if (message.type === 'snapshot') {
+        if (message.snapshot.notifications) receiveNotifications(message.snapshot.notifications);
         snapshotRef.current = message.snapshot;
         const nextOperationScope = message.snapshot.operationScope ?? `${message.snapshot.connectedScope ?? 'offline'}:${message.snapshot.projectContext?.revision ?? message.snapshot.groupRoot ?? 'none'}`;
         if (operationScope !== nextOperationScope) { pendingOperations.clear(); setSkillBranches(undefined); branchRequest.current = ''; }
@@ -556,23 +569,17 @@ function App() {
       } else if (message.type === 'requestCloneSelection') {
         setCloneSelectionRequest(message.requestId);
       } else if (message.type === 'busy') { setBusy(message.value); setBusyLabel(message.label ?? '正在處理…'); }
-      else if (message.type === 'error') { if (message.scopeRevision && message.scopeRevision !== operationScope) return; setErrorNotice(safeError(message.message)); setBusy(false); }
-      else if (message.type === 'message') { setToast(message.message); setErrorNotice(''); }
+      else if (message.type === 'error') { if (message.scopeRevision && message.scopeRevision !== operationScope) return; setBusy(false); }
       else if (message.type === 'draftBundle') {
         setBundle(message.bundle);
         setDraftChecked(Object.fromEntries(message.bundle.drafts.map((draft) => [draft.id, true])));
-        setToast(`已匯入 ${message.bundle.drafts.length} 張 Issue 草稿。`);
       } else if (message.type === 'draftOptions') {
         setDraftOptions((current) => ({ ...current, [message.projectId]: { options: message.options, canCreateIssue: message.canCreateIssue } }));
       } else if (message.type === 'similarIssues') {
         setSimilarIssues(Object.fromEntries(message.items.map((item) => [item.draftId, item.issues])));
       } else if (message.type === 'deliveryPreview' || message.type === 'deliveryProgress') {
         setSnapshot((current) => current ? { ...current, deliveryRecords: [message.delivery, ...current.deliveryRecords.filter((item) => item.id !== message.delivery.id)] } : current);
-        setToast(message.delivery.error ?? '交付進度已保存。');
       } else if (message.type === 'draftResults') {
-        const created = message.results.filter((item) => item.state !== 'failed').length;
-        const failed = message.results.filter((item) => item.state === 'failed').length;
-        setToast(`Issue 已建立或確認 ${created} 張${failed ? `，${failed} 張失敗；重試只會處理未建立項目` : ''}。`);
         const first = message.results.find((item) => item.issueIid && item.state !== 'failed');
         const project = first && projectsRef.current.find((item) => item.path_with_namespace === first.projectPath);
         if (first?.issueIid && project) { setMode('developer'); setMobilePanel('detail'); post({ type: 'openIssue', projectId: project.id, issueIid: first.issueIid }); }
@@ -678,7 +685,7 @@ function App() {
     if (!recoveredManualTime || !Number.isSafeInteger(projectId) || projectId < 1 || !Number.isSafeInteger(issueIid) || issueIid < 1) return;
     setManualTimes((current) => ({ ...current, [issueKey(projectId, issueIid)]: recoveredManualTime }));
     setRecoveredManualTime(undefined);
-    setToast(`舊工時草稿已套用到 ${projectById.get(projectId)?.path_with_namespace ?? `專案 ${projectId}`} #${issueIid}。`);
+    notify(`舊工時草稿已套用到 ${projectById.get(projectId)?.path_with_namespace ?? `專案 ${projectId}`} #${issueIid}。`);
   }
   const selectedMr = snapshot?.selectedMergeRequest;
   const mr = selectedMr?.request;
@@ -844,7 +851,7 @@ function App() {
   function createDrafts(): void {
     if (!bundle) return;
     const chosen = bundle.drafts.filter((draft) => draftChecked[draft.id] !== false);
-    if (!chosen.length) { setToast('請至少選擇一張草稿。'); return; }
+    if (!chosen.length) { notify('請至少選擇一張草稿。', 'warn'); return; }
     const options = Object.fromEntries(chosen.map((draft) => [draft.id, {
       assigneeId: draftChoices[draft.id]?.assigneeId,
       labels: draftChoices[draft.id]?.labels ?? draft.labels ?? [],
@@ -856,7 +863,7 @@ function App() {
     if (!selectedIssueProject && !mr) return;
     const project = mr ? projectById.get(mr.project_id) : selectedIssueProject;
     if (!project || !mr || !selectedMr) return;
-    if (!snapshot?.groupRoot) { setToast(snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 GitLab Group 的本機資料夾，再開啟 Codex CLI。'); return; }
+    if (!snapshot?.groupRoot) { notify(snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 GitLab Group 的本機資料夾，再開啟 Codex CLI。', 'warn'); return; }
     post({ type: 'openBranchReview', projectId: mr.project_id, iid: mr.iid });
   }
   function updateDelivery(key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject): void {
@@ -880,6 +887,7 @@ function App() {
         {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={!!snapshot.busy} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={!!snapshot.busy} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
         <button class="quiet maximize-button" type="button" title="放大／還原工作台" aria-label="放大／還原工作台" onClick={() => post({ type: 'toggleFullDisplay' })}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
         <button class="quiet settings-trigger" type="button" onClick={event => { drawerReturnFocus.current = event.currentTarget; setAccountIntent(undefined); setSettingsSection('tools'); setToolDrawer(true); }}>設定</button>
+        <button class="quiet notifications-trigger" type="button" aria-label={`訊息中心，${notifications?.unreadCount ?? 0} 筆未讀`} onClick={event => { notificationReturnFocus.current = event.currentTarget; setToolDrawer(false); setNotificationsOpen(true); }}>訊息中心 <span class="notification-count">{notifications?.unreadCount ?? 0}</span></button>
         <details class="account-menu"><summary class={`connection ${snapshot.connected ? 'connected' : ''}`}><i />{snapshot.connected ? `${snapshot.currentUser?.name ?? 'GitLab 已連線'}${snapshot.currentUser?.username ? ` · @${snapshot.currentUser.username}` : ''}` : '尚未登入 GitLab'}　⌄</summary>
           <div class="account-popover account-manager"><strong>{snapshot.baseUrl ?? '選擇或新增 GitLab 帳號'}</strong>
             {(snapshot.accounts ?? []).map(account => <div class="saved-account" key={account.id}><button class="quiet saved-account-select" type="button" disabled={!!snapshot.busy || snapshot.connected && snapshot.activeAccountId === account.id && !account.needsLogin} onClick={() => post({ type: account.needsLogin ? 'addAccount' : 'switchAccount', accountId: account.id })}><strong>{account.name || account.username}</strong><small>@{account.username} · {account.baseUrl}</small><small>{accountStatus(account, snapshot.activeAccountId, snapshot.connected)}</small></button></div>)}
@@ -891,7 +899,6 @@ function App() {
 
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" data-mode={mode} role="tabpanel">
-        {errorNotice && <div class="alert dashboard-error" role="alert"><span>{errorNotice}</span><button class="quiet" type="button" aria-label="關閉錯誤訊息" onClick={() => setErrorNotice('')}>關閉</button></div>}
         {snapshot.connectedScope && mode === 'clone' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
         {snapshot.connectedScope && mode === 'developer' && <>
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
@@ -1052,7 +1059,11 @@ function App() {
     </div>
 
     <div class="workspace-operation-area"><OperationFeedback initialOperations={snapshot.operations} scopeRevision={snapshot.operationScope ?? operationScope} /></div>
-    <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}{toast && <span class="toast" role="status" aria-live="polite"><span>{toast}</span><button type="button" aria-label="關閉通知" onClick={() => setToast('')}>×</button></span>}</footer>
+    <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
+    {notificationsOpen && <NotificationDrawer snapshot={notifications} post={post} onClose={() => { setNotificationsOpen(false); requestAnimationFrame(() => {
+      if (notificationReturnFocus.current?.isConnected) notificationReturnFocus.current.focus();
+      else document.querySelector<HTMLButtonElement>('.notifications-trigger')?.focus();
+    }); }} />}
     {toolDrawer && <ToolDrawer snapshot={snapshot} operationBusy={!!(snapshot.projectOperationBusy ?? snapshot.busy)} source={workflowKitSource}
       section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
       selectedPackageId={selectedWorkflowKitPackageId}
@@ -1169,7 +1180,7 @@ function ToolDrawer({ snapshot, operationBusy, source, selectedPackageId, onSour
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
         <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
-        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與 16 個 Skills。</p>}
+        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與{selected?.skillCount ? ` ${selected.skillCount} 個 Skills` : '套件 Skills'}。</p>}
         {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
         <button class="primary workflow-kit-install-button" type="button" disabled={!policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;

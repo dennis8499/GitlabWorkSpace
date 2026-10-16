@@ -60,6 +60,9 @@ suite('Local workflow kit installation', () => {
       assert.ok(nativeRepository, 'VS Code Git must register the actual Repo');
       const extensionRoot = path.resolve(__dirname, '../../..');
       const packageJSON = JSON.parse(await readFile(path.join(extensionRoot, 'package.json'), 'utf8'));
+      const kitIndex = JSON.parse(await readFile(path.join(extensionRoot, 'resources/offline-tools/manifest.json'), 'utf8'));
+      const expectedSkills = [...kitIndex.skills].sort();
+      assert.ok(expectedSkills.includes('output-style'));
       const archivePath = path.join(extensionRoot, 'resources/offline-tools/workflow-kit.tar.xz');
       const selected = { id: 'bundled', archivePath, version: packageJSON.version, source: 'bundled',
         format: 'tar.xz', entryRoot: 'workflow-kit', sha256: createHash('sha256').update(await readFile(archivePath)).digest('hex') };
@@ -97,7 +100,7 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.workflowKitState.status, 'installed');
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
-      assert.equal((await readdir(path.join(root, '.agents/skills'))).length, 16);
+      assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
       assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
       assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
       assert.ok(!(await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('group_workspace.py'));
@@ -114,7 +117,7 @@ suite('Local workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.root, externalRoot);
         assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
-        assert.equal((await readdir(path.join(externalRoot, '.agents/skills'))).length, 16);
+        assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(), expectedSkills);
         assert.equal(host.getSkillsContext().root, externalRoot);
         assert.equal(host.getSkillsContext().installed.profile, profile);
         assert.notEqual(host.getSkillsContext().revision, skills.revision);

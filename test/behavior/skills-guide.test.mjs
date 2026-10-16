@@ -95,7 +95,16 @@ test('copy feedback blocks duplicate clicks, allows retry and ignores obsolete e
   const request=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message',{data:{type:'operationChanged',operation:{requestId:request.operationId,
     scopeRevision:request.operationScope,resourceKey:'skill:merge-repo',action:'copySkillGuidePrompt',label:'複製提示詞',phase:'處理失敗',status:'failed',error:'套件已變更',startedAt:Date.now()}}}));
-  await view.tick(); assert.equal(button.disabled,false); assert.match(view.document.body.textContent,/套件已變更/);
+  view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message',{data:{type:'notificationsChanged',snapshot:{
+    sessionId:'skills-session',revision:1,unreadCount:1,items:[{id:`operation:${request.operationId}`,operationId:request.operationId,
+      level:'error',title:'複製提示詞',messages:['套件已變更'],createdAt:Date.now(),updatedAt:Date.now(),read:false}]
+  }}}));
+  await view.tick(); assert.equal(button.disabled,false);
+  assert.doesNotMatch(view.document.body.textContent,/套件已變更/,'completed failures do not leave an inline operation strip');
+  assert.match(view.document.querySelector('.notifications-trigger').getAttribute('aria-label'),/1 筆未讀/);
+  view.document.querySelector('.notifications-trigger').click(); await view.tick();
+  assert.match(view.document.querySelector('.notification-drawer').textContent,/套件已變更/);
+  view.document.querySelector('.notification-drawer .drawer-heading button').click(); await view.tick();
   button.click(); await view.tick(); assert.equal(view.requests.filter(request => request.type==='copySkillGuidePrompt').length,2);
   view.dom.window.dispatchEvent(new view.dom.window.MessageEvent('message',{data:{type:'operationChanged',operation:{requestId:'obsolete',
     scopeRevision:'old-root',resourceKey:'skill:merge-repo',label:'Obsolete',phase:'STALE RESULT',status:'succeeded',startedAt:Date.now()}}}));

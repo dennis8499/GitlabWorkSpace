@@ -1,0 +1,6 @@
+interface:
+  display_name: "Output Style"
+  short_description: "依任務選擇精簡、說明、教學或正式輸出，保留必要欄位與證據"
+  default_prompt: "使用 $output-style style=auto，依目前任務調整輸出，保留工作流程的必要內容。"
+policy:
+  allow_implicit_invocation: true

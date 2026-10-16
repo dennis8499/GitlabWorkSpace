@@ -237,10 +237,6 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .status-spacer { flex: 1; }
 .timer-status { color: var(--vscode-foreground); }
 .timer-status button, .status-link { margin-left: 5px; border: 0; color: var(--vscode-textLink-foreground); background: transparent; }
-.toast { max-width: min(45vw, 520px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.toast { display: inline-flex; align-items: center; gap: 8px; max-width: min(45vw, 520px); }
-.toast > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.toast button { flex: 0 0 auto; border: 0; color: var(--muted); background: transparent; }
 .timer-link { max-width: min(40vw, 440px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .account-menu { position: relative; }
 .account-menu > summary { cursor: pointer; list-style: none; }
@@ -411,7 +407,6 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .delivery-grid .full { grid-column: auto; }
   .filter-row { grid-template-columns: 1fr 1fr; }
   .statusbar { flex-wrap: wrap; }
-  .toast { max-width: 100%; }
   .issue-workspace-layout .layout { grid-template-columns: minmax(0, 1fr); }
   .issue-workspace-layout .sidebar { grid-template-columns: minmax(0, 1fr); }
   .issue-workspace-layout .issue-heading-actions { flex-wrap: wrap; }
@@ -461,5 +456,25 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .operation-status.failed { border-color:var(--vscode-errorForeground); }
 .operation-status.succeeded { border-color:var(--vscode-testing-iconPassed); }
 .workspace-operation-area { padding:0 20px; max-height:115px; overflow:auto; }
+.notification-count { display:inline-block; min-width:20px; border-radius:10px; padding:1px 5px; background:var(--vscode-badge-background); color:var(--vscode-badge-foreground); }
+.notification-drawer { width:min(620px, 100vw); }
+.notification-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:16px 0; }
+.notification-controls > div { display:flex; gap:4px; margin-right:auto; }
+.notification-controls > div button { padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--vscode-foreground, #e6edf3); }
+.notification-controls button[aria-pressed="true"] { border-color:var(--accent); background:var(--accent); color:var(--vscode-button-foreground, #fff); }
+.notification-list { list-style:none; margin:0; padding:0; }
+.notification-item { position:relative; margin:10px 0; border:1px solid var(--vscode-panel-border); border-left:3px solid var(--vscode-focusBorder); border-radius:6px; overflow-wrap:anywhere; }
+.notification-item.warn { border-left-color:var(--vscode-editorWarning-foreground); }
+.notification-item.error { border-left-color:var(--vscode-errorForeground); }
+.notification-item.unread { background:var(--vscode-list-inactiveSelectionBackground); }
+.notification-item summary { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:14px 68px 14px 12px; cursor:pointer; }
+.notification-item summary:focus-visible { outline:1px solid var(--vscode-focusBorder); outline-offset:-2px; }
+.notification-item time { margin-left:auto; color:var(--muted); font-size:11px; }
+.notification-level, .notification-unread { font-size:11px; }
+.notification-preview { flex-basis:100%; white-space:pre-wrap; max-height:4.5em; overflow:hidden; }
+.notification-detail { padding:0 12px 12px; border-top:1px solid var(--vscode-panel-border); }
+.notification-detail p { white-space:pre-wrap; }
+.notification-origin { font-size:11px; }
+.notification-remove { position:absolute; right:6px; top:9px; }
 @media(max-width:960px) { .skills-workspace { grid-template-columns:minmax(0,1fr); gap:14px; } .skills-feature-navigation { display:flex; flex-wrap:wrap; gap:12px; } .skills-feature-navigation section { flex:1 1 180px; } .skills-feature-navigation h3 { margin-top:0; } }
 @media(max-width:520px) { .skills-tool-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .skills-tool-tabs button { font-size:12px; } .skills-environment { padding:12px; } }

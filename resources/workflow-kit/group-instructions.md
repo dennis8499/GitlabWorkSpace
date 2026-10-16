@@ -2,6 +2,12 @@
 
 For Wiki, development, Merge Request work, and release checks in this Group, first read `.agents/gitlab-workspace-kit/profile.md`. The profile binds the installed Wiki, Megin, MergeReviewer, and ReleaseReviewer Skills to this Group's repository layout, shared knowledge base, and native branch review and manual GitLab comments. Invoke the corresponding installed Skill for the requested work.
 
+For human-readable output, use the installed `$output-style` at
+`.agents/skills/output-style/SKILL.md` before the selected workflow's fallback
+style. Its automatic or explicitly requested mode preserves required artifact
+structure, evidence and completion gates. If absent, keep that Skill's original
+output style; never change host settings merely to select a mode.
+
 For `megin-spec-export` or generate-and-export, also read
 `.agents/gitlab-workspace-kit/references/megin-spec-export.md`. This kit-only
 extension exports a checked standalone five-section Markdown under

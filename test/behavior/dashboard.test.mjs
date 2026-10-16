@@ -8,6 +8,72 @@ const html = await readFile(new URL('../../resources/issue-webview/dashboard.htm
 const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('message center keeps results out of the workbench and supports reading, filters, removal and focus', async t => {
+  const notices = { sessionId: 'center-session', revision: 2, unreadCount: 1, items: [
+    { id: 'operation:failed', level: 'error', title: '推送 Repo', messages: ['Remote changed <b>SHA</b>'], createdAt: 1, updatedAt: 2, read: false, origin: { baseUrl: 'https://old.gitlab.test', groupId: 42, root: 'C:/previous' } },
+    { id: 'notice:read', level: 'info', title: '複製', messages: ['Copied'], createdAt: 1, updatedAt: 1, read: true }
+  ] };
+  const data = { ...snapshot(), operationScope: 'center-scope', notifications: notices };
+  const view = await mount({}, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelector('.toast'), null); assert.equal(document.querySelector('.dashboard-error'), null);
+  assert.equal(document.querySelector('.notification-drawer'), null);
+  const trigger = document.querySelector('.notifications-trigger'); trigger.focus(); trigger.click(); await view.tick();
+  assert.equal(document.activeElement.textContent, '關閉');
+  assert.equal(document.querySelectorAll('.notification-item').length, 2);
+  const details = document.querySelector('.notification-item details'); details.open = true;
+  details.dispatchEvent(new view.dom.window.Event('toggle')); await view.tick();
+  assert.deepEqual(Array.from(view.requests.findLast(request => request.type === 'markNotificationsRead').ids), ['operation:failed']);
+  assert.equal(document.querySelector('.notification-detail b'), null);
+  assert.match(document.querySelector('.notification-origin').textContent, /old.gitlab.test.*C:\/previous/);
+  const controls = document.querySelector('.notification-controls');
+  [...controls.querySelectorAll('button')].find(button => button.textContent === '未讀').click(); await view.tick();
+  assert.equal(document.querySelectorAll('.notification-item').length, 1);
+  document.querySelector('.notification-remove').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'removeNotification');
+  [...controls.querySelectorAll('button')].find(button => button.textContent === '全部已讀').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'markAllNotificationsRead'); assert.equal(view.requests.at(-1).revision, 2);
+  [...controls.querySelectorAll('button')].find(button => button.textContent === '清除全部').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'clearNotifications');
+  document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.notification-drawer'), null); assert.equal(document.activeElement, trigger);
+  assert.equal(Object.hasOwn(view.savedState, 'notifications'), false);
+  view.send({ type: 'operationChanged', operation: { requestId: 'running', scopeRevision: 'center-scope', resourceKey: 'skills', action: 'copy', label: 'Working', status: 'running', phase: 'Processing', startedAt: 1 } }); await view.tick();
+  assert.match(document.querySelector('.workspace-operation-area').textContent, /Working/);
+  view.send({ type: 'operationChanged', operation: { requestId: 'running', scopeRevision: 'center-scope', resourceKey: 'skills', action: 'copy', label: 'Working', status: 'succeeded', phase: 'Done', startedAt: 1, finishedAt: 2 } }); await view.tick();
+  assert.equal(document.querySelector('.workspace-operation-area .operation-status'), null);
+});
+
+test('message snapshots ignore stale revisions and do not restore a retired extension session', async t => {
+  const center = (sessionId, revision, unreadCount) => ({ sessionId, revision, unreadCount, items: [] });
+  const view = await mount({}, { ...snapshot(), notifications: center('old-session', 4, 2) }); t.after(() => view.dom.window.close());
+  const button = () => view.dom.window.document.querySelector('.notifications-trigger');
+  view.send({ type: 'notificationsChanged', snapshot: center('old-session', 3, 5) }); await view.tick();
+  assert.match(button().getAttribute('aria-label'), /2 筆未讀/);
+  view.send({ type: 'notificationsChanged', snapshot: center('new-session', 0, 0) }); await view.tick();
+  view.send({ type: 'notificationsChanged', snapshot: center('old-session', 5, 5) }); await view.tick();
+  assert.match(button().getAttribute('aria-label'), /0 筆未讀/);
+  view.send({ type: 'openNotifications' }); await view.tick();
+  assert.ok(view.dom.window.document.querySelector('.notification-drawer'));
+});
+
+test('an expanded unread message remains readable after the host marks it read', async t => {
+  const item = { id: 'notice:details', level: 'error', title: 'Push', messages: ['First detail', 'Second detail'], createdAt: 1, updatedAt: 1, read: false };
+  const initialCenter = { sessionId: 'details-session', revision: 1, unreadCount: 1, items: [item] };
+  const view = await mount({}, { ...snapshot(), notifications: initialCenter }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelector('.notifications-trigger').click(); await view.tick();
+  [...document.querySelectorAll('.notification-controls button')].find(button => button.textContent === '未讀').click(); await view.tick();
+  let details = document.querySelector('.notification-item details');
+  details.open = true; details.dispatchEvent(new view.dom.window.Event('toggle')); await view.tick();
+  view.send({ type: 'notificationsChanged', snapshot: { ...initialCenter, revision: 2, unreadCount: 0, items: [{ ...item, read: true }] } }); await view.tick();
+  assert.equal(document.querySelectorAll('.notification-item').length, 1);
+  assert.match(document.querySelector('.notification-detail').textContent, /First detail.*Second detail/);
+  details = document.querySelector('.notification-item details'); details.open = false;
+  details.dispatchEvent(new view.dom.window.Event('toggle')); await view.tick();
+  assert.equal(document.querySelectorAll('.notification-item').length, 0);
+});
+
 const gitHead = 'a'.repeat(40), gitParent = 'b'.repeat(40), gitSide = 'c'.repeat(40);
 function gitSnapshot(id = 'repo-a', patch = {}) {
   return {
@@ -699,9 +765,11 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(request.type, 'copy');
   assert.ok(request.text.includes(query.value));
   assert.ok(request.text.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
-  view.send({ type: 'message', message: 'Prompt copied' });
+  view.send({ type: 'notificationsChanged', snapshot: { sessionId: 'session-one', revision: 1, unreadCount: 1,
+    items: [{ id: 'notice:copied', level: 'info', title: '複製提示詞', messages: ['Prompt copied'], createdAt: 1, updatedAt: 1, read: false }] } });
   await view.tick();
-  assert.match(document.querySelector('.toast').textContent, /Prompt copied/);
+  assert.equal(document.querySelector('.toast'), null);
+  assert.match(document.querySelector('.notifications-trigger').textContent, /1/);
 
   selectSkillFeature(document, 'functional-exploration');
 
@@ -1050,9 +1118,9 @@ test('copies the loaded Issue Markdown for read-only accounts and ignores replie
   copyAgain.click();
   await view.tick();
   const failedRequest = view.requests.filter((item) => item.type === 'issueRequest').at(-1);
-  view.send({ type: 'issueResponse', revision: 12, response: { type: 'reply', requestId: failedRequest.request.requestId, error: 'Clipboard denied' } });
+  view.send({ type: 'issueResponse', revision: 12, response: { type: 'reply', requestId: failedRequest.request.requestId, error: 'Clipboard denied', notificationOnly: true } });
   await view.tick();
-  assert.match(document.querySelector('[role="alert"]').textContent, /Clipboard denied/);
+  assert.equal(document.querySelector('[role="alert"]'), null, 'operation errors are shown by the host message center');
 });
 test('unresolved project locations open the common root settings and disable downloads', async t => {
   const state = snapshot('clone'); state.cloneRoot = undefined; state.cloneRootError = '請選擇專案資料夾';
