@@ -1,7 +1,6 @@
-# Wiki 更新、全量 Ingest 與 Export Megin Spec
+# Wiki 更新與全量 Ingest
 
-工作流程包固定 Wiki 0.6.0；Group 和 repository profile 均提供以下能力。Megin
-匯出位於 `.agents/gitlab-workspace-kit/` 共用擴充，原生 Wiki Skill 保留上游內容。
+Group 與 repository profile 均提供以下 Wiki 能力；開發規格與專用匯出入口已撤下。
 
 ## 查詢後續處理
 
@@ -23,37 +22,10 @@ untracked、ignored 和巢狀 Repo 的安全來源。
 `ingest-coverage.py inventory` 產生 scanner 快照；獲授權後保存
 `wiki/ingest-coverage.json`，逐檔記錄 hash、處置、頁面或不需成頁理由。validate 以原
 請求範圍重掃，漏檔、重複、受阻、映射缺漏或來源漂移只能回報部分完成。敏感排除不
-讀內容或計 hash。`exports/megin/` 是產物，不作來源。逐檔完整性不是語意品質證明。
-
-## Megin 獨立規格
-
-「Codebase LLM Wiki → Export Megin Spec」提供單一入口。新需求填功能名稱與需求敘述；
-也可填既有規格路徑，此時名稱與需求可留空，從該文件接續處理。先查證來源，再逐題
-釐清必要決策、整理規格、自足性複查並匯出，不要求先產生 BA／SA／SD，也不重複確認
-匯出。既有 draft 或過時規格先釐清、更新；未答必要問題或未完成 Agent 語意檢查保持
-draft，列出問題而不交付。舊 ready 規格也需補上當前正文與版次的檢查紀錄。
-
-交付為單檔 `exports/megin/<scope>-r<spec_revision>.md`，只保留必要版本資訊與五段：
-目的與範圍、適用 Repo、功能行為與限制、相依契約與確認決策、SCN 驗收情境。實作
-必要的背景、既有行為、規則、權限、例外結果與介面欄位都在正文；「沿用現有規則」
-須補成具體內容。Repo 用邏輯名稱及職責識別，來源證據保留於 Wiki 原件。接手 Megin
-有同一系統的程式碼，但不需原 Wiki、BA／SA／SD、附件、外部連結或原電腦路徑，就能
-整理實作任務與 Given／When／Then 結果。匯出檢查另攔截來源根目錄外洩及 Repo 段落中
-可辨識的絕對本機路徑；正式 API 路由與部署契約仍可寫入對應功能段落。
-
-```sh
-python .agents/gitlab-workspace-kit/scripts/export-megin-spec.py --root . --spec wiki/synthesis/refund-development-spec.md --scope refund
-python .agents/gitlab-workspace-kit/scripts/export-megin-spec.py --root . --spec wiki/synthesis/refund-development-spec.md --scope refund --apply --expected-sha256 <前一步的 spec_sha256>
-```
-
-檢查失敗不修改既有交付；同版次檔案內容不可不同，實質更新須升 spec_revision 並重新
-審查。匯出檢查包含結構、已記錄的 Agent 語意檢查、來源摘要及本機文件／未解析連結；
-腳本不會自行判斷業務規則足夠，不自動啟動 Megin 或建立 GitLab Issue。這是工作台共用
-擴充；原版 Wiki／Megin 來源包及固定版本不變。
+讀內容或計 hash。`exports/` 依一般來源規則處理。逐檔完整性不是語意品質證明。
 
 ## 驗證範圍
 
-自動測試包含規格誤通過反例、review digest 失效、兩種 profile 的實際安裝與匯出、
-唯讀檢查零寫入、失敗保留輸出、來源漂移、全量覆蓋、安裝升級和交易回復。Query 的
+自動測試包含全量覆蓋、來源漂移、兩種 profile 安裝升級、受管理入口移除與交易回復。Query 的
 自然語言建議及 Agent 語意判斷另以工作流程契約和平台提示驗證；未冒稱已執行 Codex／
 Copilot host 的端到端對話驗收。程式健檢維持靜態審查，NotebookLM 維持離線匯出。

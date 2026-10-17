@@ -8,9 +8,8 @@ import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceRes
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
 import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
-import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
+import { TimeRow, type TimeEdit } from './issue-workflow';
 import { IssueRelationsEditor } from './issue-relations';
-import { buildDeveloperPrompt } from '../workspace/issueDrafts';
 import { VirtualRows } from './VirtualRows';
 import './style.css';
 
@@ -36,7 +35,7 @@ export interface IssueEditorDraftState {
   create: Record<string, FormState>;
   issues: Record<string, FormState>;
   conversations: Record<string, { comment: string; reply: Record<string, string> }>;
-  tabs?: Record<string, { tab: 'content' | 'development' | 'relations' | 'time'; revision: number }>;
+  tabs?: Record<string, { tab: 'content' | 'relations' | 'time'; revision: number }>;
   uncertain?: Record<string, IssueUncertainSubmission>;
   pending?: Record<string, IssueUncertainSubmission>;
 }
@@ -158,7 +157,7 @@ function IssueTimerPanel({ snapshot, issue, onRequest, timeEdits, onTimeEdit }: 
   </>;
 }
 
-export function IssueView({ onBack, snapshot, navigation, actions: sharedActions, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, deliveryForms = {}, onDeliveryUpdate, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit, draftState, onDraftStateChange }: {
+export function IssueView({ onBack, snapshot, navigation, actions: sharedActions, onWorkspaceRequest, onWorkspaceAction, relationResponses, onOpenSettings, issueSearch: issueSearchProp, onIssueSearchChange, manualTime = { duration: '', summary: '', spentAt: '' }, onManualTimeChange, recoveredManualTime, onRecoverManualTime, timeEdits = {}, onTimeEdit, draftState, onDraftStateChange }: {
   onBack?: () => void;
   snapshot?: WorkspaceSnapshot;
   navigation?: IssueNavigation;
@@ -169,8 +168,6 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
   onWorkspaceAction?: (request: WorkspaceRequest) => void;
   relationResponses?: Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>;
   onOpenSettings?: () => void;
-  deliveryForms?: Record<string, DeliveryFormState>;
-  onDeliveryUpdate?: (key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject) => void;
   manualTime?: { duration: string; summary: string; spentAt: string };
   onManualTimeChange?: (value: { duration: string; summary: string; spentAt: string }) => void;
   recoveredManualTime?: { duration: string; summary: string; spentAt: string };
@@ -207,12 +204,10 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
   const [startDateEnabled, setStartDateEnabled] = useState(false);
   const [canCreateIssue, setCanCreateIssue] = useState(false);
   const [spentDate, setSpentDate] = useState('');
-  const [detailTab, setDetailTab] = useState<'content' | 'development' | 'relations' | 'time'>('content');
+  const [detailTab, setDetailTab] = useState<'content' | 'relations' | 'time'>('content');
   const savedDetailTabs = useRef(draftState?.tabs ?? {});
-  const [resumeWorkId, setResumeWorkId] = useState<string | undefined>();
   const [recoveryProjectId, setRecoveryProjectId] = useState('');
   const [recoveryIssueIid, setRecoveryIssueIid] = useState('');
-  const [deliveryExpanded, setDeliveryExpanded] = useState(false);
   const [localIssueSearch, setLocalIssueSearch] = useState('');
   const issueSearch = issueSearchProp ?? localIssueSearch;
   const updateIssueSearch = (value: string): void => onIssueSearchChange ? onIssueSearchChange(value) : setLocalIssueSearch(value);
@@ -506,7 +501,8 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
     routeRevision.current = navigation.revision;
     viewEpoch.current++;
     const savedTab = navigation.mode === 'detail' ? savedDetailTabs.current[navigation.projectId + ':' + navigation.issueIid] : undefined;
-    setDetailTab(navigation.mode === 'detail' ? savedTab?.revision === navigation.revision ? savedTab.tab : navigation.tab ?? savedTab?.tab ?? 'content' : 'content');
+    const requestedTab = navigation.mode === 'detail' ? savedTab?.revision === navigation.revision ? savedTab.tab : navigation.tab ?? savedTab?.tab : undefined;
+    setDetailTab(requestedTab && ['content', 'relations', 'time'].includes(requestedTab) ? requestedTab : 'content');
     setMode('waiting'); setError(''); setBusy(true); busyRef.current = true;
   }, [navigation?.revision]);
 
@@ -781,12 +777,10 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
   if (mode === 'waiting') return <main id="issue-panel" class="shell"><h1>Issue</h1>{error ? <div class="alert" role="alert">{error}</div> : <p>正在載入 Issue…</p>}<button type="button" onClick={() => post({ type: 'refresh' })}>重試</button></main>;
   if (mode === 'deleted') return <main id="issue-panel" class="shell"><h1>Issue 已刪除</h1><p>此 Issue 已從 GitLab 移除。</p>{onBack && <button type="button" onClick={onBack}>返回清單</button>}</main>;
   const issue = detail?.issue;
-  useEffect(() => { setResumeWorkId(undefined); }, [issue?.id]);
   useEffect(() => {
     if (!issue || !detail) return;
     const wanted: Record<typeof detailTab, IssueDetailSection[]> = {
-      content: ['activity', 'reactions'],
-      development: ['mergeRequests', 'projects'],
+      content: ['activity', 'reactions', 'mergeRequests'],
       relations: ['links', 'tasks', 'todos'],
       time: ['dates', 'timelogs']
     };
@@ -825,12 +819,12 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
       {snapshot && <aside class="issue-list-panel"><div class="issue-list-heading"><strong>我的工作</strong><button type="button" onClick={() => onWorkspaceAction?.({ type: 'createIssue' })}>＋ 新增</button></div><input aria-label="搜尋 Issue 清單" placeholder="搜尋標題、Repo 或編號…" value={issueSearch} onInput={(event) => updateIssueSearch(event.currentTarget.value)} /><div class="issue-list-items">{<VirtualRows className="issue-list-items" items={workspaceIssues} itemKey={(item) => item.project_id + ":" + item.iid} estimateHeight={68} renderItem={(item) => <button type="button" class={`issue-list-item ${item.project_id === issue.project_id && item.iid === issue.iid ? "selected" : ""}`} onClick={() => onWorkspaceAction?.({ type: "openIssue", projectId: item.project_id, issueIid: item.iid })}><strong>{item.title}</strong><small>{snapshot.projects.find((project) => project.id === item.project_id)?.path_with_namespace} #{item.iid}</small></button>} />}{!workspaceIssues.length && <p class="muted small">{snapshot.issues.length ? '找不到符合條件的 Issue。' : '目前清單沒有 Issue。'}</p>}</div></aside>}
       <div class="issue-detail-column">
       <nav class="issue-tabs" role="tablist" aria-label="Issue 工作區分頁">{([
-        ['content', '內容與討論'], ['development', '開發與交付'], ['relations', '關聯與子工作'], ['time', '工時']
+        ['content', '內容與討論'], ['relations', '關聯與子工作'], ['time', '工時']
       ] as const).map(([id, label], index) => <button role="tab" tabIndex={detailTab === id ? 0 : -1} aria-selected={detailTab === id} class={detailTab === id ? 'active' : ''} onKeyDown={(event) => {
-        const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 4 : event.key === 'ArrowLeft' ? (index + 3) % 4 : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : -1;
+        const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
         if (nextIndex < 0) return;
         event.preventDefault();
-        const nextTab = (['content', 'development', 'relations', 'time'] as const)[nextIndex];
+        const nextTab = (['content', 'relations', 'time'] as const)[nextIndex];
         updateDetailTab(nextTab);
         event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
       }} onClick={() => updateDetailTab(id)}>{label}</button>)}</nav>
@@ -870,35 +864,7 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
             onReload={requestIssueRelations} onAction={mutateIssueRelations} onOpenLink={openLink} showLinks
             blockingRelationsAvailable={blockingRelationCapability?.status === 'supported'} blockingRelationsStatus={blockingRelationCapability?.status ?? 'unknown'} blockingRelationsReason={blockingRelationCapability?.reason} />
         </section>
-        <section class="card issue-section" hidden={detailTab !== 'development'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
-        <section class="card issue-section" hidden={detailTab !== 'development'}><div class="section-head"><div><h2>開始開發與交付</h2><p class="muted small">先確認工作目錄與 Repo 狀態，再複製任務並開啟 Codex CLI。</p></div></div>
-          {(() => {
-            const repo = snapshot?.localRepositories[detail.project.id];
-            const inGroup = !!snapshot?.projects.some((item) => item.id === detail.project.id);
-            const kitReady = snapshot?.skillsContext ? snapshot.skillsContext.mode === 'group' && snapshot.skillsContext.availableFeatures.includes('megin-workflow')
-              : snapshot?.workflowKit?.status === 'installed' || snapshot?.workflowKit?.status === 'work-in-progress';
-            const canDevelop = !!snapshot?.groupRoot && inGroup && repo?.state === 'ready' && kitReady;
-            const legacyDelivery = /^0\.[0-6]\./.test(snapshot?.skillsContext?.installed.upstreamVersions?.megin ?? snapshot?.workflowKit?.upstreamVersions?.megin ?? '');
-            const matchingWorks = (snapshot?.meginWorkItems ?? []).filter((item) => item.status !== 'complete' && item.status !== 'aborted' && item.issueIid === issue.iid &&
-              (item.issueProjectId === detail.project.id || item.projectPath?.toLocaleLowerCase('en-US') === detail.project.path_with_namespace.toLocaleLowerCase('en-US')));
-            const selectedWorkId = resumeWorkId === '' ? undefined
-              : matchingWorks.some((item) => item.workId === resumeWorkId) ? resumeWorkId : matchingWorks[0]?.workId;
-            return <>
-            {canDevelop ? <>
-              {matchingWorks.length > 0 && <label class="field">延續既有 Megin 工作<select value={selectedWorkId ?? ''} onChange={(event) => setResumeWorkId(event.currentTarget.value)}><option value="">建立新工作（開始前仍會檢查重複 Work ID）</option>{matchingWorks.map((item) => <option value={item.workId}>{item.workId} · {item.status}{item.planVersion ? ` · ${item.planVersion}` : ''}</option>)}</select></label>}
-              <button class="primary" type="button" onClick={() => postWorkspace({ type: 'copyAndOpenCodex', text: buildDeveloperPrompt(detail.project, issue, snapshot!.groupRoot!, repo!.path, snapshot!.baseUrl, { discussions: detail.discussions, actor: detail.user, workId: selectedWorkId }), revision: snapshot?.skillsContext?.revision ?? '', returnTo: 'Issue 的「開發與交付」分頁' })}>複製任務並開啟 Codex CLI</button>
-              <button class="secondary" type="button" onClick={() => postWorkspace({ type: 'setMode', mode: 'sa' })}>開啟分析與分支審查</button>
-            </> : <div class="hint"><strong>{!inGroup ? '此 Issue 不在目前選取的 Group。' : !snapshot?.groupRoot ? snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 Group 的本機資料夾或對應 Repo。' : !kitReady ? '請先安裝或更新 GitLab Workspace 完整工作流程包。' : repo?.state === 'unsafe' ? '此 Repo 路徑不安全，請檢查 VSCode 工作區中的資料夾。' : '此 Repo 尚未下載到本機。'}</strong><p>Issue 內容和討論可繼續查看；Codex 工作任務會先核對工作區與整包安裝狀態。</p>{snapshot?.groupRoot && !kitReady && <button type="button" onClick={onOpenSettings}>前往安裝設定</button>}</div>}
-            {legacyDelivery ? <details class="delivery-preparation" open={deliveryExpanded} onToggle={(event) => setDeliveryExpanded(event.currentTarget.open)}><summary>舊版 Megin 工作交付：檢查差異 → Commit → Push → 建立 MR</summary>
-              {canDevelop ? <DeliveryEditor issue={issue} project={detail.project} root={snapshot?.groupRoot} repo={repo} members={snapshot?.projectMembers.length ? snapshot.projectMembers : detail.options.members} busy={busy} initial={deliveryForms[`${issue.project_id}#${issue.iid}`]} onUpdate={(patch) => onDeliveryUpdate?.(`${issue.project_id}#${issue.iid}`, patch, detail.project)} onPrepare={(form) => postWorkspace({ type: 'prepareDelivery', projectId: issue.project_id, issueIid: issue.iid, ...form })} records={snapshot?.deliveryRecords.filter((record) => (record.issueProjectId ?? record.projectId) === issue.project_id && record.issueIid === issue.iid) ?? []} workflowRecords={snapshot?.deliveryRecords ?? []} onAction={(action, record) => {
-                if (action === 'commitDelivery') postWorkspace({ type: 'commitDelivery', deliveryId: record.id });
-                else if (action === 'copyWikiUpdatePrompt') postWorkspace({ type: 'copyWikiUpdatePrompt', deliveryId: record.id });
-                else if (action === 'pushDelivery') postWorkspace({ type: 'pushDelivery', deliveryId: record.id });
-                else if (action === 'createDeliveryMergeRequest') postWorkspace({ type: 'createDeliveryMergeRequest', deliveryId: record.id });
-              }} onOpenExternal={(url) => postWorkspace({ type: 'openExternal', url })} /> : <p class="muted">在 VSCode 開啟符合目前 Group 的工作區並下載 Repo 後，即可開始交付。</p>}
-            </details> : <p class="muted">Megin 依原生流程完成驗證、人工驗收與本機 feature commits。後續 Push 與 MR 請使用版控或 GitLab 操作。</p>}
-          </>; })()}
-        </section>
+        <section class="card issue-section" hidden={detailTab !== 'content'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
       </div><aside class="sidebar">
         <section class="card issue-section" hidden={detailTab !== 'content'}><details class="issue-properties"><summary>屬性：負責人、標籤與里程碑</summary><dl><dt>建立者</dt><dd>{issue.author?.name ?? '—'}</dd><dt>負責人</dt><dd>{issue.assignees?.map((person) => person.name).join('、') || '未指派'}</dd><dt>標籤</dt><dd>{issue.labels?.length ? issue.labels.map((label) => <span class="pill">{label}</span>) : '無'}</dd><dt>里程碑</dt><dd>{issue.milestone?.title ?? '無'}</dd>{detail.hasStartDate && <><dt>開始日期</dt><dd>{detail.startDate ?? '無'}</dd></>}<dt>到期日</dt><dd>{issue.due_date ?? '無'}</dd><dt>機密</dt><dd>{issue.confidential ? '是' : '否'}</dd><dt>討論</dt><dd>{issue.discussion_locked ? '已鎖定' : '開放'}</dd></dl></details></section>
         <section class="card issue-section" hidden={detailTab !== 'content'}><h2>表情回應</h2><div class="toolbar wrap">{detail.reactions.map((reaction) => <button class={myReactions.has(reaction.id) ? 'selected' : ''} onClick={() => myReactions.has(reaction.id) ? invoke('unreact', { reactionId: reaction.id }) : invoke('react', { name: reaction.name })}>{reaction.name}</button>)}</div><div class="inline-form"><input aria-label="表情名稱" value={emoji} onInput={(event) => setEmoji(event.currentTarget.value)} /><button disabled={!emoji.trim() || busy} onClick={() => invoke('react', { name: emoji.trim() })}>回應</button></div></section>

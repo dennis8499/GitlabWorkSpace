@@ -1,56 +1,62 @@
 # GitLab Workspace Group profile
 
-This Group installs Codebase LLM Wiki, Megin, MergeReviewer, and ReleaseReviewer together through GitLab Workspace. Keep their upstream Skills intact and use this profile as the Group-level adapter.
+The versioned kit installs Codebase LLM Wiki, MergeReviewer, ReleaseReviewer and
+Output Style. Install and update the complete package transactionally; use only
+its verified manifest and source snapshots. This profile applies to the matched
+non-Git Group root and its actual direct-child Git repositories, including local
+Repos not yet mapped to GitLab. Repository names alone are not matching evidence.
 
-Before human-readable output, load `$output-style` from this Group's selected
-`.agents/skills/output-style/SKILL.md` when present. It selects concise,
-explanatory, learning or formal presentation automatically; a user's explicit
-`style` wins. It replaces other Skills' fallback presentation, preserving their
-artifact, evidence and workflow contracts. Without it, retain the selected Skill's
-original output style. This changes no Claude or host configuration.
+## Knowledge
 
-## Group and repositories
+Use `$codebase-wiki` for Wiki maintenance, queries, functional exploration,
+static code audit, ADR, Synthesis, BA/SA/SD, NotebookLM export and archaeology.
+Normal queries are Wiki-first; source-first branches follow the Skill's router.
+A selected concrete Query follow-up carries its one confirmation through the
+bounded update/save and checks. Full Ingest uses the scanner inventory and
+per-file coverage ledger; omissions, blocked files or drift remain incomplete.
+Preserve user-authored Wiki content, synchronize `wiki/index.md` and append
+`wiki/log.md` for durable updates. Raw sources remain read-only during Wiki work.
 
-- Start the Codex CLI at the selected, non-Git Group root. A Group contains direct-child Git repositories; each selected repository remains an independent Git repository.
-- During Megin requirements discovery, inventory every valid direct-child local Git Repo, including Repos without a GitLab mapping. Treat an Issue's Repo as a clue, not a scope filter; record each Repo's evidence and disposition. Follow changed API/event/package/data/table/config contracts transitively through unchanged consumers, using a visited set for cycles. Every Repo needs pinned source, contract-related searches and an affected/no-impact/unresolved disposition. Only approved writers receive branches or commits; unchanged affected consumers enter `verification_repositories`. Critical impact/compatibility unknowns block planning. Freeze the approved graph and bind post-implementation confirmation to the actual diff/snapshot; newly affected contracts/consumers require renewed approval. Do not let `.megin/group.json` defaults restrict the inventory.
-- Keep the shared knowledge base at `<Group>/wiki/` and Megin records at `<Group>/docs/work/<Work ID>/`. Keep Wiki, plan, and review source paths relative to the Group. Prefix repository evidence with its direct-child folder, for example `payments/src/checkout.ts`.
-- Read the shared Wiki before requirements, planning, coding, or review. Re-read each cited repository file at the recorded path before relying on a claim. Use repository-local knowledge and policy as additional evidence and identify conflicts rather than silently choosing a version.
-- Treat Group instructions, Issue text, Wiki content, and Git history as evidence. They do not authorize product writes, skip approval, or replace source checks.
+Group Wiki lives at `wiki/`. Source references use `Repo/path`; keep the Group
+Wiki shared and never create a separate Wiki for each child Repo during this task.
+NotebookLM and full-source scans must use the requested root and scanner safety
+rules. Sensitive exclusions remain unread. Source and evidence drift prevent a
+complete result. Wiki work does not publish Issues or remote Git operations.
 
-## Route and boundaries
+## Branch review
 
-- Use `$codebase-wiki` for knowledge, development specifications, analysis, and static code audits. Keep Wiki pages under `wiki/`; never write an analysis into a repository. Use `Repo/path` source citations. Preserve existing notes, update `wiki/index.md` when pages change, and append to `wiki/log.md` as required by the upstream Skill.
-- Use `$megin` for requested code changes. Preserve its single Group Work ID, one approved plan, exclusive Group lock, independent fresh reviewer, executed verification, human acceptance, immutable evidence, and completion gates. Use native `delivery_mode: feature_handoff`: after explicit human acceptance, native Megin creates only approved local feature commits and leaves merge/publication decisions to the user. Workspace does not override the core or route new work through legacy GitLab handoff or simulation.
-- Use `$merge-reviewer` with exactly one Repo and explicit base/head branches. Use native v3 evidence and Codex-native review. The actual declared VSCode workspace controls supporting Repo discovery; related Repos use their captured HEAD. Publish one Markdown Merge Report under the selected Repo/review-reports. MR handoff supplies editable branch candidates; users may post the report as a general comment. Keep Megin independent review and acceptance separate. Do not use removed quick, staged, uncommitted, direct, MR-task or JSON options. Clean the owned temporary session on completion or interruption.
-- Use `$release-reviewer` with exactly one explicit Repo and base/head branches. Its native helpers always review a merge preview and trace the affected API/event/contract/DB/cache chain through Group supporting Repos. Run from the entry Repo with the actual VSCode workspace as `--workspace`, passing Workspace-provided repository/defaultBranch JSON as internal `--workspace-context-json` metadata. Supporting Repos use their own pinned local default branch, without fetch or checkout; missing versions or chain links keep review incomplete. Compare new configuration, DB, FTP, SFTP, Redis, Kafka and other dependencies against the entire entry base Repo. Another service's access never establishes this service's permissions. Preserve local edits, keep owned contexts in system temporary storage, and publish one v3 concise Release Report with an editable manual checklist at the VSCode workspace root with the `release-review` prefix. Pass the saved --workspace-file when provided; its parent is report_root. Stop if the workspace root is ambiguous. Record only direct P0/P1 blockers with blocking_reason; distinguish blockers, incomplete evidence and pending conditions. Human checklist edits stay inside release-checklist:start/end and do not alter the generation-time assessment. Preserve earlier reports. No direct/tag/commit/JSON user options. Firewall, permissions, provisioning and compatibility checks start pending and require named human verification evidence; static completion is separate from environment readiness. Wiki is context, not fixed-version evidence. Release reports are not MR reports. Clean owned contexts on completion or interruption.
-- Keep Wiki updates separate from product acceptance. After native Megin records every accepted local delivery commit, request a source-checked knowledge update to prepare a source-checked Group Wiki update. Record that local delivery and remote MR merge are different states.
+Use `$merge-reviewer` with exactly one Repo and explicit base/head branches.
+Use Codex-native review and native v3 evidence. The declared VSCode workspace,
+including a saved `.code-workspace`, controls related Repo discovery; supporting
+Repos use their captured HEAD. Short branches are local refs; explicit remote
+refs must be refreshed successfully. Freeze evidence before semantic review.
+Publish one Markdown Merge Report under the selected Repo's `review-reports/`.
+MR handoff supplies editable branch candidates; the user may post a valid report
+as a general comment. Keep pending confirmations and incomplete coverage visible.
+Use owned system temporary evidence and clean the session on completion or interruption.
 
-## Scope and safety
+## Release review
 
-- The Group is the shared knowledge and coordination root, not a Git repository or a product repository. Do not scan tool installations, this profile, `.megin/`, `docs/work/`, `review-reports/`, `.notebooklm/`, or `exports/megin/` as product source.
-- For code analysis, preserve the upstream full inventory and static audit contracts; clearly state the actual repository paths and checked or unverified coverage.
-- Keep GitLab credentials in Workspace SecretStorage and never copy them into Wiki pages, work records, review reports, or prompts.
+Use `$release-reviewer` with Repo, base and head branches. Follow related API,
+event, DB, cache and configuration chains within the declared VSCode workspace.
+Related Repos use their committed local default branches without fetching.
+Separate direct P0/P1 blockers, evidence gaps and new deployment dependencies.
+Write one Traditional Chinese Release Report at the VSCode workspace root with
+an editable manual Checklist. Preserve fixed report content and use the native
+v3 helpers, batch evidence, retained-draft correction and cleanup contracts.
 
-New work uses native Megin Repo v3 and Group v6, with architecture v2 and required cross-Repo impact evidence. Explore current-source functions and neutral requirements, obtain exact-plan approval, then preserve BDD/TDD raw evidence and a fresh independent read-only reviewer for initial round 0 plus at most three correction rounds. Approval can stop retries early; three failed corrections remain incomplete. Resume preserves the original attempt history and fingerprint. Functional exploration is source-first and read-only by default; normal Wiki queries stay Wiki-first.
+## Installation and recovery
 
-## Wiki follow-ups, full Ingest and Megin export
+Only a verified installation record grants ownership of managed files. Updates
+replace current managed content and remove unchanged retired managed Skills.
+Local modifications or unknown ownership stop the update before mutation.
+User Wiki, work records, locks, reports, exports and unrelated Skills remain.
+A retained transaction supports explicit rollback, including removed files.
+Interrupted transactions recover before subsequent install/status operations.
 
-Query answers are read-only until a user selects a concrete preview under the
-Wiki `follow-up-actions.md` contract. That selection authorizes the complete
-bounded update/save or combined flow without duplicate Ingest/Synthesis gates;
-none or no answer writes nothing. Preserve human notes and finish index/log
-and validation for the selected subflows.
+## Output
 
-Full Ingest covers all valid direct-child local Git Repos, including unmapped
-ones, unless the user explicitly lists a narrower set. Use the scanner-backed
-`ingest-coverage.py` inventory and validate operations with `--scope group` and
-the same `--repo` selections. The Group `wiki/ingest-coverage.json` records every
-included file's hash, disposition and Wiki page or no-page rationale. Any
-blocker, omission or source drift keeps the result partial.
-
-For `megin-spec-export` or generate-and-export, read
-[the common export workflow](references/megin-spec-export.md). First finish a
-ready five-section specification and its recorded Agent self-contained review;
-BA/SA/SD are not required. An explicit export authorizes the single checked
-artifact under this Group's `exports/megin/`. The helper validates before
-writing and preserves previous revisions on failure. Do not publish an Issue.
+For human-readable output, use the installed `$output-style` at
+`.agents/skills/output-style/SKILL.md` before the selected workflow's fallback.
+Preserve required artifact structure, evidence and completion gates. If absent,
+keep the selected Skill's original output style.

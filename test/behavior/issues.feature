@@ -189,9 +189,9 @@ Feature: GitLab CE Issue work inside VS Code
     Then the host receives an explicit GitLab open request
 
   @automated @SCN-030
-  Scenario: The integrated Issue view guides work through four task tabs
+  Scenario: The integrated Issue view guides work through three task tabs
     Given the Issue Webview is ready with an editable issue
-    Then the detail shows the four task tabs and opens on content
+    Then the detail shows the three task tabs and opens on content
     When I visit each Issue task tab
     Then the selected tab displays the matching section
 
@@ -201,12 +201,6 @@ Feature: GitLab CE Issue work inside VS Code
     When I choose a project in the selected group and create a test issue with Markdown, a file, an assignee, labels, milestone, dates, and confidentiality
     Then the new issue opens in the VS Code detail view even if it is not assigned to me
     And My Issues still lists only issues assigned to me in the selected group
-
-  @automated @SCN-031
-  Scenario: Group delivery displays native proof instead of editable acceptance assertions
-    Given the Issue Webview is ready with an editable issue
-    When the Group provides an accepted multi-Repo handoff
-    Then development tasks use Group paths and native review and verification results
 
   @human @SCN-020
   Scenario: CE issue details and discussion work inside VS Code

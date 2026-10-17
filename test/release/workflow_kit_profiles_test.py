@@ -47,7 +47,7 @@ class ProfileTests(unittest.TestCase):
         result, data = self.apply(profile)
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual(profile, data["profile"])
-        self.assertEqual(CURRENT_SOURCES['megin']['version'], data["upstreamVersions"]["megin"])
+        self.assertNotIn('megin', data['upstreamVersions'])
         return data
 
     def assert_preserved(self):
@@ -136,7 +136,7 @@ class ProfileTests(unittest.TestCase):
         self.assertIn("release-review", state["capabilities"])
         self.assertNotIn("merge-group", state["capabilities"])
         self.assertNotIn("merge-mr", state["capabilities"])
-        self.assertTrue((self.repo / ".agents/skills/megin/scripts/repo_workspace.py").is_file())
+        self.assertFalse((self.repo / ".agents/skills/megin").exists())
         self.assertFalse((self.repo / ".agents/skills/megin/scripts/group_workspace.py").exists())
         self.assertFalse((self.repo / ".agents/skills/merge-reviewer/scripts/group_review.py").exists())
         for module in ("review_workspace.py", "workspace_report.py"):
@@ -228,7 +228,7 @@ class ProfileTests(unittest.TestCase):
         self.installed("group")
         native = self.installed()
         self.assertEqual("repository", self.status(self.repo)["profile"])
-        path = ".agents/skills/codebase-wiki/references/development-spec-workflow.md"
+        path = ".agents/skills/codebase-wiki/references/intent-routing.md"
         with zipfile.ZipFile(ROOT / "resources/offline-tools/sources" / CURRENT_SOURCES['codebase-wiki']['filename']) as upstream:
             name = next(name for name in upstream.namelist() if name.endswith(path))
             self.assertEqual(upstream.read(name), (self.repo / path).read_bytes())
@@ -236,7 +236,7 @@ class ProfileTests(unittest.TestCase):
         result, _ = self.execute("rollback", self.repo, native["transaction"])
         self.assertEqual(0, result.returncode, result.stderr or result.stdout)
         self.assertEqual("group", self.status(self.repo)["profile"])
-        self.assertTrue((self.repo / ".agents/skills/megin/scripts/unified_workflow.py").is_file())
+        self.assertFalse((self.repo / ".agents/skills/megin").exists())
         self.installed()
         self.installed("group")
         self.assertEqual("group", self.status(self.repo)["profile"])
@@ -303,16 +303,11 @@ class ProfileTests(unittest.TestCase):
                 skill = target / '.agents/skills/megin/SKILL.md'; original_skill = skill.read_bytes()
                 workflow = target / 'docs/work/work-20261013-old/workflow.md'; workflow.parent.mkdir(parents=True)
                 workflow.write_text('- schema: megin-skills-workflow/v4\n- status: active\n', encoding='utf-8')
-                self.assertEqual('work-in-progress', self.status(target)['status'])
-                blocked, _ = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
-                    '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
-                self.assertNotEqual(0, blocked.returncode)
-                self.assertEqual(marker, (target / MARKER).read_bytes()); self.assertEqual(original_skill, skill.read_bytes())
-                workflow.write_text('- status: complete\n', encoding='utf-8')
+                self.assertEqual('update-available', self.status(target)['status'])
                 run, updated = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
                     '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
                 self.assertEqual(0, run.returncode, run.stderr or run.stdout)
-                self.assertTrue((target / '.agents/skills/megin-architecture-exploration/SKILL.md').is_file())
+                self.assertFalse((target / '.agents/skills/megin').exists())
                 run, _ = self.execute('rollback', target, updated['transaction'])
                 self.assertEqual(0, run.returncode, run.stderr or run.stdout)
                 self.assertEqual(marker, (target / MARKER).read_bytes()); self.assertEqual(original_skill, skill.read_bytes())
@@ -333,7 +328,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(original, (self.repo / MARKER).read_bytes())
         self.assertEqual("group", self.status(self.repo)["profile"])
         self.assert_preserved()
-        script = self.repo / ".agents/skills/megin/SKILL.md"
+        script = self.repo / ".agents/skills/merge-reviewer/SKILL.md"
         original_script = script.read_bytes()
         script.write_bytes(original_script + b"\nchanged locally\n")
         self.assertEqual("error", self.status(self.repo)["status"])
@@ -357,38 +352,6 @@ class ProfileTests(unittest.TestCase):
         marker_path.write_text(json.dumps(marker), encoding="utf-8")
         self.assertEqual("error", self.status(self.repo)["status"])
 
-    def test_native_work_requires_verified_contract_fingerprint_and_blocks_conversion(self):
-        self.installed()
-        work_id = "work-20261011-native-resume"
-        work = self.repo / "docs/work" / work_id
-        (work / "plan-1").mkdir(parents=True)
-        (work / "workflow.md").write_text(f"- work_id: {work_id}\n- phase: requirements\n- status: active\n", encoding="utf-8")
-        blocked, _ = self.apply("group"); self.assertNotEqual(0, blocked.returncode, "unapproved active work also blocks profile conversion")
-        records = [f"docs/work/{work_id}/evidence/{name}.json" for name in ("quality", "delivery")]
-        fingerprint = subprocess.run([sys.executable, "-X", "utf8", "-B", str(self.repo / ".agents/skills/megin/scripts/repo_workspace.py"),
-            "fingerprint", "--repo", str(self.repo)], capture_output=True, text=True, encoding="utf-8")
-        self.assertEqual(0, fingerprint.returncode, fingerprint.stderr)
-        contract = {"schema": "megin-repo-quality-contract/v1", "work_id": work_id, "plan_version": "plan-1",
-            "base_branch": "main", "base_commit": self.git("rev-parse", "HEAD"), "feature_branch": "feature/native",
-            "remote_name": None, "remote_url": None, "allowed_paths": ["src/"], "process_records": records,
-            "quality_ref": records[0], "delivery_ref": records[1], "skills_sha256": json.loads(fingerprint.stdout)["sha256"],
-            "checks": [{"id": "unit", "kind": "test", "command": "python -m unittest"}]}
-        fields = {"schema": "megin-repo-workflow/v1", "work_id": work_id, "plan_version": "plan-1", "status": "active",
-                  "phase": "implementation", "quality_ref": records[0], "delivery_ref": records[1]}
-        (work / "workflow.md").write_text("# Active work\n" + "\n".join(f"- {key}: {value}" for key, value in fields.items()) + "\n", encoding="utf-8")
-        contract_path = work / "plan-1/quality-contract.json"
-        contract_path.write_text(json.dumps(contract), encoding="utf-8")
-        state = self.status(self.repo, "99.0.0")
-        self.assertEqual("work-in-progress", state["status"])
-        self.assertEqual([work_id], state["activeWorkIds"])
-        blocked, _ = self.apply("group"); self.assertNotEqual(0, blocked.returncode)
-        for field, changed in (("work_id", "work-20261011-other"), ("skills_sha256", "0" * 64)):
-            damaged = {**contract, field: changed}; contract_path.write_text(json.dumps(damaged), encoding="utf-8")
-            self.assertEqual([], self.status(self.repo, "99.0.0")["activeWorkIds"], field)
-        contract_path.write_text(json.dumps(contract), encoding="utf-8")
-        fields["status"] = "complete"
-        (work / "workflow.md").write_text("\n".join(f"- {key}: {value}" for key, value in fields.items()) + "\n", encoding="utf-8")
-        self.assertEqual([], self.status(self.repo)["activeWorkIds"])
 
 
 if __name__ == "__main__":

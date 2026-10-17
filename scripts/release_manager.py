@@ -43,6 +43,7 @@ SPECS = {
     'ReleaseReviewer': {'version': 'skills/release-reviewer/VERSION', 'workflow': 'ci.yml', 'tool': 'release-reviewer'},
     'GitlabWorkSpace': {'version': 'package.json', 'workflow': 'release.yml'},
 }
+WORKSPACE_UPSTREAMS = frozenset({'code-base-llm-wiki', 'MergeReviewer', 'ReleaseReviewer'})
 STABLE = re.compile(r'(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\Z')
 RUN_ID = re.compile(r'\d{8}T\d{6}Z-[a-f0-9]{8}\Z')
 
@@ -224,7 +225,7 @@ def make_plan(workspace, versions, api):
                        'baselineTag': release['tag_name'] if release else None,
                        'changed': tree != baseline_tree, 'workflow': spec['workflow']}
     selected = {name for name, row in repos.items() if row['changed']}
-    if selected - {'GitlabWorkSpace'}:
+    if selected & WORKSPACE_UPSTREAMS:
         selected.add('GitlabWorkSpace')
     if set(versions) - selected:
         raise ReleaseError('Versions supplied for unchanged repositories: ' + ', '.join(sorted(set(versions) - selected)))
@@ -234,7 +235,7 @@ def make_plan(workspace, versions, api):
     for name, row in repos.items():
         row['selected'] = name in selected
         row['targetVersion'] = versions.get(name)
-        row['dependencies'] = sorted(selected - {name}) if name == 'GitlabWorkSpace' and name in selected else []
+        row['dependencies'] = sorted(selected & WORKSPACE_UPSTREAMS) if name == 'GitlabWorkSpace' and name in selected else []
         if name in selected:
             target = version_tuple(versions[name])
             if row['baselineTag'] and target <= version_tuple(row['baselineTag'][1:]):
@@ -577,6 +578,8 @@ class Runner:
         return self.workspace / '.release-worktrees' / self.plan['id'] / name
 
     def verify_inputs(self):
+        if set(self.spec('GitlabWorkSpace')['dependencies']) - WORKSPACE_UPSTREAMS:
+            raise ReleaseError('Workspace upstream integration changed; create a new release plan')
         for name, row in self.plan['repositories'].items():
             if not row['selected']:
                 continue
@@ -672,9 +675,9 @@ class Runner:
             tool = SPECS[name]['tool']
             pin = next(item for item in pins if item['id'] == tool)
             readme_changes.append(('Wiki' if name == 'code-base-llm-wiki' else name, pin['version'], version))
-            filename = ('codebase-llm-wiki-codex-' if name == 'code-base-llm-wiki' else 'megin-skills-' if name == 'Megin' else tool + '-') + version + '.zip'
+            filename = ('codebase-llm-wiki-codex-' if name == 'code-base-llm-wiki' else tool + '-') + version + '.zip'
             pin.update(version=version, asset=asset_name(name, version), filename=filename, sha256=digest(data))
-            prefix = f'codebase-llm-wiki-codex-{version}' if name == 'code-base-llm-wiki' else tool if name != 'Megin' else ''
+            prefix = f'codebase-llm-wiki-codex-{version}' if name == 'code-base-llm-wiki' else tool
             if 'root' in pin:
                 pin['root'] = prefix
             atomic_write(root / 'resources/offline-tools/sources' / filename, data)

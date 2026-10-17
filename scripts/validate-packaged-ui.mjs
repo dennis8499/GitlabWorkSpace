@@ -53,11 +53,11 @@ function createFixture() {
     history: Array.from({ length: 10 }, (_, index) => ({ hash: (index + 10).toString(16).padStart(40, '0'),
       parents: index === 9 ? [] : [(index + 11).toString(16).padStart(40, '0')], subject: `Fixture commit ${index + 1}`,
       author: 'Fixture User', date: '2026-10-13T00:00:00Z' })), configuredPullStrategy: 'merge' }));
-  const features = ['megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+  const features = ['ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
-    'megin-workflow', 'megin-resume', 'merge-repo', 'release-review'];
+    'merge-repo', 'release-review'];
   const installed = { status: 'installed', version: '0.24.1', profile: 'group', source: 'bundled', capabilities: features,
-    upstreamVersions: { 'codebase-wiki': '0.6.0', megin: '0.8.0', 'merge-reviewer': '0.12.1', 'release-reviewer': '0.3.0' } };
+    upstreamVersions: { 'codebase-wiki': '0.6.0', 'merge-reviewer': '0.12.1', 'release-reviewer': '0.3.0' } };
   const local = Object.fromEntries(projects.map(project => [project.id, { state: 'ready', path: repositories[project.id - 1].path }]));
   const matched = projects.map(project => ({ name: project.name, path: repositories[project.id - 1].path, projectId: project.id, matched: true, defaultBranch: 'main' }));
   return { repositories, snapshot: { connected: true, baseUrl: 'https://gitlab.invalid', currentUser: { id: 7, name: 'Fixture User', username: 'fixture-user' },
@@ -70,12 +70,12 @@ function createFixture() {
     mergeRequests: projects.map(project => ({ id: 200 + project.id, iid: 1, project_id: project.id, title: `Change ${project.name}`, state: 'opened',
       source_branch: 'feature/sample', target_branch: 'main', sha: 'b'.repeat(40), author: { id: 7, name: 'Fixture User', username: 'fixture-user' },
       reviewers: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }], assignees: [], web_url: `${project.web_url}/-/merge_requests/1` })),
-    projectMembers: [], timers: [], timerVersion: 0, deliveryRecords: [], meginWorkItems: [],
+    projectMembers: [], timers: [], timerVersion: 0,
     operationScope: 'fixture-operation-scope', scopeEpoch: 1,
     workflowKit: installed, workflowKitInstallTarget: { root: 'C:/fixture/team', profile: 'group', manual: false, state: installed },
     workflowKitPackages: [{ id: 'bundled-0.24.0', version: '0.24.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
     workflowKitSource: 'bundled', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
-    skillsContext: { mode: 'group', root: 'C:/fixture/team', revision: 'fixture-revision', installed, availableFeatures: features, resumeOnly: false,
+    skillsContext: { mode: 'group', root: 'C:/fixture/team', revision: 'fixture-revision', installed, availableFeatures: features,
       groupMatch: { status: 'matched', root: 'C:/fixture/team', repositories: matched }, repositories: matched },
     accounts: [], tools: [], busy: false } };
 }
@@ -478,10 +478,10 @@ async function smoke(browser, files) {
       const tab=desktop.dashboard.locator('#skill-tool-codebase-wiki');
       if (await tab.count()) {
         await tab.click(); await tab.focus(); await tab.press('ArrowRight');
-        assert.equal(await desktop.dashboard.locator('#skill-tool-megin').getAttribute('aria-selected'),'true');
+        assert.equal(await desktop.dashboard.locator('#skill-tool-merge-reviewer').getAttribute('aria-selected'),'true');
       } else {
         const select=desktop.dashboard.locator('select[aria-label="Skills 工具"]'); await select.selectOption('codebase-wiki'); await select.focus();
-        await select.press('ArrowDown'); await select.press('Enter'); assert.equal(await select.inputValue(),'megin');
+        await select.press('ArrowDown'); await select.press('Enter'); assert.equal(await select.inputValue(),'merge-reviewer');
       }
     });
     await check('settings keyboard focus remains in dialog and Escape restores trigger', async () => {

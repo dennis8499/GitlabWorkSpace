@@ -20,7 +20,7 @@ export type ToolSource = 'gitea' | 'github' | 'bundled';
 export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
-export type IssueDetailTab = 'content' | 'development' | 'relations' | 'time';
+export type IssueDetailTab = 'content' | 'relations' | 'time';
 export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
 export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; }
 
@@ -34,14 +34,6 @@ export interface LocalRepositoryState {
   branch?: string;
 }
 
-export interface MeginWorkSummary {
-  workId: string;
-  status: string;
-  planVersion?: string;
-  issueProjectId?: number;
-  issueIid?: number;
-  projectPath?: string;
-}
 
 export interface IssueDraftEvidence {
   path: string;
@@ -110,10 +102,9 @@ export interface InstalledWorkflowKitState {
   profile?: 'group' | 'repository';
   upstreamVersions?: Record<string, string>;
   capabilities?: string[];
-  activeWorkIds?: string[];
   version?: string;
   source?: ToolSource;
-  status: 'installed' | 'missing' | 'update-available' | 'work-in-progress' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
+  status: 'installed' | 'missing' | 'update-available' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
   message?: string;
   legacyPaths?: string[];
 }
@@ -134,7 +125,6 @@ export interface SkillsContext {
   repositories: Array<{ name: string; path: string }>;
   installed: InstalledWorkflowKitState;
   availableFeatures: string[];
-  resumeOnly: boolean;
   reason?: string;
   workspaceRoot?: string;
   workspaceFile?: string;
@@ -218,8 +208,6 @@ export interface WorkspaceSnapshot {
   workflowKitOperationBusy?: boolean;
   workflowKitSource: ToolSource;
   workflowKitPackages?: WorkflowKitPackageSummary[];
-  meginWorkItems: MeginWorkSummary[];
-  deliveryRecords: DeliveryPreview[];
   cloneOperation?: CloneOperationState;
   busy?: boolean;
   error?: string;
@@ -280,7 +268,6 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'selectCloneRoot' }
   | { type: 'resetCloneRoot' }
   | { type: 'openCodexTerminal'; revision: string }
-  | { type: 'copyAndOpenCodex'; text: string; returnTo: string; revision: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
   | { type: 'cloneSelection'; requestId: string; scopeKey?: string; projectIds: number[] }
   | { type: 'syncRepos' }
@@ -312,11 +299,6 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'replyMergeRequest'; projectId: number; iid: number; discussionId: string; body: string }
   | { type: 'approveMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
-  | { type: 'prepareDelivery'; projectId: number; issueIid: number; workId: string; summary: string; changes: string; tests: string; targetBranch: string; reviewerIds: number[]; acceptanceConfirmed: boolean }
-  | { type: 'commitDelivery'; deliveryId: string }
-  | { type: 'copyWikiUpdatePrompt'; deliveryId: string }
-  | { type: 'pushDelivery'; deliveryId: string }
-  | { type: 'createDeliveryMergeRequest'; deliveryId: string }
   | { type: 'setWorkflowKitSource'; source: ToolSource }
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
   | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
@@ -350,8 +332,6 @@ export type WorkspaceResponse =
   | { type: 'error'; message: string; scopeRevision?: string }
   | { type: 'draftBundle'; bundle: IssueDraftBundle }
   | { type: 'draftResults'; analysisId: string; results: DraftIssueResult[] }
-  | { type: 'deliveryPreview'; delivery: DeliveryPreview }
-  | { type: 'deliveryProgress'; delivery: DeliveryPreview }
   | { type: 'draftOptions'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'similarIssues'; items: Array<{ draftId: string; projectPath: string; issues: Array<{ iid: number; title: string; webUrl: string }> }> }
   | { type: 'issueResponse'; response: IssuePanelResponse; revision?: number }
@@ -359,43 +339,3 @@ export type WorkspaceResponse =
   | { type: 'requestCloneSelection'; requestId: string }
   | ({ type: 'cloneOperation' } & CloneOperationState)
   | { type: 'reply'; requestId: string; value?: unknown; error?: string };
-
-export interface DeliveryPreview {
-  id: string;
-  projectId: number;
-  issueIid: number;
-  repoPath: string;
-  branch: string;
-  targetBranch: string;
-  workId: string;
-  acceptanceConfirmed: boolean;
-  summary: string;
-  changes: string;
-  tests: string;
-  reviewerIds: number[];
-  headSha: string;
-  baseSha: string;
-  baseTargetSha: string;
-  diffSha256: string;
-  statusSnapshot: string;
-  diffStat: string;
-  diff: string;
-  changedFiles: string[];
-  gate: { ok: boolean; reasons: string[] };
-  state: 'preview' | 'committed' | 'pushed' | 'mr-created';
-  mergeRequestUrl?: string;
-  error?: string;
-  updatedAt: number;
-  instanceVerified?: boolean;
-  handoffSha256?: string;
-  groupRoot?: string;
-  remote?: string;
-  remoteUrl?: string;
-  issueProjectId?: number;
-  planVersion?: string;
-  acceptanceVersion?: string;
-  acceptedSnapshot?: string;
-  reviewResult?: { verdict: string; context?: string; snapshot?: string };
-  verificationResults?: Array<{ id: string; status: string; executed?: number }>;
-  approvedRepositories?: Array<{ repoPath: string; projectId: number; branch: string; commit?: string; baseSha?: string; allowedPaths?: string[] }>;
-}

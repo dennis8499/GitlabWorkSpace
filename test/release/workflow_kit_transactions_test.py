@@ -81,7 +81,7 @@ class TransactionTests(unittest.TestCase):
                     raw = source.read_bytes()
                 else:
                     name = "merge-reviewer-0.7.0.zip" if path.startswith(".agents/skills/merge-reviewer/") else "megin-skills.zip"
-                    with zipfile.ZipFile(ROOT / "resources/offline-tools/sources" / name) as archive:
+                    with zipfile.ZipFile(ROOT / "test/fixtures/legacy-megin-skills.zip" if name == "megin-skills.zip" else ROOT / "resources/offline-tools/sources" / name) as archive:
                         raw = archive.read(path.removeprefix(".agents/skills/"))
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(raw)
@@ -135,7 +135,7 @@ class TransactionTests(unittest.TestCase):
         before = self.snapshot(self.group)
         result, preview = self.preview()
         self.assertEqual(0, result.returncode, preview)
-        self.assertIn(".agents/skills/megin", preview["changed_paths"])
+        self.assertIn(".agents/skills/merge-reviewer", preview["changed_paths"])
         self.assertEqual(before, self.snapshot(self.group))
         update = self.apply()
         self.assertTrue(update["applied"])
@@ -344,7 +344,7 @@ class TransactionTests(unittest.TestCase):
             self.assertNotEqual(0, result.returncode)
             self.assertEqual(before, self.snapshot(self.group))
         path.write_text(json.dumps(journal), encoding="utf-8")
-        operation = next(o for o in journal["operations"] if o["path"] == ".agents/skills/megin")
+        operation = next(o for o in journal["operations"] if o["path"] == ".agents/skills/merge-reviewer")
         backup = path.parent / operation["backup"] / "SKILL.md"
         backup.write_bytes(backup.read_bytes() + b"changed before-image\n")
         before = self.snapshot(self.group)
@@ -394,7 +394,7 @@ class TransactionTests(unittest.TestCase):
         with zipfile.ZipFile(RELEASE_ZIP) as source, zipfile.ZipFile(archive, "w") as target:
             for info in source.infolist():
                 raw = source.read(info)
-                if info.filename.endswith("/megin/SKILL.md"):
+                if info.filename.endswith("/merge-reviewer/SKILL.md"):
                     raw += b"changed source\n"
                 target.writestr(info, raw)
         before = self.snapshot(self.group)
@@ -409,7 +409,7 @@ class TransactionTests(unittest.TestCase):
                                     "resources/workflow-kit-installer.py")]
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
-        sources = {record['filename'] for record in harness.CURRENT_SOURCES.values()} | {'megin-skills-0.6.0.zip'}
+        sources = {record['filename'] for record in harness.CURRENT_SOURCES.values()}
         paths.extend(ROOT / 'resources/offline-tools/sources' / name for name in sorted(sources))
         paths.extend((ROOT / "scripts/workflow-kit-sources.py", ROOT / "resources/offline-tools/source-snapshots.json"))
         for path in paths:

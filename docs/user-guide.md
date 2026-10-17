@@ -1,6 +1,6 @@
 # 使用指南
 
-GitLab Workspace 將專案、Skills 功能指引、Issue 討論與交付集中在同一個工作台。單 Repo Skills 可直接開啟本機 Git Repo 使用，不需要登入 GitLab 或選擇 Group；每次操作一個所選 Repo。使用 GitLab Issue、MR 或 Group 協作時，再連線 GitLab 並選擇群組。閱讀或討論 Issue 不需要設定本機工作目錄。
+GitLab Workspace 將專案、Skills 功能指引、Issue 討論與 MR 審查集中在同一個工作台。單 Repo Skills 可直接開啟本機 Git Repo 使用，不需要登入 GitLab 或選擇 Group；每次操作一個所選 Repo。使用 GitLab Issue、MR 或 Group 協作時，再連線 GitLab 並選擇群組。閱讀或討論 Issue 不需要設定本機工作目錄。
 
 操作結果統一顯示於右上角訊息中心；側欄或「GitLab Workspace: 開啟訊息中心」指令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。
 
@@ -25,7 +25,7 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 
 側欄常駐顯示姓名、`@username`、站台與登入狀態，Group 另列一行。右上方帳號選單提供快速切換及新增；完整操作集中於 **設定 → 帳號與連線**，也可從側欄 **管理帳號** 或命令 **GitLab Workspace: 管理 GitLab 帳號** 開啟。帳號卡片區分「目前使用」「已保存」「需重新登入」，提供切換、重新登入、登出及移除。同一網址可保存多個使用者；重複新增同一身分會更新 Token。新增與切換先驗證 Token，失敗時維持原連線；重新登入會固定原站台並核對身分。每個工作區記住目前帳號，每個帳號保留上次選取的 Group。**登出** 清除該帳號 Token 並保留名單；**移除** 另刪除名單資料，兩者均先確認。
 
-切換或登出會暫停並保存正在執行的 Issue 計時；切回後需手動繼續。Issue 編輯、留言、工時與交付草稿依站台及帳號保存。GitLab 寫入或修改 Repo 進行中時，需等操作完成才能切換或登出。更新後會自動遷移舊的單帳號資料；新資料保存成功後才清理舊設定。
+切換或登出會暫停並保存正在執行的 Issue 計時；切回後需手動繼續。Issue 編輯、留言與工時草稿依站台及帳號保存。GitLab 寫入或修改 Repo 進行中時，需等操作完成才能切換或登出。更新後會自動遷移舊的單帳號資料；新資料保存成功後才清理舊設定。
 
 ## 工作台導覽
 
@@ -33,7 +33,7 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看遠端專案與本機狀態。下載、更新、Skills、Codex 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
-- **分析**：開啟 **Skills 功能指引**，先選工具，再選功能。四個入口為 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer；預設為 Wiki 的 **Export Megin Spec**，整包安裝／更新是共用按鈕。新需求與既有規格共用此入口，舊規格草稿與選取會承接。工具、功能和欄位依目前專案保存。提示詞會列出實際 Git Repo 資料夾名稱與完整路徑，包含尚未對應 GitLab 專案的 Repo；不會用 GitLab 專案清單推測本機 Repo。
+- **分析**：使用 Wiki、MergeReviewer、ReleaseReviewer 三個工具分頁，預設「查詢 Wiki」。工具、功能和輸入依目前專案保存；提示詞帶入實際本機 Repo 與套件版本，複製與開啟 Codex CLI 分開操作。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
 
@@ -47,26 +47,24 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 
 Issue 詳情的描述區提供 **複製描述**，會把已載入的 Markdown 原文（含換行與附件連結）複製到剪貼簿。空描述時按鈕會停用；這項功能不需要 Issue 編輯權限。
 
-Issue 詳情分成四個任務分頁：
+Issue 詳情分成三個任務分頁：
 
 1. **內容與討論**：閱讀 Markdown、編輯需求、預覽內容、上傳附件、留言及回覆討論串。指派對象、標籤、里程碑等收在可展開的屬性區。
-2. **開發與交付**：先確認 Repo 與工作目錄狀態，再複製任務並開啟 Codex CLI。任務包含 Issue 正文、討論、GitLab 身分及實際 Repo；若已有相同 Issue 的 Megin 工作，可選 Work ID 複製續作任務。Megin 完成核准、獨立審查、測試與人工驗收後，此頁載入交接證據、檢查精確暫存內容並建立本機 commit。完成紀錄保存後即可分別 Push 與建立 MR；各階段狀態與恢復入口保留在此分頁。
-3. **關聯與子工作**：管理關聯 Issue、子工作、訂閱與待辦。
-4. **工時**：使用計時器、登錄或編輯手動工時、查看 GitLab 紀錄與預估。舊版沒有 Issue 歸屬的工時草稿會保留；選擇目標專案和 Issue 編號後才能恢復。
+2. **關聯與子工作**：管理關聯 Issue、子工作、訂閱與待辦。
+3. **工時**：使用計時器、登錄或編輯手動工時、查看 GitLab 紀錄與預估。舊版沒有 Issue 歸屬的工時草稿會保留；選擇目標專案和 Issue 編號後才能恢復。
 
 指派對象、標籤與里程碑集中於 **屬性**。訂閱、待辦、移動、複製和刪除位於具名的 **更多 Issue 操作**。按鈕依帳號權限與 GitLab API 能力顯示。建立 Issue 時先選專案、標題與描述；其他欄位可接著填寫。成功後新 Issue 立即在同一工作台開啟，即使它沒有指派給你。
 
-「分析」頁各功能的 **複製提示詞** 只會複製到剪貼簿；貼到目前共用專案根目錄的 Codex CLI 後，由 Codex 執行該功能。內容由固定功能模板、表單輸入、實際根目錄／Repo 清單及套件版本組成，不會即時讀取 `SKILL.md` 生成。必填欄位、掃描、套件版本與功能可用性須通過檢查；複製時重新核對環境，環境變更後須重新確認。知識來源在產生端查證，Group 引用使用 `Repo/檔案路徑`。規格保持 draft／ready、SCN 與人工建立 Issue 流程。交付完成並保存所有 Repo 證據後，可複製 Wiki 更新任務，回查來源後維護 Group Wiki 的 index、log 與人工 notes；任務會區分本機 commit 與 MR 是否合併。
+「分析」頁各功能的 **複製提示詞** 只會複製到剪貼簿；貼到目前共用專案根目錄的 Codex CLI 後，由 Codex 執行該功能。內容由固定功能模板、表單輸入、實際根目錄／Repo 清單及套件版本組成，不會即時讀取 `SKILL.md` 生成。必填欄位、掃描、套件版本與功能可用性須通過檢查；複製時重新核對環境，環境變更後須重新確認。知識來源在產生端查證，Group 引用使用 `Repo/檔案路徑`。Wiki 更新依現有來源、index、log 與人工 notes 的維護規則執行。
 
-**Export Megin Spec** 填寫功能名稱與需求敘述；也可選填既有 `wiki/synthesis/` 規格路徑，此時名稱與需求可留空。任務從來源查證、必要決策釐清、規格整理、自足性複查一路接續匯出。未決問題保留 draft，完成才交付 `exports/megin/<scope>-r<spec_revision>.md`。接手端有同一系統的程式碼，單檔須寫清必要背景、既有行為、權限、契約、例外與 SCN，不依賴原 Wiki、附件或電腦路徑；不自動啟動 Megin 或建立 Issue。詳見[Wiki 工作流程](wiki-workflows.md)。
 
 專案下載、Skills 安裝與 Codex 使用共用專案根目錄。切換 GitLab 帳號或 Group 不會切換本機目錄；多資料夾工作區需明確選擇目前專案資料夾。
 
-## 分析與四工具
+## 分析與三工具
 
-先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、Megin、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、執行方式、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
+先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、執行方式、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
 
-Wiki 提供閱讀探索、知識維護、BA／SA／SD、Megin Spec 與匯出。Megin 提供開始工作、續作 Work ID 與十三個 Skills 的流程說明；Group 開發導向「我的工作」，單 Repo 可輸入需求。MergeReviewer 只需 Repo、基礎分支、比較分支；支援實際 Repo／分支候選及手動輸入，舊模式須重新確認，產出一份本機 v3 Markdown Merge Report。
+Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。MergeReviewer 只接受 Repo、基礎分支、比較分支，產出一份本機 v3 Markdown Merge Report。
 
 ReleaseReviewer 同樣只接受三項分支輸入，以入口變更追查宣告工作區內相關功能鏈；關聯 Repo 使用各自本機預設分支。在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report，已儲存工作區使用 `.code-workspace` 所在目錄。阻擋、證據缺口與環境待核對條件分開呈現；人工確認需核對人、日期與開通／套用後證據，工單申請不算完成。
 
@@ -88,17 +86,13 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 確認安裝位置與唯一的組合包版本後按 **安裝／更新**。VSIX 內附版本為預設安裝來源；匯入的 ZIP 會複製到 VS Code 持久儲存區並以 SHA-256 去重，因此原始下載檔可在匯入後刪除。安裝期間固定目標位置並停用位置切換與重複安裝。安裝前會整體預檢 Skills、Wiki 設定、管理區塊與安裝紀錄，再以暫存與回復日誌套用；中途失敗或 VS Code／Python 程序中斷後，下一次檢查會先回復原狀。匯入 ZIP 或本機 Skill 若與套件版本、契約或摘要不符，會清楚阻擋安裝。
 
-套件安裝到選定資料夾的 `.agents/skills/`，含 17 個 Skills（清單以套件 manifest 為準）。`group` profile 僅套用 Wiki 必要覆寫；`repository` profile 使用相同固定來源的原生 Skills 與 Repo 規則。單 Repo 的 Wiki、Megin 開發／續作以此 Repo 為範圍；分支審查與上版檢查只選一個入口 Repo，關聯證據依實際 VS Code 宣告的工作區邊界取得。已儲存 `.code-workspace` 會一併帶入，不能自行向上擴張。Issue 開發交付使用 Group 契約。Wiki、`docs/work/`、報告及 Codex 啟動目錄遵循各工具的產出規則。
-
-Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依完整驗證過的安裝資訊開放。舊版必須先更新才能建立新任務；唯一例外是通過工作契約與 Skills 指紋驗證的未完成 Megin 工作，可在原根目錄、profile、版本與 Work ID 下續作。無法驗證的工作不能取得續作例外。
-
-切換畫面、Repo 或設定只重新判斷，不會安裝或轉換 profile。按 **安裝／更新** 才進行交易，失敗會回復原 profile。受信任的 0.13.2、0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0 整包可升級至目前版本；其他舊版整包不提供直接升級或回復相容性，受信任舊紀錄缺少 profile 時視為 Group。已存在的 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 和 `review-reports/` 會保留。Megin 鎖或未完成工作會阻擋更新與 profile 轉換；管理檔案修改、未知同名 Skills 也會阻擋覆寫。舊版分開安裝需依套件的 `legacy-cleanup.md` 人工處理指定檔案，保留 Wiki、工作紀錄與報告。
+升級依舊安裝紀錄驗證後移除已撤下的受管理整合；工作紀錄、鎖、既有產物與其他獨立 Skills 保留。新版不再提供舊工作續作或交付。
 
 ## 專案與 Git 操作
 
 專案頁提供 **GitLab 專案／本機 Repo** 分頁。**本機 Repo** 不需要登入；按 **一鍵掃描 Repo** 會檢查目前視窗所有工作區資料夾所屬的 Repo 與各層子資料夾，涵蓋 submodule 和 worktree。掃描會顯示進度、取消及逐項錯誤，並透過 VS Code Git API 登錄新找到的 Repo；無法登錄的項目會顯示原因。成功登錄後，原生版控、側欄與專案清單同步更新。匹配目前 Group 的所有本機副本均可個別開啟版控；未匹配 Repo 也保留在本機清單。
 
-預設不遞迴 `.git`、`node_modules`、`.venv`，可在 VS Code 設定 **GitLab Workspace › Repository Scan: Exclude Directories** 調整資料夾名稱；`.git` 永遠略過。其餘不限制深度，子資料夾的符號連結與 junction 不追蹤。工作區資料夾變更會取消舊掃描。掃描不改變既有下載與交付的 Group 範圍規則。
+預設不遞迴 `.git`、`node_modules`、`.venv`，可在 VS Code 設定 **GitLab Workspace › Repository Scan: Exclude Directories** 調整資料夾名稱；`.git` 永遠略過。其餘不限制深度，子資料夾的符號連結與 junction 不追蹤。工作區資料夾變更會取消舊掃描。掃描不改變下載位置或所選的 Skills 專案根目錄。
 
 在工作台的 **專案** 頁勾選 Repo，再按清單底部的 **下載／更新（數量）**。按鈕旁會顯示自動辨識或手動指定的下載位置；首次使用可在 VS Code 開啟尚無 Repo 的資料夾，或按 **選擇下載資料夾**。**更多專案操作 → 更新本機預設分支** 與 **開啟工作區** 使用相同位置，不要求所有 Repo 對應目前 Group。取消目錄選擇或確認會保留勾選，方便稍後重試。Git 必須已安裝且可從 `PATH` 執行。
 
@@ -138,7 +132,7 @@ Skills 顯示所選根目錄實際安裝的整包及各工具版本，功能依�
 
 可依時間、功能、帳號、等級、結果與關鍵字篩選，每頁 100 筆；點操作名稱查看詳情。**即時更新** 可開關，**匯出篩選結果** 會保存所有符合條件的 JSONL，不只目前頁。**清除全部 Log** 需確認。資料位於 VS Code 擴充套件的持久儲存區，分檔輪替，預設保留 **30 天、最多 50 MB**。不保存 Token、認證標頭、請求本文或完整指令輸出。儲存失敗會提示並顯示錯誤，原本功能操作仍可完成。
 
-Group 開發規格、驗收證據、鎖接手、固定版本審查與恢復步驟見 [Group 工作流程](group-workflow.md)。
+Group 安裝、Wiki 查詢、固定版本審查與升級回復步驟見 [Group 工作流程](group-workflow.md)。
 
 ## Version Support and Performance Behavior
 
@@ -146,7 +140,7 @@ The minimum supported server version is **GitLab Community Edition 16.11.10**. V
 
 Community Edition does not provide blocking Issue links. Premium/Ultimate tier support is not inferred from Enterprise Edition metadata; blocking links stay disabled until that support can be confirmed, while ordinary related-Issue links remain available. GitLab Free supports the basic Merge Request approval API for users with permission; protected approval rules may still depend on the server tier. Individual time reports use the Work Item time-tracking widget or `Issue.timelogs`, with schema-selected fields and complete pagination. Both legacy Project/projectPath and newer Namespace/namespacePath shapes are supported. Older instances record date-specific time through the native `/spend` quick action, which leaves an Issue note. Merge Request review uses the 16.11 scope=all&reviewer_id filter and paginated /diffs.
 
-The workspace initially loads projects, assigned Issues, and the current user. The review list loads in reviewer mode; Issue edit options load when editing starts; relations, development data, and time data load when their tabs open; the graph refreshes only while visible. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
+The workspace initially loads projects, assigned Issues, and the current user. The review list loads in reviewer mode; Issue edit options load when editing starts; relations and time data load when their tabs open; related Merge Requests load with Issue content; the graph refreshes only while visible. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
 
 GitLab reads are limited to six concurrent requests per connection, each with a 30-second timeout. The cache holds up to 256 entries for 60 seconds and shares identical in-flight reads. Successful writes invalidate affected data. Sidebar Repo summaries update from Git state changes; repeated reads without a change use the cached summary.
 

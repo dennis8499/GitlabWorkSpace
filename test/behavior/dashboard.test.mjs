@@ -802,7 +802,6 @@ function snapshot(activeMode = 'developer') {
     workflowKitSource: 'bundled',
     tools: [],
     toolSource: 'gitea',
-    deliveryRecords: [],
     busy: false
   };
 }
@@ -1190,6 +1189,25 @@ test('bounds the dashboard without a maximize control and keeps GitLab support d
   assert.match(dashboardCss, /\.statusbar\s*\{[^}]*flex:\s*0\s+0\s+auto/s);
 });
 
+test('retired Issue development navigation and saved tabs reopen on Content', async t => {
+  const data = snapshot(); data.instanceUserScope = 'retired-tab-scope';
+  const issue = data.issues[0], project = data.projects.find(item => item.id === issue.project_id);
+  const key = `${issue.project_id}:${issue.iid}`;
+  const view = await mount({ mode: 'developer', issueEditorDrafts: {
+    [data.instanceUserScope]: { tabs: { [key]: { tab: 'development', revision: 20 } } }
+  } }, data);
+  t.after(() => view.dom.window.close());
+  for (const revision of [20, 21]) {
+    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id,
+      issueIid: issue.iid, tab: 'development', revision } }); await view.tick();
+    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: issueDetailData(issue, project) } }); await view.tick();
+    const tabs = [...view.dom.window.document.querySelectorAll('.issue-tabs [role="tab"]')];
+    assert.deepEqual(tabs.map(tab => tab.textContent.trim()), ['內容與討論', '關聯與子工作', '工時']);
+    assert.equal(tabs.find(tab => tab.getAttribute('aria-selected') === 'true').textContent.trim(), '內容與討論');
+    assert.equal(view.requests.some(request => /Delivery|copyAndOpenCodex/.test(request.type)), false);
+  }
+});
+
 test('shows one selected Wiki feature and builds prompts from the actual local Repo inventory', async (t) => {
   const selectedGroup = snapshot('sa');
   selectedGroup.groupRepositories = [
@@ -1201,30 +1219,18 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   const document = view.dom.window.document;
   assert.equal(document.querySelector('.page-heading h1').textContent, 'Skills 功能指引');
   assert.equal(document.querySelectorAll('.wiki-guide-card').length, 1);
-  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-megin-spec-export');
+  assert.equal(document.querySelector('.wiki-guide-card h2').id, 'wiki-card-title-query');
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
   assert.deepEqual([...document.querySelectorAll('.skills-feature-navigation button')].map(button => button.id.replace('skill-feature-','')).sort(), [
-    'megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+    'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ].sort());
 
-  assert.equal(selectedSkillFeature(document), 'megin-spec-export');
+  assert.equal(selectedSkillFeature(document), 'query');
   const devPreview = document.querySelector('.wiki-prompt-preview');
   assert.ok(devPreview.textContent.includes('renamed-alpha → C:/workspace/team/renamed-alpha'));
   assert.ok(devPreview.textContent.includes('unmapped-tools → C:/workspace/team/unmapped-tools'));
   assert.equal(devPreview.textContent.includes('team/alpha'), false);
-
-  selectSkillFeature(document, 'megin-spec-export');
-   await view.tick();
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  const spec = document.querySelector('[id="wiki-input-megin-spec-export.existingSpec"]');
-  spec.value = 'wiki/synthesis/refund-development-spec.md';
-  spec.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  await view.tick();
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
-  document.querySelector('.wiki-copy-button').click(); await view.tick();
-  assert.match(view.requests.at(-1).text, /megin-spec-export.*refund-development-spec\.md/s);
-  assert.match(view.requests.at(-1).text, /exports\/megin\/<scope>-r<spec_revision>\.md/);
 
   selectSkillFeature(document, 'query');
 
@@ -1303,7 +1309,7 @@ test('offline installation exposes the shared root, reset, errors and busy state
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
   button('選擇共用根目錄').click(); assert.equal(view.requests.at(-1).type, 'selectProjectRoot');
   await view.tick(); button('恢復 VS Code 根目錄').click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
-  for (const status of ['checking', 'installing', 'work-in-progress', 'needs-cleanup']) {
+  for (const status of ['checking', 'installing', 'needs-cleanup']) {
     state.workflowKitInstallTarget.state = { status }; view.sendSnapshot(state); await view.tick();
     assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
     if (status === 'installing') assert.equal(button('選擇共用根目錄').disabled, true);
@@ -1393,10 +1399,8 @@ test('an installed custom folder does not enable the Group guide when the Group 
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const scope = document.querySelector('[id="wiki-input-megin-spec-export.feature"]');
+  const scope = document.querySelector('[id="wiki-input-query.question"]');
   scope.value = 'Retry behavior'; scope.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  const requirement = document.querySelector('[id="wiki-input-megin-spec-export.requirement"]');
-  requirement.value = 'Describe retry behavior'; requirement.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   document.querySelector('.skills-install-button').click(); await view.tick();
@@ -1424,7 +1428,7 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   view.sendSnapshot(groupB);
   await view.tick();
-  assert.equal(selectedSkillFeature(document), 'megin-spec-export');
+  assert.equal(selectedSkillFeature(document), 'query');
   selectSkillFeature(document, 'query');
 
   await view.tick();
@@ -1450,7 +1454,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   const view = await mount({ mode: 'sa' }, state);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const query = document.querySelector('[id="wiki-input-megin-spec-export.feature"]');
+  const query = document.querySelector('[id="wiki-input-query.question"]');
   query.value = 'Retry behavior';
   query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
@@ -1458,7 +1462,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.ok(document.querySelector('.skills-feature-navigation'));
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
-test('four Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
+test('three Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope',
     wikiGuideInputsByScope: { 'team-scope': { 'query.question': '保留的 Wiki 問題' } },
     wikiGuideSelectionsByScope: { 'team-scope': 'query' } }, snapshot('sa'));
@@ -1471,7 +1475,7 @@ test('four Skills tools preserve legacy Wiki drafts and isolate release inputs a
     input.dispatchEvent(new view.dom.window.Event(event, { bubbles: true }));
     await view.tick();
   };
-  assert.equal(document.querySelectorAll('.skills-tool-tabs [role=tab]').length, 4);
+  assert.equal(document.querySelectorAll('.skills-tool-tabs [role=tab]').length, 3);
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'release-reviewer');
   assert.equal(selectedSkillFeature(document), 'release-review');
@@ -1552,16 +1556,6 @@ test('release guide retains multiple field inputs dispatched before the next rep
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
 
-test('Megin navigates to Issue work while native branch review stays in analysis', async t => {
-  const view=await mount({mode:'sa'},snapshot('sa')); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
-  selectSkillTool(document,'megin'); await view.tick();
-  document.querySelector('.skills-navigate-button').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type==='setMode').mode,'developer');
-  view.sendSnapshot(snapshot('sa')); await view.tick(); selectSkillTool(document,'merge-reviewer'); await view.tick();
-  assert.equal(document.querySelector('.skills-navigate-button'),null);
-  assert.ok(document.querySelector('[id="wiki-input-merge-repo.base"]'));
-  assert.equal(document.querySelector('.wiki-copy-button').disabled,true);
-});
 
 test('copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, snapshot());
@@ -2313,132 +2307,18 @@ function setSkillsContext(state, mode = 'repository', matching = {}) {
   const root = mode === 'group' ? state.groupRoot : state.workflowKitInstallTarget.root;
   setProjectContext(state, root, state.workflowKitInstallTarget.manual);
   const repositories = [{ name: 'alpha', path: 'C:/local/repo', matched: true }, { name: 'beta', path: 'C:/local/other', matched: true }];
-  const features = ['megin-spec-export', 'query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
+  const features = ['query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
     ...(mode === 'group' ? ['merge-group', 'merge-mr'] : [])];
   state.skillsContext = { mode, root, revision: `revision-${root}`, groupMatch: { status: mode === 'group' ? 'matched' : 'mismatched',
     root: mode === 'group' ? root : undefined, repositories, ...matching }, repositories: mode === 'group' ? repositories : repositories.filter(repo => repo.path === root),
     installed: { status: 'installed', profile: mode, version: '0.17.0', capabilities: features,
       upstreamVersions: { 'codebase-wiki': '0.4.0', megin: '0.4.0', 'merge-reviewer': '0.7.0', 'release-reviewer': '0.1.0' } },
-    availableFeatures: features, resumeOnly: false };
+    availableFeatures: features };
   return state.skillsContext;
 }
 
-test('native Skills shares selected Repo, real versions, functions, prompts and per-Repo drafts', async t => {
-  const state = snapshot('sa');
-  state.workflowKitPolicy = { requireGroupEnvironment: false, allowed: true, mode: 'repository', settingTarget: 'workspace' };
-  state.workflowKitInstallTarget = { root: 'C:/local/repo', profile: 'repository', manual: true, state: { status: 'installed' } };
-  setSkillsContext(state);
-  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const change = async (selector, value, event = 'change') => {
-    if (selectSkillControl(document,selector,value)) { await view.tick(); return; }
-    const control = document.querySelector(selector); control.value = value;
-    control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
-  };
-  assert.match(document.querySelector('.skills-guide').textContent, /0.17.0.*0.4.0/);
-  await change('[aria-label="Skills 工具"]', 'megin');
-  assert.match(document.querySelector('.skills-guide').textContent, /單一 Repo 開發流程/);
-  assert.equal(document.querySelector('.skills-navigate-button'), null);
-  await change('[id="wiki-input-megin-workflow.task"]', '實作可重試的付款 API', 'input');
-  const prompt = document.querySelector('.wiki-prompt-preview').textContent;
-  assert.match(prompt, /C:\/local\/repo.*實作可重試的付款 API/s);
-  assert.doesNotMatch(prompt, /Group 鎖|兄弟 Repo|gitlab_mr|C:\/workspace\/team/);
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
-  document.querySelector('.wiki-copy-button').click();
-  assert.equal(view.requests.at(-1).type, 'copySkillGuidePrompt');
-  assert.equal(view.requests.at(-1).featureId, 'megin-workflow');
-  assert.equal(view.requests.at(-1).revision, state.skillsContext.revision);
-  assert.equal(view.requests.at(-1).inputs['megin-workflow.task'], '實作可重試的付款 API');
-  document.querySelector('.skills-codex-button').click();
-  assert.deepEqual(structuredClone(view.requests.at(-1)), { type: 'openCodexTerminal', revision: state.skillsContext.revision });
-  await change('[aria-label="Skills 工具"]', 'merge-reviewer');
-  assert.deepEqual([...document.querySelectorAll('.skills-feature-navigation button')].map(button => button.id.replace('skill-feature-','')), ['merge-repo']);
-  assert.equal(document.querySelector('[id="wiki-input-merge-repo.repo"]'), null);
-  state.projectContext.folders = [{ uri: 'file:repo', name: 'repo', path: 'C:/local/repo' }, { uri: 'file:other', name: 'other', path: 'C:/local/other' }];
-  state.projectContext.selectedFolderUri = 'file:repo'; view.sendSnapshot(state); await view.tick();
-  await change('[aria-label="目前專案資料夾"]', 'file:other');
-  assert.equal(view.requests.at(-1).type, 'selectProjectFolder'); assert.equal(view.requests.at(-1).folderUri, 'file:other');
-  const second = structuredClone(state); second.workflowKitInstallTarget.root = 'C:/local/other'; setSkillsContext(second);
-  view.sendSnapshot(second); await view.tick();
-  await change('[aria-label="Skills 工具"]', 'megin');
-  assert.equal(document.querySelector('[id="wiki-input-megin-workflow.task"]').value, '');
-  await change('[id="wiki-input-megin-workflow.task"]', '另一個 Repo 的草稿', 'input');
-  view.sendSnapshot(state); await view.tick();
-  await change('[aria-label="Skills 工具"]', 'megin');
-  assert.equal(document.querySelector('[id="wiki-input-megin-workflow.task"]').value, '實作可重試的付款 API');
-  assert.equal(view.savedState.skillsGuideByScope['project:C:/local/other:repository'].inputs['megin-workflow.task'], '另一個 Repo 的草稿');
-  assert.ok(!view.requests.some(request => request.type === 'installWorkflowKit'), 'navigation must never install or convert a profile');
-});
 
-test('legacy Skills only resumes verified Work IDs and never displays another roots version', async t => {
-  const state = snapshot('sa');
-  state.workflowKitInstallTarget.root = 'C:/local/repo';
-  const context = setSkillsContext(state);
-  context.installed = { ...context.installed, version: '0.16.0', status: 'work-in-progress', activeWorkIds: ['work-20261011-existing'] };
-  context.availableFeatures = ['megin-resume']; context.resumeOnly = true;
-  context.reason = '舊版僅可續作既有 Megin 工作；完成後請更新。';
-  const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  assert.match(document.querySelector('.skills-guide').textContent, /0.16.0/);
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  const change = async (selector, value, event = 'change') => {
-    if (selectSkillControl(document,selector,value)) { await view.tick(); return; }
-    const control = document.querySelector(selector); control.value = value;
-    control.dispatchEvent(new view.dom.window.Event(event, { bubbles: true })); await view.tick();
-  };
-  await change('[aria-label="Skills 工具"]', 'megin');
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, true, 'new tasks stay blocked');
-  await change('[aria-label="Skills 功能"]', 'megin-resume');
-  await change('[id="wiki-input-megin-resume.workId"]', 'work-20261011-other', 'input');
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  await change('[id="wiki-input-megin-resume.workId"]', 'work-20261011-existing', 'input');
-  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
-  document.querySelector('.wiki-copy-button').click(); assert.equal(view.requests.at(-1).featureId, 'megin-resume');
-  context.installed = { status: 'missing' }; context.availableFeatures = []; context.resumeOnly = false;
-  view.sendSnapshot(state); await view.tick();
-  assert.match(document.querySelector('.skills-guide').textContent, /未安裝/);
-  assert.doesNotMatch(document.querySelector('.skills-guide').textContent, /0.9.0|0.16.0/);
-});
 
-test('Issue development distinguishes default continuation, explicit new work and selected continuation', async t => {
-  const data = snapshot();
-  data.localRepositories = { 1: { state: 'ready', path: 'C:/workspace/team/alpha' }, 2: { state: 'ready', path: 'C:/workspace/team/beta' } };
-  data.meginWorkItems = [
-    { workId: 'work-20261013-first', status: 'implementing', issueIid: 1, issueProjectId: 1 },
-    { workId: 'work-20261013-second', status: 'implementing', issueIid: 1, issueProjectId: 1 },
-    { workId: 'work-20261013-beta', status: 'implementing', issueIid: 2, issueProjectId: 2 }
-  ];
-  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
-  const document = view.dom.window.document;
-  const openIssue = async (index, revision) => {
-    const issue = data.issues[index]; const project = data.projects.find(project => project.id === issue.project_id);
-    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, tab: 'development', revision } }); await view.tick();
-    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: issueDetailData(issue, project) } }); await view.tick();
-  };
-  const selector = () => [...document.querySelectorAll('.issue-embed select')].find(select => [...select.options].some(option => option.textContent.startsWith('建立新工作')));
-  const copyPrompt = () => {
-    [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '複製任務並開啟 Codex CLI').click();
-    return view.requests.findLast(request => request.type === 'copyAndOpenCodex').text;
-  };
-  const selectWork = async value => {
-    const select = selector(); select.value = value;
-    select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
-  };
-  await openIssue(0, 20);
-  assert.equal(selector().value, 'work-20261013-first');
-  assert.match(copyPrompt(), /續作 Work ID：work-20261013-first/);
-  await selectWork('work-20261013-second');
-  assert.match(copyPrompt(), /續作 Work ID：work-20261013-second/);
-  await selectWork('');
-  assert.equal(selector().value, '');
-  assert.doesNotMatch(copyPrompt(), /續作 Work ID：/);
-  view.sendSnapshot(structuredClone(data)); await view.tick();
-  assert.equal(selector().value, '', 'ordinary snapshots preserve the explicit new-work choice');
-  assert.doesNotMatch(copyPrompt(), /續作 Work ID：/);
-  await openIssue(1, 21);
-  assert.equal(selector().value, 'work-20261013-beta', 'another Issue resets the choice to its own default');
-  assert.match(copyPrompt(), /續作 Work ID：work-20261013-beta/);
-});
 
 test('sidebar mode navigation restores the narrow-layout list while ordinary snapshots preserve its preview', async t => {
   const view = await mount({ mode: 'developer' }, snapshot()); t.after(() => view.dom.window.close());

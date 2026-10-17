@@ -85,17 +85,13 @@ suite('Account, preview and workspace Repo integration', () => {
     assert.equal(view.repositoryScan.repositories.length, 0);
   });
 
-  test('a pending delivery operation blocks account transitions until it finishes', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>(resolve => { release = resolve; });
+  test('retired delivery requests are rejected before dispatch', async () => {
+    let dispatched = false;
     const view: Harness = Object.assign(Object.create(WorkspacePanel.prototype), {
-      session: {}, writesInFlight: 0, mrWritesInFlight: new Set(), issueRelationWritesInFlight: new Set(), timer: { list: () => [] },
-      dispatchMessage: async () => { await gate; }
+      session: {}, post: () => undefined, dispatchMessage: async () => { dispatched = true; }
     });
-    const operation = view.handleMessage({ type: 'prepareDelivery', projectId: 1, issueIid: 1 });
-    assert.throws(() => view.assertAccountTransitionAllowed(), /完成後才能/);
-    release(); await operation;
-    assert.doesNotThrow(() => view.assertAccountTransitionAllowed());
+    await assert.rejects(view.handleMessage({ type: 'prepareDelivery', projectId: 1, issueIid: 1 }), /已移除/);
+    assert.equal(dispatched, false);
   });
 
   test('scanning registers deep Repos and worktrees with native VS Code Git and reconciles inventories', async function () {

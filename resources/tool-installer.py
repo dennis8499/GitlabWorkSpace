@@ -24,15 +24,11 @@ MAX_FILES = 12_000
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MANIFEST_SCHEMA = "gitlab-workspace-managed-tools/v1"
 TOOL_FOLDERS = {
-    "megin": lambda extracted: find_megin_skills(extracted),
     "merge-reviewer": lambda extracted: find_single_skill(extracted, "merge-reviewer"),
 }
 WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE)
-ALLOWED_TOOL_ROOTS = {"codebase-wiki", "megin", "merge-reviewer"}
+ALLOWED_TOOL_ROOTS = {"codebase-wiki", "merge-reviewer"}
 MAX_XZ_OUTPUT_BYTES = MAX_EXPANDED_BYTES + MAX_FILES * 1024 + 1024 * 1024
-MEGIN_KNOWN_VERSIONS = {
-    "b2e6a4a7bc57df097ba5d04b8d7605429b715db3886e43c8945169541944f5c3": "0.1.0",
-}
 
 
 def fail(message: str) -> None:
@@ -239,19 +235,6 @@ def extract_verified_tar_xz(archive_path: Path, destination: Path, entry_root: s
     return file_count
 
 
-def find_megin_skills(extracted: Path) -> list[Path]:
-    candidates: list[Path] = []
-    for skill in extracted.rglob("SKILL.md"):
-        if skill.parent.name.startswith("megin") and skill.is_file():
-            candidates.append(skill.parent)
-    unique = sorted(set(candidates))
-    if not unique:
-        fail("Megin Release 沒有包含任何 megin* Skill 目錄。")
-    if any(not (skill / "references").is_dir() for skill in unique if skill.name == "megin"):
-        fail("Megin 主 Skill 缺少必要的 references 目錄。")
-    return unique
-
-
 def find_single_skill(extracted: Path, name: str) -> list[Path]:
     matches = [path for path in extracted.rglob("SKILL.md") if path.parent.name == name and path.is_file()]
     if len(matches) != 1:
@@ -267,7 +250,7 @@ def find_wiki_installer(extracted: Path) -> Path:
 
 
 def inspect_zip(tool: str, archive_path: Path) -> dict[str, Any]:
-    if tool not in ("codebase-wiki", "megin", "merge-reviewer"):
+    if tool not in ("codebase-wiki", "merge-reviewer"):
         fail("不支援此工具。")
     digest = file_digest(archive_path)
     with tempfile.TemporaryDirectory(prefix="workspace-tool-inspect-") as temporary:
@@ -289,14 +272,6 @@ def inspect_zip(tool: str, archive_path: Path) -> dict[str, Any]:
                 value = version_file.read_text(encoding="utf-8").strip()
                 if re.fullmatch(r"\d+\.\d+\.\d+", value):
                     version = value
-        else:
-            find_megin_skills(extracted)
-            version = MEGIN_KNOWN_VERSIONS.get(digest)
-            if version is None:
-                values = {item.read_text(encoding="utf-8").strip() for item in extracted.rglob("VERSION") if item.is_file()}
-                versions = [value for value in values if re.fullmatch(r"\d+\.\d+\.\d+", value)]
-                if len(versions) == 1:
-                    version = versions[0]
     return {"ok": True, "tool": tool, "detected_version": version, "sha256": digest}
 
 
@@ -401,8 +376,7 @@ def replace_skills(root: Path, extracted: Path, skill_sources: list[Path], tool:
 
     new_names = {skill.name for skill in skill_sources}
     target_names = {"merge-reviewer"} if tool == "merge-reviewer" else new_names
-    if not new_names or (tool == "merge-reviewer" and new_names != target_names) or \
-            (tool == "megin" and any(not name.startswith("megin") for name in new_names)):
+    if not new_names or (tool == "merge-reviewer" and new_names != target_names):
         fail("Release 中的 Skill 名稱不符合允許的工具範圍。")
     old_names = set(marker.get("skills", {}))
     for name in new_names:
@@ -536,7 +510,7 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "inspect":
         inspect_parser = argparse.ArgumentParser(description="Validate a user-imported Release ZIP without installing it.")
         inspect_parser.add_argument("command", choices=("inspect",))
-        inspect_parser.add_argument("tool", choices=("codebase-wiki", "megin", "merge-reviewer"))
+        inspect_parser.add_argument("tool", choices=("codebase-wiki", "merge-reviewer"))
         inspect_parser.add_argument("archive", type=Path)
         args = inspect_parser.parse_args()
         try:
@@ -547,7 +521,7 @@ def main() -> int:
             return 1
 
     parser = argparse.ArgumentParser(description="Validate and install GitLab Workspace Release skill bundles.")
-    parser.add_argument("tool", choices=("codebase-wiki", "megin", "merge-reviewer"))
+    parser.add_argument("tool", choices=("codebase-wiki", "merge-reviewer"))
     parser.add_argument("archive", type=Path)
     parser.add_argument("group_root", type=Path)
     parser.add_argument("version", type=str)

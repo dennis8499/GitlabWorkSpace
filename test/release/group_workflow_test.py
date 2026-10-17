@@ -1,4 +1,4 @@
-"""Exercise the assembled native Megin and all portable Group/MR capture routes."""
+"""Exercise assembled Group branch review capture routes."""
 from __future__ import annotations
 import base64
 import hashlib
@@ -41,7 +41,6 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
         self.assertEqual(list(harness.SKILLS),json.loads((self.group/harness.MARKER).read_text(encoding='utf-8'))['skills'])
         self.tools = self.group/'.agents/skills'
         self.reviewer = self.tools/'merge-reviewer/scripts'
-        self.megin = self.tools/'megin/scripts'
         self.repos=[]
         for name,text in [('A',"def order_api(): return {'id': 1}\n"),('B',"from A import order_api\ndef public_order(): return order_api()['id']\n"),('C',"from B import public_order\nprint(public_order())\n")]:
             repo=self.group/name;repo.mkdir();self.git(repo,'init','-q','-b','master')
@@ -58,19 +57,6 @@ class InstalledGroupWorkflowTests(unittest.TestCase):
           'groupRoot':str(self.group),'sourceRemoteUrl':'https://gitlab.example.invalid/A.git',
           'targetRemoteUrl':'https://gitlab.example.invalid/A.git','mode':'direct'}
 
-    def test_native_skill_bytes_inventory_and_unchanged_consumers_without_writer_branches(self):
-        self.assertFalse((self.megin/'gitlab_delivery.py').exists())
-        self.assertFalse((self.megin/'group_workspace.py').exists())
-        self.assertFalse((self.reviewer/'group_review.py').exists())
-        with zipfile.ZipFile(ROOT/'resources/offline-tools/sources'/CURRENT_SOURCES['megin']['filename']) as source:
-            for name in source.namelist():
-                if name.startswith('megin') and '/' in name:
-                    self.assertEqual(source.read(name),(self.tools/name).read_bytes(),name)
-        inventory=self.helper(self.megin/'unified_workflow.py','inventory','--group-root',self.group)
-        self.assertEqual(['A','B','C'],inventory['repositories'])
-        for repo in self.repos[1:]:self.assertEqual('master',self.git(repo,'branch','--show-current'))
-        checked=self.command([sys.executable,'-X','utf8','-B',self.megin/'validate_skills.py'])
-        self.assertIn('validated 13 Megin Skills',checked.stdout)
 
     def test_native_v3_branch_capture_keeps_one_seed_and_related_heads(self):
         context=self.base/'branch-context'

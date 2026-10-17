@@ -181,7 +181,7 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .draft-column { display: flex; flex-direction: column; gap: 11px; }
 .panel-title { justify-content: space-between; align-items: flex-start; margin-bottom: 11px; }
 .draft-stack { display: flex; flex-direction: column; gap: 12px; }
-.draft-card, .section-card, .delivery-record, .tool-card { border: 1px solid var(--border); border-radius: 7px; padding: 12px; }
+.draft-card, .section-card, .tool-card { border: 1px solid var(--border); border-radius: 7px; padding: 12px; }
 .draft-card { display: flex; flex-direction: column; gap: 9px; }
 .draft-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .draft-card-head label { display: flex; align-items: center; gap: 7px; }
@@ -198,12 +198,8 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .issue-detail { display: flex; flex-direction: column; gap: 12px; }
 .issue-description { white-space: pre-wrap; line-height: 1.6; color: var(--muted); }
 .section-card { display: flex; flex-direction: column; gap: 11px; }
-.delivery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-.delivery-grid .full { grid-column: 1 / -1; }
 .field-hint { align-self: center; margin: 0; }
-.delivery-record { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.delivery-record p { margin: 0; line-height: 1.5; }
-.delivery-record details, .diff-list details { border-top: 1px solid var(--border); padding: 8px 0; }
+.diff-list details { border-top: 1px solid var(--border); padding: 8px 0; }
 summary { cursor: pointer; color: var(--vscode-textLink-foreground); }
 pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; padding: 10px; color: var(--vscode-editor-foreground, var(--vscode-foreground)); background: var(--vscode-editor-background); font: 11px/1.5 var(--vscode-editor-font-family, Consolas, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-stat { color: var(--muted); font-family: var(--vscode-editor-font-family, monospace); }
@@ -401,8 +397,6 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .clone-selection-summary { flex: 1 1 120px; }
   .clone-actions-row .clone-submit { flex: 1 1 100%; }
   .detail-column { padding: 12px; }
-  .delivery-grid { grid-template-columns: minmax(0, 1fr); }
-  .delivery-grid .full { grid-column: auto; }
   .filter-row { grid-template-columns: 1fr 1fr; }
   .statusbar { flex-wrap: wrap; }
   .issue-workspace-layout .layout { grid-template-columns: minmax(0, 1fr); }

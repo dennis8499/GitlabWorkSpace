@@ -11,7 +11,7 @@ const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0
 
 test('all executable guide prompts route optional output style once and preserve workflow contracts', () => {
   for (const profile of ['group', 'repository'] as const) {
-    for (const card of getSkillGuideCards(profile).filter(item => !item.destination)) {
+    for (const card of getSkillGuideCards(profile)) {
       const inputs = Object.fromEntries(card.fields.map(field => [`${card.id}.${field.id}`,
         field.id === 'base' ? 'main' : field.id === 'head' ? 'feature/change' : field.defaultValue ?? 'fixture']));
       const prompt = buildSkillGuidePrompt(card, inputs, { ...context, profile, root: context.repositories[0].path });
@@ -29,53 +29,17 @@ test('both Analysis profiles expose exactly the frozen package capability invent
   }
 });
 
-test('four tool entrances retain Wiki drafts and use existing Issue/MR destinations', () => {
+test('three tool entrances retain Wiki drafts and supported default selections', () => {
   const state = restoreSkillGuideState(undefined, { 'query.question': '退款流程？\n請附來源。' }, 'query');
   assert.equal(state.tool, 'codebase-wiki');
   assert.equal(state.selections['codebase-wiki'], 'query');
   assert.ok(buildSkillGuidePrompt(getSkillGuideCard(state.tool, 'query'), state.inputs, context).includes(state.inputs['query.question']));
   for (const tool of skillGuideTools) assert.equal(getSkillGuideCard(tool.id).tool, tool.id);
-  assert.equal(getSkillGuideCard('megin').destination, 'developer');
   assert.equal(getSkillGuideCard('merge-reviewer', 'merge-mr').id, 'merge-repo');
-  assert.equal(getSkillGuideCard('merge-reviewer').destination, undefined);
-  assert.equal(canCopySkillPrompt(getSkillGuideCard('megin'), state.inputs), false);
-  assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'megin-spec-export');
+  assert.equal(restoreSkillGuideState(undefined, {}, 'install').selections['codebase-wiki'], 'query');
 });
 
-test('full ingest and Megin export remain available through the shared Skills entry', () => {
-  const ingest = getSkillGuideCard('codebase-wiki', 'ingest');
-  const inputs = { 'ingest.scope': '全部專案' };
-  assert.equal(canCopySkillPrompt(ingest, inputs), true);
-  assert.match(buildSkillGuidePrompt(ingest, inputs, context), /ingest-coverage.py/);
-  const exportCard = getSkillGuideCard('codebase-wiki', 'megin-spec-export');
-  const exportInputs = { 'megin-spec-export.scope': 'refund', 'megin-spec-export.spec': 'wiki/synthesis/refund-development-spec.md' };
-  assert.equal(canCopySkillPrompt(exportCard, exportInputs), true);
-  assert.equal(canCopySkillPrompt(exportCard, { ...exportInputs, 'megin-spec-export.spec': 'wiki/spec.md\nextra' }), false);
-});
 
-test('Megin spec migration preserves both legacy drafts without mixing them or overwriting new inputs', () => {
-  const legacy = { 'development-spec.scope': '退款', 'development-spec.requirement': '客服可發起退款。',
-    'development-spec.delivery': '只產生規格', 'megin-spec-export.spec': 'wiki/synthesis/login-development-spec.md',
-    'megin-spec-export.scope': 'login' };
-  const development = restoreSkillGuideState(undefined, legacy, 'development-spec');
-  assert.equal(development.selections['codebase-wiki'], 'megin-spec-export');
-  assert.equal(development.inputs['megin-spec-export.feature'], '退款');
-  assert.equal(development.inputs['megin-spec-export.requirement'], '客服可發起退款。');
-  assert.equal(development.inputs['megin-spec-export.existingSpec'], '');
-  assert.equal(development.inputs['megin-spec-export.spec'], legacy['megin-spec-export.spec']);
-  assert.deepEqual(restoreSkillGuideState(development), development);
-  const exported = restoreSkillGuideState(undefined, legacy, 'megin-spec-export');
-  assert.equal(exported.inputs['megin-spec-export.feature'], '');
-  assert.equal(exported.inputs['megin-spec-export.requirement'], '');
-  assert.equal(exported.inputs['megin-spec-export.existingSpec'], legacy['megin-spec-export.spec']);
-  assert.equal(legacyWikiInputs(exported.inputs)['development-spec.scope'], '退款');
-  const edited = restoreSkillGuideState({ ...development, selections: { 'codebase-wiki': 'development-spec' },
-    inputs: { ...development.inputs, 'megin-spec-export.feature': '新名稱', 'megin-spec-export.requirement': '新需求',
-      'megin-spec-export.existingSpec': 'wiki/synthesis/edited.md' } });
-  assert.equal(edited.inputs['megin-spec-export.feature'], '新名稱');
-  assert.equal(edited.inputs['megin-spec-export.requirement'], '新需求');
-  assert.equal(edited.inputs['megin-spec-export.existingSpec'], 'wiki/synthesis/edited.md');
-});
 
 test('release checks require manual Repo/base/head and preserve literal Unicode paths and refs', () => {
   const state = restoreSkillGuideState();
@@ -108,39 +72,7 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   for (const ref of ['HEAD', 'refs/tags/v1', 'f'.repeat(40), 'main~1']) assert.equal(canCopySkillPrompt(card, { ...inputs, 'release-review.head': ref }), false);
 });
 
-test('resume requires a real Work ID format and state round trips without losing tool inputs', () => {
-  const state = restoreSkillGuideState();
-  const card = getSkillGuideCard('megin', 'megin-resume');
-  assert.equal(canCopySkillPrompt(card, { 'megin-resume.workId': 'some work' }), false);
-  const saved = { ...state, tool: 'release-reviewer' as const, selections: { ...state.selections, megin: 'megin-resume' },
-    inputs: { ...state.inputs, 'megin-resume.workId': 'work-20261010-payment', 'query.question': 'old Wiki draft', 'release-review.repo': 'service' } };
-  assert.equal(canCopySkillPrompt(card, saved.inputs), true);
-  assert.match(buildSkillGuidePrompt(card, saved.inputs, context), /從最早尚未完成的階段繼續/);
-  assert.match(buildSkillGuidePrompt(card, saved.inputs, context), /不得重置/);
-  assert.deepEqual(restoreSkillGuideState(saved), saved);
-  assert.deepEqual(legacyWikiInputs(saved.inputs)['query.question'], 'old Wiki draft');
-  assert.equal(legacyWikiInputs(saved.inputs)['release-review.repo'], undefined);
-  assert.equal(canCopySkillPrompt(getSkillGuideCard('release-reviewer'), { ...saved.inputs, 'release-review.mode': 'unknown' }), false);
-});
 
-test('native development prompts require exploration, approval and bounded independent reviews', () => {
-  const card = getSkillGuideCard('megin', undefined, 'repository');
-  const prompt = buildSkillGuidePrompt(card, { 'megin-workflow.task': '改善退款流程' }, {
-    ...context, profile: 'repository', root: context.repositories[0].path
-  });
-  assert.match(prompt, /Repo v3/);
-  assert.match(prompt, /中立釐清問題、受眾、成果與驗收/);
-  assert.match(prompt, /事實、假設、需求與技術建議/);
-  assert.match(prompt, /明確核准後才開始 BDD／TDD/);
-  assert.match(prompt, /red／green 原始證據/);
-  assert.match(prompt, /REQ.*SCN.*斷言.*實作.*Review.*人工驗收/);
-  assert.match(prompt, /初審為第 0 輪，最多三次修正重審/);
-  assert.match(prompt, /新的獨立唯讀 reviewer/);
-  assert.match(prompt, /第三次修正仍失敗.*回報未完成/);
-  assert.match(prompt, /續作不重置次數/);
-  assert.match(card.behavior, /feature commits/);
-  assert.doesNotMatch(card.behavior, /Commit／Merge/);
-});
 
 test('release prompt binds actual folder and saved multi-root workspace without adding user fields', () => {
   const card = getSkillGuideCard('release-reviewer');

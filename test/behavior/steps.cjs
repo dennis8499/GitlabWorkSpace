@@ -354,7 +354,7 @@ When('I inspect and edit a child task', async function () {
 When('I start, pause, resume, and stop its timer', async function () {
   await this.send({ type: 'snapshot', snapshot: {
     connected: true, instanceUserScope: 'timer-scope', timerVersion: 0, timers: [], issues: [issue], projects: [project],
-    localRepositories: {}, deliveryRecords: [], meginWorkItems: [], workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
+    localRepositories: {}, workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
   } });
   await this.detail();
   await this.tab('工時');
@@ -400,7 +400,7 @@ Then('the timer states and pending time entry are labeled in Traditional Chinese
 When('I create a child Task and a related Issue from its detail view', async function () {
   await this.send({ type: 'snapshot', snapshot: {
     connected: true, connectedScope: 'team-scope', instanceUserScope: 'timer-scope', timerVersion: 0, timers: [], issues: [issue], projects: [project],
-    localRepositories: {}, deliveryRecords: [], meginWorkItems: [], workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
+    localRepositories: {}, workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
   } });
   await this.detail();
   const load = this.workspaceActions.filter((item) => item.type === 'loadIssueRelations').at(-1);
@@ -497,8 +497,8 @@ Then('the editor closes and the updated comment is shown', function () {
   assert.match(this.root.body.textContent, /Updated comment draft/);
 });
 
-Then('the detail shows the four task tabs and opens on content', function () {
-  const labels = ['內容與討論', '開發與交付', '關聯與子工作', '工時'];
+Then('the detail shows the three task tabs and opens on content', function () {
+  const labels = ['內容與討論', '關聯與子工作', '工時'];
   const tabs = [...this.root.querySelectorAll('.issue-tabs[role="tablist"] [role="tab"]')];
   assert.deepEqual(tabs.map((item) => item.textContent.trim()), labels);
   assert.equal(tabs[0].getAttribute('aria-selected'), 'true');
@@ -507,7 +507,7 @@ Then('the detail shows the four task tabs and opens on content', function () {
   assert.ok([...this.root.querySelectorAll('.issue-section:not([hidden])')].some((section) => section.textContent.includes('討論與活動')));
 });
 When('I visit each Issue task tab', async function () {
-  for (const label of ['開發與交付', '關聯與子工作', '工時', '內容與討論']) {
+  for (const label of ['關聯與子工作', '工時', '內容與討論']) {
     const selected = this.root.querySelector('.issue-tabs[role="tablist"] [role="tab"][aria-selected="true"]');
     selected.focus();
     selected.dispatchEvent(new this.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -520,7 +520,6 @@ Then('the selected tab displays the matching section', function () {
   assert.ok(selected);
   const expectedHeading = ({
     '內容與討論': '討論與活動',
-    '開發與交付': '開始開發與交付',
     '關聯與子工作': '關聯 Issue',
     '工時': '工時'
   })[selected.textContent.trim()];
@@ -645,67 +644,4 @@ Then('the later field value remains ready for another save', async function () {
   const saves = this.messages.filter((item) => item.type === 'update');
   assert.equal(saves.at(-1).input.title, 'Later title draft');
   assert.equal(saves.at(-1).expectedUpdatedAt, '2026-09-24T01:00:00Z');
-});
-
-When('the Group provides an accepted multi-Repo handoff', async function () {
-  this.groupSnapshot = {
-    groupRoot: 'C:/workspace/group', baseUrl: 'https://gitlab.example.test', projects: [project, target],
-    connected: true, currentUser: user, activeMode: 'developer', groups: [], issues: [issue],
-    mergeRequests: [], groupMilestones: [], groupIssueBoards: [], tools: [], toolSource: 'bundled',
-    workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled', upstreamVersions: { megin: '0.6.0' } },
-    localRepositories: { 42: { state: 'ready', path: 'C:/workspace/group/project' } }, projectMembers: [],
-    meginWorkItems: [{ workId: 'work-20261002-feature', status: 'active', planVersion: 'plan-1', issueProjectId: 42,
-      issueIid: 7, projectPath: 'group/project' }],
-    timers: [], deliveryRecords: [{ id: 'native-handoff', projectId: 43, issueProjectId: 42, issueIid: 7,
-      workId: 'work-20261002-feature', branch: 'feature/work-20261002-feature', targetBranch: 'main', state: 'preview',
-      summary: 'Change', handoffSha256: 'a'.repeat(64), planVersion: 'plan-1', acceptanceVersion: 'acceptance-3',
-      acceptedSnapshot: 'b'.repeat(64), gate: { ok: true, reasons: [] }, changedFiles: ['app.py'], diff: 'accepted diff',
-      reviewResult: { verdict: 'APPROVED', context: 'independent-reviewer' },
-      verificationResults: [{ id: 'native-test', status: 'passed', executed: 3 }],
-      approvedRepositories: [{ repoPath: 'target', projectId: 43, branch: 'feature/work-20261002-feature',
-        baseSha: 'c'.repeat(40), allowedPaths: ['app.py'] }]
-    }]
-  };
-  await this.send({ type: 'snapshot', snapshot: this.groupSnapshot });
-  await this.tab('開發與交付');
-});
-Then('development tasks use Group paths and native review and verification results', async function () {
-  const resume = [...this.root.querySelectorAll('label')].find((item) => item.textContent.includes('延續既有 Megin 工作'))?.querySelector('select');
-  assert.ok(resume, 'the existing matching Megin Work ID is available to resume');
-  assert.equal(resume.value, 'work-20261002-feature');
-  await this.click('複製任務並開啟 Codex CLI');
-  assert.match(this.workspaceActions.at(-1).text, /feature_handoff/);
-  assert.match(this.workspaceActions.at(-1).text, /舊工作必須沿用原套件、契約、指紋與交付流程/);
-  assert.match(this.workspaceActions.at(-1).text, /續作 Work ID：work-20261002-feature/);
-  assert.match(this.workspaceActions.at(-1).text, /C:\/workspace\/group/);
-  assert.match(this.workspaceActions.at(-1).text, /First comment/);
-  await this.click('開啟分析與分支審查');
-  assert.equal(this.workspaceActions.at(-1).type, 'setMode');
-  assert.equal(this.workspaceActions.at(-1).mode, 'sa');
-  assert.match(this.root.body.textContent, /APPROVED（independent-reviewer）/);
-  assert.match(this.root.body.textContent, /native-test: passed \(3 tests\)/);
-  assert.match(this.root.body.textContent, /acceptance-3/);
-  assert.match(this.root.body.textContent, /允許路徑：app.py/);
-  assert.doesNotMatch(this.root.body.textContent, /我已使用 Megin 完成人工驗收/);
-  await this.click('核對並提交所有核准 Repo');
-  assert.equal(this.workspaceActions.at(-1).type, 'commitDelivery');
-  assert.equal(this.workspaceActions.at(-1).deliveryId, 'native-handoff');
-  assert.equal(this.root.querySelectorAll('button').length ? [...this.root.querySelectorAll('button')].filter((item) => item.textContent.trim() === '複製 Wiki 更新任務').length : 0, 0,
-    'Wiki feedback stays hidden before all approved Repo commits are saved');
-
-  const approvedRepositories = [
-    { repoPath: 'project', projectId: 42, branch: 'feature/work-20261002-feature', baseSha: 'c'.repeat(40), allowedPaths: ['app.py'], commit: 'd'.repeat(40) },
-    { repoPath: 'target', projectId: 43, branch: 'feature/work-20261002-feature', baseSha: 'e'.repeat(40), allowedPaths: ['app.py'], commit: 'f'.repeat(40) }
-  ];
-  this.groupSnapshot.deliveryRecords = [
-    { ...this.groupSnapshot.deliveryRecords[0], state: 'committed', repoPath: 'C:/workspace/group/project', approvedRepositories },
-    { ...this.groupSnapshot.deliveryRecords[0], id: 'target-handoff', projectId: 43, state: 'committed', repoPath: 'C:/workspace/group/target', approvedRepositories }
-  ];
-  await this.send({ type: 'snapshot', snapshot: { ...this.groupSnapshot, deliveryRecords: [...this.groupSnapshot.deliveryRecords] } });
-  await this.tab('開發與交付');
-  assert.equal([...this.root.querySelectorAll('button')].filter((item) => item.textContent.trim() === '複製 Wiki 更新任務').length, 1,
-    'one Repo owns the Group Wiki feedback action after every approved commit is saved');
-  await this.click('複製 Wiki 更新任務');
-  assert.equal(this.workspaceActions.at(-1).type, 'copyWikiUpdatePrompt');
-  assert.equal(this.workspaceActions.at(-1).deliveryId, 'native-handoff');
 });

@@ -104,12 +104,10 @@ try {
       const tooling = (await readdir(path.join(root, 'scripts'))).filter(name => name.endsWith('.test.mjs')).sort();
       await required(node('release-tooling', '--test', ...tooling.map(name => `scripts/${name}`)));
       const files = (await readdir(path.join(root, 'test/release'))).filter(name => name.endsWith('_test.py')).sort();
-      const jobs = [...files.map(name => python(`release-${name.replace('_test.py', '')}`, `test/release/${name}`)),
-        python('release-megin-overlay', 'test/overlays/megin/run_tests.py'),
-        python('release-delivery-overlay', 'test/overlays/delivery-evidence/run_tests.py')];
+      const jobs = files.map(name => python(`release-${name.replace('_test.py', '')}`, `test/release/${name}`));
       // Start historically expensive suites first to avoid leaving one long
       // suite on the final worker while the other worker is already idle.
-      const expensive = ['release-megin-overlay', 'release-workflow_kit_profiles', 'release-delivery-overlay',
+      const expensive = ['release-workflow_kit_profiles',
         'release-workflow_kit_transactions', 'release-workflow_kit_installer', 'release-release_reviewer_integration'];
       jobs.sort((left, right) => (expensive.indexOf(left.id) < 0 ? 100 : expensive.indexOf(left.id)) -
         (expensive.indexOf(right.id) < 0 ? 100 : expensive.indexOf(right.id)));

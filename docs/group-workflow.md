@@ -1,21 +1,26 @@
-# Group 工作流程
+# Group 工作流程與套件管理
 
-GitLab Workspace 以一個版本化工作流程包提供 Codebase LLM Wiki 0.6.2、Megin 0.8.2、MergeReviewer 0.14.0、ReleaseReviewer 0.4.1 與 Output Style，共 17 個 Skills。Megin 十三個原生 Skills 保留；Group 僅套用 Wiki 必要覆寫。Output Style 已安裝時優先，否則保留各工具原風格。MergeReviewer 開始前建立自足快照，報告僅適用固定 SHA，必要待人工確認項不視為通過。安裝、版本選擇與更新均以整包為單位；VSIX 內附離線包為預設來源。
+GitLab Workspace 工作流程包包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer
+與 Output Style 四個 Skills。Group 和 repository profile 均提供十四項指引功能，
+預設為「查詢 Wiki」。所有安裝、更新及來源檢查以整包為單位；VSIX 內附離線包。
 
-## 一次安裝整包
+## 安裝與升級
 
-在 VS Code 開啟要操作的專案資料夾，進入 **設定 → 工作區與 Skills → 共用專案根目錄**。專案下載、Skills 安裝與執行、Codex 共用此位置，預設為開啟的資料夾。同視窗有多個根資料夾時，先明確選擇本次操作的資料夾；也可設定自訂路徑。根目錄本身是有效 Git Repo 時採單專案流程，一般資料夾採整個工作區的流程，空資料夾亦可安裝。GitLab Group 僅作為遠端列表篩選，本機功能不需要整個工作區都對應同一 Group。下載及匯入組合包可免登入；需要 GitLab 操作時才個別驗證目標 Repo 的 remote 與身分。
+下載、Skills 與 Codex 共用設定中的專案根目錄。Group profile 使用非 Git 根目錄與
+實際直屬 Repo；repository profile 使用所選 Git 根目錄，CLI 指定 `--profile repository`。
+切換畫面只更新環境，按安裝／更新才套用 profile。提示詞與版本依目前根目錄保存。
 
-安裝器會在 Group 根目錄整體預檢，驗證套件版本、契約、來源摘要與逐檔 SHA-256，確認沒有舊版分開安裝、Megin 占用鎖或尚未完成的工作，然後把 Skills、Group 規則、Wiki 設定、Codex managed block、起始 Wiki（僅在尚無 Wiki 時）及安裝紀錄一併暫存套用。任何步驟失敗會回復原狀；若程序中斷，下一次安裝狀態檢查會先完成回復。
-
-更新會驗證目前受管理檔案未被本機修改。既有 Wiki、其他 Skills、Codex 使用者內容、`.megin/`、`docs/work/` 與 `review-reports/` 會保留。舊版分開安裝採人工清除後重裝，請按錯誤訊息提供的精確路徑清單，並依套件中的 `legacy-cleanup.md` 移除舊 Skills、工具紀錄及 Wiki managed block；保留 Wiki、工作紀錄、報告與其他 Skills。不要移除進行中的 Megin 鎖或工作紀錄來繞過安裝阻擋。
+安裝器驗證來源、逐檔 SHA-256、既有安裝歸屬、Skills 與 managed blocks，再交易式
+套用檔案。升級會刪除舊安裝清單中已撤下且未修改的受管理 Skills；本機修改或無法
+驗證歸屬時，列出衝突並停止。既有 Wiki、工作紀錄、鎖、匯出、報告與其他獨立 Skills
+保留；未完成的舊工作不再阻擋升級。新版不讀取、執行、續作或交付舊開發工作。
 
 ### 本機預覽與交易回復
 
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.24.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.25.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
@@ -26,104 +31,41 @@ python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-
 python -X utf8 -B resources/workflow-kit-installer.py rollback <Group> <transaction>
 ```
 
-回復前會完整核對 Group、交易身分、目前安裝紀錄、所有受管理路徑及前版 bytes。安裝後有修改、備份缺漏／變造、交易路徑越界或進行中的 Megin 工作均會阻擋回復並保留資料。交易成功回復後不可重用；保留的其他歷史交易不會在狀態檢查時被移除。
+回復前核對交易身分、安裝紀錄、全部受管理路徑與備份 bytes。安裝後修改、備份缺漏、變造或越界均阻擋回復並保留資料；成功回復的交易不可重用。
 
-### 固定驗證與歷史交付
+## Wiki 與分析
 
-新工作使用原生 `megin-skills-workflow/v6` 及同版品質契約、證據與快照；原生單 Repo 使用 v3。architecture v2 凍結影響圖、逐 Repo 固定來源／契約搜尋／判定；未修改的受影響消費端列入 `verification_repositories`，不建立分支或交付。關鍵未知項阻擋規劃，實作後影響確認綁定實際 diff／快照；新增介面或消費端需重新核准。精確計畫核准後才可 claim writer 及實作，保留 REQ → SCN Given／When／Then → 測試斷言 → 實作 → Review → 人工驗收與實際 red／green 原始證據。
+Group 共用 `wiki/`，來源引用使用 `Repo/path`；單 Repo 使用自己的 Wiki。
+Skills 指引列出實際 Repo 資料夾與完整路徑，包含尚未對應 GitLab 的本機 Repo，
+並帶入實際套件版本。複製前重新確認環境、掃描與安裝可用性。
 
-初審為第 0 輪，最多三次修正重審（第 1～3 輪），每輪由新的獨立唯讀 reviewer 執行並追加歷程。任一次通過即可驗證及人工驗收；第三次修正仍失敗，工作保持未完成並保留全部證據。中斷續作不重置修正次數。無可用獨立 reviewer 時保持 `awaiting_review`，不以自審代替。
+Wiki 提供查詢、功能探索、Ingest、Lint、靜態健檢、ADR、Synthesis、BA／SA／SD、
+NotebookLM 匯出與 Git 考古。開發規格與專用單檔匯出入口已移除，既有文件保留。
+查詢後續的一次授權及全量逐檔完成性見 [Wiki 工作流程](wiki-workflows.md)。
 
-舊 v2／v3 Group 工作與原生 v1 工作保留原契約及 Skills 指紋，不自動改標新版。進行中的工作與鎖會阻擋升級、profile 轉換及交易回復。歷史交付收據驗證固定 Git 物件與保存的原始證據，不以後續工作區的測試檔取代交付版本。
+## Git 與 Merge Request
 
-Group 品質契約可宣告固定已提交驗證輸入、SCN 行為追蹤與 runner 預檢。需要補證時引用已核准的跨 Repo 錨點；缺漏情境、失敗 runner、輸入摘要不符與 MR 身分／正文漂移均停止交付。完成紀錄匯出歷史收據後，後續工作區或技能更新不重寫已驗證的交付；原始證據與固定 Git 物件仍須完整。
+Issue 詳情保留內容與討論、關聯與子工作、工時三個分頁；相關 MR 顯示於內容分頁。
+Git 的 Commit、Push 等操作使用版控。待審查頁保留報告匯入、一般留言、回覆、核准
+與依 SHA 合併，不以舊開發交接紀錄為依據。
 
-安裝後參考原生 Megin `workspace-workflow.md` 與 MergeReviewer `workspace-review.md`。新版不套用舊 GitLab 交付或模擬路由。升級／回復前檢查 Group、直屬 Repo 工作紀錄與 Git common-dir 鎖，取得同路徑維護鎖避免 writer 競爭；舊工作維持原套件與指紋。歷史 Group v1 收據由隔離唯讀驗證器核對，不視為新版跨 Repo 審查證據。
+MergeReviewer 接受 Repo、基礎分支、比較分支，使用原生 v3 證據及 Codex Code Review。
+開始前凍結分支、合併預覽與相關 Repo；後續讀取使用 owned context，報告僅適用固定
+SHA。相關 Repo 依宣告的 VSCode 工作區探索並使用擷取時 HEAD。產生一份所選 Repo
+下的 Markdown Merge Report，必要人工確認與未完成覆蓋保持可見。MR 可帶入可確認的
+分支候選；由使用者把有效報告作一般留言發布。
 
-## 整包版與分開安裝
+ReleaseReviewer 同樣接受三項分支輸入，追查明確工作區內相關功能鏈；關聯 Repo
+使用已提交的本機預設分支，不 fetch。工作區根目錄產生一份含人工 Checklist 的精簡
+Release Report，分開直接阻擋、證據缺口與新增部署依賴。人工核對保留負責人、日期
+與套用後證據；原生 helpers 的證據、草稿修正及清理契約照常適用。
 
-下表比較 GitLab Workspace v0.10.0 整包版與 v0.8.0 分開安裝方式。兩種方式所附上游版本相同：Codebase LLM Wiki 0.3.0、Megin 0.2.0、MergeReviewer 0.5.0。
+## 套件建置與獨立發版
 
-| 項目 | 整包版 v0.10.0 | 分開安裝 v0.8.0 |
-|---|---|---|
-| 管理方式 | Wiki、Megin、MergeReviewer 一次管理 | 每個工具分別管理 |
-| 版本選擇 | 整包版本須與擴充功能一致 | 各工具可個別選版 |
-| Group 規則 | 整包提供統一規則與設定 | 分別管理各工具的安裝與設定 |
-| 更新 | 整包預檢、套用及失敗回復 | 以單一工具為更新單位 |
-| 離線使用 | 內附完整工作流程包 | 內附各工具離線包 |
+來源快照與 Manifest 記錄 Wiki、兩個 Reviewer 的版本、實際 commit、dirty 狀態與
+SHA-256。兩種 profile 的 Release ZIP 與 VSIX 內附 TAR.XZ 必須包含相同且有效的 payload。
+使用 `npm run check:kit-sources` 核對來源；只有明確的 freeze 才更新來源快照。
 
-由舊版分開安裝改用整包時，請依安裝檢查列出的路徑及 `legacy-cleanup.md` 清理舊 Skills、工具紀錄與 Wiki managed block，再重試安裝。保留既有 Wiki、工作紀錄、審查報告及其他 Skills；不要刪除進行中的 Megin 鎖或工作紀錄。
-
-## 共用 Group 知識
-
-Group Wiki 是四個工具共用的知識入口。引用來源使用 `Repo/檔案路徑`，並在執行任務時回到實際 Repo 檔案查證；Wiki 內容提供導覽與上下文，不取代來源檢查。固定版本規則與來源摘要由組合包 Manifest 提供。
-
-Group 範圍的掃描排除組合包內容、`docs/work/` 流程紀錄及 `review-reports/` 報告，避免把管理資料當成產品知識；掃描單一 Repo 時，維持該 Repo 原本完整的來源掃描規則。人工 Wiki notes 由使用者維護，不因套件更新覆寫。
-
-## 分析、規格與 Issue
-
-**專案功能探索** 使用 `functional_exploration`，先讀目前原始碼，再視需要查 Wiki 背景；輸出功能、來源、檔案／入口覆蓋、排除項目與缺口。原始碼唯讀，不執行目標程式或測試；工作台預設只在回覆輸出，明確要求保存時才寫入指定文件。一般 **查詢 Wiki** 維持 Wiki-first。
-
-在 **分析** 的功能選單選擇 Wiki 功能後，頁面只顯示該功能區塊。提示詞會帶入目前 Group、Git 確認過的直屬本機 Repo 資料夾名稱與完整路徑（包含未對應 GitLab 的 Repo），以及目前 Manifest 版本；掃描完成前不提供複製。AI 任務入口會先確認整包已安裝或目前存在 Megin 工作；尚未安裝時，會導向整包管理卡。
-
-**Export Megin Spec** 統一新需求與既有規格的處理。功能名稱與需求為新規格的必填輸入；填寫既有規格路徑時可留空。先完成來源查證、必要決策釐清、規格整理及單檔自足性複查，再匯出 `exports/megin/<scope>-r<spec_revision>.md`。保留 `draft`／`ready`、blocking questions 與 SCN 情境；未答問題或檢查失敗不交付、不覆寫舊檔。接手環境有同一系統程式碼，必要規則與背景須全部內嵌，不依賴原 Wiki、其他文件或本機 Repo 絕對路徑。規格流程不自動啟動 Megin 或建立 Issue。
-
-從 Issue 複製開發任務時，工作台會帶入 Issue 正文、討論、目前 GitLab 身分、Issue 專案識別及實際 Repo 路徑。若 Group 中已有相同 Issue／Repo 的 Megin 工作，可選擇 Work ID 產生續作任務；任務會要求先讀取該工作既有 `workflow.md`、核准計畫與證據。
-
-## 開發、驗收與原生本機交付
-
-開發由 Megin 維持核准計畫、獨立審查、測試、人工驗收與工作狀態；GitLab Workspace 讀取既有 `docs/work/<Work ID>/workflow.md`，提供續作摘要和交付介面。套件更新遇到 Megin Group 鎖或仍未完成的工作時會停止，避免破壞正在進行的交付。
-
-工作台新任務使用原生 `feature_handoff`。人工驗收後依 `unified_workflow.py deliver` 對核准修改 Repo 建立本機 feature commits，完成關卡通過才釋放鎖。未修改的消費端只供固定驗證，不建立分支或交付。後續 Push、MR、合併由使用者另行操作。舊 Megin <=0.6 套件的交接表單僅供保留原套件的舊工作使用。
-
-分支審查提供合併前修正參考，並不替代 Megin 的獨立審查或人工驗收。Repo 變更完成本機交付後仍須由使用者決定是否 Push、建立 MR、合併。
-
-## Merge Request 與分支審查
-
-在「待審查」選擇 MR，按 **前往分支審查**。工作台確認目前 MR 資料及本機 Repo 映射，再帶入 Repo、基礎分支、比較分支；fork 或映射不明時留空並說明待補條件。核對表單後按 **複製提示詞**，再 **開啟 Codex CLI**、貼上執行。支援 Group 與單 Repo 工作區。
-
-MergeReviewer 0.12.2 只接受一個 Repo 與明確分支；使用 Codex 原生 Code Review、v3 固定證據與合併預覽。多 Repo 延伸由宣告的工作區決定，只追查相關契約與消費端，其他 Repo 使用擷取時的 HEAD。報告只產生一份 `<Repo>/review-reports/merge-review-*.md`，不發布 MR 留言。
-
-在待審查頁貼上報告可 **作一般留言發布**；核准與合併沿用 GitLab 權限、能力及 SHA 核對。舊報告可閱讀，已移除 quick、暫存、未提交、直接比較、MR 任務、JSON 報告與 v2 匯入驗證入口，不自動轉換舊模式。
-
-## 上板檢查與四工具指引
-
-「分析」頁是四個主要工具的 Skills 功能指引。先選工具再選功能，預設 Wiki 的 Export Megin Spec；安裝／更新為共用入口，Megin 與 MR 導覽沿用既有工作台流程。所有操作共用目前專案根目錄，不另選 Skills Repo。指引的工具選取、功能與輸入依目前專案根目錄保存，舊 Wiki 指引草稿會承接。複製內容由固定模板、輸入與實際本機情境組成，不會即時讀取 Skill；複製時仍重新核對環境與安裝可用性。
-
-ReleaseReviewer 只接受 Repo、基礎分支與比較分支，固定合併前審查；不接受 tag、commit、HEAD、直接比較或 JSON 選項。單 Repo 的 Repo 由所選根目錄提供；Group 手動指定入口 Repo。提示詞帶入既有工作區 Repo 清單、專案預設分支及整包版本，這些是內部情境，不增加第四個使用者輸入。舊 ReleaseReviewer 表單的模式／輸出設定會移除，MergeReviewer 舊模式會提示遷移，確認分支輸入後才可複製。
-
-只比較入口分支，Group 延伸上下游 API、事件、共用契約、DB 與快取，檢查未變更呼叫端及消費端。關聯 Repo 使用各自本機預設分支的已提交 SHA，不 fetch、不讀 checkout 分支或工作檔。預設分支名稱優先取既有專案資料，否則查本機遠端 HEAD；不猜 main／master，缺少 Repo、版本或功能鏈證據都保留檢查未完成。
-
-新增依賴以入口固定基礎版本整個 Repo 搜尋與語意核對，涵蓋首次使用、會隨部署套用的定義、目標改變及新增操作權限。設定、DB／Table／欄位、FTP、SFTP、Redis、Kafka 與其他可辨識外部服務各有核對項，包含防火牆、帳號／ACL、建表／Topic、目錄、主機金鑰、TTL 及契約相容性。同一資源已被其他 Repo 使用，不代表入口服務已有連線與權限。
-
-在 VSCode 工作區根目錄產生一份含 Checklist 的 `release-review-*.md`；已儲存工作區使用 .code-workspace 所在目錄，根目錄有歧義時先釐清。每次一份並保留歷史，使用 v3 中繼資料，舊 v1／v2 報告保留。報告結論優先，只列直接 P0／P1 阻擋，分開未完成證據與待核對條件。Checklist 供人工更新，狀態為待確認／已確認／未通過／不適用；核對人、日期與工單／驗證證據須保存，不適用須填理由。初始一律待確認，只有定義或申請工單不代表已建置／開通。人工紀錄限 release-checklist:start／end 區塊，原始判斷與固定正文不改寫。靜態檢查完成不等於上板準備完成；本次不自動連線驗證實際環境。暫存證據由原生 helper 管理，完成或中止均需清理。
-
-目前安裝器保留受信任的 0.13.2、0.14.0、0.15.0、0.16.0 與兩種 profile 的 0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2 原始 payload、來源、Skill 清單與 Group 規則，可直接升級並交易回復。其他舊版整包不提供直接升級或回復相容性；未知安裝會阻擋覆寫。從 0.14.0 升級後回復會移除本次新增且由套件管理的 ReleaseReviewer；從 0.15.0 回復則保留原有 ReleaseReviewer。兩者都會還原舊規則及安裝紀錄，保留 Wiki、工作紀錄、報告與其他 Skills。同名的未知 ReleaseReviewer 路徑會保留並阻擋覆寫。
-
-## 原生單 Repo 與版本限制
-
-此模式即「無限制」版本：不需 GitLab 登入或選擇 Group，每次操作一個所選的本機 Repo，使用驗證過的原生 Skills。
-
-單 Repo profile 名稱為 `repository`，CLI 使用 `--profile repository`，目標必須是實際 Git 根目錄。可使用 Wiki、原生 Megin 開發／續作、單 Repo 審查與上板檢查；Issue 開發交付仍使用 Group 契約；分支審查適用於兩種 profile。Wiki、工作紀錄、提示詞與 Codex 目錄跟隨所選情境。
-
-設定、Skills 頁及操作入口共用核對結果與安裝資訊。Skills 顯示目前根目錄實際整包／工具版本；舊版須更新才能啟動新任務。完整驗證過的進行中 Megin 工作可沿原根目錄、profile、版本及 Work ID 續作。切換畫面不會修改安裝；按安裝／更新才轉換 profile，沿用交易回復，並保留 Wiki、工作紀錄、報告和其他 Skills。進行中的工作會阻擋更新。
-
-## 交付後的 Wiki 知識回饋
-
-當工作中的所有 Repo 都已完成本機交付，且精確 Commit 與驗證證據已保存，工作台才提供 **複製 Wiki 更新任務**。任務會帶入 Work ID、每個 Repo 的交付 Commit、變更摘要及驗證證據，並清楚區分「本機交付完成」與「MR 已建立／已合併」。不要把尚未合併的 Commit 寫成已部署或已合併成果。
-
-使用者把任務貼到 Group 根目錄的 Codex CLI 後，Codebase LLM Wiki 會回查 Repo 實際來源、確認差異與測試證據，再更新 Group Wiki index／log 和相關文件。保留人工 notes；沒有可驗證證據時先記錄未知或待確認事項，不推測功能行為。
-
-## 套件建置與發行
-
-套件固定來源為 Codebase LLM Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2 與 ReleaseReviewer 0.3.1。Megin 十三個 Skills 與 ReleaseReviewer 保留原生內容；Group 僅套用 Wiki 必要覆寫，MergeReviewer 保留原生內容；歷史驗證器只保留於測試 fixtures。Manifest 記錄來源 ZIP 的資產名稱與 SHA-256、專用規則及每個 payload 檔案 SHA-256；VSIX 內附 TAR.XZ 和 Release ZIP 必須有兩種 profile 各自相同且有效的 payload。使用下方的唯讀來源核對命令比對本機內容，不會自動改版或重設 SHA。套件建置會產生：
-
-- `gitlab-workspace-0.24.0.vsix`
-- `gitlab-workspace-kit-0.24.0.zip`
-- `SHA256SUMS`
-
-建置及發行測試涵蓋新裝、重複安裝、更新、失敗回復、程序中斷回復、套件與本機內容損壞、舊版清理、Megin 工作阻擋，以及 Group 規格、審查、精確 Commit、分支審查交接、人工 MR 留言與知識回饋流程。
-
-查詢後續的一次確認、全量 Ingest 與 Megin 單檔交付使用方式見[Wiki 工作流程](wiki-workflows.md)。
-
-來源核對命令 `npm run check:kit-sources` 是唯讀操作，驗證四個同層來源、固定 ZIP、內容摘要及整合覆寫。CI 可執行 `node scripts/run-python.mjs scripts/workflow-kit-sources.py --archives-only`，不需要同層來源專案。`source-snapshots.json` 與封包 manifest 記錄本機來源 commit、dirty 狀態與 tree SHA-256；本機快照不宣稱已正式發布。
+共用發版工具保留 Megin 的獨立發版能力，但它不再是 Workspace 上游依賴。單獨發布
+Megin 不觸發 Workspace 發版，也不寫入其來源包。含舊整合依賴的既有發版計畫須重新
+產生；既有計畫與交付紀錄保留。發版流程見 [發行手冊](releasing.md)。

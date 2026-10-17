@@ -1,6 +1,6 @@
 ---
 name: output-style
-description: Choose concise, explanatory, learning or formal presentation for GitLab Workspace answers, progress and work artifacts. Apply when using the installed Wiki, Megin, merge or release workflow, or when the user invokes $output-style or requests an output style.
+description: Choose concise, explanatory, learning or formal presentation for GitLab Workspace answers, progress and work artifacts. Apply when using the installed Wiki, merge or release workflow, or when the user invokes $output-style or requests an output style.
 ---
 
 # Output Style

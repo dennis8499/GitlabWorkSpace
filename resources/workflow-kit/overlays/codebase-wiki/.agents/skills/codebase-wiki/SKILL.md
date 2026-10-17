@@ -1,20 +1,21 @@
 ---
 name: codebase-wiki
 description: >
-  Maintain a shared GitLab Workspace Group Wiki, analyze selected repositories,
-  and create Group-scoped development specifications. Implementation and branch
-  merge/release reviews use their corresponding installed Skills.
+  Build and maintain an evidence-backed codebase Wiki. Use for install/upgrade,
+  ingest, Wiki queries or lint, functional exploration, static Codebase audit,
+  ADR/synthesis, business analysis, system analysis/design,
+  NotebookLM export, and Git archaeology. Implementation and branch-to-branch
+  merge/release reviews follow their own workflows.
 ---
 
 # Codebase LLM Wiki — GitlabWorkSpace Group profile
 
 Read [the installed Group profile](../../gitlab-workspace-kit/profile.md) first.
-Use the Group shared `wiki/` and `Repo/path` source citations. Select the relevant
-upstream workflow below; Group-specific specification and export rules follow it.
+Use the shared Group `wiki/` and `Repo/path` source citations.
 
 Build durable knowledge under `wiki/`. Query uses the Wiki first. Codebase audit is the explicit
-current-source-first exception to Wiki-first knowledge lookup; functional exploration,
-development specifications and NotebookLM export also use their branch's source-first order.
+current-source-first exception to Wiki-first knowledge lookup; functional exploration
+and NotebookLM export also use their branch's source-first order.
 
 ## Output style
 
@@ -75,23 +76,11 @@ updates. Framework changes also update `ChangeLog.md` and the framework Wiki.
 Report changed files, required index/log updates, executed checks and their results,
 plus stale, speculative or unverified points. Gaps remain visible even when a report is saved.
 
-## Group extensions
+## Group source scope
 
-For Group inventory, cross-Repo evidence and shared-Wiki feedback, read
-[the Group workflow](references/group-development-workflow.md). Group development
-specifications use [the Group specification workflow](references/development-spec-workflow.md).
-State the selected local Repo paths and preserve human-authored knowledge.
-
-Full Ingest uses the upstream scanner-backed `scripts/ingest-coverage.py` contract
-with `--scope group`. Default to all valid direct-child Git Repos, including unmapped
-Repos; an explicit user list narrows both scans. Keep its ledger at the Group Wiki
-root. Missing dispositions, blockers or source drift retain partial completion.
-Functional exploration uses the current sources of the selected direct-child Repos
+Full Ingest uses `scripts/ingest-coverage.py` with `--scope group`. Default to all
+valid direct-child Git Repos, including unmapped Repos; an explicit user list
+narrows both scans. Keep the per-file ledger at the shared Group Wiki root.
+Missing dispositions, blockers or source drift retain partial completion.
+Functional exploration uses current sources of the selected direct-child Repos
 and the upstream coverage/completion rules.
-
-For Megin standalone export (`megin-spec-export`, including generate-and-export),
-read [the common export workflow](../../gitlab-workspace-kit/references/megin-spec-export.md).
-It exports a ready, self-contained five-section specification to the checked
-`exports/megin/<scope>-r<spec_revision>.md` destination. BA/SA/SD are optional context.
-Workspace Issue/MR prompts supply scope evidence; use the selected workflow
-authorization and preserve the distinction between local delivery and remote merge.

@@ -1,30 +1,12 @@
-# Replacing separate GitLab Workspace tool installations
+# Legacy tool cleanup
 
-Before installing the complete workflow kit, finish any approved Megin work and release its Group lock through Megin's completion or confirmed-abort workflow.
+A recognized workflow-kit installation upgrades through its recorded ownership
+and transaction backups. The new package removes unchanged retired managed
+Skills and settings automatically. Do not manually remove installation records
+to bypass conflicts. Preserve modified files and resolve the reported paths.
 
-Remove only the separately installed tool contents and their managed records:
-
-- `.agents/skills/codebase-wiki/`
-- `.agents/skills/megin/`
-- `.agents/skills/megin-behavior-contract/`
-- `.agents/skills/megin-bug-diagnosis/`
-- `.agents/skills/megin-code-review/`
-- `.agents/skills/megin-finishing-delivery/`
-- `.agents/skills/megin-human-acceptance/`
-- `.agents/skills/megin-implementation-execution/`
-- `.agents/skills/megin-project-knowledge/`
-- `.agents/skills/megin-requirements-discovery/`
-- `.agents/skills/megin-technical-planning/`
-- `.agents/skills/megin-test-driven-development/`
-- `.agents/skills/megin-verification-before-completion/`
-- `.agents/skills/merge-reviewer/`
-- `.gitlab-workspace/tool-manifests/codebase-wiki.json`
-- `.gitlab-workspace/tool-manifests/megin.json`
-- `.gitlab-workspace/tool-manifests/merge-reviewer.json`
-- the old `codebase-wiki:managed` block from `AGENTS.md`, if present
-- the old `codebase-wiki:managed` block from `Codex.md`, if present
-- `.codex/config.toml` and `.codex/hooks.json` only if they exist solely for the old Wiki installation; preserve unrelated Group Codex settings and user instructions
-
-Keep `<Group>/wiki/`, `<Group>/docs/work/`, `<Group>/review-reports/`, `.megin/` history and configuration, other `.agents/skills/`, and all repository files. Do not delete an active Megin workspace lock or any work records to make an installation succeed.
-
-Version 0.15.0 also installs `.agents/skills/release-reviewer/`. If that directory already belongs to a separate or personal installation, back it up and resolve the name conflict before installation. The kit will preserve it and stop. Trusted 0.14.0 all-in-one installations can upgrade directly; they do not require this separate-tool cleanup.
+For older separately installed Wiki or Reviewer tools, remove only the exact
+paths reported by the installer, after saving local changes. Preserve `wiki/`,
+`docs/work/`, `review-reports/`, exports, locks, unrelated Skills and user text in
+managed documents. Separately installed development tools are outside this kit's
+ownership and are not removed or used as an installation blocker.

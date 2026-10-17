@@ -15,17 +15,10 @@ const wikiGroups = [
   { title: '閱讀與探索', ids: ['query', 'functional-exploration', 'audit', 'archaeology'] },
   { title: '知識維護', ids: ['ingest', 'lint', 'adr', 'synthesis'] },
   { title: '分析文件', ids: ['business-analysis', 'system-analysis', 'system-design'] },
-  { title: '規格與匯出', ids: ['megin-spec-export', 'notebooklm-export'] }
-];
-const meginSteps = [
-  ['需求釐清', 'megin-requirements-discovery'], ['架構探索', 'megin-architecture-exploration'],
-  ['技術計畫與核准', 'megin-technical-planning'], ['行為契約', 'megin-behavior-contract'],
-  ['BDD／TDD', 'megin-test-driven-development'], ['實作', 'megin-implementation-execution'],
-  ['獨立審查', 'megin-code-review'], ['完成前驗證', 'megin-verification-before-completion'],
-  ['人工驗收', 'megin-human-acceptance'], ['交付', 'megin-finishing-delivery']
+  { title: '匯出', ids: ['notebooklm-export'] }
 ];
 
-export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, onNavigate, kitInstalled, skillsContext,
+export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, kitInstalled, skillsContext,
   branchCandidates = [], onLoadBranches, branchError, operationScope, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
@@ -33,7 +26,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   onCopy: (text: string, featureId: string) => void;
   onOpenSettings: () => void;
   onOpenCodex?: () => void;
-  onNavigate: (mode: 'developer' | 'reviewer') => void;
   onLoadBranches?: (repo: string) => void;
   branchCandidates?: string[];
   branchError?: string;
@@ -45,7 +37,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   const tool = skillGuideTools.some(item => item.id === state.tool) ? state.tool : 'codebase-wiki';
   const card = getSkillGuideCard(tool, state.selections[tool], profile);
   const available = skillsContext ? skillsContext.availableFeatures.includes(card.id) : !!context.groupRoot && kitInstalled;
-  const workIdAllowed = !skillsContext?.resumeOnly || !!skillsContext.installed.activeWorkIds?.includes(state.inputs['megin-resume.workId']?.trim());
   const repo = profile === 'repository' ? context.root ?? '' : state.inputs[`${card.id}.repo`] ?? '';
   const actions = useContext(ActionContext) ?? fallbackActions;
   const copyPending = useActionSelector(actions, operations => operations.some(operation =>
@@ -72,9 +63,9 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
     reportLocalFeedback(notice => actions.dispatch(notice), fixedErrors.includes(promptError) ? promptError : '無法產生 Skills 提示詞，請檢查工作區與欄位後重試。',
       { title: 'Skills 提示詞', context: { operationScope } });
   }, [actions, operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
-  const ready = available && workIdAllowed && context.repositoryScanStatus === 'ready' && !promptError && canCopySkillPrompt(card, state.inputs);
+  const ready = available && context.repositoryScanStatus === 'ready' && !promptError && canCopySkillPrompt(card, state.inputs);
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
-    : !kitInstalled ? '請先安裝或更新工作流程包。' : !workIdAllowed ? '請選擇原本進行中的 Work ID。'
+    : !kitInstalled ? '請先安裝或更新工作流程包。'
     : !available ? '目前安裝版本未提供此功能，請更新 Skills。' : context.repositoryScanStatus !== 'ready' ? '正在辨識本機 Repo…' : '');
   const groups = tool === 'codebase-wiki' ? wikiGroups : [{ title: '功能', ids: cards.filter(item => item.tool === tool).map(item => item.id) }];
   const selectTool = (id: SkillGuideToolId) => onChange(current => ({ ...current, tool: id }));
@@ -84,14 +75,13 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
       <p class="skills-root" title={context.root ?? context.groupRoot}>專案根目錄：{context.root ?? context.groupRoot ?? '尚未選擇'}</p>
       <div class="skills-environment-actions"><span>工作流程包 {context.workflowKitVersion ?? '未安裝'}</span>
         <button class="secondary skills-install-button" type="button" onClick={onOpenSettings}>{kitInstalled ? '整包安裝／更新' : '準備環境與 Skills'}</button></div>
-      {skillsContext?.resumeOnly && <p>舊版可續作：{skillsContext.installed.activeWorkIds?.join('、')}</p>}
       <p class="subtle">已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 <code>$output-style style=explanatory</code> 指定詳解。</p>
       {unavailable && <p class="skills-environment-reason" role="status">{unavailable}</p>}
     </section>
     <nav class="skills-tool-tabs" role="tablist" aria-label="Skills 工具">{skillGuideTools.map((item, index) => <button key={item.id}
       id={`skill-tool-${item.id}`} role="tab" aria-selected={tool === item.id} aria-controls="skills-tool-panel" tabIndex={tool === item.id ? 0 : -1}
       class={tool === item.id ? 'active' : ''} onClick={() => selectTool(item.id)} onKeyDown={event => {
-        const next = event.key === 'ArrowRight' ? (index + 1) % 4 : event.key === 'ArrowLeft' ? (index + 3) % 4 : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : undefined;
+        const next = event.key === 'ArrowRight' ? (index + 1) % skillGuideTools.length : event.key === 'ArrowLeft' ? (index + skillGuideTools.length - 1) % skillGuideTools.length : event.key === 'Home' ? 0 : event.key === 'End' ? skillGuideTools.length - 1 : undefined;
         if (next !== undefined) { event.preventDefault(); selectTool(skillGuideTools[next].id); document.getElementById(`skill-tool-${skillGuideTools[next].id}`)?.focus(); }
       }}>{item.id === 'codebase-wiki' ? 'Wiki' : item.title}<small>{skillsContext?.installed.upstreamVersions?.[item.id] ?? ''}</small></button>)}</nav>
     <div class="skills-workspace" id="skills-tool-panel" role="tabpanel" aria-labelledby={`skill-tool-${tool}`}>
@@ -104,8 +94,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
         <p class="wiki-guide-description">{card.description}</p>
         <p class="wiki-guide-output"><strong>預期產出：</strong>{card.output}</p>
         <p class="wiki-guide-behavior"><strong>執行方式：</strong>{card.behavior}</p>
-        {tool === 'megin' && <details class="skills-process"><summary>檢視 Megin 流程與十三個 Skills</summary><ol>{meginSteps.map(([title, skill]) => <li key={skill}>{title}：<code>{skill}</code></li>)}</ol>
-          <p><code>megin</code> 統籌主流程；<code>megin-bug-diagnosis</code> 追查問題原因；<code>megin-project-knowledge</code> 維護專案知識。沿用核准、驗證與人工驗收門檻。</p></details>}
         {card.id === 'merge-repo' && state.migrationNotice && <div class="warning" role="status"><p>{state.migrationNotice}</p>
           <button type="button" onClick={() => onChange(current => { const inputs = { ...current.inputs }; delete inputs['merge-repo.confirmationRequired']; return { ...current, inputs, migrationNotice: undefined }; })}>確認使用分支審查</button></div>}
         <div class="wiki-guide-fields">{getSkillGuideFields(card, state.inputs).map(item => {
@@ -122,7 +110,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
         <datalist id="skills-branches">{branchCandidates.map(branch => <option key={branch} value={branch} />)}</datalist>
         {branchError && <p class="subtle" role="status">{branchError}；也可以輸入明確分支名稱。</p>}
         {promptError && <p class="warning" role="alert">{promptError}</p>}
-        {card.destination ? <button class="primary skills-navigate-button" type="button" disabled={!available} onClick={() => onNavigate(card.destination!)}>前往{card.destination === 'developer' ? '我的工作' : '待審查'}</button> : <>
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
           <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" disabled={!ready || copyPending} aria-label={`複製${card.title}提示詞`}
             onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button>
@@ -130,7 +117,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
           {!ready && available && !promptError && <p class="subtle">{tool === 'merge-reviewer' || tool === 'release-reviewer'
             ? '請填妥必要欄位，使用明確分支名稱後再複製。' : '請填妥必要欄位後再複製。'}</p>}
           <p class="skills-next-step">下一步：複製提示詞 → 開啟 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
-        </>}
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
       </section>

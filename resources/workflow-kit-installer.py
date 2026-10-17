@@ -28,8 +28,7 @@ PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
 VERSION = '0.25.0'
-KIT_EXTENSION_FILES = {'.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
- '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a'}
+KIT_EXTENSION_FILES = {}
 WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                        'hooks = true\n'
                        '\n'
@@ -111,7 +110,7 @@ WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                       '}\n'}
 
 
-PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd32bf7a944b8b8192496e8c0d05aef7727b712',
+PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '3506a7690081c45d52ad47238435b1b6e3769e28b649084fa335ed56c5f0789e',
            'capabilities': ['adr',
                             'archaeology',
                             'audit',
@@ -119,9 +118,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                             'functional-exploration',
                             'ingest',
                             'lint',
-                            'megin-resume',
-                            'megin-spec-export',
-                            'megin-workflow',
                             'merge-repo',
                             'notebooklm-export',
                             'query',
@@ -129,12 +125,10 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                             'synthesis',
                             'system-analysis',
                             'system-design'],
-           'files': {'.agents/gitlab-workspace-kit/group-instructions.md': 'cd4033cd993718cb0d0019014363ce4e2e3c900dc8fe52c9ab876b7f21483e93',
-                     '.agents/gitlab-workspace-kit/legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
-                     '.agents/gitlab-workspace-kit/profile.md': 'e7da39bb1c3c048a9596cf02471d346c82c3edd4f59847de6d48645bb3be94e4',
-                     '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
-                     '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a',
-                     '.agents/skills/codebase-wiki/SKILL.md': '6aa6323e256842ddf4b18032479663fa7f9cbdba1892268ad49f1f08a0290ea7',
+           'files': {'.agents/gitlab-workspace-kit/group-instructions.md': '1ab448d82178766c454ec52ce866501abf0f018d1dd5fe785a7f8bfa23b72a95',
+                     '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                     '.agents/gitlab-workspace-kit/profile.md': 'd5138b22a9f7015999d29d0a23ea3200a805e3eeaf93da9378c86b12a5b10fe3',
+                     '.agents/skills/codebase-wiki/SKILL.md': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
                      '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
                      '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
                      '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
@@ -150,7 +144,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                      '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
                      '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
                      '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
-                     '.agents/skills/codebase-wiki/assets/development-spec-template.md': 'deb3b8c98fc2f4bfdcc67067f94a11ad7e9f9b74bcddfd14fc02fc323cf42691',
                      '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
                      '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
                      '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
@@ -182,22 +175,20 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                      '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
                      '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
                      '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
-                     '.agents/skills/codebase-wiki/capabilities.json': 'f3b5d7a59459cb1f82d0ef74caa70e465abacd071306aaf2dd1acfbb10bf6df3',
+                     '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
                      '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
                      '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
                      '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
                      '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
                      '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
-                     '.agents/skills/codebase-wiki/references/development-spec-workflow.md': 'cc729c875f73446cbe5c77f338c2470ffb73ac0107ac148e55d1508167afdfd1',
                      '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
                      '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
-                     '.agents/skills/codebase-wiki/references/frontmatter-spec.md': '4c2c79ea98da658ce30d2f6d2430c130d59fd1de1c24c2abf7f53ede03b9de92',
+                     '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
                      '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
-                     '.agents/skills/codebase-wiki/references/group-development-workflow.md': 'c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa',
                      '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
-                     '.agents/skills/codebase-wiki/references/ingest-workflow.md': '0a63686f8ff9f3fb4c35b10c5e962a3d17050b321ccbb72857656a2ad0424675',
+                     '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
                      '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
-                     '.agents/skills/codebase-wiki/references/intent-routing.md': 'b45474b368f600af5ce2638b60785fd45369f48c24815903548904a669b10821',
+                     '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
                      '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
                      '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
                      '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
@@ -208,8 +199,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                      '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
                      '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
                      '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
-                     '.agents/skills/codebase-wiki/scripts/check-stale.py': 'e247150ed4a785ece888a4649d3a78e42c162d1ed46a5b8910f71ca776e49002',
-                     '.agents/skills/codebase-wiki/scripts/development_spec.py': '3b2464dac361979a3b795dcb331e9df10087b6dc3b5620aaa9a08ea669e9fcd0',
+                     '.agents/skills/codebase-wiki/scripts/check-stale.py': '581f6462ba0ea6c13f432e103692b6700b67e493f64c5e923828e961aa4f5604',
                      '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
                      '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
                      '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
@@ -220,143 +210,61 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                      '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
                      '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
                      '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
-                     '.agents/skills/codebase-wiki/scripts/install-framework.py': '477dacb5c58271393811eb65ae8e577104a0264434ee87d4a367d3edd0107a4d',
+                     '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
                      '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
                      '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
-                     '.agents/skills/codebase-wiki/scripts/parity-check.py': 'f07369fa17ed6e4c3345e7597d2de452eb39295e5071d380426206198e713db0',
-                     '.agents/skills/codebase-wiki/scripts/project_scanner.py': '363718eb175e8ab54f704546e69a83c5218737a4de0a22d491d5df9ec0931179',
+                     '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                     '.agents/skills/codebase-wiki/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
                      '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
                      '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
                      '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
                      '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
-                     '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': 'b8b71ec541cb979bae3194d020ff723e18fb9e403ee659005cd3382500cfc95b',
                      '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
                      '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
                      '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494',
-                     '.agents/skills/megin-architecture-exploration/SKILL.md': '1e5ed21281dc13b6a3b8b0b6b99442738729d8976d9b6ddf6c34df330c6ce02a',
-                     '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
-                     '.agents/skills/megin-behavior-contract/SKILL.md': '83778f2134bc540be1a0505f11bec6f5d527663afb85c001b213d27fa70de5c9',
-                     '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
-                     '.agents/skills/megin-bug-diagnosis/SKILL.md': 'bfa82b975e331e1e28dbaefef62ac3f9c0a416c752d7c902bf2daae3a78a7c6f',
-                     '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
-                     '.agents/skills/megin-code-review/SKILL.md': 'ad42321cbb05ec5d720e61dd3166c25b230fdec2733b2b54540f82b019e68cdc',
-                     '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
-                     '.agents/skills/megin-finishing-delivery/SKILL.md': 'bedc013bf24fcd8db951aff275cf9179f2cd62f6fdaf92d204c4773c514c2734',
-                     '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
-                     '.agents/skills/megin-human-acceptance/SKILL.md': 'ff52d3d5e848fc259efc90d8378a9c90fca86c01982d04ff3020a1a9ce14e297',
-                     '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
-                     '.agents/skills/megin-implementation-execution/SKILL.md': '6a7d414abca3b25ec86c1a170916efcc511e629294c3c127388bde89db39b73b',
-                     '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
-                     '.agents/skills/megin-project-knowledge/SKILL.md': '4d820660551d9155c1e8db5fb09b5adbca84ad90ed3f1198bdb44e14747370f5',
-                     '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
-                     '.agents/skills/megin-requirements-discovery/SKILL.md': 'fd265025b37de6b417c55c9f9e4ae656ac3a9d58abe48db4d71e121c5ef734d5',
-                     '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
-                     '.agents/skills/megin-technical-planning/SKILL.md': '1d19ba0ceff9379f4a8fbc0b34eeaa48dbf5b94f8d95f08ea7765ac23d7d7da3',
-                     '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
-                     '.agents/skills/megin-test-driven-development/SKILL.md': 'd4950321814c248dff9712137476d2022614cf82b5289810b89248f183167771',
-                     '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
-                     '.agents/skills/megin-verification-before-completion/SKILL.md': 'cfdb8ee72f5f3f4f0b1bf23cadba19edcc082b2e847a98fd33f719ff9171c5cf',
-                     '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
-                     '.agents/skills/megin/SKILL.md': '24735a8231dc71802d8aca36dba09d49cfcfe5e19c70c96bf6357a44e888d922',
-                     '.agents/skills/megin/agents/openai.yaml': '3d63b75ee2bb6a860fde1d9839bab613ce6b3dd80cbcb14b4f20882f5a6a9922',
-                     '.agents/skills/megin/references/branch-policy.md': '5c8b85359c41eba08dbc7c768686127a4bae7042eedff43ca09e70099a1ae3e3',
-                     '.agents/skills/megin/references/delivery-receipts.md': '331a789abd55e9c9c67838321ef07af9580dfc9353a5809ecfd6eb61ff6d3ae4',
-                     '.agents/skills/megin/references/group-impact.md': '7a6f1116566bce0a41473a478793ab521ecb87770f477debdc5cdc0ed4e88784',
-                     '.agents/skills/megin/references/language-policy.md': '72599c4b959ead1c7adf8dc4fe8d9ee238863c473ce7cb66e667956c01ba78c9',
-                     '.agents/skills/megin/references/new-work-evidence.md': '35285fe0b6e8e147e962c7d0fee715b95e23ca17d5293a27e19b25ba4419d607',
-                     '.agents/skills/megin/references/quality-gates.md': '7a6bddb6f7867c857d8ce19414e5b32e000968b0796de904996d14abdef4b44c',
-                     '.agents/skills/megin/references/repository-workflow.md': '33752ca83cdb8f002989e5f1a229047da0b4714a1d622bc13714872457ad2aa6',
-                     '.agents/skills/megin/references/requirements-discovery-protocol.md': 'eda57760e7b5851a0a98058871270d63eb32138f7bece911563532f45818ca4d',
-                     '.agents/skills/megin/references/requirements-template.md': '9ef029ec196fc3ae536b823d073625b36b15893d0a6dc0bdb53c69a29fabc58f',
-                     '.agents/skills/megin/references/verification-extensions.md': '7485377ef86743db414b55ecac5835f18b915a5b89de6d4ba84cb64d2a74ee38',
-                     '.agents/skills/megin/references/workflow-examples.md': '05bc5eeffda1b8cdbf8966f538066f98227b0eddb9ef7cbf0a59d9f78c38028f',
-                     '.agents/skills/megin/references/workflow-record.md': '01852d875b6ec0aec87acf6962aded508e71c701d6b65d0cbf0497a58fe99164',
-                     '.agents/skills/megin/references/workspace-workflow.md': '3c45c43d7af1535f295464a5021ece3ed80b72009dd9ae6fb8477281de5fef6b',
-                     '.agents/skills/megin/scripts/behavior_trace.py': '11f77eccb4620530e9027e76c192d276b80e7dd530eacb0a4d8fe5deafa0e35c',
-                     '.agents/skills/megin/scripts/delivery_receipt.py': '04b93fe59e6c0d7f33c16c11ee1a74f7bcd2a17465160715758a41bbefb339c1',
-                     '.agents/skills/megin/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
-                     '.agents/skills/megin/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
-                     '.agents/skills/megin/scripts/git_snapshot.py': 'c733001854f03615276af0174560ef136301b1877d968872747b7b798a0b982f',
-                     '.agents/skills/megin/scripts/group_quality_gate.py': 'fa3c95f10983c0e92601e2732d2a22b21f6147346ccf422b5a61fc37964f5b94',
-                     '.agents/skills/megin/scripts/impact_policy.py': 'e4207a767933ba1ad436fc24539ba0e51740eee5ad421edc24a029e6e7041aaa',
-                     '.agents/skills/megin/scripts/install_skills.py': 'c699eb98480db9feb8b4d230dd79909f3e2e1d3156dd0b6a9da0eebb123c84b6',
-                     '.agents/skills/megin/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
-                     '.agents/skills/megin/scripts/quality_gate.py': '78c4fe46944ff3fdd0ea32825dcb931ee6c3502fe09cf7a8cdf7fba27af64474',
-                     '.agents/skills/megin/scripts/quality_policy.py': 'd244ee4d491347c4c14a4b21425fe2018da7d07d56bd9deea13c70970b509fde',
-                     '.agents/skills/megin/scripts/repo_workspace.py': '71ad27cd324e8c96cfc9bfc5cec1a8f201933cc1aacf503c49e8dafaf2b08c4c',
-                     '.agents/skills/megin/scripts/review_history.py': '53451423bb9433d95451e295f2d5ab69f57ce7b9f89cb483136b6efea1c801ca',
-                     '.agents/skills/megin/scripts/source_baseline.py': 'fdc4acc25086b90eccc2978b836d52e4732ac4578e8649407b5a406f280f641e',
-                     '.agents/skills/megin/scripts/unified_workflow.py': 'e5e5b8eefd1e30adeeec074f2017b806e796564b067cdbf4aea05d66e4f4700c',
-                     '.agents/skills/megin/scripts/validate_skills.py': 'c978700eabe490c60289e5409c95a170c0e1db638ac00bb6a79d1133c6d515ae',
-                     '.agents/skills/megin/scripts/verification_inputs.py': '9039a6ecf51c950253e0b7d7cb1c8948eb7367cacbb48816f2104e38e84a676b',
-                     '.agents/skills/megin/scripts/workspace_context.py': '62d84e7cc82d1380e6472c64672e4582e707b5b44b5ecc9961b970688aef2e8b',
-                     '.agents/skills/megin/scripts/workspace_extension.py': '40dd311d3d22bc069bcee051af609769ffa9a10d76f47efbf59687104c9ec506',
-                     '.agents/skills/megin/scripts/workspace_lock.py': '2925147cd68e6d47b85c19c607db8a51b01cdde3fee20a3719f1d1b420266333',
-                     '.agents/skills/merge-reviewer/SKILL.md': '235939ac82200888587c15ce17d073d3f8418fdfded26a4e60d4cebf9fb4d4c5',
+                     '.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
                      '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
                      '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
                      '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
                      '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
                      '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
                      '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
-                     '.agents/skills/merge-reviewer/references/workspace-review.md': '7890026c315625178f3c0a1b46d8b43bbdb792ba9852622392d41b2393619fb4',
+                     '.agents/skills/merge-reviewer/references/workspace-review.md': 'f89ff4cf4d9d037f57f17af850061fcb30d7a804a995473f1f3669a6f9a9d92a',
                      '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
-                     '.agents/skills/merge-reviewer/scripts/review_report.py': '6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3',
+                     '.agents/skills/merge-reviewer/scripts/review_report.py': '33f3b93a16939fb4db35b7a416d9beb10c9b45727e03801944ad9f9cf31d3a0e',
                      '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
-                     '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c273c8a55b44d10dbea9ee6100370d01e27cf6aa43032cfeb4905468c228af79',
-                     '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'e6a16dd7a54bee7764b51fae9df26c5b2c6982a103c708353d3d257b69efdd7a',
-                     '.agents/skills/output-style/SKILL.md': '97cc480c0105c996acf6e695530301c7434676a94ff068fdfb0e014c6dd30e71',
+                     '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c117d7fd6f5dba50da998da576775d2c72e19324cf15c46a5f426f2fcf0dfc76',
+                     '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec',
+                     '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
                      '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
                      '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
-                     '.agents/skills/release-reviewer/SKILL.md': 'fdf8761254d43d7fdfab1b16e4ec7662fb23cf6c48c757533514a48028681e37',
+                     '.agents/skills/release-reviewer/SKILL.md': '3c2e323ecf4d3b8274974b18ad82a33e2c25fac227697c66fd0470aabde65c46',
                      '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
                      '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
-                     '.agents/skills/release-reviewer/references/evidence-workflow.md': '53f5192f7cf48a6666c65322d8064ea41be4dd2d684d0c6de5fb8787dfd3192e',
+                     '.agents/skills/release-reviewer/references/evidence-workflow.md': 'ba14f8c8eb4c2d89a909d69cacd9a058a18ed2f6a6b3e0b4067d47587c7926c3',
                      '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
                      '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
                      '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
                      '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
                      '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
                      '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
-                     '.agents/skills/release-reviewer/scripts/evidence.py': '442ecab309ed3413c775adcddbb1dfb05bb98702fff083bed4d74ae0cb6fbc05',
+                     '.agents/skills/release-reviewer/scripts/evidence.py': '044dcf261c85c3f733b5674c12b8859158abe0dd7b89f8d9c5603cebc1953bc2',
                      '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
                      '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
                      '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
-                     '.agents/skills/release-reviewer/scripts/release_report.py': '870abe605bcc8a2ad3177e4154cb022b0ddbdb3064685f9647e54eeddb9e1d59',
+                     '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
                      '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
                      '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
                      '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
-           'overlays': {'codebase-wiki': {'added': {'.agents/skills/codebase-wiki/references/group-development-workflow.md': 'c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa'},
-                                          'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '6aa6323e256842ddf4b18032479663fa7f9cbdba1892268ad49f1f08a0290ea7',
-                                                                                                 'upstream_sha256': '177d8eb03e68a4dedeabdcfff9266e68737be558cf76aa4d1870296b96c2aa80'},
-                                                       '.agents/skills/codebase-wiki/assets/development-spec-template.md': {'overlay_sha256': 'deb3b8c98fc2f4bfdcc67067f94a11ad7e9f9b74bcddfd14fc02fc323cf42691',
-                                                                                                                            'upstream_sha256': '76a2ce016a7cdc852be23ac01c7c9152bdbfb30d1005f99dc0f6c8bfafd9ea97'},
-                                                       '.agents/skills/codebase-wiki/references/development-spec-workflow.md': {'overlay_sha256': 'cc729c875f73446cbe5c77f338c2470ffb73ac0107ac148e55d1508167afdfd1',
-                                                                                                                                'upstream_sha256': 'dccf3f2ee8e1eaee1b58b2b0d3a963b9524aa123dededc3884d6db40e3eb24a2'},
-                                                       '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': {'overlay_sha256': 'b8b71ec541cb979bae3194d020ff723e18fb9e403ee659005cd3382500cfc95b',
-                                                                                                                             'upstream_sha256': 'fe477ab85bb842553dd1f39d325f486cd41dace3fb1dcb133024e8f004c338e4'}}}},
-           'payloadSha256': 'a94b38fa7caffe5c8e9310332e33d503a83acb131ba3a38edc22b22a3ef19196',
-           'profileHashes': {'group-instructions.md': 'cd4033cd993718cb0d0019014363ce4e2e3c900dc8fe52c9ab876b7f21483e93',
-                             'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
-                             'profile.md': 'e7da39bb1c3c048a9596cf02471d346c82c3edd4f59847de6d48645bb3be94e4'},
-           'skills': ['codebase-wiki',
-                      'megin',
-                      'megin-architecture-exploration',
-                      'megin-behavior-contract',
-                      'megin-bug-diagnosis',
-                      'megin-code-review',
-                      'megin-finishing-delivery',
-                      'megin-human-acceptance',
-                      'megin-implementation-execution',
-                      'megin-project-knowledge',
-                      'megin-requirements-discovery',
-                      'megin-technical-planning',
-                      'megin-test-driven-development',
-                      'megin-verification-before-completion',
-                      'merge-reviewer',
-                      'output-style',
-                      'release-reviewer']},
- 'repository': {'agentBlockSha256': '472df7aca912e1aaa04d3b76e162998b060304484fd1c1bf3e36363dc80dc1f7',
+           'overlays': {'codebase-wiki': {'added': {},
+                                          'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
+                                                                                                 'upstream_sha256': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4'}}}},
+           'payloadSha256': '007c71025196679a24420bf884eb227e501511cca0e480feee3c01664c3588b7',
+           'profileHashes': {'group-instructions.md': '1ab448d82178766c454ec52ce866501abf0f018d1dd5fe785a7f8bfa23b72a95',
+                             'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                             'profile.md': 'd5138b22a9f7015999d29d0a23ea3200a805e3eeaf93da9378c86b12a5b10fe3'},
+           'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']},
+ 'repository': {'agentBlockSha256': '437c4cd490ec22c52bc8145e67c1ef2d33590efd68a42d7a478f3792858ac2a8',
                 'capabilities': ['adr',
                                  'archaeology',
                                  'audit',
@@ -364,9 +272,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                                  'functional-exploration',
                                  'ingest',
                                  'lint',
-                                 'megin-resume',
-                                 'megin-spec-export',
-                                 'megin-workflow',
                                  'merge-repo',
                                  'notebooklm-export',
                                  'query',
@@ -374,12 +279,10 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                                  'synthesis',
                                  'system-analysis',
                                  'system-design'],
-                'files': {'.agents/gitlab-workspace-kit/group-instructions.md': '4c3067d85852e21a12114020dccb2cc81bab1c4b7afb14d31d3dd9091530eb84',
-                          '.agents/gitlab-workspace-kit/legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
-                          '.agents/gitlab-workspace-kit/profile.md': '0f6cb57ef6c9bad0b9147ca867214b8cc6d98e027bfe81b292482e7c85eed023',
-                          '.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
-                          '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a',
-                          '.agents/skills/codebase-wiki/SKILL.md': '177d8eb03e68a4dedeabdcfff9266e68737be558cf76aa4d1870296b96c2aa80',
+                'files': {'.agents/gitlab-workspace-kit/group-instructions.md': 'aa4b23404349a6724f85278c97bb67b8421d0ef293d330ceff1b1450f4021fa4',
+                          '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                          '.agents/gitlab-workspace-kit/profile.md': '4312b9c3e153c4edf91ea3d67d76dc99fa068fd09d50cc4846d94d485560b892',
+                          '.agents/skills/codebase-wiki/SKILL.md': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4',
                           '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
                           '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
                           '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
@@ -395,7 +298,6 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                           '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
                           '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
                           '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
-                          '.agents/skills/codebase-wiki/assets/development-spec-template.md': '76a2ce016a7cdc852be23ac01c7c9152bdbfb30d1005f99dc0f6c8bfafd9ea97',
                           '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
                           '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
                           '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
@@ -427,21 +329,20 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                           '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
                           '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
                           '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
-                          '.agents/skills/codebase-wiki/capabilities.json': 'f3b5d7a59459cb1f82d0ef74caa70e465abacd071306aaf2dd1acfbb10bf6df3',
+                          '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
                           '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
                           '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
                           '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
                           '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
                           '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
-                          '.agents/skills/codebase-wiki/references/development-spec-workflow.md': 'dccf3f2ee8e1eaee1b58b2b0d3a963b9524aa123dededc3884d6db40e3eb24a2',
                           '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
                           '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
-                          '.agents/skills/codebase-wiki/references/frontmatter-spec.md': '4c2c79ea98da658ce30d2f6d2430c130d59fd1de1c24c2abf7f53ede03b9de92',
+                          '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
                           '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
                           '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
-                          '.agents/skills/codebase-wiki/references/ingest-workflow.md': '0a63686f8ff9f3fb4c35b10c5e962a3d17050b321ccbb72857656a2ad0424675',
+                          '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
                           '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
-                          '.agents/skills/codebase-wiki/references/intent-routing.md': 'b45474b368f600af5ce2638b60785fd45369f48c24815903548904a669b10821',
+                          '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
                           '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
                           '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
                           '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
@@ -452,8 +353,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                           '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
                           '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
                           '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
-                          '.agents/skills/codebase-wiki/scripts/check-stale.py': 'e247150ed4a785ece888a4649d3a78e42c162d1ed46a5b8910f71ca776e49002',
-                          '.agents/skills/codebase-wiki/scripts/development_spec.py': '3b2464dac361979a3b795dcb331e9df10087b6dc3b5620aaa9a08ea669e9fcd0',
+                          '.agents/skills/codebase-wiki/scripts/check-stale.py': '581f6462ba0ea6c13f432e103692b6700b67e493f64c5e923828e961aa4f5604',
                           '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
                           '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
                           '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
@@ -464,134 +364,58 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd3
                           '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
                           '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
                           '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
-                          '.agents/skills/codebase-wiki/scripts/install-framework.py': '477dacb5c58271393811eb65ae8e577104a0264434ee87d4a367d3edd0107a4d',
+                          '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
                           '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
                           '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
-                          '.agents/skills/codebase-wiki/scripts/parity-check.py': 'f07369fa17ed6e4c3345e7597d2de452eb39295e5071d380426206198e713db0',
-                          '.agents/skills/codebase-wiki/scripts/project_scanner.py': '363718eb175e8ab54f704546e69a83c5218737a4de0a22d491d5df9ec0931179',
+                          '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                          '.agents/skills/codebase-wiki/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
                           '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
                           '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
                           '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
                           '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
-                          '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': 'fe477ab85bb842553dd1f39d325f486cd41dace3fb1dcb133024e8f004c338e4',
                           '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
                           '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
                           '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494',
-                          '.agents/skills/megin-architecture-exploration/SKILL.md': '1e5ed21281dc13b6a3b8b0b6b99442738729d8976d9b6ddf6c34df330c6ce02a',
-                          '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
-                          '.agents/skills/megin-behavior-contract/SKILL.md': '83778f2134bc540be1a0505f11bec6f5d527663afb85c001b213d27fa70de5c9',
-                          '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
-                          '.agents/skills/megin-bug-diagnosis/SKILL.md': 'bfa82b975e331e1e28dbaefef62ac3f9c0a416c752d7c902bf2daae3a78a7c6f',
-                          '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
-                          '.agents/skills/megin-code-review/SKILL.md': 'ad42321cbb05ec5d720e61dd3166c25b230fdec2733b2b54540f82b019e68cdc',
-                          '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
-                          '.agents/skills/megin-finishing-delivery/SKILL.md': 'bedc013bf24fcd8db951aff275cf9179f2cd62f6fdaf92d204c4773c514c2734',
-                          '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
-                          '.agents/skills/megin-human-acceptance/SKILL.md': 'ff52d3d5e848fc259efc90d8378a9c90fca86c01982d04ff3020a1a9ce14e297',
-                          '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
-                          '.agents/skills/megin-implementation-execution/SKILL.md': '6a7d414abca3b25ec86c1a170916efcc511e629294c3c127388bde89db39b73b',
-                          '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
-                          '.agents/skills/megin-project-knowledge/SKILL.md': '4d820660551d9155c1e8db5fb09b5adbca84ad90ed3f1198bdb44e14747370f5',
-                          '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
-                          '.agents/skills/megin-requirements-discovery/SKILL.md': 'fd265025b37de6b417c55c9f9e4ae656ac3a9d58abe48db4d71e121c5ef734d5',
-                          '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
-                          '.agents/skills/megin-technical-planning/SKILL.md': '1d19ba0ceff9379f4a8fbc0b34eeaa48dbf5b94f8d95f08ea7765ac23d7d7da3',
-                          '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
-                          '.agents/skills/megin-test-driven-development/SKILL.md': 'd4950321814c248dff9712137476d2022614cf82b5289810b89248f183167771',
-                          '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
-                          '.agents/skills/megin-verification-before-completion/SKILL.md': 'cfdb8ee72f5f3f4f0b1bf23cadba19edcc082b2e847a98fd33f719ff9171c5cf',
-                          '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
-                          '.agents/skills/megin/SKILL.md': '24735a8231dc71802d8aca36dba09d49cfcfe5e19c70c96bf6357a44e888d922',
-                          '.agents/skills/megin/agents/openai.yaml': '3d63b75ee2bb6a860fde1d9839bab613ce6b3dd80cbcb14b4f20882f5a6a9922',
-                          '.agents/skills/megin/references/branch-policy.md': '5c8b85359c41eba08dbc7c768686127a4bae7042eedff43ca09e70099a1ae3e3',
-                          '.agents/skills/megin/references/delivery-receipts.md': '331a789abd55e9c9c67838321ef07af9580dfc9353a5809ecfd6eb61ff6d3ae4',
-                          '.agents/skills/megin/references/group-impact.md': '7a6f1116566bce0a41473a478793ab521ecb87770f477debdc5cdc0ed4e88784',
-                          '.agents/skills/megin/references/language-policy.md': '72599c4b959ead1c7adf8dc4fe8d9ee238863c473ce7cb66e667956c01ba78c9',
-                          '.agents/skills/megin/references/new-work-evidence.md': '35285fe0b6e8e147e962c7d0fee715b95e23ca17d5293a27e19b25ba4419d607',
-                          '.agents/skills/megin/references/quality-gates.md': '7a6bddb6f7867c857d8ce19414e5b32e000968b0796de904996d14abdef4b44c',
-                          '.agents/skills/megin/references/repository-workflow.md': '33752ca83cdb8f002989e5f1a229047da0b4714a1d622bc13714872457ad2aa6',
-                          '.agents/skills/megin/references/requirements-discovery-protocol.md': 'eda57760e7b5851a0a98058871270d63eb32138f7bece911563532f45818ca4d',
-                          '.agents/skills/megin/references/requirements-template.md': '9ef029ec196fc3ae536b823d073625b36b15893d0a6dc0bdb53c69a29fabc58f',
-                          '.agents/skills/megin/references/verification-extensions.md': '7485377ef86743db414b55ecac5835f18b915a5b89de6d4ba84cb64d2a74ee38',
-                          '.agents/skills/megin/references/workflow-examples.md': '05bc5eeffda1b8cdbf8966f538066f98227b0eddb9ef7cbf0a59d9f78c38028f',
-                          '.agents/skills/megin/references/workflow-record.md': '01852d875b6ec0aec87acf6962aded508e71c701d6b65d0cbf0497a58fe99164',
-                          '.agents/skills/megin/references/workspace-workflow.md': '3c45c43d7af1535f295464a5021ece3ed80b72009dd9ae6fb8477281de5fef6b',
-                          '.agents/skills/megin/scripts/behavior_trace.py': '11f77eccb4620530e9027e76c192d276b80e7dd530eacb0a4d8fe5deafa0e35c',
-                          '.agents/skills/megin/scripts/delivery_receipt.py': '04b93fe59e6c0d7f33c16c11ee1a74f7bcd2a17465160715758a41bbefb339c1',
-                          '.agents/skills/megin/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
-                          '.agents/skills/megin/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
-                          '.agents/skills/megin/scripts/git_snapshot.py': 'c733001854f03615276af0174560ef136301b1877d968872747b7b798a0b982f',
-                          '.agents/skills/megin/scripts/group_quality_gate.py': 'fa3c95f10983c0e92601e2732d2a22b21f6147346ccf422b5a61fc37964f5b94',
-                          '.agents/skills/megin/scripts/impact_policy.py': 'e4207a767933ba1ad436fc24539ba0e51740eee5ad421edc24a029e6e7041aaa',
-                          '.agents/skills/megin/scripts/install_skills.py': 'c699eb98480db9feb8b4d230dd79909f3e2e1d3156dd0b6a9da0eebb123c84b6',
-                          '.agents/skills/megin/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
-                          '.agents/skills/megin/scripts/quality_gate.py': '78c4fe46944ff3fdd0ea32825dcb931ee6c3502fe09cf7a8cdf7fba27af64474',
-                          '.agents/skills/megin/scripts/quality_policy.py': 'd244ee4d491347c4c14a4b21425fe2018da7d07d56bd9deea13c70970b509fde',
-                          '.agents/skills/megin/scripts/repo_workspace.py': '71ad27cd324e8c96cfc9bfc5cec1a8f201933cc1aacf503c49e8dafaf2b08c4c',
-                          '.agents/skills/megin/scripts/review_history.py': '53451423bb9433d95451e295f2d5ab69f57ce7b9f89cb483136b6efea1c801ca',
-                          '.agents/skills/megin/scripts/source_baseline.py': 'fdc4acc25086b90eccc2978b836d52e4732ac4578e8649407b5a406f280f641e',
-                          '.agents/skills/megin/scripts/unified_workflow.py': 'e5e5b8eefd1e30adeeec074f2017b806e796564b067cdbf4aea05d66e4f4700c',
-                          '.agents/skills/megin/scripts/validate_skills.py': 'c978700eabe490c60289e5409c95a170c0e1db638ac00bb6a79d1133c6d515ae',
-                          '.agents/skills/megin/scripts/verification_inputs.py': '9039a6ecf51c950253e0b7d7cb1c8948eb7367cacbb48816f2104e38e84a676b',
-                          '.agents/skills/megin/scripts/workspace_context.py': '62d84e7cc82d1380e6472c64672e4582e707b5b44b5ecc9961b970688aef2e8b',
-                          '.agents/skills/megin/scripts/workspace_extension.py': '40dd311d3d22bc069bcee051af609769ffa9a10d76f47efbf59687104c9ec506',
-                          '.agents/skills/megin/scripts/workspace_lock.py': '2925147cd68e6d47b85c19c607db8a51b01cdde3fee20a3719f1d1b420266333',
-                          '.agents/skills/merge-reviewer/SKILL.md': '235939ac82200888587c15ce17d073d3f8418fdfded26a4e60d4cebf9fb4d4c5',
+                          '.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
                           '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
                           '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
                           '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
                           '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
                           '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
                           '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
-                          '.agents/skills/merge-reviewer/references/workspace-review.md': '7890026c315625178f3c0a1b46d8b43bbdb792ba9852622392d41b2393619fb4',
+                          '.agents/skills/merge-reviewer/references/workspace-review.md': 'f89ff4cf4d9d037f57f17af850061fcb30d7a804a995473f1f3669a6f9a9d92a',
                           '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
-                          '.agents/skills/merge-reviewer/scripts/review_report.py': '6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3',
+                          '.agents/skills/merge-reviewer/scripts/review_report.py': '33f3b93a16939fb4db35b7a416d9beb10c9b45727e03801944ad9f9cf31d3a0e',
                           '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
-                          '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c273c8a55b44d10dbea9ee6100370d01e27cf6aa43032cfeb4905468c228af79',
-                          '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'e6a16dd7a54bee7764b51fae9df26c5b2c6982a103c708353d3d257b69efdd7a',
-                          '.agents/skills/output-style/SKILL.md': '97cc480c0105c996acf6e695530301c7434676a94ff068fdfb0e014c6dd30e71',
+                          '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c117d7fd6f5dba50da998da576775d2c72e19324cf15c46a5f426f2fcf0dfc76',
+                          '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec',
+                          '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
                           '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
                           '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
-                          '.agents/skills/release-reviewer/SKILL.md': 'fdf8761254d43d7fdfab1b16e4ec7662fb23cf6c48c757533514a48028681e37',
+                          '.agents/skills/release-reviewer/SKILL.md': '3c2e323ecf4d3b8274974b18ad82a33e2c25fac227697c66fd0470aabde65c46',
                           '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
                           '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
-                          '.agents/skills/release-reviewer/references/evidence-workflow.md': '53f5192f7cf48a6666c65322d8064ea41be4dd2d684d0c6de5fb8787dfd3192e',
+                          '.agents/skills/release-reviewer/references/evidence-workflow.md': 'ba14f8c8eb4c2d89a909d69cacd9a058a18ed2f6a6b3e0b4067d47587c7926c3',
                           '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
                           '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
                           '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
                           '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
                           '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
                           '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
-                          '.agents/skills/release-reviewer/scripts/evidence.py': '442ecab309ed3413c775adcddbb1dfb05bb98702fff083bed4d74ae0cb6fbc05',
+                          '.agents/skills/release-reviewer/scripts/evidence.py': '044dcf261c85c3f733b5674c12b8859158abe0dd7b89f8d9c5603cebc1953bc2',
                           '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
                           '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
                           '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
-                          '.agents/skills/release-reviewer/scripts/release_report.py': '870abe605bcc8a2ad3177e4154cb022b0ddbdb3064685f9647e54eeddb9e1d59',
+                          '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
                           '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
                           '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
                           '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
                 'overlays': {},
-                'payloadSha256': '6a15eb75e17200db1d5cd940b7551290355fb98b1bf3d294c1eed41d96d7ebdc',
-                'profileHashes': {'group-instructions.md': '4c3067d85852e21a12114020dccb2cc81bab1c4b7afb14d31d3dd9091530eb84',
-                                  'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
-                                  'profile.md': '0f6cb57ef6c9bad0b9147ca867214b8cc6d98e027bfe81b292482e7c85eed023'},
-                'skills': ['codebase-wiki',
-                           'megin',
-                           'megin-architecture-exploration',
-                           'megin-behavior-contract',
-                           'megin-bug-diagnosis',
-                           'megin-code-review',
-                           'megin-finishing-delivery',
-                           'megin-human-acceptance',
-                           'megin-implementation-execution',
-                           'megin-project-knowledge',
-                           'megin-requirements-discovery',
-                           'megin-technical-planning',
-                           'megin-test-driven-development',
-                           'megin-verification-before-completion',
-                           'merge-reviewer',
-                           'output-style',
-                           'release-reviewer']}}
+                'payloadSha256': '912196959b2387f12a02cd20b67b571446b6e4c70d35a9ef8dca5181c24f484c',
+                'profileHashes': {'group-instructions.md': 'aa4b23404349a6724f85278c97bb67b8421d0ef293d330ceff1b1450f4021fa4',
+                                  'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                                  'profile.md': '4312b9c3e153c4edf91ea3d67d76dc99fa068fd09d50cc4846d94d485560b892'},
+                'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']}}
 WORKSPACE_CONTRACT = 2
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
@@ -599,44 +423,32 @@ FILE_LIMIT = 64 * 1024 * 1024
 COUNT_LIMIT = 12_000
 ROOT = "workflow-kit"
 MARKER = ".gitlab-workspace/tool-manifests/workflow-kit.json"
-GROUP_LOCK = ".megin/workspace.lock.json"
 INSTALL_LOCK = ".workflow-kit-install.lock"
 BEGIN = "<!-- gitlab-workspace-kit:managed:start -->"
 END = "<!-- gitlab-workspace-kit:managed:end -->"
 WIKI_BEGIN = "<!-- codebase-wiki:managed:start -->"
 WIKI_END = "<!-- codebase-wiki:managed:end -->"
-LEGACY_MARKERS = (
-    ".gitlab-workspace/tool-manifests/codebase-wiki.json",
-    ".gitlab-workspace/tool-manifests/megin.json",
-    ".gitlab-workspace/tool-manifests/merge-reviewer.json",
-)
+LEGACY_MARKERS = ('.gitlab-workspace/tool-manifests/codebase-wiki.json', '.gitlab-workspace/tool-manifests/merge-reviewer.json')
 UPSTREAM = {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
                    'repository': 'code-base-llm-wiki',
                    'root': 'codebase-llm-wiki-codex-0.6.2',
-                   'sha256': 'f91be4557fb67084e246168428a98e9372d9b1b78c4e6db85bd5ead7360acf9b',
+                   'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
                    'version': '0.6.2'},
- 'megin': {'asset': 'megin-skills.zip',
-           'repository': 'Megin',
-           'root': '',
-           'sha256': '8cc53e59163016dc96526c6c8df115991d68fc920e57ad34572b8d5d1d3cd687',
-           'version': '0.8.2'},
  'merge-reviewer': {'asset': 'merge-reviewer-0.14.0.zip',
                     'repository': 'MergeReviewer',
                     'root': '',
-                    'sha256': '673f7644abea51e20c92eb3e202d67c62d4a7417ef9f7c4d0bde30c14fcd2c2b',
+                    'sha256': '12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3',
                     'version': '0.14.0'},
  'release-reviewer': {'asset': 'release-reviewer-0.4.1.zip',
                       'repository': 'ReleaseReviewer',
                       'root': '',
-                      'sha256': '5411cf3ef0500328ed830bf353ac06435f37139082de8b621c56fd62359fb633',
+                      'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39',
                       'version': '0.4.1'}}
-PROFILE_HASHES = {'group-instructions.md': 'cd4033cd993718cb0d0019014363ce4e2e3c900dc8fe52c9ab876b7f21483e93',
- 'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
- 'profile.md': 'e7da39bb1c3c048a9596cf02471d346c82c3edd4f59847de6d48645bb3be94e4'}
+PROFILE_HASHES = {'group-instructions.md': '1ab448d82178766c454ec52ce866501abf0f018d1dd5fe785a7f8bfa23b72a95',
+ 'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+ 'profile.md': 'd5138b22a9f7015999d29d0a23ea3200a805e3eeaf93da9378c86b12a5b10fe3'}
 SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.2 is single-codebase; GitlabWorkSpace overlay restores Group-relative '
  'specifications and shared-Wiki rules.',
- 'Native Megin 0.8.2 supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no '
- 'Workspace Megin overlay, GitLab delivery or simulation routing is applied.',
  'Native MergeReviewer 0.14.0 accepts one Repo and explicit base/head branches, uses Codex-native review and '
  'v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and '
  'a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete '
@@ -645,99 +457,40 @@ SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.2 is single-codebase; GitlabWork
  'Native ReleaseReviewer 0.4.1 accepts only an explicit Repo and base/head branches, traces affected Group '
  'functionality using pinned local default branches, and writes one concise v3 blocker/resource report with '
  'an editable manual checklist at the VSCode workspace root without an overlay.']
-AGENT_BLOCK_SHA256 = 'bc63cda5a7db4166ae9552a89fd32bf7a944b8b8192496e8c0d05aef7727b712'
-OVERLAY_HASHES = {'codebase-wiki': '8c16b5f03b4e36bf5dba21cfce97cf868d0d3fc3668bcd5c6f6a85779e8de492'}
-CURRENT_PAYLOAD_SHA256 = 'a94b38fa7caffe5c8e9310332e33d503a83acb131ba3a38edc22b22a3ef19196'
-CURRENT_SKILL_FILES = {'.agents/skills/megin-architecture-exploration/SKILL.md': '1e5ed21281dc13b6a3b8b0b6b99442738729d8976d9b6ddf6c34df330c6ce02a',
- '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
- '.agents/skills/megin-behavior-contract/SKILL.md': '83778f2134bc540be1a0505f11bec6f5d527663afb85c001b213d27fa70de5c9',
- '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
- '.agents/skills/megin-bug-diagnosis/SKILL.md': 'bfa82b975e331e1e28dbaefef62ac3f9c0a416c752d7c902bf2daae3a78a7c6f',
- '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
- '.agents/skills/megin-code-review/SKILL.md': 'ad42321cbb05ec5d720e61dd3166c25b230fdec2733b2b54540f82b019e68cdc',
- '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
- '.agents/skills/megin-finishing-delivery/SKILL.md': 'bedc013bf24fcd8db951aff275cf9179f2cd62f6fdaf92d204c4773c514c2734',
- '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
- '.agents/skills/megin-human-acceptance/SKILL.md': 'ff52d3d5e848fc259efc90d8378a9c90fca86c01982d04ff3020a1a9ce14e297',
- '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
- '.agents/skills/megin-implementation-execution/SKILL.md': '6a7d414abca3b25ec86c1a170916efcc511e629294c3c127388bde89db39b73b',
- '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
- '.agents/skills/megin-project-knowledge/SKILL.md': '4d820660551d9155c1e8db5fb09b5adbca84ad90ed3f1198bdb44e14747370f5',
- '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
- '.agents/skills/megin-requirements-discovery/SKILL.md': 'fd265025b37de6b417c55c9f9e4ae656ac3a9d58abe48db4d71e121c5ef734d5',
- '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
- '.agents/skills/megin-technical-planning/SKILL.md': '1d19ba0ceff9379f4a8fbc0b34eeaa48dbf5b94f8d95f08ea7765ac23d7d7da3',
- '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
- '.agents/skills/megin-test-driven-development/SKILL.md': 'd4950321814c248dff9712137476d2022614cf82b5289810b89248f183167771',
- '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
- '.agents/skills/megin-verification-before-completion/SKILL.md': 'cfdb8ee72f5f3f4f0b1bf23cadba19edcc082b2e847a98fd33f719ff9171c5cf',
- '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
- '.agents/skills/megin/SKILL.md': '24735a8231dc71802d8aca36dba09d49cfcfe5e19c70c96bf6357a44e888d922',
- '.agents/skills/megin/agents/openai.yaml': '3d63b75ee2bb6a860fde1d9839bab613ce6b3dd80cbcb14b4f20882f5a6a9922',
- '.agents/skills/megin/references/branch-policy.md': '5c8b85359c41eba08dbc7c768686127a4bae7042eedff43ca09e70099a1ae3e3',
- '.agents/skills/megin/references/delivery-receipts.md': '331a789abd55e9c9c67838321ef07af9580dfc9353a5809ecfd6eb61ff6d3ae4',
- '.agents/skills/megin/references/group-impact.md': '7a6f1116566bce0a41473a478793ab521ecb87770f477debdc5cdc0ed4e88784',
- '.agents/skills/megin/references/language-policy.md': '72599c4b959ead1c7adf8dc4fe8d9ee238863c473ce7cb66e667956c01ba78c9',
- '.agents/skills/megin/references/new-work-evidence.md': '35285fe0b6e8e147e962c7d0fee715b95e23ca17d5293a27e19b25ba4419d607',
- '.agents/skills/megin/references/quality-gates.md': '7a6bddb6f7867c857d8ce19414e5b32e000968b0796de904996d14abdef4b44c',
- '.agents/skills/megin/references/repository-workflow.md': '33752ca83cdb8f002989e5f1a229047da0b4714a1d622bc13714872457ad2aa6',
- '.agents/skills/megin/references/requirements-discovery-protocol.md': 'eda57760e7b5851a0a98058871270d63eb32138f7bece911563532f45818ca4d',
- '.agents/skills/megin/references/requirements-template.md': '9ef029ec196fc3ae536b823d073625b36b15893d0a6dc0bdb53c69a29fabc58f',
- '.agents/skills/megin/references/verification-extensions.md': '7485377ef86743db414b55ecac5835f18b915a5b89de6d4ba84cb64d2a74ee38',
- '.agents/skills/megin/references/workflow-examples.md': '05bc5eeffda1b8cdbf8966f538066f98227b0eddb9ef7cbf0a59d9f78c38028f',
- '.agents/skills/megin/references/workflow-record.md': '01852d875b6ec0aec87acf6962aded508e71c701d6b65d0cbf0497a58fe99164',
- '.agents/skills/megin/references/workspace-workflow.md': '3c45c43d7af1535f295464a5021ece3ed80b72009dd9ae6fb8477281de5fef6b',
- '.agents/skills/megin/scripts/behavior_trace.py': '11f77eccb4620530e9027e76c192d276b80e7dd530eacb0a4d8fe5deafa0e35c',
- '.agents/skills/megin/scripts/delivery_receipt.py': '04b93fe59e6c0d7f33c16c11ee1a74f7bcd2a17465160715758a41bbefb339c1',
- '.agents/skills/megin/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
- '.agents/skills/megin/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
- '.agents/skills/megin/scripts/git_snapshot.py': 'c733001854f03615276af0174560ef136301b1877d968872747b7b798a0b982f',
- '.agents/skills/megin/scripts/group_quality_gate.py': 'fa3c95f10983c0e92601e2732d2a22b21f6147346ccf422b5a61fc37964f5b94',
- '.agents/skills/megin/scripts/impact_policy.py': 'e4207a767933ba1ad436fc24539ba0e51740eee5ad421edc24a029e6e7041aaa',
- '.agents/skills/megin/scripts/install_skills.py': 'c699eb98480db9feb8b4d230dd79909f3e2e1d3156dd0b6a9da0eebb123c84b6',
- '.agents/skills/megin/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
- '.agents/skills/megin/scripts/quality_gate.py': '78c4fe46944ff3fdd0ea32825dcb931ee6c3502fe09cf7a8cdf7fba27af64474',
- '.agents/skills/megin/scripts/quality_policy.py': 'd244ee4d491347c4c14a4b21425fe2018da7d07d56bd9deea13c70970b509fde',
- '.agents/skills/megin/scripts/repo_workspace.py': '71ad27cd324e8c96cfc9bfc5cec1a8f201933cc1aacf503c49e8dafaf2b08c4c',
- '.agents/skills/megin/scripts/review_history.py': '53451423bb9433d95451e295f2d5ab69f57ce7b9f89cb483136b6efea1c801ca',
- '.agents/skills/megin/scripts/source_baseline.py': 'fdc4acc25086b90eccc2978b836d52e4732ac4578e8649407b5a406f280f641e',
- '.agents/skills/megin/scripts/unified_workflow.py': 'e5e5b8eefd1e30adeeec074f2017b806e796564b067cdbf4aea05d66e4f4700c',
- '.agents/skills/megin/scripts/validate_skills.py': 'c978700eabe490c60289e5409c95a170c0e1db638ac00bb6a79d1133c6d515ae',
- '.agents/skills/megin/scripts/verification_inputs.py': '9039a6ecf51c950253e0b7d7cb1c8948eb7367cacbb48816f2104e38e84a676b',
- '.agents/skills/megin/scripts/workspace_context.py': '62d84e7cc82d1380e6472c64672e4582e707b5b44b5ecc9961b970688aef2e8b',
- '.agents/skills/megin/scripts/workspace_extension.py': '40dd311d3d22bc069bcee051af609769ffa9a10d76f47efbf59687104c9ec506',
- '.agents/skills/megin/scripts/workspace_lock.py': '2925147cd68e6d47b85c19c607db8a51b01cdde3fee20a3719f1d1b420266333',
- '.agents/skills/merge-reviewer/SKILL.md': '235939ac82200888587c15ce17d073d3f8418fdfded26a4e60d4cebf9fb4d4c5',
+AGENT_BLOCK_SHA256 = '3506a7690081c45d52ad47238435b1b6e3769e28b649084fa335ed56c5f0789e'
+OVERLAY_HASHES = {'codebase-wiki': '83c9ca1b2961b102e9d315eb50aa3f5244076ce9c025a6ebcca523551856f672'}
+CURRENT_PAYLOAD_SHA256 = '007c71025196679a24420bf884eb227e501511cca0e480feee3c01664c3588b7'
+CURRENT_SKILL_FILES = {'.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
  '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
  '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
  '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
  '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
  '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
  '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
- '.agents/skills/merge-reviewer/references/workspace-review.md': '7890026c315625178f3c0a1b46d8b43bbdb792ba9852622392d41b2393619fb4',
+ '.agents/skills/merge-reviewer/references/workspace-review.md': 'f89ff4cf4d9d037f57f17af850061fcb30d7a804a995473f1f3669a6f9a9d92a',
  '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
- '.agents/skills/merge-reviewer/scripts/review_report.py': '6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3',
+ '.agents/skills/merge-reviewer/scripts/review_report.py': '33f3b93a16939fb4db35b7a416d9beb10c9b45727e03801944ad9f9cf31d3a0e',
  '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
- '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c273c8a55b44d10dbea9ee6100370d01e27cf6aa43032cfeb4905468c228af79',
- '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'e6a16dd7a54bee7764b51fae9df26c5b2c6982a103c708353d3d257b69efdd7a',
- '.agents/skills/output-style/SKILL.md': '97cc480c0105c996acf6e695530301c7434676a94ff068fdfb0e014c6dd30e71',
+ '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c117d7fd6f5dba50da998da576775d2c72e19324cf15c46a5f426f2fcf0dfc76',
+ '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec',
+ '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
  '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
  '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
- '.agents/skills/release-reviewer/SKILL.md': 'fdf8761254d43d7fdfab1b16e4ec7662fb23cf6c48c757533514a48028681e37',
+ '.agents/skills/release-reviewer/SKILL.md': '3c2e323ecf4d3b8274974b18ad82a33e2c25fac227697c66fd0470aabde65c46',
  '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
  '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
- '.agents/skills/release-reviewer/references/evidence-workflow.md': '53f5192f7cf48a6666c65322d8064ea41be4dd2d684d0c6de5fb8787dfd3192e',
+ '.agents/skills/release-reviewer/references/evidence-workflow.md': 'ba14f8c8eb4c2d89a909d69cacd9a058a18ed2f6a6b3e0b4067d47587c7926c3',
  '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
  '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
  '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
  '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
  '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
  '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
- '.agents/skills/release-reviewer/scripts/evidence.py': '442ecab309ed3413c775adcddbb1dfb05bb98702fff083bed4d74ae0cb6fbc05',
+ '.agents/skills/release-reviewer/scripts/evidence.py': '044dcf261c85c3f733b5674c12b8859158abe0dd7b89f8d9c5603cebc1953bc2',
  '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
  '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
  '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
- '.agents/skills/release-reviewer/scripts/release_report.py': '870abe605bcc8a2ad3177e4154cb022b0ddbdb3064685f9647e54eeddb9e1d59',
+ '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
  '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
  '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
  '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'}
@@ -6178,14 +5931,524 @@ TRUSTED_PREDECESSORS = {'local_updates': [{'baseline_manifest_sha256': '491f28c1
                              '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
                              '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
                              '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
-               'wikiInstalledVersionSha256': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033'}],
+               'wikiInstalledVersionSha256': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033'},
+              {'agentBlockSha256': 'bc63cda5a7db4166ae9552a89fd32bf7a944b8b8192496e8c0d05aef7727b712',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'megin-resume',
+                                'megin-spec-export',
+                                'megin-workflow',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {'.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
+                                  '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a'},
+               'files': {'.agents/skills/megin-architecture-exploration/SKILL.md': '1e5ed21281dc13b6a3b8b0b6b99442738729d8976d9b6ddf6c34df330c6ce02a',
+                         '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
+                         '.agents/skills/megin-behavior-contract/SKILL.md': '83778f2134bc540be1a0505f11bec6f5d527663afb85c001b213d27fa70de5c9',
+                         '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
+                         '.agents/skills/megin-bug-diagnosis/SKILL.md': 'bfa82b975e331e1e28dbaefef62ac3f9c0a416c752d7c902bf2daae3a78a7c6f',
+                         '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
+                         '.agents/skills/megin-code-review/SKILL.md': 'ad42321cbb05ec5d720e61dd3166c25b230fdec2733b2b54540f82b019e68cdc',
+                         '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
+                         '.agents/skills/megin-finishing-delivery/SKILL.md': 'bedc013bf24fcd8db951aff275cf9179f2cd62f6fdaf92d204c4773c514c2734',
+                         '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
+                         '.agents/skills/megin-human-acceptance/SKILL.md': 'ff52d3d5e848fc259efc90d8378a9c90fca86c01982d04ff3020a1a9ce14e297',
+                         '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
+                         '.agents/skills/megin-implementation-execution/SKILL.md': '6a7d414abca3b25ec86c1a170916efcc511e629294c3c127388bde89db39b73b',
+                         '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
+                         '.agents/skills/megin-project-knowledge/SKILL.md': '4d820660551d9155c1e8db5fb09b5adbca84ad90ed3f1198bdb44e14747370f5',
+                         '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
+                         '.agents/skills/megin-requirements-discovery/SKILL.md': 'fd265025b37de6b417c55c9f9e4ae656ac3a9d58abe48db4d71e121c5ef734d5',
+                         '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
+                         '.agents/skills/megin-technical-planning/SKILL.md': '1d19ba0ceff9379f4a8fbc0b34eeaa48dbf5b94f8d95f08ea7765ac23d7d7da3',
+                         '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
+                         '.agents/skills/megin-test-driven-development/SKILL.md': 'd4950321814c248dff9712137476d2022614cf82b5289810b89248f183167771',
+                         '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
+                         '.agents/skills/megin-verification-before-completion/SKILL.md': 'cfdb8ee72f5f3f4f0b1bf23cadba19edcc082b2e847a98fd33f719ff9171c5cf',
+                         '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
+                         '.agents/skills/megin/SKILL.md': '24735a8231dc71802d8aca36dba09d49cfcfe5e19c70c96bf6357a44e888d922',
+                         '.agents/skills/megin/agents/openai.yaml': '3d63b75ee2bb6a860fde1d9839bab613ce6b3dd80cbcb14b4f20882f5a6a9922',
+                         '.agents/skills/megin/references/branch-policy.md': '5c8b85359c41eba08dbc7c768686127a4bae7042eedff43ca09e70099a1ae3e3',
+                         '.agents/skills/megin/references/delivery-receipts.md': '331a789abd55e9c9c67838321ef07af9580dfc9353a5809ecfd6eb61ff6d3ae4',
+                         '.agents/skills/megin/references/group-impact.md': '7a6f1116566bce0a41473a478793ab521ecb87770f477debdc5cdc0ed4e88784',
+                         '.agents/skills/megin/references/language-policy.md': '72599c4b959ead1c7adf8dc4fe8d9ee238863c473ce7cb66e667956c01ba78c9',
+                         '.agents/skills/megin/references/new-work-evidence.md': '35285fe0b6e8e147e962c7d0fee715b95e23ca17d5293a27e19b25ba4419d607',
+                         '.agents/skills/megin/references/quality-gates.md': '7a6bddb6f7867c857d8ce19414e5b32e000968b0796de904996d14abdef4b44c',
+                         '.agents/skills/megin/references/repository-workflow.md': '33752ca83cdb8f002989e5f1a229047da0b4714a1d622bc13714872457ad2aa6',
+                         '.agents/skills/megin/references/requirements-discovery-protocol.md': 'eda57760e7b5851a0a98058871270d63eb32138f7bece911563532f45818ca4d',
+                         '.agents/skills/megin/references/requirements-template.md': '9ef029ec196fc3ae536b823d073625b36b15893d0a6dc0bdb53c69a29fabc58f',
+                         '.agents/skills/megin/references/verification-extensions.md': '7485377ef86743db414b55ecac5835f18b915a5b89de6d4ba84cb64d2a74ee38',
+                         '.agents/skills/megin/references/workflow-examples.md': '05bc5eeffda1b8cdbf8966f538066f98227b0eddb9ef7cbf0a59d9f78c38028f',
+                         '.agents/skills/megin/references/workflow-record.md': '01852d875b6ec0aec87acf6962aded508e71c701d6b65d0cbf0497a58fe99164',
+                         '.agents/skills/megin/references/workspace-workflow.md': '3c45c43d7af1535f295464a5021ece3ed80b72009dd9ae6fb8477281de5fef6b',
+                         '.agents/skills/megin/scripts/behavior_trace.py': '11f77eccb4620530e9027e76c192d276b80e7dd530eacb0a4d8fe5deafa0e35c',
+                         '.agents/skills/megin/scripts/delivery_receipt.py': '04b93fe59e6c0d7f33c16c11ee1a74f7bcd2a17465160715758a41bbefb339c1',
+                         '.agents/skills/megin/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                         '.agents/skills/megin/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                         '.agents/skills/megin/scripts/git_snapshot.py': 'c733001854f03615276af0174560ef136301b1877d968872747b7b798a0b982f',
+                         '.agents/skills/megin/scripts/group_quality_gate.py': 'fa3c95f10983c0e92601e2732d2a22b21f6147346ccf422b5a61fc37964f5b94',
+                         '.agents/skills/megin/scripts/impact_policy.py': 'e4207a767933ba1ad436fc24539ba0e51740eee5ad421edc24a029e6e7041aaa',
+                         '.agents/skills/megin/scripts/install_skills.py': 'c699eb98480db9feb8b4d230dd79909f3e2e1d3156dd0b6a9da0eebb123c84b6',
+                         '.agents/skills/megin/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
+                         '.agents/skills/megin/scripts/quality_gate.py': '78c4fe46944ff3fdd0ea32825dcb931ee6c3502fe09cf7a8cdf7fba27af64474',
+                         '.agents/skills/megin/scripts/quality_policy.py': 'd244ee4d491347c4c14a4b21425fe2018da7d07d56bd9deea13c70970b509fde',
+                         '.agents/skills/megin/scripts/repo_workspace.py': '71ad27cd324e8c96cfc9bfc5cec1a8f201933cc1aacf503c49e8dafaf2b08c4c',
+                         '.agents/skills/megin/scripts/review_history.py': '53451423bb9433d95451e295f2d5ab69f57ce7b9f89cb483136b6efea1c801ca',
+                         '.agents/skills/megin/scripts/source_baseline.py': 'fdc4acc25086b90eccc2978b836d52e4732ac4578e8649407b5a406f280f641e',
+                         '.agents/skills/megin/scripts/unified_workflow.py': 'e5e5b8eefd1e30adeeec074f2017b806e796564b067cdbf4aea05d66e4f4700c',
+                         '.agents/skills/megin/scripts/validate_skills.py': 'c978700eabe490c60289e5409c95a170c0e1db638ac00bb6a79d1133c6d515ae',
+                         '.agents/skills/megin/scripts/verification_inputs.py': '9039a6ecf51c950253e0b7d7cb1c8948eb7367cacbb48816f2104e38e84a676b',
+                         '.agents/skills/megin/scripts/workspace_context.py': '62d84e7cc82d1380e6472c64672e4582e707b5b44b5ecc9961b970688aef2e8b',
+                         '.agents/skills/megin/scripts/workspace_extension.py': '40dd311d3d22bc069bcee051af609769ffa9a10d76f47efbf59687104c9ec506',
+                         '.agents/skills/megin/scripts/workspace_lock.py': '2925147cd68e6d47b85c19c607db8a51b01cdde3fee20a3719f1d1b420266333',
+                         '.agents/skills/merge-reviewer/SKILL.md': '235939ac82200888587c15ce17d073d3f8418fdfded26a4e60d4cebf9fb4d4c5',
+                         '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
+                         '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': '7890026c315625178f3c0a1b46d8b43bbdb792ba9852622392d41b2393619fb4',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': '6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c273c8a55b44d10dbea9ee6100370d01e27cf6aa43032cfeb4905468c228af79',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'e6a16dd7a54bee7764b51fae9df26c5b2c6982a103c708353d3d257b69efdd7a',
+                         '.agents/skills/output-style/SKILL.md': '97cc480c0105c996acf6e695530301c7434676a94ff068fdfb0e014c6dd30e71',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': 'fdf8761254d43d7fdfab1b16e4ec7662fb23cf6c48c757533514a48028681e37',
+                         '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': '53f5192f7cf48a6666c65322d8064ea41be4dd2d684d0c6de5fb8787dfd3192e',
+                         '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
+                         '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
+                         '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '442ecab309ed3413c775adcddbb1dfb05bb98702fff083bed4d74ae0cb6fbc05',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': '870abe605bcc8a2ad3177e4154cb022b0ddbdb3064685f9647e54eeddb9e1d59',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
+               'overlays': {'codebase-wiki': {'added': {'.agents/skills/codebase-wiki/references/group-development-workflow.md': 'c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa'},
+                                              'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '6aa6323e256842ddf4b18032479663fa7f9cbdba1892268ad49f1f08a0290ea7',
+                                                                                                     'upstream_sha256': '177d8eb03e68a4dedeabdcfff9266e68737be558cf76aa4d1870296b96c2aa80'},
+                                                           '.agents/skills/codebase-wiki/assets/development-spec-template.md': {'overlay_sha256': 'deb3b8c98fc2f4bfdcc67067f94a11ad7e9f9b74bcddfd14fc02fc323cf42691',
+                                                                                                                                'upstream_sha256': '76a2ce016a7cdc852be23ac01c7c9152bdbfb30d1005f99dc0f6c8bfafd9ea97'},
+                                                           '.agents/skills/codebase-wiki/references/development-spec-workflow.md': {'overlay_sha256': 'cc729c875f73446cbe5c77f338c2470ffb73ac0107ac148e55d1508167afdfd1',
+                                                                                                                                    'upstream_sha256': 'dccf3f2ee8e1eaee1b58b2b0d3a963b9524aa123dededc3884d6db40e3eb24a2'},
+                                                           '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': {'overlay_sha256': 'b8b71ec541cb979bae3194d020ff723e18fb9e403ee659005cd3382500cfc95b',
+                                                                                                                                 'upstream_sha256': 'fe477ab85bb842553dd1f39d325f486cd41dace3fb1dcb133024e8f004c338e4'}}}},
+               'payloadSha256': 'a94b38fa7caffe5c8e9310332e33d503a83acb131ba3a38edc22b22a3ef19196',
+               'profile': 'group',
+               'profileHashes': {'group-instructions.md': 'cd4033cd993718cb0d0019014363ce4e2e3c900dc8fe52c9ab876b7f21483e93',
+                                 'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
+                                 'profile.md': 'e7da39bb1c3c048a9596cf02471d346c82c3edd4f59847de6d48645bb3be94e4'},
+               'skills': ['codebase-wiki',
+                          'megin',
+                          'megin-architecture-exploration',
+                          'megin-behavior-contract',
+                          'megin-bug-diagnosis',
+                          'megin-code-review',
+                          'megin-finishing-delivery',
+                          'megin-human-acceptance',
+                          'megin-implementation-execution',
+                          'megin-project-knowledge',
+                          'megin-requirements-discovery',
+                          'megin-technical-planning',
+                          'megin-test-driven-development',
+                          'megin-verification-before-completion',
+                          'merge-reviewer',
+                          'output-style',
+                          'release-reviewer'],
+               'upstream': {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': 'f91be4557fb67084e246168428a98e9372d9b1b78c4e6db85bd5ead7360acf9b',
+                                              'version': '0.6.2'},
+                            'megin': {'asset': 'megin-skills.zip',
+                                      'repository': 'Megin',
+                                      'sha256': '8cc53e59163016dc96526c6c8df115991d68fc920e57ad34572b8d5d1d3cd687',
+                                      'version': '0.8.2'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.14.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '673f7644abea51e20c92eb3e202d67c62d4a7417ef9f7c4d0bde30c14fcd2c2b',
+                                               'version': '0.14.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.4.1.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': '5411cf3ef0500328ed830bf353ac06435f37139082de8b621c56fd62359fb633',
+                                                 'version': '0.4.1'}},
+               'version': '0.25.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': '6aa6323e256842ddf4b18032479663fa7f9cbdba1892268ad49f1f08a0290ea7',
+                             '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/development-spec-template.md': 'deb3b8c98fc2f4bfdcc67067f94a11ad7e9f9b74bcddfd14fc02fc323cf42691',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '24537d815569007b82bb644368ae477ad385fda6dfd3a0e719b2c176c0169aa9',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': 'f3b5d7a59459cb1f82d0ef74caa70e465abacd071306aaf2dd1acfbb10bf6df3',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
+                             '.agents/skills/codebase-wiki/references/development-spec-workflow.md': 'cc729c875f73446cbe5c77f338c2470ffb73ac0107ac148e55d1508167afdfd1',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': '4c2c79ea98da658ce30d2f6d2430c130d59fd1de1c24c2abf7f53ede03b9de92',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/group-development-workflow.md': 'c97d089dd48065122ce50e47afaba3b23e178d13194496395fcc2b0b6d2cbffa',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': '0a63686f8ff9f3fb4c35b10c5e962a3d17050b321ccbb72857656a2ad0424675',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': 'b45474b368f600af5ce2638b60785fd45369f48c24815903548904a669b10821',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '938d67d251c20f1a0508aaaa102a2f02ea284bab9c48c73523bd674e7acdd5a8',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': 'e247150ed4a785ece888a4649d3a78e42c162d1ed46a5b8910f71ca776e49002',
+                             '.agents/skills/codebase-wiki/scripts/development_spec.py': '3b2464dac361979a3b795dcb331e9df10087b6dc3b5620aaa9a08ea669e9fcd0',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5cbc4b3197410ff68d089f640827ae8e7bcccf10bb78e7a43b0c2faadc6ca973',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '477dacb5c58271393811eb65ae8e577104a0264434ee87d4a367d3edd0107a4d',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': 'f07369fa17ed6e4c3345e7597d2de452eb39295e5071d380426206198e713db0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': '363718eb175e8ab54f704546e69a83c5218737a4de0a22d491d5df9ec0931179',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': 'b8b71ec541cb979bae3194d020ff723e18fb9e403ee659005cd3382500cfc95b',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
+               'wikiInstalledVersionSha256': 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'},
+              {'agentBlockSha256': '472df7aca912e1aaa04d3b76e162998b060304484fd1c1bf3e36363dc80dc1f7',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'megin-resume',
+                                'megin-spec-export',
+                                'megin-workflow',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {'.agents/gitlab-workspace-kit/references/megin-spec-export.md': '9a94310052f9053263ff302116fd432a508463e3fd35c817989f20648abf03c3',
+                                  '.agents/gitlab-workspace-kit/scripts/export-megin-spec.py': 'fb55c1a519d90861c4cec3abecc2c8f7a9390614d38aa6748811187ebcccd67a'},
+               'files': {'.agents/skills/megin-architecture-exploration/SKILL.md': '1e5ed21281dc13b6a3b8b0b6b99442738729d8976d9b6ddf6c34df330c6ce02a',
+                         '.agents/skills/megin-architecture-exploration/agents/openai.yaml': '3be4ee2070a6cf8c0bb07da9a9ad5024d28bc29e1f41cd1827d425dc5fd43456',
+                         '.agents/skills/megin-behavior-contract/SKILL.md': '83778f2134bc540be1a0505f11bec6f5d527663afb85c001b213d27fa70de5c9',
+                         '.agents/skills/megin-behavior-contract/agents/openai.yaml': '6103fa3c15b682ae62c5d581a3eb684b2519c428dbe0f21ccd6d2aec039edb1c',
+                         '.agents/skills/megin-bug-diagnosis/SKILL.md': 'bfa82b975e331e1e28dbaefef62ac3f9c0a416c752d7c902bf2daae3a78a7c6f',
+                         '.agents/skills/megin-bug-diagnosis/agents/openai.yaml': 'b4a3b01a7a025706acd54731f50235f6ddf84b9dd3d35355343a569edeca090a',
+                         '.agents/skills/megin-code-review/SKILL.md': 'ad42321cbb05ec5d720e61dd3166c25b230fdec2733b2b54540f82b019e68cdc',
+                         '.agents/skills/megin-code-review/agents/openai.yaml': 'fbefd99553b372002eb6250f42482a14dcef69b724357a00365d72ec44ca99e4',
+                         '.agents/skills/megin-finishing-delivery/SKILL.md': 'bedc013bf24fcd8db951aff275cf9179f2cd62f6fdaf92d204c4773c514c2734',
+                         '.agents/skills/megin-finishing-delivery/agents/openai.yaml': 'c92a5852a5609b199b60e7af4e09cc8d7ccfe08fcdb7281d3f4e0d4fba67dc25',
+                         '.agents/skills/megin-human-acceptance/SKILL.md': 'ff52d3d5e848fc259efc90d8378a9c90fca86c01982d04ff3020a1a9ce14e297',
+                         '.agents/skills/megin-human-acceptance/agents/openai.yaml': 'be402ad137c4473157d26264944a551d6b6208df8465adcd71cf22b01923a3f8',
+                         '.agents/skills/megin-implementation-execution/SKILL.md': '6a7d414abca3b25ec86c1a170916efcc511e629294c3c127388bde89db39b73b',
+                         '.agents/skills/megin-implementation-execution/agents/openai.yaml': '737fade8892914a52e65ea111f4bbec6bd017ba1a800d80241cdf331da85e5bb',
+                         '.agents/skills/megin-project-knowledge/SKILL.md': '4d820660551d9155c1e8db5fb09b5adbca84ad90ed3f1198bdb44e14747370f5',
+                         '.agents/skills/megin-project-knowledge/agents/openai.yaml': 'ee6bf8501513e2cf0ea2cb20adf83d53431edea759d6d64ce557dd9b015b35f9',
+                         '.agents/skills/megin-requirements-discovery/SKILL.md': 'fd265025b37de6b417c55c9f9e4ae656ac3a9d58abe48db4d71e121c5ef734d5',
+                         '.agents/skills/megin-requirements-discovery/agents/openai.yaml': 'd8ae80eec56aa5ea2f52b3ae4635ef88cb6ff6e61d7b7819a82dc8ebc9bfc5d7',
+                         '.agents/skills/megin-technical-planning/SKILL.md': '1d19ba0ceff9379f4a8fbc0b34eeaa48dbf5b94f8d95f08ea7765ac23d7d7da3',
+                         '.agents/skills/megin-technical-planning/agents/openai.yaml': '82ca1d372af56c12fd1ed61a0f347e66ab0ece9a9d4a7a952b80a5cb4b4de3d8',
+                         '.agents/skills/megin-test-driven-development/SKILL.md': 'd4950321814c248dff9712137476d2022614cf82b5289810b89248f183167771',
+                         '.agents/skills/megin-test-driven-development/agents/openai.yaml': 'f5963232403b8253a806e569ec303a0589de4a324f79800091b30a0e6c5ef60e',
+                         '.agents/skills/megin-verification-before-completion/SKILL.md': 'cfdb8ee72f5f3f4f0b1bf23cadba19edcc082b2e847a98fd33f719ff9171c5cf',
+                         '.agents/skills/megin-verification-before-completion/agents/openai.yaml': '7f0962f7d3b7dafee3f62fa3175e7d63ef24e28d241e3267bd3b9ed34752cce6',
+                         '.agents/skills/megin/SKILL.md': '24735a8231dc71802d8aca36dba09d49cfcfe5e19c70c96bf6357a44e888d922',
+                         '.agents/skills/megin/agents/openai.yaml': '3d63b75ee2bb6a860fde1d9839bab613ce6b3dd80cbcb14b4f20882f5a6a9922',
+                         '.agents/skills/megin/references/branch-policy.md': '5c8b85359c41eba08dbc7c768686127a4bae7042eedff43ca09e70099a1ae3e3',
+                         '.agents/skills/megin/references/delivery-receipts.md': '331a789abd55e9c9c67838321ef07af9580dfc9353a5809ecfd6eb61ff6d3ae4',
+                         '.agents/skills/megin/references/group-impact.md': '7a6f1116566bce0a41473a478793ab521ecb87770f477debdc5cdc0ed4e88784',
+                         '.agents/skills/megin/references/language-policy.md': '72599c4b959ead1c7adf8dc4fe8d9ee238863c473ce7cb66e667956c01ba78c9',
+                         '.agents/skills/megin/references/new-work-evidence.md': '35285fe0b6e8e147e962c7d0fee715b95e23ca17d5293a27e19b25ba4419d607',
+                         '.agents/skills/megin/references/quality-gates.md': '7a6bddb6f7867c857d8ce19414e5b32e000968b0796de904996d14abdef4b44c',
+                         '.agents/skills/megin/references/repository-workflow.md': '33752ca83cdb8f002989e5f1a229047da0b4714a1d622bc13714872457ad2aa6',
+                         '.agents/skills/megin/references/requirements-discovery-protocol.md': 'eda57760e7b5851a0a98058871270d63eb32138f7bece911563532f45818ca4d',
+                         '.agents/skills/megin/references/requirements-template.md': '9ef029ec196fc3ae536b823d073625b36b15893d0a6dc0bdb53c69a29fabc58f',
+                         '.agents/skills/megin/references/verification-extensions.md': '7485377ef86743db414b55ecac5835f18b915a5b89de6d4ba84cb64d2a74ee38',
+                         '.agents/skills/megin/references/workflow-examples.md': '05bc5eeffda1b8cdbf8966f538066f98227b0eddb9ef7cbf0a59d9f78c38028f',
+                         '.agents/skills/megin/references/workflow-record.md': '01852d875b6ec0aec87acf6962aded508e71c701d6b65d0cbf0497a58fe99164',
+                         '.agents/skills/megin/references/workspace-workflow.md': '3c45c43d7af1535f295464a5021ece3ed80b72009dd9ae6fb8477281de5fef6b',
+                         '.agents/skills/megin/scripts/behavior_trace.py': '11f77eccb4620530e9027e76c192d276b80e7dd530eacb0a4d8fe5deafa0e35c',
+                         '.agents/skills/megin/scripts/delivery_receipt.py': '04b93fe59e6c0d7f33c16c11ee1a74f7bcd2a17465160715758a41bbefb339c1',
+                         '.agents/skills/megin/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                         '.agents/skills/megin/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                         '.agents/skills/megin/scripts/git_snapshot.py': 'c733001854f03615276af0174560ef136301b1877d968872747b7b798a0b982f',
+                         '.agents/skills/megin/scripts/group_quality_gate.py': 'fa3c95f10983c0e92601e2732d2a22b21f6147346ccf422b5a61fc37964f5b94',
+                         '.agents/skills/megin/scripts/impact_policy.py': 'e4207a767933ba1ad436fc24539ba0e51740eee5ad421edc24a029e6e7041aaa',
+                         '.agents/skills/megin/scripts/install_skills.py': 'c699eb98480db9feb8b4d230dd79909f3e2e1d3156dd0b6a9da0eebb123c84b6',
+                         '.agents/skills/megin/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
+                         '.agents/skills/megin/scripts/quality_gate.py': '78c4fe46944ff3fdd0ea32825dcb931ee6c3502fe09cf7a8cdf7fba27af64474',
+                         '.agents/skills/megin/scripts/quality_policy.py': 'd244ee4d491347c4c14a4b21425fe2018da7d07d56bd9deea13c70970b509fde',
+                         '.agents/skills/megin/scripts/repo_workspace.py': '71ad27cd324e8c96cfc9bfc5cec1a8f201933cc1aacf503c49e8dafaf2b08c4c',
+                         '.agents/skills/megin/scripts/review_history.py': '53451423bb9433d95451e295f2d5ab69f57ce7b9f89cb483136b6efea1c801ca',
+                         '.agents/skills/megin/scripts/source_baseline.py': 'fdc4acc25086b90eccc2978b836d52e4732ac4578e8649407b5a406f280f641e',
+                         '.agents/skills/megin/scripts/unified_workflow.py': 'e5e5b8eefd1e30adeeec074f2017b806e796564b067cdbf4aea05d66e4f4700c',
+                         '.agents/skills/megin/scripts/validate_skills.py': 'c978700eabe490c60289e5409c95a170c0e1db638ac00bb6a79d1133c6d515ae',
+                         '.agents/skills/megin/scripts/verification_inputs.py': '9039a6ecf51c950253e0b7d7cb1c8948eb7367cacbb48816f2104e38e84a676b',
+                         '.agents/skills/megin/scripts/workspace_context.py': '62d84e7cc82d1380e6472c64672e4582e707b5b44b5ecc9961b970688aef2e8b',
+                         '.agents/skills/megin/scripts/workspace_extension.py': '40dd311d3d22bc069bcee051af609769ffa9a10d76f47efbf59687104c9ec506',
+                         '.agents/skills/megin/scripts/workspace_lock.py': '2925147cd68e6d47b85c19c607db8a51b01cdde3fee20a3719f1d1b420266333',
+                         '.agents/skills/merge-reviewer/SKILL.md': '235939ac82200888587c15ce17d073d3f8418fdfded26a4e60d4cebf9fb4d4c5',
+                         '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
+                         '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': '7890026c315625178f3c0a1b46d8b43bbdb792ba9852622392d41b2393619fb4',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': '6d71c62e311065bb0973ec91a6dab7b952c045412fb252875c57fbda346878d3',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c273c8a55b44d10dbea9ee6100370d01e27cf6aa43032cfeb4905468c228af79',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'e6a16dd7a54bee7764b51fae9df26c5b2c6982a103c708353d3d257b69efdd7a',
+                         '.agents/skills/output-style/SKILL.md': '97cc480c0105c996acf6e695530301c7434676a94ff068fdfb0e014c6dd30e71',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': 'fdf8761254d43d7fdfab1b16e4ec7662fb23cf6c48c757533514a48028681e37',
+                         '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': '53f5192f7cf48a6666c65322d8064ea41be4dd2d684d0c6de5fb8787dfd3192e',
+                         '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
+                         '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
+                         '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '442ecab309ed3413c775adcddbb1dfb05bb98702fff083bed4d74ae0cb6fbc05',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': '870abe605bcc8a2ad3177e4154cb022b0ddbdb3064685f9647e54eeddb9e1d59',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
+               'overlays': {},
+               'payloadSha256': '6a15eb75e17200db1d5cd940b7551290355fb98b1bf3d294c1eed41d96d7ebdc',
+               'profile': 'repository',
+               'profileHashes': {'group-instructions.md': '4c3067d85852e21a12114020dccb2cc81bab1c4b7afb14d31d3dd9091530eb84',
+                                 'legacy-cleanup.md': '3e3392d67722b5ccdfc535e51e36e26c65c4c79724ffb76138f79889d05bf4d0',
+                                 'profile.md': '0f6cb57ef6c9bad0b9147ca867214b8cc6d98e027bfe81b292482e7c85eed023'},
+               'skills': ['codebase-wiki',
+                          'megin',
+                          'megin-architecture-exploration',
+                          'megin-behavior-contract',
+                          'megin-bug-diagnosis',
+                          'megin-code-review',
+                          'megin-finishing-delivery',
+                          'megin-human-acceptance',
+                          'megin-implementation-execution',
+                          'megin-project-knowledge',
+                          'megin-requirements-discovery',
+                          'megin-technical-planning',
+                          'megin-test-driven-development',
+                          'megin-verification-before-completion',
+                          'merge-reviewer',
+                          'output-style',
+                          'release-reviewer'],
+               'upstream': {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': 'f91be4557fb67084e246168428a98e9372d9b1b78c4e6db85bd5ead7360acf9b',
+                                              'version': '0.6.2'},
+                            'megin': {'asset': 'megin-skills.zip',
+                                      'repository': 'Megin',
+                                      'sha256': '8cc53e59163016dc96526c6c8df115991d68fc920e57ad34572b8d5d1d3cd687',
+                                      'version': '0.8.2'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.14.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '673f7644abea51e20c92eb3e202d67c62d4a7417ef9f7c4d0bde30c14fcd2c2b',
+                                               'version': '0.14.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.4.1.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': '5411cf3ef0500328ed830bf353ac06435f37139082de8b621c56fd62359fb633',
+                                                 'version': '0.4.1'}},
+               'version': '0.25.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': '177d8eb03e68a4dedeabdcfff9266e68737be558cf76aa4d1870296b96c2aa80',
+                             '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/development-spec-template.md': '76a2ce016a7cdc852be23ac01c7c9152bdbfb30d1005f99dc0f6c8bfafd9ea97',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '24537d815569007b82bb644368ae477ad385fda6dfd3a0e719b2c176c0169aa9',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': 'f3b5d7a59459cb1f82d0ef74caa70e465abacd071306aaf2dd1acfbb10bf6df3',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
+                             '.agents/skills/codebase-wiki/references/development-spec-workflow.md': 'dccf3f2ee8e1eaee1b58b2b0d3a963b9524aa123dededc3884d6db40e3eb24a2',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': '4c2c79ea98da658ce30d2f6d2430c130d59fd1de1c24c2abf7f53ede03b9de92',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': '0a63686f8ff9f3fb4c35b10c5e962a3d17050b321ccbb72857656a2ad0424675',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': 'b45474b368f600af5ce2638b60785fd45369f48c24815903548904a669b10821',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '938d67d251c20f1a0508aaaa102a2f02ea284bab9c48c73523bd674e7acdd5a8',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': 'e247150ed4a785ece888a4649d3a78e42c162d1ed46a5b8910f71ca776e49002',
+                             '.agents/skills/codebase-wiki/scripts/development_spec.py': '3b2464dac361979a3b795dcb331e9df10087b6dc3b5620aaa9a08ea669e9fcd0',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5cbc4b3197410ff68d089f640827ae8e7bcccf10bb78e7a43b0c2faadc6ca973',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '477dacb5c58271393811eb65ae8e577104a0264434ee87d4a367d3edd0107a4d',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': 'f07369fa17ed6e4c3345e7597d2de452eb39295e5071d380426206198e713db0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': '363718eb175e8ab54f704546e69a83c5218737a4de0a22d491d5df9ec0931179',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-development-spec.py': 'fe477ab85bb842553dd1f39d325f486cd41dace3fb1dcb133024e8f004c338e4',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
+               'wikiInstalledVersionSha256': 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'}],
  'schema': 'gitlab-workspace-kit-predecessors/v1'}
-SPECIAL_RULES = {'analysisIssueFlow': 'draft-ready-scn-manual-issue',
- 'developmentDelivery': 'native-megin-formal-workflow',
- 'mergeRequestReview': 'branch-review-handoff-manual-comment',
+SPECIAL_RULES = {'mergeRequestReview': 'branch-review-handoff-manual-comment',
  'releaseReview': 'entry-branches-group-chain-local-defaults-v3-single-workspace-report',
- 'sourceReferences': 'Repo/path',
- 'wikiFeedback': 'manual-after-all-local-repo-commits'}
+ 'sourceReferences': 'Repo/path'}
 
 
 class KitError(Exception):
@@ -6484,21 +6747,16 @@ def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], 
         skill = ".agents/skills/codebase-wiki/"
         if relative.startswith(skill):
             expected[relative] = content
-    for source_id in ("megin", "merge-reviewer", "release-reviewer"):
+    for source_id in ("merge-reviewer", "release-reviewer"):
         source = UPSTREAM[source_id]
         with zipfile.ZipFile(io.BytesIO(sources[source["asset"]])) as archive:
             for member in archive.infolist():
                 name = safe_relative(member.filename.rstrip("/"))
                 if member.is_dir():
                     continue
-                if source_id == "megin":
-                    if len(name.parts) < 2 or not name.parts[0].startswith("megin") or name.parts[0] == "megin-skills":
-                        continue
-                    destination = f".agents/skills/{name.as_posix()}"
-                else:
-                    if not name.as_posix().startswith(source_id + "/"):
-                        fail(f"{source_id} archive has an unexpected root.")
-                    destination = f".agents/skills/{name.as_posix()}"
+                if not name.as_posix().startswith(source_id + "/"):
+                    fail(f"{source_id} archive has an unexpected root.")
+                destination = f".agents/skills/{name.as_posix()}"
                 expected[destination] = archive.read(member)
 
     all_upstream_paths = set(expected)
@@ -6794,9 +7052,11 @@ def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
     # Reviewed same-version predecessors can have different Wiki bytes. Match
     # the provenance selected above instead of inferring identity from version.
     if "wikiFiles" in trusted or raw.get("version") != VERSION:
-        wiki_expected = trusted.get("wikiFiles")
+        wiki_expected = dict(trusted.get("wikiFiles", {}))
         if not isinstance(wiki_expected, dict) or not wiki_expected:
             fail("Reviewed predecessor Wiki fingerprints are missing.")
+        if raw.get("profile", "group") == "group" and trusted.get("wikiInstalledVersionSha256"):
+            wiki_expected[wiki_prefix + "VERSION"] = trusted["wikiInstalledVersionSha256"]
     else:
         wiki_expected = {p: h for p, h in PROFILE_MANIFESTS["repository"]["files"].items() if p.startswith(wiki_prefix)}
         if raw.get("profile", "group") == "group":
@@ -7079,7 +7339,7 @@ def legacy_paths(root: Path, *, include_installed: bool) -> list[str]:
             name = child.name.casefold()
             if name == "gitlab-workspace-kit":
                 continue
-            if name in ("codebase-wiki", "merge-reviewer", "release-reviewer") or name.startswith("megin"):
+            if name in ("codebase-wiki", "merge-reviewer", "release-reviewer"):
                 if child.is_symlink() or _is_reparse_point(child, child.lstat()):
                     found.append(child.relative_to(root).as_posix())
                 elif include_installed:
@@ -7100,169 +7360,16 @@ def ensure_no_legacy(root: Path, has_kit: bool) -> None:
         fail("偵測到舊版分開安裝或 Skill 本機修改；請依 workflow-kit 的 legacy-cleanup.md 人工清理列出的工具檔案。請保留 wiki/、docs/work/、review-reports/、.megin/ 及其他 Skills。路徑：" + ", ".join(old[:16]))
 
 
-def _workflow_roots(root: Path) -> list[Path]:
-    """Only the declared root and its direct-child Git roots belong to this kit."""
-    roots = [root]
-    if not (root / ".git").exists():
-        for child in sorted(root.iterdir(), key=lambda item: item.name.casefold()):
-            if child.is_dir() and not child.is_symlink() and (child / ".git").exists():
-                assert_safe(root, child.name + "/.git")
-                roots.append(child)
-    return roots
 
 
-def _git_common_dir(selected: Path) -> Path:
-    probe = subprocess.run(["git", "-C", str(selected), "rev-parse", "--git-common-dir"],
-                           capture_output=True, text=True, encoding="utf-8", timeout=10, check=False)
-    if probe.returncode:
-        fail(f"Cannot inspect Git common-dir before changing Skills: {selected}")
-    common = Path(probe.stdout.strip())
-    return checked_root(common if common.is_absolute() else selected / common)
 
 
-def approved_work_in_progress(root: Path, ignored_locks=()) -> list[str]:
-    blocked: list[str] = []
-    for selected in _workflow_roots(root):
-        label = "" if selected == root else selected.name + "/"
-        blocked.extend(label + value for value in _root_work_in_progress(selected, ignored_locks))
-        if not (selected / ".git").exists():
-            continue
-        common = _git_common_dir(selected)
-        lock = assert_safe(common, "megin/workspace.lock.json", allow_missing=True)
-        if lock.exists() and lock.resolve() not in ignored_locks:
-            blocked.append(str(lock))
-    return blocked
 
 
-@contextlib.contextmanager
-def maintenance_lock(root: Path, *, keep_on_error=False):
-    """Share Megin's ownership paths so writers cannot race a kit replacement."""
-    retained = recover_maintenance_locks(root)
-    ignored = {Path(name).resolve() for name in retained['paths']} if retained else set()
-    if approved_work_in_progress(root, ignored):
-        fail("Finish or explicitly stop active Megin work before changing Skills.")
-    paths = set()
-    for selected in _workflow_roots(root):
-        paths.add(assert_safe(selected, GROUP_LOCK, allow_missing=True))
-        if (selected / '.git').exists():
-            paths.add(assert_safe(_git_common_dir(selected), 'megin/workspace.lock.json', allow_missing=True))
-    token = retained['token'] if retained else uuid.uuid4().hex
-    raw = json.dumps({'schema': 'megin-workspace-owner/v2', 'root': str(root),
-                      'work_id': 'kit-maintenance-' + token, 'writer': token,
-                      'skills_sha256': 'maintenance'}, sort_keys=True).encode('utf-8')
-    journal = assert_safe(root, '.gitlab-workspace/maintenance-locks.json', allow_missing=True)
-    journal.parent.mkdir(exist_ok=True)
-    _atomic_json(journal, {'schema': 'gitlab-workspace-kit-maintenance/v1', 'root': str(root),
-                          'token': token, 'paths': sorted(str(path.resolve()) for path in paths)})
-    owned = {path for path in ignored if path.exists()}
-    succeeded = False
-    try:
-        for path in sorted(paths, key=lambda value: os.path.normcase(str(value))):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            # Verify the parent after creation, before publishing an atomic owner.
-            checked_root(path.parent)
-            if path.resolve() in owned:
-                if read_regular(path) != raw:
-                    fail('Retained Megin maintenance ownership changed before recovery.')
-                continue
-            try:
-                with path.open('xb') as stream:
-                    stream.write(raw)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-            except FileExistsError:
-                fail(f'Megin ownership was acquired during the upgrade: {path}')
-            owned.add(path.resolve())
-        if approved_work_in_progress(root, owned):
-            fail('Megin work appeared during the upgrade preflight; keep its original package.')
-        yield owned
-        succeeded = True
-    finally:
-        if succeeded or not keep_on_error:
-            for path in sorted(owned, key=str, reverse=True):
-                if path.is_file() and not path.is_symlink() and path.read_bytes() == raw:
-                    path.unlink()
-            if journal.is_file() and not journal.is_symlink():
-                value = json.loads(read_regular(journal).decode('utf-8'))
-                if value.get('token') == token:
-                    journal.unlink()
 
 
-def recover_maintenance_locks(root: Path):
-    """Validate dead kit ownership under its OS lock; keep it held through restore."""
-    journal = assert_safe(root, '.gitlab-workspace/maintenance-locks.json', allow_missing=True)
-    if not journal.exists():
-        return
-    value = json.loads(read_regular(journal).decode('utf-8'))
-    token = value.get('token')
-    if (value.get('schema') != 'gitlab-workspace-kit-maintenance/v1' or value.get('root') != str(root)
-            or not isinstance(token, str) or not re.fullmatch('[0-9a-f]{32}', token)):
-        fail('Invalid retained Megin maintenance ownership; preserve it for inspection.')
-    allowed = set()
-    for selected in _workflow_roots(root):
-        allowed.add(str(assert_safe(selected, GROUP_LOCK, allow_missing=True).resolve()))
-        if (selected / '.git').exists():
-            allowed.add(str(assert_safe(_git_common_dir(selected), 'megin/workspace.lock.json', allow_missing=True).resolve()))
-    paths = value.get('paths')
-    if not isinstance(paths, list) or len(paths) != len(set(paths)) or not set(paths) <= allowed:
-        fail('Retained maintenance lock paths differ from the declared workspace.')
-    raw = json.dumps({'schema': 'megin-workspace-owner/v2', 'root': str(root),
-                      'work_id': 'kit-maintenance-' + token, 'writer': token,
-                      'skills_sha256': 'maintenance'}, sort_keys=True).encode('utf-8')
-    for name in paths:
-        path = Path(name)
-        if path.exists():
-            checked_root(path.parent)
-            if path.is_symlink() or read_regular(path) != raw:
-                fail('Retained Megin maintenance ownership changed; do not remove another writer lock.')
-    return value
 
 
-def _root_work_in_progress(root: Path, ignored_locks=()) -> list[str]:
-    lock = assert_safe(root, GROUP_LOCK, allow_missing=True)
-    if lock.exists() and lock.resolve() not in ignored_locks:
-        return [GROUP_LOCK]
-    work_root = assert_safe(root, "docs/work", allow_missing=True)
-    if not work_root.exists():
-        return []
-    if not work_root.is_dir():
-        fail("docs/work 不是資料夾，無法確認 Megin 進行中的計畫。")
-    blocked: list[str] = []
-    candidates = sorted(work_root.iterdir(), key=lambda item: item.name)
-    if len(candidates) > 5000:
-        fail("docs/work 項目超過 5000 筆；請先整理工作紀錄後再更新套件。")
-    for directory in candidates:
-        if directory.is_symlink() or not directory.is_dir():
-            continue
-        workflow = directory / "workflow.md"
-        if not workflow.exists():
-            continue
-        if workflow.is_symlink() or workflow.stat().st_size > 1024 * 1024:
-            fail(f"Megin 工作紀錄無法安全檢查：docs/work/{directory.name}/workflow.md")
-        text = workflow.read_text(encoding="utf-8")
-        status_match = re.search(r"^\s*(?:-\s*)?status:\s*[`'\"]?([a-z_-]+)[`'\"]?\s*$", text, re.MULTILINE | re.IGNORECASE)
-        plan_match = re.search(r"^\s*(?:-\s*)?plan_version:\s*[`'\"]?([^\s`'\"]+)[`'\"]?\s*$", text, re.MULTILINE | re.IGNORECASE)
-        status = status_match.group(1).casefold() if status_match else ""
-        if status == "complete":
-            continue
-        if not plan_match:
-            if (re.search(r"^\s*(?:-\s*)?schema:\s*[`'\"]?megin-", text, re.MULTILINE)
-                    or status in {"active", "awaiting_user", "awaiting_review", "blocked", "needs_revision"}):
-                blocked.append(f"docs/work/{directory.name}/workflow.md（{status}）")
-            continue
-        work_id = directory.name
-        contract = assert_safe(root, directory.relative_to(root).as_posix() + "/" + safe_relative(plan_match.group(1)).as_posix() + "/quality-contract.json", allow_missing=True)
-        if not contract.is_file() or contract.is_symlink():
-            blocked.append(f"docs/work/{work_id}/workflow.md（已核准計畫）")
-            continue
-        try:
-            value = json.loads(read_regular(contract).decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            blocked.append(f"docs/work/{work_id}/workflow.md（計畫無法驗證）")
-            continue
-        if status != "complete" and isinstance(value, dict):
-            blocked.append(f"docs/work/{work_id}/workflow.md（{status or '狀態未設定'}）")
-    return blocked
 
 
 def _safe_copy_known(source: Path, destination: Path, root: Path) -> None:
@@ -7456,6 +7563,8 @@ def _recover_transaction(root: Path, stage: Path, journal: dict[str, Any]) -> No
         new_digest = operation.get("newSha256")
         had_previous = operation.get("hadPrevious") is True
         if backup.exists():
+            if operation.get("delete") and target.exists():
+                fail(f"Recovery found a recreated retired path; preserving it: {relative.as_posix()}")
             if target.exists() and new_digest and _action_hash(target) not in {new_digest, operation.get("expectedPreviousSha256")}:
                 fail(f"Recovery found a changed managed path; preserving it and the transaction files: {relative.as_posix()}")
             _remove_owned(target)
@@ -7484,8 +7593,12 @@ def managed_skills() -> set[str]:
     return {safe_relative(p).parts[2] for p in CURRENT_SKILL_FILES} | {"codebase-wiki"}
 
 
-def transaction_paths() -> set[str]:
-    return {".agents/skills/" + name for name in managed_skills()} | {
+def transaction_paths(installed: dict[str, Any] | None = None,
+                      previous: dict[str, Any] | None = None) -> set[str]:
+    names = set(installed["skills"]) if installed else managed_skills()
+    if previous:
+        names.update(previous["skills"])
+    return {".agents/skills/" + name for name in names} | {
         ".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json",
         "AGENTS.md", "wiki", MARKER,
     }
@@ -7500,6 +7613,9 @@ def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) 
     trusted_skill_files(installed)
     if journal.get("previous_manifest") is not None:
         trusted_skill_files(journal["previous_manifest"])
+    allowed = transaction_paths(installed, journal.get("previous_manifest"))
+    retired = ({".agents/skills/" + name for name in journal.get("previous_manifest", {}).get("skills", [])}
+               - {".agents/skills/" + name for name in installed["skills"]}) if journal.get("previous_manifest") else set()
     operations = journal.get("operations")
     if not isinstance(operations, list) or not operations:
         fail("Pending transaction operations missing.")
@@ -7509,7 +7625,7 @@ def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) 
             fail("Invalid pending transaction operation.")
         path, backup_name = operation.get("path"), operation.get("backup")
         if (not isinstance(path, str) or safe_relative(path).as_posix() != path
-                or path not in transaction_paths() or path in paths
+                or path not in allowed or path in paths
                 or not isinstance(backup_name, str) or not re.fullmatch(r"backups/[0-9]{5}", backup_name)
                 or backup_name in backups or operation.get("incoming") != "incoming/" + path):
             fail("Pending transaction path or backup identity differs.")
@@ -7521,31 +7637,33 @@ def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) 
         target = assert_safe(root, path, allow_missing=True)
         backup = assert_safe(stage, backup_name, allow_missing=True)
         incoming = assert_safe(stage, "incoming/" + path, allow_missing=True)
+        deleting = operation.get("delete", False)
+        if type(deleting) is not bool or deleting and (
+                path not in retired or operation.get("newSha256") is not None
+                or not operation["hadPrevious"] or incoming.exists()):
+            fail("Pending transaction retirement identity differs.")
         if incoming.exists() and _action_hash(incoming) != operation.get("newSha256"):
             fail("Pending transaction incoming bytes changed.")
         if backup.exists():
             if not operation["hadPrevious"] or _action_hash(backup) != operation.get("expectedPreviousSha256"):
                 fail("Pending transaction before-image changed.")
-            if target.exists() and _action_hash(target) not in {operation.get("newSha256")}:
+            if target.exists() and (deleting or _action_hash(target) not in {operation.get("newSha256")}):
                 fail("Pending transaction target changed; preserving all files.")
         elif operation["hadPrevious"]:
             if (not target.exists() or _action_hash(target) != operation.get("expectedPreviousSha256")
-                    or (not incoming.exists() and journal.get("phase") != "recovering")):
+                    or (not deleting and not incoming.exists() and journal.get("phase") != "recovering")):
                 fail("Pending transaction original path changed or is missing.")
         elif target.exists() and (incoming.exists() or _action_hash(target) != operation.get("newSha256")):
             fail("Pending transaction new path changed; preserving all files.")
-    if not (transaction_paths() - {"wiki"}).issubset(paths):
+    if not (allowed - {"wiki"}).issubset(paths):
         fail("Pending transaction omits a bundle-managed path.")
 
 
 def recover_incomplete(root: Path) -> None:
-    if recover_maintenance_locks(root):
-        with maintenance_lock(root, keep_on_error=True):
-            return _recover_incomplete_locked(root, True)
-    return _recover_incomplete_locked(root)
+    _recover_incomplete_locked(root)
 
 
-def _recover_incomplete_locked(root: Path, maintenance=False) -> None:
+def _recover_incomplete_locked(root: Path) -> None:
     stage_parent = assert_safe(root, ".gitlab-workspace/tool-installs", allow_missing=True)
     if not stage_parent.exists():
         return
@@ -7577,11 +7695,7 @@ def _recover_incomplete_locked(root: Path, maintenance=False) -> None:
             continue  # Completed transactions retain their verified before-images for explicit rollback.
         else:
             validate_pending_recovery(root, stage, journal)
-            if maintenance:
-                _recover_transaction(root, stage, journal)
-            else:
-                with maintenance_lock(root, keep_on_error=True):
-                    _recover_transaction(root, stage, journal)
+            _recover_transaction(root, stage, journal)
 
 
 def digest_payload_tree(path: Path) -> dict[str, str]:
@@ -7642,101 +7756,6 @@ def _action_hash(path: Path) -> str:
     return digest(read_regular(path, EXPANDED_LIMIT))
 
 
-def _prepare_actions(root: Path, stage: Path, incoming: dict[str, bytes], old_manifest: dict[str, Any] | None,
-                     block_old: str | None, block_new: str, installed_manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    source_root = stage / "candidate"
-    _copy_extracted_payload(incoming, source_root)
-    wiki_input = source_root / ".agents/skills/codebase-wiki"
-    for relative, content in installed_manifest["nativeFiles"].items():
-        if relative.startswith(".agents/skills/codebase-wiki/"):
-            suffix = relative[len(".agents/skills/codebase-wiki/"):]
-            destination = wiki_input / suffix
-        else:
-            destination = source_root / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(content)
-    agents_target = source_root / "AGENTS.md"
-    current = agents_target.read_text(encoding="utf-8") if agents_target.is_file() else ""
-    agents_target.write_text(replace_managed_block(current, block_new), encoding="utf-8", newline="")
-    installed_manifest["files"] = digest_payload_tree(source_root)
-    installed_manifest["agentBlockSha256"] = digest(block_new.encode("utf-8"))
-    installed_manifest["wikiInstallStateSha256"] = installed_manifest["nativeWikiInstallStateSha256"]
-    manifest_target = source_root / "tool-manifest.json"
-    _atomic_json(manifest_target, installed_manifest)
-
-    old_names = set(old_manifest.get("skills", [])) if old_manifest else set()
-    source_skill_root = source_root / ".agents/skills"
-    new_names = sorted(name for name in source_skill_root.iterdir() if name.is_dir())
-    operations: list[dict[str, Any]] = []
-    ordinal = 0
-    for skill in new_names:
-        relative = skill.relative_to(source_root).as_posix()
-        destination = assert_safe(root, relative, allow_missing=True)
-        had_previous = destination.exists()
-        if had_previous and skill.name not in old_names:
-            fail(f"Group 已有同名但不屬於組合包的 Skill；為保留使用者內容已停止：{relative}")
-        backup = f"backups/{ordinal:05d}"
-        incoming_name = f"incoming/{relative}"
-        operations.append({"kind": "path", "path": relative, "backup": backup, "incoming": incoming_name,
-                           "hadPrevious": had_previous, "newSha256": digest_tree(skill)})
-        staged_in = stage / incoming_name
-        staged_in.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(skill, staged_in)
-        ordinal += 1
-    for relative in (".agents/gitlab-workspace-kit", ".codex/config.toml", ".codex/hooks.json"):
-        source = source_root / relative
-        if not source.exists():
-            continue
-        destination = assert_safe(root, relative, allow_missing=True)
-        had_previous = destination.exists()
-        if relative == ".agents/gitlab-workspace-kit" and had_previous and not old_manifest:
-            fail("Group 已有同名 GitLab Workspace profile；為保留使用者內容已停止。")
-        if relative.startswith(".codex/") and had_previous and not old_manifest:
-            old_native = installed_manifest["nativeOriginals"].get(relative)
-            new_value = source.read_bytes()
-            if old_native is not None and read_regular(destination, 4 * 1024 * 1024) != old_native:
-                fail(f"GitLab Workspace profile 的 native Wiki 設定有本機修改：{relative}")
-        backup = f"backups/{ordinal:05d}"
-        incoming_name = f"incoming/{relative}"
-        operations.append({"kind": "path", "path": relative, "backup": backup, "incoming": incoming_name,
-                           "hadPrevious": had_previous, "newSha256": digest_tree(source) if source.is_dir() else digest(source.read_bytes())})
-        staged_in = stage / incoming_name
-        staged_in.parent.mkdir(parents=True, exist_ok=True)
-        if source.is_dir():
-            os.replace(source, staged_in)
-        else:
-            os.replace(source, staged_in)
-        ordinal += 1
-
-    agent_source = source_root / "AGENTS.md"
-    agent_dest = assert_safe(root, "AGENTS.md", allow_missing=True)
-    old_agent = agent_dest.read_text(encoding="utf-8") if agent_dest.is_file() else ""
-    old_body = managed_block(old_agent)
-    if old_manifest:
-        if old_body is None or digest(old_body.encode("utf-8")) != old_manifest.get("agentBlockSha256"):
-            fail("AGENTS.md 的 GitLab Workspace block 有本機修改；請先保存並檢查。")
-        block_hash = installed_manifest["agentBlockSha256"]
-        new_agent = agent_source.read_text(encoding="utf-8")
-        new_body = managed_block(new_agent)
-        operations.append({"kind": "agent-block", "path": "AGENTS.md", "hadPrevious": True,
-                           "oldBlock": old_body, "newBlock": new_body, "newBlockSha256": block_hash})
-    elif old_body is not None:
-        fail("AGENTS.md 已含 GitLab Workspace managed block，但套件安裝紀錄不存在。")
-    else:
-        new_agent = agent_source.read_text(encoding="utf-8")
-        new_body = managed_block(new_agent)
-        operations.append({"kind": "agent-block", "path": "AGENTS.md", "hadPrevious": agent_dest.exists(),
-                           "oldBlock": None, "newBlock": new_body, "newBlockSha256": digest(new_body.encode("utf-8"))})
-
-    manifest_relative = MARKER
-    manifest_destination = assert_safe(root, manifest_relative, allow_missing=True)
-    manifest_input = stage / "incoming" / manifest_relative
-    manifest_input.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(manifest_target, manifest_input)
-    operations.append({"kind": "path", "path": manifest_relative, "backup": f"backups/{ordinal:05d}",
-                       "incoming": f"incoming/{manifest_relative}", "hadPrevious": manifest_destination.exists(),
-                       "newSha256": digest(read_regular(manifest_input, FILE_LIMIT))})
-    return operations
 
 
 def _apply_operations(root: Path, stage: Path, operations: list[dict[str, Any]], journal_path: Path, journal: dict[str, Any]) -> None:
@@ -7758,7 +7777,7 @@ def _apply_operations(root: Path, stage: Path, operations: list[dict[str, Any]],
         else:
             relative = safe_relative(operation["path"])
             target = assert_safe(root, relative, allow_missing=True)
-            source = assert_safe(stage, safe_relative(operation["incoming"]))
+            source = assert_safe(stage, safe_relative(operation["incoming"]), allow_missing=operation.get("delete", False))
             backup = assert_safe(stage, safe_relative(operation["backup"]), allow_missing=True)
             expected_present = operation.get("expectedPreviousPresent")
             if isinstance(expected_present, bool) and target.exists() != expected_present:
@@ -7769,8 +7788,9 @@ def _apply_operations(root: Path, stage: Path, operations: list[dict[str, Any]],
             if target.exists():
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(target, backup)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(source, target)
+            if not operation.get("delete"):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, target)
         _test_after_apply(count, len(operations))
 
 
@@ -7822,11 +7842,6 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
                 fail("現有 GitLab Workspace 組合包紀錄無法讀取；請先保存並檢查。")
             verify_installed(root, old_manifest)
         ensure_no_legacy(root, old_manifest is not None)
-        active = approved_work_in_progress(root)
-        if active:
-            fail("Group 內有尚未結束的 Megin 工作；先完成或依 Megin 流程確認中止後再更新套件。路徑：" + ", ".join(active[:8]))
-        if not dry_run:
-            resources.enter_context(maintenance_lock(root))
         wiki_path = assert_safe(root, "wiki", allow_missing=True)
         if wiki_path.exists() and not wiki_path.is_dir():
             fail("Group 的 wiki 路徑不是資料夾，無法安裝共用知識庫。")
@@ -7861,6 +7876,16 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             installed_wiki_skill = candidate_payload / ".agents/skills/codebase-wiki"
             if installed_wiki_skill.exists():
                 shutil.rmtree(installed_wiki_skill)
+            # Native Wiki upgrades retain obsolete files by default. Retire only
+            # the old kit-owned overlay files absent from this reviewed payload.
+            for relative, old_hash in (old_manifest or {}).get("files", {}).items():
+                if (relative.startswith(".agents/skills/codebase-wiki/")
+                        and relative not in payload and not relative.endswith("/install-state.json")):
+                    obsolete = assert_safe(native_target, relative, allow_missing=True)
+                    if obsolete.exists():
+                        if digest(read_regular(obsolete, FILE_LIMIT)) != old_hash:
+                            fail(f"Retired Wiki overlay changed in staging: {relative}")
+                        obsolete.unlink()
             copy_safe_tree(native_target / ".agents/skills/codebase-wiki", installed_wiki_skill)
             native_state = json.loads(read_regular(native_target / ".agents/skills/codebase-wiki/install-state.json").decode("utf-8"))
             for relative in native_state.get("files", {}):
@@ -7961,7 +7986,7 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
         fail("Rollback requires an owned retained transaction journal.")
     journal_path = assert_safe(root, relative)
     stage = stage_path(journal_path.parent)
-    with KitInstallLock(assert_safe(root, INSTALL_LOCK, allow_missing=True)), maintenance_lock(root) as owned_locks:
+    with KitInstallLock(assert_safe(root, INSTALL_LOCK, allow_missing=True)):
         journal = json.loads(read_regular(journal_path).decode("utf-8"))
         owner = json.loads(read_regular(assert_safe(stage, "owner.json")).decode("utf-8"))
         if (owner != {"package": PACKAGE, "group_root": str(root)}
@@ -7970,8 +7995,6 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
                 or journal.get("phase") != "committed"
                 or journal.get("payloadSha256") not in {profile["payloadSha256"] for profile in PROFILE_MANIFESTS.values()}):
             fail("Rollback transaction identity or reviewed payload differs.")
-        if approved_work_in_progress(root, owned_locks):
-            fail("Finish or explicitly stop active Megin work before rollback.")
         current = json.loads(read_regular(assert_safe(root, MARKER)).decode("utf-8"))
         verify_installed(root, current)
         if current != journal.get("installed_manifest"):
@@ -7982,8 +8005,10 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
         operations = journal.get("operations")
         if not isinstance(operations, list) or not operations:
             fail("Rollback operations missing.")
-        allowed = transaction_paths()
-        required = (transaction_paths() - {"wiki"})
+        allowed = transaction_paths(current, previous)
+        required = allowed - {"wiki"}
+        retired = ({".agents/skills/" + name for name in previous["skills"]}
+                   - {".agents/skills/" + name for name in current["skills"]}) if previous else set()
         seen, backups = set(), set()
         # Validate the entire rollback, including every before-image, before changing anything.
         for operation in operations:
@@ -7997,8 +8022,11 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
             if not re.fullmatch(r"backups/[0-9]{5}", backup_name) or backup_name in backups or operation.get("incoming") != "incoming/" + path:
                 fail("Rollback backup identity differs.")
             backups.add(backup_name)
-            target = assert_safe(root, path)
-            if _action_hash(target) != operation.get("newSha256"):
+            deleting = operation.get("delete", False)
+            if type(deleting) is not bool or deleting and (path not in retired or operation.get("newSha256") is not None):
+                fail("Rollback retirement identity differs.")
+            target = assert_safe(root, path, allow_missing=deleting)
+            if (target.exists() if deleting else _action_hash(target) != operation.get("newSha256")):
                 fail("Rollback target changed; preserving it.")
             if type(operation.get("hadPrevious")) is not bool or operation.get("expectedPreviousPresent") != operation["hadPrevious"]:
                 fail("Rollback before-image identity differs.")
@@ -8053,10 +8081,13 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
     relative_paths += [(relative, relative) for relative in (".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json", "AGENTS.md")]
     if (payload / "wiki").exists():
         relative_paths.append(("wiki", "wiki"))
+    retired = sorted(old_skill_names - {skill.name for skill in new_skills})
+    relative_paths += [(None, ".agents/skills/" + name) for name in retired]
     relative_paths.append(("tool-manifest.json", MARKER))
     for ordinal, (source_relative, relative) in enumerate(relative_paths):
-        source_path = payload / source_relative
-        if not source_path.exists():
+        deleting = source_relative is None
+        source_path = payload / source_relative if source_relative else None
+        if source_path is not None and not source_path.exists():
             continue
         destination = assert_safe(root, relative, allow_missing=True)
         bundle_owned = relative.startswith(".agents/skills/") or relative == ".agents/gitlab-workspace-kit"
@@ -8067,15 +8098,29 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
         incoming = f"incoming/{relative}"
         staged_input = stage / incoming
         staged_input.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(source_path, staged_input)
+        if source_path is not None:
+            os.replace(source_path, staged_input)
         previous_present = destination.exists()
         operation: dict[str, Any] = {
             "kind": "path", "path": relative, "backup": f"backups/{ordinal:05d}",
             "incoming": incoming, "hadPrevious": previous_present,
             "expectedPreviousPresent": previous_present,
-            "newSha256": _action_hash(staged_input),
+            "newSha256": None if deleting else _action_hash(staged_input),
         }
-        if previous_present:
+        if deleting:
+            if not previous_present:
+                fail(f"Retired managed Skill disappeared after verification: {relative}")
+            owned = {name[len(relative) + 1:]: value for name, value in old_manifest["files"].items()
+                     if name.startswith(relative + "/")}
+            actual = hash_tree(root, destination)
+            conflicts = sorted(name for name in actual.keys() | owned.keys() if actual.get(name) != owned.get(name))
+            if conflicts:
+                fail("Retired managed Skill contains modified or unowned files; preserving it: "
+                     + ", ".join(relative + "/" + name for name in conflicts))
+            operation["delete"] = True
+            operation["expectedPreviousSha256"] = digest(json.dumps(
+                owned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+        elif previous_present:
             operation["expectedPreviousSha256"] = _action_hash(destination)
         operations.append(operation)
     return operations
@@ -8094,76 +8139,17 @@ def _preflight_existing_workflow(root: Path) -> dict[str, Any] | None:
 
 def installed_capabilities(raw: dict[str, Any]) -> list[str]:
     profile = raw.get("profile", "group")
-    if raw.get("version") == VERSION:
-        return PROFILE_MANIFESTS[profile]["capabilities"]
-    reviewed = next((p for p in TRUSTED_PREDECESSORS["packages"]
-                     if p.get("version") == raw.get("version") and p.get("profile", "group") == profile), None)
+    reviewed = trusted_package(raw)
     if reviewed and "capabilities" in reviewed:
         return list(reviewed["capabilities"])
+    if raw.get("version") == VERSION and raw.get("payloadSha256") == PROFILE_MANIFESTS[profile]["payloadSha256"]:
+        return PROFILE_MANIFESTS[profile]["capabilities"]
     capabilities = [c for c in PROFILE_MANIFESTS[profile]["capabilities"] if c != "functional-exploration"]
     if "release-reviewer" not in raw.get("skills", []):
         capabilities.remove("release-review")
     return capabilities
 
 
-def active_work_ids(root: Path, raw: dict[str, Any]) -> list[str]:
-    if raw.get("installedRoot") is not None and Path(raw["installedRoot"]).resolve() != root:
-        return []
-    work_root = assert_safe(root, "docs/work", allow_missing=True)
-    if not work_root.is_dir():
-        return []
-    result = []
-    for directory in sorted(work_root.iterdir()):
-        if not re.fullmatch(r"work-\d{8}-[a-z0-9-]+", directory.name) or not directory.is_dir() or directory.is_symlink():
-            continue
-        workflow = assert_safe(root, directory.relative_to(root).as_posix() + "/workflow.md", allow_missing=True)
-        if not workflow.is_file():
-            continue
-        text = read_regular(workflow, 1024 * 1024).decode("utf-8")
-        field = lambda name: re.search(r"^\s*(?:-\s*)?" + name + r":\s*[`\"']?([^\s`\"']+)", text, re.MULTILINE)
-        status, plan = field("status"), field("plan_version")
-        if not status or status[1] not in {"active", "awaiting_user", "awaiting_review", "blocked", "needs_revision"} or not plan:
-            continue
-        # An approved contract must exist in this exact Work ID, under the verified installation root.
-        relative = directory.relative_to(root).as_posix() + "/" + safe_relative(plan[1]).as_posix() + "/quality-contract.json"
-        contract = assert_safe(root, relative, allow_missing=True)
-        if not contract.is_file():
-            continue
-        # These helpers are executed only after verify_installed has checked every managed
-        # byte against a frozen release. Their read-only validators check the approved
-        # contract, Work ID, root, plan version and the complete installed Skills fingerprint.
-        code = """import json, sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-root, work_id, profile = Path(sys.argv[2]), sys.argv[3], sys.argv[4]
-import quality_gate
-record_fields = quality_gate.workflow_fields(root / f'docs/work/{work_id}/workflow.md')
-schema = record_fields.get('schema')
-if (Path(sys.argv[1]) / 'unified_workflow.py').is_file() and schema in ('megin-skills-workflow/v6', 'megin-repo-workflow/v3'):
-    import unified_workflow
-    value = unified_workflow.validate_record(root, work_id, profile == 'group')
-    value['plan_version'] = record_fields['plan_version']
-elif profile == 'group':
-    import group_quality_gate
-    value = group_quality_gate.validate_record_group(root, work_id)
-else:
-    import repo_workspace
-    fields, contract = repo_workspace.validate_plan(repo_workspace.validate_repo(root), work_id, 'resume')
-    if contract.get('schema') not in ('megin-repo-quality-contract/v1', 'megin-repo-quality-contract/v2'):
-        raise ValueError('Expected native repository contract')
-    value = {'ok': True, 'work_id': fields['work_id'], 'plan_version': fields['plan_version']}
-print(json.dumps(value))
-"""
-        try:
-            validated = subprocess.run([sys.executable, "-I", "-B", "-X", "utf8", "-c", code,
-                str(assert_safe(root, ".agents/skills/megin/scripts")), str(root), directory.name, raw.get("profile", "group")],
-                capture_output=True, text=True, encoding="utf-8", timeout=15, check=False)
-            value = json.loads(validated.stdout) if validated.returncode == 0 else {}
-            if (value.get("ok"), value.get("work_id"), value.get("plan_version")) == (True, directory.name, plan[1]):
-                result.append(directory.name)
-        except (subprocess.TimeoutExpired, OSError, ValueError):
-            continue
-    return result
 
 
 def inspect_status(root_value: Path, expected_version: str) -> dict[str, Any]:
@@ -8183,13 +8169,10 @@ def inspect_status(root_value: Path, expected_version: str) -> dict[str, Any]:
             recover_incomplete(root)
             raw = _preflight_existing_workflow(root)
             if raw:
-                active = approved_work_in_progress(root)
                 profile = raw.get("profile", "group")
                 metadata = {"version": raw["version"], "source": raw["source"], "profile": profile,
                             "upstreamVersions": {name: item["version"] for name, item in raw["upstream"].items()},
-                            "capabilities": installed_capabilities(raw), "activeWorkIds": active_work_ids(root, raw)}
-                if active:
-                    return {"ok": True, "status": "work-in-progress", **metadata, "message": "請先完成原本的 Megin 工作再更新流程包。"}
+                            "capabilities": installed_capabilities(raw)}
                 status = "installed" if (raw["version"] == expected_version and
                     raw.get("payloadSha256") == PROFILE_MANIFESTS[profile]["payloadSha256"] and
                     raw.get("local_update") is None) else "update-available"

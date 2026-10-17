@@ -5,9 +5,9 @@ import {
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
-  assert.equal(wikiGuideCards.length, 14);
+  assert.equal(wikiGuideCards.length, 13);
   assert.deepEqual(wikiGuideCards.map((card) => card.id), [
-    'megin-spec-export', 'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
+    'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
     'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
@@ -80,9 +80,9 @@ test('adds the selected Group and actual local Repo names and paths to copied pr
   assert.ok(context.includes('unmapped-tools → ' + root + '\\unmapped-tools'));
   assert.equal(context.includes('team/renamed-service'), false);
 
-  const inputs = { ...createDefaultWikiGuideInputs(), 'development-spec.scope': 'Retry', 'development-spec.requirement': 'Retry failed requests' };
-  const prompt = buildWikiGuidePrompt('development-spec', inputs, { groupRoot: root, repositories, repositoryScanStatus: 'ready' });
-  assert.match(prompt, /Repo 以邏輯名稱與職責識別/);
+  const inputs = { ...createDefaultWikiGuideInputs(), 'query.question': 'Retry failed requests' };
+  const prompt = buildWikiGuidePrompt('query', inputs, { groupRoot: root, repositories, repositoryScanStatus: 'ready' });
+  assert.match(prompt, /Wiki-first/);
   assert.ok(prompt.includes('Retry failed requests'));
 });
 test('rejects unknown guide cards instead of copying an empty prompt', () => {
@@ -107,29 +107,6 @@ test('functional exploration starts from current sources and remains read-only i
 });
 
 
-test('unified Megin specifications require a feature and requirement unless an existing document is supplied', () => {
-  const card = wikiGuideCards.find((item) => item.id === 'megin-spec-export')!;
-  assert.equal(card.fields.some((item) => item.id === 'repos'), false, 'the Repo section comes from the scanned local inventory');
-  assert.deepEqual(card.fields.map(item => item.id), ['feature', 'requirement', 'existingSpec']);
-  const defaults = createDefaultWikiGuideInputs();
-  assert.equal(canCopyWikiPrompt(card, defaults), false);
-  const input = { ...defaults, 'megin-spec-export.feature': '退款', 'megin-spec-export.requirement': '客服可發起退款。' };
-  assert.equal(canCopyWikiPrompt(card, input), true);
-  assert.equal(canCopyWikiPrompt(card, { 'megin-spec-export.feature': '退款' }), false);
-  assert.equal(canCopyWikiPrompt(card, { 'megin-spec-export.requirement': '客服可發起退款。' }), false);
-  assert.equal(canCopyWikiPrompt(card, { 'megin-spec-export.existingSpec': 'wiki/synthesis/refund-development-spec.md' }), true);
-  assert.equal(canCopyWikiPrompt(card, { 'megin-spec-export.existingSpec': ' \n' }), false);
-  assert.equal(canCopyWikiPrompt(card, { ...input, 'megin-spec-export.existingSpec': 'wiki/a.md\nextra' }), false);
-  const prompt = buildWikiGuidePrompt(card.id, input);
-  assert.match(prompt, /development_spec/);
-  assert.match(prompt, /未回答保持 draft/);
-  assert.match(prompt, /不建立 Issue/);
-  assert.match(prompt, /不自動啟動 Megin/);
-  assert.match(prompt, /沿用現有規則.*具體內容/);
-  const legacy = { 'development-spec.scope': '舊退款', 'development-spec.requirement': '舊退款需求' };
-  assert.equal(canCopyWikiPrompt(card, legacy), true);
-  assert.match(buildWikiGuidePrompt(card.id, legacy), /舊退款.*舊退款需求/s);
-});
 
 test('full ingest does not require a single path and keeps native scope within the Repo', () => {
   const inputs = { ...createDefaultWikiGuideInputs(), 'ingest.scope': '全部專案' };
@@ -140,23 +117,4 @@ test('full ingest does not require a single path and keeps native scope within t
   assert.match(native, /逐檔 hash.*部分完成/s);
   assert.equal(native.includes('--scope group'), false);
   assert.match(buildWikiGuidePrompt('ingest', inputs), /全部合法直屬本機 Git Repo.*尚未對應 GitLab/s);
-});
-
-test('Megin export and generate-and-export use the kit-only standalone delivery workflow', () => {
-  const inputs = { 'megin-spec-export.spec': 'wiki/synthesis/refund-development-spec.md', 'megin-spec-export.scope': 'refund' };
-  const card = wikiGuideCards.find((item) => item.id === 'megin-spec-export')!;
-  assert.equal(canCopyWikiPrompt(card, inputs), true);
-  const existing = buildWikiGuidePrompt(card.id, inputs);
-  assert.match(existing, /既有規格.*refund-development-spec\.md/s);
-  assert.match(existing, /沿用既有交付代號："refund"/);
-  assert.match(existing, /既有 draft 或過時規格.*釐清與更新/);
-  const generate = buildWikiGuidePrompt('development-spec', { 'development-spec.delivery': '產生並匯出',
-    'development-spec.scope': 'Refund', 'development-spec.requirement': 'Refund an order' },
-    { profile: 'repository', root: '/project', repositories: [] });
-  assert.match(generate, /megin-spec-export.*development_spec.*exports\/megin\//s);
-  assert.match(generate, /可能沒有原 Wiki、附件或電腦路徑/);
-  assert.match(generate, /每個 SCN 的預期結果/);
-  assert.match(generate, /不重複確認匯出/);
-  assert.match(buildWikiGuidePrompt('query', { 'query.question': '退款？' }), /具體變更預覽.*未選擇.*零寫入.*不重複確認/s);
-  assert.match(buildWikiGuidePrompt('query', { 'query.question': '退款？' }), /選擇已預覽動作即構成該範圍授權，直接完成/);
 });

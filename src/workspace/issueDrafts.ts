@@ -1,6 +1,5 @@
-import type { GitLabIssue, GitLabIssueDiscussion, GitLabMergeRequest, GitLabProject, GitLabUser } from '../api/types';
+import type { GitLabProject } from '../api/types';
 import type { IssueDraft, IssueDraftBundle } from './workspaceProtocol';
-import { OUTPUT_STYLE_PROMPT } from './outputStyle';
 
 const MAX_BUNDLE_BYTES = 256 * 1024;
 const ANALYSIS_MARKER = /<!-- gitlab-workspace:analysis=([A-Za-z0-9._:-]{1,128}):draft=([A-Za-z0-9._:-]{1,128}) -->/;
@@ -69,76 +68,8 @@ export function containsIssueDraftMarker(description: string | null | undefined,
   return match?.[1] === analysisId && match[2] === draftId;
 }
 
-export function buildDeveloperPrompt(project: GitLabProject, issue: GitLabIssue, groupRoot: string, repoPath: string, origin?: string,
-  context: { discussions?: GitLabIssueDiscussion[]; actor?: GitLabUser; workId?: string } = {}): string {
-  const discussionText = (context.discussions ?? []).flatMap((discussion) => discussion.notes.map((note) =>
-    `- ${note.author?.name ?? 'GitLab user'}${note.internal ? '（內部留言）' : ''}：${note.body.slice(0, 8000)}`)).join('\n');
-  return [
-    `$megin 請依照 GitLab Issue ${project.path_with_namespace}#${issue.iid} 完成開發。`,
-    `Issue：${issue.web_url}`,
-    `Group 工作區：${groupRoot}`,
-    `目標 Repo：${project.path_with_namespace}`,
-    `本機 Repo 路徑：${repoPath}`,
-    `交付模式：原生 Megin feature_handoff（delivery_mode: feature_handoff）`,
-    `GitLab 契約：${JSON.stringify({ origin: origin?.replace(/\/$/, '') ?? project.web_url.split(`/${project.path_with_namespace}`)[0], issue_project_id: project.id, issue_iid: issue.iid })}`,
-    `Repo 契約：gitlab_project_id=${project.id}，gitlab_namespace=${project.path_with_namespace}`,
-    `目前 GitLab 使用者：${context.actor ? `${context.actor.name} (@${context.actor.username}, user_id=${context.actor.id})` : '依目前已登入的 GitLab 工作階段確認'}`,
-    `預設分支：${project.default_branch ?? '請依 GitLab 遠端確認'}`,
-    context.workId ? `續作 Work ID：${context.workId}` : '開始前先讀取 docs/work/*/workflow.md，若找到相同 GitLab Project ID 與 Issue IID 的未完成工作，請沿用其 Work ID，不要另開重複工作。',
-    '',
-    '需求與架構探索時完整盤點 Group 下所有有效的直屬本機 Git Repo，包含尚未對應 GitLab 的 Repo；Issue 所屬 Repo 是需求線索，不是探索範圍。依預計修改契約反覆追查直接與間接消費端，每個 Repo 保存固定來源、搜尋紀錄、受影響／無影響／待確認判定。只把需要改動的 Repo 納入核准計畫、feature branch 與交付；無需改動的 Repo 保留在需求清單，受影響者納入 verification_repositories，不建立 branch、commit 或 handoff。',
-    '先閱讀完整 Issue 需求、討論及驗收條件，依 Megin 完成需求探索、規劃、實作、獨立審查、自動驗證與人工驗收。',
-    '新工作使用原生 Group v6 與 architecture v2：中立釐清問題、受眾、成果與驗收，分開保存事實、假設、需求與技術建議；影響範圍或相容性的關鍵未知項阻擋規劃。核准前凍結影響圖與精確計畫，實作後保存綁定實際 diff／快照的影響確認；新增介面或消費端需要重新規劃核准。建立 REQ／BDD 情境／測試斷言／實作追溯並保留實際 red／green 證據。',
-    '初審另計為第 0 輪，最多三次修正重審，每次使用新的獨立唯讀 reviewer；任一次通過即可驗證及人工驗收，第三次修正仍失敗則保存證據並回報未完成。續作不得重置次數或覆寫舊裁決。',
-    '人工驗收後依原生 megin-finishing-delivery 與 unified_workflow.py deliver 完成本機 feature commits，保留接受版本及鎖；完成關卡通過才釋放鎖。不要自行 Push、建立 MR、合併或部署。後續 GitLab 操作由使用者另行決定。',
-    context.workId ? '續作前先讀取該 Work ID 的 workflow.md、核准 plan 與 evidence，核對它綁定同一個 Project 和 Issue，再從記錄的 phase/status 繼續；舊工作必須沿用原套件、契約、指紋與交付流程，不套用上述新工作版本。' : '',
-    '交付摘要請記錄主要改動、驗收條件與實際執行的驗證。',
-    OUTPUT_STYLE_PROMPT,
-    '',
-    'GitLab Issue 正文：',
-    issue.description ?? '（Issue 沒有額外描述。）',
-    '',
-    'GitLab Issue 討論與活動：',
-    discussionText || '（目前沒有可讀取的討論。）'
-  ].join('\n');
-}
 
-export interface PostDeliveryWikiPromptInput {
-  groupRoot: string;
-  wikiPath: string;
-  issue: { projectPath: string; iid: number; webUrl: string };
-  workId: string;
-  planVersion: string;
-  acceptanceVersion: string;
-  handoffSha256: string;
-  repositories: Array<{ projectPath: string; repoPath: string; commit: string; changedPaths: string[] }>;
-  changes: string;
-  verification: string;
-  checks: Array<{ id: string; status: string; executed?: number }>;
-  mergeStates: Array<{ repoPath: string; state: string; mergeRequestUrl?: string }>;
-}
 
-export function buildPostDeliveryWikiUpdatePrompt(input: PostDeliveryWikiPromptInput): string {
-  const repositories = input.repositories.map((item) =>
-    `- Repo：${item.projectPath}（Group 路徑 ${item.repoPath}）\n  Commit：${item.commit}\n  變更路徑：${item.changedPaths.join(', ') || '無'}`);
-  const mergeStates = input.mergeStates.map((item) =>
-    `${item.repoPath}: ${item.state}${item.mergeRequestUrl ? ` (${item.mergeRequestUrl})` : ''}`).join('\n');
-  const checks = input.checks.map((item) => `${item.id}: ${item.status}${item.executed === undefined ? '' : ` (${item.executed})`}`).join('; ');
-  return [
-    '$codebase-wiki 請根據已完成的 GitLab Workspace 本機交付更新 Group 共用 Wiki。先讀取現有 wiki/index.md、wiki/log.md 與相關頁面，再回到下列固定 Repo commit 核對來源；引用使用 Repo/檔案路徑並標出 commit。',
-    OUTPUT_STYLE_PROMPT,
-    `Group 工作區：${input.groupRoot}`,
-    `Group Wiki：${input.wikiPath}`,
-    `GitLab Issue：${input.issue.projectPath}#${input.issue.iid} ${input.issue.webUrl}`,
-    `Megin Work ID：${input.workId}`,
-    `計畫版本：${input.planVersion} · 驗收版本：${input.acceptanceVersion} · handoff SHA-256：${input.handoffSha256}`,
-    '本機已完成的 Repo commits：', ...repositories,
-    `修改摘要：${input.changes}`,
-    `驗證證據：${input.verification}\nMegin checks：${checks}`,
-    `本機交付／遠端 MR 狀態（本機 commit 已完成不代表 MR 已合併）：\n${mergeStates}`,
-    '只根據實際 commit 和測試證據整理知識，不把未合併變更寫成已發布事實；若需要說明遠端狀態，重新查詢 GitLab。保留人工 notes，維護 wiki/index.md 並依 Wiki 規則追加 wiki/log.md。'
-  ].join('\n\n');
-}
 
 function checkedText(value: unknown, label: string, maxLength: number): string {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > maxLength || /[\0\r]/.test(value)) {

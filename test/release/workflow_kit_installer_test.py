@@ -21,12 +21,7 @@ ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 CURRENT_SOURCES = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']
 RELEASE_ZIP = ROOT / f"dist/gitlab-workspace-kit-{VERSION}.zip"
-SKILLS = (
-    "codebase-wiki", "megin", "megin-architecture-exploration", "megin-behavior-contract", "megin-bug-diagnosis", "megin-code-review",
-    "megin-finishing-delivery", "megin-human-acceptance", "megin-implementation-execution",
-    "megin-project-knowledge", "megin-requirements-discovery", "megin-technical-planning",
-    "megin-test-driven-development", "megin-verification-before-completion", "merge-reviewer", "output-style", "release-reviewer",
-)
+SKILLS = ("codebase-wiki", "merge-reviewer", "output-style", "release-reviewer")
 MARKER = ".gitlab-workspace/tool-manifests/workflow-kit.json"
 
 
@@ -91,16 +86,13 @@ class WorkflowKitInstallerTests(unittest.TestCase):
 
     def assert_group_overlays(self, group: Path) -> None:
         wiki = group / ".agents/skills/codebase-wiki"
-        megin = group / ".agents/skills/megin"
         reviewer = group / ".agents/skills/merge-reviewer"
-        workflow = wiki / "references/development-spec-workflow.md"
-        self.assertIn("Group", workflow.read_text(encoding="utf-8"))
-        for path in (megin / "scripts/unified_workflow.py", megin / "scripts/workspace_context.py",
-                     megin / "scripts/workspace_lock.py", reviewer / "scripts/review_workspace.py",
-                     reviewer / "scripts/review_session.py"):
+        self.assertIn("Group", (wiki / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertFalse((wiki / "references/development-spec-workflow.md").exists())
+        for path in (reviewer / "scripts/review_workspace.py", reviewer / "scripts/review_session.py"):
             with self.subTest(path=path):
                 self.assertTrue(path.is_file())
-        self.assertFalse((megin / 'scripts/gitlab_delivery.py').exists())
+        self.assertFalse((group / '.agents/skills/megin').exists())
         self.assertFalse((reviewer / 'scripts/group_review.py').exists())
         self.assertFalse((reviewer / 'scripts/legacy_receipt_runtime/verify.py').exists())
         self.assertFalse((reviewer / 'scripts/mr_contract.py').exists())
@@ -116,48 +108,6 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         self.assertEqual(2, installed["workspaceContract"])
         self.assertEqual(64, len(installed["payloadSha256"]))
 
-    def test_child_work_common_dir_locks_and_maintenance_race_block_replacement(self):
-        spec = importlib.util.spec_from_file_location('maintenance_kit_test', INSTALLER)
-        installer = importlib.util.module_from_spec(spec); spec.loader.exec_module(installer)
-        with tempfile.TemporaryDirectory(prefix='kit-native-ownership-') as temporary:
-            group = Path(temporary).resolve() / 'group'; group.mkdir()
-            repo = group / 'consumer'; repo.mkdir()
-            subprocess.run(['git', '-C', str(repo), 'init', '-q', '-b', 'master'], check=True)
-            subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
-                            'commit', '--allow-empty', '-q', '-m', 'base'], check=True)
-            workflow = repo / 'docs/work/work-20261013-child/workflow.md'
-            workflow.parent.mkdir(parents=True)
-            workflow.write_text('- schema: `megin-repo-workflow/v3`\n- status: `active`\n', encoding='utf-8')
-            self.assertTrue(any('consumer/docs/work/' in p for p in installer.approved_work_in_progress(group)))
-            with self.assertRaises(installer.KitError):
-                with installer.maintenance_lock(group): pass
-            workflow.write_text('- schema: megin-repo-workflow/v3\n- status: complete\n', encoding='utf-8')
-            linked = group / 'linked'
-            subprocess.run(['git', '-C', str(repo), 'worktree', 'add', '--detach', '-q', str(linked), 'HEAD'], check=True)
-            common_lock = repo / '.git/megin/workspace.lock.json'; common_lock.parent.mkdir()
-            common_lock.write_text('{"writer":"active"}', encoding='utf-8')
-            self.assertTrue(any(str(common_lock) == p for p in installer.approved_work_in_progress(group)))
-            common_lock.unlink()
-            with installer.maintenance_lock(group) as owned:
-                self.assertIn(common_lock.resolve(), owned)
-                self.assertTrue((group / '.megin/workspace.lock.json').exists())
-                self.assertEqual([], installer.approved_work_in_progress(group, owned))
-                with self.assertRaises(FileExistsError): common_lock.open('xb')
-            self.assertFalse(common_lock.exists())
-            self.assertFalse((group / '.megin/workspace.lock.json').exists())
-            original = installer.approved_work_in_progress
-            calls = 0
-            def concurrent_work(root, ignored_locks=()):
-                nonlocal calls
-                calls += 1
-                if calls == 2:
-                    workflow.write_text('- schema: megin-repo-workflow/v3\n- status: active\n', encoding='utf-8')
-                return original(root, ignored_locks)
-            with mock.patch.object(installer, 'approved_work_in_progress', side_effect=concurrent_work):
-                with self.assertRaises(installer.KitError):
-                    with installer.maintenance_lock(group): pass
-            self.assertFalse(common_lock.exists())
-            self.assertIn('status: active', workflow.read_text(encoding='utf-8'))
 
     def test_uninstalled_status_is_read_only_in_git_and_plain_roots(self) -> None:
         with tempfile.TemporaryDirectory(prefix="kit-read-only-status-") as temporary:
@@ -179,7 +129,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                         result = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
                                                 check=True, capture_output=True, text=True)
                         self.assertEqual("", result.stdout)
-                    legacy = root / ".agents/skills/megin/SKILL.md"
+                    legacy = root / ".agents/skills/merge-reviewer/SKILL.md"
                     legacy.parent.mkdir(parents=True)
                     legacy.write_text("legacy skill\n", encoding="utf-8")
                     before = self.snapshot(root)
@@ -253,7 +203,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                         del entries[f"workflow-kit/payload/{relative}"]
                         del manifest["files"][relative]
                     else:
-                        relative = ".agents/skills/megin/unlisted.md"
+                        relative = ".agents/skills/merge-reviewer/unlisted.md"
                         content = b"not declared by any overlay\n"
                         entries[f"workflow-kit/payload/{relative}"] = content
                         manifest["files"][relative] = hashlib.sha256(content).hexdigest()
@@ -287,7 +237,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
                             for overlay in manifest["overlays"].values()))
         self.assertEqual(64, len(manifest["payloadSha256"]))
         self.assertEqual(64, len(manifest["customProfile"]["files"]["profile.md"]))
-        labels = {'codebase-wiki': 'Codebase LLM Wiki', 'megin': 'Megin',
+        labels = {'codebase-wiki': 'Codebase LLM Wiki',
                   'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer'}
         self.assertEqual(len(labels), len(manifest['sourceSummary']))
         for note, (tool, label) in zip(manifest['sourceSummary'], labels.items()):
@@ -379,14 +329,13 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             recover = installer._recover_transaction
             observed = []
             def writer_during_restore(*args):
-                for lock in (group / '.megin/workspace.lock.json', repo / '.git/megin/workspace.lock.json'):
-                    self.assertTrue(lock.is_file())
-                    with self.assertRaises(FileExistsError): lock.open('xb')
+                self.assertFalse((group / ".megin/workspace.lock.json").exists())
+                self.assertFalse((repo / ".git/megin/workspace.lock.json").exists())
                 observed.append(True)
                 return recover(*args)
             with mock.patch.object(installer, '_recover_transaction', side_effect=writer_during_restore):
                 self.assertEqual('missing', installer.inspect_status(group, VERSION)['status'])
-            self.assertTrue(observed, 'crash recovery must retain native ownership during restore')
+            self.assertTrue(observed, 'crash recovery uses installer ownership without development locks')
             self.assertEqual("missing", self.status(group)["status"])
             self.assertEqual(before, self.snapshot(group))
             self.assertFalse(any(path.name.startswith("kit-") for path in (group / ".gitlab-workspace/tool-installs").glob("*")))
@@ -396,48 +345,28 @@ class WorkflowKitInstallerTests(unittest.TestCase):
             group = self.create_group(Path(temporary))
             result, _ = self.install(group)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            skill_file = group / ".agents/skills/megin/SKILL.md"
+            skill_file = group / ".agents/skills/merge-reviewer/SKILL.md"
             skill_file.write_text(skill_file.read_text(encoding="utf-8") + "\nlocal edit\n", encoding="utf-8")
             blocked, error = self.install(group)
             self.assertNotEqual(0, blocked.returncode)
-            self.assertIn("megin", str(error).lower())
+            self.assertIn("merge-reviewer", str(error).lower())
             self.assertEqual("error", self.status(group)["status"])
 
         with tempfile.TemporaryDirectory(prefix="kit-legacy-") as temporary:
             group = self.create_group(Path(temporary))
-            old_skill = group / ".agents/skills/megin"
+            old_skill = group / ".agents/skills/merge-reviewer"
             old_skill.mkdir()
             (old_skill / "SKILL.md").write_text("old installation\n", encoding="utf-8")
             (group / "wiki").mkdir()
             (group / "wiki/index.md").write_text("keep wiki\n", encoding="utf-8")
             blocked, error = self.install(group)
             self.assertNotEqual(0, blocked.returncode)
-            self.assertIn(".agents/skills/megin", str(error))
+            self.assertIn(".agents/skills/merge-reviewer", str(error))
             status = self.status(group)
             self.assertEqual("needs-cleanup", status["status"])
-            self.assertIn(".agents/skills/megin", status["legacyPaths"])
+            self.assertIn(".agents/skills/merge-reviewer", status["legacyPaths"])
             self.assertEqual("keep wiki\n", (group / "wiki/index.md").read_text(encoding="utf-8"))
 
-    def test_megin_lock_and_approved_work_block_install_and_update(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="kit-active-lock-") as temporary:
-            group = self.create_group(Path(temporary))
-            result, _ = self.install(group)
-            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            lock = group / ".megin/workspace.lock.json"
-            lock.write_text('{"work_id":"work-1"}\n', encoding="utf-8")
-            blocked, _ = self.install(group)
-            self.assertNotEqual(0, blocked.returncode)
-            self.assertEqual("work-in-progress", self.status(group)["status"])
-            lock.unlink()
-            workflow = group / "docs/work/approved-work/workflow.md"
-            workflow.parent.mkdir(parents=True)
-            workflow.write_text("- status: active\n- plan_version: plan-1\n", encoding="utf-8")
-            contract = workflow.parent / "plan-1/quality-contract.json"
-            contract.parent.mkdir()
-            contract.write_text('{"delivery_mode":"gitlab_mr"}\n', encoding="utf-8")
-            blocked, _ = self.install(group)
-            self.assertNotEqual(0, blocked.returncode)
-            self.assertEqual("work-in-progress", self.status(group)["status"])
 
     def test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback(self) -> None:
         for archive, archive_format in ((ARCHIVE, "tar.xz"), (RELEASE_ZIP, "zip")):

@@ -89,18 +89,18 @@ test('nested Repos retain remote identity and broken siblings do not choose the 
   } finally { f.cleanup(); }
 });
 
-test('Skills uses the local root profile and verifies installed versions and resume capabilities', () => {
+test('Skills uses the local root profile and verifies installed versions and disables outdated installations', () => {
   const repos = [{ path: '/group/a', name: 'a', matched: false }, { path: '/group/b', name: 'b', matched: true }];
   const match: GroupWorkspaceMatch = { status: 'matched', profile: 'group', root: '/group', repositories: repos };
   const base = { match, installed: { status: 'installed' as const, profile: 'group' as const,
-    version: '0.17.0', capabilities: ['merge-group', 'megin-workflow', 'megin-resume'] }, expectedVersion: '0.17.0', revision: 'one' };
+    version: '0.17.0', capabilities: ['query', 'merge-repo'] }, expectedVersion: '0.17.0', revision: 'one' };
   assert.equal(resolveSkillsContext(base).mode, 'group'); assert.equal(resolveSkillsContext(base).root, '/group');
   assert.equal(resolveSkillsContext({ ...base, preferGroup: false }).mode, 'group', 'legacy mode flags do not override the local profile');
   const native = { ...base, match: { ...match, root: repos[0].path, profile: 'repository' as const }, installed: { ...base.installed, profile: 'repository' as const } };
   assert.equal(resolveSkillsContext(native).mode, 'repository'); assert.deepEqual(resolveSkillsContext(native).repositories, [repos[0]]);
   assert.deepEqual(resolveSkillsContext({ ...native, installed: { ...native.installed, status: 'error' } }).availableFeatures, []);
   assert.deepEqual(resolveSkillsContext({ ...native, installed: { ...native.installed, version: '0.16.0' } }).availableFeatures, []);
-  const old = resolveSkillsContext({ ...native, installed: { ...native.installed, status: 'work-in-progress', version: '0.16.0', activeWorkIds: ['work-20261010-old'] } });
-  assert.equal(old.resumeOnly, true); assert.deepEqual(old.availableFeatures, ['megin-resume']);
+  const old = resolveSkillsContext({ ...native, installed: { ...native.installed, status: 'update-available', version: '0.16.0' } });
+  assert.deepEqual(old.availableFeatures, []);
   assert.equal(resolveSkillsContext({ ...native, match: { ...native.match, status: 'checking' } }).mode, 'unavailable');
 });

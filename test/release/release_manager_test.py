@@ -101,6 +101,17 @@ class GitFixture(unittest.TestCase):
 
 
 class PlanningTests(GitFixture):
+    def test_megin_release_remains_independent_of_workspace(self):
+        plan, _ = self.plan(changed=('Megin',), versions={'Megin': '1.0.1'})
+        self.assertEqual([['Megin']], plan['order'])
+        self.assertFalse(plan['repositories']['GitlabWorkSpace']['selected'])
+        self.assertEqual([], plan['repositories']['GitlabWorkSpace']['dependencies'])
+
+    def test_simultaneous_megin_release_is_not_a_workspace_dependency(self):
+        plan, _ = self.plan(changed=('Megin', 'MergeReviewer'),
+                            versions={'Megin': '1.0.1', 'MergeReviewer': '1.0.1', 'GitlabWorkSpace': '1.0.1'})
+        self.assertEqual(['MergeReviewer'], plan['repositories']['GitlabWorkSpace']['dependencies'])
+
     def test_no_changes_has_no_release_work(self):
         plan, api = self.plan(changed=(), versions={})
         self.assertFalse(any(row['selected'] for row in plan['repositories'].values()))
@@ -279,6 +290,16 @@ class ArchiveTests(unittest.TestCase):
 
 
 class ResumeTests(GitFixture):
+    def test_old_workspace_megin_dependency_requires_a_new_plan_before_api_calls(self):
+        plan, api = self.plan(changed=('Megin', 'MergeReviewer'),
+                             versions={'Megin': '1.0.1', 'MergeReviewer': '1.0.1', 'GitlabWorkSpace': '1.0.1'})
+        plan['repositories']['GitlabWorkSpace']['dependencies'].append('Megin')
+        journal = release.Journal(self.root / 'evidence', plan=plan)
+        api.calls.clear()
+        with self.assertRaisesRegex(release.ReleaseError, 'create a new release plan'):
+            release.Runner(journal, api).verify_inputs()
+        self.assertEqual([], api.calls)
+
     def ci_fixture(self, plan, journal, conclusions, attempt=1):
         name = 'MergeReviewer'
         source = plan['repositories'][name]

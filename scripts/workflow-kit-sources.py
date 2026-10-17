@@ -6,6 +6,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import pprint
 import subprocess
 import sys
 import zipfile
@@ -15,7 +16,7 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOTS = ROOT / 'resources/offline-tools/source-snapshots.json'
-REPOS = {'codebase-wiki': 'code-base-llm-wiki', 'megin': 'Megin',
+REPOS = {'codebase-wiki': 'code-base-llm-wiki',
          'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer'}
 
 
@@ -43,10 +44,6 @@ def local_entries(tool: str) -> tuple[str, dict[str, bytes]]:
         release = load_module('wiki_release_sources', repo / 'tools/release.py')
         version = release.read_version(repo)
         return version, dict(release.package_entries(repo, release.package_files(repo, 'codex'), 'codex', version))
-    if tool == 'megin':
-        release = load_module('megin_release_sources', repo / '.agents/skills/megin/scripts/validate_skills.py')
-        version = (repo / 'VERSION').read_text(encoding='utf-8').strip()
-        return version, release.package_files(repo / '.agents/skills')
     directory = repo / f'skills/{tool}'
     if not directory.is_dir():
         raise ValueError(f'Missing local source: {directory}')
@@ -121,7 +118,7 @@ def freeze() -> dict:
         version, entries = local_entries(tool)
         pin = pins[tool]
         filename = pin['filename'] if pin['version'] == version else f'{tool}-{version}.zip'
-        prefix = pin.get('root', '') if tool == 'codebase-wiki' else '' if tool == 'megin' else tool
+        prefix = f'codebase-llm-wiki-codex-{version}' if tool == 'codebase-wiki' else tool
         archive = ROOT / 'resources/offline-tools/sources' / filename
         # Keep an existing archive byte-for-byte when its reviewed contents match.
         same = False
@@ -138,6 +135,17 @@ def freeze() -> dict:
                          'sourceKind': 'local-snapshot', **git_info(ROOT.parent / repo_name),
                          'archiveSha256': digest(archive.read_bytes()),
                          'treeSha256': digest(json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()), 'files': hashes}
+        pin.update(version=version, filename=filename, sha256=records[tool]['archiveSha256'])
+        if tool == 'codebase-wiki':
+            pin['root'] = prefix
+    builder_path = ROOT / 'scripts/build-workflow-kit.py'
+    source = builder_path.read_text(encoding='utf-8')
+    lines = source.splitlines(keepends=True)
+    assignment = next(node for node in ast.parse(source).body if isinstance(node, ast.Assign)
+                      and any(isinstance(target, ast.Name) and target.id == 'PINNED_SOURCES' for target in node.targets))
+    lines[assignment.lineno - 1:assignment.end_lineno] = [
+        'PINNED_SOURCES = ' + pprint.pformat(tuple(pins.values()), width=110, sort_dicts=False) + '\n']
+    builder_path.write_text(''.join(lines), encoding='utf-8', newline='')
     workspace_files = {path.relative_to(ROOT).as_posix(): digest(path.read_bytes())
                        for path in sorted((ROOT / 'resources/workflow-kit').rglob('*'))
                        if path.is_file() and '__pycache__' not in path.parts and path.suffix not in ('.pyc', '.pyo', '.zip')}

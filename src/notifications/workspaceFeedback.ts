@@ -62,8 +62,6 @@ export function collectWorkspaceFeedback(center: NotificationCenter, response: W
   } else if (response.type === 'draftResults') {
     const failed = response.results.filter(item => item.state === 'failed').length;
     publish(`Issue 已建立或確認 ${response.results.length - failed} 張${failed ? `，${failed} 張失敗；重試只會處理未建立項目` : ''}。`, failed ? 'warn' : 'info');
-  } else if (response.type === 'deliveryPreview' || response.type === 'deliveryProgress') {
-    publish(response.delivery.error ?? '交付進度已保存。', response.delivery.error ? 'error' : 'info');
   } else if (response.type === 'issueGraphChanged' || response.type === 'issueGraphPatch') {
     const graph = response.type === 'issueGraphChanged' ? response.graph : response;
     if ('errors' in graph && graph.errors) state('issue-graph', graph.errors.join('\n'), 'warn', 'Issue 圖譜');

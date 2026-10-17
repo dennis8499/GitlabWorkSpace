@@ -279,17 +279,17 @@ test('replacing an inspected directory with an alias cannot redirect installatio
   assert.equal(calls.filter(args => args[0] === 'install').length, 0);
 });
 
-test('copying rechecks versions and rejects stale context and unknown old Work IDs', async t => {
+test('copying rechecks versions and rejects stale context and retired features', async t => {
   const [, repo] = await directories(t);
   const { host, installed } = fixture([repo]); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
   let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
   const request = { type: 'copySkillGuidePrompt', revision: host.getSkillsContext().revision, featureId: 'query', inputs: { 'query.question': 'What does this Repo do?' } };
   await host.copySkillGuidePrompt(request); assert.match(copied, /實際單一 Repo/); assert.equal(copied.includes('實際 Group'), false);
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision: 'stale' }), /已變更/);
-  host.runWorkflowKitHelper = async () => ({ ok: true, status: 'work-in-progress', version: '0.16.0', profile: 'repository', capabilities: ['query', 'megin-resume'], activeWorkIds: ['work-20261011-existing'] });
+  host.runWorkflowKitHelper = async () => ({ ok: true, status: 'update-available', version: '0.16.0', profile: 'repository', capabilities: ['query'] });
   await host.refreshWorkflowKit(); const revision = host.getSkillsContext().revision;
-  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /舊版/);
-  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /既有 Work ID/);
+  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /更新/);
+  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /更新|未知|功能/);
 });
 
 test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
@@ -310,11 +310,6 @@ test('MR branch handoff uses the actual mapped Repo and does not copy or launch 
     source_branch: 'feature', target_branch: 'main' }) });
   await host.openBranchReview(1, 2);
   assert.equal(result.inputs['merge-repo.repo'], ''); assert.match(result.notice, /fork/);
-  const handoff = { group_root: group, gitlab: { origin: 'https://gitlab.test' }, state: 'complete', repositories: [{
-    gitlab_project_id: 1, gitlab_namespace: target.path_with_namespace, repo_path: path.basename(repo), remote_url: target.http_url_to_repo
-  }] };
-  await host.validateWorkspaceHandoff(handoff);
-  await assert.rejects(host.validateWorkspaceHandoff({ ...handoff, repositories: [{ ...handoff.repositories[0], repo_path: 'docs' }] }), /無法唯一對應/);
 });
 
 test('concurrent Skills and Repo checks run once and warm Analysis navigation adds no full scans', async t => {
@@ -361,32 +356,6 @@ test('Repo refresh retains the current list until replacement and preserves it o
   assert.deepEqual(host.actualRepositories, [], 'a different environment must not retain the previous Repo list');
 });
 
-test('post-delivery Wiki copying rejects a context change during Issue reads', async t => {
-  const [group] = await directories(t);
-  const { host } = fixture([group], true);
-  host.runWorkflowKitHelper = async () => ({ ok: true, status: 'installed', version: '0.17.0', profile: 'group', capabilities: ['ingest'] });
-  const record = { id: 'delivery', workId: 'work-existing', handoffSha256: 'handoff', instanceScope: 'scope',
-    state: 'committed', repoPath: 'renamed-service', changes: 'change', tests: 'passed' };
-  host.requireDelivery = async () => record;
-  host.deliveryRecords = () => [record];
-  host.runMeginHandoff = async () => ({ state: 'complete', work_id: record.workId, plan_version: 'plan-v1',
-    acceptance: { version: 'acceptance-v1' }, handoff_sha256: record.handoffSha256,
-    gitlab: { issue_project_id: 1, issue_iid: 2 }, checks: [],
-    repositories: [{ repo_path: record.repoPath, gitlab_project_id: 1, staged: { staged_paths: ['src/main.ts'] } }],
-    delivery: { completion_ok: true, repositories: [{ repo_path: record.repoPath, feature_commit: 'a'.repeat(40) }] } });
-  host.validateWorkspaceHandoff = async () => undefined;
-  let drift = false, copied = '';
-  host.session.getClient = async () => ({ getIssue: async () => {
-    if (drift) configuredRoots.set(uri(group).toString(), path.join(group, 'docs'));
-    return { iid: 2, web_url: 'https://gitlab.test/team/service/-/issues/2' };
-  } });
-  vscode.env.clipboard.writeText = async text => { copied = text; };
-  await host.copyWikiUpdatePrompt(record.id);
-  assert.ok(copied.includes(group));
-  copied = ''; drift = true;
-  await assert.rejects(host.copyWikiUpdatePrompt(record.id), /Skills 環境或版本已變更/);
-  assert.equal(copied, '', 'stale delivery evidence must not reach the clipboard');
-});
 
 test('shared root drift during Python resolution prevents writes', async t => {
   const [, repo, other] = await directories(t); const { host } = fixture([repo]);

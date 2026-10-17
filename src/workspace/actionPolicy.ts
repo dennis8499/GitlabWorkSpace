@@ -62,7 +62,6 @@ export const workspaceActionKinds = {
   confirmOperationResult: 'read',
   openBranchReview: 'read',
   loadSkillBranches: 'read',
-  prepareDelivery: 'write',
   setWorkflowKitSource: 'read',
   refreshWorkflowKit: 'read',
   gitOpenRepository: 'read',
@@ -82,7 +81,6 @@ export const workspaceActionKinds = {
   selectCloneRoot: 'write',
   resetCloneRoot: 'write',
   openCodexTerminal: 'write',
-  copyAndOpenCodex: 'write',
   clone: 'write',
   syncRepos: 'write',
   copy: 'write',
@@ -99,10 +97,6 @@ export const workspaceActionKinds = {
   replyMergeRequest: 'write',
   approveMergeRequest: 'write',
   mergeMergeRequest: 'write',
-  commitDelivery: 'write',
-  copyWikiUpdatePrompt: 'write',
-  pushDelivery: 'write',
-  createDeliveryMergeRequest: 'write',
   importWorkflowKitPackage: 'write',
   copySkillGuidePrompt: 'write',
   selectWorkflowKitInstallRoot: 'write',
@@ -212,16 +206,16 @@ export const operationLabels: Record<string, string> = {
   openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟後台管理', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
   refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', submitAccountLogin: '驗證帳號', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
   selectGroup: '切換 Group', selectProjectFolder: '辨識專案資料夾', selectProjectRoot: '選擇專案目錄', resetProjectRoot: '重新辨識專案目錄', scanRepositories: '掃描本機 Repo', clone: '下載／更新 Repo', syncRepos: '更新預設分支',
-  refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', importWorkflowKitPackage: '匯入工作流程包', copySkillGuidePrompt: '複製提示詞', copy: '複製內容', openCodexTerminal: '開啟 Codex CLI', copyAndOpenCodex: '準備 Codex 工作',
+  refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', importWorkflowKitPackage: '匯入工作流程包', copySkillGuidePrompt: '複製提示詞', copy: '複製內容', openCodexTerminal: '開啟 Codex CLI',
   selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
-  postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', prepareDelivery: '檢查交付', commitDelivery: '建立交付提交', pushDelivery: '推送交付', createDeliveryMergeRequest: '建立 MR', submitTimeEntry: '送出工時',
+  postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', submitTimeEntry: '送出工時',
   queryLogs: '讀取操作紀錄', loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
 };
 
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'queryLogs', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
-const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'copyAndOpenCodex']);
+const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal']);
 const canonicalRoot = (value?: string): string => (value ?? 'workspace').replace(/\\/g, '/').replace(/\/$/, '').toLocaleLowerCase('en-US');
 export function writeResourceLock(resourceKey: string, context: ActionContext = {}): string {
   const global = resourceKey === 'clipboard' || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:');
@@ -231,6 +225,9 @@ export function writeResourceLock(resourceKey: string, context: ActionContext = 
 
 /** Policy contains metadata only; bodies, credentials and uploads stay in transport. */
 export function describeAction(value: { type: string }, context: ActionContext = {}): ActionPolicy {
+  if (['prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'copyWikiUpdatePrompt', 'copyAndOpenCodex'].includes(value.type)) {
+    throw new Error('此操作已移除，請重新開啟工作台。');
+  }
   const request = value as Record<string, any>;
   const action = request.type === 'perform' ? String(request.action) : request.type;
   let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as QuickAction] ?? 'control'
@@ -257,7 +254,6 @@ export function describeAction(value: { type: string }, context: ActionContext =
     resourceKey = 'mr:' + request.projectId + ':' + request.iid;
     if (request.section) slot = resourceKey + ':' + request.section;
   } else if ('issueIid' in request) resourceKey = 'issue:' + request.projectId + ':' + request.issueIid;
-  else if ('deliveryId' in request) resourceKey = 'delivery:' + request.deliveryId;
   else if (request.type === 'repositoryDetails') { kind = 'read'; resourceKey = 'git:' + request.repositoryId + ':details'; }
   else if (request.type === 'cancelRepositoryDetails' || request.type === 'reconcileOperations') kind = 'control';
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
@@ -267,7 +263,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (rootActions.has(action)) resourceKey = 'repositories';
   else if (skillsActions.has(action)) resourceKey = 'skills';
   else if (request.id && /Timer|TimeEntry/.test(action)) resourceKey = 'time:' + request.id;
-  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyWikiUpdatePrompt' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
+  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
   const nestedType = request.type === 'gitAction' ? request.action.type : request.type === 'issueRequest' ? request.request.type : undefined;
   const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && action !== 'openNotifications')
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
@@ -283,4 +279,3 @@ export function describeAction(value: { type: string }, context: ActionContext =
     label: operationLabels[action] ?? (kind === 'read' ? '載入資料' : '處理操作'),
     retryable: kind === 'read', cancellable: action === 'scanRepositories', notify: kind === 'write' };
 }
-

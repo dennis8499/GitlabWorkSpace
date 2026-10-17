@@ -42,7 +42,7 @@ def tar_xz(entries: list[tuple[str, bytes, str]]) -> bytes:
                 archive.addfile(member)
             elif kind == "hardlink":
                 member.type = tarfile.LNKTYPE
-                member.linkname = "megin/target"
+                member.linkname = "merge-reviewer/target"
                 archive.addfile(member)
             elif kind == "directory":
                 member.type = tarfile.DIRTYPE
@@ -59,8 +59,8 @@ class ToolInstallerTests(unittest.TestCase):
             root = Path(temporary) / "Group Workspace"
             root.mkdir()
             alias = root / ".." / root.name
-            self.assertEqual(installer.safe_group_path(alias, ".agents/skills/megin"),
-                             (root / ".agents/skills/megin").resolve())
+            self.assertEqual(installer.safe_group_path(alias, ".agents/skills/merge-reviewer"),
+                             (root / ".agents/skills/merge-reviewer").resolve())
             with self.assertRaises(ValueError):
                 installer.safe_group_path(alias, "../outside")
 
@@ -73,7 +73,7 @@ class ToolInstallerTests(unittest.TestCase):
                 installer.extract_verified_zip(bad_zip, root / "bad-stage")
 
             linked_zip = root / "linked.zip"
-            link = zipfile.ZipInfo("megin/link")
+            link = zipfile.ZipInfo("merge-reviewer/link")
             link.create_system = 3
             link.external_attr = (stat.S_IFLNK | 0o777) << 16
             with zipfile.ZipFile(linked_zip, "w") as archive:
@@ -90,7 +90,7 @@ class ToolInstallerTests(unittest.TestCase):
 
             lying = root / "lying.zip"
             with zipfile.ZipFile(lying, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-                archive.writestr("megin/SKILL.md", b"A" * 10_000)
+                archive.writestr("merge-reviewer/SKILL.md", b"A" * 10_000)
             data = bytearray(lying.read_bytes())
             local_header = data.index(b"PK\x03\x04")
             central_header = data.index(b"PK\x01\x02")
@@ -105,62 +105,62 @@ class ToolInstallerTests(unittest.TestCase):
             root = Path(temporary)
             bundle = root / "tools.tar.xz"
             bundle.write_bytes(tar_xz([
-                ("megin/megin/SKILL.md", b"offline skill", "file"),
-                ("merge-reviewer/SKILL.md", b"other tool", "file"),
+                ("merge-reviewer/merge-reviewer/SKILL.md", b"offline skill", "file"),
+                ("codebase-wiki/SKILL.md", b"other tool", "file"),
             ]))
             extracted = root / "stage"
-            self.assertEqual(installer.extract_verified_tar_xz(bundle, extracted, "megin"), 1)
-            self.assertEqual((extracted / "megin/SKILL.md").read_bytes(), b"offline skill")
-            self.assertFalse((extracted / "merge-reviewer").exists())
+            self.assertEqual(installer.extract_verified_tar_xz(bundle, extracted, "merge-reviewer"), 1)
+            self.assertEqual((extracted / "merge-reviewer/SKILL.md").read_bytes(), b"offline skill")
+            self.assertFalse((extracted / "codebase-wiki").exists())
 
     def test_offline_tar_xz_rejects_traversal_links_and_per_file_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             cases = [
-                ("traversal", [("megin/megin/SKILL.md", b"safe", "file"), ("megin/../../outside", b"bad", "file")]),
-                ("symlink", [("megin/megin/link", b"", "symlink")]),
-                ("hardlink", [("megin/megin/link", b"", "hardlink")]),
+                ("traversal", [("merge-reviewer/merge-reviewer/SKILL.md", b"safe", "file"), ("merge-reviewer/../../outside", b"bad", "file")]),
+                ("symlink", [("merge-reviewer/merge-reviewer/link", b"", "symlink")]),
+                ("hardlink", [("merge-reviewer/merge-reviewer/link", b"", "hardlink")]),
             ]
             for name, members in cases:
                 bundle = root / f"{name}.tar.xz"
                 bundle.write_bytes(tar_xz(members))
                 with self.assertRaises(ValueError):
-                    installer.extract_verified_tar_xz(bundle, root / f"{name}-stage", "megin")
+                    installer.extract_verified_tar_xz(bundle, root / f"{name}-stage", "merge-reviewer")
 
             large = root / "large.tar.xz"
-            large.write_bytes(tar_xz([("megin/megin/SKILL.md", b"12345", "file")]))
+            large.write_bytes(tar_xz([("merge-reviewer/merge-reviewer/SKILL.md", b"12345", "file")]))
             with patch.object(installer, "MAX_FILE_BYTES", 4), self.assertRaisesRegex(ValueError, "64 MB"):
-                installer.extract_verified_tar_xz(large, root / "large-stage", "megin")
+                installer.extract_verified_tar_xz(large, root / "large-stage", "merge-reviewer")
 
             aggregate = root / "aggregate.tar.xz"
             aggregate.write_bytes(tar_xz([
-                ("megin/megin/a.txt", b"12345", "file"),
-                ("merge-reviewer/SKILL.md", b"67890", "file"),
+                ("merge-reviewer/merge-reviewer/a.txt", b"12345", "file"),
+                ("codebase-wiki/SKILL.md", b"67890", "file"),
             ]))
             with patch.object(installer, "MAX_EXPANDED_BYTES", 8), self.assertRaisesRegex(ValueError, "400 MB"):
-                installer.extract_verified_tar_xz(aggregate, root / "aggregate-stage", "megin")
+                installer.extract_verified_tar_xz(aggregate, root / "aggregate-stage", "merge-reviewer")
 
     def test_corrupt_tar_xz_and_archive_digest_mismatch_leave_group_files_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
             root = base / "Group Workspace"
             root.mkdir()
-            user_file = root / ".agents/skills/megin-local/SKILL.md"
+            user_file = root / ".agents/skills/merge-reviewer-local/SKILL.md"
             user_file.parent.mkdir(parents=True)
             user_file.write_text("keep local data", encoding="utf-8")
             damaged = base / "damaged.tar.xz"
-            valid = tar_xz([("megin/megin/SKILL.md", b"offline", "file")])
+            valid = tar_xz([("merge-reviewer/merge-reviewer/SKILL.md", b"offline", "file")])
             damaged.write_bytes(valid[:-4])
             with self.assertRaises(ValueError):
-                installer.extract_verified_tar_xz(damaged, base / "damaged-stage", "megin")
+                installer.extract_verified_tar_xz(damaged, base / "damaged-stage", "merge-reviewer")
 
-            digest_args = [str(HELPER_PATH), "megin", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "megin", "--archive-sha256", hashlib.sha256(damaged.read_bytes()).hexdigest()]
+            digest_args = [str(HELPER_PATH), "merge-reviewer", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "merge-reviewer", "--archive-sha256", hashlib.sha256(damaged.read_bytes()).hexdigest()]
             with patch.object(sys, "argv", digest_args), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(installer.main(), 1)
             self.assertEqual(user_file.read_text(encoding="utf-8"), "keep local data")
             self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())
 
-            args = [str(HELPER_PATH), "megin", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "megin", "--archive-sha256", "0" * 64]
+            args = [str(HELPER_PATH), "merge-reviewer", str(damaged), str(root), "1.0.0", "bundled", "--format", "tar.xz", "--entry-root", "merge-reviewer", "--archive-sha256", "0" * 64]
             with patch.object(sys, "argv", args), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(installer.main(), 1)
             self.assertEqual(user_file.read_text(encoding="utf-8"), "keep local data")
@@ -170,7 +170,6 @@ class ToolInstallerTests(unittest.TestCase):
         sources = Path(__file__).resolve().parents[2] / "resources" / "offline-tools" / "sources"
         expected = {
             "codebase-wiki": ("codebase-llm-wiki-codex.zip", "0.3.0", "06741fc0d82b281f2e1f34f0eda9b74dc2bac0bfa9e62a1db568a3337c334d07"),
-            "megin": ("megin-skills.zip", "0.3.0", "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5"),
             "merge-reviewer": ("merge-reviewer-0.6.0.zip", "0.6.0", "4197599b947c686b08176c0b499efa71cb812638b2d8993ba5f57aa0771dfab0"),
         }
         for tool, (filename, version, sha256) in expected.items():
@@ -181,7 +180,7 @@ class ToolInstallerTests(unittest.TestCase):
 
     def test_offline_bundle_rebuild_is_byte_for_byte_reproducible(self) -> None:
         entries = {
-            "megin/megin/SKILL.md": (b"fixed bundle content\n", 0o100644),
+            "merge-reviewer/merge-reviewer/SKILL.md": (b"fixed bundle content\n", 0o100644),
             "codebase-wiki/.agents/skills/codebase-wiki/SKILL.md": (b"wiki content\n", 0o100644),
             "merge-reviewer/SKILL.md": (b"review content\n", 0o100755),
         }
@@ -225,76 +224,19 @@ class ToolInstallerTests(unittest.TestCase):
                 archive = base / f"unsafe-{len(name)}.zip"
                 with zipfile.ZipFile(archive, "w") as bundle:
                     bundle.writestr(f"release/{name}/SKILL.md", "untrusted")
-                arguments = [str(HELPER_PATH), "megin", str(archive), str(root), "1.0.0", "github"]
+                arguments = [str(HELPER_PATH), "merge-reviewer", str(archive), str(root), "1.0.0", "github"]
                 with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                     self.assertEqual(installer.main(), 1)
                 self.assertEqual(user_file.read_text(encoding="utf-8"), "user data")
                 self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())
                 self.assertEqual(list((root / ".gitlab-workspace/tool-installs").iterdir()), [])
 
-    def test_megin_release_accepts_all_megin_skill_directories_without_a_fixed_count(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            extracted = Path(temporary)
-            for name in ("megin", "megin-git", "megin-review"):
-                skill = extracted / "archive" / ".agents" / "skills" / name
-                skill.mkdir(parents=True)
-                (skill / "SKILL.md").write_text("---\nname: test\n---\n", encoding="utf-8")
-                if name == "megin":
-                    (skill / "references").mkdir()
-            self.assertEqual({path.name for path in installer.find_megin_skills(extracted)}, {"megin", "megin-git", "megin-review"})
 
-    def test_failed_multi_skill_update_restores_old_skills_and_custom_files(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "workspace"
-            root.mkdir()
-            old_skills = {}
-            for name in ("megin-a", "megin-b"):
-                destination = root / ".agents" / "skills" / name
-                destination.mkdir(parents=True)
-                (destination / "SKILL.md").write_text(f"old {name}", encoding="utf-8")
-                if name == "megin-a":
-                    (destination / "CUSTOM.md").write_text("keep this", encoding="utf-8")
-                old_skills[name] = {"files": installer.tree_manifest(destination)}
-
-            manifest = root / ".gitlab-workspace" / "tool-manifests" / "megin.json"
-            manifest.parent.mkdir(parents=True)
-            old_record = {"schema": installer.MANIFEST_SCHEMA, "tool": "megin", "version": "0.1.0", "source": "github", "skills": old_skills}
-            manifest.write_text(json.dumps(old_record), encoding="utf-8")
-
-            extracted = Path(temporary) / "release"
-            extracted.mkdir()
-            archive = Path(temporary) / "release.zip"
-            archive.write_bytes(b"verified release contents")
-            sources = []
-            for name in ("megin-a", "megin-b"):
-                source = extracted / ".agents" / "skills" / name
-                source.mkdir(parents=True)
-                (source / "SKILL.md").write_text(f"new {name}", encoding="utf-8")
-                sources.append(source)
-
-            real_replace = installer.os.replace
-            calls = 0
-
-            def fail_second_install(source: Path, target: Path) -> None:
-                nonlocal calls
-                calls += 1
-                if calls == 4:
-                    raise OSError("simulated install failure")
-                real_replace(source, target)
-
-            with patch.object(installer.os, "replace", side_effect=fail_second_install):
-                with self.assertRaisesRegex(OSError, "simulated install failure"):
-                    installer.replace_skills(root, extracted, sources, "megin", "0.2.0", "github", archive)
-
-            self.assertEqual((root / ".agents/skills/megin-a/SKILL.md").read_text(encoding="utf-8"), "old megin-a")
-            self.assertEqual((root / ".agents/skills/megin-a/CUSTOM.md").read_text(encoding="utf-8"), "keep this")
-            self.assertEqual((root / ".agents/skills/megin-b/SKILL.md").read_text(encoding="utf-8"), "old megin-b")
-            self.assertEqual(json.loads(manifest.read_text(encoding="utf-8")), old_record)
 
     def test_install_and_update_manage_release_archives_for_both_skill_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            for tool, skill_name in (("megin", "megin-git"), ("merge-reviewer", "merge-reviewer")):
+            for tool, skill_name in (("merge-reviewer", "merge-reviewer"),):
                 root = base / f"Group Workspace {tool} 測試"
                 root.mkdir()
                 for version in ("1.0.0", "1.1.0"):
@@ -304,7 +246,7 @@ class ToolInstallerTests(unittest.TestCase):
                     with zipfile.ZipFile(archive_path, "w") as archive:
                         archive.writestr(f"release/.agents/skills/{skill_name}/SKILL.md", contents)
                     installer.extract_verified_zip(archive_path, extracted)
-                    skills = installer.find_megin_skills(extracted) if tool == "megin" else installer.find_single_skill(extracted, skill_name)
+                    skills = installer.find_single_skill(extracted, skill_name)
                     manifest = installer.replace_skills(root, extracted, skills, tool, version, "github", archive_path)
                     self.assertEqual(manifest["archive_sha256"], hashlib.sha256(archive_path.read_bytes()).hexdigest())
                     self.assertEqual((root / ".agents/skills" / skill_name / "SKILL.md").read_text(encoding="utf-8"), contents)
@@ -313,7 +255,7 @@ class ToolInstallerTests(unittest.TestCase):
     def test_skill_updates_preserve_local_modifications_for_both_release_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
-            for tool, skill_name in (("megin", "megin-git"), ("merge-reviewer", "merge-reviewer")):
+            for tool, skill_name in (("merge-reviewer", "merge-reviewer"),):
                 root = base / f"Group Workspace {tool} 測試"
                 root.mkdir()
 
@@ -323,7 +265,7 @@ class ToolInstallerTests(unittest.TestCase):
                         archive.writestr(f"release/.agents/skills/{skill_name}/SKILL.md", contents)
                     extracted = base / f"{tool}-{version}"
                     installer.extract_verified_zip(archive_path, extracted)
-                    skills = installer.find_megin_skills(extracted) if tool == "megin" else installer.find_single_skill(extracted, skill_name)
+                    skills = installer.find_single_skill(extracted, skill_name)
                     return archive_path, extracted, skills
 
                 archive_v1, extracted_v1, skills_v1 = release("1.0.0", "managed version 1")
@@ -386,7 +328,7 @@ class ToolInstallerTests(unittest.TestCase):
             lock.mkdir(parents=True)
             output = io.StringIO()
             errors = io.StringIO()
-            arguments = [str(HELPER_PATH), "megin", str(root / "missing.zip"), str(root), "1.0.0", "github"]
+            arguments = [str(HELPER_PATH), "merge-reviewer", str(root / "missing.zip"), str(root), "1.0.0", "github"]
             with patch.object(sys, "argv", arguments):
                 with redirect_stdout(output), redirect_stderr(errors):
                     self.assertEqual(installer.main(), 1)
@@ -398,7 +340,7 @@ class ToolInstallerTests(unittest.TestCase):
             root = Path(temporary) / "Group Workspace"
             root.mkdir()
             lock = root / ".gitlab-workspace/.tool-installs.lock"
-            arguments = [str(HELPER_PATH), "megin", str(root / "release.zip"), str(root), "1.0.0", "github"]
+            arguments = [str(HELPER_PATH), "merge-reviewer", str(root / "release.zip"), str(root), "1.0.0", "github"]
             original_stat = None
             replaced = False
             real_lstat = installer.os.lstat
@@ -429,7 +371,7 @@ class ToolInstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "Group Workspace"
             root.mkdir()
-            arguments = [str(HELPER_PATH), "megin", str(root / "missing.zip"), str(root), "1.0.0", "github"]
+            arguments = [str(HELPER_PATH), "merge-reviewer", str(root / "missing.zip"), str(root), "1.0.0", "github"]
             with patch.object(sys, "argv", arguments), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(installer.main(), 1)
             self.assertFalse((root / ".gitlab-workspace/.tool-installs.lock").exists())

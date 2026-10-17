@@ -58,13 +58,6 @@ RELEASES = (
         "codebase-llm-wiki-codex-0.3.0",
     ),
     ReleaseSource(
-        "megin",
-        "Megin",
-        "0.3.0",
-        "megin-skills.zip",
-        "6c387cfc10c2c8423dadec0b2f54d686f9b56c2b7922bdaafaf5bf55ab2f6fb5",
-    ),
-    ReleaseSource(
         "merge-reviewer",
         "MergeReviewer",
         "0.6.0",

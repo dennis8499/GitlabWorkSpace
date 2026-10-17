@@ -53,3 +53,9 @@ python -X utf8 -B GitlabWorkSpace/scripts/release.py resume <run-id>
 python -X utf8 -B GitlabWorkSpace/test/release/release_manager_test.py -v
 python -X utf8 -B GitlabWorkSpace/scripts/test_release_ci.py -v
 ```
+
+## Workspace 與獨立工具的依賴
+
+Megin 仍可獨立發版；Workspace 僅依賴 Wiki、MergeReviewer 與 ReleaseReviewer。
+單獨的 Megin 變更不選取 Workspace，也不把 Megin 附件加入其來源封包。新版拒絕
+仍將 Megin 列為 Workspace 上游的舊發版計畫，請保留原紀錄並重新產生計畫。

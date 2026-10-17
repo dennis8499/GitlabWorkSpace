@@ -31,26 +31,20 @@ PINNED_SOURCES = ({'id': 'codebase-wiki',
   'asset': 'codebase-llm-wiki-codex.zip',
   'filename': 'codebase-llm-wiki-codex-0.6.2.zip',
   'version': '0.6.2',
-  'sha256': 'f91be4557fb67084e246168428a98e9372d9b1b78c4e6db85bd5ead7360acf9b',
+  'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
   'root': 'codebase-llm-wiki-codex-0.6.2'},
- {'id': 'megin',
-  'repository': 'Megin',
-  'asset': 'megin-skills.zip',
-  'filename': 'megin-skills-0.8.2.zip',
-  'version': '0.8.2',
-  'sha256': '8cc53e59163016dc96526c6c8df115991d68fc920e57ad34572b8d5d1d3cd687'},
  {'id': 'merge-reviewer',
   'repository': 'MergeReviewer',
   'asset': 'merge-reviewer-0.14.0.zip',
   'filename': 'merge-reviewer-0.14.0.zip',
   'version': '0.14.0',
-  'sha256': '673f7644abea51e20c92eb3e202d67c62d4a7417ef9f7c4d0bde30c14fcd2c2b'},
+  'sha256': '12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
   'asset': 'release-reviewer-0.4.1.zip',
   'filename': 'release-reviewer-0.4.1.zip',
   'version': '0.4.1',
-  'sha256': '5411cf3ef0500328ed830bf353ac06435f37139082de8b621c56fd62359fb633'})
+  'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39'})
 
 
 def digest(data: bytes) -> str:
@@ -61,7 +55,6 @@ def source_summary(upstream: dict[str, dict[str, str]]) -> list[str]:
     """Keep human-readable source notes bound to the same pins as the payload."""
     return [
         f"Native Codebase LLM Wiki {upstream['codebase-wiki']['version']} is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-        f"Native Megin {upstream['megin']['version']} supplies thirteen Skills, Group v6 cross-Repo impact evidence and Repo v3 workflow; no Workspace Megin overlay, GitLab delivery or simulation routing is applied.",
         f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete refs; the technical appendix is omitted while full validation is retained. No Workspace overlay or MR-specific report adapter is applied.",
         f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay."
     ]
@@ -296,7 +289,6 @@ def build() -> dict[str, object]:
     snapshots = json.loads(source_checker.SNAPSHOTS.read_text(encoding='utf-8'))['sources']
     files: dict[str, bytes] = {}
     upstream: dict[str, dict[str, str]] = {}
-    megin_skill_names: set[str] = set()
     for source in PINNED_SOURCES:
         archive_path = SOURCES / source["filename"]
         selected, all_entries = checked_zip(archive_path, source["sha256"])
@@ -315,21 +307,6 @@ def build() -> dict[str, object]:
                 files[f"payload/.agents/skills/codebase-wiki/{name}"] = data
             for name, data in selected.items():
                 files[f"framework/{name}"] = data
-        elif source["id"] == "megin":
-            for name, data in selected.items():
-                part = PurePosixPath(name)
-                if len(part.parts) < 2 or not part.parts[0].startswith("megin"):
-                    continue
-                skill = part.parts[0]
-                if skill in ("megin-skills",) or "/" in skill:
-                    continue
-                if part.parts[-1] == "SKILL.md":
-                    megin_skill_names.add(skill)
-                files[f"payload/.agents/skills/{name}"] = data
-            if len(megin_skill_names) != 13 or "megin-architecture-exploration" not in megin_skill_names:
-                raise ValueError(f"Megin Release 必須包含十三個完整 Skills（含架構探索），目前找到 {len(megin_skill_names)} 個。")
-            if any(f"payload/.agents/skills/{name}/SKILL.md" not in files for name in megin_skill_names):
-                raise ValueError("Megin Release 含有不完整的 Skill。")
         else:
             prefix = source["id"] + "/"
             skill_files = {name[len(prefix):]: data for name, data in selected.items() if name.startswith(prefix)}
@@ -371,9 +348,9 @@ def build() -> dict[str, object]:
             raise ValueError(f"GitLab Workspace profile file is missing: {name}")
         files[f"payload/.agents/gitlab-workspace-kit/{name}"] = source_path.read_bytes()
 
-    skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *megin_skill_names, *KIT_SKILLS})
-    if len(skill_names) != 17:
-        raise ValueError(f"Expected seventeen Skills, found {len(skill_names)}.")
+    skill_names = sorted({"codebase-wiki", "merge-reviewer", "release-reviewer", *KIT_SKILLS})
+    if len(skill_names) != 4:
+        raise ValueError(f"Expected four Skills, found {len(skill_names)}.")
     total = sum(len(value) for value in files.values())
     if len(files) > MAX_FILES or total > MAX_EXPANDED_BYTES:
         raise ValueError("組合包解壓容量超過限制。")
@@ -392,11 +369,8 @@ def build() -> dict[str, object]:
             "knowledgeRoot": "wiki/",
             "specialRules": {
                 "sourceReferences": "Repo/path",
-                "analysisIssueFlow": "draft-ready-scn-manual-issue",
-                "developmentDelivery": "native-megin-formal-workflow",
                 "mergeRequestReview": "branch-review-handoff-manual-comment",
                 "releaseReview": "entry-branches-group-chain-local-defaults-v3-single-workspace-report",
-                "wikiFeedback": "manual-after-all-local-repo-commits"
             },
             "files": {name: digest(files[f"payload/.agents/gitlab-workspace-kit/{name}"]) for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")}
         },
@@ -406,9 +380,9 @@ def build() -> dict[str, object]:
     manifest["payloadSha256"] = digest(json.dumps(
         manifest["files"], ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8"))
-    capabilities = sorted(["megin-spec-export", "functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
+    capabilities = sorted(["functional-exploration", "ingest", "query", "lint", "audit", "adr", "synthesis",
                            "business-analysis", "system-analysis", "system-design", "notebooklm-export", "archaeology",
-                           "megin-workflow", "megin-resume", "merge-repo", "release-review"])
+                           "merge-repo", "release-review"])
     native_hashes = {name: digest(data) for name, data in sorted(native_payload.items())}
     manifest["capabilities"] = capabilities
     manifest["wikiInstalledVersionSha256"] = digest(files["framework/VERSION"])
@@ -508,7 +482,7 @@ if __name__ == "__main__":
         import argparse
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument('--validate-local-sources', action='store_true',
-                            help='Require pinned Megin/MergeReviewer archives to equal the sibling source trees.')
+                            help='Require pinned source archives to equal the sibling source trees.')
         args = parser.parse_args()
         if args.validate_local_sources:
             validate_local_sources()

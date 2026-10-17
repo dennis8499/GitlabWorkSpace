@@ -35,20 +35,11 @@ export interface WikiGuideContext {
   repositoryScanError?: string;
 }
 
-export const DEFAULT_WIKI_GUIDE_CARD_ID = 'megin-spec-export';
+export const DEFAULT_WIKI_GUIDE_CARD_ID = 'query';
 
 const field = (id: string, label: string, options: Partial<Omit<WikiGuideField, 'id' | 'label'>> = {}): WikiGuideField => ({ id, label, ...options });
 
 export const wikiGuideCards: readonly WikiGuideCard[] = [
-  {
-    id: 'megin-spec-export', title: 'Export Megin Spec',
-    description: '從新需求或既有規格接續釐清，產生可交給另一環境的 Megin 開發的單檔規格。',
-    output: 'exports/megin/<scope>-r<spec_revision>.md 單一交付檔。',
-    behavior: '查證來源、逐題釐清必要決策、整理規格並完成自足性複查後匯出；未回答保持 draft，失敗保留既有交付。',
-    fields: [field('feature', '功能名稱', { required: true }),
-      field('requirement', '需求敘述', { required: true, kind: 'textarea', rows: 4 }),
-      field('existingSpec', '既有規格路徑（選填）', { placeholder: 'wiki/synthesis/refund-development-spec.md；填寫後名稱與需求可留空' })]
-  },
   {
     id: 'install', title: '安裝／設定',
     description: '透過 GitLab Workspace 一次管理所有工作 Skills 與 Group 規則。',
@@ -152,23 +143,14 @@ export function createDefaultWikiGuideInputs(): WikiGuideInputValues {
     .map((item) => [`${card.id}.${item.id}`, item.defaultValue])));
 }
 
-/** Keep both old drafts, but only bring the previously selected task into the unified form. */
-export function migrateWikiGuideInputs(inputs: WikiGuideInputValues, selection?: string): WikiGuideInputValues {
-  const prefix = 'megin-spec-export.';
-  const hasUnifiedFields = ['feature', 'requirement', 'existingSpec'].some(id => inputs[prefix + id] !== undefined);
-  if (hasUnifiedFields && selection !== 'development-spec') return { ...inputs };
-  const development = selection === 'development-spec'
-    || selection !== 'megin-spec-export' && !inputs[prefix + 'spec']?.trim();
-  return { ...inputs,
-    [prefix + 'feature']: inputs[prefix + 'feature'] ?? (development ? inputs['development-spec.scope'] ?? '' : ''),
-    [prefix + 'requirement']: inputs[prefix + 'requirement'] ?? (development ? inputs['development-spec.requirement'] ?? '' : ''),
-    [prefix + 'existingSpec']: inputs[prefix + 'existingSpec'] ?? (development ? '' : inputs[prefix + 'spec'] ?? '') };
+/** Restore supported inputs without reactivating retired development tasks. */
+
+export function migrateWikiGuideInputs(inputs: WikiGuideInputValues): WikiGuideInputValues {
+  return Object.fromEntries(Object.entries(inputs).filter(([key]) => !/^(?:megin-[^.]+|development-spec)\./.test(key)));
 }
 
 export function getWikiGuideFields(card: WikiGuideCard, inputs: WikiGuideInputValues): readonly WikiGuideField[] {
-  return card.id === 'megin-spec-export' && migrateWikiGuideInputs(inputs)['megin-spec-export.existingSpec']?.trim()
-    ? card.fields.map(item => item.id === 'feature' || item.id === 'requirement' ? { ...item, required: false } : item)
-    : card.fields;
+  return card.fields;
 }
 
 function inputValue(card: WikiGuideCard, fieldId: string, inputs: WikiGuideInputValues): string {
@@ -214,9 +196,9 @@ export function buildWikiGuidePrompt(cardId: string, inputs: WikiGuideInputValue
 }
 
 function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, context?: WikiGuideContext): string {
-  const card = wikiGuideCards.find((candidate) => candidate.id === (cardId === 'development-spec' ? DEFAULT_WIKI_GUIDE_CARD_ID : cardId));
+  const card = wikiGuideCards.find((candidate) => candidate.id === cardId);
   if (!card) throw new Error(`未知的 Codebase LLM Wiki 功能：${cardId}`);
-  inputs = migrateWikiGuideInputs(inputs, cardId === 'development-spec' ? cardId : undefined);
+  inputs = migrateWikiGuideInputs(inputs);
 
   switch (card.id) {
     case 'install':
@@ -229,7 +211,7 @@ function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, 
         '請使用 $codebase-wiki 對全部專案執行 Batch Ingest，建立或更新 Wiki。先以 ingest-coverage.py inventory 與共用 scanner 建立安全來源快照，涵蓋程式、設定、schema、文件、測試、CI／部署與工具，以及未追蹤、ignored 與巢狀 Repo 的安全來源。',
         context?.profile === 'repository' ? `只涵蓋目前所選 Repo：${JSON.stringify(context.root)}。`
           : 'Group 模式涵蓋全部合法直屬本機 Git Repo，包含尚未對應 GitLab 的 Repo；使用 --scope group。',
-        '保存 wiki/ingest-coverage.json 的逐檔 hash、處置及 Wiki 頁面或不需成頁理由。以相同 scope 重新 validate，漏檔、受阻或來源漂移只能回報部分完成。保留人工 notes，更新來源、索引與一筆 ingest 日誌，排除 exports/megin/ 交付產物。'
+        '保存 wiki/ingest-coverage.json 的逐檔 hash、處置及 Wiki 頁面或不需成頁理由。以相同 scope 重新 validate，漏檔、受阻或來源漂移只能回報部分完成。保留人工 notes，更新來源、索引與一筆 ingest 日誌。'
       ].join('\n\n');
       return inputValue(card, 'mode', inputs) === '批次'
         ? `請使用 $codebase-wiki，依照 Batch Ingest 流程掃描「${promptValue(card, 'path', inputs)}」，建立或更新 Wiki，最後同步 wiki/index.md 與 wiki/log.md。先閱讀來源並以實際檔案證據支持內容。`
@@ -260,26 +242,6 @@ function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, 
       return `請使用 $codebase-wiki 建立一份 ADR，決策標題為「${promptValue(card, 'title', inputs)}」。依現有決策紀錄格式寫入 wiki/decisions/，說明背景、決策及其後果，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'synthesis':
       return `請使用 $codebase-wiki 將主題「${promptValue(card, 'topic', inputs)}」整理成持續維護的 Synthesis 頁面，寫入 wiki/synthesis/。以目前 Wiki 和可查證來源為依據，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
-    case 'megin-spec-export': {
-      const existing = inputValue(card, 'existingSpec', inputs).trim();
-      const legacyScope = existing === inputs['megin-spec-export.spec'] ? inputs['megin-spec-export.scope']?.trim() : undefined;
-      return [
-        '請使用 $codebase-wiki，依 GitlabWorkSpace 的 megin-spec-export 完成 Export Megin Spec；先閱讀 .agents/gitlab-workspace-kit/references/megin-spec-export.md。',
-        `使用目前所選 ${context?.profile === 'repository' ? 'Repo' : 'Group'} Skills root；上方本機路徑只供產生端定位來源，不是交付文件的依賴。`,
-        existing ? `既有規格：${JSON.stringify(existing)}。從該文件接續釐清、更新及匯出，不另建無關規格。`
-          : '本次從新需求開始，先依 development_spec 流程建立 Wiki 規格。',
-        `功能名稱：${JSON.stringify(inputValue(card, 'feature', inputs).trim() || (existing ? '沿用既有規格名稱' : '〔請填寫功能名稱〕'))}`,
-        `需求敘述：\n${inputValue(card, 'requirement', inputs).trim() || (existing ? '沿用既有規格需求，先回查來源確認現況。' : '〔請填寫需求敘述〕')}`,
-        '先唯讀查證來源，逐題詢問影響範圍、行為、權限、相依契約與驗收的必要決策；未回答保持 draft，不得猜測。既有 draft 或過時規格也先完成相同釐清與更新流程。',
-        '依五段模板整理目的與範圍、適用 Repo、功能行為與限制、相依契約與確認決策、SCN Given／When／Then 驗收情境。所有實作必要背景、既有行為、權限、欄位／回應契約、例外與邊界結果都寫進正文，將「沿用現有規則」補成具體內容。',
-        '接手的 Megin 有同一系統的程式碼，但可能沒有原 Wiki、附件或電腦路徑。Repo 以邏輯名稱與職責識別；交付檔不依賴 Wiki、BA／SA／SD、附件或外部連結才能理解必要需求，來源證據保留於產生端。',
-        '以只拿到這份文件的接手視角，確認能列出實作任務與每個 SCN 的預期結果；完成正文與 spec_revision 綁定的 Agent 自足性複查才可 ready。腳本通過不取代語意複查。',
-        legacyScope && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(legacyScope) ? `沿用既有交付代號：${JSON.stringify(legacyScope)}。`
-          : '交付代號沿用既有規格檔名的代號；新規格則由功能名稱整理為可攜的小寫 kebab-case。',
-        'ready 且來源新鮮度與複查通過後，以 export-megin-spec.py 先檢查，再帶 --apply --expected-sha256 匯出 exports/megin/<scope>-r<spec_revision>.md，不重複確認匯出。不通過時保留既有輸出；實質變更須增加 spec_revision 並重新複查。',
-        '不要求先產生 BA／SA／SD，不自動啟動 Megin，不建立 Issue。生成或更新規格時同步 Wiki index 與追加式 log，最後提供單檔交付連結及尚未解決的問題。'
-      ].join('\n\n');
-    }
     case 'business-analysis':
       return `請使用 $codebase-wiki，以目前 Wiki 與可查證來源產出「${promptValue(card, 'scope', inputs)}」的標準 BA 業務分析文件；依 Business Analysis 標準建立功能涵蓋、BA IDs 與 gaps，保留人工 notes，寫入 wiki/synthesis/，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'system-analysis':

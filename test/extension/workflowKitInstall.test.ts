@@ -101,9 +101,7 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.match(await readFile(path.join(root, '.agents/skills/megin/SKILL.md'), 'utf8'), /Megin/);
-      assert.ok((await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('repo_workspace.py'));
-      assert.ok(!(await readdir(path.join(root, '.agents/skills/megin/scripts'))).includes('group_workspace.py'));
+      assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']);
       const skills = host.getSkillsContext();
       assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
       for (const profile of ['group', 'repository']) {

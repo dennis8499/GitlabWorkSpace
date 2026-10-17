@@ -26,7 +26,7 @@ function panel(client: Harness): Harness {
   });
 }
 
-suite('Group delivery and version-bound report controller', () => {
+suite('Version-bound MR report controller', () => {
   test('manual comments recheck the current MR head and reconcile a lost response', async () => {
     const notes: Array<{ body: string }> = []; let writes = 0;
     const view = panel({ getMergeRequest: async () => request, listMergeRequestDiscussions: async () => notes.length ? [{ notes }] : [],
@@ -40,46 +40,5 @@ suite('Group delivery and version-bound report controller', () => {
     assert.equal(typeof view.openGroupQuickReview, 'undefined');
   });
 
-  test('recovers an already pushed immutable commit before invoking Git or requesting credentials', async () => {
-    const client = { getProject: async () => ({ id: 10 }), getRepositoryBranch: async () => ({ commit: { id: sourceSha } }) };
-    const view = panel(client);
-    let verified = 0, saved: Harness | undefined;
-    view.requireDelivery = () => ({ id: 'delivery', state: 'committed', projectId: 10, branch: 'feature', headSha: sourceSha });
-    view.verifyDeliveredCommit = async () => { verified++; };
-    view.saveDelivery = async (value: Harness) => { saved = value; };
-    view.session.getCloneCredentials = async () => { throw new Error('must not push again'); };
-    await view.pushDelivery('delivery');
-    assert.equal(verified, 1);
-    assert.equal(saved?.state, 'pushed');
-    assert.equal(saved?.headSha, sourceSha);
-    client.getRepositoryBranch = async () => ({ commit: { id: targetSha } });
-    await assert.rejects(view.pushDelivery('delivery'), /不同版本/);
-  });
 
-  test('reconciles an uncertain multi-Repo MR response using the original Issue project', async () => {
-    let created: Harness | undefined, writes = 0, issueProject = 0, saved: Harness | undefined;
-    const client = {
-      getIssue: async (projectId: number) => { issueProject = projectId; return { iid: 4, web_url: 'https://gitlab.example.invalid/group/issue/-/issues/4' }; },
-      getProject: async () => ({ id: 10, path_with_namespace: 'group/repo' }),
-      findOpenMergeRequestsBySourceBranch: async () => created ? [created] : [],
-      getRepositoryBranch: async () => ({ commit: { id: sourceSha } }),
-      createMergeRequest: async (_id: number, input: Harness) => {
-        writes++; assert.match(input.description, /group\/issue\/-\/issues\/4/);
-        created = { project_id: 10, source_branch: 'feature', target_branch: 'main', state: 'opened',
-          diff_refs: { head_sha: sourceSha }, web_url: 'https://gitlab.example.invalid/group/repo/-/merge_requests/5' };
-        throw new Error('response lost');
-      }
-    };
-    const view = panel(client);
-    view.requireDelivery = () => ({ id: 'delivery', state: 'pushed', projectId: 10, issueProjectId: 30, issueIid: 4,
-      branch: 'feature', targetBranch: 'main', headSha: sourceSha, reviewerIds: [], summary: 'Change',
-      workId: 'work-20261002-example', acceptanceVersion: 'acceptance-v1', changes: 'Change', tests: 'passed' });
-    view.verifyDeliveredCommit = async () => undefined;
-    view.saveDelivery = async (value: Harness) => { saved = value; };
-    await view.createDeliveryMergeRequest('delivery');
-    await view.createDeliveryMergeRequest('delivery');
-    assert.equal(issueProject, 30);
-    assert.equal(writes, 1);
-    assert.equal(saved?.state, 'mr-created');
-  });
 });

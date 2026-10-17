@@ -7,7 +7,7 @@ import type {
   AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
-import type { DeliveryFormState, TimeEdit } from './issue-workflow';
+import type { TimeEdit } from './issue-workflow';
 import { IssueGraphView } from './IssueGraph';
 import type { GraphCamera, GraphPosition } from './IssueGraph';
 import { applyIssueGraphPatch, issueGraphNodeKey, selectIssueGraph } from '../workspace/issueGraph';
@@ -73,7 +73,6 @@ interface SavedState {
   selectedWorkflowKitPackageId?: string;
   /** Read older saved webview state without discarding it. */
   toolSource?: ToolSource;
-  deliveryForms: Record<string, DeliveryFormState>;
   /** Kept only to migrate older unscoped drafts. */
   manualTime?: ManualTimeDraft;
   manualTimes?: Record<string, ManualTimeDraft>;
@@ -113,7 +112,6 @@ interface ScopedSavedState {
   draftChecked: Record<string, boolean>;
   draftChoices: Record<string, DraftChoice>;
   reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>;
-  deliveryForms: Record<string, DeliveryFormState>;
   /** Legacy v1/v2 field: its Issue could not be identified. */
   manualTime?: ManualTimeDraft;
   manualTimes?: Record<string, ManualTimeDraft>;
@@ -141,12 +139,12 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
 ];
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
-  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'bundled', deliveryForms: {}, manualTimes: {}, timeEdits: {}
+  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'bundled', manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
   filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueBoardId: 'all',
   issueDetailSearch: '', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements',
-  requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {}, deliveryForms: {},
+  requirement: '', importText: '', draftChecked: {}, draftChoices: {}, reports: {},
   manualTimes: {}, timeEdits: {}
 });
 
@@ -292,7 +290,6 @@ function App() {
   const drawerReturnFocus = useRef<HTMLElement>();
   const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'bundled');
   const [selectedWorkflowKitPackageId, setSelectedWorkflowKitPackageId] = useState<string>(initial?.selectedWorkflowKitPackageId ?? '');
-  const [deliveryForms, setDeliveryForms] = useState<Record<string, DeliveryFormState>>(initial?.deliveryForms ?? {});
   const initialScopeState = initialScopedState;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
   const [manualTimes, setManualTimes] = useState<Record<string, ManualTimeDraft>>(initialManualTimeState.manualTimes);
@@ -350,7 +347,7 @@ function App() {
   const scopedState: ScopedSavedState = {
     filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter,
     reviewFilter, analysisIntent: intent, requirement, importText, importedBundle: bundle, draftChecked, draftChoices, reports,
-    deliveryForms, manualTimes, recoveredManualTime, timeEdits
+    manualTimes, recoveredManualTime, timeEdits
   };
   const currentScopeStateRef = useRef(scopedState);
   currentScopeStateRef.current = scopedState;
@@ -477,7 +474,7 @@ function App() {
           setIssueMilestoneFilter(value.issueMilestoneFilter ?? 'all');
           setReviewFilter(value.reviewFilter); setIntent(value.analysisIntent); setRequirement(value.requirement);
           setImportText(value.importText); setBundle(value.importedBundle); setDraftChecked(value.draftChecked);
-          setDraftChoices(value.draftChoices); setReports(value.reports); setDeliveryForms(value.deliveryForms);
+          setDraftChoices(value.draftChoices); setReports(value.reports);
           const manualTimeState = restoreManualTimeState(value);
           setManualTimes(manualTimeState.manualTimes);
           setRecoveredManualTime(manualTimeState.recoveredManualTime);
@@ -578,8 +575,6 @@ function App() {
         setDraftOptions((current) => ({ ...current, [message.projectId]: { options: message.options, canCreateIssue: message.canCreateIssue } }));
       } else if (message.type === 'similarIssues') {
         setSimilarIssues(Object.fromEntries(message.items.map((item) => [item.draftId, item.issues])));
-      } else if (message.type === 'deliveryPreview' || message.type === 'deliveryProgress') {
-        setSnapshot((current) => current ? { ...current, deliveryRecords: [message.delivery, ...current.deliveryRecords.filter((item) => item.id !== message.delivery.id)] } : current);
       } else if (message.type === 'draftResults') {
         const first = message.results.find((item) => item.issueIid && item.state !== 'failed');
         const project = first && projectsRef.current.find((item) => item.path_with_namespace === first.projectPath);
@@ -653,10 +648,10 @@ function App() {
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
-      selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
+      selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, deliveryForms, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
+  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -878,12 +873,6 @@ function App() {
     if (!snapshot?.groupRoot) { notify(snapshot?.workspaceRootError ?? '請在 VSCode 開啟此 GitLab Group 的本機資料夾，再開啟 Codex CLI。', 'warn'); return; }
     post({ type: 'openBranchReview', projectId: mr.project_id, iid: mr.iid });
   }
-  function updateDelivery(key: string, patch: Partial<DeliveryFormState>, project?: GitLabProject): void {
-    setDeliveryForms((current) => {
-      const previous = current[key] ?? { workId: '', summary: '', changes: '', tests: '', targetBranch: project?.default_branch ?? 'main', reviewerIds: [] };
-      return { ...current, [key]: { ...previous, ...patch } };
-    });
-  }
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
   const blockingWork = blockingWrite || (!snapshot.operationSnapshot && !!snapshot.busy);
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
@@ -923,7 +912,7 @@ function App() {
             const scope = snapshot.instanceUserScope;
             if (scope) updateIssueDrafts(scope, state);
           }} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
-            onOpenSettings={() => setToolDrawer(true)} deliveryForms={deliveryForms} onDeliveryUpdate={(key, patch, project) => updateDelivery(key, patch, project)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
+            onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="git-mode-host" hidden={mode !== 'git'}>
@@ -971,10 +960,10 @@ function App() {
               repositories={snapshot.skillsContext?.repositories ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : [])}
               repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
               repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
-              kitInstalled={snapshot.workflowKit.status === 'installed' || snapshot.workflowKit.status === 'work-in-progress'} state={skillsGuide} onChange={updateSkillsGuide}
+              kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuide}
               onOpenCodex={() => snapshot.skillsContext && post({ type: 'openCodexTerminal', revision: snapshot.skillsContext.revision })}
               onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}
-              onNavigate={modeChange} onOpenSettings={() => setToolDrawer(true)} />
+              onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
               <div class="toolbar developer-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Issue" placeholder="搜尋 Issue、Repo 或標籤…" value={filters.developer ?? ''} onInput={(event) => setFilter('developer', event.currentTarget.value)} /></label>
                 <div class="developer-view-switch" role="group" aria-label="我的工作顯示方式"><button type="button" class={developerView === 'list' ? 'active' : ''} aria-pressed={developerView === 'list'} onClick={() => setDeveloperView('list')}>清單</button><button type="button" class={developerView === 'graph' ? 'active' : ''} aria-pressed={developerView === 'graph'} onClick={() => setDeveloperView('graph')}>圖譜</button></div>
@@ -1149,7 +1138,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
   onSelectProjectRoot: () => void; onResetProjectRoot: () => void;
   onSelectGroup: () => void; onConnect: () => void; onOpenAdmin: () => void; onClose: () => void;
 }) {
-  const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'work-in-progress': '工作進行中', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
+  const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
   const drawerRef = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const closeHandler = useRef(onClose);
@@ -1198,7 +1187,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>工作流程組合包</h3>
     <label class="field">套件來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
-    <p class="source-lines">依專案目錄自動提供適用流程，包含 Codebase LLM Wiki、Megin、MergeReviewer、ReleaseReviewer。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
+    <p class="source-lines">依專案目錄自動提供適用流程，包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
     <p class="subtle">下載及匯入可免登入；套件安裝於上方設定的共用專案根目錄。</p>
     {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
     {(() => {
@@ -1221,7 +1210,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
         <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
         {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與{selected?.skillCount ? ` ${selected.skillCount} 個 Skills` : '套件 Skills'}。</p>}
         {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
-        <button class="primary workflow-kit-install-button" type="button" disabled={!policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'work-in-progress', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
+        <button class="primary workflow-kit-install-button" type="button" disabled={!policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
       </section>;
     })()}
     </section>
