@@ -1,0 +1,22 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/workflow_kit_profiles_test.py"]
+test_additional_frozen_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_additional_frozen_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_conversion_failure_restores_original_profile_and_rejects_tampering (__main__.ProfileTests.test_conversion_failure_restores_original_profile_and_rejects_tampering) ... ok
+test_explicit_profile_conversion_and_rollback_keep_personal_content (__main__.ProfileTests.test_explicit_profile_conversion_and_rollback_keep_personal_content) ... ok
+test_frozen_018_work_keeps_original_package_then_upgrades_and_rolls_back (__main__.ProfileTests.test_frozen_018_work_keeps_original_package_then_upgrades_and_rolls_back) ... ok
+test_frozen_023_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_023_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_frozen_0241_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_0241_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_frozen_0242_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_0242_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_frozen_0243_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_0243_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_frozen_024_profiles_upgrade_and_rollback_preserve_original_bytes (__main__.ProfileTests.test_frozen_024_profiles_upgrade_and_rollback_preserve_original_bytes) ... ok
+test_native_imported_zip_installs_in_a_worktree_and_rolls_back (__main__.ProfileTests.test_native_imported_zip_installs_in_a_worktree_and_rolls_back) ... ok
+test_native_payload_is_fixed_upstream_and_has_its_own_capabilities (__main__.ProfileTests.test_native_payload_is_fixed_upstream_and_has_its_own_capabilities) ... ok
+test_native_work_requires_verified_contract_fingerprint_and_blocks_conversion (__main__.ProfileTests.test_native_work_requires_verified_contract_fingerprint_and_blocks_conversion) ... ok
+test_true_016_legacy_record_without_profile_upgrades_to_native_and_rolls_back (__main__.ProfileTests.test_true_016_legacy_record_without_profile_upgrades_to_native_and_rolls_back) ... ok
+test_true_017_profiles_upgrade_and_restore_original_fingerprints (__main__.ProfileTests.test_true_017_profiles_upgrade_and_restore_original_fingerprints) ... ok
+test_unreviewed_old_payload_is_rejected_without_replacing_project_files (__main__.ProfileTests.test_unreviewed_old_payload_is_rejected_without_replacing_project_files) ... ok
+test_wiki_defaults_preserve_project_settings_and_other_hooks (__main__.ProfileTests.test_wiki_defaults_preserve_project_settings_and_other_hooks) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 432.199s
+
+OK

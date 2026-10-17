@@ -15,6 +15,9 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, inde
 }, []));
 if (!args.artifact || !args.label || !args.output) throw new Error('Usage: node scripts/validate-packaged-ui.mjs --artifact <VSIX> --label baseline|revision --output <directory> [--baseline <JSON>] [--browser <Chrome executable>]');
 if (!['baseline', 'revision'].includes(args.label)) throw new Error('label must be baseline or revision');
+const feedbackSamples = Number(args['feedback-samples'] ?? 100);
+if (!Number.isSafeInteger(feedbackSamples) || feedbackSamples < 1 || feedbackSamples > 10000) throw new Error('feedback-samples must be a positive integer no greater than 10000');
+if (args['feedback-only'] !== 'true' && (feedbackSamples < 100 || args['feedback-actions'])) throw new Error('Formal runs require every feedback action and at least 100 samples; use --feedback-only true for diagnostics');
 const artifactPath = path.resolve(args.artifact), output = path.resolve(args.output);
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const percentile = (values, fraction = .95) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
@@ -23,10 +26,15 @@ const expectedAssets = ['issue-webview/dashboard.html', 'issue-webview/dashboard
   'sidebar-webview/sidebar.html', 'sidebar-webview/sidebar.js', 'sidebar-webview/sidebar.css'];
 const actions = { clone: 'openProjects', sa: 'openAnalysis', reviewer: 'openReviewer', git: 'openGit', developer: 'openMyWork' };
 const measurement = { rounds: 10, samplesPerRound: 30, repoCount: 20, dashboardWidth: 1440, sidebarWidth: 300, height: 900,
-  latency: 'UI postMessage/input capture to matching rendered DOM followed by two requestAnimationFrame callbacks; excludes Playwright input delivery',
+  methodVersion: 'browser-capture-readiness/v2',
+  latency: 'Browser-owned readiness observer starts at UI postMessage/input capture; matching rendered DOM followed by two requestAnimationFrame callbacks; driver evaluation only awaits the existing completion promise; excludes Playwright input delivery',
+  readiness: 'Navigation matches actual page data-mode; search matches input value and visible repository identities. Five-second timeout; observers and pending animation frames are cleaned up on completion, timeout or supersession.',
   memory: 'Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews',
   scope: 'VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex',
-  comparisonLimitPercent: 10 };
+  comparisonLimitPercent: 10,
+  firstFeedback: { samplesPerAction: feedbackSamples, limitP95Ms: 100, mockAcknowledgementDelayMs: 160, mockCompletionDelayMs: 220,
+    timing: 'DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery',
+    completion: 'Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance.' } };
 
 function createFixture() {
   const group = { id: 1, name: 'Fixture', full_path: 'fixture/team', web_url: 'https://gitlab.invalid/groups/fixture/team' };
@@ -37,11 +45,11 @@ function createFixture() {
   });
   const repositories = projects.map(project => ({ id: `repo-${project.id}`, name: project.name, path: `C:/fixture/team/${project.name}`,
     revision: 1, branch: 'main', tracking: 'origin/main', headCommit: 'a'.repeat(40), ahead: 0, behind: 0,
-    stagedCount: 0, unstagedCount: 0, conflictCount: 0,
+    stagedCount: 0, unstagedCount: 1, conflictCount: 0,
     branches: [{ name: 'main', kind: 'local', current: true, commit: 'a'.repeat(40) },
       { name: 'feature/sample', kind: 'local', current: false, commit: 'b'.repeat(40) },
       { name: 'origin/main', kind: 'remote', current: false, commit: 'a'.repeat(40) }],
-    stashes: [], recoveryRefs: [], remotes: ['origin'], changes: [], historyHasMore: false,
+    stashes: [], recoveryRefs: [], remotes: ['origin'], changes: [{ path: 'src/fixture.ts', section: 'unstaged', kind: '修改' }], historyHasMore: false,
     history: Array.from({ length: 10 }, (_, index) => ({ hash: (index + 10).toString(16).padStart(40, '0'),
       parents: index === 9 ? [] : [(index + 11).toString(16).padStart(40, '0')], subject: `Fixture commit ${index + 1}`,
       author: 'Fixture User', date: '2026-10-13T00:00:00Z' })), configuredPullStrategy: 'merge' }));
@@ -59,7 +67,11 @@ function createFixture() {
     groupRepositories: matched, groupRepositoryScanStatus: 'ready', groupMilestones: [], groupIssueBoards: [],
     issues: projects.map(project => ({ id: 100 + project.id, iid: 1, project_id: project.id, title: `Review ${project.name}`, state: 'opened', labels: ['fixture'],
       description: 'Fixed, isolated UI fixture.', web_url: `${project.web_url}/-/issues/1`, assignees: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }] })),
-    mergeRequests: [], projectMembers: [], timers: [], timerVersion: 0, deliveryRecords: [], meginWorkItems: [],
+    mergeRequests: projects.map(project => ({ id: 200 + project.id, iid: 1, project_id: project.id, title: `Change ${project.name}`, state: 'opened',
+      source_branch: 'feature/sample', target_branch: 'main', sha: 'b'.repeat(40), author: { id: 7, name: 'Fixture User', username: 'fixture-user' },
+      reviewers: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }], assignees: [], web_url: `${project.web_url}/-/merge_requests/1` })),
+    projectMembers: [], timers: [], timerVersion: 0, deliveryRecords: [], meginWorkItems: [],
+    operationScope: 'fixture-operation-scope', scopeEpoch: 1,
     workflowKit: installed, workflowKitInstallTarget: { root: 'C:/fixture/team', profile: 'group', manual: false, state: installed },
     workflowKitPackages: [{ id: 'bundled-0.24.0', version: '0.24.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
     workflowKitSource: 'bundled', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
@@ -109,45 +121,172 @@ async function extractAssets(temp) {
 // only their packaged JS; this function substitutes the extension-side bridge.
 function installHost(data) {
   const { fixture, actions } = data;
-  const host = window.__host = { fixture, activeMode: 'developer', requests: [], stored: {}, navigation: undefined, search: undefined, unexpected: [] };
+  const host = window.__host = { fixture, activeMode: 'developer', requests: [], stored: {}, navigation: undefined, search: undefined, unexpected: [],
+    sessionId: 'packaged-ui-host', revision: 0, operations: new Map(), pendingTasks: new Set(), readiness: {}, acknowledgementDelayMs: 0, completionDelayMs: 0, completed: 0 };
   const frameWindow = name => document.getElementById(name)?.contentWindow;
   const send = (name, data) => frameWindow(name)?.dispatchEvent(new MessageEvent('message', { data }));
-  const sidebarState = () => ({ connected: true, groupLabel: fixture.snapshot.group.full_path, activeMode: host.activeMode,
-    gitAvailable: true, accounts: [], repositories: fixture.repositories, selectedRepositoryId: fixture.repositories[0].id });
-  host.publish = () => { send('dashboard', { type: 'snapshot', snapshot: { ...fixture.snapshot, activeMode: host.activeMode } }); send('sidebar', { type: 'state', state: sidebarState() }); };
-  host.navigate = mode => {
-    host.navigation = { mode, started: performance.now() }; host.activeMode = mode; host.publish();
+  const beginReadiness = (kind, expected, started) => {
+    host.readiness[kind]?.cancel?.();
+    const entry = { expected, started };
+    let resolve, reject, observer, timeout, firstFrame, secondFrame, settled = false;
+    entry.promise = new Promise((complete, fail) => { resolve = complete; reject = fail; });
+    // Some setup/first-feedback actions do not consume the warm timing. Keep
+    // their timeout observable to waitFor without creating an unhandled rejection.
+    void entry.promise.catch(() => {});
+    host.readiness[kind] = entry;
+    const cancelFrames = () => {
+      if (firstFrame !== undefined) cancelAnimationFrame(firstFrame);
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame);
+      firstFrame = secondFrame = undefined;
+    };
+    const finish = error => {
+      if (settled) return;
+      settled = true; observer?.disconnect(); observer = undefined;
+      clearTimeout(timeout); cancelFrames(); entry.cancel = undefined;
+      if (error) reject(error); else resolve(performance.now() - started);
+    };
+    entry.cancel = () => finish(new Error(`Superseded readiness sample for ${kind} ${expected}`));
+    const doc = frameWindow(kind === 'navigation' ? 'dashboard' : 'sidebar')?.document;
+    if (!doc) { finish(new Error(`Missing document for ${kind} ${expected}`)); return entry; }
+    const expectedRepositories = kind === 'search' ? fixture.repositories.filter(repo =>
+      `${repo.name} ${repo.path} ${repo.branch ?? ''}`.toLocaleLowerCase().includes(expected.trim().toLocaleLowerCase())) : undefined;
+    const matches = () => {
+      if (kind === 'navigation') return doc.querySelector('.page')?.dataset.mode === expected;
+      if (doc.querySelector('.repo-search input')?.value !== expected) return false;
+      const shown = [...doc.querySelectorAll('.repo-link')];
+      return shown.length === expectedRepositories.length && shown.every((element, index) => element.title === expectedRepositories[index].path);
+    };
+    const check = () => {
+      if (settled) return;
+      if (!matches()) { cancelFrames(); return; }
+      if (firstFrame !== undefined || secondFrame !== undefined) return;
+      firstFrame = requestAnimationFrame(() => {
+        firstFrame = undefined;
+        if (!matches()) { check(); return; }
+        secondFrame = requestAnimationFrame(() => {
+          secondFrame = undefined;
+          if (!matches()) { check(); return; }
+          finish();
+        });
+      });
+    };
+    observer = new MutationObserver(check);
+    observer.observe(doc, { subtree: true, childList: true, characterData: true, attributes: true,
+      attributeFilter: kind === 'navigation' ? ['data-mode'] : ['title'] });
+    timeout = setTimeout(() => finish(new Error(`Timed out awaiting ${kind} ${expected}`)), 5000);
+    check();
+    return entry;
   };
-  host.receive = (surface, message) => {
-    host.requests.push({ surface, type: message.type, action: message.action?.type ?? message.action });
-    if (message.type === 'ready') { host.publish(); return; }
+  host.captureSearch = (query, started = performance.now()) => {
+    host.search = { query, started }; beginReadiness('search', query, started);
+  };
+  const operationSnapshot = requestedIds => ({ sessionId: host.sessionId, revision: host.revision, operations: [...host.operations.values()],
+    ...(requestedIds ? { requestedIds, missingIds: requestedIds.filter(id => !host.operations.has(id)) } : {}) });
+  const sidebarState = () => ({ connected: true, groupLabel: fixture.snapshot.group.full_path, activeMode: host.activeMode,
+    gitAvailable: true, accounts: [], repositories: fixture.repositories, selectedRepositoryId: fixture.repositories[0].id,
+    operationScope: fixture.snapshot.operationScope, scopeEpoch: fixture.snapshot.scopeEpoch, operationSnapshot: operationSnapshot() });
+  host.publish = () => { send('dashboard', { type: 'snapshot', snapshot: { ...fixture.snapshot, activeMode: host.activeMode,
+    operations: [...host.operations.values()], operationSnapshot: operationSnapshot() } }); send('sidebar', { type: 'state', state: sidebarState() }); };
+  const publishOperation = operation => {
+    operation = { ...operation, hostSessionId: host.sessionId, revision: ++host.revision };
+    host.operations.set(operation.requestId, operation);
+    for (const surface of ['dashboard', 'sidebar']) send(surface, { type: 'operationChanged', operation });
+    const finished = [...host.operations.values()].filter(value => value.finishedAt !== undefined);
+    for (const entry of finished.slice(0, Math.max(0, finished.length - 30))) host.operations.delete(entry.requestId);
+  };
+  host.navigate = (mode, started = performance.now()) => {
+    const existing = host.readiness.navigation;
+    if (!existing || existing.expected !== mode || existing.started !== started) beginReadiness('navigation', mode, started);
+    host.navigation = { mode, started }; host.activeMode = mode; host.publish();
+  };
+  const perform = (surface, message, receivedAt) => {
     if (surface === 'sidebar' && message.type === 'perform') {
       const mode = Object.keys(actions).find(mode => actions[mode] === message.action);
-      if (mode) host.navigate(mode); else host.unexpected.push(message);
+      if (mode) host.navigate(mode, receivedAt);
+      else if (message.action === 'openWorkspace') host.navigate(host.activeMode, receivedAt);
+      else if (message.action === 'openRepository') host.navigate('git', receivedAt);
+      else if (message.action === 'manageAccounts' || message.action === 'addAccount') send('dashboard', { type: 'openAccountManager', intent: { id: `intent-${host.completed}`, startLogin: message.action === 'addAccount' } });
+      else if (message.action === 'openNotifications') send('dashboard', { type: 'openNotifications' });
+      else host.unexpected.push(message);
     } else if (surface === 'sidebar' && message.type === 'repositoryDetails') {
       const repository = fixture.repositories.find(repo => repo.id === message.repositoryId);
       send('sidebar', { type: 'repositoryDetails', repositoryId: message.repositoryId, requestId: message.requestId,
         details: { id: repository.id, revision: repository.revision, branches: repository.branches, stashes: repository.stashes, recoveryRefs: repository.recoveryRefs } });
-    } else if (message.type === 'setMode') host.navigate(message.mode);
-    else if (message.type === 'gitReady') send('dashboard', { type: 'gitRepositories', available: true, revision: 1, repositories: fixture.repositories });
+    } else if (message.type === 'setMode') host.navigate(message.mode, receivedAt);
+    else if (message.type === 'selectIssue') {
+      const issue = fixture.snapshot.issues.find(value => value.project_id === message.projectId && value.iid === message.issueIid);
+      fixture.snapshot.selectedIssue = { issue, project: fixture.snapshot.projects.find(project => project.id === message.projectId) };
+      fixture.snapshot.issuePreview = { status: 'ready', projectId: message.projectId, issueIid: message.issueIid };
+      host.publish();
+    } else if (message.type === 'selectMergeRequest' || message.type === 'refreshMergeRequest') {
+      const request = fixture.snapshot.mergeRequests.find(value => value.project_id === message.projectId && value.iid === message.iid);
+      fixture.snapshot.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } },
+        freshness: { state: 'current', sourceSha: 'b'.repeat(40), targetSha: 'a'.repeat(40), checkedAt: 1 }, sourceSha: 'b'.repeat(40), targetSha: 'a'.repeat(40) };
+      host.publish();
+    } else if (message.type === 'refresh' || message.type === 'refreshWorkflowKit') host.publish();
+    else if (message.type === 'submitAccountLogin') send('dashboard', { type: 'accountLoginResult', requestId: message.requestId, error: '固定測試：未連線外部 GitLab。' });
+    else if (message.type === 'openAccountManager' || message.type === 'addAccount') send('dashboard', { type: 'openAccountManager', intent: { id: `intent-${host.completed}`, startLogin: message.type === 'addAccount' } });
     else if (message.type === 'gitAction') {
       const repository = fixture.repositories.find(repo => repo.id === message.repoId) ?? fixture.repositories[0];
       send('dashboard', { type: 'gitSnapshot', requestId: message.requestId, snapshot: repository });
-      send('dashboard', { type: 'gitActionResult', requestId: message.requestId });
+      send('dashboard', { type: 'gitActionResult', requestId: message.requestId, write: !['open', 'refresh', 'readCommit', 'readDiff', 'history'].includes(message.action.type), effect: 'none' });
     }
   };
+  host.receive = (surface, message) => {
+    const receivedAt = performance.now();
+    const navigationMode = message.type === 'setMode' ? message.mode : surface === 'sidebar' && message.type === 'perform'
+      ? Object.keys(actions).find(mode => actions[mode] === message.action) ?? (message.action === 'openWorkspace' ? host.activeMode : message.action === 'openRepository' ? 'git' : undefined)
+      : undefined;
+    if (navigationMode) beginReadiness('navigation', navigationMode, receivedAt);
+    host.requests.push({ surface, type: message.type, action: message.action?.type ?? message.action, operationId: message.operationId });
+    if (message.type === 'ready') { host.publish(); send(surface, { type: 'operationsSnapshot', snapshot: operationSnapshot() }); return; }
+    if (message.type === 'reconcileOperations') { send(surface, { type: 'operationsSnapshot', snapshot: operationSnapshot(message.pendingIds) }); return; }
+    if (message.type === 'gitReady') { send('dashboard', { type: 'gitRepositories', available: true, revision: 1, repositories: fixture.repositories }); return; }
+    if (message.type === 'issueRequest' && message.request?.type === 'ready') return;
+    if (['gitAcknowledgeResult', 'setLogVisibility', 'setIssueGraphVisibility', 'cancelRepositoryDetails', 'markNotificationsRead', 'markAllNotificationsRead'].includes(message.type)) return;
+    if (message.type === 'setMode') { perform(surface, message, receivedAt); return; }
+    const action = message.type === 'perform' ? message.action : message.type;
+    const write = message.type === 'submitAccountLogin' || message.type === 'gitAction' && !['open', 'refresh', 'readCommit', 'readDiff', 'history'].includes(message.action.type);
+    const resourceKey = message.type === 'gitAction' ? `git:${message.repoId}`
+      : message.type === 'repositoryDetails' ? `git:${message.repositoryId}:details`
+      : message.type === 'submitAccountLogin' ? 'connection'
+      : message.type === 'refreshWorkflowKit' ? 'skills'
+      : message.type === 'selectIssue' ? `issue:${message.projectId}:${message.issueIid}`
+      : message.type === 'selectMergeRequest' || message.type === 'refreshMergeRequest' ? `mr:${message.projectId}:${message.iid}`
+      : action;
+    const operation = { requestId: message.operationId ?? `mock-${++host.completed}`, scopeRevision: message.operationScope ?? fixture.snapshot.operationScope,
+      resourceKey, action,
+      correlationId: message.requestId, label: action, phase: '模擬 Host 處理中…', status: 'running', startedAt: Date.now(), kind: write ? 'write' : 'read', effect: 'none' };
+    if (host.probe && !host.probe.operationId) host.probe.operationId = operation.requestId;
+    const task = new Promise(resolve => {
+      const acknowledge = () => {
+        publishOperation(operation);
+        if (surface === 'sidebar' && message.type === 'perform') send(surface, { type: 'state', state: { ...sidebarState(), busyAction: message.action } });
+        if (message.type === 'refresh') send('dashboard', { type: 'busy', value: true, label: '模擬 Host 更新中…' });
+        if (message.type === 'refreshWorkflowKit') { fixture.snapshot.workflowKit.status = 'checking'; host.publish(); }
+      };
+      const complete = () => {
+        if (message.type === 'refreshWorkflowKit') fixture.snapshot.workflowKit.status = 'installed';
+        perform(surface, message, receivedAt);
+        publishOperation({ ...operation, status: message.type === 'submitAccountLogin' ? 'failed' : 'succeeded',
+          phase: message.type === 'submitAccountLogin' ? '固定測試：驗證失敗' : '已完成',
+          ...(message.type === 'submitAccountLogin' ? { error: '固定測試：未連線外部 GitLab。' } : {}), finishedAt: Date.now() });
+        if (message.type === 'refresh') send('dashboard', { type: 'busy', value: false });
+        if (surface === 'sidebar' && message.type === 'perform') send(surface, { type: 'state', state: sidebarState() });
+        host.completed++; host.lastCompletedAt = performance.now();
+        if (host.probe?.operationId === operation.requestId) host.probe.completedAt = performance.now();
+        resolve();
+      };
+      if (host.acknowledgementDelayMs) setTimeout(acknowledge, host.acknowledgementDelayMs); else acknowledge();
+      if (host.completionDelayMs) setTimeout(complete, host.completionDelayMs); else complete();
+    });
+    host.pendingTasks.add(task); void task.finally(() => host.pendingTasks.delete(task));
+  };
+  host.idle = async () => { while (host.pendingTasks.size) await Promise.all([...host.pendingTasks]); };
   host.waitFor = async (kind, expected) => {
-    const start = performance.now();
-    for (;;) {
-      const state = host[kind];
-      const doc = frameWindow(kind === 'navigation' ? 'dashboard' : 'sidebar')?.document;
-      const ready = kind === 'navigation' ? state?.mode === expected && doc?.querySelector('.page')?.dataset.mode === expected
-        : state?.query === expected && doc?.querySelectorAll('.repo-link').length === fixture.repositories.filter(repo =>
-          `${repo.name} ${repo.path} ${repo.branch ?? ''}`.toLocaleLowerCase().includes(expected.trim().toLocaleLowerCase())).length;
-      if (ready) { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return performance.now() - state.started; }
-      if (performance.now() - start > 5000) throw new Error(`Timed out awaiting ${kind} ${expected}`);
-      await new Promise(resolve => requestAnimationFrame(resolve));
-    }
+    const entry = host.readiness[kind];
+    if (!entry || entry.expected !== expected) throw new Error(`No captured readiness sample for ${kind} ${expected}`);
+    return entry.promise;
   };
 }
 
@@ -164,7 +303,7 @@ async function mount(browser, files, width = 1440, highContrast = false) {
       let body = files[key];
       if (key.endsWith('.html')) {
         const surface = key.startsWith('sidebar') ? 'sidebar' : 'dashboard';
-        const bridge = `<style>${hostTheme}</style><script>window.acquireVsCodeApi=()=>({postMessage:message=>parent.__host.receive('${surface}',message),getState:()=>parent.__host.stored['${surface}']??{mode:'developer'},setState:value=>{parent.__host.stored['${surface}']=value;}});document.addEventListener('input',event=>{if(event.target.matches('.repo-search input'))parent.__host.search={query:event.target.value,started:parent.performance.now()};},true);</script>`;
+        const bridge = `<style>${hostTheme}</style><script>window.acquireVsCodeApi=()=>({postMessage:message=>parent.__host.receive('${surface}',message),getState:()=>parent.__host.stored['${surface}']??{mode:'developer'},setState:value=>{parent.__host.stored['${surface}']=value;}});document.addEventListener('input',event=>{if(event.target.matches('.repo-search input'))parent.__host.captureSearch(event.target.value,parent.performance.now());},true);</script>`;
         body = body.toString().replace('<head>', `<head>${bridge}`).replace('<body>', `<body class="${highContrast ? 'vscode-high-contrast' : 'vscode-dark'}">`);
       }
       await route.fulfill({ contentType: key.endsWith('.js') ? 'text/javascript' : key.endsWith('.css') ? 'text/css' : 'text/html', body });
@@ -214,6 +353,117 @@ async function benchmark(browser, files) {
     } finally { await view.context.close(); }
   }
   return rounds;
+}
+
+async function firstFeedbackBenchmark(browser, files) {
+  const cases = [
+    { name: 'navigation', mode: 'developer', surface: 'sidebar' },
+    { name: 'issue-selection', mode: 'developer', surface: 'dashboard' },
+    { name: 'mr-selection', mode: 'reviewer', surface: 'dashboard' },
+    { name: 'refresh', mode: 'developer', surface: 'dashboard' },
+    { name: 'skills-check', mode: 'sa', surface: 'dashboard' },
+    { name: 'account-submit', mode: 'developer', surface: 'dashboard' },
+    { name: 'git-read', mode: 'git', surface: 'dashboard' },
+    { name: 'git-write', mode: 'git', surface: 'dashboard' }
+  ].filter(entry => !args['feedback-actions'] || args['feedback-actions'].split(',').includes(entry.name));
+  const results = [];
+  for (const entry of cases) {
+    const view = await mount(browser, files), samples = [];
+    let error;
+    try {
+      await navigate(view, entry.mode);
+      await view.page.evaluate(() => window.__host.idle());
+      if (entry.name === 'skills-check' || entry.name === 'account-submit') {
+        await view.dashboard.locator('.settings-trigger').click();
+      }
+      if (entry.name === 'account-submit') {
+        await view.dashboard.locator('#settings-tab-accounts').click();
+        await view.dashboard.locator('.accounts-heading button').click();
+        await view.dashboard.locator('.account-login input[name="baseUrl"]').fill('https://gitlab.invalid');
+        await view.dashboard.locator('.account-login button[type="submit"]').click();
+        await view.dashboard.locator('.account-login input[name="token"]').waitFor();
+      }
+      if (entry.name === 'git-read' || entry.name === 'git-write') {
+        await view.dashboard.locator('.git-refresh').waitFor({ state: 'visible' });
+        await view.dashboard.locator('.git-refresh').waitFor();
+      }
+      await view.page.evaluate(delays => {
+        window.__host.acknowledgementDelayMs = delays.mockAcknowledgementDelayMs;
+        window.__host.completionDelayMs = delays.mockCompletionDelayMs;
+      }, measurement.firstFeedback);
+      for (let index = 0; index < measurement.firstFeedback.samplesPerAction; index++) {
+        if (entry.name === 'account-submit') await view.dashboard.locator('.account-login input[name="token"]').fill('fixed-isolated-ui-fixture-token');
+        const sample = await view.page.evaluate(async ({ entry, index }) => {
+          const host = window.__host;
+          await host.idle();
+          const doc = document.getElementById(entry.surface).contentDocument;
+          const dashboard = document.getElementById('dashboard').contentDocument;
+          const visible = element => {
+            if (!element || !element.getClientRects().length) return false;
+            const rect = element.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return false;
+            const style = element.ownerDocument.defaultView.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+            const target = element.ownerDocument.elementFromPoint(Math.max(0, Math.min(innerWidth - 1, rect.left + rect.width / 2)),
+              Math.max(0, Math.min(innerHeight - 1, rect.top + rect.height / 2)));
+            return !!target && (element.contains(target) || target.contains(element));
+          };
+          const textButton = (root, text) => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === text);
+          let target, destination;
+          if (entry.name === 'navigation') {
+            destination = ['clone', 'sa', 'reviewer', 'git', 'developer'][index % 5];
+            target = [...doc.querySelectorAll('.workspace-shortcuts button')][['developer', 'clone', 'sa', 'reviewer', 'git'].indexOf(destination)];
+          } else if (entry.name === 'issue-selection' || entry.name === 'mr-selection') {
+            target = [...doc.querySelectorAll('.work-list .work-row')].find(row => !row.classList.contains('selected'));
+          } else if (entry.name === 'refresh') target = textButton(doc.querySelector('.heading-actions'), '更新資料');
+          else if (entry.name === 'skills-check') target = textButton(doc.querySelector('.tool-drawer'), '重新檢查安裝');
+          else if (entry.name === 'account-submit') target = doc.querySelector('.account-login button[type="submit"]');
+          else if (entry.name === 'git-read') target = doc.querySelector('.git-refresh');
+          else if (entry.name === 'git-write') target = doc.querySelector('button[aria-label="暫存 src/fixture.ts"]');
+          target?.scrollIntoView({ block: 'center' });
+          if (!target || target.disabled || !visible(target)) throw new Error(`No enabled visible control for ${entry.name}, sample ${index + 1}`);
+          const probe = host.probe = { started: 0, operationId: undefined, completedAt: undefined };
+          doc.addEventListener('click', () => { probe.started = performance.now(); }, { capture: true, once: true });
+          target.click();
+          if (!probe.started) throw new Error(`No click captured for ${entry.name}`);
+          const progress = () => [...doc.querySelectorAll('.operation-status.queued, .operation-status.running, .action-message, .git-status-message .spinner, .account-login [role="status"]')]
+            .some(element => visible(element) && (element.matches('.spinner') || !!element.textContent.trim()));
+          const ready = () => {
+            if (target.disabled || target.getAttribute('aria-busy') === 'true') return true;
+            if (entry.name === 'navigation' && dashboard.querySelector('.page')?.dataset.mode === destination) return true;
+            if ((entry.name === 'issue-selection' || entry.name === 'mr-selection') && target.classList.contains('selected')) return true;
+            if (entry.name === 'skills-check' && [...doc.querySelectorAll('.tool-drawer [role="status"], .tool-drawer .tool-card .pill')].some(element => visible(element) && /檢查中|正在/.test(element.textContent))) return true;
+            return progress();
+          };
+          while (!ready()) {
+            if (performance.now() - probe.started > 2000) throw new Error(`No visible feedback for ${entry.name}, sample ${index + 1}`);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+          }
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          const firstFeedbackMs = performance.now() - probe.started;
+          await host.idle();
+          if (!probe.operationId || probe.completedAt === undefined) throw new Error(`No matching mock-host completion for ${entry.name}; requests=${JSON.stringify(host.requests.slice(-4))}; probe=${JSON.stringify(probe)}`);
+          const mockCompletionMs = probe.completedAt - probe.started;
+          host.probe = undefined;
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          return { firstFeedbackMs, mockCompletionMs };
+        }, { entry, index });
+        samples.push({ firstFeedbackMs: round(sample.firstFeedbackMs), mockCompletionMs: round(sample.mockCompletionMs) });
+      }
+      assert.equal(view.errors.length, 0, view.errors.join('; '));
+      assert.equal(view.network.length, 0, 'First-feedback probe must not contact external services');
+    } catch (failure) { error = failure.message; }
+    finally { await view.context.close(); }
+    const firstFeedbackP95Ms = samples.length ? round(percentile(samples.map(sample => sample.firstFeedbackMs))) : null;
+    const result = { action: entry.name, status: error ? 'ERROR' : firstFeedbackP95Ms <= measurement.firstFeedback.limitP95Ms ? 'PASS' : 'FAIL',
+      sampleCount: samples.length, requiredSamples: measurement.firstFeedback.samplesPerAction, firstFeedbackP95Ms,
+      mockCompletionP95Ms: samples.length ? round(percentile(samples.map(sample => sample.mockCompletionMs))) : null,
+      samples, ...(error ? { error } : {}), blockedNetworkRequests: view.network, runtimeErrors: view.errors };
+    results.push(result);
+    console.log(`${args.label} first feedback ${entry.name}: ${result.status}, ${samples.length} samples, p95=${firstFeedbackP95Ms}ms${error ? ` (${error})` : ''}`);
+  }
+  return { status: results.every(result => result.status === 'PASS') ? 'PASS' : 'FAIL', cases: results,
+    scope: 'Actual packaged UI handlers, isolated delayed mock host. Writes and login use fixed fake responses and do not change repositories or contact GitLab.' };
 }
 
 async function smoke(browser, files) {
@@ -283,7 +533,8 @@ function compare(current, baseline) {
   const identity = current.fixtureSha256 === baseline.fixtureSha256 && current.harnessSha256 === baseline.harnessSha256 &&
     current.browserVersion === baseline.browserVersion && JSON.stringify(current.measurement) === JSON.stringify(baseline.measurement) &&
     current.artifact.sha256 !== baseline.artifact.sha256;
-  const complete = result => result.rounds?.length === 10 && result.rounds.every(value => value.warmNavigationMs.samples.length === 30 && value.repoSearchMs.samples.length === 30);
+  const complete = result => result.rounds?.length === 10 && result.rounds.every(value => value.warmNavigationMs.samples.length === 30 && value.repoSearchMs.samples.length === 30)
+    && result.firstFeedback?.cases.length === 8 && result.firstFeedback.cases.every(value => value.sampleCount >= 100 && value.sampleCount === result.measurement.firstFeedback.samplesPerAction);
   if (!identity || !complete(current) || !complete(baseline)) return { status: 'BLOCKED', reason: 'Comparison requires distinct artifacts, identical harness/fixture/browser/method and complete 10 × 30 samples.' };
   const metrics = Object.fromEntries(Object.entries(current.metrics).map(([name, value]) => {
     const old = baseline.metrics[name], change = round((value / old - 1) * 100);
@@ -300,16 +551,23 @@ try {
   const files = await extractAssets(temp);
   browser = await chromium.launch({ headless: true, executablePath: args.browser ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe',
     args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'] });
-  const result = { schema: 'GitLabWorkspacePackagedUiVerification/v1', label: args.label, capturedAt: new Date().toISOString(),
+  const result = { schema: 'GitLabWorkspacePackagedUiVerification/v2', label: args.label, capturedAt: new Date().toISOString(),
     artifact: { path: artifactPath, sha256: sha256(await readFile(artifactPath)) },
     assets: expectedAssets.map(name => ({ name, sha256: sha256(files[name]), bytes: files[name].length })),
     harnessSha256: sha256(await readFile(fileURLToPath(import.meta.url))), fixtureSha256: sha256(JSON.stringify(fixture)),
     browserVersion: browser.version(), platform: { platform: process.platform, arch: process.arch, node: process.version }, measurement };
-  result.rounds = await benchmark(browser, files); result.metrics = collect(result.rounds); result.smoke = await smoke(browser, files);
+  if (args['feedback-only'] !== 'true') {
+    result.rounds = await benchmark(browser, files); result.metrics = collect(result.rounds);
+    await writeFile(path.join(output, `${args.label}.json`), JSON.stringify({ ...result, performanceStatus: 'RUNNING' }, null, 2) + '\n');
+  }
+  result.firstFeedback = await firstFeedbackBenchmark(browser, files);
+  result.smoke = args['feedback-only'] === 'true' ? { status: 'NOT_RUN', reason: 'Diagnostic feedback-only run.' } : await smoke(browser, files);
   result.performanceStatus = 'MEASURED';
   if (args.baseline) result.comparison = compare(result, JSON.parse(await readFile(args.baseline, 'utf8')));
   await writeFile(path.join(output, `${args.label}.json`), JSON.stringify(result, null, 2) + '\n');
-  console.log(JSON.stringify({ label: result.label, metrics: result.metrics, smoke: result.smoke.status, comparison: result.comparison ?? null }, null, 2));
+  console.log(JSON.stringify({ label: result.label, metrics: result.metrics, firstFeedback: { status: result.firstFeedback.status,
+    cases: result.firstFeedback.cases.map(({ samples, ...summary }) => summary) }, smoke: result.smoke.status, comparison: result.comparison ?? null }, null, 2));
+  if (args.label === 'revision' && (result.firstFeedback.status !== 'PASS' || result.smoke.status === 'FAIL' || result.comparison && result.comparison.status !== 'PASS')) process.exitCode = 1;
 } finally {
   await browser?.close();
   assert.ok(path.resolve(temp).startsWith(path.resolve(os.tmpdir()) + path.sep), 'Temporary cleanup must stay inside the system temp directory');

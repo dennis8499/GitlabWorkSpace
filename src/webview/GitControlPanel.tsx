@@ -1,5 +1,7 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { ActionController, DispatchResult } from '../workspace/actionController';
+import { finishDomainAction, useDomainActions } from './domainActions';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 import { isGitWriteAction, type GitAction, type GitChange, type GitCommitSummary, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
 import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
@@ -13,11 +15,15 @@ export interface GitPanelUiState {
   layout: { theme: 'dark' | 'vscode'; left: number; right: number };
   query: string;
   historyFilter: string;
-  pendingWrites: Array<{ id: string; repoId: string; label: string; commitMessage?: string }>;
+  pendingWrites: Array<{ id: string; repoId: string; label: string; commitMessage?: string; operationId?: string; scopeRevision?: string; lockKey?: string }>;
 }
-interface Props { post: (message: WorkspaceRequest) => void; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
+interface Props { post: (message: WorkspaceRequest) => void; actions?: ActionController; initialState?: GitPanelUiState; onStateChange?: (state: GitPanelUiState) => void; }
 interface DialogState { kind: 'branch' | 'fetch' | 'pull' | 'push' | 'stash' | 'rebase' | 'rebaseEditor' | 'merge' | 'reset' | 'commit' | 'pick' | 'stashAction'; value?: string; operation?: 'cherryPick' | 'revert'; pullSource?: { remote: string; branch: string }; }
-interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; }
+interface RequestContext { repoId: string; action: GitAction; key: string; write: boolean; operationId?: string; scopeRevision?: string; lockKey?: string; }
+type GitRequestSender = (action: GitAction, repoId?: string) => DispatchResult;
+function makeGitReadRetry(sender: { current: GitRequestSender | undefined }, action: GitAction, repoId: string): () => DispatchResult {
+  return () => sender.current ? sender.current(action, repoId) : { status: 'blocked', reason: '請回到版控畫面重新載入。' };
+}
 const COMMIT_ROW_HEIGHT = 36;
 const COLORS = ['#43c6a0', '#69a8ff', '#c18bfa', '#efbd68', '#ec849f', '#5fd5db', '#bdcd70'];
 const LAYOUT_KEY = 'gitlab-workspace.git-layout.v1';
@@ -39,7 +45,8 @@ function callName(action: GitAction): string {
   return names[action.type] ?? action.type;
 }
 
-export function GitControlPanel({ post, initialState, onStateChange }: Props) {
+export function GitControlPanel({ post, actions: sharedActions, initialState, onStateChange }: Props) {
+  const actions = useDomainActions(sharedActions, post, 'git-panel', operation => operation.resourceKey.startsWith('git:'));
   const restoredWrites = initialState?.pendingWrites ?? [];
   const [repositories, setRepositories] = useState<GitRepositorySummary[]>([]);
   const [selectedId, setSelectedId] = useState(initialState?.selectedId ?? '');
@@ -67,6 +74,8 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   const historyListRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
   const resizeCleanup = useRef<() => void>();
+  const retrySender = useRef<GitRequestSender>();
+  retrySender.current = send;
   const rebaseSourceByRepository = useRef(new Map<string, string>());
   const requestId = useRef(0);
   const requestPrefix = useRef(crypto.randomUUID());
@@ -74,10 +83,12 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   const latestReadByRepo = useRef(new Map<string, string>());
   const requests = useRef(new Map<string, RequestContext>(restoredWrites.map(write => [write.id, {
     repoId: write.repoId, key: write.id, write: true,
+    operationId: write.operationId, scopeRevision: write.scopeRevision, lockKey: write.lockKey,
     action: write.commitMessage === undefined ? { type: 'branch', name: '' } : { type: 'commit', message: write.commitMessage }
   }])));
   const inFlight = useRef(new Map<string, string>());
   const writes = useRef(new Set(restoredWrites.map(write => write.repoId)));
+  const uncertainWrites = useRef(new Set(restoredWrites.map(write => write.id)));
   const restoreSelections = useRef(new Set<string>());
   const latestRevision = useRef(new Map<string, number>());
   const repositoryListRevision = useRef(-1);
@@ -93,15 +104,30 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
   savedView.current = { layout, query, historyFilter };
   function persist(): void {
     stateChange.current?.({ ...savedView.current, selectedId: selectedIdRef.current, uiByRepo: uiRef.current,
-      pendingWrites: [...requests.current].filter(([, context]) => context.write).map(([id, context]) => ({
-        id, repoId: context.repoId, label: callName(context.action),
-        ...(context.action.type === 'commit' ? { commitMessage: context.action.message } : {})
-      })) });
+      pendingWrites: [...requests.current].filter(([, context]) => context.write).map(([id, context]) => {
+        const operation = actions.findByCorrelation(id);
+        return { id, repoId: context.repoId, label: callName(context.action),
+          operationId: operation?.requestId ?? context.operationId, scopeRevision: operation?.scopeRevision ?? context.scopeRevision,
+          lockKey: operation?.lockKey ?? context.lockKey,
+          ...(context.action.type === 'commit' ? { commitMessage: context.action.message } : {}) };
+      }) });
   }
   useEffect(persist, [selectedId, uiByRepo, layout, query, historyFilter, pendingByRepo]);
+  useEffect(() => {
+    const pendingIds: string[] = [];
+    for (const write of restoredWrites) {
+      const id = write.operationId ?? write.id;
+      actions.restorePending({ requestId: id, correlationId: write.id, resourceKey: 'git:' + write.repoId,
+        action: 'gitAction', label: write.label, scopeRevision: write.scopeRevision, lockKey: write.lockKey });
+      pendingIds.push(id);
+    }
+    if (pendingIds.length) { actions.dispatch({ type: 'reconcileOperations', pendingIds }); persist(); }
+  }, [actions]);
   const ui = uiByRepo[selectedId] ?? EMPTY_GIT_UI;
   const snapshot = snapshotByRepo[selectedId];
-  const pending = pendingByRepo[selectedId] ?? '';
+  const pending = pendingByRepo[selectedId] || (actions.getSnapshot().some(operation => operation.resourceKey === 'git:' + selectedId && operation.kind === 'write' &&
+    (operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown')) ? '正在處理 Repo…' : '');
+  const uncertain = pendingByRepo[selectedId]?.startsWith('結果待確認') || actions.getSnapshot().some(operation => operation.resourceKey === 'git:' + selectedId && operation.effect === 'unknown');
   const reading = readingByRepo[selectedId] ?? '';
   const error = errorsByRepo[selectedId] ?? '';
   const setError = (value: string) => setErrorsByRepo((current) => ({ ...current, [selectedId]: value }));
@@ -150,11 +176,23 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
         setRepositories((current) => current.map((repo) => repo.id === incoming.id ? incoming : repo));
         setErrorsByRepo((current) => ({ ...current, [incoming.id]: incoming.error ?? '' }));
       } else if (message.type === 'gitActionResult') {
+        const outcome = message as typeof message & { effect?: 'none' | 'applied' | 'partial' | 'unknown'; refreshError?: string };
+        finishDomainAction(actions, message.requestId, {
+          status: message.error && outcome.effect !== 'applied' ? 'failed' : 'succeeded',
+          error: message.error, effect: outcome.effect ?? (message.commitCompleted ? 'applied' : undefined), refreshError: outcome.refreshError
+        });
         const context = requests.current.get(message.requestId);
         if (!context) {
           if (message.write) {
             post({ type: 'gitAcknowledgeResult', requestId: message.requestId });
           }
+          return;
+        }
+        if (context.write && outcome.effect === 'unknown') {
+          uncertainWrites.current.add(message.requestId);
+          setErrorsByRepo(current => ({ ...current, [context.repoId]: message.error ?? '操作結果尚未確認，請先檢查 Repo 狀態，勿重複執行。' }));
+          setPendingByRepo(current => ({ ...current, [context.repoId]: '結果待確認，請先核對 Repo' }));
+          persist();
           return;
         }
         requests.current.delete(message.requestId);
@@ -164,7 +202,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
           post({ type: 'gitAcknowledgeResult', requestId: message.requestId });
           writes.current.delete(context.repoId);
           setPendingByRepo((current) => ({ ...current, [context.repoId]: '' }));
-          if (!message.error && message.commitCompleted === true && context.action.type === 'commit') {
+          if ((!message.error || outcome.effect === 'applied') && message.commitCompleted === true && context.action.type === 'commit') {
             const messageText = context.action.message;
             setUiByRepo((current) => current[context.repoId]?.draft.trim() === messageText
               ? (uiRef.current = { ...current, [context.repoId]: { ...current[context.repoId], draft: '' } }) : current);
@@ -173,13 +211,62 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
           setReadingByRepo((current) => ({ ...current, [context.repoId]: '' }));
         }
         persist();
+        if (outcome.refreshError) setErrorsByRepo(current => ({ ...current, [context.repoId]: '操作已完成，但畫面更新失敗：' + outcome.refreshError }));
         if (!context.write && latestReadByRepo.current.get(context.repoId) === message.requestId) setErrorsByRepo((current) => ({ ...current, [context.repoId]: message.error ?? '' }));
       }
     };
     window.addEventListener('message', receive);
     post({ type: 'gitReady' });
-    return () => { window.removeEventListener('message', receive); resizeCleanup.current?.(); };
+    return () => { retrySender.current = undefined; window.removeEventListener('message', receive); resizeCleanup.current?.(); };
   }, []);
+
+  useEffect(() => {
+    let settled = false;
+    for (const [requestId, context] of requests.current) {
+      const operation = actions.findByCorrelation(requestId);
+      // A host preflight can fail before the Git adapter sends a domain reply.
+      // Only a confirmed no-effect terminal can settle these local wait states.
+      if (!operation || operation.effect !== 'none' || !['failed', 'cancelled'].includes(operation.status)
+        || uncertainWrites.current.has(requestId)) continue;
+      const ownsRead = latestReadByRepo.current.get(context.repoId) === requestId;
+      if (inFlight.current.get(context.key) === requestId) inFlight.current.delete(context.key);
+      requests.current.delete(requestId);
+      const anotherWrite = [...requests.current.values()].some(other => other.write && other.repoId === context.repoId);
+      if (context.write && !anotherWrite) {
+        writes.current.delete(context.repoId);
+        setPendingByRepo(current => ({ ...current, [context.repoId]: '' }));
+      } else if (!context.write && ownsRead) {
+        latestReadByRepo.current.delete(context.repoId);
+        setReadingByRepo(current => ({ ...current, [context.repoId]: '' }));
+      }
+      if (context.write ? !anotherWrite : ownsRead) {
+        restoreSelections.current.delete(context.repoId);
+        setErrorsByRepo(current => ({ ...current, [context.repoId]: operation.error
+          ?? (operation.status === 'cancelled' ? '操作已中止。' : operation.phase || '操作失敗，請重試。') }));
+      }
+      settled = true;
+    }
+    if (settled) persist();
+    for (const requestId of uncertainWrites.current) {
+      const operation = actions.findByCorrelation(requestId);
+      if (!operation || !['none', 'applied'].includes(operation.effect ?? '') || operation.status === 'queued' || operation.status === 'running') continue;
+      uncertainWrites.current.delete(requestId);
+      const context = requests.current.get(requestId);
+      if (!context) continue;
+      requests.current.delete(requestId);
+      if (inFlight.current.get(context.key) === requestId) inFlight.current.delete(context.key);
+      writes.current.delete(context.repoId);
+      setPendingByRepo(current => ({ ...current, [context.repoId]: '' }));
+      setErrorsByRepo(current => ({ ...current, [context.repoId]: '' }));
+      if (operation.effect === 'applied' && context.action.type === 'commit') {
+        const submitted = context.action.message;
+        setUiByRepo(current => current[context.repoId]?.draft.trim() === submitted
+          ? (uiRef.current = { ...current, [context.repoId]: { ...current[context.repoId], draft: '' } }) : current);
+      }
+      post({ type: 'gitAcknowledgeResult', requestId });
+      persist();
+    }
+  }, [actions.getSnapshot()]);
 
   useEffect(() => {
     const measure = () => {
@@ -226,21 +313,62 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
     return () => window.removeEventListener('keydown', keydown);
   }, [dialog?.kind]);
 
-  function send(action: GitAction): void {
-    if (!selectedId) return;
+  function send(action: GitAction, repoId = selectedId): DispatchResult {
+    if (!repoId) return { status: 'blocked', reason: '請先選擇 Repo。' };
     const write = isGitWriteAction(action);
-    if (write && writes.current.has(selectedId)) return;
-    const key = selectedId + ':' + JSON.stringify(action);
+    if (write && writes.current.has(repoId)) return { status: 'blocked', reason: '此 Repo 正在處理另一項操作。' };
+    const key = repoId + ':' + JSON.stringify(action);
     const shared = inFlight.current.get(key);
-    if (shared && action.type !== 'open' && (write || latestReadByRepo.current.get(selectedId) === shared)) return;
+    if (shared && action.type !== 'open' && (write || latestReadByRepo.current.get(repoId) === shared)) {
+      const operation = actions.findByCorrelation(shared);
+      return operation ? { status: 'joined', operationId: operation.requestId, correlationId: shared }
+        : { status: 'blocked', reason: '此 Repo 正在讀取資料，請等候完成。' };
+    }
     const id = 'git-ui-' + requestPrefix.current + '-' + (++requestId.current);
-    if (write) { writes.current.add(selectedId); setPendingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
-    else { latestReadByRepo.current.set(selectedId, id); setReadingByRepo((current) => ({ ...current, [selectedId]: callName(action) })); }
-    requests.current.set(id, { repoId: selectedId, action, key, write });
+    const previousReadId = latestReadByRepo.current.get(repoId);
+    const previousRead = previousReadId ? requests.current.get(previousReadId) : undefined;
+    const context: RequestContext = { repoId, action, key, write };
+    // The bridge may reply before dispatch returns. Every receipt must already
+    // have a domain context, and terminal replies must be the last pending update.
+    requests.current.set(id, context);
     inFlight.current.set(key, id);
+    if (write) { writes.current.add(repoId); setPendingByRepo(current => ({ ...current, [repoId]: callName(action) })); }
+    else { latestReadByRepo.current.set(repoId, id); setReadingByRepo(current => ({ ...current, [repoId]: callName(action) })); }
     closeMenus();
     persist();
-    post({ type: 'gitAction', repoId: selectedId, requestId: id, action });
+    const result = actions.dispatch({ type: 'gitAction', repoId, requestId: id, action });
+    const operation = result.operationId ? actions.get(result.operationId) : undefined;
+    if (!write && result.operationId) actions.setRetryHandler(result.operationId, makeGitReadRetry(retrySender, action, repoId));
+    if (result.status === 'started') {
+      // A synchronous terminal receipt may already have removed this context.
+      if (requests.current.get(id) === context) Object.assign(context, { operationId: result.operationId,
+        scopeRevision: operation?.scopeRevision, lockKey: operation?.lockKey });
+    } else if (requests.current.get(id) === context) {
+      requests.current.delete(id);
+      const actualId = result.status === 'joined' ? result.correlationId : undefined;
+      const joined = actualId ? requests.current.get(actualId) ?? context : undefined;
+      if (actualId && joined) {
+        Object.assign(joined, { operationId: result.operationId, scopeRevision: operation?.scopeRevision, lockKey: operation?.lockKey });
+        requests.current.set(actualId, joined);
+      }
+      if (inFlight.current.get(key) === id) {
+        if (actualId && joined?.key === key) inFlight.current.set(key, actualId);
+        else if (shared && requests.current.has(shared)) inFlight.current.set(key, shared);
+        else inFlight.current.delete(key);
+      }
+      if (write && !joined) {
+        writes.current.delete(repoId);
+        setPendingByRepo(current => ({ ...current, [repoId]: '' }));
+      } else if (!write && latestReadByRepo.current.get(repoId) === id) {
+        const restoredId = actualId ?? (previousReadId && previousRead && requests.current.has(previousReadId) ? previousReadId : undefined);
+        if (restoredId) latestReadByRepo.current.set(repoId, restoredId);
+        else latestReadByRepo.current.delete(repoId);
+        setReadingByRepo(current => ({ ...current, [repoId]: joined ? callName(joined.action) : restoredId && previousRead ? callName(previousRead.action) : '' }));
+      }
+    }
+    if (result.status === 'blocked') setErrorsByRepo(current => ({ ...current, [repoId]: result.reason ?? '此 Repo 正在處理另一項操作。' }));
+    persist();
+    return result;
   }
   function setUi(patch: Partial<RepoGitUi>): void {
     if (!selectedId) return;
@@ -427,7 +555,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
       <span class="git-toolbar-divider" />
       <button class="git-tool secondary" disabled={!snapshot || !!pending} onClick={() => startDialog('branch')}><GitIcon name="branch" />分支</button>
       <button class="git-tool git-stash" disabled={!snapshot || !!pending} onClick={() => startDialog('stash')}><GitIcon name="stash" />Stash</button>
-      <button class="git-tool git-refresh" title="更新 Repo 狀態" aria-label="更新 Repo 狀態" disabled={!snapshot || !!pending || !!reading} onClick={() => send({ type: 'refresh' })}><GitIcon name="refresh" /></button>
+      <button class="git-tool git-refresh" title="更新 Repo 狀態" aria-label="更新 Repo 狀態" disabled={!snapshot || !!pending && !uncertain || !!reading} onClick={() => send({ type: 'refresh' })}><GitIcon name="refresh" /></button>
       <details class="git-actions-menu"><summary aria-label="遠端與進階操作">···</summary><div class="git-actions-popup">
         <button onClick={() => startDialog('merge')} disabled={!snapshot || !!pending}>Merge…</button>
         <button onClick={() => startDialog('rebase')} disabled={!snapshot || !!pending}>Rebase…</button>
@@ -508,7 +636,7 @@ export function GitControlPanel({ post, initialState, onStateChange }: Props) {
         </aside>
       </div>
       <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="git-tracking" title={snapshot.tracking}>↗ {snapshot.tracking}</span>}<span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
-    </> : <div class="git-empty-state"><GitIcon name="repo" /><h2>{available === false ? 'VS Code 內建 Git 尚未啟用' : repositories.length ? '正在開啟 Repo…' : available === undefined ? '正在尋找本機 Repo…' : '找不到本機 Git Repo'}</h2><p>{serviceMessage || (available === false ? '請啟用 VS Code 內建 Git，再重新整理。' : '開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。')}</p><button onClick={() => post({ type: 'gitReady' })}>重新整理</button></div>}
+    </> : <div class="git-empty-state"><GitIcon name="repo" /><h2>{available === false ? 'VS Code 內建 Git 尚未啟用' : repositories.length ? reading ? '正在開啟 Repo…' : error ? '無法開啟 Repo' : '尚未開啟 Repo' : available === undefined ? '正在尋找本機 Repo…' : '找不到本機 Git Repo'}</h2><p>{error || serviceMessage || (available === false ? '請啟用 VS Code 內建 Git，再重新整理。' : '開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。')}</p><button disabled={!!reading} onClick={() => selectedId ? send({ type: 'open', repoId: selectedId }) : post({ type: 'gitReady' })}>重新整理</button></div>}
     {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" role="dialog" aria-modal="true" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
       {dialog.kind === 'branch' && <Field name="name" label="新分支名稱" placeholder="feature/my-change" autoFocus />}
       {dialog.kind === 'fetch' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><p class="subtle">Fetch 只會更新遠端追蹤分支，不會改動目前工作目錄。</p></>}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ExtensionContext } from 'vscode';
-import type { GitLabClient } from '../../src/api/gitLabClient';
+import { GitLabApiError, type GitLabClient } from '../../src/api/gitLabClient';
 import type { GitLabProject } from '../../src/api/types';
 import type { GitLabSession } from '../../src/connection/session';
 import type { IssueRelationAction } from '../../src/issues/protocol';
@@ -107,5 +107,18 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: 'Denied' }), /cannot create child/i);
     issueCanLink = false;
     await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'link', targetProjectId: 42, targetIssueIid: 11, linkType: 'relates_to' }), /permission/i);
+
+    canManageChildren = true; issueCanLink = true;
+    let attemptedChildren = 0;
+    client.createChildTask = async () => { attemptedChildren++; throw new Error('connection lost after sending the mutation'); };
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: 'Verify in GitLab' }), error => {
+      assert.equal((error as Error & { effect?: string }).effect, 'unknown'); return true;
+    });
+    client.createChildTask = async () => { attemptedChildren++; throw new GitLabApiError('Rejected by GitLab', 403); };
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: 'Forbidden' }), error => {
+      assert.equal((error as Error & { effect?: string }).effect, 'none'); return true;
+    });
+    await assert.rejects(panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: '' }), /required/);
+    assert.equal(attemptedChildren, 2, 'validation and uncertain results never automatically resend a child mutation');
   } finally { panels.dispose(); }
 });

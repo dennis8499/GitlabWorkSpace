@@ -4,6 +4,8 @@ import type { GitLabAccount, AccountPanelIntent } from '../connection/accountPro
 import { accountStatus } from '../connection/accountProtocol';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import type { WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot } from '../workspace/workspaceProtocol';
+import type { ActionController } from '../workspace/actionController';
+import { finishDomainAction, useDomainActions } from './domainActions';
 import './account-ui.css';
 
 export function AccountIdentity({ account, status }: { account: Pick<GitLabAccount, 'name' | 'username' | 'baseUrl'>; status: string }) {
@@ -13,9 +15,10 @@ export function AccountIdentity({ account, status }: { account: Pick<GitLabAccou
   </div>;
 }
 
-export function AccountPanel({ snapshot, intent, post }: {
-  snapshot: WorkspaceSnapshot; intent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
+export function AccountPanel({ snapshot, intent, post: send, actions: sharedActions }: {
+  snapshot: WorkspaceSnapshot; intent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void; actions?: ActionController;
 }) {
+  const actions = useDomainActions(sharedActions, send, snapshot.operationScope ?? 'accounts');
   const [step, setStep] = useState<'manage' | 'url' | 'token' | 'success'>('manage');
   const [accountId, setAccountId] = useState<string>();
   const [baseUrl, setBaseUrl] = useState('https://gitlab.com');
@@ -26,7 +29,8 @@ export function AccountPanel({ snapshot, intent, post }: {
   const [welcome, setWelcome] = useState('');
   const requestRef = useRef<string>();
   const formRef = useRef<HTMLFormElement>(null);
-  const busy = pending || !!snapshot.accountOperation || !!snapshot.busy;
+  const busy = pending || !!snapshot.accountOperation || actions.isPending('connection');
+  const post = (request: WorkspaceRequest) => actions.dispatch(request);
   const startLogin = (id?: string) => {
     if (requestRef.current || snapshot.accountOperation) return;
     const saved = snapshot.accounts?.find(account => account.id === id);
@@ -44,6 +48,7 @@ export function AccountPanel({ snapshot, intent, post }: {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const result = event.data;
       if (result?.type !== 'accountLoginResult' || result.requestId !== requestRef.current) return;
+      finishDomainAction(actions, result.requestId, { status: result.error ? 'failed' : 'succeeded', error: result.error });
       requestRef.current = undefined; setPending(false); setToken(''); setShowToken(false);
       if (result.error) { setError(result.error); requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('[name="token"]')?.focus()); }
       else { setWelcome(result.name ?? 'GitLab 使用者'); setError(''); setStep('success'); }
@@ -51,6 +56,15 @@ export function AccountPanel({ snapshot, intent, post }: {
     window.addEventListener('message', receive);
     return () => { requestRef.current = undefined; window.removeEventListener('message', receive); };
   }, []);
+  useEffect(() => {
+    if (!requestRef.current) return;
+    const operation = actions.findByCorrelation(requestRef.current);
+    if (!operation || operation.status === 'queued' || operation.status === 'running') return;
+    if (operation.status === 'succeeded' && operation.effect !== 'applied') return;
+    requestRef.current = undefined; setPending(false); setToken(''); setShowToken(false);
+    if (operation.status === 'succeeded') { setWelcome('GitLab 帳號'); setError(''); setStep('success'); }
+    else setError(operation.error ?? operation.phase);
+  }, [actions.getSnapshot()]);
   const cancelLogin = () => { setToken(''); setShowToken(false); setError(''); setStep('manage'); };
   const operationLabel = { login: '正在驗證帳號…', switch: '正在切換帳號…', logout: '正在登出…', remove: '正在移除帳號…' };
   return <section class="accounts-panel" aria-labelledby="accounts-title">
@@ -67,8 +81,12 @@ export function AccountPanel({ snapshot, intent, post }: {
       }
       if (!token.trim()) { setError('請輸入 Personal Access Token。'); return; }
       const requestId = window.crypto.randomUUID();
+      const dispatched = post({ type: 'submitAccountLogin', requestId, baseUrl, token: token.trim(), accountId });
+      if (dispatched.status !== 'started') {
+        if (dispatched.status === 'blocked') setError(dispatched.reason ?? '帳號作業正在處理，請稍候。');
+        return;
+      }
       requestRef.current = requestId; setPending(true); setError('');
-      post({ type: 'submitAccountLogin', requestId, baseUrl, token: token.trim(), accountId });
       setToken(''); setShowToken(false);
     }}>
       <h4>{accountId ? '重新登入帳號' : '新增 GitLab 帳號'}</h4>

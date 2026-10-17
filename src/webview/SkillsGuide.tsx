@@ -1,9 +1,12 @@
 /** @jsxImportSource preact */
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useContext, useEffect } from 'preact/hooks';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { buildWikiGuideContext } from './codebaseWikiGuideData';
 import { OperationFeedback } from './OperationFeedback';
+import { ActionController } from '../workspace/actionController';
+import { ActionContext, useActionSelector } from './useActions';
+const fallbackActions = new ActionController(() => {});
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
 
@@ -43,18 +46,11 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   const available = skillsContext ? skillsContext.availableFeatures.includes(card.id) : !!context.groupRoot && kitInstalled;
   const workIdAllowed = !skillsContext?.resumeOnly || !!skillsContext.installed.activeWorkIds?.includes(state.inputs['megin-resume.workId']?.trim());
   const repo = profile === 'repository' ? context.root ?? '' : state.inputs[`${card.id}.repo`] ?? '';
-  const [copyPending, setCopyPending] = useState(false);
-  useEffect(() => { setCopyPending(false); }, [operationScope]);
-  useEffect(() => {
-    const receive = (event: Event) => {
-      const operation = (event as CustomEvent<import('../workspace/operations').WorkspaceOperationState>).detail;
-      if (operation.action.startsWith('copy') && (!operationScope || operation.scopeRevision === operationScope)) {
-        setCopyPending(operation.status === 'queued' || operation.status === 'running');
-      }
-    };
-    window.addEventListener('workspaceOperationChanged', receive);
-    return () => window.removeEventListener('workspaceOperationChanged', receive);
-  }, [card.id, operationScope]);
+  const actions = useContext(ActionContext) ?? fallbackActions;
+  const copyPending = useActionSelector(actions, operations => operations.some(operation =>
+    (operation.lockKey === 'global:clipboard' || operation.action?.startsWith('copy'))
+    && (!operationScope || operation.scopeRevision === operationScope)
+    && (operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown')));
   useEffect(() => {
     if (available && (tool === 'merge-reviewer' || tool === 'release-reviewer') && repo.trim()) onLoadBranches?.(repo);
   }, [tool, repo, skillsContext?.revision, available]);

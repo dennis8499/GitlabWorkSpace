@@ -1,0 +1,41 @@
+
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/00c7290f-ff1c-45a6-8af5-e8d1f1065a79
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-16T18:38:24.944Z] Error: Error mutex already exists
+    at bt.W (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.90.0\resources\app\out\vs\code\electron-main\main.js:110:70767)
+[main 2026-10-16T18:38:24.945Z] update#setState disabled
+[main 2026-10-16T18:38:24.945Z] update#ctor - updates are disabled by the environment
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-12776-1792175904477
+Started local extension host with pid 28800.
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-12776-1792175904477
+Loading development extension at c:\Users\denni\AppData\Local\Temp\gitlab-workspace-vscode-test\live-vsix-0.25.0-7c018fba6fe5-12776\extension
+
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available (61ms)
+  Group delivery and version-bound report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  Live GitLab Workspace Webview validation
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Failed to fetch chat participant registry {}
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle open: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle select-file: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.

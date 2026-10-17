@@ -1,0 +1,26 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/workflow_kit_transactions_test.py"]
+test_changed_archive_rejected_even_when_caller_rehashes_it (__main__.TransactionTests.test_changed_archive_rejected_even_when_caller_rehashes_it) ... ok
+test_dry_run_leaves_group_bytes_and_directories_unchanged (__main__.TransactionTests.test_dry_run_leaves_group_bytes_and_directories_unchanged) ... ok
+test_failed_real_upgrade_restores_predecessor_and_existing_receipts (__main__.TransactionTests.test_failed_real_upgrade_restores_predecessor_and_existing_receipts) ... ok
+test_fresh_rollback_preserves_user_files (__main__.TransactionTests.test_fresh_rollback_preserves_user_files) ... ok
+test_interrupted_recovery_checks_identity_and_all_edits_before_restoring (__main__.TransactionTests.test_interrupted_recovery_checks_identity_and_all_edits_before_restoring) ... ok
+test_real_014_failed_upgrade_restores_new_skill_and_old_profile (__main__.TransactionTests.test_real_014_failed_upgrade_restores_new_skill_and_old_profile) ... ok
+test_real_014_install_upgrade_and_exact_rollback (__main__.TransactionTests.test_real_014_install_upgrade_and_exact_rollback) ... ok
+test_real_015_failed_upgrade_restores_exact_previous_installation (__main__.TransactionTests.test_real_015_failed_upgrade_restores_exact_previous_installation) ... ok
+test_real_015_install_upgrade_and_exact_rollback (__main__.TransactionTests.test_real_015_install_upgrade_and_exact_rollback) ... ok
+test_repeated_install_is_byte_identical_and_keeps_original_journal (__main__.TransactionTests.test_repeated_install_is_byte_identical_and_keeps_original_journal) ... ok
+test_reviewed_aspire_patch_is_a_supported_predecessor (__main__.TransactionTests.test_reviewed_aspire_patch_is_a_supported_predecessor) ... ok
+test_reviewed_payload_upgrade_with_the_same_version (__main__.TransactionTests.test_reviewed_payload_upgrade_with_the_same_version) ... ok
+test_reviewed_predecessor_upgrade_and_rollback (__main__.TransactionTests.test_reviewed_predecessor_upgrade_and_rollback) ... ok
+test_rollback_rejects_changed_identity_missing_paths_and_changed_backups (__main__.TransactionTests.test_rollback_rejects_changed_identity_missing_paths_and_changed_backups) ... ok
+test_rollback_rejects_later_edits_before_changing_any_file (__main__.TransactionTests.test_rollback_rejects_later_edits_before_changing_any_file) ... ok
+test_self_rehashed_profile_is_not_a_trusted_predecessor (__main__.TransactionTests.test_self_rehashed_profile_is_not_a_trusted_predecessor) ... ok
+test_synced_predecessor_version_upgrade_and_rollback (__main__.TransactionTests.test_synced_predecessor_version_upgrade_and_rollback) ... ok
+test_unknown_predecessor_rejected_even_with_self_consistent_file_hashes (__main__.TransactionTests.test_unknown_predecessor_rejected_even_with_self_consistent_file_hashes) ... ok
+test_unknown_release_reviewer_directory_is_preserved_on_upgrade (__main__.TransactionTests.test_unknown_release_reviewer_directory_is_preserved_on_upgrade) ... ok
+test_windows_checkout_and_git_archive_have_identical_bundle_digests (__main__.TransactionTests.test_windows_checkout_and_git_archive_have_identical_bundle_digests) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 271.227s
+
+OK

@@ -1,0 +1,18 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/workflow_kit_installer_test.py"]
+test_child_work_common_dir_locks_and_maintenance_race_block_replacement (__main__.WorkflowKitInstallerTests.test_child_work_common_dir_locks_and_maintenance_race_block_replacement) ... ok
+test_failed_update_and_process_crash_restore_the_previous_install (__main__.WorkflowKitInstallerTests.test_failed_update_and_process_crash_restore_the_previous_install) ... ok
+test_fresh_and_existing_wiki_installations_preserve_user_state (__main__.WorkflowKitInstallerTests.test_fresh_and_existing_wiki_installations_preserve_user_state) ... ok
+test_install_and_status_reject_missing_directories_and_files (__main__.WorkflowKitInstallerTests.test_install_and_status_reject_missing_directories_and_files) ... ok
+test_install_failure_at_first_middle_and_final_operation_rolls_back (__main__.WorkflowKitInstallerTests.test_install_failure_at_first_middle_and_final_operation_rolls_back) ... ok
+test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback (__main__.WorkflowKitInstallerTests.test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback) ... ok
+test_manifest_pins_all_sources_and_the_workspace_profile (__main__.WorkflowKitInstallerTests.test_manifest_pins_all_sources_and_the_workspace_profile) ... ok
+test_megin_lock_and_approved_work_block_install_and_update (__main__.WorkflowKitInstallerTests.test_megin_lock_and_approved_work_block_install_and_update) ... ok
+test_modified_install_and_legacy_tools_block_updates_with_repair_paths (__main__.WorkflowKitInstallerTests.test_modified_install_and_legacy_tools_block_updates_with_repair_paths) ... ok
+test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths (__main__.WorkflowKitInstallerTests.test_tar_and_zip_inspect_enforce_version_contract_hashes_and_safe_paths) ... ok
+test_unicode_space_and_windows_parent_alias_resolve_to_same_group (__main__.WorkflowKitInstallerTests.test_unicode_space_and_windows_parent_alias_resolve_to_same_group) ... ok
+test_uninstalled_status_is_read_only_in_git_and_plain_roots (__main__.WorkflowKitInstallerTests.test_uninstalled_status_is_read_only_in_git_and_plain_roots) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 186.832s
+
+OK

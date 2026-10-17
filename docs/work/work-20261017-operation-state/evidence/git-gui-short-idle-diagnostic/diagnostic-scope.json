@@ -1,0 +1,7 @@
+{
+  "schema": "GitLabWorkspaceShortIdleDiagnostic/v1",
+  "status": "DIAGNOSTIC_ONLY",
+  "formalAcceptance": false,
+  "change": "Only the copied compiled live test uses 1 second rather than 60 seconds for its idle observation; source, out, VSIX and final formal fixture are unchanged.",
+  "requiredFollowup": "Run the original scripts/run-live-extension-tests.mjs with all five 60 second idle checks before claiming GUI acceptance."
+}

@@ -1,0 +1,272 @@
+{
+  "schema": "GitLabWorkspacePackagedUiVerification/v2",
+  "label": "baseline",
+  "capturedAt": "2026-10-16T16:38:59.395Z",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261017-operation-state\\baseline\\gitlab-workspace-0.25.0.vsix",
+    "sha256": "dd1194e9266441f25c66d2355cc487890d5e38cb4eb90d17a93868eae18433dd"
+  },
+  "assets": [
+    {
+      "name": "issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "bytes": 443
+    },
+    {
+      "name": "issue-webview/dashboard.js",
+      "sha256": "c934d6d87b5c4ca20b6894f57eae7bd2410430adeeeca2e463092166c89c60ce",
+      "bytes": 317371
+    },
+    {
+      "name": "issue-webview/dashboard.css",
+      "sha256": "6a23374ca25f98397ef1505140235cb1682856b8f8216300d4244a46c151c2d7",
+      "bytes": 78215
+    },
+    {
+      "name": "sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "bytes": 459
+    },
+    {
+      "name": "sidebar-webview/sidebar.js",
+      "sha256": "b92086a86fdc55a9ac6bef229331bc55f4882fc7c14f47c8d5899f4e9b57b8a6",
+      "bytes": 24149
+    },
+    {
+      "name": "sidebar-webview/sidebar.css",
+      "sha256": "e54b695b041c19a6eb3dda66af5f1412c38b309f3287bd774ce416d1c5985716",
+      "bytes": 9681
+    }
+  ],
+  "harnessSha256": "d68bc3ed1a247aeda7d9c3e2706181e3095ea860ce8b1d0ce0b173bfc8a20686",
+  "fixtureSha256": "645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9",
+  "browserVersion": "155.0.8059.80",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "measurement": {
+    "rounds": 10,
+    "samplesPerRound": 30,
+    "repoCount": 20,
+    "dashboardWidth": 1440,
+    "sidebarWidth": 300,
+    "height": 900,
+    "latency": "UI postMessage/input capture to matching rendered DOM followed by two requestAnimationFrame callbacks; excludes Playwright input delivery",
+    "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "comparisonLimitPercent": 10,
+    "firstFeedback": {
+      "samplesPerAction": 3,
+      "limitP95Ms": 100,
+      "mockAcknowledgementDelayMs": 160,
+      "mockCompletionDelayMs": 220,
+      "timing": "DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery",
+      "completion": "Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance."
+    }
+  },
+  "firstFeedback": {
+    "status": "FAIL",
+    "cases": [
+      {
+        "action": "navigation",
+        "status": "FAIL",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 201.9,
+        "mockCompletionP95Ms": 228,
+        "samples": [
+          {
+            "firstFeedbackMs": 190.7,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 191,
+            "mockCompletionMs": 224.8
+          },
+          {
+            "firstFeedbackMs": 201.9,
+            "mockCompletionMs": 220.8
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "issue-selection",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 33.8,
+        "mockCompletionP95Ms": 224.8,
+        "samples": [
+          {
+            "firstFeedbackMs": 30.5,
+            "mockCompletionMs": 224.8
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 224.2
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 224.7
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "mr-selection",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 30.9,
+        "mockCompletionP95Ms": 227.3,
+        "samples": [
+          {
+            "firstFeedbackMs": 27.5,
+            "mockCompletionMs": 223.4
+          },
+          {
+            "firstFeedbackMs": 30.9,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 30.7,
+            "mockCompletionMs": 225.8
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "refresh",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 33.5,
+        "mockCompletionP95Ms": 235.3,
+        "samples": [
+          {
+            "firstFeedbackMs": 27.3,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 235.3
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 227.3
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "skills-check",
+        "status": "FAIL",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 207.1,
+        "mockCompletionP95Ms": 229.5,
+        "samples": [
+          {
+            "firstFeedbackMs": 207.1,
+            "mockCompletionMs": 222.8
+          },
+          {
+            "firstFeedbackMs": 191.9,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 193.2,
+            "mockCompletionMs": 228.1
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "account-submit",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 30.4,
+        "mockCompletionP95Ms": 234.9,
+        "samples": [
+          {
+            "firstFeedbackMs": 30.4,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 20.8,
+            "mockCompletionMs": 234.4
+          },
+          {
+            "firstFeedbackMs": 23.1,
+            "mockCompletionMs": 234.9
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "git-read",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 32,
+        "mockCompletionP95Ms": 230.1,
+        "samples": [
+          {
+            "firstFeedbackMs": 10.7,
+            "mockCompletionMs": 223.1
+          },
+          {
+            "firstFeedbackMs": 21.2,
+            "mockCompletionMs": 221
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 230.1
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "git-write",
+        "status": "PASS",
+        "sampleCount": 3,
+        "requiredSamples": 3,
+        "firstFeedbackP95Ms": 34,
+        "mockCompletionP95Ms": 227.1,
+        "samples": [
+          {
+            "firstFeedbackMs": 10.1,
+            "mockCompletionMs": 221.5
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 225.8
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      }
+    ],
+    "scope": "Actual packaged UI handlers, isolated delayed mock host. Writes and login use fixed fake responses and do not change repositories or contact GitLab."
+  },
+  "smoke": {
+    "status": "NOT_RUN",
+    "reason": "Diagnostic feedback-only run."
+  },
+  "performanceStatus": "MEASURED"
+}

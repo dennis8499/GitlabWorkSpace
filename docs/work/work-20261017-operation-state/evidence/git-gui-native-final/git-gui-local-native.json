@@ -1,0 +1,125 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-16T18:56:08.789Z",
+  "mode": "local-only-native-confirmation",
+  "dialogStyle": "custom",
+  "vscodeVersion": "1.142.0",
+  "status": "PASS",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176938700-31332\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "coldStartMs": 152.17,
+  "elapsedMs": 29431.7,
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.25.0.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.25.0",
+  "interactiveConfirmationUI": "PASS",
+  "gitGui": {
+    "branch": "validation/native-gui/mvbbvqat",
+    "previousBranch": "main",
+    "stagedPartial": "1\t0\tservice.ts",
+    "stagedWholeFile": "2\t0\tservice.ts",
+    "commitMessage": "GUI native confirmation native-1792176943862",
+    "pushUpstream": "origin/validation/native-gui/mvbbvqat",
+    "remoteBranch": "255e689aa366d52eff4ab78466149e71771bbb99",
+    "commitConfirmation": "workbench-dom",
+    "pushConfirmation": "workbench-dom",
+    "historyRows": 3,
+    "unknownWrite": {
+      "status": "PASS",
+      "stage": "manual-result-confirmed",
+      "pushCounts": {
+        "beforeRace": 1,
+        "afterUnknown": 2,
+        "afterRefresh": 2,
+        "afterManualConfirmation": 2
+      },
+      "localBefore": "255e689aa366d52eff4ab78466149e71771bbb99",
+      "remoteBefore": "255e689aa366d52eff4ab78466149e71771bbb99",
+      "raceCommit": "6e6ff542b5143bf7667af5ea33e2b7d29e322316",
+      "remoteAtConfirmation": "6e6ff542b5143bf7667af5ea33e2b7d29e322316",
+      "forcePushConfirmation": "workbench-dom",
+      "forceConfirmation": "Force Push\nCancel\nForce Push 255e689aa366 至 origin:validation/native-gui/mvbbvqat（遠端目前 255e689aa366）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176938700-31332\\demo\\service\n將傳送的提交：\n沒有新提交。\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+      "rejectedLocalSha": "255e689aa366d52eff4ab78466149e71771bbb99",
+      "rejectedRemoteSha": "6e6ff542b5143bf7667af5ea33e2b7d29e322316",
+      "unknownState": {
+        "progress": "結果待確認，請先核對 Repo…",
+        "writeBlocked": true,
+        "readAllowed": true,
+        "failedOperations": [
+          "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+        ]
+      },
+      "refreshCommand": {
+        "sid": "20261016T185606.689877Z-Hf9ec2bb5-P0000544c",
+        "argv": [
+          "git.exe",
+          "status",
+          "-z",
+          "-uall"
+        ]
+      },
+      "refreshedState": {
+        "progress": "結果待確認，請先核對 Repo…",
+        "writeBlocked": true,
+        "readAllowed": true,
+        "failedOperations": [
+          "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+        ]
+      },
+      "manualConfirmation": "workbench-dom",
+      "resultConfirmation": "已確認完成\n已確認未執行\nCancel\n請先在 GitLab 或本機 Repo 核對「執行版控操作」（git:bc24f6d44e146903abf3e437540e3dd9）的結果。只有確認結果後，才選擇下列項目解除待確認狀態；系統不會重新執行或重送操作。",
+      "confirmedOutcome": "none",
+      "confirmedLocalSha": "255e689aa366d52eff4ab78466149e71771bbb99",
+      "confirmedRemoteSha": "6e6ff542b5143bf7667af5ea33e2b7d29e322316",
+      "resolvedState": {
+        "progress": "",
+        "writeBlocked": false,
+        "readAllowed": true,
+        "failedOperations": []
+      },
+      "noAutomaticResend": true,
+      "pushInvocations": [
+        {
+          "sid": "20261016T185601.296054Z-Hf9ec2bb5-P00007f84",
+          "argv": [
+            "git.exe",
+            "-c",
+            "core.quotepath=false",
+            "push",
+            "--set-upstream",
+            "origin",
+            "HEAD:refs/heads/validation/native-gui/mvbbvqat"
+          ]
+        },
+        {
+          "sid": "20261016T185605.680459Z-Hf9ec2bb5-P00000a78",
+          "argv": [
+            "git.exe",
+            "-c",
+            "core.quotepath=false",
+            "push",
+            "--force-with-lease=refs/heads/validation/native-gui/mvbbvqat:255e689aa366d52eff4ab78466149e71771bbb99",
+            "origin",
+            "HEAD:refs/heads/validation/native-gui/mvbbvqat"
+          ]
+        }
+      ]
+    }
+  },
+  "gitTrace": {
+    "file": "native-vscode-git-trace2.jsonl",
+    "scope": "spawned-vscode-only"
+  },
+  "screenshots": [
+    "screenshots/native-commit-confirmation.png",
+    "screenshots/native-push-confirmation.png",
+    "screenshots/local-git-gui-native.png",
+    "screenshots/native-force-push-confirmation.png",
+    "screenshots/native-force-push-unknown.png",
+    "screenshots/native-unknown-after-refresh.png",
+    "screenshots/native-unknown-result-confirmation.png",
+    "screenshots/native-unknown-result-resolved.png"
+  ]
+}

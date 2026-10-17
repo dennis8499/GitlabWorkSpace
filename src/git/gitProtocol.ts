@@ -74,6 +74,9 @@ export interface GitRebasePlan {
 export interface GitRepositorySnapshot extends GitRepositorySummary, GitRepositoryDetails {
   /** Present only on a Commit action response; cancelling must not clear the draft. */
   commitCompleted?: boolean;
+  /** The requested write was confirmed, or was cancelled before its mutation. */
+  actionEffect?: 'none' | 'applied';
+  actionCancelled?: boolean;
   remotes: string[];
   changes: GitChange[];
   history: GitCommitSummary[];
@@ -144,7 +147,7 @@ export function isGitWriteAction(action: GitAction): boolean {
 export type GitPanelMessage =
   | { type: 'gitRepositories'; repositories: GitRepositorySummary[]; available: boolean; message?: string; selectedRepositoryId?: string; revision: number }
   | { type: 'gitSnapshot'; snapshot: GitRepositorySnapshot; requestId?: string }
-  | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean; write?: boolean }
+  | { type: 'gitActionResult'; requestId: string; error?: string; commitCompleted?: boolean; write?: boolean; effect?: 'none' | 'applied' | 'partial' | 'unknown'; refreshError?: string }
   | { type: 'gitError'; message: string };
 
 const REF_NAME = /^(?!-)(?!\/)(?!.*(?:\.\.|\/\/|@\{|\\|[\x00-\x20~^:?*[)\x7f]))(?!.*\/\.)(?!.*\/$)(?!.*\.lock$).+$/;

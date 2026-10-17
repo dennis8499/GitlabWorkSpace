@@ -100,7 +100,7 @@ test('copy feedback blocks duplicate clicks, allows retry and ignores obsolete e
       level:'error',title:'複製提示詞',messages:['套件已變更'],createdAt:Date.now(),updatedAt:Date.now(),read:false}]
   }}}));
   await view.tick(); assert.equal(button.disabled,false);
-  assert.doesNotMatch(view.document.body.textContent,/套件已變更/,'completed failures do not leave an inline operation strip');
+  assert.match(view.document.querySelector('.operation-feedback').textContent,/套件已變更/,'failure stays beside its operation until retry or dismissal');
   assert.match(view.document.querySelector('.notifications-trigger').getAttribute('aria-label'),/1 筆未讀/);
   view.document.querySelector('.notifications-trigger').click(); await view.tick();
   assert.match(view.document.querySelector('.notification-drawer').textContent,/套件已變更/);

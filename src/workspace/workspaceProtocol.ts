@@ -9,7 +9,7 @@ import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { ProjectRootContext } from './projectRootProtocol';
 import type { LogPage, LogQuery } from '../logging/logProtocol';
-import type { WorkspaceOperationState } from './operations';
+import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 
@@ -158,6 +158,7 @@ export interface WorkspaceSnapshot {
   projectOperationBusy?: boolean;
   operationScope?: string;
   operations?: WorkspaceOperationState[];
+  operationSnapshot?: OperationSnapshot;
   projectContext?: ProjectRootContext;
   connected: boolean;
   baseUrl?: string;
@@ -239,9 +240,13 @@ export interface CloneOperationState {
   }>;
 }
 
+export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId' | 'resourceKey' | 'action' | 'label' | 'correlationId' | 'lockKey' | 'kind'>;
+
 export type WorkspaceRequest = (NotificationRequest
   | GitPanelRequest
   | { type: 'ready' }
+  | { type: 'reconcileOperations'; pendingIds?: string[] }
+  | { type: 'confirmOperationResult'; targetOperationId: string; recovery?: OperationRecoveryMetadata }
   | GitPanelRequest
   | { type: 'refresh' }
   | { type: 'retryInstanceCheck' }
@@ -300,6 +305,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'acknowledgeTimeEntry'; id: string }
   | { type: 'selectMergeRequest'; projectId: number; iid: number }
   | { type: 'refreshMergeRequest'; projectId: number; iid: number }
+  | { type: 'reconcileMergeRequestWrite'; projectId: number; iid: number }
   | { type: 'loadMergeRequestSection'; section: 'diffs' | 'discussions'; projectId: number; iid: number }
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
   | { type: 'openBranchReview'; projectId: number; iid: number }
@@ -321,12 +327,13 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
   | { type: 'installWorkflowKit'; packageId: string }
-) & { projectRevision?: string; operationId?: string; operationScope?: string };
+) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
 
 export type WorkspaceResponse =
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
+  | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; branches: string[]; error?: string }
   | { type: 'openAccountManager'; intent: AccountPanelIntent }
@@ -338,7 +345,7 @@ export type WorkspaceResponse =
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
   | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }
   | ({ type: 'issueGraphPatch'; version: number } & IssueGraphPatch)
-  | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; error?: string }
+  | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; effect?: WorkspaceOperationState['effect']; refreshError?: string; error?: string }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }
   | { type: 'error'; message: string; scopeRevision?: string }

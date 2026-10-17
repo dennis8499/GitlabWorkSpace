@@ -1,0 +1,7 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/megin_discovery_test.py"]
+test_discovery_contains_every_unique_case_once (__main__.MeginDiscoveryTests.test_discovery_contains_every_unique_case_once) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.780s
+
+OK

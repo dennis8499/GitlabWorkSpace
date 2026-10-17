@@ -1,0 +1,9 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/group_workflow_test.py"]
+test_native_skill_bytes_inventory_and_unchanged_consumers_without_writer_branches (__main__.InstalledGroupWorkflowTests.test_native_skill_bytes_inventory_and_unchanged_consumers_without_writer_branches) ... ok
+test_native_v3_branch_capture_keeps_one_seed_and_related_heads (__main__.InstalledGroupWorkflowTests.test_native_v3_branch_capture_keeps_one_seed_and_related_heads) ... ok
+test_removed_capture_routes_fail_without_changing_repositories (__main__.InstalledGroupWorkflowTests.test_removed_capture_routes_fail_without_changing_repositories) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 31.704s
+
+OK

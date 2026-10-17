@@ -1,0 +1,272 @@
+[
+  {
+    "id": "nav-1-clone",
+    "mode": "clone",
+    "receive": 1061.2000000178814,
+    "domReady": 1066.4000000059605,
+    "waitStart": 1073.5,
+    "pollReady": 1073.6000000238419,
+    "measuredEnd": 1102.300000011921
+  },
+  {
+    "id": "nav-2-sa",
+    "mode": "sa",
+    "receive": 1146.1000000238419,
+    "domReady": 1150.1000000238419,
+    "waitStart": 1154.7000000178814,
+    "pollReady": 1154.7000000178814,
+    "measuredEnd": 1172.5
+  },
+  {
+    "id": "nav-3-reviewer",
+    "mode": "reviewer",
+    "receive": 1217.6000000238419,
+    "domReady": 1220.6000000238419,
+    "waitStart": 1225.1000000238419,
+    "pollReady": 1225.2000000178814,
+    "measuredEnd": 1242.7000000178814
+  },
+  {
+    "id": "nav-4-git",
+    "mode": "git",
+    "receive": 1286.9000000059605,
+    "domReady": 1288.800000011921,
+    "waitStart": 1297.800000011921,
+    "pollReady": 1297.800000011921,
+    "measuredEnd": 1330.2000000178814
+  },
+  {
+    "id": "nav-5-developer",
+    "mode": "developer",
+    "receive": 1373.1000000238419,
+    "domReady": 1375.300000011921,
+    "waitStart": 1380.1000000238419,
+    "pollReady": 1380.2000000178814,
+    "measuredEnd": 1399.9000000059605
+  },
+  {
+    "id": "nav-6-clone",
+    "mode": "clone",
+    "receive": 1441.7000000178814,
+    "domReady": 1443.9000000059605,
+    "waitStart": 1448.4000000059605,
+    "pollReady": 1448.4000000059605,
+    "measuredEnd": 1470.2000000178814
+  },
+  {
+    "id": "nav-7-sa",
+    "mode": "sa",
+    "receive": 1513.5,
+    "domReady": 1515.800000011921,
+    "waitStart": 1519.2000000178814,
+    "pollReady": 1519.2000000178814,
+    "measuredEnd": 1540.1000000238419
+  },
+  {
+    "id": "nav-8-reviewer",
+    "mode": "reviewer",
+    "receive": 1581.2000000178814,
+    "domReady": 1583.2000000178814,
+    "waitStart": 1586.800000011921,
+    "pollReady": 1586.800000011921,
+    "measuredEnd": 1610.1000000238419
+  },
+  {
+    "id": "nav-9-git",
+    "mode": "git",
+    "receive": 1653.4000000059605,
+    "domReady": 1655,
+    "waitStart": 1660.800000011921,
+    "pollReady": 1660.9000000059605,
+    "measuredEnd": 1680.300000011921
+  },
+  {
+    "id": "nav-10-developer",
+    "mode": "developer",
+    "receive": 1722.9000000059605,
+    "domReady": 1724.7000000178814,
+    "waitStart": 1729.2000000178814,
+    "pollReady": 1729.2000000178814,
+    "measuredEnd": 1750
+  },
+  {
+    "id": "nav-11-clone",
+    "mode": "clone",
+    "receive": 1791.7000000178814,
+    "domReady": 1793.5,
+    "waitStart": 1798.800000011921,
+    "pollReady": 1798.9000000059605,
+    "measuredEnd": 1819.2000000178814
+  },
+  {
+    "id": "nav-12-sa",
+    "mode": "sa",
+    "receive": 1860.800000011921,
+    "domReady": 1862.6000000238419,
+    "waitStart": 1866.1000000238419,
+    "pollReady": 1866.1000000238419,
+    "measuredEnd": 1889
+  },
+  {
+    "id": "nav-13-reviewer",
+    "mode": "reviewer",
+    "receive": 1929.2000000178814,
+    "domReady": 1930.9000000059605,
+    "waitStart": 1934.5,
+    "pollReady": 1934.5,
+    "measuredEnd": 1957.6000000238419
+  },
+  {
+    "id": "nav-14-git",
+    "mode": "git",
+    "receive": 1999.800000011921,
+    "domReady": 2001.2000000178814,
+    "waitStart": 2006.6000000238419,
+    "pollReady": 2006.7000000178814,
+    "measuredEnd": 2027.5
+  },
+  {
+    "id": "nav-15-developer",
+    "mode": "developer",
+    "receive": 2069.300000011921,
+    "domReady": 2071.300000011921,
+    "waitStart": 2076,
+    "pollReady": 2076,
+    "measuredEnd": 2098
+  },
+  {
+    "id": "nav-16-clone",
+    "mode": "clone",
+    "receive": 2139.9000000059605,
+    "domReady": 2141.7000000178814,
+    "waitStart": 2146.300000011921,
+    "pollReady": 2146.4000000059605,
+    "measuredEnd": 2167.5
+  },
+  {
+    "id": "nav-17-sa",
+    "mode": "sa",
+    "receive": 2212.2000000178814,
+    "domReady": 2214.2000000178814,
+    "waitStart": 2218.600000023842,
+    "pollReady": 2218.600000023842,
+    "measuredEnd": 2236.600000023842
+  },
+  {
+    "id": "nav-18-reviewer",
+    "mode": "reviewer",
+    "receive": 2278.7000000178814,
+    "domReady": 2281.100000023842,
+    "waitStart": 2285.100000023842,
+    "pollReady": 2285.2000000178814,
+    "measuredEnd": 2306.600000023842
+  },
+  {
+    "id": "nav-19-git",
+    "mode": "git",
+    "receive": 2350.100000023842,
+    "domReady": 2351.5,
+    "waitStart": 2363.600000023842,
+    "pollReady": 2363.600000023842,
+    "measuredEnd": 2393.100000023842
+  },
+  {
+    "id": "nav-20-developer",
+    "mode": "developer",
+    "receive": 2436.600000023842,
+    "domReady": 2438.800000011921,
+    "waitStart": 2443.7000000178814,
+    "pollReady": 2443.7000000178814,
+    "measuredEnd": 2463.100000023842
+  },
+  {
+    "id": "nav-21-clone",
+    "mode": "clone",
+    "receive": 2505.9000000059605,
+    "domReady": 2507.9000000059605,
+    "waitStart": 2512.600000023842,
+    "pollReady": 2512.7000000178814,
+    "measuredEnd": 2532.5
+  },
+  {
+    "id": "nav-22-sa",
+    "mode": "sa",
+    "receive": 2576.7000000178814,
+    "domReady": 2578.600000023842,
+    "waitStart": 2582.9000000059605,
+    "pollReady": 2583,
+    "measuredEnd": 2602
+  },
+  {
+    "id": "nav-23-reviewer",
+    "mode": "reviewer",
+    "receive": 2645.4000000059605,
+    "domReady": 2647.100000023842,
+    "waitStart": 2650.5,
+    "pollReady": 2650.5,
+    "measuredEnd": 2672.100000023842
+  },
+  {
+    "id": "nav-24-git",
+    "mode": "git",
+    "receive": 2717.800000011921,
+    "domReady": 2719,
+    "waitStart": 2724,
+    "pollReady": 2724,
+    "measuredEnd": 2742.100000023842
+  },
+  {
+    "id": "nav-25-developer",
+    "mode": "developer",
+    "receive": 2784.300000011921,
+    "domReady": 2786.2000000178814,
+    "waitStart": 2790.100000023842,
+    "pollReady": 2790.2000000178814,
+    "measuredEnd": 2811.7000000178814
+  },
+  {
+    "id": "nav-26-clone",
+    "mode": "clone",
+    "receive": 2854.7000000178814,
+    "domReady": 2856.800000011921,
+    "waitStart": 2861.800000011921,
+    "pollReady": 2861.800000011921,
+    "measuredEnd": 2881.300000011921
+  },
+  {
+    "id": "nav-27-sa",
+    "mode": "sa",
+    "receive": 2926.800000011921,
+    "domReady": 2929,
+    "waitStart": 2934.600000023842,
+    "pollReady": 2934.600000023842,
+    "measuredEnd": 2967.7000000178814
+  },
+  {
+    "id": "nav-28-reviewer",
+    "mode": "reviewer",
+    "receive": 3013.2000000178814,
+    "domReady": 3015.4000000059605,
+    "waitStart": 3019.7000000178814,
+    "pollReady": 3019.800000011921,
+    "measuredEnd": 3038.300000011921
+  },
+  {
+    "id": "nav-29-git",
+    "mode": "git",
+    "receive": 3082.600000023842,
+    "domReady": 3084.2000000178814,
+    "waitStart": 3090.100000023842,
+    "pollReady": 3090.100000023842,
+    "measuredEnd": 3108.2000000178814
+  },
+  {
+    "id": "nav-30-developer",
+    "mode": "developer",
+    "receive": 3153.5,
+    "domReady": 3156,
+    "waitStart": 3166.5,
+    "pollReady": 3166.600000023842,
+    "measuredEnd": 3195.7000000178814
+  }
+]

@@ -1,0 +1,50 @@
+{
+  "schema": "GitLabWorkspaceHarnessCorrectionPreparation/v1",
+  "before": {
+    "schema": "gitlab-workspace-prepared/v1",
+    "stages": [
+      "compile",
+      "webview",
+      "kit",
+      "issue"
+    ],
+    "outputs": [
+      "out",
+      "out/src/extension.js",
+      "resources/issue-webview",
+      "resources/sidebar-webview",
+      "resources/issue-webview/dashboard.js",
+      "resources/sidebar-webview/sidebar.js",
+      "resources/offline-tools/workflow-kit.tar.xz",
+      "resources/offline-tools/manifest.json",
+      "dist/gitlab-workspace-kit-0.25.0.zip",
+      "resources/issue-webview/issue-test.js"
+    ],
+    "inputs": "319bf0abfd54a8c265358d1902b7f1d5dfdf4c540eec165c0cb6303e49ee7460",
+    "outputSha256": "d53caafe33d88eba025a4d58d7a1153e2de7766878bae538a5b93026f48c25a3"
+  },
+  "after": {
+    "schema": "gitlab-workspace-prepared/v1",
+    "stages": [
+      "compile",
+      "webview",
+      "kit",
+      "issue"
+    ],
+    "outputs": [
+      "out",
+      "out/src/extension.js",
+      "resources/issue-webview",
+      "resources/sidebar-webview",
+      "resources/issue-webview/dashboard.js",
+      "resources/sidebar-webview/sidebar.js",
+      "resources/offline-tools/workflow-kit.tar.xz",
+      "resources/offline-tools/manifest.json",
+      "dist/gitlab-workspace-kit-0.25.0.zip",
+      "resources/issue-webview/issue-test.js"
+    ],
+    "inputs": "fafdd497270801e8d2f51216782b073217e4f82c5aa8d53952c8d3741713ebd3",
+    "outputSha256": "da691c69e8d0127048bc67526ad349322e7a1b83c72e0783d8ee8a5c47b6808c"
+  },
+  "note": "Only live test source and driver changed after complete npm test; test compilation passed and packaged-content-identity.json verifies unchanged production files. No product rebuild or repackage."
+}

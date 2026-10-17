@@ -1,0 +1,277 @@
+
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/4a184c84-c863-4641-a3bb-75d794134ce7
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-16T18:42:04.547Z] Error: Error mutex already exists
+    at bt.W (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.90.0\resources\app\out\vs\code\electron-main\main.js:110:70767)
+[main 2026-10-16T18:42:04.549Z] update#setState disabled
+[main 2026-10-16T18:42:04.549Z] update#ctor - updates are disabled by the environment
+Started local extension host with pid 30232.
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-31988-1792176124080
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-31988-1792176124080
+Loading development extension at c:\Users\denni\AppData\Local\Temp\gitlab-workspace-vscode-test\live-vsix-0.25.0-7c018fba6fe5-31988\extension
+
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available (57ms)
+  Group delivery and version-bound report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  Live GitLab Workspace Webview validation
+Deprecated. Use ApiRepository.getRefs() instead.
+Failed to fetch chat participant registry {}
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle open: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle select-file: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle stage: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 3
+    1) exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Native readonly Git Diff snapshots
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ preserves text and binary bytes and releases each snapshot after the last native tab closes (1855ms)
+  5 passing (4m)
+  1 pending
+  1 failing
+  1) Live GitLab Workspace Webview validation
+       exercises the packaged Git GUI against an isolated local bare remote:
+     locator.fill: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('.git-commit-composer textarea[name="message"]')[22m
+[2m    - locator resolved to <textarea rows="5" name="message" aria-label="提交訊息" placeholder="描述這次變更…"></textarea>[22m
+[2m    - fill("GUI validation local-git-gui-1792176124093")[22m
+[2m  - attempting fill action[22m
+[2m    2 × waiting for element to be visible, enabled and editable[22m
+[2m      - element is not visible[22m
+[2m    - retrying fill action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and editable[22m
+[2m      - element is not visible[22m
+[2m    - retrying fill action[22m
+[2m      - waiting 100ms[22m
+[2m    58 × waiting for element to be visible, enabled and editable[22m
+[2m       - element is not visible[22m
+[2m     - retrying fill action[22m
+[2m       - waiting 500ms[22m
+
+      at exerciseGitGui (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\out\test\extension\liveValidation.test.js:847:86)
+      at async Context.<anonymous> (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\out\test\extension\liveValidation.test.js:162:28)
+
+Error: 1 Extension Host validation test(s) failed.
+	at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\scripts\live-extension-test-entry.cjs:19:47
+	at done (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\node_modules\@vscode\test-cli\node_modules\mocha\lib\mocha.js:1015:7)
+Invalid model for label change, rebuilding
+[main 2026-10-16T18:45:50.838Z] Extension host with pid 30232 exited with code: 0, signal: unknown.
+Exit code:   1
+{
+  "mode": "local-git-gui",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "result": {
+    "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+    "generatedAt": "2026-10-16T18:45:51.015Z",
+    "mode": "local-only",
+    "vscodeVersion": "1.90.0",
+    "testedArtifact": {
+      "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+      "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+    },
+    "status": "FAIL",
+    "error": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.git-commit-composer textarea[name=\"message\"]')\u001b[22m\n\u001b[2m    - locator resolved to <textarea rows=\"5\" name=\"message\" aria-label=\"提交訊息\" placeholder=\"描述這次變更…\"></textarea>\u001b[22m\n\u001b[2m    - fill(\"GUI validation local-git-gui-1792176124093\")\u001b[22m\n\u001b[2m  - attempting fill action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying fill action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying fill action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying fill action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+    "workspaceFolders": [
+      "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service"
+    ],
+    "nativeGitRepositoryState": {
+      "repositories": [
+        {
+          "id": "592d769c585d14285bcb88599070e776",
+          "name": "service",
+          "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service",
+          "branch": "validation/local-git-gui-1792176124093/mvbbfiil",
+          "headCommit": "202f6eb679833a90e4dbdeeb43382bcefc113ae1",
+          "ahead": 0,
+          "behind": 0,
+          "stagedCount": 1,
+          "unstagedCount": 0,
+          "conflictCount": 0,
+          "busy": false,
+          "revision": 13
+        }
+      ],
+      "available": true,
+      "revision": 13
+    },
+    "windowFocused": true,
+    "nativeGitActivity": {
+      "commands": 39,
+      "auxiliaryCommands": 7,
+      "nativeApiCalls": 35,
+      "nativeStatusEvents": 15
+    },
+    "nativeWorkingChanges": [
+      {
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service",
+        "changes": []
+      }
+    ],
+    "actionTrace": [
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "open"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "branch"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "branch"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "readDiff"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stagePatch"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stagePatch"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stageFile"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stageFile"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stageFile"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "stageFile"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "592d769c585d14285bcb88599070e776",
+        "action": "readDiff"
+      }
+    ],
+    "idleChecks": [
+      {
+        "phase": "open",
+        "idleMs": 60008,
+        "before": {
+          "commands": 6,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 6,
+          "nativeStatusEvents": 3
+        },
+        "after": {
+          "commands": 6,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 6,
+          "nativeStatusEvents": 3
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 22,
+          "after": 22,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "select-file",
+        "idleMs": 60002,
+        "before": {
+          "commands": 17,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 17,
+          "nativeStatusEvents": 7
+        },
+        "after": {
+          "commands": 17,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 17,
+          "nativeStatusEvents": 7
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 44,
+          "after": 44,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "stage",
+        "idleMs": 60013,
+        "before": {
+          "commands": 39,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 35,
+          "nativeStatusEvents": 14
+        },
+        "after": {
+          "commands": 39,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 35,
+          "nativeStatusEvents": 15
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 77,
+          "after": 80,
+          "backgroundDelta": 3
+        }
+      }
+    ],
+    "gitDetailsStaleRetries": 0,
+    "sourceRepository": "isolated generated Git seed"
+  }
+}

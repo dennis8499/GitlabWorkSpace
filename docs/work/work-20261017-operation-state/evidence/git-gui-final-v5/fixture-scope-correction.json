@@ -1,0 +1,139 @@
+{
+  "schema": "WorkspaceScopeFixtureCorrection/v1",
+  "generatedAt": "2026-10-16T19:37:27.925Z",
+  "status": "PREPARED",
+  "formalAcceptance": true,
+  "fullRunRequired": true,
+  "resultPolicy": "PREPARED is setup only. PASS requires the complete unchanged formal suite and all assertions to finish successfully.",
+  "generator": {
+    "path": "docs/work/work-20261017-operation-state/evidence/prepare-workspace-scope-driver.mjs",
+    "sha256": "96edcbe56e500dd6a5701449639576efa627513fee605eb858470b87a8135fcc",
+    "bytes": 7646
+  },
+  "canonical": {
+    "path": "scripts/run-live-extension-tests.mjs",
+    "sha256": "5fd02d9f78a194937c18e4112aabeb8334aa3973b81b5a76fa67fed456b60361",
+    "bytes": 74940
+  },
+  "corrected": {
+    "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/fixture-driver.mjs",
+    "sha256": "1fc77c2645085f8c1b3158688ad58fcdfda46cc0d7597b141620b85065598a04",
+    "bytes": 75166
+  },
+  "replacements": [
+    {
+      "kind": "root",
+      "from": "const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');",
+      "to": "const ROOT = \"C:\\\\Users\\\\denni\\\\OneDrive\\\\Desktop\\\\新增資料夾\\\\GitlabWorkSpace\";",
+      "count": 1
+    },
+    {
+      "kind": "helper-import",
+      "from": "import { compareLiveBenchmarks } from './live-benchmark-comparison.mjs';",
+      "to": "import { compareLiveBenchmarks } from \"file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/scripts/live-benchmark-comparison.mjs\";",
+      "count": 1
+    },
+    {
+      "kind": "helper-import",
+      "from": "import { sameFilesystemPath, createLiveTestProfile } from './live-test-paths.mjs';",
+      "to": "import { sameFilesystemPath, createLiveTestProfile } from \"file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/scripts/live-test-paths.mjs\";",
+      "count": 1
+    },
+    {
+      "kind": "workspace-folder",
+      "from": "  writeFileSync(workspaceFile, JSON.stringify({ folders: [{ path: repository }] }, null, 2), 'utf8');",
+      "to": "  writeFileSync(workspaceFile, JSON.stringify({ folders: [{ path: workspaceRoot }] }, null, 2), 'utf8');",
+      "count": 1
+    }
+  ],
+  "allowedChangeTypes": [
+    "root",
+    "helper-import",
+    "workspace-folder"
+  ],
+  "scope": {
+    "before": "Generated .code-workspace includes only demo/service.",
+    "after": "The same generated .code-workspace includes demo, containing service, empty-repo, validation-worktree and module-source.",
+    "repositoryEnvironmentUnchanged": "GLW_LIVE_WORKSPACE_ROOT remains fixture.repository (demo/service).",
+    "gitPolicyUnchanged": "git.openRepositoryInParentFolders remains never.",
+    "reason": "All repositories exercised by the compatibility test must be inside the real VS Code workspace boundary."
+  },
+  "failureEvidence": {
+    "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v4/git-gui-local.json",
+    "sha256": "a9dbc92526cbe2f2140ca73fa918118ab7585e2c147bbba5b927a67c6a5863e4",
+    "status": "FAIL",
+    "error": "null == true",
+    "vscodeVersion": "1.90.0",
+    "workspaceFolders": [
+      "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792178889803-2056\\demo\\service"
+    ],
+    "failedBoundary": "The native Git API openRepository(emptyRepo) returned null before the product adapter could open or render it."
+  },
+  "nativeGitBoundaryEvidence": {
+    "path": ".vscode-test/vscode-win32-x64-archive-1.90.0/resources/app/extensions/git/dist/main.js",
+    "sha256": "243caf741979e4f5c90e4715c43ca9f8e8d85682b0291c960c87e6307a7cbc82",
+    "line": 2,
+    "functions": [
+      "API.openRepository",
+      "Model.openRepository",
+      "Model.isRepositoryOutsideWorkspace"
+    ],
+    "conditions": [
+      "API.openRepository calls Model.openRepository, then returns getRepository(uri) || null.",
+      "With openRepositoryInParentFolders !== always, an outside-workspace root returns without opening unless explicitly approved in parentRepository state.",
+      "isRepositoryOutsideWorkspace accepts workspace folder paths or their descendants, including workspace real paths."
+    ]
+  },
+  "unchangedFiles": [
+    {
+      "path": "scripts/run-live-extension-tests.mjs",
+      "sha256": "5fd02d9f78a194937c18e4112aabeb8334aa3973b81b5a76fa67fed456b60361",
+      "bytes": 74940
+    },
+    {
+      "path": "scripts/live-extension-test-entry.cjs",
+      "sha256": "f27c024536970bd771261f41a2653575a99aed56c959fe6898340a136dcdbf38",
+      "bytes": 1011
+    },
+    {
+      "path": "scripts/live-benchmark-comparison.mjs",
+      "sha256": "4bbe7c1d33ee8e93652c89a97015d8bd914fa189c752fa4ac3751e9d569cc6eb",
+      "bytes": 5355
+    },
+    {
+      "path": "scripts/live-test-paths.mjs",
+      "sha256": "8ff97ae894a5c3f6408421260687fd6263fb4462d09689642805d52c2ddb82c2",
+      "bytes": 1197
+    },
+    {
+      "path": "test/extension/liveValidation.test.ts",
+      "sha256": "e8148624e7688af103f21a16df30d65798e682ec147b754ab49420e9c2604093",
+      "bytes": 98584
+    },
+    {
+      "path": "out/test/extension/liveValidation.test.js",
+      "sha256": "cede951e8cff80251544d8c52940e2c460579ccdd757db105a24df4796c0c8c3",
+      "bytes": 103793
+    },
+    {
+      "path": "dist/gitlab-workspace-0.25.0.vsix",
+      "sha256": "6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7",
+      "bytes": 5608018
+    }
+  ],
+  "preservedValidation": {
+    "idleIntervalMs": 60000,
+    "idlePhases": [
+      "open",
+      "select-file",
+      "stage",
+      "commit",
+      "hidden"
+    ],
+    "compiledTestsUnchanged": true,
+    "assertionsUnchanged": true,
+    "settingsUnchanged": true,
+    "productAndArtifactUnchanged": true
+  },
+  "command": "node \"docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/fixture-driver.mjs\" --local-git-gui --evidence-dir \"docs/work/work-20261017-operation-state/evidence/git-gui-final-v5\""
+}

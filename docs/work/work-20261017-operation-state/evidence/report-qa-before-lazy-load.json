@@ -1,0 +1,40 @@
+{
+  "schema": "GitLabWorkspaceReportQA/v1",
+  "status": "FAIL",
+  "generatedAt": "2026-10-16T19:47:52.354Z",
+  "checkedReferences": 150,
+  "views": [
+    {
+      "width": 1440,
+      "scrollWidth": 1440,
+      "imagesLoaded": false,
+      "screenshot": "report-1440.png"
+    },
+    {
+      "width": 800,
+      "scrollWidth": 800,
+      "imagesLoaded": false,
+      "screenshot": "report-800.png"
+    }
+  ],
+  "failures": [
+    {
+      "width": 1440,
+      "error": "overflow or missing image",
+      "layout": {
+        "width": 1440,
+        "scrollWidth": 1440,
+        "imagesLoaded": false
+      }
+    },
+    {
+      "width": 800,
+      "error": "overflow or missing image",
+      "layout": {
+        "width": 800,
+        "scrollWidth": 800,
+        "imagesLoaded": false
+      }
+    }
+  ]
+}

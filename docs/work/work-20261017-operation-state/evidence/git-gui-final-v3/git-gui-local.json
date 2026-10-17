@@ -1,0 +1,187 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-16T18:45:51.015Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.90.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "status": "FAIL",
+  "error": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.git-commit-composer textarea[name=\"message\"]')\u001b[22m\n\u001b[2m    - locator resolved to <textarea rows=\"5\" name=\"message\" aria-label=\"提交訊息\" placeholder=\"描述這次變更…\"></textarea>\u001b[22m\n\u001b[2m    - fill(\"GUI validation local-git-gui-1792176124093\")\u001b[22m\n\u001b[2m  - attempting fill action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying fill action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m      - element is not visible\u001b[22m\n\u001b[2m    - retrying fill action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and editable\u001b[22m\n\u001b[2m       - element is not visible\u001b[22m\n\u001b[2m     - retrying fill action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+  "workspaceFolders": [
+    "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service"
+  ],
+  "nativeGitRepositoryState": {
+    "repositories": [
+      {
+        "id": "592d769c585d14285bcb88599070e776",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service",
+        "branch": "validation/local-git-gui-1792176124093/mvbbfiil",
+        "headCommit": "202f6eb679833a90e4dbdeeb43382bcefc113ae1",
+        "ahead": 0,
+        "behind": 0,
+        "stagedCount": 1,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "revision": 13
+      }
+    ],
+    "available": true,
+    "revision": 13
+  },
+  "windowFocused": true,
+  "nativeGitActivity": {
+    "commands": 39,
+    "auxiliaryCommands": 7,
+    "nativeApiCalls": 35,
+    "nativeStatusEvents": 15
+  },
+  "nativeWorkingChanges": [
+    {
+      "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176123362-31988\\demo\\service",
+      "changes": []
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "branch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "branch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "592d769c585d14285bcb88599070e776",
+      "action": "readDiff"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60008,
+      "before": {
+        "commands": 6,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 6,
+        "nativeStatusEvents": 3
+      },
+      "after": {
+        "commands": 6,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 6,
+        "nativeStatusEvents": 3
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 22,
+        "after": 22,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60002,
+      "before": {
+        "commands": 17,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 17,
+        "nativeStatusEvents": 7
+      },
+      "after": {
+        "commands": 17,
+        "auxiliaryCommands": 3,
+        "nativeApiCalls": 17,
+        "nativeStatusEvents": 7
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 44,
+        "after": 44,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60013,
+      "before": {
+        "commands": 39,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 35,
+        "nativeStatusEvents": 14
+      },
+      "after": {
+        "commands": 39,
+        "auxiliaryCommands": 7,
+        "nativeApiCalls": 35,
+        "nativeStatusEvents": 15
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 77,
+        "after": 80,
+        "backgroundDelta": 3
+      }
+    }
+  ],
+  "gitDetailsStaleRetries": 0,
+  "sourceRepository": "isolated generated Git seed"
+}

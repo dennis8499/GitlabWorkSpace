@@ -1,0 +1,86 @@
+{
+  "schema": "GitLabWorkspaceVisualQA/v1",
+  "generatedAt": "2026-10-16T19:35:42.518Z",
+  "status": "PASS",
+  "testedArtifact": {
+    "sha256": "6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7"
+  },
+  "reviewedBy": "Codex visual image inspection",
+  "method": "All 14 images opened with view_image and visually inspected; automated Workbench DOM interactions are not human input.",
+  "checks": [
+    {
+      "id": "revision-1440-skills",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-1440-skills.png"
+    },
+    {
+      "id": "revision-1440-settings",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-1440-settings.png"
+    },
+    {
+      "id": "revision-800-projects",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-800-projects.png"
+    },
+    {
+      "id": "revision-800-skills",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-800-skills.png"
+    },
+    {
+      "id": "revision-800-highcontrast-projects",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-800-highcontrast-projects.png"
+    },
+    {
+      "id": "revision-800-highcontrast-skills",
+      "status": "PASS",
+      "evidence": "evidence/revision-v3/revision-800-highcontrast-skills.png"
+    },
+    {
+      "id": "native-commit-confirmation",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-commit-confirmation.png"
+    },
+    {
+      "id": "native-push-confirmation",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-push-confirmation.png"
+    },
+    {
+      "id": "local-git-gui-native",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/local-git-gui-native.png"
+    },
+    {
+      "id": "native-force-push-confirmation",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-force-push-confirmation.png"
+    },
+    {
+      "id": "native-force-push-unknown",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-force-push-unknown.png"
+    },
+    {
+      "id": "native-unknown-after-refresh",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-unknown-after-refresh.png"
+    },
+    {
+      "id": "native-unknown-result-confirmation",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-unknown-result-confirmation.png"
+    },
+    {
+      "id": "native-unknown-result-resolved",
+      "status": "PASS",
+      "evidence": "evidence/git-gui-native-v3/screenshots/native-unknown-result-resolved.png"
+    }
+  ],
+  "observations": [
+    "Codex inspected all six images with view_image: dark/high-contrast layouts fit widths, primary navigation/actions legible, settings drawer readable and scrollable, Projects list stays within container with sticky action footer, Skills tabs/fields flow at 800px, focus/borders visible.",
+    "Native VS Code Commit, Push, Force Push and result confirmation dialogs are readable and contained. Unknown outcome shows a clear action and persists after read refresh; resolved screenshot has no pending row and enables write toolbar. Git graph, inspector and composer remain usable in the actual Webview."
+  ]
+}

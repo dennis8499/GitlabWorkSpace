@@ -1,0 +1,3381 @@
+{
+  "schema": "GitLabWorkspacePackagedUiVerification/v2",
+  "label": "revision",
+  "capturedAt": "2026-10-16T17:35:56.328Z",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.25.0.vsix",
+    "sha256": "783076d020d2b0b8ef672665185a14d6ae90190bc2b69598da905a71efa714b2"
+  },
+  "assets": [
+    {
+      "name": "issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "bytes": 443
+    },
+    {
+      "name": "issue-webview/dashboard.js",
+      "sha256": "3825c0aa381f1cfbb45702756ce22c0a432cd185984d91fb0ea3fa8858e9970b",
+      "bytes": 346544
+    },
+    {
+      "name": "issue-webview/dashboard.css",
+      "sha256": "6a23374ca25f98397ef1505140235cb1682856b8f8216300d4244a46c151c2d7",
+      "bytes": 78215
+    },
+    {
+      "name": "sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "bytes": 459
+    },
+    {
+      "name": "sidebar-webview/sidebar.js",
+      "sha256": "15a5f2a287856074c450426a446ff057cf305b12b5371940dba67ee7c6b06faa",
+      "bytes": 43321
+    },
+    {
+      "name": "sidebar-webview/sidebar.css",
+      "sha256": "e54b695b041c19a6eb3dda66af5f1412c38b309f3287bd774ce416d1c5985716",
+      "bytes": 9681
+    }
+  ],
+  "harnessSha256": "83a2d7ebf0921e9eb2281b31ae7cfed8998e46d21f8be1052d2af848d429a1f4",
+  "fixtureSha256": "645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9",
+  "browserVersion": "155.0.8059.80",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "measurement": {
+    "rounds": 10,
+    "samplesPerRound": 30,
+    "repoCount": 20,
+    "dashboardWidth": 1440,
+    "sidebarWidth": 300,
+    "height": 900,
+    "latency": "UI postMessage/input capture to matching rendered DOM followed by two requestAnimationFrame callbacks; excludes Playwright input delivery",
+    "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "comparisonLimitPercent": 10,
+    "firstFeedback": {
+      "samplesPerAction": 100,
+      "limitP95Ms": 100,
+      "mockAcknowledgementDelayMs": 160,
+      "mockCompletionDelayMs": 220,
+      "timing": "DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery",
+      "completion": "Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance."
+    }
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "warmNavigationMs": {
+        "samples": [
+          38.5,
+          40.5,
+          38.9,
+          39.9,
+          44.4,
+          42.8,
+          40.2,
+          41.9,
+          42,
+          25.5,
+          25.9,
+          40.7,
+          25.5,
+          24.1,
+          39.7,
+          42.4,
+          25.1,
+          25.5,
+          24.8,
+          27.2,
+          28,
+          26.8,
+          41.9,
+          39.6,
+          39.1,
+          38.3,
+          38.1,
+          39.2,
+          37.4,
+          39.4
+        ],
+        "p95": 42.8
+      },
+      "repoSearchMs": {
+        "samples": [
+          32.7,
+          44.2,
+          25.5,
+          26,
+          43.9,
+          22.2,
+          25.6,
+          44.8,
+          26.3,
+          27.2,
+          46.2,
+          27.1,
+          26.8,
+          43.9,
+          27.3,
+          25.7,
+          44.8,
+          25.2,
+          23.4,
+          41.7,
+          24.4,
+          25.2,
+          43.7,
+          26,
+          25.7,
+          46,
+          28.4,
+          30,
+          46.2,
+          29.3
+        ],
+        "p95": 46.2
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6261144,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2564424,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766612,
+          "totalSize": 7667712,
+          "embedderHeapUsedSize": 2801088,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818964,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2363568,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 2,
+      "warmNavigationMs": {
+        "samples": [
+          43.1,
+          24.7,
+          42.3,
+          25.2,
+          27.3,
+          42.8,
+          25.9,
+          27.2,
+          28.2,
+          27.9,
+          28.2,
+          27.7,
+          29.2,
+          26.9,
+          27.6,
+          27.6,
+          27.7,
+          27.8,
+          27.8,
+          29.3,
+          27.1,
+          26.2,
+          24.5,
+          27,
+          30.3,
+          29.4,
+          28.1,
+          25.2,
+          39.1,
+          26.7
+        ],
+        "p95": 42.8
+      },
+      "repoSearchMs": {
+        "samples": [
+          36.2,
+          43.7,
+          29,
+          27.9,
+          44,
+          26.7,
+          25.9,
+          45.3,
+          27.8,
+          24.5,
+          44.7,
+          26.8,
+          26.8,
+          43.1,
+          28.1,
+          27.9,
+          50.4,
+          25.1,
+          25.1,
+          45.6,
+          24.7,
+          25.4,
+          43.2,
+          24.8,
+          25.9,
+          41.2,
+          24.6,
+          25.2,
+          59.9,
+          21.8
+        ],
+        "p95": 50.4
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6262964,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2550752,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766116,
+          "totalSize": 7929856,
+          "embedderHeapUsedSize": 2800416,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818464,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2371800,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 3,
+      "warmNavigationMs": {
+        "samples": [
+          37.2,
+          41.1,
+          40.2,
+          39.6,
+          42,
+          42.9,
+          42.5,
+          42.8,
+          25.2,
+          40.7,
+          41.4,
+          41.6,
+          43.5,
+          37.1,
+          39.9,
+          40.6,
+          42,
+          40.7,
+          41.6,
+          42,
+          40.2,
+          24.8,
+          41.6,
+          24.1,
+          42,
+          39.8,
+          40.7,
+          38.9,
+          41.1,
+          41.6
+        ],
+        "p95": 42.9
+      },
+      "repoSearchMs": {
+        "samples": [
+          32.9,
+          40.7,
+          27,
+          25.3,
+          61.2,
+          25.1,
+          24.8,
+          43.9,
+          27.2,
+          28.1,
+          46.7,
+          26.1,
+          27.7,
+          44.8,
+          27.5,
+          25,
+          61.1,
+          26.3,
+          25.8,
+          45.4,
+          27,
+          27.9,
+          45.5,
+          28.3,
+          28.6,
+          45.7,
+          29.7,
+          29.4,
+          46.8,
+          26.1
+        ],
+        "p95": 61.1
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6262884,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2561760,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6765044,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2799896,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6817332,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2360632,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 4,
+      "warmNavigationMs": {
+        "samples": [
+          43.4,
+          26.1,
+          25.5,
+          26.3,
+          41.1,
+          41.6,
+          24.2,
+          24.9,
+          26.5,
+          27.9,
+          27.3,
+          26.5,
+          25.7,
+          25.3,
+          28.1,
+          26.5,
+          26.6,
+          25,
+          27.8,
+          39.6,
+          25.5,
+          26.3,
+          25.1,
+          25,
+          28.7,
+          41.9,
+          24.9,
+          25.6,
+          26,
+          25.9
+        ],
+        "p95": 41.9
+      },
+      "repoSearchMs": {
+        "samples": [
+          37.8,
+          44.2,
+          28.3,
+          26.8,
+          44.5,
+          24.5,
+          24.6,
+          44.8,
+          27.7,
+          23.3,
+          44.6,
+          25,
+          25.1,
+          43.1,
+          26.7,
+          25.8,
+          44.9,
+          26.6,
+          28,
+          44,
+          27,
+          28.5,
+          44.3,
+          25.1,
+          25.8,
+          45.6,
+          27.1,
+          25.5,
+          45.2,
+          27.7
+        ],
+        "p95": 45.2
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6260412,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2355232,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6764884,
+          "totalSize": 7667712,
+          "embedderHeapUsedSize": 2778928,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6817240,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2355328,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 5,
+      "warmNavigationMs": {
+        "samples": [
+          39.3,
+          42.3,
+          39.3,
+          23.7,
+          27.4,
+          26.1,
+          27.6,
+          41.5,
+          25.7,
+          43.7,
+          42,
+          42.5,
+          25.9,
+          26.1,
+          26.5,
+          26.2,
+          28.4,
+          27.9,
+          28.2,
+          28.3,
+          27.3,
+          26.1,
+          27.9,
+          28.2,
+          27.2,
+          43.8,
+          43.7,
+          27.4,
+          25.1,
+          42.1
+        ],
+        "p95": 43.7
+      },
+      "repoSearchMs": {
+        "samples": [
+          32,
+          45,
+          26,
+          26,
+          44.3,
+          26.3,
+          26.9,
+          45.5,
+          27.1,
+          26.1,
+          45.5,
+          24.9,
+          28.5,
+          44.6,
+          26.9,
+          30.4,
+          46.8,
+          28.8,
+          28.3,
+          45,
+          26.4,
+          26.9,
+          45.1,
+          28.3,
+          29.3,
+          45.1,
+          27.1,
+          27.2,
+          46.8,
+          28.1
+        ],
+        "p95": 46.8
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6263380,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2560760,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6765176,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2799808,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6817528,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2359432,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 6,
+      "warmNavigationMs": {
+        "samples": [
+          40.4,
+          43.7,
+          42.6,
+          27.7,
+          27.2,
+          26.1,
+          27.2,
+          29,
+          24.4,
+          25.2,
+          26.2,
+          28.3,
+          28.6,
+          26.8,
+          27.3,
+          44.5,
+          26,
+          27.8,
+          27.2,
+          27.4,
+          29,
+          26.7,
+          25.8,
+          28.3,
+          28.2,
+          28.9,
+          26.4,
+          25.7,
+          27.2,
+          30.1
+        ],
+        "p95": 43.7
+      },
+      "repoSearchMs": {
+        "samples": [
+          35.4,
+          44.9,
+          27.8,
+          29.5,
+          46.5,
+          27.5,
+          27.7,
+          47.8,
+          28.2,
+          28,
+          46.1,
+          26.9,
+          29.1,
+          47.5,
+          27.4,
+          27.8,
+          44.1,
+          25.8,
+          28.6,
+          44.9,
+          28.3,
+          26.7,
+          46.3,
+          27,
+          28.1,
+          45.5,
+          27.7,
+          26.8,
+          44.1,
+          26.3
+        ],
+        "p95": 47.5
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6263368,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2561248,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766156,
+          "totalSize": 7667712,
+          "embedderHeapUsedSize": 2807304,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818504,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2359968,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 7,
+      "warmNavigationMs": {
+        "samples": [
+          40.8,
+          43.4,
+          27,
+          41.5,
+          26,
+          27,
+          26,
+          28.1,
+          26.2,
+          42.6,
+          26.2,
+          41.9,
+          27.7,
+          26.2,
+          28.4,
+          28.3,
+          27.9,
+          28.1,
+          28.4,
+          28.3,
+          26.3,
+          27.1,
+          25.9,
+          24.8,
+          27.8,
+          28.6,
+          27.5,
+          27.9,
+          27.3,
+          26.9
+        ],
+        "p95": 42.6
+      },
+      "repoSearchMs": {
+        "samples": [
+          19.9,
+          43.7,
+          27.1,
+          26.8,
+          47,
+          27.9,
+          24.8,
+          44.6,
+          25.9,
+          27.3,
+          45.2,
+          25.8,
+          26.8,
+          42.1,
+          26.5,
+          25.8,
+          62.2,
+          25.1,
+          25.9,
+          44.3,
+          26.6,
+          25.1,
+          44.9,
+          29.1,
+          28.3,
+          47.1,
+          26.2,
+          25.8,
+          50.8,
+          25.9
+        ],
+        "p95": 50.8
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6260508,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2562352,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766108,
+          "totalSize": 8192000,
+          "embedderHeapUsedSize": 2807800,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818452,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2377368,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 8,
+      "warmNavigationMs": {
+        "samples": [
+          42.2,
+          26.3,
+          41.4,
+          25.9,
+          25.6,
+          25.3,
+          24.3,
+          25.1,
+          26.9,
+          26.3,
+          26.2,
+          25.4,
+          24.8,
+          25.2,
+          42.5,
+          26.6,
+          26,
+          24.2,
+          24.9,
+          39.8,
+          42,
+          41.4,
+          26.7,
+          26,
+          28.4,
+          44,
+          28.4,
+          26.7,
+          42.9,
+          25.7
+        ],
+        "p95": 42.9
+      },
+      "repoSearchMs": {
+        "samples": [
+          35.1,
+          42.7,
+          27.3,
+          28.1,
+          44.5,
+          26.6,
+          28.5,
+          44.6,
+          27.9,
+          26.5,
+          45.7,
+          27.7,
+          29.3,
+          46,
+          28.6,
+          30.4,
+          46.8,
+          28.8,
+          28.7,
+          46.4,
+          26.6,
+          24.8,
+          43.5,
+          25.8,
+          25.9,
+          43.2,
+          26.4,
+          26.8,
+          45.7,
+          26.4
+        ],
+        "p95": 46.4
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6263600,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2561792,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766424,
+          "totalSize": 7929856,
+          "embedderHeapUsedSize": 2807440,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818776,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2360512,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 9,
+      "warmNavigationMs": {
+        "samples": [
+          43.6,
+          26.7,
+          43.5,
+          27.9,
+          27.6,
+          27.8,
+          26.2,
+          26.9,
+          27.1,
+          25.5,
+          27.1,
+          28.5,
+          27.3,
+          25.2,
+          27.3,
+          41.9,
+          26.3,
+          27.2,
+          26.8,
+          28.1,
+          25.9,
+          27.9,
+          26.2,
+          26.5,
+          28.2,
+          27.6,
+          25.2,
+          25,
+          26,
+          26.9
+        ],
+        "p95": 43.5
+      },
+      "repoSearchMs": {
+        "samples": [
+          20.1,
+          43.5,
+          28.3,
+          29,
+          47.3,
+          28,
+          28.3,
+          46,
+          30.7,
+          28.5,
+          45.1,
+          25,
+          27.9,
+          44.7,
+          28.5,
+          30,
+          45.4,
+          27.3,
+          27.5,
+          45,
+          28.8,
+          28.8,
+          48.2,
+          26,
+          29,
+          45.2,
+          24.4,
+          26.5,
+          42.6,
+          28
+        ],
+        "p95": 47.3
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6260404,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2370088,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6764776,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2812056,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6817128,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2359552,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    },
+    {
+      "round": 10,
+      "warmNavigationMs": {
+        "samples": [
+          26.3,
+          25,
+          26.9,
+          26.6,
+          26.8,
+          42.6,
+          26.1,
+          26.7,
+          27.9,
+          26.6,
+          26.1,
+          26.4,
+          25.3,
+          27,
+          39.3,
+          25.7,
+          25.8,
+          26.2,
+          25.8,
+          26.1,
+          26.4,
+          25.2,
+          27.5,
+          27.2,
+          30.4,
+          27.2,
+          28.2,
+          28.9,
+          25.7,
+          28
+        ],
+        "p95": 39.3
+      },
+      "repoSearchMs": {
+        "samples": [
+          34.9,
+          44.7,
+          24.3,
+          25.9,
+          47.9,
+          26.8,
+          28.1,
+          46.7,
+          28.9,
+          26.2,
+          63.8,
+          26.5,
+          28.1,
+          44.1,
+          28.3,
+          29.2,
+          47.3,
+          26.4,
+          26.9,
+          42.9,
+          26.8,
+          26.3,
+          45.2,
+          24.1,
+          26.5,
+          42.2,
+          26.2,
+          28.5,
+          44.9,
+          26.8
+        ],
+        "p95": 47.9
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6263364,
+          "totalSize": 7143424,
+          "embedderHeapUsedSize": 2419136,
+          "backingStorageSize": 368676
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 6766576,
+          "totalSize": 7929856,
+          "embedderHeapUsedSize": 2810112,
+          "backingStorageSize": 368741
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 6818928,
+          "totalSize": 7405568,
+          "embedderHeapUsedSize": 2354904,
+          "backingStorageSize": 368779
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    }
+  ],
+  "metrics": {
+    "warmNavigationP95Ms": 42.8,
+    "repoSearchP95Ms": 46.8,
+    "rendererRetainedHeapP95Bytes": 6818928,
+    "rendererRetainedHeapMaxBytes": 6818964
+  },
+  "firstFeedback": {
+    "status": "FAIL",
+    "cases": [
+      {
+        "action": "navigation",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 34,
+        "mockCompletionP95Ms": 230.2,
+        "samples": [
+          {
+            "firstFeedbackMs": 30.1,
+            "mockCompletionMs": 226.2
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 235.4
+          },
+          {
+            "firstFeedbackMs": 23.8,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 222.4
+          },
+          {
+            "firstFeedbackMs": 6.5,
+            "mockCompletionMs": 224.4
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 223.4
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 224.6
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 223.8
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 224.2
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 222.6
+          },
+          {
+            "firstFeedbackMs": 31.1,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 34.5,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 225.3
+          },
+          {
+            "firstFeedbackMs": 34.7,
+            "mockCompletionMs": 221
+          },
+          {
+            "firstFeedbackMs": 34.8,
+            "mockCompletionMs": 225
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 234.5
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 222.3
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 222.5
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 222.6
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 220.8
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 220.8
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 222.3
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 223.2
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 226
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 222.5
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 223.2
+          },
+          {
+            "firstFeedbackMs": 30.3,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 32.1,
+            "mockCompletionMs": 226.3
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 222.1
+          },
+          {
+            "firstFeedbackMs": 31.7,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 225.5
+          },
+          {
+            "firstFeedbackMs": 31.1,
+            "mockCompletionMs": 225.6
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 225.1
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 230.6
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 226.2
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 29.3,
+            "mockCompletionMs": 224.5
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 226.4
+          },
+          {
+            "firstFeedbackMs": 30.7,
+            "mockCompletionMs": 223.6
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 31.7,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 30.9,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 224.3
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 224.8
+          },
+          {
+            "firstFeedbackMs": 31.2,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 225
+          },
+          {
+            "firstFeedbackMs": 31.5,
+            "mockCompletionMs": 225.9
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 31.4,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 31.2,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 229.9
+          },
+          {
+            "firstFeedbackMs": 31.5,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 30.9,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 31.7,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 31.6,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 226.8
+          },
+          {
+            "firstFeedbackMs": 30.5,
+            "mockCompletionMs": 222
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 226.3
+          },
+          {
+            "firstFeedbackMs": 31.2,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 31.5,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 32.1,
+            "mockCompletionMs": 225.9
+          },
+          {
+            "firstFeedbackMs": 31.6,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 31.4,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 31.3,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 30.7,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 24.7,
+            "mockCompletionMs": 222.1
+          },
+          {
+            "firstFeedbackMs": 30.7,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 31.1,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 31.7,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 32.3,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 31.7,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 233.4
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 30.5,
+            "mockCompletionMs": 226.5
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "issue-selection",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 33.9,
+        "mockCompletionP95Ms": 230.4,
+        "samples": [
+          {
+            "firstFeedbackMs": 30.2,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 30.6,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 31.6,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 34.3,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 231.6
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 226.6
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 14.2,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 226.3
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 14.2,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 221.5
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 226
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 16.5,
+            "mockCompletionMs": 229.9
+          },
+          {
+            "firstFeedbackMs": 14,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 226.6
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 224.7
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 16.5,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 224.8
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 8.5,
+            "mockCompletionMs": 220.8
+          },
+          {
+            "firstFeedbackMs": 14.3,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 224.4
+          },
+          {
+            "firstFeedbackMs": 12.8,
+            "mockCompletionMs": 225.4
+          },
+          {
+            "firstFeedbackMs": 13.5,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 13.4,
+            "mockCompletionMs": 225.1
+          },
+          {
+            "firstFeedbackMs": 11.8,
+            "mockCompletionMs": 225
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 13.7,
+            "mockCompletionMs": 226.2
+          },
+          {
+            "firstFeedbackMs": 14,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 14.3,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 16.3,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 16.3,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 230.1
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 231.9
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 226.3
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 231.3
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 13.6,
+            "mockCompletionMs": 222
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 230.7
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 227.4
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "mr-selection",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 33.8,
+        "mockCompletionP95Ms": 231.9,
+        "samples": [
+          {
+            "firstFeedbackMs": 28.5,
+            "mockCompletionMs": 223.2
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 225.5
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 223.9
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 225.5
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 34.9,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 231.2
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 229.8
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 234.6
+          },
+          {
+            "firstFeedbackMs": 31.1,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 234.8
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 233.5
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 231
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 32.3,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 233.1
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 230.7
+          },
+          {
+            "firstFeedbackMs": 3.7,
+            "mockCompletionMs": 231.9
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 222.9
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 16.7,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 17.1,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 14.9,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 16.2,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 13.8,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 16.4,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 15.1,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 14.2,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 16.4,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 226.1
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 230.6
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 14.9,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 231.5
+          },
+          {
+            "firstFeedbackMs": 15.1,
+            "mockCompletionMs": 230.1
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 231.7
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 16.2,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 16.6,
+            "mockCompletionMs": 231.5
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 14.9,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 16.4,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 230.1
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 16.5,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 16.3,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 16.8,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 16.6,
+            "mockCompletionMs": 226.6
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 16.2,
+            "mockCompletionMs": 225.4
+          },
+          {
+            "firstFeedbackMs": 15.1,
+            "mockCompletionMs": 226.2
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 233.4
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 231.8
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "refresh",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 33.9,
+        "mockCompletionP95Ms": 230.4,
+        "samples": [
+          {
+            "firstFeedbackMs": 29.4,
+            "mockCompletionMs": 223.8
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 225.6
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 31.2,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 31.9,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 230.1
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 231.2
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 229.9
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 222.6
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 223.5
+          },
+          {
+            "firstFeedbackMs": 34.5,
+            "mockCompletionMs": 224.3
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 32.9,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 13.9,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 235.7
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 221.5
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 222.4
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 225.5
+          },
+          {
+            "firstFeedbackMs": 16.2,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 16.4,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 16.7,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 13.8,
+            "mockCompletionMs": 226.1
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 225.5
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 226.4
+          },
+          {
+            "firstFeedbackMs": 15.4,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 224.4
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 225.1
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 230.6
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 15.9,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 226.8
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 12.6,
+            "mockCompletionMs": 224
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 225.6
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 224.4
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 224
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 16.3,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 226.1
+          },
+          {
+            "firstFeedbackMs": 14.6,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 14.3,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 14.5,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 15.6,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 15.2,
+            "mockCompletionMs": 226.8
+          },
+          {
+            "firstFeedbackMs": 16.1,
+            "mockCompletionMs": 220.9
+          },
+          {
+            "firstFeedbackMs": 14.7,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 15,
+            "mockCompletionMs": 231.2
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 14.1,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 14.8,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 15.1,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 15.3,
+            "mockCompletionMs": 230.2
+          },
+          {
+            "firstFeedbackMs": 16,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 14.3,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 13.9,
+            "mockCompletionMs": 226.4
+          },
+          {
+            "firstFeedbackMs": 15.5,
+            "mockCompletionMs": 229.1
+          },
+          {
+            "firstFeedbackMs": 14.3,
+            "mockCompletionMs": 233.5
+          },
+          {
+            "firstFeedbackMs": 15.7,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 15.8,
+            "mockCompletionMs": 229.5
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "skills-check",
+        "status": "ERROR",
+        "sampleCount": 30,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 34.7,
+        "mockCompletionP95Ms": 232.3,
+        "samples": [
+          {
+            "firstFeedbackMs": 20.8,
+            "mockCompletionMs": 222.9
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 222.1
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 226.3
+          },
+          {
+            "firstFeedbackMs": 34.7,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 227.7
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 229.6
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 231
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 34.9,
+            "mockCompletionMs": 229.8
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 227.3
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 224.3
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 34.5,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 229.9
+          },
+          {
+            "firstFeedbackMs": 34.3,
+            "mockCompletionMs": 230.7
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 232.3
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 230.7
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 34.6,
+            "mockCompletionMs": 231.2
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 232.4
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 231.5
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 228.1
+          }
+        ],
+        "error": "page.evaluate: Error: No enabled visible control for skills-check, sample 31\n    at eval (eval at evaluate (:311:30), <anonymous>:29:69)\n    at async <anonymous>:337:30",
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "account-submit",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 28.7,
+        "mockCompletionP95Ms": 234.4,
+        "samples": [
+          {
+            "firstFeedbackMs": 34.6,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 28.3,
+            "mockCompletionMs": 225.1
+          },
+          {
+            "firstFeedbackMs": 25.3,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 26.4,
+            "mockCompletionMs": 225.1
+          },
+          {
+            "firstFeedbackMs": 26.9,
+            "mockCompletionMs": 222.9
+          },
+          {
+            "firstFeedbackMs": 24.7,
+            "mockCompletionMs": 221.3
+          },
+          {
+            "firstFeedbackMs": 24.6,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 25.4,
+            "mockCompletionMs": 222
+          },
+          {
+            "firstFeedbackMs": 24.4,
+            "mockCompletionMs": 221.1
+          },
+          {
+            "firstFeedbackMs": 22.2,
+            "mockCompletionMs": 233.1
+          },
+          {
+            "firstFeedbackMs": 26.2,
+            "mockCompletionMs": 234.4
+          },
+          {
+            "firstFeedbackMs": 22.5,
+            "mockCompletionMs": 231.3
+          },
+          {
+            "firstFeedbackMs": 26.5,
+            "mockCompletionMs": 221.5
+          },
+          {
+            "firstFeedbackMs": 25.6,
+            "mockCompletionMs": 222.5
+          },
+          {
+            "firstFeedbackMs": 24.6,
+            "mockCompletionMs": 234.5
+          },
+          {
+            "firstFeedbackMs": 26.6,
+            "mockCompletionMs": 221.3
+          },
+          {
+            "firstFeedbackMs": 26.9,
+            "mockCompletionMs": 223.5
+          },
+          {
+            "firstFeedbackMs": 27.6,
+            "mockCompletionMs": 223.7
+          },
+          {
+            "firstFeedbackMs": 26,
+            "mockCompletionMs": 235.3
+          },
+          {
+            "firstFeedbackMs": 26.6,
+            "mockCompletionMs": 222.5
+          },
+          {
+            "firstFeedbackMs": 24.1,
+            "mockCompletionMs": 233.9
+          },
+          {
+            "firstFeedbackMs": 24.1,
+            "mockCompletionMs": 232.9
+          },
+          {
+            "firstFeedbackMs": 25.9,
+            "mockCompletionMs": 233.6
+          },
+          {
+            "firstFeedbackMs": 22.9,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 26.2,
+            "mockCompletionMs": 222.4
+          },
+          {
+            "firstFeedbackMs": 26.4,
+            "mockCompletionMs": 222.1
+          },
+          {
+            "firstFeedbackMs": 29.4,
+            "mockCompletionMs": 222.4
+          },
+          {
+            "firstFeedbackMs": 24.9,
+            "mockCompletionMs": 232.8
+          },
+          {
+            "firstFeedbackMs": 23.8,
+            "mockCompletionMs": 229.9
+          },
+          {
+            "firstFeedbackMs": 26,
+            "mockCompletionMs": 221.6
+          },
+          {
+            "firstFeedbackMs": 26.3,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 26,
+            "mockCompletionMs": 223.2
+          },
+          {
+            "firstFeedbackMs": 28.6,
+            "mockCompletionMs": 225.3
+          },
+          {
+            "firstFeedbackMs": 24.3,
+            "mockCompletionMs": 221.2
+          },
+          {
+            "firstFeedbackMs": 28.1,
+            "mockCompletionMs": 222.7
+          },
+          {
+            "firstFeedbackMs": 24.6,
+            "mockCompletionMs": 232.2
+          },
+          {
+            "firstFeedbackMs": 24.5,
+            "mockCompletionMs": 233.4
+          },
+          {
+            "firstFeedbackMs": 27.6,
+            "mockCompletionMs": 222.7
+          },
+          {
+            "firstFeedbackMs": 25.5,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 26.7,
+            "mockCompletionMs": 223.4
+          },
+          {
+            "firstFeedbackMs": 26.3,
+            "mockCompletionMs": 236.2
+          },
+          {
+            "firstFeedbackMs": 24.1,
+            "mockCompletionMs": 232.9
+          },
+          {
+            "firstFeedbackMs": 22.7,
+            "mockCompletionMs": 229.3
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 23.8,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 23.3,
+            "mockCompletionMs": 230.7
+          },
+          {
+            "firstFeedbackMs": 25.7,
+            "mockCompletionMs": 223
+          },
+          {
+            "firstFeedbackMs": 20.6,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 24.7,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 28.4,
+            "mockCompletionMs": 225
+          },
+          {
+            "firstFeedbackMs": 28.7,
+            "mockCompletionMs": 224.9
+          },
+          {
+            "firstFeedbackMs": 27.4,
+            "mockCompletionMs": 222.5
+          },
+          {
+            "firstFeedbackMs": 24.4,
+            "mockCompletionMs": 224.1
+          },
+          {
+            "firstFeedbackMs": 27.6,
+            "mockCompletionMs": 224.1
+          },
+          {
+            "firstFeedbackMs": 26.2,
+            "mockCompletionMs": 225.3
+          },
+          {
+            "firstFeedbackMs": 27.4,
+            "mockCompletionMs": 224.5
+          },
+          {
+            "firstFeedbackMs": 23.7,
+            "mockCompletionMs": 223.2
+          },
+          {
+            "firstFeedbackMs": 27.9,
+            "mockCompletionMs": 223.3
+          },
+          {
+            "firstFeedbackMs": 27.1,
+            "mockCompletionMs": 222.7
+          },
+          {
+            "firstFeedbackMs": 26.4,
+            "mockCompletionMs": 223.1
+          },
+          {
+            "firstFeedbackMs": 24.5,
+            "mockCompletionMs": 222.4
+          },
+          {
+            "firstFeedbackMs": 25.2,
+            "mockCompletionMs": 221.6
+          },
+          {
+            "firstFeedbackMs": 24.4,
+            "mockCompletionMs": 221.5
+          },
+          {
+            "firstFeedbackMs": 24.4,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 23.2,
+            "mockCompletionMs": 232.2
+          },
+          {
+            "firstFeedbackMs": 19.4,
+            "mockCompletionMs": 222.1
+          },
+          {
+            "firstFeedbackMs": 21.7,
+            "mockCompletionMs": 223.8
+          },
+          {
+            "firstFeedbackMs": 30.9,
+            "mockCompletionMs": 226.1
+          },
+          {
+            "firstFeedbackMs": 21.6,
+            "mockCompletionMs": 230.4
+          },
+          {
+            "firstFeedbackMs": 23.1,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 24.2,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 22.9,
+            "mockCompletionMs": 230.9
+          },
+          {
+            "firstFeedbackMs": 22.1,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 24.9,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 23.4,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 25.3,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 22.8,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 27.4,
+            "mockCompletionMs": 224.1
+          },
+          {
+            "firstFeedbackMs": 24.5,
+            "mockCompletionMs": 224.2
+          },
+          {
+            "firstFeedbackMs": 27.5,
+            "mockCompletionMs": 224
+          },
+          {
+            "firstFeedbackMs": 24.5,
+            "mockCompletionMs": 223.6
+          },
+          {
+            "firstFeedbackMs": 30,
+            "mockCompletionMs": 225.2
+          },
+          {
+            "firstFeedbackMs": 24.1,
+            "mockCompletionMs": 235.4
+          },
+          {
+            "firstFeedbackMs": 25.4,
+            "mockCompletionMs": 221.9
+          },
+          {
+            "firstFeedbackMs": 27.7,
+            "mockCompletionMs": 231.7
+          },
+          {
+            "firstFeedbackMs": 27,
+            "mockCompletionMs": 224.4
+          },
+          {
+            "firstFeedbackMs": 24,
+            "mockCompletionMs": 221.4
+          },
+          {
+            "firstFeedbackMs": 23.8,
+            "mockCompletionMs": 223.1
+          },
+          {
+            "firstFeedbackMs": 25.2,
+            "mockCompletionMs": 221.2
+          },
+          {
+            "firstFeedbackMs": 24.5,
+            "mockCompletionMs": 234.4
+          },
+          {
+            "firstFeedbackMs": 21.4,
+            "mockCompletionMs": 231.6
+          },
+          {
+            "firstFeedbackMs": 20.2,
+            "mockCompletionMs": 229.2
+          },
+          {
+            "firstFeedbackMs": 23.1,
+            "mockCompletionMs": 235.5
+          },
+          {
+            "firstFeedbackMs": 22.3,
+            "mockCompletionMs": 234.3
+          },
+          {
+            "firstFeedbackMs": 23.2,
+            "mockCompletionMs": 232.7
+          },
+          {
+            "firstFeedbackMs": 22.3,
+            "mockCompletionMs": 231.3
+          },
+          {
+            "firstFeedbackMs": 23.9,
+            "mockCompletionMs": 234.3
+          },
+          {
+            "firstFeedbackMs": 24.4,
+            "mockCompletionMs": 233
+          },
+          {
+            "firstFeedbackMs": 23.9,
+            "mockCompletionMs": 233.9
+          },
+          {
+            "firstFeedbackMs": 25.4,
+            "mockCompletionMs": 221.7
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "git-read",
+        "status": "ERROR",
+        "sampleCount": 0,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": null,
+        "mockCompletionP95Ms": null,
+        "samples": [],
+        "error": "page.evaluate: Error: No enabled visible control for git-read, sample 1\n    at eval (eval at evaluate (:311:30), <anonymous>:29:69)\n    at async <anonymous>:337:30",
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      },
+      {
+        "action": "git-write",
+        "status": "ERROR",
+        "sampleCount": 0,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": null,
+        "mockCompletionP95Ms": null,
+        "samples": [],
+        "error": "page.evaluate: Error: No enabled visible control for git-write, sample 1\n    at eval (eval at evaluate (:311:30), <anonymous>:29:69)\n    at async <anonymous>:337:30",
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      }
+    ],
+    "scope": "Actual packaged UI handlers, isolated delayed mock host. Writes and login use fixed fake responses and do not change repositories or contact GitLab."
+  },
+  "smoke": {
+    "status": "PASS",
+    "checks": [
+      {
+        "name": "1440x900 Skills tools keyboard navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "settings keyboard focus remains in dialog and Escape restores trigger",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "sidebar disclosure supports keyboard and fixed local branch details",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "1440x900 packaged UI has no horizontal body overflow",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 preview survives refresh and projects remain visible after sidebar navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 Skills controls fit and retain keyboard focus",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 high contrast preview survives refresh and projects remain visible after sidebar navigation",
+        "status": "PASS",
+        "detail": null
+      },
+      {
+        "name": "800x900 high contrast Skills controls fit and retain keyboard focus",
+        "status": "PASS",
+        "detail": null
+      }
+    ],
+    "screenshots": [
+      "revision-1440-skills.png",
+      "revision-1440-settings.png",
+      "revision-800-projects.png",
+      "revision-800-skills.png",
+      "revision-800-highcontrast-projects.png",
+      "revision-800-highcontrast-skills.png"
+    ],
+    "blockedNetworkRequests": [],
+    "runtimeErrors": [],
+    "limits": "Automated layout/keyboard checks and screenshot capture; screenshots still require human visual review. High contrast emulates VS Code body class and theme tokens, not OS assistive technology."
+  },
+  "performanceStatus": "MEASURED",
+  "comparison": {
+    "status": "BLOCKED",
+    "reason": "Comparison requires distinct artifacts, identical harness/fixture/browser/method and complete 10 × 30 samples."
+  }
+}

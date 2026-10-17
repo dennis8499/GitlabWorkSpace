@@ -1,0 +1,406 @@
+
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/cbe076d4-de5b-4e51-9edc-976f893c9b79
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-16T18:51:32.860Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\6d62b1d5da\resources\app\node-compile-cache\main, active: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\6d62b1d5da\resources\app\node-compile-cache\main\v24.21.0-x64-c3a7e8f2)
+[main 2026-10-16T18:51:32.909Z] StorageMainService: creating application shared storage
+[main 2026-10-16T18:51:32.991Z] [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+[main 2026-10-16T18:51:32.991Z] [shared storage] Initializing fallback application storage (path: in-memory)
+[main 2026-10-16T18:51:32.993Z] Error: Error mutex already exists
+    at Ys.installMutex (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/6d62b1d5da/resources/app/out/mainImpl.js:159:30320)
+[main 2026-10-16T18:51:33.057Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-16T18:51:33.058Z] update#setState disabled
+[main 2026-10-16T18:51:33.059Z] update#ctor - updates are disabled by the environment
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[AgentHost:renderer] Acquiring MessagePort to agent host...
+[main 2026-10-16T18:51:33.934Z] AgentHostProcessManager: agent host started
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AgentHost:renderer] MessagePort acquired, creating client...
+Started local extension host with pid 29720.
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-33304-1792176692574
+[main 2026-10-16T18:51:34.624Z] [AgentHost:stderr] (node:13092) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+[RemoteAgentHostProtocol] Sending initialize: address=local clientId=387aa3a1-3424-499a-b838-b8345c101cc8 requestId=1
+[RemoteAgentHostProtocol] Initialized: address=local clientId=387aa3a1-3424-499a-b838-b8345c101cc8 durationMs=755
+[AgentHost:renderer] Protocol connection established; clientId=387aa3a1-3424-499a-b838-b8345c101cc8
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-33304-1792176692574
+Loading development extension at c:\Users\denni\AppData\Local\Temp\gitlab-workspace-vscode-test\live-vsix-0.25.0-7c018fba6fe5-33304\extension
+Extension 'github.copilot-chat' appears in product.json but enables LESS API proposals than the extension wants.
+package.json (LOSES): agentSessionsWorkspace
+agentsWindowConfiguration
+chatDebug
+chatHooks
+envIsConnectionMetered
+extensionsAny
+newSymbolNamesProvider
+interactive
+codeActionAI
+activeComment
+commentReveal
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+documentFiltersExclusive
+embeddings
+findTextInFiles
+findTextInFiles2
+languageModelToolSupportsModel
+findFiles2
+textSearchProvider
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+chatParticipantAdditions
+defaultChatParticipant
+contribSourceControlInputBoxMenu
+authLearnMore
+authIssuers
+testObserver
+aiTextSearchProvider
+chatParticipantPrivate
+chatProvider
+contribDebugCreateConfiguration
+chatReferenceDiagnostic
+textSearchProvider2
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelPricing
+inlineCompletionsAdditions
+chatStatusItem
+chatInputNotification
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+languageModelThinkingPart
+chatSessionsProvider
+devDeviceId
+contribEditorContentMenu
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+environmentPower
+terminalTitle
+toolInvocationApproveCombination
+chatSessionCustomizationProvider
+product.json (WINS): agentSessionsWorkspace
+agentsWindowConfiguration
+interactive
+terminalDataWriteEvent
+terminalExecuteCommandEvent
+terminalSelection
+terminalQuickFixProvider
+chatParticipantAdditions
+defaultChatParticipant
+embeddings
+chatProvider
+mappedEditsProvider
+aiRelatedInformation
+aiSettingsSearch
+codeActionAI
+findTextInFiles
+findTextInFiles2
+textSearchProvider
+textSearchProvider2
+activeComment
+commentReveal
+contribSourceControlInputBoxMenu
+contribCommentEditorActionsMenu
+contribCommentThreadAdditionalMenu
+contribCommentsViewThreadMenus
+contribChatEditorInlineGutterMenu
+extensionAffinity
+newSymbolNamesProvider
+findFiles2
+chatReferenceDiagnostic
+extensionsAny
+authLearnMore
+testObserver
+aiTextSearchProvider
+documentFiltersExclusive
+chatParticipantPrivate
+contribDebugCreateConfiguration
+inlineCompletionsAdditions
+chatReferenceBinaryData
+languageModelSystem
+languageModelCapabilities
+languageModelThinkingPart
+languageModelToolSupportsModel
+chatStatusItem
+taskProblemMatcherStatus
+contribLanguageModelToolSets
+textDocumentChangeReason
+resolvers
+taskExecutionTerminal
+dataChannels
+chatSessionsProvider
+chatSessionCustomizationProvider
+devDeviceId
+contribEditorContentMenu
+tokenInformation
+toolInvocationApproveCombination
+chatPromptFiles
+mcpServerDefinitions
+tabInputMultiDiff
+workspaceTrust
+chatHooks
+chatDebug
+envIsConnectionMetered
+environmentPower
+terminalTitle
+languageModelPricing
+chatInputNotification
+DELTA: authIssuers
+Proceeding with EXTRA proposals (authIssuers) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+Unknown channel: agentHostClientProxy
+[RemoteAgentHost] Reconciling: desired=[], current=[]
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Settings Sync: Account status changed from uninitialized to unavailable
+
+  GitLab Workspace extension activation
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+    √ activates one workspace navigation view and keeps existing commands available (93ms)
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+[AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+  Group delivery and version-bound report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  Live GitLab Workspace Webview validation
+(node:29720) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Unknown channel: agentHostClientProxy
+Deprecated. Use ApiRepository.getRefs() instead.
+[AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+    1) exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Native readonly Git Diff snapshots
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Deprecated. Use ApiRepository.getRefs() instead.
+[ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/NzlmNTIyMzAtM2QzOS00Y2VhLTljY2YtOGQyOGVjNTVkODdi" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ preserves text and binary bytes and releases each snapshot after the last native tab closes (2428ms)
+  5 passing (23s)
+  1 pending
+  1 failing
+  1) Live GitLab Workspace Webview validation
+       exercises the packaged Git GUI against an isolated local bare remote:
+     Error: The initial Git GUI open finishes before bootstrap branch details are read. (
+    GWGitLab Workspace設定訊息中心 0尚未登入 GitLab　⌄選擇或新增 GitLab 帳號＋ 新增 GitLab 帳號管理帳號與連線連線 GitLab        Issue正在載入 Issue…重試REPOSITORY選擇 Reposervice · c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.gitlab-workspace-validation\workspaces\local-git-gui\run-1792176691930-33304\demo\serviceDetached HEADFetchPullPush分支Stash···Merge…Rebase…Stash 操作…Reset…Cherry-pick／Revert…跟隨 VS Code深色正在開啟 Repo…開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。重新整理專案根目錄：C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.gitlab-workspace-validation\workspaces\local-git-gui\run-1792176691930-33304\demo\service · 請選擇目前 VS Code 專案資料夾。
+  
+
+)
+  	at WebviewCdp.waitUntil (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\liveValidation.short-idle.cjs:772:15)
+  	at async Context.<anonymous> (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\liveValidation.short-idle.cjs:112:13)
+
+Error: 1 diagnostic failure(s)
+	at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\diagnostic-entry.cjs:13:43
+	at done (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\node_modules\@vscode\test-cli\node_modules\mocha\lib\mocha.js:1015:7)
+[main 2026-10-16T18:51:59.487Z] Extension host with pid 29720 exited with code: 0, signal: unknown.
+Exit code:   1
+{
+  "mode": "local-git-gui",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "result": {
+    "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+    "generatedAt": "2026-10-16T18:51:59.748Z",
+    "mode": "local-only",
+    "vscodeVersion": "1.142.0",
+    "testedArtifact": {
+      "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+      "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+    },
+    "status": "FAIL",
+    "error": "The initial Git GUI open finishes before bootstrap branch details are read. (\n    GWGitLab Workspace設定訊息中心 0尚未登入 GitLab　⌄選擇或新增 GitLab 帳號＋ 新增 GitLab 帳號管理帳號與連線連線 GitLab        Issue正在載入 Issue…重試REPOSITORY選擇 Reposervice · c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176691930-33304\\demo\\serviceDetached HEADFetchPullPush分支Stash···Merge…Rebase…Stash 操作…Reset…Cherry-pick／Revert…跟隨 VS Code深色正在開啟 Repo…開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。重新整理專案根目錄：C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176691930-33304\\demo\\service · 請選擇目前 VS Code 專案資料夾。\n  \n\n)",
+    "workspaceFolders": [
+      "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176691930-33304\\demo\\service"
+    ],
+    "nativeGitRepositoryState": {
+      "repositories": [
+        {
+          "id": "c5443dc91ddf29ebefae71db21f0c5a1",
+          "name": "service",
+          "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176691930-33304\\demo\\service",
+          "branch": "main",
+          "headCommit": "0616bb65e5096b234c2f7f4fd08e338047bb91ee",
+          "tracking": "origin/main",
+          "ahead": 0,
+          "behind": 0,
+          "stagedCount": 0,
+          "unstagedCount": 0,
+          "conflictCount": 0,
+          "busy": false,
+          "revision": 2
+        }
+      ],
+      "available": true,
+      "revision": 5
+    },
+    "windowFocused": true,
+    "nativeGitActivity": {
+      "commands": 3,
+      "auxiliaryCommands": 0,
+      "nativeApiCalls": 1,
+      "nativeStatusEvents": 3
+    },
+    "nativeWorkingChanges": [
+      {
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176691930-33304\\demo\\service",
+        "changes": []
+      }
+    ],
+    "actionTrace": [],
+    "idleChecks": [],
+    "gitDetailsStaleRetries": 0,
+    "uiDiagnostics": {
+      "width": 787,
+      "height": 803,
+      "devicePixelRatio": 1.5,
+      "workbench": {
+        "x": 20,
+        "y": 94.66667175292969,
+        "width": 732,
+        "height": 668,
+        "display": "flex",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "inspector": null,
+      "toggle": null,
+      "composer": null,
+      "textarea": null
+    },
+    "failureScreenshot": "screenshots/local-git-gui-failure.png",
+    "sourceRepository": "isolated generated Git seed"
+  }
+}

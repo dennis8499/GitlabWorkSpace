@@ -1,0 +1,1297 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const strict_1 = __importDefault(require("node:assert/strict"));
+const node_fs_1 = require("node:fs");
+const node_path_1 = __importDefault(require("node:path"));
+const vscode = __importStar(require("vscode"));
+const playwright_core_1 = require("playwright-core");
+const node_child_process_1 = require("node:child_process");
+const enabled = process.env.GLW_LIVE_ENVIRONMENT === 'ce19' || process.env.GLW_LIVE_ENVIRONMENT === 'ce16';
+const localGitGuiEnabled = process.env.GLW_LOCAL_GIT_GUI === '1';
+suite('Live GitLab Workspace Webview validation', function () {
+    this.timeout(240_000);
+    test('exercises the packaged Git GUI against an isolated local bare remote', async function () {
+        if (!localGitGuiEnabled)
+            this.skip();
+        this.timeout(600_000);
+        strict_1.default.equal(vscode.version, process.env.GLW_LOCAL_VSCODE_EXPECTED_VERSION, 'the packaged Git GUI is loaded in the verified installed VS Code Extension Host');
+        const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
+        strict_1.default.ok(extension, 'the packaged project extension is loaded in the actual Extension Host');
+        strict_1.default.equal(extension.packageJSON.version, process.env.GLW_LIVE_EXPECTED_VERSION, 'the actual packaged VSIX is loaded');
+        const api = await extension.activate();
+        strict_1.default.ok(api?.session, 'the packaged extension is active without a GitLab connection');
+        const workspaceRoot = process.env.GLW_LIVE_WORKSPACE_ROOT;
+        const reportPath = process.env.GLW_LOCAL_GIT_GUI_REPORT;
+        const warningPrompts = [];
+        const actionTrace = [];
+        const nativeConfirmation = process.env.GLW_LOCAL_GIT_GUI_NATIVE_CONFIRM === '1';
+        const promptRace = {};
+        if (!nativeConfirmation) {
+            api.setGitWarningPromptHandlerForTesting(async (message, options, ...items) => {
+                const result = items[0];
+                warningPrompts.push({ message, modal: options.modal === true, items, ...(result ? { result } : {}) });
+                if (items.includes('Force Push') && promptRace.beforeForcePush) {
+                    const changeRemote = promptRace.beforeForcePush;
+                    promptRace.beforeForcePush = undefined;
+                    changeRemote();
+                }
+                return result;
+            });
+        }
+        api.setGitActionTraceHandlerForTesting((event) => actionTrace.push(event));
+        const gitDiscoveryStarted = performance.now();
+        let initialGitState = await api.getGitRepositoryState();
+        let gitDiscoveryMs = 0;
+        let gitDetailsStaleRetries = 0;
+        let remoteBranchNames = [];
+        const port = Number(process.env.GLW_LIVE_CDP_PORT);
+        const runId = process.env.GLW_RUN_ID || `local-git-gui-${Date.now()}`;
+        let browser;
+        let workbenchPage;
+        let ui;
+        const idleChecks = [];
+        try {
+            (0, node_fs_1.mkdirSync)(node_path_1.default.join(node_path_1.default.dirname(reportPath), 'screenshots'), { recursive: true });
+            browser = await playwright_core_1.chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 25_000 });
+            const context = browser.contexts()[0];
+            strict_1.default.ok(context, 'the isolated VS Code Chromium context is available over CDP');
+            const page = await waitForWorkbenchPage(context.pages());
+            workbenchPage = page;
+            await page.bringToFront();
+            const focusDeadline = Date.now() + 5000;
+            while (!vscode.window.state.focused && Date.now() < focusDeadline)
+                await new Promise(resolve => setTimeout(resolve, 50));
+            strict_1.default.equal(vscode.window.state.focused, true, 'the real VS Code window is focused so its native Git watcher may refresh');
+            await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+            await page.locator('iframe.webview').waitFor({ state: 'attached', timeout: 20_000 });
+            ui = await connectWorkspaceWebview(browser, port, node_path_1.default.join(node_path_1.default.dirname(reportPath), 'local-git-gui-cdp-targets.json'), node_path_1.default.join(node_path_1.default.dirname(reportPath), 'local-git-gui-webview-debug.json'));
+            await ui.waitForVisible('.git-workbench', 20_000);
+            while (!initialGitState.repositories.some((repository) => node_path_1.default.resolve(repository.path).toLocaleLowerCase('en-US') === node_path_1.default.resolve(workspaceRoot).toLocaleLowerCase('en-US')) && performance.now() - gitDiscoveryStarted < 30_000) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                initialGitState = await api.getGitRepositoryState();
+            }
+            gitDiscoveryMs = Number((performance.now() - gitDiscoveryStarted).toFixed(2));
+            const discoveredRepository = initialGitState.repositories.find((repository) => node_path_1.default.resolve(repository.path).toLocaleLowerCase('en-US') === node_path_1.default.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
+            strict_1.default.ok(discoveredRepository, `VS Code Git discovers the isolated demonstration Repo (${JSON.stringify(initialGitState)})`);
+            await ui.waitUntil(`document.querySelector('.git-repo-picker select')?.value === ${JSON.stringify(discoveredRepository.id)}
+        && document.querySelector('.git-repo-heading strong')?.textContent === 'service'
+        && document.querySelector('.git-refresh')?.disabled === false && !document.querySelector('.git-status-message .spinner')`, 20_000, 'The initial Git GUI open finishes before bootstrap branch details are read.');
+            const detailsDeadline = Date.now() + 10_000;
+            let discoveredDetails;
+            for (;;) {
+                try {
+                    initialGitState = await api.getGitRepositoryState();
+                    const currentRepository = initialGitState.repositories.find((repository) => node_path_1.default.resolve(repository.path).toLocaleLowerCase('en-US') === node_path_1.default.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
+                    strict_1.default.ok(currentRepository, 'The isolated Repo remains registered during bootstrap detail discovery.');
+                    discoveredDetails = api.getGitRepositoryDetails ? await api.getGitRepositoryDetails(currentRepository.id) : currentRepository;
+                    break;
+                }
+                catch (error) {
+                    if (!(error instanceof Error) || error.message !== 'Repo 狀態已變更，請重新展開以讀取分支與 Stash。'
+                        || gitDetailsStaleRetries >= 5 || Date.now() >= detailsDeadline)
+                        throw error;
+                    gitDetailsStaleRetries++;
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            remoteBranchNames = discoveredDetails.branches?.filter((branch) => branch.kind === 'remote').map((branch) => branch.name) ?? [];
+            strict_1.default.ok(remoteBranchNames.includes('origin/main'), `the branch list uses canonical remote names (${remoteBranchNames.join(', ')})`);
+            strict_1.default.ok(!remoteBranchNames.some((name) => name.startsWith('origin/origin/')), `remote names are not prefixed twice (${remoteBranchNames.join(', ')})`);
+            await ui.waitUntil(`([...document.querySelectorAll('.git-repo-picker select option')].some((option) => option.textContent?.toLocaleLowerCase('en-US').includes('service')))`, 20_000, 'The open Git GUI receives the Repo after VS Code Git finishes asynchronous repository discovery.');
+            const nativeCommandCount = () => {
+                const root = process.env.GLW_LOCAL_GIT_GUI_LOG_ROOT;
+                if (!(0, node_fs_1.existsSync)(root))
+                    return 0;
+                return (0, node_fs_1.readdirSync)(root, { recursive: true }).filter((name) => typeof name === 'string' && /vscode\.git[/\\]Git\.log$/i.test(name))
+                    .reduce((count, name) => count + ((0, node_fs_1.readFileSync)(node_path_1.default.join(root, String(name)), 'utf8').match(/> git /g)?.length ?? 0), 0);
+            };
+            const checkIdle = async (phase) => {
+                await new Promise((resolve) => setTimeout(resolve, 1250));
+                if (phase === 'select-file') {
+                    const beforeClicks = api.getGitActivityForTesting();
+                    await ui.evaluate(`(() => { const button = document.querySelector('.git-change-name'); for (let index = 0; index < 20; index++) button?.click(); })()`);
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+                    strict_1.default.deepEqual(api.getGitActivityForTesting(), beforeClicks, 'twenty clicks on the selected file share the existing Diff result');
+                }
+                const before = api.getGitActivityForTesting();
+                const nativeBefore = nativeCommandCount();
+                const started = Date.now();
+                await new Promise((resolve) => setTimeout(resolve, 1_000));
+                const after = api.getGitActivityForTesting();
+                const nativeAfter = nativeCommandCount();
+                const delta = { commands: after.commands - before.commands, auxiliaryCommands: after.auxiliaryCommands - before.auxiliaryCommands, nativeApiCalls: after.nativeApiCalls - before.nativeApiCalls };
+                idleChecks.push({ phase, idleMs: Date.now() - started, before, after, extensionDelta: delta,
+                    vscodeGitLog: { before: nativeBefore, after: nativeAfter, backgroundDelta: nativeAfter - nativeBefore } });
+                console.info(`Git GUI idle ${phase}: ${JSON.stringify(delta)}; VS Code background commands: ${nativeAfter - nativeBefore}`);
+                strict_1.default.deepEqual(delta, { commands: 0, auxiliaryCommands: 0, nativeApiCalls: 0 }, `${phase}: idle Git GUI must not launch additional extension Git commands or native API requests`);
+            };
+            const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, promptRace, checkIdle, actionTrace);
+            const compatibility = {};
+            const taggedHead = (0, node_child_process_1.execFileSync)('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
+            const tagNames = ['validation/annotated', 'validation/lightweight'];
+            (0, node_child_process_1.execFileSync)('git', ['tag', '-a', tagNames[0], '-m', 'Annotated graph tag'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            (0, node_child_process_1.execFileSync)('git', ['tag', tagNames[1]], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            await ui.click('.git-refresh');
+            for (const tagName of tagNames) {
+                await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.title?.endsWith('\\n' + ${JSON.stringify(taggedHead)}) && row.querySelector('.git-commit-refs')?.textContent?.includes(${JSON.stringify(tagName)})))`, 15_000, 'Tag labels attach to the tagged commit rather than the annotated tag object.');
+                await ui.evaluate(`(() => { const button = [...document.querySelectorAll('.git-ref-name')].find((item) => item.textContent?.includes(${JSON.stringify(tagName)})); if (!button) throw new Error('Tag ref missing'); button.closest('details').open = true; button.click(); })()`);
+                await ui.waitUntil(`document.querySelector('.git-commit-detail > code')?.textContent === ${JSON.stringify(taggedHead)}`, 10_000, 'Clicking either tag reads the tagged commit.');
+            }
+            compatibility.tags = 'PASS';
+            const currentBranch = (0, node_child_process_1.execFileSync)('git', ['branch', '--show-current'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
+            (0, node_child_process_1.execFileSync)('git', ['checkout', '--detach', 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === '' && document.querySelector('.git-branch-picker select')?.textContent?.includes('Detached HEAD')`, 15_000, 'Detached HEAD is shown without inventing a local branch.');
+            await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+            strict_1.default.ok(await ui.count('.git-wip-row .git-commit-graph path'), 'working changes connect to the detached HEAD commit');
+            compatibility.detachedHead = 'PASS';
+            (0, node_child_process_1.execFileSync)('git', ['checkout', currentBranch], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            const emptyRepo = node_path_1.default.join(node_path_1.default.dirname(workspaceRoot), 'empty-repo');
+            (0, node_fs_1.mkdirSync)(emptyRepo, { recursive: true });
+            (0, node_child_process_1.execFileSync)('git', ['init', '-b', 'main'], { cwd: emptyRepo, stdio: 'ignore', windowsHide: true });
+            const nativeGitExtension = await vscode.extensions.getExtension('vscode.git').activate();
+            strict_1.default.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(emptyRepo)));
+            await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some((option) => option.textContent?.includes('empty-repo'))`, 15_000, 'The isolated empty Repo is discovered.');
+            await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+            await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'empty-repo' && document.querySelector('.git-center .git-empty-list')?.textContent?.includes('尚無提交歷史')`, 15_000, 'An unborn Repo opens its empty graph.');
+            strict_1.default.equal(await ui.count('.git-wip-row'), 1);
+            strict_1.default.equal(await ui.evaluate(`document.querySelector('.git-commit-launch')?.disabled`), true);
+            compatibility.emptyRepo = 'PASS';
+            for (let index = 0; index < 4; index++) {
+                await ui.selectOptionContaining('.git-repo-picker select', 'service');
+                await ui.selectOptionContaining('.git-repo-picker select', 'empty-repo');
+            }
+            await ui.selectOptionContaining('.git-repo-picker select', 'service');
+            await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && document.querySelector('.git-branch-picker select')?.value === ${JSON.stringify(currentBranch)} && !document.querySelector('.git-progress') && !document.querySelector('.dashboard-error')`, 15_000, 'Rapid switching completes the latest open and renders its actual current branch without stale replies.');
+            compatibility.rapidRepoSwitching = 'PASS';
+            const worktreeRoot = node_path_1.default.join(node_path_1.default.dirname(workspaceRoot), 'validation-worktree');
+            (0, node_child_process_1.execFileSync)('git', ['worktree', 'add', '-b', 'validation/worktree', worktreeRoot, 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            strict_1.default.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(worktreeRoot)));
+            await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-worktree'))`, 15_000, 'A real linked Worktree appears after native repository discovery.');
+            await ui.selectOptionContaining('.git-repo-picker select', 'validation-worktree');
+            await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === 'validation/worktree' && !!document.querySelector('.git-commit-row:not(.git-wip-row)')`, 15_000, 'The linked Worktree shows its own branch and shared commit history.');
+            compatibility.worktree = 'PASS';
+            const moduleSource = node_path_1.default.join(node_path_1.default.dirname(workspaceRoot), 'module-source');
+            (0, node_fs_1.mkdirSync)(moduleSource, { recursive: true });
+            (0, node_child_process_1.execFileSync)('git', ['init', '-b', 'main'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+            (0, node_fs_1.writeFileSync)(node_path_1.default.join(moduleSource, 'README.md'), 'Isolated native submodule fixture', 'utf8');
+            (0, node_child_process_1.execFileSync)('git', ['add', 'README.md'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+            (0, node_child_process_1.execFileSync)('git', ['-c', 'user.name=Native Validation', '-c', 'user.email=native-validation@example.test', 'commit', '-m', 'Submodule fixture'], { cwd: moduleSource, stdio: 'ignore', windowsHide: true });
+            (0, node_child_process_1.execFileSync)('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', moduleSource, 'validation-module'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+            const submoduleRoot = node_path_1.default.join(workspaceRoot, 'validation-module');
+            strict_1.default.ok(await nativeGitExtension.getAPI(1).openRepository(vscode.Uri.file(submoduleRoot)));
+            await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some(option => option.textContent?.includes('validation-module'))`, 15_000, 'A real Submodule appears after native repository discovery.');
+            await ui.selectOptionContaining('.git-repo-picker select', 'validation-module');
+            await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'validation-module' && document.querySelector('.git-commit-list')?.textContent?.includes('Submodule fixture')`, 15_000, 'The Submodule resolves its gitdir file and shows its own commit history.');
+            compatibility.submodule = 'PASS';
+            await ui.selectOptionContaining('.git-repo-picker select', 'service');
+            await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent === 'service' && !document.querySelector('.git-progress')`, 15_000, 'The main Repo is selected before hiding the panel.');
+            const lifecycleDraft = 'Hidden panel draft ' + runId;
+            await ui.evaluate(`(() => { globalThis.__glwLifecycleProbe = true; const input = document.querySelector('.git-commit-composer textarea'); if (!input) throw new Error('Commit composer missing'); input.value = ${JSON.stringify(lifecycleDraft)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+            await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+            await ui.close();
+            ui = undefined;
+            await checkIdle('hidden');
+            await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+            ui = await connectWorkspaceWebview(browser, port, node_path_1.default.join(node_path_1.default.dirname(reportPath), 'local-git-gui-restored-targets.json'), node_path_1.default.join(node_path_1.default.dirname(reportPath), 'local-git-gui-restored-debug.json'));
+            await ui.waitForVisible('.git-workbench', 20_000);
+            await ui.waitUntil(`document.querySelector('.git-commit-composer textarea')?.value === ${JSON.stringify(lifecycleDraft)}`, 15_000, 'The last commit draft survives native Webview destruction and restoration.');
+            strict_1.default.equal(await ui.evaluate(`typeof globalThis.__glwLifecycleProbe`), 'undefined', 'VS Code recreated the Webview instead of retaining its DOM context');
+            compatibility.hiddenRestoredDraft = 'PASS';
+            await page.screenshot({ path: node_path_1.default.join(node_path_1.default.dirname(reportPath), 'screenshots', 'local-git-gui.png') });
+            const status = gitGui.committed === true && gitGui.pushedWithUpstream === true ? 'PASS' : gitGui.commitUi && typeof gitGui.commitUi === 'object' && 'error' in gitGui.commitUi && Boolean(gitGui.commitUi.error) ? 'FAIL' : 'BLOCKED';
+            (0, node_fs_1.writeFileSync)(reportPath, `${JSON.stringify({
+                schema: 'GitLabWorkspaceLocalGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
+                mode: 'local-only', vscodeVersion: vscode.version,
+                testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
+                repository: workspaceRoot, remoteKind: 'isolated-local-bare-repository', status, gitDiscoveryMs, gitDetailsStaleRetries, initialGitState, remoteBranchNames,
+                interactiveConfirmationUI: status !== 'PASS' ? 'NOT_COMPLETE' :
+                    gitGui.commitConfirmation === 'workbench-dom' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: both native VS Code modal confirmations were presented and clicked through the Workbench DOM.' :
+                        'BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
+                warningPrompts, actionTrace, idleChecks, compatibility, gitGui
+            }, null, 2)}\n`, 'utf8');
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Local Git GUI validation failed.';
+            const uiDiagnostics = await ui?.evaluate(`(() => {
+        const geometry = selector => { const element = document.querySelector(selector); if (!element) return null;
+          const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, display: style.display,
+            visibility: style.visibility, inert: element.hasAttribute('inert'), hidden: element.hidden }; };
+        return { width: innerWidth, height: innerHeight, devicePixelRatio,
+          shell: document.querySelector('.git-shell')?.className, workbench: geometry('.git-workbench'),
+          inspector: geometry('.git-inspector'), toggle: geometry('.git-right-toggle'), composer: geometry('.git-commit-composer'),
+          textarea: geometry('.git-commit-composer textarea'), progress: document.querySelector('.git-status-message')?.textContent };
+      })()`).catch(diagnosticError => ({ error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError) }));
+            let failureScreenshot;
+            if (workbenchPage) {
+                const relativePath = 'screenshots/local-git-gui-failure.png';
+                await workbenchPage.screenshot({ path: node_path_1.default.join(node_path_1.default.dirname(reportPath), relativePath) })
+                    .then(() => { failureScreenshot = relativePath; }, () => undefined);
+            }
+            (0, node_fs_1.writeFileSync)(reportPath, `${JSON.stringify({
+                schema: 'GitLabWorkspaceLocalGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
+                mode: 'local-only', vscodeVersion: vscode.version,
+                testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
+                status: 'FAIL', error: message, workspaceFolders: vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath),
+                nativeGitRepositoryState: await api.getGitRepositoryState().catch((stateError) => ({
+                    repositories: [], available: false, message: stateError instanceof Error ? stateError.message : String(stateError)
+                })),
+                windowFocused: vscode.window.state.focused, nativeGitActivity: api.getGitActivityForTesting(),
+                nativeWorkingChanges: vscode.extensions.getExtension('vscode.git')?.exports?.getAPI(1).repositories.map(repository => ({ path: repository.rootUri.fsPath, changes: repository.state.workingTreeChanges.map(change => change.uri.fsPath) })),
+                actionTrace, idleChecks, gitDetailsStaleRetries, uiDiagnostics, failureScreenshot
+            }, null, 2)}\n`, 'utf8');
+            throw error;
+        }
+        finally {
+            await ui?.close();
+            if (browser)
+                await browser.close();
+        }
+    });
+    test('authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP', async function () {
+        if (!enabled)
+            this.skip();
+        strict_1.default.equal(vscode.version, process.env.GLW_LIVE_VSCODE_VERSION ?? '1.140.0', 'the real Extension Host uses the pinned local VS Code version');
+        const environment = process.env.GLW_LIVE_ENVIRONMENT;
+        const baseUrl = process.env.GLW_LIVE_BASE_URL;
+        const groupPath = process.env.GLW_LIVE_GROUP_PATH;
+        const workspaceRoot = process.env.GLW_LIVE_WORKSPACE_ROOT;
+        const reportPath = process.env.GLW_LIVE_REPORT;
+        const fixture = process.env.GLW_LIVE_FIXTURE ?? 'demo';
+        const runId = process.env.GLW_LIVE_RUN_ID ?? 'demo';
+        strict_1.default.ok(fixture === 'demo' || fixture === 'load', 'the selected fixture is recognized');
+        const expectedRepoCount = fixture === 'load' ? 20 : 3;
+        const benchmarkRun = process.env.GLW_LIVE_BENCHMARK === '1';
+        const baselineBenchmark = process.env.GLW_LIVE_BENCHMARK_BASELINE === '1';
+        let token = process.env.GLW_LIVE_TOKEN;
+        strict_1.default.ok(token && new URL(baseUrl).hostname === '127.0.0.1');
+        const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
+        strict_1.default.ok(extension, 'the project extension is loaded in the actual Extension Host');
+        strict_1.default.equal(extension.packageJSON.version, process.env.GLW_LIVE_EXPECTED_VERSION, 'the actual packaged VSIX is loaded');
+        const api = await extension.activate();
+        strict_1.default.ok(api?.session, 'test mode exposes only the live GitLab session handle');
+        const metrics = [];
+        const originalFetch = globalThis.fetch;
+        api.setFetchForTesting(async (input, init) => {
+            const requestUrl = new URL(typeof input === 'string' || input instanceof URL ? input.toString() : input.url);
+            const started = performance.now();
+            const response = await originalFetch(input, init);
+            if (requestUrl.origin === baseUrl)
+                metrics.push({
+                    path: requestUrl.pathname.replace(/^\/api\/(?:v\d+\/)?/, ''), method: init?.method ?? 'GET', status: response.status,
+                    bytes: Number(response.headers.get('content-length')) || (await response.clone().arrayBuffer()).byteLength,
+                    elapsedMs: Number((performance.now() - started).toFixed(2))
+                });
+            return response;
+        });
+        let browser;
+        let ui;
+        const memorySamples = [];
+        try {
+            await strict_1.default.rejects(api.session.connect(baseUrl, 'invalid-live-validation-token'), (error) => {
+                strict_1.default.ok(error instanceof Error);
+                strict_1.default.doesNotMatch(error.message, /invalid-live-validation-token|private-token|authorization/i);
+                return true;
+            });
+            strict_1.default.equal(api.session.baseUrl, undefined, 'a rejected token is not persisted in the extension SecretStorage');
+            const connected = await api.session.connect(baseUrl, token);
+            process.env.GLW_LIVE_TOKEN = '';
+            strict_1.default.ok(connected.id > 0, 'GitLab validated the token against the requested localhost server');
+            const expectedGitLabVersion = environment === 'ce19' ? '19.4.1' : '16.11.10';
+            strict_1.default.equal(api.session.metadata?.version, expectedGitLabVersion, `the live server is the exact ${environment} target version`);
+            strict_1.default.equal(api.session.metadata?.enterprise, false, 'the live target identifies itself as GitLab CE');
+            const initialSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
+            strict_1.default.ok(initialSchemaRequests > 0, `the real Schema detection reached the GitLab GraphQL endpoint (requests: ${JSON.stringify(metrics.map(({ path, method, status }) => ({ path, method, status })))})`);
+            const schemaByteLengths = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').map((item) => item.bytes).filter((item) => item !== null);
+            const firstCapabilitySnapshot = api.session.state.get('gitlabWorkspace.issueCapabilities.v1');
+            const expectedCapabilityScope = JSON.stringify([baseUrl, connected.id, api.session.metadata?.version ?? null, api.session.metadata?.revision ?? null, api.session.metadata?.enterprise ?? null]);
+            if (!baselineBenchmark) {
+                strict_1.default.equal(firstCapabilitySnapshot?.scope, expectedCapabilityScope, `GitLab's live capability probe was cached under its instance and account scope (${JSON.stringify({ metadata: api.session.metadata, currentUserId: api.session.state.get('gitlabWorkspace.currentUserId'), cachedScope: firstCapabilitySnapshot?.scope, capabilities: api.session.issueCapabilities, diagnostics: api.session.capabilityDiagnostics, graphql: metrics.filter((item) => item.path === 'graphql').map(({ status, elapsedMs }) => ({ status, elapsedMs })) })})`);
+            }
+            await api.session.connect(baseUrl, token);
+            token = '';
+            const reconnectSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
+            const cachedCapabilities = api.session.state.get('gitlabWorkspace.issueCapabilities.v1');
+            if (!baselineBenchmark) {
+                strict_1.default.equal(reconnectSchemaRequests, initialSchemaRequests, `same-account reconnect reuses the persistent, version-scoped capability cache (${JSON.stringify({ metadata: api.session.metadata, capabilities: api.session.issueCapabilities, diagnostics: api.session.capabilityDiagnostics, cachedCapabilities, graphql: metrics.filter((item) => item.path === 'graphql') })})`);
+            }
+            const groups = await api.session.cachedRead('live-validation-groups', (client) => client.listGroups(), { force: true });
+            const group = groups.find((candidate) => candidate.full_path === groupPath);
+            strict_1.default.ok(group, `the isolated ${environment} demo subgroup is visible to the connected user`);
+            await vscode.commands.executeCommand('gitlabWorkspace.selectGroup', group);
+            await vscode.commands.executeCommand('gitlabWorkspace.openCloneMode');
+            const cdpPort = Number(process.env.GLW_LIVE_CDP_PORT);
+            browser = await playwright_core_1.chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 25_000 });
+            const context = browser.contexts()[0];
+            strict_1.default.ok(context, 'the isolated VS Code Chromium context is available over CDP');
+            const page = await waitForWorkbenchPage(context.pages());
+            await page.locator('iframe.webview').waitFor({ state: 'attached', timeout: 20_000 });
+            ui = await connectWorkspaceWebview(browser, cdpPort, node_path_1.default.join(node_path_1.default.dirname(reportPath), `${environment}-cdp-targets.json`), node_path_1.default.join(node_path_1.default.dirname(reportPath), `${environment}-webview-cdp-debug.json`), originalFetch);
+            const screenshotDir = node_path_1.default.join(node_path_1.default.dirname(reportPath), 'screenshots');
+            (0, node_fs_1.mkdirSync)(screenshotDir, { recursive: true });
+            if (process.env.GLW_LIVE_ROUND === '1')
+                await page.screenshot({ path: node_path_1.default.join(screenshotDir, `${environment}-clone.png`) });
+            await ui.waitForVisible('.clone-list-column', 20_000);
+            const visibleRepoCount = await ui.text('.clone-list-column .count');
+            strict_1.default.match(visibleRepoCount ?? '', new RegExp(`^${expectedRepoCount} 個 Repo$`));
+            const cloneText = await ui.text('body');
+            const fixtureManifest = JSON.parse((0, node_fs_1.readFileSync)(process.env.GLW_LIVE_MANIFEST, 'utf8'));
+            const repoPaths = fixtureManifest.resources.projects.map((project) => project.path);
+            const repoSamples = [...new Set([repoPaths[0], repoPaths[Math.floor(repoPaths.length / 2)], repoPaths.at(-1)])].filter((item) => !!item);
+            for (const projectPath of repoSamples)
+                strict_1.default.ok(cloneText?.includes(projectPath), `the GUI lists the isolated ${projectPath} Repo`);
+            const coldInteractiveReadyMs = Date.now() - Number(process.env.GLW_LIVE_COLD_STARTED_AT);
+            const captureMemory = async () => {
+                const host = process.memoryUsage();
+                const renderer = await ui.memoryUsage();
+                memorySamples.push({
+                    extensionHostRssBytes: host.rss, extensionHostHeapUsedBytes: host.heapUsed,
+                    rendererHeapUsedBytes: renderer.usedBytes, rendererHeapTotalBytes: renderer.totalBytes
+                });
+            };
+            await captureMemory();
+            await ui.waitForProperty('.settings-trigger', 'disabled', false, 30_000);
+            await ui.click('.settings-trigger');
+            await ui.waitForVisible('.tool-drawer', 20_000);
+            await ui.click('.instance-capabilities button');
+            await ui.waitForProperty('.instance-capabilities button', 'disabled', true, 10_000);
+            await ui.waitForProperty('.instance-capabilities button', 'disabled', false, 30_000);
+            const refreshedSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
+            strict_1.default.ok(refreshedSchemaRequests > reconnectSchemaRequests, 'the settings panel manual-detection action reaches GraphQL again');
+            const refreshedSchemaByteLengths = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').slice(initialSchemaRequests).map((item) => item.bytes).filter((item) => item !== null);
+            await ui.click('.drawer-heading button');
+            const localSearchMs = [];
+            let localSearchApiRequests = 0;
+            if (fixture === 'load') {
+                const selectedPath = repoPaths.at(-1);
+                strict_1.default.ok(selectedPath, 'the load manifest contains the selected test Repo');
+                const apiRequestsBeforeSearch = metrics.length;
+                for (let index = 0; index < 30; index++) {
+                    const expectedCount = index % 2 === 0 ? 1 : 0;
+                    const term = expectedCount ? selectedPath : `${runId}-missing-${index}`;
+                    const sample = await ui.measureLocalFilter('input[aria-label="搜尋 Repo"]', term, '.clone-list-column .count');
+                    strict_1.default.match(sample.text, new RegExp(`^${expectedCount} 個 Repo$`), 'Repo search updates local results without a GitLab read');
+                    localSearchMs.push(sample.elapsedMs);
+                }
+                localSearchApiRequests = metrics.length - apiRequestsBeforeSearch;
+                if (!benchmarkRun)
+                    strict_1.default.equal(localSearchApiRequests, 0, 'local Repo filtering makes no GitLab requests');
+                await ui.measureLocalFilter('input[aria-label="搜尋 Repo"]', '', '.clone-list-column .count');
+            }
+            const latencyMs = [];
+            const navigationBreakdown = [];
+            const navigationApiRequestStart = metrics.length;
+            const modes = [
+                { command: 'gitlabWorkspace.openCloneMode', mode: 'clone', selector: '.clone-list-column' },
+                { command: 'gitlabWorkspace.openGitMode', mode: 'git', selector: '.git-workbench' }
+            ];
+            const measuredApi = api;
+            const gitWarmupStarted = performance.now();
+            await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+            await ui.waitForVisible('.git-workbench', 120_000);
+            await ui.waitUntil(`document.querySelectorAll('.git-repo-picker select option').length >= ${expectedRepoCount + 1}`, 120_000, `The Git panel has loaded all ${expectedRepoCount} fixture Repos and the workspace Repo before warm navigation.`);
+            let lastGitCommandCount = measuredApi.getGitCommandCountForTesting?.() ?? null;
+            let quietGitMs = 0;
+            const quietGitStarted = performance.now();
+            while (lastGitCommandCount !== null && quietGitMs < 3_000 && performance.now() - quietGitStarted < 45_000) {
+                await new Promise((resolve) => setTimeout(resolve, 250));
+                const nextGitCommandCount = measuredApi.getGitCommandCountForTesting?.() ?? null;
+                if (nextGitCommandCount === lastGitCommandCount)
+                    quietGitMs += 250;
+                else {
+                    lastGitCommandCount = nextGitCommandCount;
+                    quietGitMs = 0;
+                }
+            }
+            const gitWarmupMs = Number((performance.now() - gitWarmupStarted).toFixed(2));
+            for (let index = 0; index < 30; index++) {
+                const target = modes[index % modes.length];
+                const gitCommandsBefore = measuredApi.getGitCommandCountForTesting?.() ?? null;
+                const messagesBefore = measuredApi.getWebviewMessageCountsForTesting?.() ?? null;
+                const commandStarted = performance.now();
+                await vscode.commands.executeCommand(target.command);
+                const commandMs = Number((performance.now() - commandStarted).toFixed(2));
+                const visibleStarted = performance.now();
+                await ui.waitForVisible(target.selector, 10_000);
+                const visibleWaitMs = Number((performance.now() - visibleStarted).toFixed(2));
+                latencyMs.push(Number((commandMs + visibleWaitMs).toFixed(2)));
+                const gitCommandsAfter = measuredApi.getGitCommandCountForTesting?.() ?? null;
+                const messagesAfter = measuredApi.getWebviewMessageCountsForTesting?.() ?? null;
+                navigationBreakdown.push({
+                    index, mode: target.mode, commandMs, visibleWaitMs,
+                    gitCommands: gitCommandsBefore === null || gitCommandsAfter === null ? null : gitCommandsAfter - gitCommandsBefore,
+                    webviewMessages: messagesBefore === null || messagesAfter === null ? null : {
+                        sent: messagesAfter.sent - messagesBefore.sent, received: messagesAfter.received - messagesBefore.received
+                    }
+                });
+                await captureMemory();
+            }
+            const navigationApiRequests = metrics.length - navigationApiRequestStart;
+            let renderedGraphNodes = 0;
+            let narrowLayout;
+            if (fixture === 'load') {
+                await vscode.commands.executeCommand('gitlabWorkspace.openDeveloperMode');
+                await ui.waitForVisible('.developer-view-switch', 20_000);
+                await ui.click('.developer-view-switch button', 1);
+                await ui.waitUntil("document.querySelector('.issue-graph-svg')?.getAttribute('aria-label')?.includes('200 張主要 Issue')", 120_000, 'The assigned load fixture did not render all 200 graph nodes.');
+                renderedGraphNodes = await ui.count('.issue-graph-svg .graph-node.primary');
+                strict_1.default.equal(renderedGraphNodes, 200, 'the real Webview displays every primary graph node');
+                await captureMemory();
+                await vscode.commands.executeCommand('workbench.action.closeSidebar');
+                await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+                await page.setViewportSize({ width: 430, height: 900 });
+                if (process.env.GLW_LIVE_ROUND === '1')
+                    await page.screenshot({ path: node_path_1.default.join(screenshotDir, `${environment}-narrow.png`) });
+                narrowLayout = await ui.evaluate(`({ viewport: document.documentElement.clientWidth, content: document.querySelector('.app-shell')?.scrollWidth ?? 0 })`);
+                if (!baselineBenchmark)
+                    strict_1.default.ok(narrowLayout.content <= narrowLayout.viewport + 1, `the load view fits a narrow 430 px window (${JSON.stringify(narrowLayout)})`);
+            }
+            const bytes = await ui.htmlBytes();
+            const gitGui = process.env.GLW_LIVE_GIT_GUI === '1' ? await exerciseGitGui(ui, page, workspaceRoot, runId) : undefined;
+            const gitCommandCount = typeof measuredApi.getGitCommandCountForTesting === 'function' ? measuredApi.getGitCommandCountForTesting() : null;
+            const webviewMessageCounts = typeof measuredApi.getWebviewMessageCountsForTesting === 'function' ? measuredApi.getWebviewMessageCountsForTesting() : null;
+            const screenshotPath = gitGui ? node_path_1.default.join(screenshotDir, `${environment}-git-gui.png`) : undefined;
+            if (screenshotPath && process.env.GLW_LIVE_ROUND === '1')
+                await page.screenshot({ path: screenshotPath });
+            const report = {
+                schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
+                environment, baseUrl, version: api.session.metadata?.version, revision: api.session.metadata?.revision ?? null,
+                vscodeVersion: vscode.version, currentUserId: connected.id, selectedGroup: group.full_path,
+                testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
+                projects: groupPath, visibleRepoCount,
+                schemaBytes: { initial: schemaByteLengths.reduce((sum, value) => sum + value, 0), afterManualDetection: refreshedSchemaByteLengths.reduce((sum, value) => sum + value, 0) },
+                schemaGraphQlRequests: metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length,
+                fixture: { kind: fixture, runId, expectedRepoCount, renderedGraphNodes },
+                narrowLayout,
+                status: 'PASS', coldInteractiveReadyMs,
+                api: metrics, webview: { viewport: await page.evaluate(() => ({ width: innerWidth, height: innerHeight })), frameBytes: bytes },
+                operationCounts: {
+                    available: gitCommandCount !== null && webviewMessageCounts !== null,
+                    gitCommands: gitCommandCount,
+                    webviewMessages: webviewMessageCounts
+                },
+                warmNavigationMs: { samples: latencyMs, median: percentile(latencyMs, 0.5), p95: percentile(latencyMs, 0.95) },
+                warmNavigationBreakdown: navigationBreakdown,
+                gitWarmupMs, gitWarmupQuietMs: quietGitMs,
+                navigationApiRequests,
+                localRepoSearchMs: { samples: localSearchMs, median: percentile(localSearchMs, 0.5), p95: percentile(localSearchMs, 0.95) },
+                localSearchApiRequests, gitGui,
+                memory: {
+                    samples: memorySamples,
+                    extensionHostPeakRssBytes: Math.max(0, ...memorySamples.map((sample) => sample.extensionHostRssBytes)),
+                    extensionHostPeakHeapUsedBytes: Math.max(0, ...memorySamples.map((sample) => sample.extensionHostHeapUsedBytes)),
+                    rendererPeakHeapUsedBytes: Math.max(0, ...memorySamples.map((sample) => sample.rendererHeapUsedBytes)),
+                    rendererPeakHeapTotalBytes: Math.max(0, ...memorySamples.map((sample) => sample.rendererHeapTotalBytes))
+                },
+                screenshots: [node_path_1.default.relative(node_path_1.default.dirname(reportPath), node_path_1.default.join(screenshotDir, `${environment}-clone.png`)), ...(screenshotPath ? [node_path_1.default.relative(node_path_1.default.dirname(reportPath), screenshotPath)] : [])]
+            };
+            (0, node_fs_1.writeFileSync)(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+        }
+        catch (error) {
+            let message = error instanceof Error ? error.message : 'Live GitLab Workspace validation failed.';
+            const secrets = [token, process.env.GLW_LIVE_TOKEN, 'invalid-live-validation-token']
+                .filter((secret) => Boolean(secret));
+            for (const secret of secrets) {
+                message = message.split(secret).join('[redacted]');
+            }
+            const status = /timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL';
+            (0, node_fs_1.writeFileSync)(reportPath, `${JSON.stringify({
+                schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
+                environment, baseUrl, expectedGitLabVersion: environment === 'ce19' ? '19.4.1' : '16.11.10',
+                vscodeVersion: vscode.version, testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
+                status, error: message
+            }, null, 2)}\n`, 'utf8');
+            throw error;
+        }
+        finally {
+            process.env.GLW_LIVE_TOKEN = '';
+            await ui?.close();
+            if (browser)
+                await browser.close();
+        }
+    });
+});
+async function waitForWorkbenchPage(pages) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+        const page = pages.find((candidate) => /workbench\.html|vscode-file:/.test(candidate.url()));
+        if (page)
+            return page;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`No VS Code workbench page was found over CDP (${pages.map((page) => page.url()).join(', ') || 'no pages'}).`);
+}
+async function connectWorkspaceWebview(browser, port, targetEvidencePath, debugEvidencePath, request = fetch) {
+    const browserCdp = await browser.newBrowserCDPSession();
+    let targets = {};
+    let webviewTargets = [];
+    const deadline = Date.now() + 20_000;
+    try {
+        while (Date.now() < deadline) {
+            targets = await browserCdp.send('Target.getTargets');
+            webviewTargets = (targets.targetInfos ?? []).filter((target) => target.type === 'iframe' && target.url.startsWith('vscode-webview://'));
+            if (webviewTargets.length)
+                break;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    }
+    finally {
+        await browserCdp.detach();
+    }
+    (0, node_fs_1.writeFileSync)(targetEvidencePath, `${JSON.stringify(targets, null, 2)}\n`, 'utf8');
+    const devtools = await request(`http://127.0.0.1:${port}/json/version`).then((response) => response.json());
+    return WebviewCdp.connect(devtools.webSocketDebuggerUrl, webviewTargets, debugEvidencePath);
+}
+class RawCdpConnection {
+    socket;
+    sequence = 0;
+    pending = new Map();
+    constructor(socket) {
+        this.socket = socket;
+        socket.addEventListener('message', (event) => {
+            let message;
+            try {
+                message = JSON.parse(String(event.data));
+            }
+            catch {
+                return;
+            }
+            if (message.id === undefined)
+                return;
+            const pending = this.pending.get(message.id);
+            if (!pending)
+                return;
+            this.pending.delete(message.id);
+            if (message.error)
+                pending.reject(new Error(message.error.message ?? 'Chromium rejected a CDP request.'));
+            else
+                pending.resolve(message.result ?? {});
+        });
+        socket.addEventListener('close', () => {
+            for (const pending of this.pending.values())
+                pending.reject(new Error('The VS Code CDP connection closed.'));
+            this.pending.clear();
+        });
+    }
+    static async connect(address) {
+        const socket = new WebSocket(address);
+        await new Promise((resolve, reject) => {
+            socket.addEventListener('open', () => resolve(), { once: true });
+            socket.addEventListener('error', () => reject(new Error('Could not open the VS Code CDP WebSocket.')), { once: true });
+        });
+        return new RawCdpConnection(socket);
+    }
+    send(method, params = {}, sessionId) {
+        const id = ++this.sequence;
+        const promise = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject }));
+        this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+        return promise;
+    }
+    close() { this.socket.close(); }
+}
+class WebviewCdp {
+    connection;
+    sessionId;
+    constructor(connection, sessionId) {
+        this.connection = connection;
+        this.sessionId = sessionId;
+    }
+    static async connect(address, candidates, diagnosticPath) {
+        if (!address || !candidates.length)
+            throw new Error('Chromium did not expose a VS Code Webview target.');
+        const connection = await RawCdpConnection.connect(address);
+        const diagnostics = [];
+        try {
+            for (const candidate of candidates) {
+                const attached = await connection.send('Target.attachToTarget', { targetId: candidate.targetId, flatten: true });
+                const sessionId = attached.sessionId;
+                if (typeof sessionId !== 'string')
+                    continue;
+                const webview = new WebviewCdp(connection, sessionId);
+                await webview.send('Runtime.enable');
+                const firstInspection = await webview.evaluate(`({href: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0, 350), frames: [...document.querySelectorAll('iframe')].map((item) => ({src: item.src, readyState: item.contentDocument?.readyState, title: item.contentDocument?.title, body: item.contentDocument?.body?.innerText?.slice(0, 500), bodyHtml: item.contentDocument?.body?.innerHTML?.slice(0, 350)})), clone: !!document.querySelector('.clone-list-column')})`).catch((error) => `evaluate failed: ${String(error)}`);
+                diagnostics.push({ targetId: candidate.targetId, firstInspection });
+                for (let attempt = 0; attempt < 100; attempt++) {
+                    const ready = await webview.evaluate(`Boolean(document.querySelector('.app-shell, .git-workbench'))`).catch(() => false);
+                    if (ready)
+                        return webview;
+                    await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+                await connection.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+            }
+        }
+        catch (error) {
+            connection.close();
+            throw error;
+        }
+        (0, node_fs_1.writeFileSync)(diagnosticPath, `${JSON.stringify(diagnostics, null, 2)}\n`, 'utf8');
+        connection.close();
+        throw new Error(`VS Code exposed Webview targets, but none contains the GitLab Workspace UI (${JSON.stringify(diagnostics)}).`);
+    }
+    send(method, params = {}) {
+        return this.connection.send(method, params, this.sessionId);
+    }
+    async evaluate(expression) {
+        const webviewExpression = `(() => { const find = (doc, depth = 0) => { if (!doc || depth > 6) return null; if (doc.querySelector('.app-shell, .git-workbench')) return doc; for (const iframe of doc.querySelectorAll('iframe')) { try { const result = find(iframe.contentDocument, depth + 1); if (result) return result; } catch {} } return null; }; const document = find(window.document) ?? window.document; return (${expression}); })()`;
+        const response = await this.send('Runtime.evaluate', { expression: webviewExpression, awaitPromise: true, returnByValue: true, userGesture: true });
+        if (response.exceptionDetails)
+            throw new Error(response.exceptionDetails.text ?? 'Webview JavaScript evaluation failed.');
+        return response.result?.value;
+    }
+    async waitForVisible(selector, timeoutMs = 10_000) {
+        await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && e.getClientRects().length > 0; })()`, timeoutMs, `Webview element ${selector} did not become visible.`);
+    }
+    async waitForHidden(selector, timeoutMs = 20_000) {
+        await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !e || e.getClientRects().length === 0; })()`, timeoutMs, `Webview element ${selector} did not become hidden.`);
+    }
+    async waitForProperty(selector, property, value, timeoutMs = 10_000) {
+        await this.waitUntil(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); return !!e && e.disabled === ${value}; })()`, timeoutMs, `Webview control ${selector} did not reach disabled=${value}.`);
+    }
+    async click(selector, index = 0) {
+        const clicked = await this.evaluate(`(() => { const e = document.querySelectorAll(${JSON.stringify(selector)})[${index}]; if (!e) return false; e.click(); return true; })()`);
+        if (!clicked)
+            throw new Error(`Could not click Webview element ${selector}[${index}].`);
+    }
+    async fill(selector, value, index = 0) {
+        const focused = await this.evaluate(`(() => {
+      const e = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+      if (!e || !('value' in e)) return null;
+      e.focus();
+      if (e.tagName === 'SELECT') return 'select';
+      if (typeof e.select === 'function') e.select();
+      return 'text';
+    })()`);
+        if (focused === 'text')
+            await this.send('Input.insertText', { text: value });
+        else if (focused === 'select') {
+            const selected = await this.evaluate(`(() => {
+        const e = document.querySelectorAll(${JSON.stringify(selector)})[${index}];
+        const view = e?.ownerDocument.defaultView;
+        if (!e || !view) return false;
+        Object.getOwnPropertyDescriptor(view.HTMLSelectElement.prototype, 'value')?.set?.call(e, ${JSON.stringify(value)});
+        e.dispatchEvent(new view.Event('change', { bubbles: true }));
+        return true;
+      })()`);
+            if (!selected)
+                throw new Error(`Could not select a value in Webview element ${selector}[${index}].`);
+        }
+        else
+            throw new Error(`Could not focus Webview element ${selector}[${index}].`);
+    }
+    async selectOptionContaining(selector, text) {
+        const selected = await this.evaluate(`(() => {
+      const e = document.querySelector(${JSON.stringify(selector)});
+      const option = e && [...e.options].find((item) => item.textContent?.toLowerCase().includes(${JSON.stringify(text.toLowerCase())}));
+      const view = e?.ownerDocument.defaultView;
+      if (!e || !option || !view) return false;
+      Object.getOwnPropertyDescriptor(view.HTMLSelectElement.prototype, 'value')?.set?.call(e, option.value);
+      e.dispatchEvent(new view.Event('change', { bubbles: true }));
+      return true;
+    })()`);
+        if (!selected)
+            throw new Error(`Could not select a Webview option containing ${text}.`);
+    }
+    async setChecked(selector, checked, index = 0) {
+        const changed = await this.evaluate(`(() => { const e = document.querySelectorAll(${JSON.stringify(selector)})[${index}]; if (!e || !('checked' in e)) return false; if (e.checked !== ${checked}) e.click(); return true; })()`);
+        if (!changed)
+            throw new Error(`Could not set Webview checkbox ${selector}[${index}].`);
+    }
+    async text(selector) {
+        return this.evaluate(`document.querySelector(${JSON.stringify(selector)})?.textContent ?? null`);
+    }
+    async count(selector) {
+        return this.evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
+    }
+    async htmlBytes() {
+        return this.evaluate(`new TextEncoder().encode(document.body.innerHTML).length`);
+    }
+    async memoryUsage() {
+        const response = await this.send('Runtime.getHeapUsage');
+        if (!Number.isFinite(response.usedSize) || !Number.isFinite(response.totalSize)) {
+            throw new Error('Chromium did not return Webview renderer heap metrics.');
+        }
+        return { usedBytes: response.usedSize, totalBytes: response.totalSize };
+    }
+    async measureLocalFilter(selector, value, resultSelector) {
+        return this.evaluate(`(async () => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      const view = input?.ownerDocument.defaultView;
+      if (!input || !view || input.tagName !== 'INPUT') throw new Error('The local search input was not found.');
+      const started = view.performance.now();
+      input.focus();
+      Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, 'value')?.set?.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new view.Event('input', { bubbles: true }));
+      await new Promise(view.requestAnimationFrame.bind(view));
+      await new Promise(view.requestAnimationFrame.bind(view));
+      return { elapsedMs: Number((view.performance.now() - started).toFixed(2)), text: document.querySelector(${JSON.stringify(resultSelector)})?.textContent?.trim() ?? '' };
+    })()`);
+    }
+    async waitUntil(expression, timeoutMs, message) {
+        const started = performance.now();
+        while (performance.now() - started < timeoutMs) {
+            if (await this.evaluate(expression).catch(() => false))
+                return;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        const preview = await this.text('body').catch(() => null);
+        throw new Error(`${message}${preview ? ` (${preview.slice(0, 700)})` : ''}`);
+    }
+    async close() {
+        await this.connection.send('Target.detachFromTarget', { sessionId: this.sessionId }).catch(() => undefined);
+        this.connection.close();
+    }
+}
+function percentile(values, fraction) {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : 0;
+}
+async function exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts = [], openWorkspace = true, promptRace = {}, checkIdle, actionTrace = []) {
+    const confirmationDialogs = [];
+    page.on('dialog', async (dialog) => {
+        const message = dialog.message();
+        confirmationDialogs.push(message);
+        if (/commit|push/i.test(message))
+            await dialog.accept();
+        else
+            await dialog.dismiss();
+    });
+    if (openWorkspace)
+        await vscode.commands.executeCommand('gitlabWorkspace.openGitMode');
+    await ui.waitForVisible('.git-workbench', 20_000);
+    await ui.waitForVisible('.git-repo-picker select', 20_000);
+    await ui.waitUntil(`[...document.querySelectorAll('.git-repo-picker option')].some((option) => option.textContent?.toLowerCase().includes('service'))`, 25_000, 'VS Code did not discover the isolated service Repo for the Git GUI.');
+    await ui.selectOptionContaining('.git-repo-picker select', 'service');
+    await ui.waitUntil(`document.querySelector('.git-repo-heading strong')?.textContent?.toLowerCase().includes('service')`, 15_000, 'The Git GUI did not activate the service Repo.');
+    await ui.waitForVisible('.git-toolbar > button.secondary', 20_000);
+    await ui.waitForProperty('.git-toolbar > button.secondary', 'disabled', false, 20_000);
+    const playwrightWebview = await findPlaywrightFrame(page, '.git-commit-composer');
+    await checkIdle?.('open');
+    const repoPath = node_path_1.default.basename(node_path_1.default.resolve(workspaceRoot)).toLocaleLowerCase('en-US') === 'service'
+        ? workspaceRoot : node_path_1.default.join(workspaceRoot, 'service');
+    const trackedFile = node_path_1.default.join(repoPath, 'service.ts');
+    strict_1.default.ok((0, node_fs_1.existsSync)(trackedFile), 'the selected Demo Service repository is present in the disposable workspace');
+    const currentBranch = (0, node_child_process_1.execFileSync)('git', ['branch', '--show-current'], { cwd: repoPath, encoding: 'utf8' }).trim();
+    const branch = `validation/${runId}/${Date.now().toString(36)}`;
+    await ui.click('.git-toolbar > button.secondary');
+    await ui.waitForVisible('.git-dialog input[name="name"]', 5_000);
+    await ui.fill('.git-dialog input[name="name"]', branch);
+    await ui.waitUntil(`document.querySelector('.git-dialog input[name="name"]')?.value === ${JSON.stringify(branch)}`, 5_000, 'The Git GUI did not retain the new branch name.');
+    strict_1.default.equal(await ui.evaluate(`new FormData(document.querySelector('.git-dialog')).get('name')`), branch, 'the branch form contains the exact value entered through the real Webview keyboard input path');
+    await ui.click('.git-dialog button[type="submit"]');
+    try {
+        await ui.waitUntil(`(() => { const select = document.querySelector('.git-branch-picker select'); return !!select && [...select.options].some((option) => option.value === ${JSON.stringify(branch)}) && select.value === ${JSON.stringify(branch)}; })()`, 15_000, 'The Git GUI did not switch to the new branch.');
+    }
+    catch {
+        const picker = await ui.evaluate(`(() => { const select = document.querySelector('.git-branch-picker select'); return { value: select?.value, options: [...(select?.options ?? [])].map((option) => option.value), current: document.querySelector('.git-branch-chip')?.textContent }; })()`);
+        strict_1.default.fail(`The Git GUI did not reflect the checked-out branch from the Git repository (${JSON.stringify(picker)}).`);
+    }
+    await waitForGitState(repoPath, ['branch', '--show-current'], (output) => output.trim() === branch, 'The branch is checked out in the actual local Git repository.');
+    const original = await import('node:fs/promises').then(({ readFile }) => readFile(trackedFile, 'utf8'));
+    const markerA = `// live GUI partial-stage ${runId}`;
+    const markerB = `// live GUI whole-file stage ${runId}`;
+    (0, node_fs_1.writeFileSync)(trackedFile, `${original.trimEnd()}\n${markerA}\n${markerB}\n`, 'utf8');
+    await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 15_000, 'The Git GUI did not refresh after the working tree changed.');
+    await ui.click('.git-change-name');
+    await ui.waitForVisible('.git-diff-line.add input[type="checkbox"]');
+    strict_1.default.equal(await ui.count('.git-diff-line.add input[type="checkbox"]'), 2, 'the real Git diff exposes both added lines for line-level staging');
+    await checkIdle?.('select-file');
+    await ui.setChecked('.git-diff-line.add input[type="checkbox"]', true, 0);
+    await ui.click('.git-diff-actions button', 0);
+    await waitForGitUiAction(ui);
+    const indexAfterPartial = await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => /^1\s+0\s+service\.ts$/.test(output.trim()), 'Exactly one added line is staged through the Git GUI.');
+    await ui.click('.git-change-row button[title="取消暫存整檔"]', 0);
+    await waitForGitUiAction(ui);
+    await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => output.trim() === '', 'The Git GUI cancels staging for the entire file.');
+    const beforeWholeFileStage = await ui.evaluate(`(() => ({
+    selected: document.querySelector('.git-diff-heading')?.textContent,
+    fileSections: [...document.querySelectorAll('.git-change-section')].map((section) => ({ title: section.querySelector('h3')?.textContent, rows: [...section.querySelectorAll('.git-change-row')].map((row) => ({ name: row.querySelector('.git-change-name')?.textContent, buttons: [...row.querySelectorAll('button')].map((button) => ({ title: button.title, disabled: button.disabled })) })) })),
+    diffButtons: [...document.querySelectorAll('.git-diff-actions button')].map((button) => ({ title: button.title, text: button.textContent, disabled: button.disabled })),
+    progress: document.querySelector('.git-progress')?.textContent ?? null,
+    error: document.querySelector('.dashboard-error')?.textContent ?? null
+  }))()`);
+    await ui.click('.git-change-row button[title="暫存整檔"]', 0);
+    await waitForGitUiAction(ui);
+    let indexAfterWholeFile;
+    try {
+        indexAfterWholeFile = await waitForGitState(repoPath, ['diff', '--cached', '--numstat'], (output) => /^2\s+0\s+service\.ts$/.test(output.trim()), 'The whole-file stage includes both added lines.');
+    }
+    catch (error) {
+        const afterWholeFileStage = await ui.evaluate(`(() => ({
+      selected: document.querySelector('.git-diff-heading')?.textContent,
+      fileSections: [...document.querySelectorAll('.git-change-section')].map((section) => ({ title: section.querySelector('h3')?.textContent, rows: [...section.querySelectorAll('.git-change-row')].map((row) => ({ name: row.querySelector('.git-change-name')?.textContent, buttons: [...row.querySelectorAll('button')].map((button) => ({ title: button.title, disabled: button.disabled })) })) })),
+      diffButtons: [...document.querySelectorAll('.git-diff-actions button')].map((button) => ({ title: button.title, text: button.textContent, disabled: button.disabled })),
+      progress: document.querySelector('.git-progress')?.textContent ?? null,
+      error: document.querySelector('.dashboard-error')?.textContent ?? null
+    }))()`);
+        throw new Error(`${String(error)} (UI before whole-file stage: ${JSON.stringify(beforeWholeFileStage)}; UI after: ${JSON.stringify(afterWholeFileStage)})`);
+    }
+    const commitMessage = `GUI validation ${runId}`;
+    await checkIdle?.('stage');
+    await ensureGitInspectorVisible(playwrightWebview);
+    await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(commitMessage);
+    strict_1.default.equal(await ui.evaluate(`new FormData(document.querySelector('.git-commit-composer')).get('message')`), commitMessage, 'the commit form contains the exact message typed through the Webview keyboard path');
+    await page.bringToFront();
+    await playwrightWebview.locator('.git-commit-composer button[type="submit"]').click();
+    await ui.waitForVisible('.git-progress', 10_000);
+    const commitDomConfirmed = await confirmWorkbenchDialog(page, ui, 'Commit');
+    const commitBrowserDialog = confirmationDialogs.find((message) => /commit/i.test(message));
+    const commitTestAdapter = warningPrompts.some((prompt) => prompt.modal && prompt.items.includes('Commit') && prompt.result === 'Commit');
+    if (!commitDomConfirmed && !commitBrowserDialog && !commitTestAdapter) {
+        const commitUi = await ui.evaluate(`(() => ({
+      pending: document.querySelector('.git-progress')?.textContent ?? null,
+      error: document.querySelector('.dashboard-error')?.textContent ?? null,
+      dialog: document.querySelector('.git-dialog')?.textContent ?? null,
+      staged: [...document.querySelectorAll('.git-change-section')].map((section) => ({ title: section.querySelector('h3')?.textContent, files: [...section.querySelectorAll('.git-change-name')].map((file) => file.textContent) }))
+    }))()`);
+        return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
+            indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
+            commitConfirmation: 'BLOCKED: VS Code did not expose the Commit confirmation to the isolated test host.',
+            committed: false, push: 'NOT_RUN', warningPrompts, confirmationDialogs, commitUi };
+    }
+    await ui.waitForHidden('.git-progress', 30_000);
+    const commitSubject = await waitForGitState(repoPath, ['log', '-1', '--format=%s'], (output) => output.includes(`GUI validation ${runId}`), 'The staged changes appear in the committed Git history.');
+    await checkIdle?.('commit');
+    await ui.click('.git-push');
+    await ui.waitForVisible('.git-dialog');
+    const pushForm = await ui.evaluate(`Object.fromEntries(new FormData(document.querySelector('.git-dialog')).entries())`);
+    await ui.click('.git-dialog button[type="submit"]');
+    await ui.waitForVisible('.git-progress', 10_000);
+    const pushDomConfirmed = await confirmWorkbenchDialog(page, ui, 'Push');
+    const pushBrowserDialog = confirmationDialogs.find((message) => /push/i.test(message));
+    const pushTestAdapter = warningPrompts.some((prompt) => prompt.modal && prompt.items.includes('Push') && prompt.result === 'Push');
+    if (!pushDomConfirmed && !pushBrowserDialog && !pushTestAdapter) {
+        const pushUi = await ui.evaluate(`(() => ({
+      pending: document.querySelector('.git-progress')?.textContent ?? null,
+      error: document.querySelector('.dashboard-error')?.textContent ?? null,
+      dialog: document.querySelector('.git-dialog')?.textContent ?? null,
+      dialogValues: document.querySelector('.git-dialog') ? Object.fromEntries(new FormData(document.querySelector('.git-dialog')).entries()) : null,
+      menuOpen: document.querySelector('.git-actions-menu')?.open ?? false
+    }))()`);
+        const remoteBranch = (0, node_child_process_1.execFileSync)('git', ['ls-remote', 'origin', 'refs/heads/' + branch], { cwd: repoPath, encoding: 'utf8' }).trim();
+        return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
+            indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
+            commitMessage: commitSubject.trim(), committed: true,
+            push: 'BLOCKED: VS Code did not expose the Push confirmation to the isolated test host.', warningPrompts, confirmationDialogs, pushUi, pushForm, remoteBranch };
+    }
+    await ui.waitForHidden('.git-progress', 30_000);
+    const upstream = await waitForGitState(repoPath, ['rev-parse', '--abbrev-ref', '@{upstream}'], (output) => output.includes(`origin/${branch}`), 'The Push action set the upstream to the matching remote branch.');
+    await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
+    await ui.waitForVisible('.git-commit-list');
+    await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(`GUI validation ${runId}`)})`, 10_000, 'The Git GUI history did not show the new commit.');
+    const commits = await ui.count('.git-commit-row');
+    const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, promptRace, playwrightWebview, actionTrace) : undefined;
+    return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
+        indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
+        commitMessage: commitSubject.trim(), committed: true, commitConfirmation: commitDomConfirmed ? 'workbench-dom' : commitBrowserDialog ? 'browser-dialog' : 'test-adapter',
+        pushConfirmation: pushDomConfirmed ? 'workbench-dom' : pushBrowserDialog ? 'browser-dialog' : 'test-adapter', upstream: upstream.trim(), pushedWithUpstream: true, historyRows: commits,
+        warningPrompts, confirmationDialogs, ...(advancedActions ? { advancedActions } : {}) };
+}
+async function exerciseAdvancedGitGui(ui, repoPath, runId, promptRace, playwrightWebview, actionTrace) {
+    const runGit = (args, cwd = repoPath) => (0, node_child_process_1.execFileSync)('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    const openMenuAction = async (index) => {
+        const direct = [".git-fetch", ".git-pull", ".git-push", "", "", ".git-stash"][index];
+        if (direct)
+            await ui.click(direct);
+        else {
+            if (!await ui.evaluate(`document.querySelector('.git-actions-menu')?.open === true`))
+                await ui.click('.git-actions-menu summary');
+            const menuIndex = { 3: 0, 4: 1, 6: 2, 7: 3, 8: 4 }[index];
+            await ui.click('.git-actions-menu .git-actions-popup button', menuIndex);
+        }
+        await ui.waitForVisible('.git-dialog', 5_000);
+    };
+    const submitGuiAction = async () => {
+        await ui.click('.git-dialog button[type="submit"]');
+        await waitForGitUiAction(ui);
+    };
+    const appendMarker = async (marker) => {
+        const trackedFile = node_path_1.default.join(repoPath, 'service.ts');
+        const { readFile } = await import('node:fs/promises');
+        const original = await readFile(trackedFile, 'utf8');
+        (0, node_fs_1.writeFileSync)(trackedFile, `${original.trimEnd()}\n// ${marker}\n`, 'utf8');
+        await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 10_000, 'The Git GUI did not refresh after preparing the isolated Repo change.');
+    };
+    await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+    const stashA = `GUI stash A ${runId}`;
+    const stashB = `GUI stash B ${runId}`;
+    await appendMarker(stashA);
+    await openMenuAction(5);
+    await ui.fill('.git-dialog input[name="message"]', stashA);
+    await submitGuiAction();
+    const stashAfterA = await waitForGitState(repoPath, ['stash', 'list', '--format=%gs'], (value) => value.includes(stashA), 'The Git GUI saved the first Stash.');
+    strict_1.default.equal(runGit(['status', '--porcelain']), '', 'Creating a Stash clears the prepared working-tree change.');
+    await appendMarker(stashB);
+    await openMenuAction(5);
+    await ui.fill('.git-dialog input[name="message"]', stashB);
+    await submitGuiAction();
+    const stashAfterB = runGit(['stash', 'list', '--format=%gs']);
+    strict_1.default.ok(stashAfterB.includes(stashA) && stashAfterB.includes(stashB), 'The Git GUI retains multiple Stashes in order.');
+    await openMenuAction(6);
+    await ui.fill('.git-dialog select[name="operation"]', 'pop');
+    await submitGuiAction();
+    const stashAfterPop = runGit(['stash', 'list', '--format=%gs']);
+    strict_1.default.ok(stashAfterPop.includes(stashA) && !stashAfterPop.includes(stashB), 'Pop applies and removes only the selected newest Stash.');
+    strict_1.default.ok((0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, 'service.ts'), 'utf8').includes(stashB), 'The popped change is restored to the working tree.');
+    await openMenuAction(6);
+    await ui.fill('.git-dialog select[name="operation"]', 'drop');
+    await submitGuiAction();
+    strict_1.default.equal(runGit(['stash', 'list', '--format=%gs']), '', 'The confirmed Stash drop removes the selected Stash.');
+    await ui.click('.git-change-section .git-change-row button[title="先建立復原 Stash，再還原此檔"]');
+    await waitForGitUiAction(ui);
+    const recoveredStash = runGit(['stash', 'list', '--format=%gs']);
+    strict_1.default.match(recoveredStash, /GitLab Workspace 復原點/, 'Discard stores the file in a recovery Stash before restoring the worktree.');
+    strict_1.default.equal(runGit(['status', '--porcelain']), '', 'Discard restores the tracked file to a clean worktree.');
+    strict_1.default.ok(!(0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, 'service.ts'), 'utf8').includes(stashB), 'Discard removes the popped marker from the working file.');
+    const bareRemote = runGit(['remote', 'get-url', 'origin']);
+    const fixtureRoot = node_path_1.default.dirname(node_path_1.default.dirname(repoPath));
+    const peerPath = node_path_1.default.join(fixtureRoot, `peer-${runId.replace(/[^a-z0-9-]/gi, '-')}`);
+    (0, node_child_process_1.execFileSync)('git', ['clone', '--branch', 'main', bareRemote, peerPath], { stdio: 'ignore', windowsHide: true });
+    (0, node_child_process_1.execFileSync)('git', ['config', 'user.name', 'GitLab Workspace Validation'], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
+    (0, node_child_process_1.execFileSync)('git', ['config', 'user.email', 'gitlab-workspace-validation@localhost'], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
+    const remoteMarker = `remote-fetch-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+    (0, node_fs_1.writeFileSync)(node_path_1.default.join(peerPath, remoteMarker), `Created for ${runId}\n`, 'utf8');
+    (0, node_child_process_1.execFileSync)('git', ['add', '--', remoteMarker], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
+    (0, node_child_process_1.execFileSync)('git', ['commit', '-m', `Prepare remote Pull ${runId}`], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
+    (0, node_child_process_1.execFileSync)('git', ['push', 'origin', 'main'], { cwd: peerPath, stdio: 'ignore', windowsHide: true });
+    const expectedRemoteMain = runGit(['--git-dir', bareRemote, 'rev-parse', 'refs/heads/main']);
+    await openMenuAction(0);
+    await submitGuiAction();
+    const fetchedMain = runGit(['rev-parse', 'refs/remotes/origin/main']);
+    strict_1.default.equal(fetchedMain, expectedRemoteMain, 'Fetch updates the remote-tracking ref from the isolated bare remote.');
+    await openMenuAction(1);
+    await ui.fill('.git-dialog input[name="branch"]', 'main');
+    await ui.fill('.git-dialog select[name="strategy"]', 'merge');
+    await submitGuiAction();
+    const pulledFile = (0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, remoteMarker), 'utf8');
+    strict_1.default.ok(pulledFile.includes(runId), 'Pull merges the newly fetched remote default-branch commit through the Git GUI.');
+    strict_1.default.equal(runGit(['merge-base', '--is-ancestor', expectedRemoteMain, 'HEAD'], repoPath), '', 'The fetched default branch is integrated into the current branch.');
+    const rebaseBranch = runGit(['branch', '--show-current']);
+    const rebaseBase = `validation/rebase-base-${runId.replace(/[^a-z0-9-]/gi, '-')}`;
+    runGit(['branch', rebaseBase]);
+    const rebaseSubjects = Array.from({ length: 6 }, (_, index) => `GUI rebase ${index + 1} ${runId}`);
+    for (let index = 0; index < rebaseSubjects.length; index++) {
+        const filename = `gui-rebase-${index + 1}-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+        (0, node_fs_1.writeFileSync)(node_path_1.default.join(repoPath, filename), `${rebaseSubjects[index]}\n`, 'utf8');
+        runGit(['add', '--', filename]);
+        runGit(['commit', '-m', rebaseSubjects[index]]);
+    }
+    await openMenuAction(4);
+    await playwrightWebview.locator('.git-dialog select[name="ref"]').selectOption(rebaseBase);
+    strict_1.default.equal(await ui.evaluate(`document.querySelector('.git-dialog select[name="ref"]')?.value ?? ''`), rebaseBase, 'The interactive Rebase target is selected in the actual Webview form.');
+    await ui.setChecked('.git-dialog input[name="interactive"]', true);
+    await ui.click('.git-dialog button[type="submit"]');
+    try {
+        await ui.waitUntil('document.querySelectorAll(".git-rebase-todo-row select").length === 6', 15_000, 'The Git GUI displays all six commits in the interactive Rebase editor.');
+    }
+    catch (error) {
+        const rebaseUi = await ui.evaluate(`(() => ({
+      dialog: document.querySelector('.git-dialog')?.innerText ?? null,
+      dashboardError: document.querySelector('.dashboard-error')?.innerText ?? null,
+      dialogError: document.querySelector('.git-dialog [role="alert"]')?.innerText ?? null,
+      progress: document.querySelector('.git-progress')?.innerText ?? null,
+      action: [...document.querySelectorAll('.git-actions-popup button')].map((button) => ({ text: button.innerText, disabled: button.disabled })),
+      branches: [...(document.querySelector('.git-dialog select[name="ref"]')?.options ?? [])].map((option) => option.value),
+      interactive: document.querySelector('.git-dialog input[name="interactive"]')?.checked ?? null,
+      todoRows: document.querySelectorAll('.git-rebase-todo-row').length
+    }))()`);
+        throw new Error(`${String(error)} (Rebase UI: ${JSON.stringify(rebaseUi)})`);
+    }
+    const rebaseActions = ['pick', 'reword', 'edit', 'squash', 'fixup', 'drop'];
+    for (let index = 0; index < rebaseActions.length; index++) {
+        await ui.fill('.git-rebase-todo-row select', rebaseActions[index], index);
+    }
+    const rewordMessage = `GUI rebase reworded ${runId}`;
+    const squashMessage = `GUI rebase squashed ${runId}`;
+    await ui.fill('.git-rebase-todo-row textarea', rewordMessage, 0);
+    await ui.fill('.git-rebase-todo-row textarea', squashMessage, 1);
+    const todoActions = await ui.evaluate(`[...document.querySelectorAll('.git-rebase-todo-row select')].map((control) => control.value)`);
+    strict_1.default.deepEqual(todoActions, rebaseActions, 'The six supported interactive Rebase actions are configured through the real Webview form.');
+    await ui.click('.git-dialog button[type="submit"]');
+    await waitForGitUiAction(ui);
+    await ui.waitUntil('Boolean(document.querySelector(".git-operation-banner"))', 15_000, 'The interactive Rebase pauses at the selected edit commit.');
+    strict_1.default.ok(runGit(['rev-parse', '--git-path', 'rebase-merge']), 'The native Git repository records the expected paused Rebase operation.');
+    const actionsMenuOpen = await ui.evaluate(`document.querySelector('.git-actions-menu')?.open === true`);
+    if (!actionsMenuOpen)
+        await ui.click('.git-actions-menu summary');
+    const continued = await ui.evaluate(`(() => { const button = [...document.querySelectorAll('.git-operation-actions button')].find((item) => item.textContent?.includes('繼續')); if (!button) return false; button.click(); return true; })()`);
+    strict_1.default.ok(continued, 'The Git GUI exposes Continue for the edit pause.');
+    await waitForGitUiAction(ui);
+    await ui.waitUntil('!document.querySelector(".git-operation-banner")', 20_000, 'The Git GUI continues the interactive Rebase after the edit pause.');
+    const rebasedSubjects = runGit(['log', '--format=%s', `${rebaseBase}..HEAD`]).split(/\r?\n/).filter(Boolean);
+    strict_1.default.equal(rebasedSubjects.length, 3, 'Pick, reword, edit, squash, fixup, and drop produce three final commits.');
+    strict_1.default.ok(rebasedSubjects.includes(rewordMessage) && rebasedSubjects.includes(squashMessage), `Reword and Squash use the exact messages entered in the Webview (${JSON.stringify(rebasedSubjects)}).`);
+    strict_1.default.ok(!rebasedSubjects.some((subject) => subject.includes('GUI rebase 6 ')), 'Drop omits the selected commit from the resulting history.');
+    strict_1.default.equal(runGit(['branch', '--show-current']), rebaseBranch, 'Interactive Rebase keeps the original feature branch checked out.');
+    await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+    const amendFile = `gui-amend-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+    const amendMessage = `GUI amend ${runId}`;
+    const headBeforeAmend = runGit(['rev-parse', 'HEAD']);
+    const parentBeforeAmend = runGit(['rev-parse', 'HEAD^']);
+    (0, node_fs_1.writeFileSync)(node_path_1.default.join(repoPath, amendFile), `${amendMessage}\n`, 'utf8');
+    await ui.waitUntil(`Boolean([...document.querySelectorAll('.git-change-name')].some((item) => item.textContent?.includes(${JSON.stringify(amendFile)})))`, 10_000, 'The Git GUI refreshes the working-tree list for the Amend fixture.');
+    const changeRows = await ui.evaluate(`[...document.querySelectorAll('.git-change-section .git-change-row')].map((row) => row.querySelector('.git-change-name')?.textContent ?? '')`);
+    const amendRow = changeRows.findIndex((name) => name.includes(amendFile));
+    strict_1.default.ok(amendRow >= 0, 'The Amend fixture is visible as a real Git change row.');
+    await ui.click('.git-change-section .git-change-row button.quiet.small', amendRow);
+    await waitForGitUiAction(ui);
+    strict_1.default.match(runGit(['diff', '--cached', '--name-only']), new RegExp(amendFile), 'The Amend fixture is staged through the Git GUI.');
+    await ensureGitInspectorVisible(playwrightWebview);
+    await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(amendMessage);
+    await ui.click('.git-amend');
+    await waitForGitUiAction(ui);
+    const amendedHead = runGit(['rev-parse', 'HEAD']);
+    strict_1.default.notEqual(amendedHead, headBeforeAmend, 'Amend replaces the current commit SHA.');
+    strict_1.default.equal(runGit(['rev-parse', 'HEAD^']), parentBeforeAmend, 'Amend preserves the replaced commit parent.');
+    strict_1.default.equal(runGit(['log', '-1', '--format=%s']), amendMessage, 'Amend stores the exact replacement message.');
+    strict_1.default.ok(runGit(['for-each-ref', '--format=%(refname)', 'refs/gitlab-workspace/backups']).trim(), 'Amend creates a recovery reference before rewriting history.');
+    await openMenuAction(2);
+    await ui.setChecked('.git-dialog input[name="force"]', true);
+    await submitGuiAction();
+    const forcePushSha = runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0];
+    strict_1.default.equal(forcePushSha, amendedHead, 'Force-with-lease updates the remote only while its preflight SHA still matches.');
+    const raceTree = runGit(['rev-parse', 'HEAD^{tree}']);
+    const raceCommit = runGit(['commit-tree', raceTree, '-p', amendedHead, '-m', `Concurrent remote update ${runId}`]);
+    promptRace.beforeForcePush = () => (0, node_child_process_1.execFileSync)('git', ['push', '--force', 'origin', `${raceCommit}:refs/heads/${rebaseBranch}`], {
+        cwd: repoPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
+    });
+    await openMenuAction(2);
+    await ui.setChecked('.git-dialog input[name="force"]', true);
+    // A changed remote makes this write uncertain. Its protection deliberately
+    // outlives the running action, so the ordinary progress-hidden wait is wrong.
+    await ui.click('.git-dialog button[type="submit"]');
+    const uncertainLeaseExpression = `(() => {
+    const operation = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent?.includes('SHA')
+      && [...item.querySelectorAll('button')].some(button => button.textContent?.trim() === '核對寫入結果'));
+    return !!operation && !!document.querySelector('.git-progress')?.textContent?.includes('結果待確認')
+      && document.querySelector('.git-push')?.disabled === true && document.querySelector('.git-refresh')?.disabled === false;
+  })()`;
+    await ui.waitUntil(uncertainLeaseExpression, 30_000, 'A stale Force Push lease retains an explicit uncertain result, blocks writes and permits a read refresh.');
+    const unknownLeaseState = await ui.evaluate(`({ progress: document.querySelector('.git-progress')?.textContent,
+    writeBlocked: document.querySelector('.git-push')?.disabled === true,
+    readAllowed: document.querySelector('.git-refresh')?.disabled === false })`);
+    await ui.click('.notifications-trigger');
+    const leaseRaceError = await ui.text('.notification-drawer');
+    strict_1.default.ok(leaseRaceError?.includes('SHA'), `The Git GUI reports a remote SHA drift instead of overwriting it (${leaseRaceError ?? 'no error'}).`);
+    await ui.click('.notification-drawer .drawer-heading button');
+    const rejectedRemoteSha = runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0];
+    const rejectedLocalHead = runGit(['rev-parse', 'HEAD']);
+    strict_1.default.equal(rejectedRemoteSha, raceCommit, 'Force-with-lease preserves the concurrent remote update.');
+    strict_1.default.equal(rejectedLocalHead, amendedHead, 'A rejected Force Push leaves the local branch unchanged.');
+    const pushStarts = actionTrace.filter(event => event.phase === 'start' && event.action === 'push').length;
+    const refreshTraceOffset = actionTrace.length;
+    await ui.click('.git-refresh');
+    const refreshDeadline = Date.now() + 10_000;
+    while (!actionTrace.slice(refreshTraceOffset).some(event => event.phase === 'start' && event.action === 'refresh') && Date.now() < refreshDeadline) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    strict_1.default.ok(actionTrace.slice(refreshTraceOffset).some(event => event.phase === 'start' && event.action === 'refresh'), 'The real Git GUI dispatches a read refresh while the previous write remains uncertain.');
+    await ui.waitUntil(uncertainLeaseExpression, 15_000, 'The read refresh completes while preserving the uncertain write and its write lock.');
+    strict_1.default.equal(actionTrace.filter(event => event.phase === 'start' && event.action === 'push').length, pushStarts, 'Reading an uncertain result never resends its Push.');
+    const confirmClicked = await ui.evaluate(`(() => {
+    const operation = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent?.includes('SHA'));
+    const button = [...(operation?.querySelectorAll('button') ?? [])].find(item => item.textContent?.trim() === '核對寫入結果');
+    if (!button) return false; button.click(); return true;
+  })()`);
+    strict_1.default.equal(confirmClicked, true, 'The uncertain write exposes the real result-confirmation UI.');
+    strict_1.default.equal(await confirmWorkbenchDialog(playwrightWebview.page(), ui, '已確認未執行'), true, 'The result is confirmed through the native VS Code dialog after checking both Git SHAs.');
+    await ui.waitUntil(`!document.querySelector('.git-progress') && document.querySelector('.git-push')?.disabled === false`, 15_000, 'An explicit confirmed-not-executed result releases the write lock for the next Git action.');
+    strict_1.default.equal(actionTrace.filter(event => event.phase === 'start' && event.action === 'push').length, pushStarts, 'Manual result confirmation changes only the receipt and never resends Push.');
+    strict_1.default.equal(runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0], raceCommit, 'Manual result confirmation preserves the concurrent remote update.');
+    strict_1.default.equal(runGit(['rev-parse', 'HEAD']), amendedHead, 'Manual result confirmation leaves the local branch unchanged.');
+    const mergeBranch = `validation/merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}`;
+    const mergeFile = `gui-merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+    const localMergeFile = `gui-merge-local-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+    runGit(['branch', mergeBranch]);
+    runGit(['checkout', mergeBranch]);
+    (0, node_fs_1.writeFileSync)(node_path_1.default.join(repoPath, mergeFile), `Created on ${mergeBranch}\n`, 'utf8');
+    runGit(['add', '--', mergeFile]);
+    runGit(['commit', '-m', `GUI merge source ${runId}`]);
+    const mergeSourceHead = runGit(['rev-parse', 'HEAD']);
+    runGit(['checkout', rebaseBranch]);
+    (0, node_fs_1.writeFileSync)(node_path_1.default.join(repoPath, localMergeFile), `Created on ${rebaseBranch}\n`, 'utf8');
+    runGit(['add', '--', localMergeFile]);
+    runGit(['commit', '-m', `GUI merge local ${runId}`]);
+    const localMergeHead = runGit(['rev-parse', 'HEAD']);
+    await openMenuAction(3);
+    await playwrightWebview.locator('.git-dialog select[name="ref"]').selectOption(mergeBranch);
+    await submitGuiAction();
+    const mergeHead = runGit(['rev-parse', 'HEAD']);
+    const mergeParents = runGit(['show', '-s', '--format=%P', 'HEAD']).split(/\s+/);
+    strict_1.default.equal(mergeParents.length, 2, 'The GUI Merge creates a two-parent merge commit for diverged branches.');
+    strict_1.default.ok(mergeParents.includes(mergeSourceHead) && mergeParents.includes(localMergeHead), 'The GUI Merge retains both source histories.');
+    strict_1.default.ok((0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, mergeFile), 'utf8').includes(mergeBranch), 'The GUI Merge brings in the source branch file.');
+    strict_1.default.ok((0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, localMergeFile), 'utf8').includes(rebaseBranch), 'The GUI Merge preserves the current branch file.');
+    const mergeSubject = runGit(['log', '-1', '--format=%s']);
+    await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
+    await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(mergeSubject)})`, 10_000, 'The Git GUI history displays the merge commit.');
+    await ui.click('.git-commit-row:not(.git-wip-row)', 0);
+    await ui.waitForVisible('.git-commit-detail select');
+    await playwrightWebview.locator('.git-commit-detail select').selectOption(mergeParents[1]);
+    strict_1.default.equal(await ui.evaluate(`document.querySelector('.git-commit-detail select')?.value ?? ''`), mergeParents[1], 'The Git GUI switches the selected Merge Parent.');
+    await ui.waitUntil(`([...document.querySelectorAll('.git-commit-files button')].some((button) => button.textContent?.includes(${JSON.stringify(localMergeFile)})))`, 10_000, 'The Git GUI reloads the commit file list for the selected Merge Parent.');
+    const mergeDiffFile = localMergeFile;
+    const mergeDiffIndex = await ui.evaluate(`[...document.querySelectorAll('.git-commit-files button')].findIndex((button) => button.textContent?.includes(${JSON.stringify(mergeDiffFile)}))`);
+    strict_1.default.ok(mergeDiffIndex >= 0, 'The selected merge parent exposes a file list for Diff review.');
+    await ui.click('.git-commit-files button', mergeDiffIndex);
+    try {
+        await ui.waitUntil(`(() => { const preview = document.querySelector('.git-diff-panel'); return preview?.querySelector('.git-diff-heading strong')?.textContent?.includes(${JSON.stringify(mergeDiffFile)}) && preview.textContent?.includes('Parent 2') && preview.querySelector('.git-diff-view')?.textContent?.includes(${JSON.stringify(`Created on ${rebaseBranch}`)}); })()`, 10_000, 'The Git GUI opens a file Diff under the selected Merge Parent.');
+    }
+    catch (error) {
+        const diffUi = await ui.evaluate(`(() => ({
+      heading: document.querySelector('.git-diff-heading')?.innerText ?? null,
+      detail: document.querySelector('.git-commit-detail')?.innerText ?? null,
+      selectedParent: document.querySelector('.git-commit-detail select')?.value ?? null,
+      selectedFiles: [...document.querySelectorAll('.git-commit-files button')].map((button) => button.textContent),
+      progress: document.querySelector('.git-progress')?.innerText ?? null,
+      error: document.querySelector('.dashboard-error')?.innerText ?? null,
+      diffText: document.querySelector('.git-diff-view')?.innerText?.slice(0, 800) ?? null
+    }))()`);
+        throw new Error(`${String(error)} (Merge Parent Diff UI: ${JSON.stringify(diffUi)})`);
+    }
+    const pickFile = `gui-pick-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+    const pickMessage = `GUI pick target ${runId}`;
+    (0, node_fs_1.writeFileSync)(node_path_1.default.join(repoPath, pickFile), `${pickMessage}\n`, 'utf8');
+    runGit(['add', '--', pickFile]);
+    runGit(['commit', '-m', pickMessage]);
+    const pickSourceHead = runGit(['rev-parse', 'HEAD']);
+    await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
+    await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
+    const selectHistoryCommit = async () => {
+        await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.title?.endsWith('\\n' + ${JSON.stringify(pickSourceHead)})))`, 10_000, 'The Git GUI history exposes the selected Cherry-pick/Revert source commit.');
+        const clicked = await ui.evaluate(`(() => { const row = [...document.querySelectorAll('.git-commit-row')].find((item) => item.title?.endsWith('\\n' + ${JSON.stringify(pickSourceHead)})); if (!row) return false; row.click(); return true; })()`);
+        strict_1.default.ok(clicked, 'The source commit is selected from the actual Git GUI history list.');
+        await ui.waitUntil(`document.querySelector('.git-commit-detail > code')?.textContent === ${JSON.stringify(pickSourceHead)}`, 10_000, 'The Git GUI loads the selected commit detail.');
+    };
+    await selectHistoryCommit();
+    await ui.click('.git-commit-actions button', 1);
+    await ui.waitForVisible('.git-dialog');
+    strict_1.default.equal(await ui.evaluate(`document.querySelector('.git-dialog select[name="operation"]')?.value ?? ''`), 'revert', 'The Git GUI dialog selects Revert when opened from the Revert action.');
+    await submitGuiAction();
+    strict_1.default.equal((0, node_fs_1.existsSync)(node_path_1.default.join(repoPath, pickFile)), false, 'Revert removes the selected commit file from the working tree.');
+    strict_1.default.ok(runGit(['log', '-1', '--format=%s']).includes('Revert'), 'The GUI Revert records a new inverse commit.');
+    const revertHead = runGit(['rev-parse', 'HEAD']);
+    await selectHistoryCommit();
+    await ui.click('.git-commit-actions button', 0);
+    await ui.waitForVisible('.git-dialog');
+    strict_1.default.equal(await ui.evaluate(`document.querySelector('.git-dialog select[name="operation"]')?.value ?? ''`), 'cherryPick', 'The Git GUI dialog selects Cherry-pick when opened from the Cherry-pick action.');
+    await submitGuiAction();
+    strict_1.default.equal(runGit(['rev-parse', 'HEAD^']), revertHead, 'Cherry-pick applies the selected source commit on top of the Revert commit.');
+    strict_1.default.equal((0, node_fs_1.readFileSync)(node_path_1.default.join(repoPath, pickFile), 'utf8').replace(/\r\n/g, '\n'), `${pickMessage}\n`, 'Cherry-pick restores the selected commit content.');
+    return {
+        stashA: stashAfterA.trim(), stashPopLeavesOlderEntry: stashAfterPop.trim(),
+        stashDropAndDiscardRecovery: recoveredStash.trim(),
+        fetchRemoteMain: fetchedMain, pulledRemoteFile: remoteMarker,
+        pullMergeHead: runGit(['log', '-1', '--format=%H %P %s']),
+        interactiveRebase: { actions: rebaseActions, pauseAndContinue: true, resultingSubjects: rebasedSubjects },
+        amend: { previousHead: headBeforeAmend, newHead: amendedHead, message: amendMessage, parent: parentBeforeAmend },
+        forceWithLease: { pushedSha: forcePushSha, raceCommit, rejectedRaceMessage: leaseRaceError,
+            unknownOutcome: { ui: unknownLeaseState, rejectedRemoteSha, rejectedLocalHead, refreshAllowedWithoutResend: true,
+                confirmationUi: 'native-workbench-dialog', confirmation: '已確認未執行', writeLockReleased: true, pushStartsUnchanged: true } },
+        merge: { branch: mergeBranch, head: mergeHead, parents: mergeParents, parentDiff: { selectedParent: mergeParents[1], file: mergeDiffFile } },
+        revertAndCherryPick: { sourceCommit: pickSourceHead, file: pickFile, revertAndReplay: true }
+    };
+}
+async function ensureGitInspectorVisible(frame) {
+    const inspector = frame.locator('.git-inspector');
+    if (!await inspector.isVisible()) {
+        const toggle = frame.locator('.git-right-toggle');
+        await toggle.waitFor({ state: 'visible', timeout: 10_000 });
+        await toggle.click();
+    }
+    await frame.locator('.git-inspector:not([inert])').waitFor({ state: 'visible', timeout: 10_000 });
+}
+async function findPlaywrightFrame(page, selector) {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+        for (const frame of page.frames()) {
+            try {
+                if (await frame.locator(selector).count())
+                    return frame;
+            }
+            catch { /* the webview frame can navigate during startup */ }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Playwright could not find ${selector} in any VS Code workbench frame (${page.frames().map((frame) => frame.url()).join(', ')}).`);
+}
+async function waitForGitState(repoPath, args, matches, assertion, timeoutMs = 30_000) {
+    const started = performance.now();
+    let latest = '';
+    while (performance.now() - started < timeoutMs) {
+        try {
+            latest = (0, node_child_process_1.execFileSync)('git', args, { cwd: repoPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+        }
+        catch (error) {
+            latest = error instanceof Error ? error.message : String(error);
+        }
+        if (matches(latest))
+            return latest;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    strict_1.default.fail(`${assertion} (last Git output: ${latest.trim() || '(empty)'})`);
+}
+async function waitForGitUiAction(ui) {
+    await ui.waitForVisible('.git-progress', 10_000);
+    await ui.waitForHidden('.git-progress', 30_000);
+}
+async function confirmWorkbenchDialog(page, ui, label) {
+    const dialog = page.locator('.monaco-dialog-box');
+    try {
+        await dialog.waitFor({ state: 'visible', timeout: 5_000 });
+    }
+    catch {
+        const diagnostic = await page.evaluate(() => ({
+            title: document.title,
+            visibleDialogText: [...document.querySelectorAll('[role="dialog"], .monaco-dialog-box, .monaco-dialog')]
+                .filter((element) => element.offsetParent !== null)
+                .map((element) => ({ className: element.className, text: element.textContent?.slice(0, 1200) ?? '' })),
+            bodyTextEnd: document.body.innerText.slice(-1600)
+        })).catch((error) => ({ error: error instanceof Error ? error.message : String(error) }));
+        const reportPath = process.env.GLW_LOCAL_GIT_GUI_REPORT;
+        if (reportPath) {
+            const evidenceRoot = node_path_1.default.dirname(reportPath);
+            (0, node_fs_1.mkdirSync)(node_path_1.default.join(evidenceRoot, 'screenshots'), { recursive: true });
+            await page.screenshot({ path: node_path_1.default.join(evidenceRoot, 'screenshots', `${label.toLocaleLowerCase('en-US')}-native-confirmation.png`) }).catch(() => undefined);
+            (0, node_fs_1.writeFileSync)(node_path_1.default.join(evidenceRoot, `${label.toLocaleLowerCase('en-US')}-native-confirmation-debug.json`), `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
+        }
+        return false;
+    }
+    await dialog.getByRole('button', { name: label, exact: true }).click();
+    return true;
+}
+//# sourceMappingURL=liveValidation.test.js.map

@@ -57,10 +57,12 @@ suite('Live GitLab Workspace Webview validation', function () {
       const gitDiscoveryStarted = performance.now();
       let initialGitState = await api.getGitRepositoryState();
       let gitDiscoveryMs = 0;
+      let gitDetailsStaleRetries = 0;
       let remoteBranchNames: string[] = [];
     const port = Number(process.env.GLW_LIVE_CDP_PORT);
     const runId = process.env.GLW_RUN_ID || `local-git-gui-${Date.now()}`;
     let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined;
+    let workbenchPage: Page | undefined;
     let ui: WebviewCdp | undefined;
     const idleChecks: Array<Record<string, unknown>> = [];
     try {
@@ -69,6 +71,7 @@ suite('Live GitLab Workspace Webview validation', function () {
       const context = browser.contexts()[0];
       assert.ok(context, 'the isolated VS Code Chromium context is available over CDP');
       const page = await waitForWorkbenchPage(context.pages());
+      workbenchPage = page;
       await page.bringToFront();
       const focusDeadline = Date.now() + 5000;
       while (!vscode.window.state.focused && Date.now() < focusDeadline) await new Promise(resolve => setTimeout(resolve, 50));
@@ -85,7 +88,26 @@ suite('Live GitLab Workspace Webview validation', function () {
       const discoveredRepository = initialGitState.repositories.find((repository) => path.resolve(repository.path).toLocaleLowerCase('en-US') === path.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
       assert.ok(discoveredRepository,
         `VS Code Git discovers the isolated demonstration Repo (${JSON.stringify(initialGitState)})`);
-      const discoveredDetails = api.getGitRepositoryDetails ? await api.getGitRepositoryDetails(discoveredRepository.id) : discoveredRepository;
+      await ui.waitUntil(`document.querySelector('.git-repo-picker select')?.value === ${JSON.stringify(discoveredRepository.id)}
+        && document.querySelector('.git-repo-heading strong')?.textContent === 'service'
+        && document.querySelector('.git-refresh')?.disabled === false && !document.querySelector('.git-status-message .spinner')`, 20_000,
+      'The initial Git GUI open finishes before bootstrap branch details are read.');
+      const detailsDeadline = Date.now() + 10_000;
+      let discoveredDetails: { branches?: Array<{ name: string; kind: 'local' | 'remote' | 'tag'; current: boolean }> };
+      for (;;) {
+        try {
+          initialGitState = await api.getGitRepositoryState();
+          const currentRepository = initialGitState.repositories.find((repository) => path.resolve(repository.path).toLocaleLowerCase('en-US') === path.resolve(workspaceRoot).toLocaleLowerCase('en-US'));
+          assert.ok(currentRepository, 'The isolated Repo remains registered during bootstrap detail discovery.');
+          discoveredDetails = api.getGitRepositoryDetails ? await api.getGitRepositoryDetails(currentRepository.id) : currentRepository;
+          break;
+        } catch (error) {
+          if (!(error instanceof Error) || error.message !== 'Repo 狀態已變更，請重新展開以讀取分支與 Stash。'
+            || gitDetailsStaleRetries >= 5 || Date.now() >= detailsDeadline) throw error;
+          gitDetailsStaleRetries++;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
       remoteBranchNames = discoveredDetails.branches?.filter((branch) => branch.kind === 'remote').map((branch) => branch.name) ?? [];
       assert.ok(remoteBranchNames.includes('origin/main'), `the branch list uses canonical remote names (${remoteBranchNames.join(', ')})`);
       assert.ok(!remoteBranchNames.some((name) => name.startsWith('origin/origin/')), `remote names are not prefixed twice (${remoteBranchNames.join(', ')})`);
@@ -117,7 +139,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         console.info(`Git GUI idle ${phase}: ${JSON.stringify(delta)}; VS Code background commands: ${nativeAfter - nativeBefore}`);
         assert.deepEqual(delta, { commands: 0, auxiliaryCommands: 0, nativeApiCalls: 0 }, `${phase}: idle Git GUI must not launch additional extension Git commands or native API requests`);
       };
-      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, promptRace, checkIdle);
+      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, checkIdle);
       const compatibility: Record<string, unknown> = {};
       const taggedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
       const tagNames = ['validation/annotated', 'validation/lightweight'];
@@ -189,13 +211,16 @@ suite('Live GitLab Workspace Webview validation', function () {
       await ui.waitUntil(`document.querySelector('.git-commit-composer textarea')?.value === ${JSON.stringify(lifecycleDraft)}`, 15_000, 'The last commit draft survives native Webview destruction and restoration.');
       assert.equal(await ui.evaluate(`typeof globalThis.__glwLifecycleProbe`), 'undefined', 'VS Code recreated the Webview instead of retaining its DOM context');
       compatibility.hiddenRestoredDraft = 'PASS';
+      const forceWithLease = (gitGui.advancedActions as { forceWithLease?: Record<string, unknown> } | undefined)?.forceWithLease;
+      assert.ok(forceWithLease, 'The advanced Git GUI actions completed before testing a persistent uncertain write.');
+      forceWithLease.unknownOutcome = await exerciseUncertainForcePush(ui, workspaceRoot, runId, promptRace, actionTrace);
       await page.screenshot({ path: path.join(path.dirname(reportPath), 'screenshots', 'local-git-gui.png') });
       const status = gitGui.committed === true && gitGui.pushedWithUpstream === true ? 'PASS' : gitGui.commitUi && typeof gitGui.commitUi === 'object' && 'error' in gitGui.commitUi && Boolean(gitGui.commitUi.error) ? 'FAIL' : 'BLOCKED';
       writeFileSync(reportPath, `${JSON.stringify({
         schema: 'GitLabWorkspaceLocalGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
         mode: 'local-only', vscodeVersion: vscode.version,
         testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
-        repository: workspaceRoot, remoteKind: 'isolated-local-bare-repository', status, gitDiscoveryMs, initialGitState, remoteBranchNames,
+        repository: workspaceRoot, remoteKind: 'isolated-local-bare-repository', status, gitDiscoveryMs, gitDetailsStaleRetries, initialGitState, remoteBranchNames,
         interactiveConfirmationUI: status !== 'PASS' ? 'NOT_COMPLETE' :
           gitGui.commitConfirmation === 'workbench-dom' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: both native VS Code modal confirmations were presented and clicked through the Workbench DOM.' :
           'BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
@@ -203,6 +228,22 @@ suite('Live GitLab Workspace Webview validation', function () {
       }, null, 2)}\n`, 'utf8');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Local Git GUI validation failed.';
+      const uiDiagnostics = await ui?.evaluate(`(() => {
+        const geometry = selector => { const element = document.querySelector(selector); if (!element) return null;
+          const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, display: style.display,
+            visibility: style.visibility, inert: element.hasAttribute('inert'), hidden: element.hidden }; };
+        return { width: innerWidth, height: innerHeight, devicePixelRatio,
+          shell: document.querySelector('.git-shell')?.className, workbench: geometry('.git-workbench'),
+          inspector: geometry('.git-inspector'), toggle: geometry('.git-right-toggle'), composer: geometry('.git-commit-composer'),
+          textarea: geometry('.git-commit-composer textarea'), progress: document.querySelector('.git-status-message')?.textContent };
+      })()`).catch(diagnosticError => ({ error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError) }));
+      let failureScreenshot: string | undefined;
+      if (workbenchPage) {
+        const relativePath = 'screenshots/local-git-gui-failure.png';
+        await workbenchPage.screenshot({ path: path.join(path.dirname(reportPath), relativePath) })
+          .then(() => { failureScreenshot = relativePath; }, () => undefined);
+      }
       writeFileSync(reportPath, `${JSON.stringify({
         schema: 'GitLabWorkspaceLocalGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
         mode: 'local-only', vscodeVersion: vscode.version,
@@ -213,7 +254,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         })),
         windowFocused: vscode.window.state.focused, nativeGitActivity: api.getGitActivityForTesting(),
         nativeWorkingChanges: (vscode.extensions.getExtension('vscode.git')?.exports as { getAPI(version: number): { repositories: Array<{ rootUri: vscode.Uri; state: { workingTreeChanges: Array<{ uri: vscode.Uri }> } }> } } | undefined)?.getAPI(1).repositories.map(repository => ({ path: repository.rootUri.fsPath, changes: repository.state.workingTreeChanges.map(change => change.uri.fsPath) })),
-        actionTrace, idleChecks
+        actionTrace, idleChecks, gitDetailsStaleRetries, uiDiagnostics, failureScreenshot
       }, null, 2)}\n`, 'utf8');
       throw error;
     } finally {
@@ -718,7 +759,7 @@ function percentile(values: number[], fraction: number): number {
   return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : 0;
 }
 
-async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true, promptRace: { beforeForcePush?: () => void } = {}, checkIdle?: (phase: string) => Promise<void>): Promise<Record<string, unknown>> {
+async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true, checkIdle?: (phase: string) => Promise<void>): Promise<Record<string, unknown>> {
   const confirmationDialogs: string[] = [];
   page.on('dialog', async (dialog) => {
     const message = dialog.message();
@@ -797,6 +838,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   }
   const commitMessage = `GUI validation ${runId}`;
   await checkIdle?.('stage');
+  await ensureGitInspectorVisible(playwrightWebview);
   await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(commitMessage);
   assert.equal(await ui.evaluate<string | null>(`new FormData(document.querySelector('.git-commit-composer')).get('message')`), commitMessage, 'the commit form contains the exact message typed through the Webview keyboard path');
   await page.bringToFront();
@@ -850,7 +892,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await ui.waitForVisible('.git-commit-list');
   await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(`GUI validation ${runId}`)})`, 10_000, 'The Git GUI history did not show the new commit.');
   const commits = await ui.count('.git-commit-row');
-  const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, promptRace, playwrightWebview) : undefined;
+  const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, playwrightWebview) : undefined;
   return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
     indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
     commitMessage: commitSubject.trim(), committed: true, commitConfirmation: commitDomConfirmed ? 'workbench-dom' : commitBrowserDialog ? 'browser-dialog' : 'test-adapter',
@@ -858,7 +900,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
     warningPrompts, confirmationDialogs, ...(advancedActions ? { advancedActions } : {}) };
 }
 
-async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: string, promptRace: { beforeForcePush?: () => void }, playwrightWebview: Frame): Promise<Record<string, unknown>> {
+async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: string, playwrightWebview: Frame): Promise<Record<string, unknown>> {
   const runGit = (args: string[], cwd = repoPath) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   const openMenuAction = async (index: number): Promise<void> => {
     const direct = [".git-fetch", ".git-pull", ".git-push", "", "", ".git-stash"][index];
@@ -1021,6 +1063,7 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   await ui.click('.git-change-section .git-change-row button.quiet.small', amendRow);
   await waitForGitUiAction(ui);
   assert.match(runGit(['diff', '--cached', '--name-only']), new RegExp(amendFile), 'The Amend fixture is staged through the Git GUI.');
+  await ensureGitInspectorVisible(playwrightWebview);
   await playwrightWebview.locator('.git-commit-composer textarea[name="message"]').fill(amendMessage);
   await ui.click('.git-amend');
   await waitForGitUiAction(ui);
@@ -1036,22 +1079,6 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   await submitGuiAction();
   const forcePushSha = runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0];
   assert.equal(forcePushSha, amendedHead, 'Force-with-lease updates the remote only while its preflight SHA still matches.');
-
-  const raceTree = runGit(['rev-parse', 'HEAD^{tree}']);
-  const raceCommit = runGit(['commit-tree', raceTree, '-p', amendedHead, '-m', `Concurrent remote update ${runId}`]);
-  promptRace.beforeForcePush = () => execFileSync('git', ['push', '--force', 'origin', `${raceCommit}:refs/heads/${rebaseBranch}`], {
-    cwd: repoPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
-  });
-  await openMenuAction(2);
-  await ui.setChecked('.git-dialog input[name="force"]', true);
-  await submitGuiAction();
-  await ui.click('.notifications-trigger');
-  const leaseRaceError = await ui.text('.notification-drawer');
-  assert.ok(leaseRaceError?.includes('SHA'), `The Git GUI reports a remote SHA drift instead of overwriting it (${leaseRaceError ?? 'no error'}).`);
-  await ui.click('.notification-drawer .drawer-heading button');
-  assert.equal(runGit(['ls-remote', 'origin', `refs/heads/${rebaseBranch}`]).split(/\s+/)[0], raceCommit,
-    'Force-with-lease preserves the concurrent remote update.');
-  assert.equal(runGit(['rev-parse', 'HEAD']), amendedHead, 'A rejected Force Push leaves the local branch unchanged.');
 
   const mergeBranch = `validation/merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}`;
   const mergeFile = `gui-merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
@@ -1152,10 +1179,77 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
     pullMergeHead: runGit(['log', '-1', '--format=%H %P %s']),
     interactiveRebase: { actions: rebaseActions, pauseAndContinue: true, resultingSubjects: rebasedSubjects },
     amend: { previousHead: headBeforeAmend, newHead: amendedHead, message: amendMessage, parent: parentBeforeAmend },
-    forceWithLease: { pushedSha: forcePushSha, raceCommit, rejectedRaceMessage: leaseRaceError },
+    forceWithLease: { pushedSha: forcePushSha },
     merge: { branch: mergeBranch, head: mergeHead, parents: mergeParents, parentDiff: { selectedParent: mergeParents[1], file: mergeDiffFile } },
     revertAndCherryPick: { sourceCommit: pickSourceHead, file: pickFile, revertAndReplay: true }
   };
+}
+
+async function exerciseUncertainForcePush(ui: WebviewCdp, repoPath: string, runId: string,
+  promptRace: { beforeForcePush?: () => void }, actionTrace: TestGitActionTrace[]): Promise<Record<string, unknown>> {
+  const runGit = (args: string[]) => execFileSync('git', args, { cwd: repoPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim();
+  await ui.waitUntil(`document.querySelector('.git-push')?.disabled === false && document.querySelector('.git-refresh')?.disabled === false
+    && !document.querySelector('.git-status-message .spinner')`, 15_000, 'The restored Repo finishes reading before the final uncertain-write check.');
+  const branch = runGit(['branch', '--show-current']);
+  assert.ok(branch, 'The uncertain-write fixture starts on a real local branch.');
+  const target = `refs/heads/${branch}`;
+  const localHeadBefore = runGit(['rev-parse', 'HEAD']);
+  const remoteShaBefore = runGit(['ls-remote', 'origin', target]).split(/\s+/)[0];
+  assert.ok(remoteShaBefore, 'The uncertain-write fixture has an existing remote branch for its lease.');
+  const raceCommit = runGit(['commit-tree', runGit(['rev-parse', 'HEAD^{tree}']), '-p', localHeadBefore, '-m', `Concurrent remote update ${runId}`]);
+  promptRace.beforeForcePush = () => runGit(['push', '--force', 'origin', `${raceCommit}:${target}`]);
+  await ui.click('.git-push');
+  await ui.waitForVisible('.git-dialog', 5_000);
+  await ui.setChecked('.git-dialog input[name="force"]', true);
+  // This check runs last: an uncertain terminal receipt deliberately keeps the
+  // write lock. Extension tests cannot display the native confirmation prompt.
+  await ui.click('.git-dialog button[type="submit"]');
+  const uncertainLeaseExpression = `(() => {
+    const operation = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent?.includes('SHA')
+      && [...item.querySelectorAll('button')].some(button => button.textContent?.trim() === '核對寫入結果'));
+    return !!operation && !operation.querySelector('.spinner') && !!document.querySelector('.git-progress')?.textContent?.includes('結果待確認')
+      && document.querySelector('.git-push')?.disabled === true && document.querySelector('.git-refresh')?.disabled === false;
+  })()`;
+  await ui.waitUntil(uncertainLeaseExpression, 30_000, 'A stale Force Push lease ends with an uncertain receipt, blocks writes and permits a read refresh.');
+  const unknownLeaseState = await ui.evaluate(`({ progress: document.querySelector('.git-progress')?.textContent,
+    writeBlocked: document.querySelector('.git-push')?.disabled === true,
+    readAllowed: document.querySelector('.git-refresh')?.disabled === false })`);
+  await ui.click('.notifications-trigger');
+  const leaseRaceError = await ui.text('.notification-drawer');
+  assert.ok(leaseRaceError?.includes('SHA'), `The Git GUI reports a remote SHA drift instead of overwriting it (${leaseRaceError ?? 'no error'}).`);
+  await ui.click('.notification-drawer .drawer-heading button');
+  const rejectedRemoteSha = runGit(['ls-remote', 'origin', target]).split(/\s+/)[0];
+  const rejectedLocalHead = runGit(['rev-parse', 'HEAD']);
+  assert.equal(rejectedRemoteSha, raceCommit, 'Force-with-lease preserves the concurrent remote update.');
+  assert.equal(rejectedLocalHead, localHeadBefore, 'A rejected Force Push leaves the local branch unchanged.');
+
+  const pushStarts = actionTrace.filter(event => event.phase === 'start' && event.action === 'push').length;
+  const refreshTraceOffset = actionTrace.length;
+  await ui.click('.git-refresh');
+  const refreshDeadline = Date.now() + 10_000;
+  while (!actionTrace.slice(refreshTraceOffset).some(event => event.phase === 'start' && event.action === 'refresh') && Date.now() < refreshDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.ok(actionTrace.slice(refreshTraceOffset).some(event => event.phase === 'start' && event.action === 'refresh'),
+    'The real Git GUI dispatches a read refresh while the previous write remains uncertain.');
+  await ui.waitUntil(uncertainLeaseExpression, 15_000, 'The read refresh completes while preserving the uncertain terminal receipt and its write lock.');
+  assert.equal(actionTrace.filter(event => event.phase === 'start' && event.action === 'push').length, pushStarts,
+    'Reading an uncertain result never resends its Push.');
+  assert.equal(runGit(['ls-remote', 'origin', target]).split(/\s+/)[0], raceCommit, 'Read refresh preserves the concurrent remote update.');
+  assert.equal(runGit(['rev-parse', 'HEAD']), localHeadBefore, 'Read refresh leaves the local branch unchanged.');
+  return { ui: unknownLeaseState, terminalStatus: 'failed', effect: 'unknown', branch, localHeadBefore, remoteShaBefore,
+    raceCommit, rejectedRemoteSha, rejectedLocalHead, rejectedRaceMessage: leaseRaceError, refreshAllowedWithoutResend: true,
+    writeLockRetained: true, pushStartsUnchanged: true, confirmationValidation: 'separate-standalone-native-run' };
+}
+
+async function ensureGitInspectorVisible(frame: Frame): Promise<void> {
+  const inspector = frame.locator('.git-inspector');
+  if (!await inspector.isVisible()) {
+    const toggle = frame.locator('.git-right-toggle');
+    await toggle.waitFor({ state: 'visible', timeout: 10_000 });
+    await toggle.click();
+  }
+  await frame.locator('.git-inspector:not([inert])').waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 async function findPlaywrightFrame(page: Page, selector: string): Promise<Frame> {

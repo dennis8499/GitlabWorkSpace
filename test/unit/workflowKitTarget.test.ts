@@ -457,7 +457,7 @@ test('a saved workspace keeps root overrides on its folder even before a second 
   assert.equal(updates.at(-1).resource, uri(repo).toString());
 });
 
-test('Git write feedback preserves handled failure reasons and does not serialize readonly selection', async t => {
+test('Git action feedback preserves handled failure reasons and tracks readonly selection independently', async t => {
   const [, repo] = await directories(t); const { host } = fixture([repo]); await host.refreshWorkflowKit();
   const messages: any[] = [];
   host.panel = { visible: true, webview: { postMessage: (message: unknown) => { messages.push(message); return Promise.resolve(true); } } };
@@ -469,5 +469,8 @@ test('Git write feedback preserves handled failure reasons and does not serializ
   assert.equal(receipt.status, 'failed'); assert.equal(receipt.phase, '處理失敗'); assert.equal(receipt.error, 'branch is protected');
   const before = messages.filter(message => message.type === 'operationChanged').length;
   await host.handleMessage({ type: 'gitAction', requestId: 'git-read', operationId: 'read', operationScope: scope, repoId: 'repo', action: { type: 'readCommit', hash: 'a'.repeat(40) } });
-  assert.equal(messages.filter(message => message.type === 'operationChanged').length, before);
+  const readReceipts = messages.filter(message => message.type === 'operationChanged').slice(before);
+  assert.equal(readReceipts.at(-1).operation.requestId, 'read');
+  assert.equal(readReceipts.at(-1).operation.status, 'failed');
+  assert.equal(readReceipts.at(-1).operation.kind, 'read');
 });

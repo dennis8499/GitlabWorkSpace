@@ -55,13 +55,18 @@ function fixture() {
 }
 
 const login = (requestId: string, token = 'one-secret', accountId?: string) => ({ type: 'submitAccountLogin', requestId, baseUrl: 'https://gitlab.test/', token, accountId });
+const accountResult = (messages: any[], requestId: string) => {
+  const result = [...messages].reverse().find(message => message.type === 'accountLoginResult' && message.requestId === requestId);
+  assert.ok(result, `login ${requestId} has a domain result`);
+  return result;
+};
 
 test('login uses the existing validated account store and replays receipts without authenticating twice', async () => {
   const { host, session, messages, secrets, globalState, snapshots, logMetadata, registeredSecrets, probes } = fixture();
   await host.handleMessage(login('first'));
   assert.equal(session.accounts.length, 1);
   assert.equal(secrets.values.get(accountTokenKey(session.activeAccountId!)), 'one-secret');
-  assert.equal(messages.at(-1).name, 'User 1');
+  assert.equal(accountResult(messages, 'first').name, 'User 1');
   assert.equal(host.accountTransitionBusy, false);
   assert.ok(snapshots.some((value: any) => value.accountOperation === 'login'));
   assert.ok(registeredSecrets.includes('one-secret'));
@@ -69,7 +74,8 @@ test('login uses the existing validated account store and replays receipts witho
   await host.handleMessage(login('first', 'two-secret'));
   assert.equal(probes(), 1);
   assert.equal(session.accounts.length, 1);
-  assert.equal(messages.at(-1).name, 'User 1');
+  assert.equal(accountResult(messages, 'first').name, 'User 1');
+  assert.ok(messages.some(message => message.type === 'operationChanged' && message.operation.finishedAt !== undefined));
 });
 
 test('invalid credentials, a different identity and network failure keep the previous account and credentials', async () => {
@@ -78,7 +84,7 @@ test('invalid credentials, a different identity and network failure keep the pre
   const active = session.activeAccountId!;
   for (const [id, token, pattern] of [['invalid', 'invalid', /Token 無效/], ['forbidden', 'forbidden', /拒絕存取/], ['mismatch', 'two-secret', /身分.*不同/], ['network', 'network', /無法連線/]] as const) {
     await host.handleMessage(login(id, token, active));
-    assert.match(messages.at(-1).error, pattern);
+    assert.match(accountResult(messages, id).error, pattern);
     assert.equal(session.activeAccountId, active);
     assert.equal(secrets.values.get(accountTokenKey(active)), 'one-secret');
     assert.equal(host.accountTransitionBusy, false);
@@ -88,13 +94,13 @@ test('invalid credentials, a different identity and network failure keep the pre
 test('malformed inputs and a changed relogin site never reach GitLab', async () => {
   const { host, session, messages, probes } = fixture();
   await host.handleMessage({ ...login('url'), baseUrl: 'https://user:password@gitlab.test' });
-  assert.match(messages.at(-1).error, /網址無效/);
+  assert.match(accountResult(messages, 'url').error, /網址無效/);
   await host.handleMessage(login('missing', ''));
-  assert.match(messages.at(-1).error, /有效/);
+  assert.match(accountResult(messages, 'missing').error, /有效/);
   assert.equal(probes(), 0);
   await host.handleMessage(login('first'));
   await host.handleMessage({ ...login('other', 'two-secret', session.activeAccountId), baseUrl: 'https://other.test' });
-  assert.match(messages.at(-1).error, /原有.*站台/);
+  assert.match(accountResult(messages, 'other').error, /原有.*站台/);
   assert.equal(probes(), 1);
 });
 
@@ -103,35 +109,44 @@ test('a pending login deduplicates its request and blocks another login, switchi
   let finish!: (response: Response) => void, start!: () => void, probes = 0;
   const started = new Promise<void>(resolve => { start = resolve; });
   session.setFetchForTesting(async () => { probes++; start(); return new Promise(resolve => { finish = resolve; }); });
-  const operation = host.handleMessage(login('pending'));
+  const pending = { ...login('pending'), operationId: 'pending-login' };
+  const operation = host.handleMessage(pending);
   await started;
-  await host.handleMessage(login('pending'));
-  await host.handleMessage(login('other'));
-  assert.match(messages.at(-1).error, /正在驗證/);
+  const duplicate = host.handleMessage(pending);
+  await host.handleMessage({ ...login('other'), operationId: 'competing-login' });
+  const rejected = [...messages].reverse().find(message => message.type === 'operationChanged' && message.operation.requestId === 'competing-login');
+  assert.equal(rejected.operation.status, 'failed');
+  assert.equal(rejected.operation.effect, 'none');
+  assert.match(rejected.operation.error, /同一項資源/);
+  assert.equal(messages.some(message => message.type === 'accountLoginResult' && message.requestId === 'other'), false, 'rejected work never enters the login handler');
+  assert.equal(host.operations.get('pending-login').status, 'running');
+  assert.equal(host.accountLoginRequestId, 'pending');
+  assert.equal(probes, 1);
   assert.equal(host.accountTransitionBusy, true);
   await assert.rejects(host.switchAccount('any'), /正在切換/);
   await assert.rejects(host.selectGroup(), /正在驗證/);
   finish(new Response(JSON.stringify({ id: 1, name: 'User 1', username: 'one' })));
-  await operation;
+  await Promise.all([operation, duplicate]);
   assert.equal(probes, 1);
   assert.equal(host.accountTransitionBusy, false);
-  assert.equal(messages.at(-1).requestId, 'pending');
+  assert.equal(accountResult(messages, 'pending').name, 'User 1');
+  const completed = messages.filter(message => message.type === 'operationChanged' && message.operation.requestId === 'pending-login' && message.operation.finishedAt !== undefined);
+  assert.equal(completed.length, 1); assert.equal(completed[0].operation.status, 'succeeded');
 });
 
 test('sidebar and command entry points open the same panel and retain intent until the webview is ready', async () => {
   const { host, messages } = fixture();
   await host.connectFromSidebar();
-  assert.equal(messages.at(-1).type, 'openAccountManager');
-  assert.equal(messages.at(-1).intent.startLogin, true);
+  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, true);
   await host.accountFromSidebar('switchAccount');
-  assert.equal(messages.at(-1).intent.startLogin, false);
+  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, false);
   host.show = async () => { host.webviewReady = false; };
   const count = messages.length;
   await host.connectFromSidebar();
   assert.equal(messages.length, count);
   assert.equal(host.pendingAccountPanel.startLogin, true);
   host.webviewReady = true; host.publishAccountPanel();
-  assert.equal(messages.at(-1).intent.startLogin, true);
+  assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, true);
   assert.equal(host.pendingAccountPanel, undefined);
 });
 
@@ -144,8 +159,11 @@ test('login succeeds independently of Group selection and reports a workspace lo
   assert.ok(session.activeAccountId);
   assert.equal(host.groupRoot, undefined);
   assert.equal(session.selectedGroup, undefined);
-  assert.equal(messages.at(-1).name, 'User 1');
-  assert.ok(messages.some(message => message.type === 'error' && message.message.includes('工作區資料載入失敗')));
+  assert.equal(accountResult(messages, 'first').name, 'User 1');
+  const receipt = [...messages].reverse().find(message => message.type === 'operationChanged' && message.operation.correlationId === 'first' && message.operation.finishedAt !== undefined).operation;
+  assert.equal(receipt.status, 'succeeded'); assert.equal(receipt.effect, 'applied');
+  assert.match(receipt.refreshError, /工作區資料載入失敗/);
+  assert.ok(messages.some(message => message.type === 'message' && message.message.includes('工作區資料載入失敗')));
 });
 
 test('a hidden webview retains the sanitized login result for its next ready event', async () => {

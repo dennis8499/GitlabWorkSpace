@@ -1,0 +1,6 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/tool_installer_test.py"]
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.831s
+
+OK

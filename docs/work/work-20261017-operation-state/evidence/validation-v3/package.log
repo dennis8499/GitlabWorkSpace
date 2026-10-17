@@ -1,0 +1,34 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/package-extension.mjs","--prepared"]
+Executing prepublish script 'npm run vscode:prepublish'...
+npm notice run gitlab-workspace@0.25.0 vscode:prepublish
+npm notice run node scripts/run-validation.mjs prepublish
+ WARNING  LICENSE, LICENSE.md, or LICENSE.txt not found
+ INFO  Files included in the VSIX:
+gitlab-workspace-0.25.0.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ package.json [8.77 KB]
+   ├─ readme.md [17.75 KB]
+   ├─ docs/
+   │  ├─ group-workflow.md [17.01 KB]
+   │  ├─ releasing.md [5.01 KB]
+   │  ├─ troubleshooting.md [6.55 KB]
+   │  ├─ user-guide.md [26.55 KB]
+   │  ├─ wiki-workflows.md [4.24 KB]
+   │  └─ windows-acceptance.md [5.73 KB]
+   ├─ out/
+   │  └─ src/ (61 files) [857.66 KB]
+   └─ resources/
+      ├─ git-rebase-editor.cjs [1.1 KB]
+      ├─ gitlab-workspace.svg [0.33 KB]
+      ├─ workflow-kit-installer.py [947.26 KB]
+      ├─ issue-webview/ (3 files) [418.92 KB]
+      ├─ offline-tools/ (3 files) [4.77 MB]
+      └─ sidebar-webview/ (3 files) [54.97 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\dist\gitlab-workspace-0.25.0.vsix (83 files, 5.35 MB)
+Optimized dist\gitlab-workspace-0.25.0.vsix with per-file STORE/DEFLATE-9 selection (5608018 bytes)
+Wrote deterministic SHA256SUMS for 2 release assets.

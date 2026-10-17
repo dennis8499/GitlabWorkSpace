@@ -258,6 +258,7 @@ function createLocalGitGuiFixture() {
   const source = path.join(fixtureRoot, 'seed', 'service');
   const workspaceRoot = path.join(fixtureRoot, 'demo');
   const repository = path.join(workspaceRoot, 'service');
+  const workspaceFile = path.join(fixtureRoot, 'local-git-gui.code-workspace');
   const bareRemote = path.join(fixtureRoot, 'remote', 'service.git');
   mkdirSync(source, { recursive: true });
   execFileSync('git', ['init', '-b', 'main'], { cwd: source, stdio: 'ignore', windowsHide: true });
@@ -275,7 +276,11 @@ function createLocalGitGuiFixture() {
   execFileSync('git', ['config', 'user.name', 'GitLab Workspace Validation'], { cwd: repository, stdio: 'ignore', windowsHide: true });
   execFileSync('git', ['config', 'user.email', 'gitlab-workspace-validation@localhost'], { cwd: repository, stdio: 'ignore', windowsHide: true });
   execFileSync('git', ['config', 'commit.gpgSign', 'false'], { cwd: repository, stdio: 'ignore', windowsHide: true });
-  return { fixtureRoot, workspaceRoot, repository, source };
+  // updateWorkspaceFolders may restart the Extension Host when a single-folder
+  // window becomes a multi-folder workspace. Start inside a workspace container
+  // so the native Diff suite can add and restore its isolated repository safely.
+  writeFileSync(workspaceFile, JSON.stringify({ folders: [{ path: repository }] }, null, 2), 'utf8');
+  return { fixtureRoot, workspaceRoot, workspaceFile, repository, source };
 }
 
 function removeOwnedLocalGitGuiFixture(target) {
@@ -307,6 +312,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
     'git.openRepositoryInParentFolders': 'never',
     'git.useIntegratedAskPass': false,
     'git.autofetch': false,
+    'window.dialogStyle': 'custom',
     'extensions.autoCheckUpdates': false,
     'update.mode': 'none'
   }, null, 2));
@@ -330,7 +336,7 @@ async function runLocalGitGui(executable, packageInfo, nativeConfirmation = fals
     vscodeExecutablePath: executable,
     extensionDevelopmentPath: packageInfo.extensionPath,
     extensionTestsPath: path.join(ROOT, 'scripts', 'live-extension-test-entry.cjs'),
-    launchArgs: [fixture.repository, `--user-data-dir=${userData}`, `--extensions-dir=${extensions}`, `--logsPath=${logs}`, `--remote-debugging-port=${port}`, '--skip-welcome', '--skip-release-notes'],
+    launchArgs: [fixture.workspaceFile, `--user-data-dir=${userData}`, `--extensions-dir=${extensions}`, `--logsPath=${logs}`, `--remote-debugging-port=${port}`, '--skip-welcome', '--skip-release-notes'],
     extensionTestsEnv: env
   });
   let result;
@@ -376,6 +382,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
   const port = await freePort(9393);
   const reportFile = path.join(EVIDENCE, 'git-gui-local-native.json');
   const screenshotDir = path.join(EVIDENCE, 'screenshots');
+  const gitTraceFile = path.join(EVIDENCE, 'native-vscode-git-trace2.jsonl');
   mkdirSync(path.join(userData, 'User'), { recursive: true });
   mkdirSync(extensions, { recursive: true });
   mkdirSync(path.join(systemProfile, '.vscode'), { recursive: true });
@@ -386,6 +393,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     'git.autoRepositoryDetection': true,
     'git.openRepositoryInParentFolders': 'never',
     'git.useIntegratedAskPass': false,
+    'git.autofetch': false,
     'security.workspace.trust.enabled': false,
     'extensions.autoCheckUpdates': false,
     'update.mode': 'none',
@@ -425,7 +433,10 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     if (!extensionInstallOutput.includes(extensionIdentifier)) {
       throw new Error(`The isolated VS Code CLI did not register the packaged extension ${extensionIdentifier}.`);
     }
-    const codeEnvironment = { ...nativeEnvironment };
+    // Only the installed VS Code process and its Git children write this trace;
+    // fixture mutations in the external driver are deliberately excluded.
+    writeFileSync(gitTraceFile, '', 'utf8');
+    const codeEnvironment = { ...nativeEnvironment, GIT_TRACE2_EVENT: gitTraceFile };
     delete codeEnvironment.ELECTRON_RUN_AS_NODE;
     child = spawn(executable, [fixture.repository, `--user-data-dir=${userData}`, `--extensions-dir=${extensions}`,
       `--remote-debugging-port=${port}`, '--disable-gpu', '--disable-hardware-acceleration', '--disable-gpu-sandbox', '--no-sandbox', '--skip-welcome', '--skip-release-notes'], {
@@ -461,7 +472,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
     await page.keyboard.press('Enter');
     const frame = await waitForStandaloneGitWebview(cdpConnection, page, screenshotDir);
     await frame.locator('.git-workbench').waitFor({ state: 'visible', timeout: 20_000 });
-    const gitGui = await exerciseNativeGitGui(frame, page, fixture.repository, `native-${Date.now()}`, screenshotDir);
+    const gitGui = await exerciseNativeGitGui(frame, page, fixture.repository, `native-${Date.now()}`, screenshotDir, gitTraceFile);
     result = {
       schema: 'GitLabWorkspaceLocalNativeGitGuiEvidence/v1', generatedAt: new Date().toISOString(),
       mode: 'local-only-native-confirmation', dialogStyle: 'custom', vscodeVersion: validatedVSCodeVersion, status: 'PASS',
@@ -470,7 +481,11 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
       coldStartMs: Number(cdp.startedMs.toFixed(2)), elapsedMs: Number((performance.now() - started).toFixed(2)),
       extensionInstallOutput: extensionInstallOutput.trim(),
       interactiveConfirmationUI: 'PASS', gitGui,
-      screenshots: ['screenshots/native-commit-confirmation.png', 'screenshots/native-push-confirmation.png', 'screenshots/local-git-gui-native.png']
+      gitTrace: { file: path.relative(EVIDENCE, gitTraceFile).replaceAll(path.sep, '/'), scope: 'spawned-vscode-only' },
+      screenshots: ['screenshots/native-commit-confirmation.png', 'screenshots/native-push-confirmation.png', 'screenshots/local-git-gui-native.png',
+        'screenshots/native-force-push-confirmation.png', 'screenshots/native-force-push-unknown.png',
+        'screenshots/native-unknown-after-refresh.png', 'screenshots/native-unknown-result-confirmation.png',
+        'screenshots/native-unknown-result-resolved.png']
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Standalone native Git GUI validation failed.';
@@ -480,6 +495,7 @@ async function runNativeGitGuiStandalone(executable, packageInfo) {
       mode: 'local-only-native-confirmation', dialogStyle: 'custom', vscodeVersion: validatedVSCodeVersion, status,
       testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
       repository: fixture.repository, remoteKind: 'isolated-local-bare-repository',
+      gitTrace: { file: path.relative(EVIDENCE, gitTraceFile).replaceAll(path.sep, '/'), scope: 'spawned-vscode-only' },
       error: message,
       extensionInstallOutput: extensionInstallOutput.trim(),
       processOutput: processOutput.join('').slice(-9000)
@@ -739,8 +755,26 @@ class StandaloneCdpLocator {
   getByText(text, options = {}) { return this.locator('*').filter({ hasText: text, exact: options.exact }); }
 }
 
-async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screenshotDir) {
-  const runGit = (args) => execFileSync('git', args, { cwd: repositoryPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screenshotDir, gitTraceFile) {
+  const fixtureGitEnvironment = { ...process.env };
+  delete fixtureGitEnvironment.GIT_TRACE2_EVENT;
+  const runGit = (args) => execFileSync('git', args, { cwd: repositoryPath, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true, env: fixtureGitEnvironment }).trim();
+  const readGitTrace = () => {
+    const contents = readFileSync(gitTraceFile, 'utf8');
+    const lines = contents.split(/\r?\n/);
+    return lines.flatMap((line, index) => {
+      if (!line.trim()) return [];
+      try { return [JSON.parse(line)]; }
+      catch (error) {
+        // A concurrently running Git process may not have finished its last line.
+        if (index === lines.length - 1 && !contents.endsWith('\n')) return [];
+        throw error;
+      }
+    });
+  };
+  const gitStarts = (events, command) => events.filter(event => event.event === 'start' && Array.isArray(event.argv) && event.argv.includes(command));
+  const pushCount = () => gitStarts(readGitTrace(), 'push').length;
   const waitGit = async (args, predicate, message, timeoutMs = 20_000) => {
     const deadline = Date.now() + timeoutMs;
     let latest = '';
@@ -755,7 +789,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
     await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
     await frame.locator('.git-progress').waitFor({ state: 'hidden', timeout: 30_000 });
   };
-  const confirm = async (label) => {
+  const confirm = async (label, { beforeClick, screenshotName = label.toLocaleLowerCase('en-US').replace(/\s+/g, '-') } = {}) => {
     const selectors = ['.monaco-dialog-box', '[role="dialog"]', 'dialog[open]', '[aria-modal="true"]', '.quick-input-widget', '.notifications-toasts .notification-list-item', '.notification-toast'];
     const deadline = Date.now() + 15_000;
     let matched;
@@ -781,12 +815,13 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
           .map((element) => ({ tag: element.tagName, role: element.getAttribute('role'), className: String(element.className ?? ''), text: (element.innerText ?? element.textContent ?? '').trim().slice(0, 1000) })),
         bodyTextEnd: document.body?.innerText?.slice(-1800) ?? ''
       }))()`);
-      await page.screenshot({ path: path.join(screenshotDir, `native-${label.toLocaleLowerCase('en-US')}-confirmation.png`) }).catch(() => undefined);
-      writeFileSync(path.join(path.dirname(screenshotDir), `native-${label.toLocaleLowerCase('en-US')}-confirmation-debug.json`), `${JSON.stringify({ diagnostic, observed }, null, 2)}\n`, 'utf8');
+      await page.screenshot({ path: path.join(screenshotDir, `native-${screenshotName}-confirmation.png`) }).catch(() => undefined);
+      writeFileSync(path.join(path.dirname(screenshotDir), `native-${screenshotName}-confirmation-debug.json`), `${JSON.stringify({ diagnostic, observed }, null, 2)}\n`, 'utf8');
       throw new Error(`${label} confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics=${JSON.stringify(diagnostic)}`);
     }
     const text = await matched.innerText();
-    await page.screenshot({ path: path.join(screenshotDir, `native-${label.toLocaleLowerCase('en-US')}-confirmation.png`) });
+    await page.screenshot({ path: path.join(screenshotDir, `native-${screenshotName}-confirmation.png`) });
+    if (beforeClick) await beforeClick(text);
     await matched.getByRole('button', { name: label, exact: true }).click();
     return text;
   };
@@ -861,10 +896,103 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   await frame.locator('.git-commit-list').getByText(commitMessage, { exact: true }).waitFor({ state: 'visible' });
   const historyRows = await frame.locator('.git-commit-row').count();
   await page.screenshot({ path: path.join(screenshotDir, 'local-git-gui-native.png') });
+
+  const unknownEvidenceFile = path.join(path.dirname(screenshotDir), 'native-unknown-write.json');
+  const unknownWrite = { status: 'RUNNING', stage: 'before-force-push', pushCounts: {} };
+  const recordUnknown = (values) => {
+    Object.assign(unknownWrite, values);
+    writeFileSync(unknownEvidenceFile, `${JSON.stringify(unknownWrite, null, 2)}\n`, 'utf8');
+  };
+  const verify = (condition, message) => { if (!condition) throw new Error(message); };
+  const uncertainLeaseExpression = `(() => {
+    const operation = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent?.includes('SHA')
+      && [...item.querySelectorAll('button')].some(button => button.textContent?.trim() === '核對寫入結果'));
+    return !!operation && !!document.querySelector('.git-progress')?.textContent?.includes('結果待確認')
+      && document.querySelector('.git-push')?.disabled === true && document.querySelector('.git-refresh')?.disabled === false;
+  })()`;
+  const readUnknownState = () => frame.evaluate(`({ progress: document.querySelector('.git-progress')?.textContent ?? '',
+    writeBlocked: document.querySelector('.git-push')?.disabled === true,
+    readAllowed: document.querySelector('.git-refresh')?.disabled === false,
+    failedOperations: [...document.querySelectorAll('.operation-status.failed')].map(item => item.textContent?.trim()) })`);
+  try {
+    const localBefore = runGit(['rev-parse', 'HEAD']);
+    const remoteBefore = runGit(['ls-remote', 'origin', `refs/heads/${branch}`]).split(/\s+/)[0];
+    verify(remoteBefore === localBefore, 'The standalone race must begin with matching local and remote heads.');
+    const raceTree = runGit(['rev-parse', 'HEAD^{tree}']);
+    const raceCommit = runGit(['commit-tree', raceTree, '-p', localBefore, '-m', `Concurrent standalone remote update ${runId}`]);
+    const beforeRace = pushCount();
+    verify(beforeRace >= 1, 'The VS Code-only Git trace must contain the preceding confirmed Push.');
+    unknownWrite.pushCounts.beforeRace = beforeRace;
+    recordUnknown({ localBefore, remoteBefore, raceCommit });
+
+    await frame.locator('.git-push').click();
+    await frame.locator('.git-dialog').waitFor({ state: 'visible' });
+    await frame.locator('.git-dialog input[name="force"]').check();
+    await frame.locator('.git-dialog button[type="submit"]').click();
+    await frame.locator('.git-progress').waitFor({ state: 'visible', timeout: 10_000 });
+    const forceConfirmation = await confirm('Force Push', { beforeClick: (text) => {
+      verify(text.includes(localBefore.slice(0, 12)), 'The real Force Push confirmation must identify the preflight HEAD.');
+      // This owned local bare remote changes only after the real modal appears,
+      // so the packaged extension must reject its now-stale force-with-lease.
+      runGit(['push', '--force', 'origin', `${raceCommit}:refs/heads/${branch}`]);
+      const remoteAtConfirmation = runGit(['ls-remote', 'origin', `refs/heads/${branch}`]).split(/\s+/)[0];
+      verify(remoteAtConfirmation === raceCommit, 'The fixture must change the remote while the original Force Push modal is pending.');
+      recordUnknown({ stage: 'remote-changed-before-confirmation', remoteAtConfirmation });
+    } });
+    await frame.waitUntil(uncertainLeaseExpression, 30_000,
+      'A rejected standalone Force Push must retain an uncertain result, block writes and allow read refresh.');
+    const rejectedLocalSha = runGit(['rev-parse', 'HEAD']);
+    const rejectedRemoteSha = runGit(['ls-remote', 'origin', `refs/heads/${branch}`]).split(/\s+/)[0];
+    verify(rejectedLocalSha === localBefore && rejectedRemoteSha === raceCommit, 'The rejected Force Push must preserve both actual Git heads.');
+    const afterUnknown = pushCount();
+    verify(afterUnknown === beforeRace + 1, 'The uncertain Force Push must issue exactly one additional VS Code Git Push.');
+    unknownWrite.pushCounts.afterUnknown = afterUnknown;
+    recordUnknown({ stage: 'unknown-write-protected', forcePushConfirmation: 'workbench-dom', forceConfirmation,
+      rejectedLocalSha, rejectedRemoteSha, unknownState: await readUnknownState() });
+    await page.screenshot({ path: path.join(screenshotDir, 'native-force-push-unknown.png') });
+
+    const statusBeforeRefresh = new Set(gitStarts(readGitTrace(), 'status').map(event => event.sid));
+    await frame.locator('.git-refresh').click();
+    let refreshCommand;
+    const refreshDeadline = Date.now() + 15_000;
+    while (Date.now() < refreshDeadline && !refreshCommand) {
+      const events = readGitTrace();
+      refreshCommand = gitStarts(events, 'status').find(event => !statusBeforeRefresh.has(event.sid)
+        && events.some(exit => exit.event === 'exit' && exit.sid === event.sid && exit.code === 0));
+      if (!refreshCommand) await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    verify(refreshCommand, 'The read refresh must execute and complete a real Git status while the write remains uncertain.');
+    await frame.waitUntil(uncertainLeaseExpression, 15_000, 'Read refresh must preserve the uncertain write and its write lock.');
+    const afterRefresh = pushCount();
+    verify(afterRefresh === afterUnknown, 'Read refresh must not resend the uncertain Force Push.');
+    unknownWrite.pushCounts.afterRefresh = afterRefresh;
+    recordUnknown({ stage: 'read-refresh-complete-still-unknown', refreshCommand: { sid: refreshCommand.sid, argv: refreshCommand.argv },
+      refreshedState: await readUnknownState() });
+    await page.screenshot({ path: path.join(screenshotDir, 'native-unknown-after-refresh.png') });
+
+    await frame.locator('.operation-status.failed button').filter({ hasText: '核對寫入結果', exact: true }).first().click();
+    const resultConfirmation = await confirm('已確認未執行', { screenshotName: 'unknown-result' });
+    await frame.waitUntil(`!document.querySelector('.git-progress') && document.querySelector('.git-push')?.disabled === false`, 15_000,
+      'Explicit confirmed-not-executed must release the standalone write lock.');
+    const confirmedLocalSha = runGit(['rev-parse', 'HEAD']);
+    const confirmedRemoteSha = runGit(['ls-remote', 'origin', `refs/heads/${branch}`]).split(/\s+/)[0];
+    verify(confirmedLocalSha === localBefore && confirmedRemoteSha === raceCommit, 'Manual result confirmation must leave both Git heads unchanged.');
+    const afterManualConfirmation = pushCount();
+    verify(afterManualConfirmation === afterUnknown, 'Manual result confirmation must update only the receipt and never resend Push.');
+    unknownWrite.pushCounts.afterManualConfirmation = afterManualConfirmation;
+    recordUnknown({ status: 'PASS', stage: 'manual-result-confirmed', manualConfirmation: 'workbench-dom', resultConfirmation,
+      confirmedOutcome: 'none', confirmedLocalSha, confirmedRemoteSha, resolvedState: await readUnknownState(),
+      noAutomaticResend: true, pushInvocations: gitStarts(readGitTrace(), 'push').map(event => ({ sid: event.sid, argv: event.argv })) });
+    await page.screenshot({ path: path.join(screenshotDir, 'native-unknown-result-resolved.png') });
+  } catch (error) {
+    recordUnknown({ status: 'FAIL', error: error instanceof Error ? error.message : String(error) });
+    await page.screenshot({ path: path.join(screenshotDir, 'native-unknown-failure.png') }).catch(() => undefined);
+    throw error;
+  }
   return {
     branch, previousBranch: currentBranch, stagedPartial: partial, stagedWholeFile: whole,
     commitMessage: commit, pushUpstream: upstream, remoteBranch: remoteBranch.split(/\s+/)[0],
-    commitConfirmation: 'workbench-dom', pushConfirmation: 'workbench-dom', historyRows
+    commitConfirmation: 'workbench-dom', pushConfirmation: 'workbench-dom', historyRows, unknownWrite
   };
 }
 

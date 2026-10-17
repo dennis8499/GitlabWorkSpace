@@ -1,0 +1,48 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-16T18:25:28.623Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.90.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "status": "FAIL",
+  "error": "WebSocket is not defined",
+  "workspaceFolders": [
+    "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175123483-4380\\demo\\service"
+  ],
+  "nativeGitRepositoryState": {
+    "repositories": [
+      {
+        "id": "ba52382e4e5e3523c3990293e2d882ff",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175123483-4380\\demo\\service",
+        "branch": "main",
+        "stagedCount": 0,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "revision": 0
+      }
+    ],
+    "available": true,
+    "revision": 2
+  },
+  "windowFocused": true,
+  "nativeGitActivity": {
+    "commands": 1,
+    "auxiliaryCommands": 0,
+    "nativeApiCalls": 1,
+    "nativeStatusEvents": 1
+  },
+  "nativeWorkingChanges": [
+    {
+      "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175123483-4380\\demo\\service",
+      "changes": []
+    }
+  ],
+  "actionTrace": [],
+  "idleChecks": [],
+  "sourceRepository": "isolated generated Git seed"
+}

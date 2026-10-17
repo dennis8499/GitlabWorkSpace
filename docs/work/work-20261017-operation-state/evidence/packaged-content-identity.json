@@ -1,0 +1,14 @@
+{
+  "schema": "GitLabWorkspacePackagedContentIdentity/v1",
+  "generatedAt": "2026-10-16T19:29:24.771338+00:00",
+  "artifact": "dist/gitlab-workspace-0.25.0.vsix",
+  "sha256": "6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7",
+  "status": "PASS",
+  "matchedFiles": 80,
+  "packagingDocumentationExcluded": [
+    "readme.md"
+  ],
+  "mismatches": [],
+  "missingWorkspaceFiles": [],
+  "scope": "All packaged production code/assets and other directly copied files byte-compared with the current workspace after test-only harness changes. VSCE-transformed README and archive metadata outside extension/ are excluded."
+}

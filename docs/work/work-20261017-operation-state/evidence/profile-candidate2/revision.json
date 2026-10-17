@@ -1,0 +1,188 @@
+{
+  "schema": "GitLabWorkspacePackagedUiVerification/v2",
+  "label": "revision",
+  "capturedAt": "2026-10-16T17:53:30.450Z",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.25.0.vsix",
+    "sha256": "e90f69d41d9f54330e81f40aa12c65fc4bc9fb9248fc6c47064c1434fbdc1240"
+  },
+  "assets": [
+    {
+      "name": "issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "bytes": 443
+    },
+    {
+      "name": "issue-webview/dashboard.js",
+      "sha256": "52847d76b1b0bcdf94136d8cc0d648fb852daf7267ef9ec259a2cf71fb1bf5e8",
+      "bytes": 348518
+    },
+    {
+      "name": "issue-webview/dashboard.css",
+      "sha256": "6a23374ca25f98397ef1505140235cb1682856b8f8216300d4244a46c151c2d7",
+      "bytes": 78215
+    },
+    {
+      "name": "sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "bytes": 459
+    },
+    {
+      "name": "sidebar-webview/sidebar.js",
+      "sha256": "b3a9a640ab924ad7ec821a0fe27c5e3b094a5319160f2573b1125fbdf032ab3c",
+      "bytes": 45771
+    },
+    {
+      "name": "sidebar-webview/sidebar.css",
+      "sha256": "e54b695b041c19a6eb3dda66af5f1412c38b309f3287bd774ce416d1c5985716",
+      "bytes": 9681
+    }
+  ],
+  "harnessSha256": "8cc9a545c8c737d59977a9f88b59a8f355749126ba65cc05be6f9bd35b8d8303",
+  "fixtureSha256": "645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9",
+  "browserVersion": "155.0.8059.80",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "measurement": {
+    "rounds": 1,
+    "samplesPerRound": 30,
+    "repoCount": 20,
+    "dashboardWidth": 1440,
+    "sidebarWidth": 300,
+    "height": 900,
+    "latency": "UI postMessage/input capture to matching rendered DOM followed by two requestAnimationFrame callbacks; excludes Playwright input delivery",
+    "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "comparisonLimitPercent": 10,
+    "firstFeedback": {
+      "samplesPerAction": 100,
+      "limitP95Ms": 100,
+      "mockAcknowledgementDelayMs": 160,
+      "mockCompletionDelayMs": 220,
+      "timing": "DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery",
+      "completion": "Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance."
+    }
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "warmNavigationMs": {
+        "samples": [
+          41.2,
+          26.5,
+          25.2,
+          43.3,
+          26.9,
+          28.6,
+          26.6,
+          29,
+          27.1,
+          27.1,
+          27.5,
+          28.2,
+          28.5,
+          27.8,
+          28.8,
+          27.6,
+          24.4,
+          27.9,
+          43,
+          26.5,
+          26.7,
+          25.5,
+          26.8,
+          24.3,
+          27.4,
+          26.6,
+          40.9,
+          25.1,
+          25.7,
+          42.2
+        ],
+        "p95": 43
+      },
+      "repoSearchMs": {
+        "samples": [
+          34.1,
+          43.7,
+          30.2,
+          29.1,
+          47.6,
+          28.7,
+          30.7,
+          48.1,
+          30,
+          27.8,
+          48.5,
+          29.6,
+          28,
+          30,
+          29.7,
+          29.8,
+          47.2,
+          30.5,
+          30.2,
+          29.8,
+          30,
+          29.7,
+          47.8,
+          29.3,
+          29.9,
+          45.3,
+          28.9,
+          29,
+          45.4,
+          29.7
+        ],
+        "p95": 48.1
+      },
+      "rendererHeap": [
+        {
+          "checkpoint": "primed",
+          "usedSize": 6352012,
+          "totalSize": 7262208,
+          "embedderHeapUsedSize": 2848712,
+          "backingStorageSize": 374727
+        },
+        {
+          "checkpoint": "after-navigation",
+          "usedSize": 7349724,
+          "totalSize": 8192000,
+          "embedderHeapUsedSize": 2845768,
+          "backingStorageSize": 374738
+        },
+        {
+          "checkpoint": "after-search",
+          "usedSize": 7404084,
+          "totalSize": 7929856,
+          "embedderHeapUsedSize": 2856920,
+          "backingStorageSize": 374776
+        }
+      ],
+      "mockedRequests": {
+        "count": 76,
+        "unexpected": []
+      },
+      "blockedNetworkRequests": [],
+      "runtimeErrors": []
+    }
+  ],
+  "metrics": {
+    "warmNavigationP95Ms": 43,
+    "repoSearchP95Ms": 48.1,
+    "rendererRetainedHeapP95Bytes": 7404084,
+    "rendererRetainedHeapMaxBytes": 7404084
+  },
+  "firstFeedback": {
+    "status": "NOT_RUN",
+    "cases": []
+  },
+  "smoke": {
+    "status": "NOT_RUN",
+    "reason": "Navigation profiling diagnostic only."
+  },
+  "performanceStatus": "MEASURED"
+}

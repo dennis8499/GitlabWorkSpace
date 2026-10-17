@@ -9,7 +9,7 @@ import { GitRepositoryService } from './git/gitRepositoryService';
 import { OperationLog } from './logging/operationLog';
 import { NotificationCenter } from './notifications/notificationCenter';
 import { randomUUID } from 'node:crypto';
-import { operationLabels } from './workspace/operations';
+import { OperationTracker, operationLabels } from './workspace/operations';
 
 const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openWorkspace: 'gitlabWorkspace.openWorkspace',
@@ -32,22 +32,24 @@ let activeLog: OperationLog | undefined;
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const notifications = new NotificationCenter();
+  const operations = new OperationTracker(operation => { if (operation.notify !== false) notifications.recordOperation(operation); });
   const log = new OperationLog(vscode.Uri.joinPath(context.globalStorageUri, 'logs').fsPath, message => notifications.publish({ level: 'warn', message }));
   notifications.setSanitizer(message => log.sanitize(message));
   activeLog = log;
   const session = new GitLabSession(context.secrets, context.globalState, testMode, context.workspaceState, log);
   log.setContextSource(() => ({ accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }));
-  context.subscriptions.push(log, notifications);
+  context.subscriptions.push(log, notifications, operations);
   try { await session.initialize(); } catch { notifications.publish({ level: 'warn', message: '既有 GitLab 帳號尚未完成遷移；設定與 Token 已保留，連線時會重試。' }); }
   log.record({ feature: 'workspace', action: 'activate', result: 'success' });
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
-  const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange());
+  const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange(), operations);
   let workspacePanel: WorkspacePanel | undefined;
   const gitRepositories = new GitRepositoryService(context.extensionUri, context.globalStorageUri, session, notifications);
-  const quickActions = new QuickActionsViewProvider(context.extensionUri, session, (action, repositoryId) =>
+  const quickActions = new QuickActionsViewProvider(context.extensionUri, session, (action, repositoryId, metadata) =>
     vscode.commands.executeCommand(
       QUICK_ACTION_COMMANDS[action],
-      action === 'openRepository' ? repositoryId : undefined
+      action === 'openRepository' ? repositoryId : undefined,
+      { ...metadata, action, repositoryId, workspaceActionMetadata: true }
     ),
     async () => {
       const state = await gitRepositories.getSummaryState();
@@ -60,9 +62,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
         gitMessage: state.message
       };
     },
-    repositoryId => gitRepositories.getRepositoryDetails(repositoryId), notifications
+    repositoryId => gitRepositories.getRepositoryDetails(repositoryId), notifications, operations,
+    () => workspacePanel?.getOperationScope() ?? `offline:none:${session.connectionEpoch}`
   );
-  workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories, notifications);
+  workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories, notifications, operations);
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
   context.subscriptions.push(gitRepositories.onDidChangeRepositories(() => quickActions.refresh()));
   refreshWorkspaceAfterIssueChange = () => {
@@ -78,11 +81,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const registerLoggedCommand: typeof vscode.commands.registerCommand = (command, callback, thisArg) =>
     vscode.commands.registerCommand(command, (...args: unknown[]) => {
       const action = command.replace('gitlabWorkspace.', '');
-      const feature = /Account|connect|disconnect/i.test(action) ? 'account' : /Issue/i.test(action) ? 'issue'
-        : /clone|sync|scan/i.test(action) ? 'projects' : /Git|Repository/i.test(action) ? 'git' : /Group/i.test(action) ? 'group' : 'workspace';
-      const task = () => log.run(feature, action, {}, () => Promise.resolve(callback.apply(thisArg, args)));
-      return notifications.runCommand({ operationId: randomUUID(), title: operationLabels[action] ?? 'GitLab Workspace',
-        origin: workspacePanel?.getNotificationOrigin() }, task, action !== 'openNotifications');
+      const candidate = args.at(-1);
+      const metadata = candidate && typeof candidate === 'object' && 'workspaceActionMetadata' in candidate
+        ? args.pop() as { operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number; action?: string; repositoryId?: string } : {};
+      const operationId = metadata.operationId ?? randomUUID();
+      const aliases: Record<string, string> = {
+        openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openDeveloperMode: 'openMyWork',
+        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openRepository: 'openRepository',
+        cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
+      };
+      const task = () => getWorkspace().runCommandAction(metadata.action ?? aliases[action] ?? action, () => Promise.resolve(callback.apply(thisArg, args)), { ...metadata, operationId });
+      return notifications.runCommand({ operationId, title: operationLabels[aliases[action] ?? action] ?? 'GitLab Workspace',
+        origin: workspacePanel?.getNotificationOrigin() }, task, false);
     });
   context.subscriptions.push(gitRepositories, quickActions, issuePanels, workspacePanel);
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('gitlabWorkspace.quickActions', quickActions));
@@ -93,9 +103,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       try {
         await getWorkspace().connectFromSidebar();
         return true;
-      } catch (error) {
-        notifications.publish({ level: 'error', message: readableError(error) });
-        return false;
       } finally { quickActions.refresh(); }
     }),
     registerLoggedCommand('gitlabWorkspace.selectGroup', (group?: GitLabGroup) => getWorkspace().selectGroupFromSidebar(group)),

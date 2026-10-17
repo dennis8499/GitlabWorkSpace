@@ -3,24 +3,31 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { GitLabAccount } from '../connection/accountProtocol';
 import type { LogPage, LogQuery, OperationLogEntry } from '../logging/logProtocol';
 import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
+import type { DispatchResult } from '../workspace/actionController';
 
 const featureLabels: Record<string, string> = { workspace: '工作台', account: '帳號', group: 'Group', issue: 'Issue', time: '工時', projects: '專案與掃描', analysis: '分析', git: 'Git 指令／版控', api: 'GitLab API', workflow: 'MR 與交付', tools: '工具套件' };
 const resultLabels = { started: '開始', success: '成功', error: '失敗', cancelled: '取消' };
 
-export function AdminLogPanel({ accounts, post }: { accounts: GitLabAccount[]; post: (request: WorkspaceRequest) => void }) {
+export function AdminLogPanel({ accounts, post }: { accounts: GitLabAccount[]; post: (request: WorkspaceRequest) => DispatchResult | void }) {
   const [query, setQuery] = useState<LogQuery>({ page: 0 });
   const [data, setData] = useState<LogPage>();
   const [detail, setDetail] = useState<OperationLogEntry>();
   const [live, setLive] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [requestError, setRequestError] = useState('');
   const sequence = useRef(0);
   const latest = useRef('');
   const busy = useRef(false);
   const changed = useRef(false);
   const request = useCallback(() => {
     const requestId = 'logs-' + ++sequence.current;
-    latest.current = requestId; busy.current = true; changed.current = false; setLoading(true);
-    post({ type: 'queryLogs', requestId, query });
+    const result = post({ type: 'queryLogs', requestId, query });
+    if (result?.status === 'blocked') {
+      busy.current = false; setLoading(false); setRequestError(result.reason ?? '無法載入操作紀錄，請重試。');
+      return;
+    }
+    latest.current = result?.correlationId ?? requestId;
+    busy.current = true; changed.current = false; setLoading(true); setRequestError('');
   }, [query, post]);
   useEffect(() => {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
@@ -51,7 +58,7 @@ export function AdminLogPanel({ accounts, post }: { accounts: GitLabAccount[]; p
     </div>
     <div class="toolbar log-actions"><label><input type="checkbox" checked={live} onChange={event => setLive(event.currentTarget.checked)} /> 即時更新</label><button type="button" onClick={request}>重新整理 Log</button><button type="button" onClick={() => post({ type: 'exportLogs', query })}>匯出篩選結果</button><button class="danger" type="button" onClick={() => post({ type: 'clearLogs' })}>清除全部 Log</button><span role="status">{loading ? '讀取中…' : `${data?.total ?? 0} 筆紀錄`}</span></div>
     <p class="subtle">本機紀錄保留 30 天，最多 50 MB。各操作的 API 與 Git 摘要可透過操作 ID 對照。</p>
-    {data?.error && <div class="alert" role="alert">{data.error}</div>}
+    {(requestError || data?.error) && <div class="alert" role="alert">{requestError || data?.error}</div>}
     <div class="log-table-scroll"><table class="log-table"><thead><tr><th>時間</th><th>功能／操作</th><th>帳號</th><th>結果</th><th>耗時</th></tr></thead><tbody>{data?.entries.map(entry => <tr key={entry.id}><td>{new Date(entry.timestamp).toLocaleString()}</td><td><button class="status-link" type="button" onClick={() => setDetail(entry)}>{featureLabels[entry.feature] ?? entry.feature} · {entry.action}</button>{entry.message && <small>{entry.message}</small>}</td><td title={entry.baseUrl}>{accountLabel(entry.accountId)}</td><td><span class={`pill ${entry.result === 'error' ? 'danger' : entry.result === 'success' ? 'success' : ''}`}>{resultLabels[entry.result]}</span>{entry.statusCode !== undefined && <small>HTTP {entry.statusCode}</small>}</td><td>{entry.durationMs !== undefined ? `${entry.durationMs} ms` : '—'}</td></tr>)}</tbody></table>{!loading && !data?.entries.length && <p class="empty-inline">沒有符合條件的 Log。</p>}</div>
     <div class="toolbar log-pagination"><button type="button" disabled={!query.page} onClick={() => setQuery(current => ({ ...current, page: (current.page ?? 0) - 1 }))}>上一頁</button><span>第 {(query.page ?? 0) + 1} 頁 · 每頁 100 筆</span><button type="button" disabled={!data || ((query.page ?? 0) + 1) * 100 >= data.total} onClick={() => setQuery(current => ({ ...current, page: (current.page ?? 0) + 1 }))}>下一頁</button></div>
     {detail && <section class="log-detail" aria-label="Log 詳情"><div class="toolbar"><strong>操作詳情</strong><button type="button" onClick={() => setDetail(undefined)}>關閉詳情</button></div><pre>{JSON.stringify(detail, null, 2)}</pre></section>}

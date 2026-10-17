@@ -1,0 +1,11 @@
+{
+  "schema": "GitLabWorkspaceInterruptedGuiEvidence/v1",
+  "status": "ABORTED",
+  "reason": "Stopped own isolated test before unknown-result confirmation to configure the real VS Code Workbench custom dialog consistently with the standalone native test. Default Windows native dialogs cannot be automated by the CDP fixture. No completed PASS/FAIL is inferred.",
+  "artifactSha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1",
+  "vscodeVersion": "1.90.0",
+  "log": "../git-gui-final-v2-run.log",
+  "nextRun": "../git-gui-final-v3/git-gui-local.json",
+  "ownedRunnerPid": 12776,
+  "productChanged": false
+}

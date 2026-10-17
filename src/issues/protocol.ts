@@ -1,4 +1,5 @@
 import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
+import type { OperationSnapshot } from '../workspace/operations';
 import type {
   GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate,
   GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata,
@@ -88,22 +89,25 @@ export interface IssueDetailData extends IssueRelationsData {
   sections?: Partial<Record<IssueDetailSection, IssueDetailSectionStatus>>;
 }
 
-export type IssuePanelRequest =
+export type IssuePanelRequest = (
   | { type: 'ready' }
+  | { type: 'reconcileOperations'; pendingIds?: string[] }
+  | { type: 'confirmOperationResult'; targetOperationId: string }
   | { type: 'refresh' }
   | { type: 'loadSection'; sections: IssueDetailSection[] }
   | { type: 'copyDescription'; requestId: string; issueId: number }
   | { type: 'selectProject'; projectId: number }
   | { type: 'create'; projectId: number; input: IssueCreateInput }
   | { type: 'update'; issueId: number; input: IssueUpdateInput; expectedUpdatedAt?: string }
-  | { type: 'preview'; requestId: string; projectId: number; markdown: string }
+  | { type: 'preview'; requestId: string; projectId: number; markdown: string; target?: string }
   | { type: 'search'; requestId: string; projectId: number; query: string }
   | { type: 'searchProjects'; requestId: string; query: string }
-  | { type: 'upload'; requestId: string; projectId: number }
+  | { type: 'upload'; requestId: string; projectId: number; target?: string }
   | { type: 'image'; requestId: string; url: string }
   | { type: 'invoke'; issueId: number; action: IssueAction; payload?: Record<string, unknown> }
   | { type: 'openIssueInGitLab'; issueId: number }
-  | { type: 'openLink'; url: string };
+  | { type: 'openLink'; url: string }
+) & { requestId?: string; operationId?: string; operationScope?: string; projectId?: number; issueIid?: number };
 
 export type IssueAction =
   | 'close' | 'reopen' | 'subscribe' | 'unsubscribe' | 'todo' | 'todoDone'
@@ -112,7 +116,7 @@ export type IssueAction =
   | 'resetEstimate' | 'resetSpent' | 'deleteTimelog' | 'move' | 'clone' | 'delete'
   | 'createChild' | 'addChild' | 'removeChild' | 'setChildState' | 'updateChild';
 
-export type IssuePanelResponse =
+export type IssuePanelResponse = (
   | { type: 'createData'; projects: GitLabProject[]; selectedProjectId?: number; options?: IssueFormOptions; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
   | { type: 'projectData'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
   | { type: 'detailData'; data: IssueDetailData }
@@ -121,4 +125,7 @@ export type IssuePanelResponse =
   | { type: 'busy'; value: boolean }
   | { type: 'cancelled' }
   | { type: 'error'; message: string; notificationOnly?: boolean }
-  | { type: 'deleted' };
+  | { type: 'deleted' }
+  | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
+  | { type: 'actionResult'; requestId: string; status: 'succeeded' | 'failed' | 'cancelled'; error?: string }
+) & { operationId?: string; effect?: 'none' | 'applied' | 'partial' | 'unknown'; refreshError?: string };

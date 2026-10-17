@@ -1,0 +1,515 @@
+{
+  "schema": "gitlab-workspace-validation/v1",
+  "mode": "all",
+  "workers": 4,
+  "seconds": 786.275,
+  "nodeVersion": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64",
+  "status": "success",
+  "success": true,
+  "stages": [
+    {
+      "id": "host-preflight",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-extension-tests.mjs",
+        "--preflight",
+        "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\extension-host.json"
+      ],
+      "startedAt": "2026-10-16T18:02:26.756Z",
+      "finishedAt": "2026-10-16T18:02:26.885Z",
+      "seconds": 0.129,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\host-preflight.log"
+    },
+    {
+      "id": "clean-compiled",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/clean-compiled.mjs"
+      ],
+      "startedAt": "2026-10-16T18:02:26.887Z",
+      "finishedAt": "2026-10-16T18:02:26.957Z",
+      "seconds": 0.07,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\clean-compiled.log"
+    },
+    {
+      "id": "compile",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "."
+      ],
+      "startedAt": "2026-10-16T18:02:26.958Z",
+      "finishedAt": "2026-10-16T18:02:27.459Z",
+      "seconds": 0.501,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\compile.log"
+    },
+    {
+      "id": "typecheck-webview",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.webview.json"
+      ],
+      "startedAt": "2026-10-16T18:02:27.460Z",
+      "finishedAt": "2026-10-16T18:02:27.781Z",
+      "seconds": 0.321,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\typecheck-webview.log"
+    },
+    {
+      "id": "build-dashboard",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.dashboard.config.mjs"
+      ],
+      "startedAt": "2026-10-16T18:02:27.782Z",
+      "finishedAt": "2026-10-16T18:02:28.278Z",
+      "seconds": 0.496,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\build-dashboard.log"
+    },
+    {
+      "id": "build-sidebar",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.sidebar.config.mjs"
+      ],
+      "startedAt": "2026-10-16T18:02:28.279Z",
+      "finishedAt": "2026-10-16T18:02:28.537Z",
+      "seconds": 0.258,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\build-sidebar.log"
+    },
+    {
+      "id": "build-kit",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "scripts/build-workflow-kit.py"
+      ],
+      "startedAt": "2026-10-16T18:02:28.538Z",
+      "finishedAt": "2026-10-16T18:02:39.479Z",
+      "seconds": 10.941,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\build-kit.log"
+    },
+    {
+      "id": "build-issue-tests",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.issue-test.config.mjs"
+      ],
+      "startedAt": "2026-10-16T18:02:39.480Z",
+      "finishedAt": "2026-10-16T18:02:39.768Z",
+      "seconds": 0.288,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\build-issue-tests.log"
+    },
+    {
+      "id": "extension",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-extension-tests.mjs",
+        "--preflight-file",
+        "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\extension-host.json",
+        "--forbid-only",
+        "--fail-zero"
+      ],
+      "startedAt": "2026-10-16T18:02:40.350Z",
+      "finishedAt": "2026-10-16T18:04:34.442Z",
+      "seconds": 114.093,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\extension.log"
+    },
+    {
+      "id": "unit",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--test",
+        "out/test/unit/accountLoginFlow.test.js",
+        "out/test/unit/accounts.test.js",
+        "out/test/unit/actionController.test.js",
+        "out/test/unit/cloneService.test.js",
+        "out/test/unit/codebaseWikiGuide.test.js",
+        "out/test/unit/dashboardState.test.js",
+        "out/test/unit/deliveryGate.test.js",
+        "out/test/unit/gitDiffFileSystemProvider.test.js",
+        "out/test/unit/gitDiffSelection.test.js",
+        "out/test/unit/gitGraphLayout.test.js",
+        "out/test/unit/gitLabClient.test.js",
+        "out/test/unit/gitLabIssueApi.test.js",
+        "out/test/unit/gitLabReadCache.test.js",
+        "out/test/unit/gitLabReadGate.test.js",
+        "out/test/unit/gitProtocol.test.js",
+        "out/test/unit/gitRebaseEditor.test.js",
+        "out/test/unit/gitRefreshScheduler.test.js",
+        "out/test/unit/gitRepositoryRefresh.test.js",
+        "out/test/unit/gitStateFingerprint.test.js",
+        "out/test/unit/issueActionLifecycle.test.js",
+        "out/test/unit/issueDescriptionCopy.test.js",
+        "out/test/unit/issueDeveloperPrompt.test.js",
+        "out/test/unit/issueGraph.test.js",
+        "out/test/unit/issuePanelFlow.test.js",
+        "out/test/unit/issueRelations.test.js",
+        "out/test/unit/meginHandoff.test.js",
+        "out/test/unit/mergeRequests.test.js",
+        "out/test/unit/mergeReviewPrompt.test.js",
+        "out/test/unit/mergeReviewReport.test.js",
+        "out/test/unit/notificationCenter.test.js",
+        "out/test/unit/operationLog.test.js",
+        "out/test/unit/operations.test.js",
+        "out/test/unit/postDeliveryWikiPrompt.test.js",
+        "out/test/unit/projectRoot.test.js",
+        "out/test/unit/projectWorkspace.test.js",
+        "out/test/unit/pythonRuntime.test.js",
+        "out/test/unit/quickActionsProtocol.test.js",
+        "out/test/unit/quickActionsView.test.js",
+        "out/test/unit/repositoryOperationLock.test.js",
+        "out/test/unit/repositoryScanner.test.js",
+        "out/test/unit/repositorySelection.test.js",
+        "out/test/unit/session.test.js",
+        "out/test/unit/skillsGuide.test.js",
+        "out/test/unit/toolPackages.test.js",
+        "out/test/unit/urlPolicy.test.js",
+        "out/test/unit/virtualWindow.test.js",
+        "out/test/unit/windowsTerminal.test.js",
+        "out/test/unit/workflowKitResult.test.js",
+        "out/test/unit/workflowKitTarget.test.js",
+        "out/test/unit/workspace.test.js",
+        "out/test/unit/workspaceEnvironment.test.js",
+        "out/test/unit/workspaceLifecycle.test.js",
+        "out/test/unit/workspaceOperationLifecycle.test.js"
+      ],
+      "startedAt": "2026-10-16T18:04:34.443Z",
+      "finishedAt": "2026-10-16T18:05:15.945Z",
+      "seconds": 41.502,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\unit.log"
+    },
+    {
+      "id": "behavior-node",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--test",
+        "test/behavior/quick-actions.test.mjs",
+        "test/behavior/dashboard.test.mjs",
+        "test/behavior/skills-guide.test.mjs"
+      ],
+      "startedAt": "2026-10-16T18:05:15.947Z",
+      "finishedAt": "2026-10-16T18:06:11.430Z",
+      "seconds": 55.483,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\behavior-node.log"
+    },
+    {
+      "id": "behavior-issues",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/@cucumber/cucumber/bin/cucumber.js",
+        "--require",
+        "test/behavior/steps.cjs",
+        "--tags",
+        "@automated",
+        "test/behavior/issues.feature"
+      ],
+      "startedAt": "2026-10-16T18:06:11.431Z",
+      "finishedAt": "2026-10-16T18:06:39.090Z",
+      "seconds": 27.659,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\behavior-issues.log"
+    },
+    {
+      "id": "behavior-connect",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/@cucumber/cucumber/bin/cucumber.js",
+        "--require",
+        "test/behavior/connect.steps.cjs",
+        "--tags",
+        "@automated",
+        "test/behavior/connect.feature"
+      ],
+      "startedAt": "2026-10-16T18:06:39.092Z",
+      "finishedAt": "2026-10-16T18:06:39.460Z",
+      "seconds": 0.368,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\behavior-connect.log"
+    },
+    {
+      "id": "release-tooling",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--test",
+        "scripts/extension-test-environment.test.mjs",
+        "scripts/live-benchmark-comparison.test.mjs",
+        "scripts/live-fixture-plan.test.mjs",
+        "scripts/live-test-paths.test.mjs",
+        "scripts/live-validation-state.test.mjs",
+        "scripts/python-runtime.test.mjs",
+        "scripts/release-policy.test.mjs",
+        "scripts/release-workflow.test.mjs",
+        "scripts/validation-orchestration.test.mjs",
+        "scripts/validation-runtime.test.mjs"
+      ],
+      "startedAt": "2026-10-16T18:06:39.461Z",
+      "finishedAt": "2026-10-16T18:06:41.634Z",
+      "seconds": 2.172,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-tooling.log"
+    },
+    {
+      "id": "release-workflow_kit_transactions",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/workflow_kit_transactions_test.py"
+      ],
+      "startedAt": "2026-10-16T18:06:41.653Z",
+      "finishedAt": "2026-10-16T18:11:13.381Z",
+      "seconds": 271.727,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-workflow_kit_transactions.log"
+    },
+    {
+      "id": "release-delivery-overlay",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/overlays/delivery-evidence/run_tests.py"
+      ],
+      "startedAt": "2026-10-16T18:06:41.647Z",
+      "finishedAt": "2026-10-16T18:12:18.382Z",
+      "seconds": 336.735,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-delivery-overlay.log"
+    },
+    {
+      "id": "release-workflow_kit_profiles",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/workflow_kit_profiles_test.py"
+      ],
+      "startedAt": "2026-10-16T18:06:41.642Z",
+      "finishedAt": "2026-10-16T18:13:54.339Z",
+      "seconds": 432.697,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-workflow_kit_profiles.log"
+    },
+    {
+      "id": "release-release_reviewer_integration",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/release_reviewer_integration_test.py"
+      ],
+      "startedAt": "2026-10-16T18:12:18.384Z",
+      "finishedAt": "2026-10-16T18:14:01.611Z",
+      "seconds": 103.226,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-release_reviewer_integration.log"
+    },
+    {
+      "id": "release-workflow_kit_installer",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/workflow_kit_installer_test.py"
+      ],
+      "startedAt": "2026-10-16T18:11:13.383Z",
+      "finishedAt": "2026-10-16T18:14:22.315Z",
+      "seconds": 188.932,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-workflow_kit_installer.log"
+    },
+    {
+      "id": "release-megin_discovery",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/megin_discovery_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:22.317Z",
+      "finishedAt": "2026-10-16T18:14:23.678Z",
+      "seconds": 1.36,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-megin_discovery.log"
+    },
+    {
+      "id": "release-group_workflow",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/group_workflow_test.py"
+      ],
+      "startedAt": "2026-10-16T18:13:54.342Z",
+      "finishedAt": "2026-10-16T18:14:26.749Z",
+      "seconds": 32.407,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-group_workflow.log"
+    },
+    {
+      "id": "release-output_style",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/output_style_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:26.752Z",
+      "finishedAt": "2026-10-16T18:14:27.501Z",
+      "seconds": 0.749,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-output_style.log"
+    },
+    {
+      "id": "release-local_review_targets",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/local_review_targets_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:01.613Z",
+      "finishedAt": "2026-10-16T18:14:54.722Z",
+      "seconds": 53.11,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-local_review_targets.log"
+    },
+    {
+      "id": "release-tool_installer",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/tool_installer_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:54.724Z",
+      "finishedAt": "2026-10-16T18:14:56.259Z",
+      "seconds": 1.535,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-tool_installer.log"
+    },
+    {
+      "id": "release-workflow_kit_sources",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/workflow_kit_sources_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:56.261Z",
+      "finishedAt": "2026-10-16T18:14:57.570Z",
+      "seconds": 1.309,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-workflow_kit_sources.log"
+    },
+    {
+      "id": "release-megin-overlay",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/overlays/megin/run_tests.py"
+      ],
+      "startedAt": "2026-10-16T18:06:41.636Z",
+      "finishedAt": "2026-10-16T18:15:09.475Z",
+      "seconds": 507.839,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-megin-overlay.log"
+    },
+    {
+      "id": "release-release_manager",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/release_manager_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:27.503Z",
+      "finishedAt": "2026-10-16T18:15:18.173Z",
+      "seconds": 50.67,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-release_manager.log"
+    },
+    {
+      "id": "release-megin_spec_export",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "test/release/megin_spec_export_test.py"
+      ],
+      "startedAt": "2026-10-16T18:14:23.679Z",
+      "finishedAt": "2026-10-16T18:15:24.412Z",
+      "seconds": 60.733,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\release-megin_spec_export.log"
+    },
+    {
+      "id": "package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/package-extension.mjs",
+        "--prepared"
+      ],
+      "startedAt": "2026-10-16T18:15:24.414Z",
+      "finishedAt": "2026-10-16T18:15:30.896Z",
+      "seconds": 6.482,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\package.log"
+    },
+    {
+      "id": "verify-package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "scripts/verify-vsix.py"
+      ],
+      "startedAt": "2026-10-16T18:15:30.899Z",
+      "finishedAt": "2026-10-16T18:15:33.028Z",
+      "seconds": 2.129,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-final-v2\\verify-package.log"
+    }
+  ]
+}

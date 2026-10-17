@@ -1,0 +1,6 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/release_manager_test.py"]
+...................................
+----------------------------------------------------------------------
+Ran 35 tests in 46.937s
+
+OK

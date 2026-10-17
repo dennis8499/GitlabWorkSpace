@@ -1,39 +1,53 @@
 /** @jsxImportSource preact */
-import { useEffect, useState } from 'preact/hooks';
-import type { WorkspaceOperationState } from '../workspace/operations';
-const emptyOperations: WorkspaceOperationState[] = [];
+import { useContext, useEffect } from 'preact/hooks';
+import { ActionController } from '../workspace/actionController';
+import { isActiveOperation, type WorkspaceOperationState } from '../workspace/operations';
+import { ActionContext, useActionSelector } from './useActions';
 
-export function OperationFeedback({ resourceKey, scopeRevision, initialOperations = emptyOperations }: {
-  resourceKey?: string; scopeRevision?: string; initialOperations?: WorkspaceOperationState[];
+const fallback = new ActionController(() => {});
+const emptyOperations: WorkspaceOperationState[] = [];
+export function OperationFeedback({ resourceKey, scopeRevision, initialOperations = emptyOperations, actions: supplied }: {
+  resourceKey?: string; scopeRevision?: string; initialOperations?: WorkspaceOperationState[]; actions?: ActionController;
 }) {
-  const [operations, setOperations] = useState<WorkspaceOperationState[]>([]);
+  const context = useContext(ActionContext);
+  const shared = supplied ?? context;
+  const actions = shared ?? fallback;
+  const operations = useActionSelector(actions, states => states);
   useEffect(() => {
-    setOperations([]);
-    const receive = (event: Event) => {
-      const operation = (event as CustomEvent<WorkspaceOperationState>).detail;
-      if (scopeRevision && operation.scopeRevision !== scopeRevision) return;
-      setOperations(current => [...current.filter(item => item.requestId !== operation.requestId), operation].slice(-20));
-    };
+    // The workspace owns its replica. Only the standalone fallback hydrates
+    // legacy initial data; replaying workspace props can lag newer receipts.
+    if (shared) return;
+    for (const operation of initialOperations) actions.receive(operation);
+  }, [actions, shared, initialOperations]);
+  useEffect(() => {
+    const receive = (event: Event) => actions.receive((event as CustomEvent<WorkspaceOperationState>).detail);
     window.addEventListener('workspaceOperationChanged', receive);
     return () => window.removeEventListener('workspaceOperationChanged', receive);
-  }, [scopeRevision]);
-  useEffect(() => {
-    setOperations(current => {
-      const values = new Map(current.filter(item => !scopeRevision || item.scopeRevision === scopeRevision).map(item => [item.requestId, item]));
-      for (const item of initialOperations) {
-        if (scopeRevision && item.scopeRevision !== scopeRevision) continue;
-        const previous = values.get(item.requestId);
-        if (!previous?.finishedAt || item.finishedAt) values.set(item.requestId, item);
-      }
-      const next = [...values.values()].slice(-20);
-      return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next;
-    });
-  }, [scopeRevision, initialOperations]);
-  const visible = operations.filter(item => (item.status === 'queued' || item.status === 'running') && (!resourceKey || item.resourceKey === resourceKey)).slice(-3);
+  }, [actions]);
+  const latest = new Map<string, WorkspaceOperationState>();
+  for (const operation of operations) {
+    if ((scopeRevision && operation.scopeRevision !== scopeRevision && operation.effect !== 'unknown') || (resourceKey && operation.resourceKey !== resourceKey)) continue;
+    latest.set(operation.action + ':' + (operation.lockKey ?? operation.resourceKey), operation);
+  }
+  const visible = [...latest.values()].filter(item => isActiveOperation(item) || item.status === 'failed' || item.refreshError).slice(-3);
   return <div class="operation-feedback" aria-live="polite">{visible.map(item => <div key={item.requestId}
-    class={`operation-status ${item.status}`} role={item.status === 'failed' ? 'alert' : 'status'}>
-    {(item.status === 'running' || item.status === 'queued') && <span class="spinner" />}
-    <strong>{item.label}</strong><span>{item.error ?? item.phase}</span>
+    class={`operation-status ${item.status}`} role={item.status === 'failed' || item.refreshError ? 'alert' : 'status'}>
+    {isActiveOperation(item) && <span class="spinner" />}
+    <strong>{item.label}</strong><span>{item.refreshError ? `已更新，重新載入失敗：${item.refreshError}` : item.error ?? item.phase}</span>
     {item.total !== undefined && item.completed !== undefined && <span>{item.completed}／{item.total}</span>}
+    {item.effect === 'unknown' ? <button class="quiet small" type="button" onClick={() => {
+      const match = /^mr:(\d+):(\d+)$/.exec(item.resourceKey);
+      actions.dispatch(match && actions.isCurrentContext(item) ? { type: 'reconcileMergeRequestWrite', projectId: Number(match[1]), iid: Number(match[2]) } : { type: 'confirmOperationResult', targetOperationId: item.requestId,
+        recovery: { requestId: item.requestId, resourceKey: item.resourceKey, action: item.action, label: item.label,
+          correlationId: item.correlationId, lockKey: item.lockKey, kind: item.kind } });
+    }}>核對寫入結果</button> : <>
+      {item.retryable && item.status === 'failed' && <button class="quiet small" type="button" onClick={() => {
+        const result = actions.retry(item.requestId);
+        if (result.status === 'blocked') actions.dispatch({ type: 'publishNotification', level: 'warn',
+          message: result.reason ?? '無法重試，請回到原操作畫面重新載入。' });
+      }}>重試</button>}
+      {item.refreshError && <button class="quiet small" type="button" onClick={() => actions.dispatch({ type: 'refresh' })}>重新載入</button>}
+      {!isActiveOperation(item) && <button class="quiet small" type="button" onClick={() => actions.dismiss(item.requestId)}>關閉</button>}
+    </>}
   </div>)}</div>;
 }

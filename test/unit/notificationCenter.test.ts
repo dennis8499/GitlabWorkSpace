@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 
+test('replaying a removed terminal receipt does not recreate its notification', () => {
+  const center = new NotificationCenter();
+  const state = { requestId: 'receipt', scopeRevision: 'a', resourceKey: 'repo', action: 'write', label: 'Write', status: 'succeeded' as const, phase: 'Done', startedAt: 1 };
+  center.recordOperation(state); center.remove('operation:receipt');
+  center.recordOperation({ ...state, revision: 99 }); assert.equal(center.snapshot().items.length, 0);
+});
+
 test('a session retains 500 sanitized notices and a new activation starts empty', () => {
   const center = new NotificationCenter();
   for (let index = 0; index < 501; index++) center.publish({ message: `Notice ${index}` });

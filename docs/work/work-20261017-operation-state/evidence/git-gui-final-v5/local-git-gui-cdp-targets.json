@@ -1,0 +1,31 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "2D156F5FCBD09EE412740C4269EE1D2D",
+      "type": "service_worker",
+      "title": "Service Worker vscode-webview://1uavmqfr65eob40t9kmbsooblbse7dtb3mjhe3mhbf4jeiq8q0hq/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+      "url": "vscode-webview://1uavmqfr65eob40t9kmbsooblbse7dtb3mjhe3mhbf4jeiq8q0hq/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "2B3D2EAA62B2FC508337920E63BF90F3"
+    },
+    {
+      "targetId": "6F7A6FC84112D91230FD340A479FEF3D",
+      "type": "page",
+      "title": "[Extension Development Host] GitLab Workspace - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.90.0/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "2B3D2EAA62B2FC508337920E63BF90F3"
+    },
+    {
+      "targetId": "8EB68727E2E6D9BF4312EE40068FB7D9",
+      "type": "iframe",
+      "title": "vscode-webview://1uavmqfr65eob40t9kmbsooblbse7dtb3mjhe3mhbf4jeiq8q0hq/index.html?id=b5e5cd29-7280-44ab-b6cc-883591c2062c&origin=9afd07d0-300a-45cd-b140-00a749a47532&swVersion=4&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "url": "vscode-webview://1uavmqfr65eob40t9kmbsooblbse7dtb3mjhe3mhbf4jeiq8q0hq/index.html?id=b5e5cd29-7280-44ab-b6cc-883591c2062c&origin=9afd07d0-300a-45cd-b140-00a749a47532&swVersion=4&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "2B3D2EAA62B2FC508337920E63BF90F3"
+    }
+  ]
+}

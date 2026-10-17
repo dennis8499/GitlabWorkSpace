@@ -1,0 +1,566 @@
+
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/4e2686a1-0670-4994-94fb-c226808342d7
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-16T18:48:34.935Z] Error: Error mutex already exists
+    at bt.W (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.90.0\resources\app\out\vs\code\electron-main\main.js:110:70767)
+[main 2026-10-16T18:48:34.937Z] update#setState disabled
+[main 2026-10-16T18:48:34.937Z] update#ctor - updates are disabled by the environment
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-15144-1792176514469
+Started local extension host with pid 25076.
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-15144-1792176514469
+Loading development extension at c:\Users\denni\AppData\Local\Temp\gitlab-workspace-vscode-test\live-vsix-0.25.0-7c018fba6fe5-15144\extension
+
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available (53ms)
+  Group delivery and version-bound report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  Live GitLab Workspace Webview validation
+Deprecated. Use ApiRepository.getRefs() instead.
+Failed to fetch chat participant registry {}
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle open: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle select-file: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle stage: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Git GUI idle commit: {"commands":0,"auxiliaryCommands":0,"nativeApiCalls":0}; VS Code background commands: 0
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    1) exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Native readonly Git Diff snapshots
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ preserves text and binary bytes and releases each snapshot after the last native tab closes (1978ms)
+  5 passing (1m)
+  1 pending
+  1 failing
+  1) Live GitLab Workspace Webview validation
+       exercises the packaged Git GUI against an isolated local bare remote:
+
+      AssertionError [ERR_ASSERTION]: The result is confirmed through the native VS Code dialog after checking both Git SHAs.
+      + expected - actual
+
+      -false
+      +true
+      
+  	at exerciseAdvancedGitGui (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\liveValidation.short-idle.cjs:1131:22)
+  	at async exerciseGitGui (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\liveValidation.short-idle.cjs:917:50)
+  	at async Context.<anonymous> (c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\liveValidation.short-idle.cjs:164:28)
+
+Error: 1 diagnostic failure(s)
+	at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\docs\work\work-20261017-operation-state\evidence\git-gui-short-idle-diagnostic\diagnostic-entry.cjs:13:43
+	at done (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\node_modules\@vscode\test-cli\node_modules\mocha\lib\mocha.js:1015:7)
+Invalid model for label change, rebuilding
+[main 2026-10-16T18:49:41.575Z] Extension host with pid 25076 exited with code: 0, signal: unknown.
+Exit code:   1
+{
+  "mode": "local-git-gui",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "result": {
+    "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+    "generatedAt": "2026-10-16T18:49:41.756Z",
+    "mode": "local-only",
+    "vscodeVersion": "1.90.0",
+    "testedArtifact": {
+      "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+      "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+    },
+    "status": "FAIL",
+    "error": "The result is confirmed through the native VS Code dialog after checking both Git SHAs.",
+    "workspaceFolders": [
+      "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176513829-15144\\demo\\service"
+    ],
+    "nativeGitRepositoryState": {
+      "repositories": [
+        {
+          "id": "01e3304143d9ef0dadb29f2b51e5331b",
+          "name": "service",
+          "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176513829-15144\\demo\\service",
+          "branch": "validation/local-git-gui-1792176514482/mvbbmm84",
+          "headCommit": "87ac189fde180dff3406c86bd7d3ef9e8d98e364",
+          "tracking": "origin/validation/local-git-gui-1792176514482/mvbbmm84",
+          "ahead": 0,
+          "behind": 1,
+          "stagedCount": 0,
+          "unstagedCount": 0,
+          "conflictCount": 0,
+          "busy": false,
+          "revision": 57
+        }
+      ],
+      "available": true,
+      "revision": 55
+    },
+    "windowFocused": true,
+    "nativeGitActivity": {
+      "commands": 175,
+      "auxiliaryCommands": 26,
+      "nativeApiCalls": 147,
+      "nativeStatusEvents": 61
+    },
+    "nativeWorkingChanges": [
+      {
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792176513829-15144\\demo\\service",
+        "changes": []
+      }
+    ],
+    "actionTrace": [
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "open"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "branch"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "branch"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "readDiff"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stagePatch"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stagePatch"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "readDiff"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "commit"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "commit"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashSave"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashSave"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashSave"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashSave"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashApply"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashApply"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashDrop"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stashDrop"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "discard"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "discard"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "fetch"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "fetch"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "pull"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "pull"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "rebasePreview"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "rebase"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "rebase"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "continue"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "continue"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "stageFile"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "commit"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "commit"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push"
+      },
+      {
+        "phase": "complete",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push"
+      },
+      {
+        "phase": "error",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "push",
+        "error": "Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。"
+      },
+      {
+        "phase": "start",
+        "repositoryId": "01e3304143d9ef0dadb29f2b51e5331b",
+        "action": "refresh"
+      }
+    ],
+    "idleChecks": [
+      {
+        "phase": "open",
+        "idleMs": 1011,
+        "before": {
+          "commands": 7,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 6,
+          "nativeStatusEvents": 3
+        },
+        "after": {
+          "commands": 7,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 6,
+          "nativeStatusEvents": 3
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 22,
+          "after": 22,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "select-file",
+        "idleMs": 1007,
+        "before": {
+          "commands": 18,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 17,
+          "nativeStatusEvents": 7
+        },
+        "after": {
+          "commands": 18,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 17,
+          "nativeStatusEvents": 7
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 44,
+          "after": 44,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "stage",
+        "idleMs": 1013,
+        "before": {
+          "commands": 40,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 35,
+          "nativeStatusEvents": 14
+        },
+        "after": {
+          "commands": 40,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 35,
+          "nativeStatusEvents": 14
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 77,
+          "after": 77,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "commit",
+        "idleMs": 1015,
+        "before": {
+          "commands": 45,
+          "auxiliaryCommands": 8,
+          "nativeApiCalls": 42,
+          "nativeStatusEvents": 19
+        },
+        "after": {
+          "commands": 45,
+          "auxiliaryCommands": 8,
+          "nativeApiCalls": 42,
+          "nativeStatusEvents": 19
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 98,
+          "after": 98,
+          "backgroundDelta": 0
+        }
+      }
+    ],
+    "gitDetailsStaleRetries": 0,
+    "uiDiagnostics": {
+      "width": 720,
+      "height": 676,
+      "devicePixelRatio": 1.5,
+      "shell": "git-shell right-open",
+      "workbench": {
+        "x": 20,
+        "y": 94.66667175292969,
+        "width": 663.3333740234375,
+        "height": 428.3333435058594,
+        "display": "flex",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "inspector": {
+        "x": 323.3333435058594,
+        "y": 208.6666717529297,
+        "width": 360,
+        "height": 286.3333435058594,
+        "display": "flex",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "toggle": {
+        "x": 586.3333740234375,
+        "y": 178,
+        "width": 87,
+        "height": 28,
+        "display": "flex",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "composer": {
+        "x": 324,
+        "y": 345.66668701171875,
+        "width": 359.3333435058594,
+        "height": 250.96875,
+        "display": "grid",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "textarea": {
+        "x": 338,
+        "y": 381,
+        "width": 331.3333435058594,
+        "height": 105.30208587646484,
+        "display": "block",
+        "visibility": "visible",
+        "inert": false,
+        "hidden": false
+      },
+      "progress": "結果待確認，請先核對 Repo…"
+    },
+    "failureScreenshot": "screenshots/local-git-gui-failure.png",
+    "sourceRepository": "isolated generated Git seed"
+  }
+}

@@ -1,0 +1,2 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","scripts/build-workflow-kit.py"]
+{"ok": true, "archive": "resources\\offline-tools\\workflow-kit.tar.xz", "releaseZip": "dist\\gitlab-workspace-kit-0.25.0.zip", "bytes": 4958424, "sha256": "8a0f849dee3f889535c809974601e3ceea16240fb56a5c031cb54936c06c88d7", "releaseZipSha256": "73c12ab95eaf25f6a7ca05cda176601f47178e51bddb3709d4aab3e92f07ce4e", "files": 502}

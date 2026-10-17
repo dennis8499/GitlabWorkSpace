@@ -19,6 +19,7 @@ export class NotificationCenter {
   private readonly entries = new Map<string, WorkspaceNotification>();
   private readonly versions = new Map<string, number>();
   private readonly listeners = new Set<() => void>();
+  private readonly operationOutcomes = new Map<string, string>();
   private readonly context = new AsyncLocalStorage<NotificationContext>();
   private sanitizer: (message: string) => string = sanitizeNotification;
 
@@ -27,7 +28,7 @@ export class NotificationCenter {
     this.listeners.add(listener);
     return { dispose: () => this.listeners.delete(listener) };
   }
-  dispose(): void { this.listeners.clear(); this.entries.clear(); this.versions.clear(); }
+  dispose(): void { this.listeners.clear(); this.entries.clear(); this.versions.clear(); this.operationOutcomes.clear(); }
   snapshot(): NotificationSnapshot {
     const items = [...this.entries.values()].reverse().map(item => ({ ...item, messages: [...item.messages], origin: item.origin && { ...item.origin } }));
     return { sessionId: this.sessionId, revision: this.revision, items, unreadCount: items.filter(item => !item.read).length };
@@ -78,6 +79,9 @@ export class NotificationCenter {
   }
   recordOperation(operation: WorkspaceOperationState): void {
     if (!['succeeded', 'failed', 'cancelled'].includes(operation.status)) return;
+    const signature = JSON.stringify([operation.status, operation.effect, operation.error, operation.refreshError, operation.phase]);
+    if (this.operationOutcomes.get(operation.requestId) === signature) return;
+    this.operationOutcomes.set(operation.requestId, signature);
     const id = `operation:${operation.requestId}`;
     // Explicit result text already explains successful operations.
     if (operation.status === 'succeeded' && this.entries.has(id)) return;

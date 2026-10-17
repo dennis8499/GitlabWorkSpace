@@ -145,6 +145,33 @@ test('only a completed Commit acknowledges draft submission, even if HEAD change
   assert.equal(commits, 1);
 });
 
+test('cancelled non-Commit writes report no effect and preserve cancellation through refresh', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  let deletions = 0;
+  Object.assign(f.repository, { deleteBranch: async () => { deletions++; } });
+  f.service.showWarningMessage = async () => undefined;
+  const cancelled = await f.service.handleAction(f.id, { type: 'deleteBranch', name: 'unused' });
+  assert.equal(cancelled.actionEffect, 'none'); assert.equal(cancelled.actionCancelled, true);
+  assert.equal(deletions, 0);
+  f.service.confirmSavedEditors = async () => false;
+  const unsaved = await f.service.handleAction(f.id, { type: 'checkout', name: 'unused' });
+  assert.equal(unsaved.actionEffect, 'none'); assert.equal(unsaved.actionCancelled, true);
+});
+
+test('a confirmed Git write keeps its effect and Commit receipt when status refresh fails', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  let wrote = false;
+  f.service.confirmSavedEditors = async () => true;
+  f.service.performAction = async () => { wrote = true; return true; };
+  f.repository.status = async () => { if (wrote) throw new Error('status unavailable'); };
+  await assert.rejects(f.service.handleAction(f.id, { type: 'commit', message: 'Submitted once' }), error => {
+    const outcome = error as Error & { effect?: string; refreshError?: string; commitCompleted?: boolean };
+    assert.equal(outcome.effect, 'applied'); assert.equal(outcome.commitCompleted, true);
+    assert.ok(outcome.refreshError, 'the safe refresh error is retained separately from the confirmed effect');
+    return true;
+  });
+});
+
 test('a detached HEAD named after a tag by the native API is not treated as a branch', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   f.repository.state.HEAD.name = 'validation/annotated';

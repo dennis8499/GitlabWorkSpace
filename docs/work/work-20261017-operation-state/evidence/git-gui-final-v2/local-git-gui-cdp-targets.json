@@ -1,0 +1,22 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "38994CBC7197948D6DD0A4C7EBCE09BA",
+      "type": "page",
+      "title": "[Extension Development Host] GitLab Workspace - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.90.0/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "1E04269D0153881D04BE568D14530229"
+    },
+    {
+      "targetId": "9B9238183497EA6E13B6EC0E78081611",
+      "type": "iframe",
+      "title": "vscode-webview://05v2n547mc8euk901flg6q95216etod9cis2vnrqolpttmqao5md/index.html?id=df5c1e1b-9150-4031-95ca-9c346f433295&origin=3218c6c4-d448-4d56-9edc-d8cc01894344&swVersion=4&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "url": "vscode-webview://05v2n547mc8euk901flg6q95216etod9cis2vnrqolpttmqao5md/index.html?id=df5c1e1b-9150-4031-95ca-9c346f433295&origin=3218c6c4-d448-4d56-9edc-d8cc01894344&swVersion=4&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "1E04269D0153881D04BE568D14530229"
+    }
+  ]
+}

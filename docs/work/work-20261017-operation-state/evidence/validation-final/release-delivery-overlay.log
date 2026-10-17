@@ -1,0 +1,114 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/overlays/delivery-evidence/run_tests.py"]
+test_actual_red_green_initial_pass_and_historical_full_receipt (test_group_v4.GroupV4Tests.test_actual_red_green_initial_pass_and_historical_full_receipt) ... To C:\Users\denni\AppData\Local\Temp\tmpv334u169\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpv334u169\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_correction_pass_and_four_failed_attempts_persist_on_resume (test_group_v4.GroupV4Tests.test_correction_pass_and_four_failed_attempts_persist_on_resume) ... To C:\Users\denni\AppData\Local\Temp\tmpdwtvasx0\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+To C:\Users\denni\AppData\Local\Temp\tmp_2_94nxs\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_gitlab_handoff_and_group_receipt_binding_use_v4_policy (test_group_v4.GroupV4Tests.test_gitlab_handoff_and_group_receipt_binding_use_v4_policy) ... To C:\Users\denni\AppData\Local\Temp\tmpvbg3y1mj\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_v4_claim_blocks_missing_approval_and_contract_downgrade (test_group_v4.GroupV4Tests.test_v4_claim_blocks_missing_approval_and_contract_downgrade) ... To C:\Users\denni\AppData\Local\Temp\tmpfeq5801_\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_actual_windows_junction_rejected (test_improvements.BoundaryTests.test_actual_windows_junction_rejected) ... ok
+test_real_git_root_and_worktree (test_improvements.BoundaryTests.test_real_git_root_and_worktree) ... Preparing worktree (new branch 'topic')
+ok
+test_reparse_candidates_are_not_read (test_improvements.BoundaryTests.test_reparse_candidates_are_not_read) ... ok
+test_unchanged_support_is_allowed_but_cannot_be_only_anchor (test_improvements.SupportingEvidenceTests.test_unchanged_support_is_allowed_but_cannot_be_only_anchor) ... ok
+test_existing_contract_is_compatible (test_improvements.TraceTests.test_existing_contract_is_compatible) ... ok
+test_missing_assertion_and_check_are_rejected (test_improvements.TraceTests.test_missing_assertion_and_check_are_rejected) ... ok
+test_commit_bytes_are_used_instead_of_live_consumer (test_improvements.VerificationInputTests.test_commit_bytes_are_used_instead_of_live_consumer) ... ok
+test_optional_inputs_preserve_legacy_snapshot (test_improvements.VerificationInputTests.test_optional_inputs_preserve_legacy_snapshot) ... ok
+test_wrong_digest_unknown_check_and_path_escape_rejected (test_improvements.VerificationInputTests.test_wrong_digest_unknown_check_and_path_escape_rejected) ... ok
+test_completed_export_rejects_missing_fixed_input_proof (test_workflows.DeliveryReplayTests.test_completed_export_rejects_missing_fixed_input_proof) ... To C:\Users\denni\AppData\Local\Temp\tmpnzugghk4\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpnzugghk4\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_cross_repo_receipt_matches_sorted_acceptance_not_delivery_order (test_workflows.DeliveryReplayTests.test_cross_repo_receipt_matches_sorted_acceptance_not_delivery_order) ... To C:\Users\denni\AppData\Local\Temp\tmppwf4zs85\group\storage\contracts.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmppwf4zs85\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmppwf4zs85\group\storage\client.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmppwf4zs85\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_export_cannot_overwrite_native_evidence_or_other_receipt (test_workflows.DeliveryReplayTests.test_export_cannot_overwrite_native_evidence_or_other_receipt) ... To C:\Users\denni\AppData\Local\Temp\tmpr2l0fvk1\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_fixed_inputs_are_in_snapshot_and_check_evidence (test_workflows.DeliveryReplayTests.test_fixed_inputs_are_in_snapshot_and_check_evidence) ... To C:\Users\denni\AppData\Local\Temp\tmpby7zt1w_\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpby7zt1w_\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_historical_receipt_report_tamper_and_version_drift (test_workflows.DeliveryReplayTests.test_historical_receipt_report_tamper_and_version_drift) ... To C:\Users\denni\AppData\Local\Temp\tmp6si0yp68\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history (test_workflows.DeliveryReplayTests.test_isolated_legacy_receipt_validator_has_no_writer_and_rechecks_raw_history) ... To C:\Users\denni\AppData\Local\Temp\tmp7rxhop7j\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_linked_correction_preserves_ancestry_and_old_completion (test_workflows.DeliveryReplayTests.test_linked_correction_preserves_ancestry_and_old_completion) ... To C:\Users\denni\AppData\Local\Temp\tmp41zpt47g\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+Switched to a new branch 'feature/work-20261008-correction'
+ok
+test_native_false_gate_and_protected_plan_tamper_rejected (test_workflows.DeliveryReplayTests.test_native_false_gate_and_protected_plan_tamper_rejected) ... To C:\Users\denni\AppData\Local\Temp\tmpty9b0w65\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+To C:\Users\denni\AppData\Local\Temp\tmp9f4bl8ny\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_partial_commit_save_failure_resumes_without_duplicate_commit (test_workflows.DeliveryReplayTests.test_partial_commit_save_failure_resumes_without_duplicate_commit) ... To C:\Users\denni\AppData\Local\Temp\tmpyyd_hb9d\group\storage\contracts.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmpyyd_hb9d\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_fixed_report_and_group_support_capture_cleanup (test_workflows.NativeReportTests.test_fixed_report_and_group_support_capture_cleanup) ... To C:\Users\denni\AppData\Local\Temp\tmp83trmas6\group\storage\service.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+Switched to branch 'main'
+ok
+test_group_support_rejects_git_symlink_even_when_blob_exists (test_workflows.NativeReportTests.test_group_support_rejects_git_symlink_even_when_blob_exists) ... ok
+test_materialization_junction_and_gate_alias_rejected (test_workflows.NativeReportTests.test_materialization_junction_and_gate_alias_rejected) ... To C:\Users\denni\AppData\Local\Temp\tmp_zgdqham\group\storage\service.git
+ * [new branch]      main -> main
+To C:\Users\denni\AppData\Local\Temp\tmp_zgdqham\group\storage\consumer.git
+ * [new branch]      main -> main
+Switched to a new branch 'feature/work-20261008-replay'
+ok
+test_delegation_cannot_waive_production_acceptance (test_workflows.RunnerAndPolicyTests.test_delegation_cannot_waive_production_acceptance) ... ok
+test_preflight_pass_failure_missing_and_duplicate (test_workflows.RunnerAndPolicyTests.test_preflight_pass_failure_missing_and_duplicate) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 336.031s
+
+OK

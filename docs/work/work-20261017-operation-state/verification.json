@@ -1,0 +1,1337 @@
+{
+  "schema": "GitLabWorkspaceLocalVerification/v1",
+  "generatedAt": "2026-10-16T19:44:43.237Z",
+  "status": "PASS_LOCAL_VALIDATION",
+  "scope": "Local automated and Codex visual verification only; no real GitLab credentials or remote GitLab validation.",
+  "artifacts": {
+    "vsix": {
+      "path": "dist/gitlab-workspace-0.25.0.vsix",
+      "bytes": 5608018,
+      "sha256": "6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7"
+    },
+    "kit": {
+      "path": "dist/gitlab-workspace-kit-0.25.0.zip",
+      "bytes": 11197964,
+      "sha256": "73c12ab95eaf25f6a7ca05cda176601f47178e51bddb3709d4aab3e92f07ce4e"
+    },
+    "originalBaseline": {
+      "path": "docs/work/work-20261017-operation-state/baseline/gitlab-workspace-0.25.0.vsix",
+      "bytes": 5573173,
+      "sha256": "dd1194e9266441f25c66d2355cc487890d5e38cb4eb90d17a93868eae18433dd"
+    }
+  },
+  "fullRun": {
+    "status": "success",
+    "seconds": 690.043,
+    "workers": 4,
+    "sourceRun": ".gitlab-workspace-validation/runs/2026-10-17-operation-state-final-v3",
+    "inputFingerprint": "7834e7c62215d13b09a799995ffdf62f1f8b5271430aff42fc4ae89ea63e309c",
+    "outputFingerprint": "9bb63dfb2baa111648f3e4e941f978baee5274f1a1602cab1d6889cd209d15ec",
+    "currentInputFingerprint": "7834e7c62215d13b09a799995ffdf62f1f8b5271430aff42fc4ae89ea63e309c",
+    "currentOutputFingerprint": "9bb63dfb2baa111648f3e4e941f978baee5274f1a1602cab1d6889cd209d15ec",
+    "stages": [
+      {
+        "id": "host-preflight",
+        "exitCode": 0,
+        "seconds": 0.103
+      },
+      {
+        "id": "clean-compiled",
+        "exitCode": 0,
+        "seconds": 0.11
+      },
+      {
+        "id": "compile",
+        "exitCode": 0,
+        "seconds": 0.498
+      },
+      {
+        "id": "typecheck-webview",
+        "exitCode": 0,
+        "seconds": 0.305
+      },
+      {
+        "id": "build-dashboard",
+        "exitCode": 0,
+        "seconds": 0.324
+      },
+      {
+        "id": "build-sidebar",
+        "exitCode": 0,
+        "seconds": 0.249
+      },
+      {
+        "id": "build-kit",
+        "exitCode": 0,
+        "seconds": 9.952
+      },
+      {
+        "id": "build-issue-tests",
+        "exitCode": 0,
+        "seconds": 0.274
+      },
+      {
+        "id": "extension",
+        "exitCode": 0,
+        "seconds": 20.072
+      },
+      {
+        "id": "unit",
+        "exitCode": 0,
+        "seconds": 41.526
+      },
+      {
+        "id": "behavior-node",
+        "exitCode": 0,
+        "seconds": 59.717
+      },
+      {
+        "id": "behavior-issues",
+        "exitCode": 0,
+        "seconds": 27.538
+      },
+      {
+        "id": "behavior-connect",
+        "exitCode": 0,
+        "seconds": 0.391
+      },
+      {
+        "id": "release-tooling",
+        "exitCode": 0,
+        "seconds": 2.275
+      },
+      {
+        "id": "release-workflow_kit_transactions",
+        "exitCode": 0,
+        "seconds": 269.515
+      },
+      {
+        "id": "release-delivery-overlay",
+        "exitCode": 0,
+        "seconds": 340.849
+      },
+      {
+        "id": "release-workflow_kit_profiles",
+        "exitCode": 0,
+        "seconds": 433.945
+      },
+      {
+        "id": "release-release_reviewer_integration",
+        "exitCode": 0,
+        "seconds": 102.906
+      },
+      {
+        "id": "release-workflow_kit_installer",
+        "exitCode": 0,
+        "seconds": 187.889
+      },
+      {
+        "id": "release-megin_discovery",
+        "exitCode": 0,
+        "seconds": 1.284
+      },
+      {
+        "id": "release-group_workflow",
+        "exitCode": 0,
+        "seconds": 31.622
+      },
+      {
+        "id": "release-output_style",
+        "exitCode": 0,
+        "seconds": 0.819
+      },
+      {
+        "id": "release-local_review_targets",
+        "exitCode": 0,
+        "seconds": 49.845
+      },
+      {
+        "id": "release-tool_installer",
+        "exitCode": 0,
+        "seconds": 1.752
+      },
+      {
+        "id": "release-workflow_kit_sources",
+        "exitCode": 0,
+        "seconds": 1.445
+      },
+      {
+        "id": "release-megin-overlay",
+        "exitCode": 0,
+        "seconds": 505.724
+      },
+      {
+        "id": "release-release_manager",
+        "exitCode": 0,
+        "seconds": 47.791
+      },
+      {
+        "id": "release-megin_spec_export",
+        "exitCode": 0,
+        "seconds": 60.129
+      },
+      {
+        "id": "package",
+        "exitCode": 0,
+        "seconds": 5.433
+      },
+      {
+        "id": "verify-package",
+        "exitCode": 0,
+        "seconds": 2.15
+      }
+    ]
+  },
+  "suites": {
+    "unit": {
+      "tests": 360,
+      "pass": 360,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "browser": {
+      "tests": 105,
+      "pass": 105,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "releaseTooling": {
+      "tests": 34,
+      "pass": 34,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "issueBdd": {
+      "scenarios": 30,
+      "steps": 140
+    },
+    "connectBdd": {
+      "scenarios": 10,
+      "steps": 35
+    },
+    "host": {
+      "passing": 13,
+      "optInPending": 2,
+      "warnings": {
+        "invalidModelForLabelChange": 1,
+        "fileWatcherEperm": 0,
+        "utilityCrash": 0,
+        "warningOrErrorLines": 3
+      }
+    },
+    "python": {
+      "suites": 14,
+      "tests": 209,
+      "passed": 208,
+      "skipped": 1,
+      "skipReason": "Windows symbolic-link privilege unavailable (WinError 1314).",
+      "breakdown": [
+        {
+          "id": "release-workflow_kit_transactions",
+          "tests": 20,
+          "passed": 20,
+          "skipped": 0
+        },
+        {
+          "id": "release-delivery-overlay",
+          "tests": 27,
+          "passed": 27,
+          "skipped": 0
+        },
+        {
+          "id": "release-workflow_kit_profiles",
+          "tests": 16,
+          "passed": 16,
+          "skipped": 0
+        },
+        {
+          "id": "release-release_reviewer_integration",
+          "tests": 7,
+          "passed": 7,
+          "skipped": 0
+        },
+        {
+          "id": "release-workflow_kit_installer",
+          "tests": 12,
+          "passed": 12,
+          "skipped": 0
+        },
+        {
+          "id": "release-megin_discovery",
+          "tests": 1,
+          "passed": 1,
+          "skipped": 0
+        },
+        {
+          "id": "release-group_workflow",
+          "tests": 3,
+          "passed": 3,
+          "skipped": 0
+        },
+        {
+          "id": "release-output_style",
+          "tests": 3,
+          "passed": 2,
+          "skipped": 1
+        },
+        {
+          "id": "release-local_review_targets",
+          "tests": 3,
+          "passed": 3,
+          "skipped": 0
+        },
+        {
+          "id": "release-tool_installer",
+          "tests": 18,
+          "passed": 18,
+          "skipped": 0
+        },
+        {
+          "id": "release-workflow_kit_sources",
+          "tests": 3,
+          "passed": 3,
+          "skipped": 0
+        },
+        {
+          "id": "release-megin-overlay",
+          "tests": 56,
+          "passed": 56,
+          "skipped": 0
+        },
+        {
+          "id": "release-release_manager",
+          "tests": 35,
+          "passed": 35,
+          "skipped": 0
+        },
+        {
+          "id": "release-megin_spec_export",
+          "tests": 5,
+          "passed": 5,
+          "skipped": 0
+        }
+      ]
+    }
+  },
+  "performance": {
+    "methodVersion": "browser-capture-readiness/v2",
+    "harnessSha256": "014a198fbf2a0da93cb6a740b9df0b0e96be3180a61a0fd290379c3f172fc962",
+    "fixtureSha256": "645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9",
+    "browserVersion": "155.0.8059.80",
+    "samplesPerArtifact": {
+      "baseline": {
+        "firstFeedback": 800,
+        "navigation": 300,
+        "search": 300
+      },
+      "revision": {
+        "firstFeedback": 800,
+        "navigation": 300,
+        "search": 300
+      }
+    },
+    "smokeChecks": {
+      "baseline": 8,
+      "revision": 8
+    },
+    "baselineMetrics": {
+      "warmNavigationP95Ms": 28.6,
+      "repoSearchP95Ms": 33.3,
+      "rendererRetainedHeapP95Bytes": 6787056,
+      "rendererRetainedHeapMaxBytes": 6787124
+    },
+    "revisionMetrics": {
+      "warmNavigationP95Ms": 30.6,
+      "repoSearchP95Ms": 31.3,
+      "rendererRetainedHeapP95Bytes": 7160184,
+      "rendererRetainedHeapMaxBytes": 7160256
+    },
+    "comparison": {
+      "warmNavigationP95Ms": {
+        "baseline": 28.6,
+        "revision": 30.6,
+        "increasePercent": 6.993,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "repoSearchP95Ms": {
+        "baseline": 33.3,
+        "revision": 31.3,
+        "increasePercent": -6.006,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "rendererRetainedHeapP95Bytes": {
+        "baseline": 6787056,
+        "revision": 7160184,
+        "increasePercent": 5.498,
+        "limitPercent": 10,
+        "status": "PASS"
+      },
+      "rendererRetainedHeapMaxBytes": {
+        "baseline": 6787124,
+        "revision": 7160256,
+        "increasePercent": 5.498,
+        "limitPercent": 10,
+        "status": "PASS"
+      }
+    },
+    "firstFeedback": [
+      {
+        "action": "navigation",
+        "baselineP95Ms": 195,
+        "revisionP95Ms": 34.3,
+        "baselineMockCompletionP95Ms": 231.2,
+        "revisionMockCompletionP95Ms": 230
+      },
+      {
+        "action": "issue-selection",
+        "baselineP95Ms": 34.1,
+        "revisionP95Ms": 34.2,
+        "baselineMockCompletionP95Ms": 230.8,
+        "revisionMockCompletionP95Ms": 231.3
+      },
+      {
+        "action": "mr-selection",
+        "baselineP95Ms": 34.6,
+        "revisionP95Ms": 34.2,
+        "baselineMockCompletionP95Ms": 230.1,
+        "revisionMockCompletionP95Ms": 232.9
+      },
+      {
+        "action": "refresh",
+        "baselineP95Ms": 34.8,
+        "revisionP95Ms": 34.3,
+        "baselineMockCompletionP95Ms": 230.9,
+        "revisionMockCompletionP95Ms": 230.8
+      },
+      {
+        "action": "skills-check",
+        "baselineP95Ms": 195.1,
+        "revisionP95Ms": 34.4,
+        "baselineMockCompletionP95Ms": 232,
+        "revisionMockCompletionP95Ms": 231.8
+      },
+      {
+        "action": "account-submit",
+        "baselineP95Ms": 29.5,
+        "revisionP95Ms": 29.4,
+        "baselineMockCompletionP95Ms": 230.4,
+        "revisionMockCompletionP95Ms": 233.1
+      },
+      {
+        "action": "git-read",
+        "baselineP95Ms": 34.2,
+        "revisionP95Ms": 34.3,
+        "baselineMockCompletionP95Ms": 229.8,
+        "revisionMockCompletionP95Ms": 230.7
+      },
+      {
+        "action": "git-write",
+        "baselineP95Ms": 34.3,
+        "revisionP95Ms": 34.6,
+        "baselineMockCompletionP95Ms": 229.7,
+        "revisionMockCompletionP95Ms": 231.3
+      }
+    ],
+    "limit": "Fixed mock acknowledgement 160ms/completion 220ms; no claim about real GitLab/network completion."
+  },
+  "regularFixture": {
+    "canonicalDriverSha256": "5fd02d9f78a194937c18e4112aabeb8334aa3973b81b5a76fa67fed456b60361",
+    "correctedDriverSha256": "1fc77c2645085f8c1b3158688ad58fcdfda46cc0d7597b141620b85065598a04",
+    "correction": "Only docs-driver relocation and the owned demo workspace boundary change; canonical source, compiled tests, VSIX and five 60-second idle checks are unchanged."
+  },
+  "regularGui": {
+    "status": "PASS",
+    "vscodeVersion": "1.90.0",
+    "compatibility": {
+      "tags": "PASS",
+      "detachedHead": "PASS",
+      "emptyRepo": "PASS",
+      "rapidRepoSwitching": "PASS",
+      "worktree": "PASS",
+      "submodule": "PASS",
+      "hiddenRestoredDraft": "PASS"
+    },
+    "idleChecks": [
+      {
+        "phase": "open",
+        "idleMs": 60011,
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "nativeGitBackgroundDelta": 0
+      },
+      {
+        "phase": "select-file",
+        "idleMs": 60004,
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "nativeGitBackgroundDelta": 0
+      },
+      {
+        "phase": "stage",
+        "idleMs": 60013,
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "nativeGitBackgroundDelta": 3
+      },
+      {
+        "phase": "commit",
+        "idleMs": 60006,
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "nativeGitBackgroundDelta": 0
+      },
+      {
+        "phase": "hidden",
+        "idleMs": 60005,
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "nativeGitBackgroundDelta": 0
+      }
+    ],
+    "unknownWrite": {
+      "effect": "unknown",
+      "writeLockRetained": true,
+      "refreshAllowedWithoutResend": true,
+      "manualConfirmation": "Covered separately by the standalone native GUI run."
+    }
+  },
+  "nativeGui": {
+    "status": "PASS",
+    "vscodeVersion": "1.142.0",
+    "elapsedMs": 33645.44,
+    "confirmations": "Test driver clicked real Workbench DOM dialogs; this is not human input.",
+    "unknownWrite": {
+      "status": "PASS",
+      "pushCounts": {
+        "beforeRace": 1,
+        "afterUnknown": 2,
+        "afterRefresh": 2,
+        "afterManualConfirmation": 2
+      },
+      "noAutomaticResend": true,
+      "confirmedOutcome": "none",
+      "manualConfirmation": "workbench-dom",
+      "readRefreshExitZero": true
+    }
+  },
+  "visual": {
+    "status": "PASS",
+    "reviewedBy": "Codex visual image inspection",
+    "checks": 14,
+    "images": 14,
+    "limit": "High-contrast theme uses fixture classes/tokens; not an operating-system assistive-technology test."
+  },
+  "realGitLab": {
+    "status": "NOT_RUN",
+    "reason": "No real GitLab credentials; no claim about real server permissions, network latency or remote write success."
+  },
+  "checks": {
+    "passed": 122,
+    "failed": 0,
+    "results": [
+      {
+        "id": "artifact:current-vsix",
+        "status": "PASS"
+      },
+      {
+        "id": "artifact:original-baseline",
+        "status": "PASS"
+      },
+      {
+        "id": "artifact:current-kit",
+        "status": "PASS"
+      },
+      {
+        "id": "artifact:immutable-baseline",
+        "status": "PASS"
+      },
+      {
+        "id": "artifact:release-sums",
+        "status": "PASS"
+      },
+      {
+        "id": "input:timings",
+        "status": "PASS"
+      },
+      {
+        "id": "input:prepared",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:complete",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:prepared",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:prepared-output-paths",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:prepared-fresh-inputs",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:prepared-fresh-outputs",
+        "status": "PASS"
+      },
+      {
+        "id": "full-run:stages",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:host-preflight",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:clean-compiled",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:compile",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:typecheck-webview",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:build-dashboard",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:build-sidebar",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:build-kit",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:build-issue-tests",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:extension",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:unit",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:behavior-node",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:behavior-issues",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:behavior-connect",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-tooling",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-workflow_kit_transactions",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-delivery-overlay",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-workflow_kit_profiles",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-release_reviewer_integration",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-workflow_kit_installer",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-megin_discovery",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-group_workflow",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-output_style",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-local_review_targets",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-tool_installer",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-workflow_kit_sources",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-megin-overlay",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-release_manager",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:release-megin_spec_export",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:package",
+        "status": "PASS"
+      },
+      {
+        "id": "input:stage:verify-package",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:unit",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:browser",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-tooling",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:issue-bdd:scenarios",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:issue-bdd:steps",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:connect-bdd:scenarios",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:connect-bdd:steps",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:host",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:python-suite-count",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-workflow_kit_transactions",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-delivery-overlay",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-workflow_kit_profiles",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-release_reviewer_integration",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-workflow_kit_installer",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-megin_discovery",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-group_workflow",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-output_style",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-local_review_targets",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-tool_installer",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-workflow_kit_sources",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-megin-overlay",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-release_manager",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:release-megin_spec_export",
+        "status": "PASS"
+      },
+      {
+        "id": "suite:python-documented-skip",
+        "status": "PASS"
+      },
+      {
+        "id": "input:baseline-v3",
+        "status": "PASS"
+      },
+      {
+        "id": "input:revision-v3",
+        "status": "PASS"
+      },
+      {
+        "id": "input:formal-harness",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:artifact-identity",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:paired-method",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:fixed-feedback-method",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:baseline:rounds",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:baseline:raw-metrics",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:baseline:feedback",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:baseline:smoke",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:revision:rounds",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:revision:raw-metrics",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:revision:feedback",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:revision:smoke",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:revision-feedback-gate",
+        "status": "PASS"
+      },
+      {
+        "id": "performance:comparison-gate",
+        "status": "PASS"
+      },
+      {
+        "id": "input:regular-fixture-correction",
+        "status": "PASS"
+      },
+      {
+        "id": "input:regular-fixture-driver",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:canonical-replacement:root:0",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:canonical-replacement:helper-import:1",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:canonical-replacement:helper-import:2",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:canonical-replacement:workspace-folder:3",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:exact-corrected-driver",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:manifest",
+        "status": "PASS"
+      },
+      {
+        "id": "input:preserved-regular-v4-failure",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-fixture:preserved-failure",
+        "status": "PASS"
+      },
+      {
+        "id": "input:regular-gui",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-gui:status-artifact",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-gui:five-idle-phases",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-gui:compatibility",
+        "status": "PASS"
+      },
+      {
+        "id": "regular-gui:unknown-held",
+        "status": "PASS"
+      },
+      {
+        "id": "input:native-gui",
+        "status": "PASS"
+      },
+      {
+        "id": "native-gui:status-artifact",
+        "status": "PASS"
+      },
+      {
+        "id": "native-gui:unknown-manual-resolution",
+        "status": "PASS"
+      },
+      {
+        "id": "input:native-git-trace",
+        "status": "PASS"
+      },
+      {
+        "id": "native-gui:trace-pushes",
+        "status": "PASS"
+      },
+      {
+        "id": "native-gui:trace-refresh-exit-zero",
+        "status": "PASS"
+      },
+      {
+        "id": "native-gui:trace-rejected-lease-before-refresh",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-qa",
+        "status": "PASS"
+      },
+      {
+        "id": "visual:status-artifact",
+        "status": "PASS"
+      },
+      {
+        "id": "visual:coverage",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:0",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:1",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:2",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:3",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:4",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:5",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:6",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:7",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:8",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:9",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:10",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:11",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:12",
+        "status": "PASS"
+      },
+      {
+        "id": "input:visual-image:13",
+        "status": "PASS"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "path": "dist/SHA256SUMS",
+      "sha256": "cb47b384b7c6f0e25924a8a54de1c581226bc9eddd9f028a42f2463a5507a6b1",
+      "bytes": 193
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/timings.json",
+      "sha256": "56a9994b4f4b73e9f8e167c384ed762c89f7e1fdcccbaee9c0c927be168d6322",
+      "bytes": 20417
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/prepared.json",
+      "sha256": "010ade06b1e959a20197ce78d40d478cf559111e7fb4146feeb65d9a89825a46",
+      "bytes": 680
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/host-preflight.log",
+      "sha256": "b408703e4543e401f925c2fe81043c2d421ffec4ff35ec898bb02029eeb6fb86",
+      "bytes": 792
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/clean-compiled.log",
+      "sha256": "6998b209079af5ea6ada8b72481271e631137c937fb1732cb135faa77ad34e0f",
+      "bytes": 78
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/compile.log",
+      "sha256": "b392c0127af41089a2a5266d1c8c0659f4bc45f9f90604234eb1305cd48d848c",
+      "bytes": 92
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/typecheck-webview.log",
+      "sha256": "800e9ad3f4e8070e8f84c77e2490ffb29ab0a53fe324edc568150bf248c626af",
+      "bytes": 112
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/build-dashboard.log",
+      "sha256": "60ab58adc69ef1337ea5bf143590e60ec47bb8baa378e8f30cb0ae6f2087d138",
+      "bytes": 503
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/build-sidebar.log",
+      "sha256": "78cd588de759cc5e805e23de97a6b4c256a46ddd3f51e43b37ad52358e818d2d",
+      "bytes": 494
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/build-kit.log",
+      "sha256": "f53f06b04f348e247c4ae570af5a47ce657d70b38ca0272261ffcc011a3200f1",
+      "bytes": 433
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/build-issue-tests.log",
+      "sha256": "51059cf3224f3b48093192aa4cb4ed97941ff6a2cec0b441825b63acda79664c",
+      "bytes": 503
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/extension.log",
+      "sha256": "a6f4c0279c1bb296f994741665ded79ce68ea9c9b721aaa069393098c1c82b4e",
+      "bytes": 3637
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/unit.log",
+      "sha256": "dbaa81bce509469b326bb4f85507a93e495fc94b720a7df3a3def33261525f5c",
+      "bytes": 41473
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/behavior-node.log",
+      "sha256": "727108b59e9cc065438fadbe26521cc0a4f37ad9d459926ced8da701fa2de403",
+      "bytes": 11221
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/behavior-issues.log",
+      "sha256": "6a3b80b621e3ef737cbe181a8096c98f391a6912c962d6fe0d14dc9fb920d4ce",
+      "bytes": 424
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/behavior-connect.log",
+      "sha256": "9e9df92710b8a77f4177558823f689d8bc136d2e88fff3fa4f37aa179b933fdd",
+      "bytes": 322
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-tooling.log",
+      "sha256": "fea972c885294e2532e20c2c81b29d9568ae802d608357bd9530a388548b7a66",
+      "bytes": 4366
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-workflow_kit_transactions.log",
+      "sha256": "169cbe2edd436fbf10969042ea489a1c43f73b7147a157995646a4c7060f627a",
+      "bytes": 3333
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-delivery-overlay.log",
+      "sha256": "5daa1477e74a9dbc53347784b9e6b1561189777e8982ec85a12f0fae5a19db26",
+      "bytes": 8557
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-workflow_kit_profiles.log",
+      "sha256": "cace15c73c9d8d5a0090ccee86f823cfde7264166bfd4b924a3f1c624c67cbfb",
+      "bytes": 2991
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-release_reviewer_integration.log",
+      "sha256": "719d02ac0f95a1a33719b309d115e6043cdbec5e7b3265b8c26852814c924d00",
+      "bytes": 1398
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-workflow_kit_installer.log",
+      "sha256": "a3cc5b1068a32488a63156e613c31e8cc3046d3acd61e53be398c6564455da16",
+      "bytes": 2362
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-megin_discovery.log",
+      "sha256": "e7c0e51c72a65350b0ff65ce425b1f8b0e878753778306665bd0cded2948518a",
+      "bytes": 348
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-group_workflow.log",
+      "sha256": "a0cda179bd1711c58c0354672db0f2cb01422b620d74aabb069318ce0fb56fc5",
+      "bytes": 773
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-output_style.log",
+      "sha256": "fa2ead05da4ab697f61e914f442d7077b863cef408e5d45530449a9867617acd",
+      "bytes": 1005
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-local_review_targets.log",
+      "sha256": "a71dbd2606ba4cf1fc3e1ee51f0d3a7fae0e59f15d009fac280278031c4d3e2e",
+      "bytes": 785
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-tool_installer.log",
+      "sha256": "60486050bd455890f35659abf5ac5b73ae5e4e13ca787c1eda47f50a376bb7b0",
+      "bytes": 234
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-workflow_kit_sources.log",
+      "sha256": "0c949746e9f956162ede3f5c89fec15f52e05318e02f35c10f4a39f0c0714bfa",
+      "bytes": 709
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-megin-overlay.log",
+      "sha256": "df309c66180403f0c3d9cba7103ab9f10ed6f0ab4963821d22cf04c520ce1c64",
+      "bytes": 10478
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-release_manager.log",
+      "sha256": "e64d0931eebd6bc251c81d4cdcbf28866a22fbfe99d54a89336f71ddec47be02",
+      "bytes": 253
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/release-megin_spec_export.log",
+      "sha256": "2595fc60bd6ffe59b2b9bf5e01ba5146cf6ab7610ce50fbd569a6de26e54c9ed",
+      "bytes": 1053
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/package.log",
+      "sha256": "962f635e13ab22f6621988f3d89cc8e256ca0e3d11210089c52a7992763fa9e9",
+      "bytes": 1509
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/validation-v3/verify-package.log",
+      "sha256": "914416ef1d3c35930b73e8a9f017284fe0e9c0a15a952ede397d4940ab33ab92",
+      "bytes": 242
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/baseline-v3/baseline.json",
+      "sha256": "8f7fadfb4b956816e2532d50f2e988313c551d5f3fb65da9e7818040e1e4054e",
+      "bytes": 107242
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision.json",
+      "sha256": "4fbfa22aed78f0bb6aeeb3695c1771bf8bcb1befe0c5116ee223dd388ac04502",
+      "bytes": 108061
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/harness-v2.mjs",
+      "sha256": "014a198fbf2a0da93cb6a740b9df0b0e96be3180a61a0fd290379c3f172fc962",
+      "bytes": 48934
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/fixture-scope-correction.json",
+      "sha256": "0bc4c099fef4c9fe4cd37fc8bb1cd9dca71699b1b63236a5fd52bbea8c148749",
+      "bytes": 6011
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/fixture-driver.mjs",
+      "sha256": "1fc77c2645085f8c1b3158688ad58fcdfda46cc0d7597b141620b85065598a04",
+      "bytes": 75166
+    },
+    {
+      "path": "scripts/run-live-extension-tests.mjs",
+      "sha256": "5fd02d9f78a194937c18e4112aabeb8334aa3973b81b5a76fa67fed456b60361",
+      "bytes": 74940
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v4/git-gui-local.json",
+      "sha256": "a9dbc92526cbe2f2140ca73fa918118ab7585e2c147bbba5b927a67c6a5863e4",
+      "bytes": 11733
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/git-gui-local.json",
+      "sha256": "06bacad1c5d67d44b54241bd28790e10ede59db4300ada03a03396f2cd498521",
+      "bytes": 32116
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/git-gui-local-native.json",
+      "sha256": "114f3ef77619d9ab5fe79211bb85ce78bac6fedeb93dddcbaa04189c6cfa6457",
+      "bytes": 5425
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/native-vscode-git-trace2.jsonl",
+      "sha256": "80116ddae2c863088ac7bece1050e250324e74289a344c171b078993cd1039eb",
+      "bytes": 995491
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/visual-qa-v3.json",
+      "sha256": "8c9f5f0d382c1bab6111570e39c4b823b2270d103a1352d1b8f3e60f73053295",
+      "bytes": 3309
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-1440-skills.png",
+      "sha256": "8f0584a57b5e6508e93db83f2606e0718228c92ec99cb2fb5fc215decec91d1c",
+      "bytes": 80983
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-1440-settings.png",
+      "sha256": "e28e33210e2c19ea279929b2d8ef51ef309b973dde7cf27da3d62d4d0a30a148",
+      "bytes": 112416
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-800-projects.png",
+      "sha256": "42097b3b3c815bbd4b3ebdcd627b61be3d5f765308c51845aeb3466f643887b2",
+      "bytes": 81327
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-800-skills.png",
+      "sha256": "c72e2ee53588f13986b2476b1509c8ad9f0dbf5e9921f658c1b5ff4ee5060721",
+      "bytes": 65728
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-800-highcontrast-projects.png",
+      "sha256": "8b062a164a671e3a9b7c7f86b5744cfd5076974f2e0f1cefa57d06802d1bdc31",
+      "bytes": 80757
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/revision-v3/revision-800-highcontrast-skills.png",
+      "sha256": "82ff04a73b5eb4648c0340e969be1ae5946ec37fc8c5c6327b56c2e4410073ec",
+      "bytes": 63731
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-commit-confirmation.png",
+      "sha256": "2dab86d48f62c4fdd7d27900d78be3d0020453885e51736425f5694b723598f5",
+      "bytes": 210554
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-push-confirmation.png",
+      "sha256": "1f6bd96b6a148bc505df73e9b5a86876f11d06f392b728a98c41ad9674f5ae6c",
+      "bytes": 213157
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/local-git-gui-native.png",
+      "sha256": "4e8bd5d70f684c0284a0fdd5a9bb404a74ece7847f242f245c676c22a84991c2",
+      "bytes": 191987
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-force-push-confirmation.png",
+      "sha256": "3f838bfc3a17d07f6b91a641385c2ad9eefcbd93f8def32fea278dddf41d75bd",
+      "bytes": 220770
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-force-push-unknown.png",
+      "sha256": "802f44e3769a013ba15f11d707b280a1738dbf6415e1db434de2ccb1fec4337f",
+      "bytes": 226486
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-unknown-after-refresh.png",
+      "sha256": "2f0dc412cefceacdcff263d2d17262d17d7cfa7f7c5567cc226a56bf82e01b4c",
+      "bytes": 219263
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-unknown-result-confirmation.png",
+      "sha256": "5b1b4bfc48886e72abb511d15ebeecdca70a2bebee21d387cadb74b416aced11",
+      "bytes": 233989
+    },
+    {
+      "path": "docs/work/work-20261017-operation-state/evidence/git-gui-native-v3/screenshots/native-unknown-result-resolved.png",
+      "sha256": "f6a94a13fb0fb2da8b6cd25c962c46460b02661b6fea6ae1e4763564c8470ed8",
+      "bytes": 198044
+    }
+  ]
+}

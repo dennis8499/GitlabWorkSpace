@@ -600,20 +600,39 @@ export class GitRepositoryService implements vscode.Disposable {
       if (ongoing === 'stash-conflict' && ['abort', 'continue', 'skip'].includes(action.type)) {
         throw new Error('Stash 套用衝突已保留原 Stash；請解決檔案後標記為已暫存。');
       }
-      if (this.needsSavedEditorCheck(action) && !await this.confirmSavedEditors(repository, affectedPaths)) return this.readSnapshot(repository, repositoryId);
+      if (this.needsSavedEditorCheck(action) && !await this.confirmSavedEditors(repository, affectedPaths)) {
+        try {
+          return { ...await this.readSnapshot(repository, repositoryId), actionEffect: 'none', actionCancelled: true,
+            ...(action.type === 'commit' ? { commitCompleted: false } : {}) };
+        } catch (error) {
+          throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true,
+            ...(action.type === 'commit' ? { commitCompleted: false } : {}) });
+        }
+      }
       this.activeOperations.add(repositoryId);
       this.bump(repositoryId);
       this.publishRepositoryState(repositoryId);
+      let actionEffect: 'none' | 'applied' = 'none';
+      let actionCancelled = false;
+      let commitCompleted: boolean | undefined;
       try {
         const completed = await this.performAction(repository, repositoryId, action);
+        actionCancelled = completed === false;
+        actionEffect = actionCancelled ? 'none' : 'applied';
+        if (action.type === 'commit') commitCompleted = completed === true;
         await repository.status();
         this.invalidateRepository(repositoryId);
         const snapshot = await this.readSnapshot(repository, repositoryId);
-        if (action.type === 'commit') snapshot.commitCompleted = completed === true;
+        snapshot.actionEffect = actionEffect; snapshot.actionCancelled = actionCancelled;
+        if (action.type === 'commit') snapshot.commitCompleted = commitCompleted;
         this.actionTraceHandler?.({ phase: 'complete', repositoryId, action: action.type });
         return snapshot;
       } catch (error) {
         this.actionTraceHandler?.({ phase: 'error', repositoryId, action: action.type, error: readableGitError(error) });
+        if (actionEffect === 'applied') throw Object.assign(new Error(readableGitError(error), { cause: error }), {
+          effect: 'applied' as const, refreshError: readableGitError(error), commitCompleted
+        });
+        if (actionCancelled) throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true, commitCompleted });
         throw error;
       } finally {
         this.activeOperations.delete(repositoryId);
@@ -1175,7 +1194,8 @@ export class GitRepositoryService implements vscode.Disposable {
         checkedGitRef(action.name);
         if (repository.state.HEAD?.name === action.name) throw new Error('無法刪除目前選取的分支。');
         const yes = await this.showWarningMessage('刪除本機分支 ' + action.name + '？', { modal: true }, '刪除分支');
-        if (yes) await repository.deleteBranch(action.name, false);
+        if (!yes) return false;
+        await repository.deleteBranch(action.name, false);
         return;
       }
       case 'fetch': {
@@ -1193,7 +1213,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const pullTarget = (await this.runGit(repository, ['rev-parse', '--verify', target])).stdout.trim();
         const plan = describePull(repository.rootUri.fsPath, remote, branch, config, pullTarget);
         const yes = await this.showWarningMessage(plan, { modal: true }, 'Pull');
-        if (!yes) return;
+        if (!yes) return false;
         if (config === 'rebase' || config === 'rebase-merges') {
           const flags = config === 'rebase-merges' ? ['--rebase-merges'] : [];
           await this.createRecoveryRef(repository, 'pull-rebase');
@@ -1224,7 +1244,7 @@ export class GitRepositoryService implements vscode.Disposable {
           (replaced ? '\nForce Push 會移除遠端分支上的提交：\n' + (replaced.stdout.trim() || '沒有額外提交。') : ''),
           { modal: true }, action.force ? 'Force Push' : 'Push'
         );
-        if (!yes) return;
+        if (!yes) return false;
         const args = ['push'];
         if (action.force) args.push('--force-with-lease=' + target + ':' + (expected ?? ''));
         if (action.setUpstream) args.push('--set-upstream');
@@ -1237,9 +1257,9 @@ export class GitRepositoryService implements vscode.Disposable {
           try { confirmedRemoteSha = await this.remoteBranchSha(repository, remote, target); }
           catch { remoteCheckFailed = true; }
           if (!remoteCheckFailed && confirmedRemoteSha === current.stdout.trim()) return;
-          if (remoteCheckFailed) throw new Error('Push 結果未能確認；目前無法連線核對遠端分支。請先 Fetch 或檢查網路狀態，再決定是否重試。');
+          if (remoteCheckFailed) throw Object.assign(new Error('Push 結果未能確認；目前無法連線核對遠端分支。請先 Fetch 或檢查網路狀態，再決定是否重試。'), { effect: 'unknown' });
           if (confirmedRemoteSha !== expected) {
-            throw new Error('Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。');
+            throw Object.assign(new Error('Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。'), { effect: 'unknown' });
           }
           throw error;
         }
@@ -1266,7 +1286,7 @@ export class GitRepositoryService implements vscode.Disposable {
           '。新的提交 SHA 會取代原提交（目前 HEAD：' + heads.stdout.trim().slice(0, 12) + '）。' + mergeNotice + pullNotice,
           { modal: true }, action.interactive ? '開始互動式 Rebase' : 'Rebase'
         );
-        if (!yes) return;
+        if (!yes) return false;
         if (action.pullSource) {
           const source = { remote: this.checkedRemoteName(repository, action.pullSource.remote), branch: checkedGitRef(action.pullSource.branch) };
           await repository.fetch({ remote: source.remote, ref: 'refs/heads/' + source.branch });
@@ -1291,7 +1311,7 @@ export class GitRepositoryService implements vscode.Disposable {
         await this.assertMainline(repository, action.hash, action.mainline);
         const yes = await this.showWarningMessage('Cherry-pick ' + action.hash.slice(0, 12) +
           (action.mainline ? '，保留 Parent ' + action.mainline : '') + ' 到目前分支？', { modal: true }, 'Cherry-pick');
-        if (!yes) return;
+        if (!yes) return false;
         await this.runGit(repository, ['cherry-pick', '--no-edit', ...(action.mainline ? ['-m', String(action.mainline)] : []), action.hash]);
         return;
       }
@@ -1300,7 +1320,7 @@ export class GitRepositoryService implements vscode.Disposable {
         await this.assertMainline(repository, action.hash, action.mainline);
         const yes = await this.showWarningMessage('Revert 提交 ' + action.hash.slice(0, 12) +
           (action.mainline ? '，保留 Parent ' + action.mainline : '') + '？', { modal: true }, 'Revert');
-        if (!yes) return;
+        if (!yes) return false;
         await this.runGit(repository, ['revert', '--no-edit', ...(action.mainline ? ['-m', String(action.mainline)] : []), action.hash]);
         return;
       }
@@ -1325,7 +1345,8 @@ export class GitRepositoryService implements vscode.Disposable {
         const selected = stashes.find((stash) => stash.oid === action.hash);
         if (!selected) throw new Error('這筆 Stash 已不存在，請重新整理清單。');
         const yes = await this.showWarningMessage('刪除 Stash ' + selected.message + '？', { modal: true }, '刪除 Stash');
-        if (yes) await this.runGit(repository, ['stash', 'drop', stashReference(selected)]);
+        if (!yes) return false;
+        await this.runGit(repository, ['stash', 'drop', stashReference(selected)]);
         return;
       }
       case 'reset': {
@@ -1339,7 +1360,7 @@ export class GitRepositoryService implements vscode.Disposable {
           (action.mode === 'hard' ? '\n會先建立復原 ref 和 Stash，保存目前未提交變更。' : ''),
           { modal: true }, 'Reset'
         );
-        if (!yes) return;
+        if (!yes) return false;
         await this.createRecoveryRef(repository, 'reset');
         if (action.mode === 'hard' && this.changes(repository).length > 0) {
           await this.runGit(repository, ['stash', 'push', '--include-untracked', '--message',
@@ -1353,7 +1374,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const change = this.changes(repository).find((item) => item.path === file && item.section !== 'staged');
         if (!change) throw new Error('找不到這筆未暫存變更，請重新整理清單。');
         const yes = await this.showWarningMessage('將變更 ' + file + ' 存入復原 Stash，並還原目前檔案？', { modal: true }, '備份並還原');
-        if (!yes) return;
+        if (!yes) return false;
         await this.runGit(repository, ['stash', 'push', '--include-untracked', '--keep-index', '--message',
           'GitLab Workspace 復原點 ' + new Date().toISOString(), '--', file]);
         return;

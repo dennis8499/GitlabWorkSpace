@@ -1,0 +1,23 @@
+{
+  "schema": "gitlab-workspace-prepared/v1",
+  "stages": [
+    "compile",
+    "webview",
+    "kit",
+    "issue"
+  ],
+  "outputs": [
+    "out",
+    "out/src/extension.js",
+    "resources/issue-webview",
+    "resources/sidebar-webview",
+    "resources/issue-webview/dashboard.js",
+    "resources/sidebar-webview/sidebar.js",
+    "resources/offline-tools/workflow-kit.tar.xz",
+    "resources/offline-tools/manifest.json",
+    "dist/gitlab-workspace-kit-0.25.0.zip",
+    "resources/issue-webview/issue-test.js"
+  ],
+  "inputs": "e9c623cb245e7a33090d01ade69bb9fbd59b856133239293f463cd17abf5727d",
+  "outputSha256": "54b0bd34c8e907e47b7b683eb50e94708b9eb2764832cd86a50ff1a2186b5aee"
+}

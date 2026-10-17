@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { JSDOM } = require('jsdom');
 const { After, Given, When, Then, setWorldConstructor } = require('@cucumber/cucumber');
+const { operationResource } = require('../../out/src/workspace/operations');
 
 const bundle = readFileSync(resolve(__dirname, '../../resources/issue-webview/issue-test.js'), 'utf8');
 const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
@@ -358,10 +359,18 @@ When('I start, pause, resume, and stop its timer', async function () {
   await this.detail();
   await this.tab('工時');
   await this.click('開始計時');
-  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const plain = ({ operationId, operationScope, hostSessionId, scopeEpoch, ...value }) => {
+    assert.match(operationId, /^[a-z0-9-]+$/i); assert.equal(typeof operationScope, 'string');
+    return JSON.parse(JSON.stringify(value));
+  };
   assert.deepEqual(plain(this.workspaceActions.at(-1)), { type: 'startTimer', projectId: 42, issueIid: 7 });
   const timer = { id: 'timer-1', projectId: 42, projectPath: 'group/project', issueIid: 7, title: issue.title, elapsedSeconds: 60, phase: 'running', summary: '', updatedAt: Date.now() };
   const sendTimers = async (version, phase) => {
+    const request = this.workspaceActions.at(-1);
+    this.dom.window.dispatchEvent(new this.dom.window.MessageEvent('message', { data: { type: 'operationChanged', operation: {
+      requestId: request.operationId, scopeRevision: request.operationScope, resourceKey: operationResource(request),
+      action: request.type, label: 'Timer', phase: '已完成', status: 'succeeded', effect: 'applied', startedAt: 1, finishedAt: 2
+    } } }));
     this.dom.window.dispatchEvent(new this.dom.window.CustomEvent('workspaceTimersChanged', { detail: {
       instanceUserScope: 'timer-scope', version, timers: phase ? [{ ...timer, phase }] : []
     } }));

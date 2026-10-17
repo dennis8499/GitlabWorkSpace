@@ -1,0 +1,9 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/workflow_kit_sources_test.py"]
+test_complete_official_megin_package_matches_local_distribution (__main__.SourcePackageTests.test_complete_official_megin_package_matches_local_distribution) ... ok
+test_package_document_and_version_drift_are_rejected (__main__.SourcePackageTests.test_package_document_and_version_drift_are_rejected) ... ok
+test_source_notes_follow_each_new_pin_instead_of_a_historical_version (__main__.SourceSummaryTests.test_source_notes_follow_each_new_pin_instead_of_a_historical_version) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.637s
+
+OK

@@ -1,0 +1,2 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","scripts/verify-vsix.py"]
+Verified dist\gitlab-workspace-0.25.0.vsix and dist\gitlab-workspace-kit-0.25.0.zip v0.25.0 (5608018 bytes; matching payloads and SHA256SUMS)

@@ -1,0 +1,369 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-16T18:32:25.853Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.142.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "status": "FAIL",
+  "error": "Webview element .git-progress did not become hidden. (\n    GWGitLab Workspace設定訊息中心 19尚未登入 GitLab　⌄選擇或新增 GitLab 帳號＋ 新增 GitLab 帳號管理帳號與連線連線 GitLab        Issue正在載入 Issue…重試REPOSITORY選擇 Reposervice · c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175173658-6220\\demo\\servicevalidation/local-git-gui-1792175174347/mvbav6lqvalidation/rebase-base-local-git-gui-1792175174347main↑0 ↓1FetchPullPush分支Stash···Merge…Rebase…Stash 操作…Reset…Cherry-pick／Revert…跟隨 VS Code深色分支導覽變更與提交EXPLORER×工作中變更0本機分支3validation/local-git-gui-1792175174347/mvbav6lqHEAD···合併至目前分支…Rebase 至此…validation/rebase-base-local-git-gui-1792175174347···切換至此分支刪除分支…合併至目前分支…Rebase 至此…main···切換至此分支刪除分支…合併至目前分支…Rebase 至此…遠端分支2or)",
+  "workspaceFolders": [
+    "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175173658-6220\\demo\\service"
+  ],
+  "nativeGitRepositoryState": {
+    "repositories": [
+      {
+        "id": "38e5f583c464659e6c8b6446db8fd329",
+        "name": "service",
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175173658-6220\\demo\\service",
+        "branch": "validation/local-git-gui-1792175174347/mvbav6lq",
+        "headCommit": "a3e9004728f71209f500b5e5cea8460408de75bc",
+        "tracking": "origin/validation/local-git-gui-1792175174347/mvbav6lq",
+        "ahead": 0,
+        "behind": 1,
+        "stagedCount": 0,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "revision": 61
+      }
+    ],
+    "available": true,
+    "revision": 60
+  },
+  "windowFocused": true,
+  "nativeGitActivity": {
+    "commands": 183,
+    "auxiliaryCommands": 26,
+    "nativeApiCalls": 151,
+    "nativeStatusEvents": 62
+  },
+  "nativeWorkingChanges": [
+    {
+      "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175173658-6220\\demo\\service",
+      "changes": []
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "branch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "branch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashApply"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashApply"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "discard"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "discard"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "fetch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "fetch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "pull"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "pull"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "rebasePreview"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "rebase"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "rebase"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "continue"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "continue"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push"
+    },
+    {
+      "phase": "error",
+      "repositoryId": "38e5f583c464659e6c8b6446db8fd329",
+      "action": "push",
+      "error": "Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60008,
+      "before": {
+        "commands": 10,
+        "auxiliaryCommands": 2,
+        "nativeApiCalls": 7,
+        "nativeStatusEvents": 3
+      },
+      "after": {
+        "commands": 10,
+        "auxiliaryCommands": 2,
+        "nativeApiCalls": 7,
+        "nativeStatusEvents": 3
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 37,
+        "after": 37,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60010,
+      "before": {
+        "commands": 26,
+        "auxiliaryCommands": 4,
+        "nativeApiCalls": 22,
+        "nativeStatusEvents": 8
+      },
+      "after": {
+        "commands": 26,
+        "auxiliaryCommands": 4,
+        "nativeApiCalls": 22,
+        "nativeStatusEvents": 8
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 78,
+        "after": 78,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60004,
+      "before": {
+        "commands": 48,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 40,
+        "nativeStatusEvents": 15
+      },
+      "after": {
+        "commands": 48,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 40,
+        "nativeStatusEvents": 16
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 118,
+        "after": 122,
+        "backgroundDelta": 4
+      }
+    },
+    {
+      "phase": "commit",
+      "idleMs": 60004,
+      "before": {
+        "commands": 53,
+        "auxiliaryCommands": 9,
+        "nativeApiCalls": 47,
+        "nativeStatusEvents": 20
+      },
+      "after": {
+        "commands": 53,
+        "auxiliaryCommands": 9,
+        "nativeApiCalls": 47,
+        "nativeStatusEvents": 20
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 144,
+        "after": 144,
+        "backgroundDelta": 0
+      }
+    }
+  ],
+  "sourceRepository": "isolated generated Git seed"
+}

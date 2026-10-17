@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>GitLab Workspace｜UI 響應與操作流程驗證報告</title>
+  <style>
+    :root{--bg:#f4f6f9;--paper:#fff;--text:#192638;--muted:#536176;--line:#dce3ec;--accent:#1758a8;--soft:#edf4ff;--warn:#855600;--warn-bg:#fff6dd;--ok:#17633c;--bad:#a12d36;--code:#f0f3f7}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.75 system-ui,-apple-system,"Segoe UI","Microsoft JhengHei",sans-serif}main{max-width:1120px;margin:32px auto 64px;padding:0 24px}header,section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px 32px;margin-bottom:20px}header{border-top:5px solid var(--accent)}h1,h2,h3,p{margin-top:0}h1{font-size:30px;line-height:1.35;margin-bottom:12px}h2{font-size:21px;line-height:1.45;margin-bottom:18px}h3{font-size:16px;margin-bottom:8px}p:last-child,ul:last-child,dl:last-child{margin-bottom:0}.eyebrow{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.1em;margin-bottom:8px}.lead{max-width:80ch;color:var(--muted);margin-bottom:18px}.badge{display:inline-block;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700;background:var(--warn-bg);color:var(--warn)}.metadata{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0 0}.metadata dt{font-size:12px;color:var(--muted)}.metadata dd{margin:2px 0 0;font-weight:600}.todo{color:var(--warn);font-weight:700}.note{background:var(--soft);border-left:3px solid var(--accent);padding:12px 16px;margin:18px 0;color:var(--muted)}.caution{background:var(--warn-bg);border-left-color:var(--warn);color:var(--warn)}nav{display:flex;flex-wrap:wrap;gap:8px 20px;margin:20px 0}a{color:var(--accent);text-underline-offset:3px}nav a{text-decoration:none;font-size:13px}ul{padding-left:22px;margin:0 0 16px}li+li{margin-top:6px}.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:20px}.tier{border:1px solid var(--line);border-radius:10px;padding:18px}.tier .number{color:var(--accent);font-size:12px;font-weight:700}.tier p{font-size:14px;color:var(--muted);margin:8px 0 0}.changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 28px}.changes article{border-top:1px solid var(--line);padding-top:16px}.changes p{font-size:14px;color:var(--muted)}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px;margin:14px 0}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;vertical-align:top;padding:11px 13px;border-bottom:1px solid var(--line)}thead th{background:var(--code);font-weight:650;font-size:13px}tbody tr:last-child td{border-bottom:0}.numeric{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.ok{color:var(--ok);font-weight:650}.bad{color:var(--bad);font-weight:650}.small{font-size:13px;color:var(--muted)}code{background:var(--code);padding:2px 5px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}.hash{font:12px/1.6 Consolas,monospace;overflow-wrap:anywhere}.artifact-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.artifact{border:1px solid var(--line);padding:16px;border-radius:9px}.artifact p{margin:7px 0 0;font-size:13px;color:var(--muted)}.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}figure{margin:0}figure a{display:block;background:#20242b;border:1px solid var(--line);border-radius:8px;overflow:hidden}figure img{display:block;width:100%;height:180px;object-fit:contain}figcaption{font-size:12px;color:var(--muted);margin-top:6px}.checks{margin-top:18px}footer{font-size:12px;color:var(--muted);padding:0 6px}.pending-link::after{content:" · 待產生／確認";color:var(--warn);font-size:12px}.section-label{color:var(--muted);font-size:12px;margin-bottom:6px}section{scroll-margin-top:18px}
+    @media(max-width:760px){main{margin-top:16px;padding:0 12px}header,section{padding:22px 18px}h1{font-size:25px}.metadata,.tiers,.changes,.artifact-list{grid-template-columns:1fr}.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}th,td{padding:10px}table{min-width:620px}}
+    @media(prefers-color-scheme:dark){:root{--bg:#111821;--paper:#19232f;--text:#e4ebf5;--muted:#a9b8cb;--line:#334355;--accent:#92c0ff;--soft:#20344e;--warn:#f4cc74;--warn-bg:#3b321d;--ok:#88d6aa;--bad:#ff9aa2;--code:#233143}}
+    @media print{body{background:#fff;color:#192638}main{max-width:none;margin:0;padding:0}header,section{break-inside:avoid;border-radius:0;padding:18px 20px;margin-bottom:12px}nav{display:none}a{color:#1758a8}.gallery{grid-template-columns:repeat(3,1fr)}figure img{height:120px}.table-wrap{overflow:visible}table{min-width:0!important}footer{margin-top:16px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">GITLAB WORKSPACE · 2026-10-17</div>
+    <h1>UI 響應與操作流程驗證報告</h1>
+    <p class="lead">統一每次 UI 操作的接受、執行、完成與失敗恢復；以最終完整測試、同方法正式效能採樣及可追溯封裝驗收。</p>
+    <span class="badge">PASS_LOCAL_VALIDATION · 122／122 證據檢查通過</span>
+    <dl class="metadata">
+      <div><dt>工作項目</dt><dd>work-20261017-operation-state</dd></div>
+      <div><dt>來源</dt><dd>8cb5b118 + uncommitted worktree</dd></div>
+      <div><dt>完整驗證</dt><dd>final-v3 · PASS · 690.043s／4 workers</dd></div>
+    </dl>
+    <nav aria-label="報告章節"><a href="#tests-final">當前驗證</a><a href="#performance-final">新版正式效能</a><a href="#artifacts-final">交付產物</a><a href="#implementation">實作摘要</a><a href="#limits">限制</a><a href="#history">歷史與方法校正</a></nav>
+    <p class="note">本機驗證完成：final-v3 完整 npm、封裝、paired-v3 正式效能、完整 GUI v5、原生確認 v3 與 14 張 Codex 視覺檢查均通過，受測同一 <code>6a8176b4…</code> VSIX。<a href="verification.json">verification.json</a>由原始證據生成，122／122 檢查 PASS；歷史失敗保留，不改寫為成功。本次未使用真實 GitLab credentials，真實伺服器驗證為 NOT_RUN。</p>
+  </header>
+  <section id="tests-final">
+    <div class="section-label">01 · 當前驗證</div>
+    <h2>新版完整測試與封裝通過</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">驗證項目</th><th scope="col">新版狀態</th><th scope="col">證據範圍</th></tr></thead>
+      <tbody>
+        <tr><td>Unit tests</td><td class="ok">360／360 通過</td><td><a href="evidence/validation-v3/unit.log">final-v3 unit log</a>。</td></tr>
+        <tr><td>Browser behavior</td><td class="ok">105／105 通過</td><td><a href="evidence/validation-v3/behavior-node.log">final-v3 Browser log</a>；含 Git 預檢終態、open／refresh 重試與 Skills 連續 35 次快照回歸。</td></tr>
+        <tr><td>Extension Host</td><td class="ok">13 passing／2 opt-in pending</td><td><a href="evidence/validation-v3/extension.log">真實 VS Code 1.90 Host</a>；stage 20.072 秒、exit 0。有 1 條原生 label model 警告，詳見<a href="#host-environment-v3">紀錄</a>。</td></tr>
+        <tr><td>Issue／Connect BDD</td><td class="ok">30／140 與 10／35 通過</td><td><a href="evidence/validation-v3/behavior-issues.log">Issue：30 scenarios／140 steps</a>；<a href="evidence/validation-v3/behavior-connect.log">Connect：10 scenarios／35 steps</a>。</td></tr>
+        <tr><td>Release tooling</td><td class="ok">34／34 通過</td><td><a href="evidence/validation-v3/release-tooling.log">final-v3 release tooling log</a>。</td></tr>
+        <tr><td>Python release suites</td><td class="ok">14 suites 成功；208 通過／1 skip</td><td>209 個 unittest 案例；<a href="evidence/validation-v3/release-output_style.log">symbolic link 因 WinError 1314 跳過 1 項</a>，無失敗；<a href="evidence/validation-v3/">各 suite logs</a>。</td></tr>
+        <tr><td>編譯、types、Webviews／kit build</td><td class="ok">PASS</td><td><a href="evidence/validation-v3/compile.log">compile</a> · <a href="evidence/validation-v3/typecheck-webview.log">types</a> · <a href="evidence/validation-v3/build-dashboard.log">dashboard</a> · <a href="evidence/validation-v3/build-sidebar.log">sidebar</a> · <a href="evidence/validation-v3/build-kit.log">kit</a>。</td></tr>
+        <tr><td>Git lifecycle-only 終態與重試</td><td class="ok">PASS（包含於 105 項 Browser）</td><td>只有預檢失敗回執時會釋放等待、保留輸入並允許重試；舊終態不清掉新 owner。初始 open、取消與全域重試也有回歸驗收。</td></tr>
+        <tr><td>完整 npm／release／package</td><td class="ok">PASS · 690.043s／4 workers／30 stages</td><td><a href="evidence/validation-v3/timings.json">timings.json</a> · <a href="evidence/validation-v3/prepared.json">prepared.json</a> · <a href="evidence/validation-v3/verify-package.log">產物驗證</a>。</td></tr>
+        <tr><td>成對正式效能 v3</td><td class="ok">8 類首次回饋／4 項回歸 gate／8 smoke PASS</td><td><a href="evidence/baseline-v3/baseline.json">baseline-v3</a> · <a href="evidence/revision-v3/revision.json">revision-v3</a>；兩版各 800 feedback、300 導覽與 300 搜尋採樣。</td></tr>
+        <tr><td>原生確認與未知寫入 GUI</td><td class="ok">PASS · VS Code 1.142.0</td><td><a href="evidence/git-gui-native-v3/git-gui-local-native.json">native-v3 JSON</a>；33.64544 秒、cold-start 記錄 220.53ms，受測同一 <code>6a8176b4…</code>。</td></tr>
+        <tr><td>完整本機 Git GUI v5</td><td class="ok">PASS · VS Code 1.90.0／exit 0</td><td><a href="evidence/git-gui-final-v5/git-gui-local.json">v5 JSON</a> · <a href="evidence/git-gui-final-v5-run.log">run log</a>；6 passing、1 opt-in pending，cold-start 記錄 248.01ms。7 項相容性、5 段 60 秒閒置與進階操作全部通過。</td></tr>
+        <tr><td>Codex 視覺檢查</td><td class="ok">14／14 PASS</td><td><a href="evidence/visual-qa-v3.json">visual-qa-v3.json</a>；6 張正式量測與 8 張原生 UI 圖片逐一以 view_image 檢視，非真人審查。</td></tr>
+        <tr><td>原始證據交叉驗證</td><td class="ok">PASS_LOCAL_VALIDATION · 122／122</td><td><a href="verification.json">verification.json</a>；核對實際 suite totals、fresh prepared receipts、相同 artifact SHA、原始效能樣本、GUI trace 與視覺實檔。</td></tr>
+      </tbody>
+    </table></div>
+    <details class="checks" id="native-v3-evidence"><summary>原生未知寫入驗收：Push 1 → 2 → 2 → 2，唯讀 refresh 與真實核對 modal</summary>
+      <p><a href="evidence/git-gui-native-v3/git-gui-local-native.json">原生 GUI 結果</a>與<a href="evidence/git-gui-native-v3/native-vscode-git-trace2.jsonl">Git trace2 原始紀錄</a>證實 stale lease 被拒絕後保留寫入鎖、允許唯讀 refresh；refresh 實際執行 Git status 並 exit 0。Push 次數依序為 1 → 2 → 2 → 2，沒有因刷新或核對而自動重送。</p>
+      <p>測試 driver 在真實 Workbench DOM modal 點擊「已確認未執行」，只更新回執並解除鎖；本機與遠端 SHA 均維持核對前的值。這是實際 UI 互動，非真人輸入。Commit、Push、Force Push、unknown／refresh／結果核對及解除畫面已包含於 14 張 Codex 視覺檢查。</p>
+    </details>
+    <details class="checks" id="regular-gui-v5-evidence"><summary>完整 GUI v5：5×60 秒零 extension 活動、7 項相容性與進階操作</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">閒置階段</th><th scope="col" class="numeric">實際時間</th><th scope="col" class="numeric">Extension commands／aux／native API 增量</th><th scope="col" class="numeric">VS Code 原生 Git 背景增量</th></tr></thead>
+        <tbody>
+          <tr><td>open</td><td class="numeric">60,011 ms</td><td class="numeric">0／0／0</td><td class="numeric">0</td></tr>
+          <tr><td>select-file</td><td class="numeric">60,004 ms</td><td class="numeric">0／0／0</td><td class="numeric">0</td></tr>
+          <tr><td>stage</td><td class="numeric">60,013 ms</td><td class="numeric">0／0／0</td><td class="numeric">3</td></tr>
+          <tr><td>commit</td><td class="numeric">60,006 ms</td><td class="numeric">0／0／0</td><td class="numeric">0</td></tr>
+          <tr><td>hidden</td><td class="numeric">60,005 ms</td><td class="numeric">0／0／0</td><td class="numeric">0</td></tr>
+        </tbody>
+      </table></div>
+      <p class="small">五段 extension 指令、輔助指令及 native API 增量皆為 0；VS Code 內建 Git 在 stage 閒置段有 3 次背景活動，獨立列示，不算成本 extension 輪詢。</p>
+      <p>7 項相容性全部 PASS：annotated／lightweight tags、detached HEAD、empty Repo、快速切換、linked worktree、submodule，以及 Webview 銷毀後還原草稿。</p>
+      <p>進階操作全部 PASS：Stash save／pop／drop 與 discard 復原點；Fetch／Pull；互動 Rebase 的 pick、reword、edit、squash、fixup、drop 及 pause／continue；Amend；成功 Force-with-lease；Merge 與 parent Diff；Revert／Cherry-pick。</p>
+      <p>最後的 stale lease 保持 <code>failed/effect=unknown</code>：寫入停用、唯讀 refresh 實際執行且沒有重送 Push，本機與遠端 SHA 保持各自核對值。此一般 GUI run 保留未知鎖；真實 modal 解除由 native-v3 另行驗證。</p>
+      <p class="note caution">1.90 Extension Host 測試中的 Commit／Push 決策使用 test adapter，raw report 將 interactiveConfirmationUI 明列 BLOCKED；此部分沒有冒充真實 modal。1.142.0 standalone native-v3 以真實 Workbench DOM 點擊 Commit／Push／Force Push／結果核對，補足實際對話框驗證。</p>
+      <p><a href="evidence/git-gui-final-v5/screenshots/local-git-gui.png">完整 GUI v5 最後狀態截圖</a>亦已由 Codex 額外目視通過；這張不併入既有 14 張正式量測／原生 UI 的視覺契約。</p>
+    </details>
+    <details class="checks"><summary>可重現命令與 fixture 來源</summary>
+      <p>在 repository 根目錄、已具備 Node dependencies、編譯輸出及本次 VSIX 的 Windows 環境執行。v5 driver 由<a href="evidence/prepare-workspace-scope-driver.mjs">保存的準備程式</a>重建，<a href="evidence/git-gui-final-v5/fixture-scope-correction.json">scope manifest</a>記錄固定四處允許變換、canonical／corrected bytes 與保留的 v4 FAIL；產品、tests、scripts 與 60 秒閒置斷言不變。</p>
+      <pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>node docs/work/work-20261017-operation-state/evidence/prepare-workspace-scope-driver.mjs
+$env:VSCODE_EXECUTABLE_PATH = (Resolve-Path '.vscode-test/vscode-win32-x64-archive-1.90.0/Code.exe').Path
+node docs/work/work-20261017-operation-state/evidence/git-gui-final-v5/fixture-driver.mjs --local-git-gui --vsix dist/gitlab-workspace-0.25.0.vsix --evidence-dir docs/work/work-20261017-operation-state/evidence/git-gui-final-v5</code></pre>
+      <p>真實 modal 的 standalone 使用安裝版 VS Code 1.142.0。以下環境變數指向該版本，再執行原生確認流程：</p>
+      <pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>$env:VSCODE_EXECUTABLE_PATH = Join-Path $env:LOCALAPPDATA 'Programs/Microsoft VS Code/Code.exe'
+node scripts/run-live-extension-tests.mjs --local-git-gui --native-confirmation --vsix dist/gitlab-workspace-0.25.0.vsix --evidence-dir docs/work/work-20261017-operation-state/evidence/git-gui-native-v3</code></pre>
+      <p>原始證據與 Codex 視覺 receipt 齊備後，使用下列命令重新交叉驗證。缺檔、失敗狀態、過期 preparation 或 artifact SHA 不符都會非零結束；程式不會代為執行測試或核准視覺檢查。</p>
+      <pre style="white-space:pre-wrap;overflow-wrap:anywhere"><code>node docs/work/work-20261017-operation-state/evidence/generate-verification.mjs</code></pre>
+    </details>
+  </section>
+  <section id="performance-final">
+    <div class="section-label">02 · 新版正式效能</div>
+    <h2>首次回饋 8 類通過，回歸比較皆符合 10% 上限</h2>
+    <p class="note">正式 <a href="evidence/baseline-v3/baseline.json">baseline-v3</a> 與 <a href="evidence/revision-v3/revision.json">revision-v3</a> 各完成 10 輪、每輪 30 筆導覽及搜尋，另有 8 類操作各 100 筆首次回饋。修正版 800／800 筆採樣完整，8 類 P95 皆在 100ms 內；兩版各 8 項 smoke 通過。所有 round、case 與 smoke 的 runtime errors／blocked network requests 均為 0。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">首次可見回饋（各 100 筆）</th><th scope="col" class="numeric">Baseline v3 P95</th><th scope="col" class="numeric">Revision v3 P95</th><th scope="col">修正版驗收</th></tr></thead>
+      <tbody>
+        <tr><td>側欄導覽</td><td class="numeric bad">195.0 ms</td><td class="numeric">34.3 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>選取 Issue</td><td class="numeric">34.1 ms</td><td class="numeric">34.2 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>選取 MR</td><td class="numeric">34.6 ms</td><td class="numeric">34.2 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>更新資料</td><td class="numeric">34.8 ms</td><td class="numeric">34.3 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>檢查 Skills</td><td class="numeric bad">195.1 ms</td><td class="numeric">34.4 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>送出帳號驗證</td><td class="numeric">29.5 ms</td><td class="numeric">29.4 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>Git 讀取</td><td class="numeric">34.2 ms</td><td class="numeric">34.3 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>Git 寫入</td><td class="numeric">34.3 ms</td><td class="numeric">34.6 ms</td><td class="ok">100／100，PASS</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">回歸指標</th><th scope="col" class="numeric">Baseline v3</th><th scope="col" class="numeric">Revision v3</th><th scope="col">差異／驗收</th></tr></thead>
+      <tbody>
+        <tr><td>暖啟導覽 P95</td><td class="numeric">28.6 ms</td><td class="numeric">30.6 ms</td><td class="ok">+6.993%，PASS</td></tr>
+        <tr><td>Repo 搜尋 P95</td><td class="numeric">33.3 ms</td><td class="numeric">31.3 ms</td><td class="ok">−6.006%，PASS</td></tr>
+        <tr><td>Renderer retained heap P95</td><td class="numeric">6,787,056 B</td><td class="numeric">7,160,184 B</td><td class="ok">+5.498%，PASS</td></tr>
+        <tr><td>Renderer retained heap 最大值</td><td class="numeric">6,787,124 B</td><td class="numeric">7,160,256 B</td><td class="ok">+5.498%，PASS</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">首次回饋的主要改善出現在側欄導覽與 Skills 檢查；其餘操作維持約 29–35ms。暖啟導覽與 retained heap 有上述增加，均在既定 10% 回歸上限內；不將全部指標描述為加速或減量。</p>
+    <h3 style="margin-top:24px">Mock Host 完成時間獨立列示</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">操作</th><th scope="col" class="numeric">Baseline mock 完成 P95</th><th scope="col" class="numeric">Revision mock 完成 P95</th></tr></thead>
+      <tbody>
+        <tr><td>側欄導覽</td><td class="numeric">231.2 ms</td><td class="numeric">230.0 ms</td></tr>
+        <tr><td>選取 Issue</td><td class="numeric">230.8 ms</td><td class="numeric">231.3 ms</td></tr>
+        <tr><td>選取 MR</td><td class="numeric">230.1 ms</td><td class="numeric">232.9 ms</td></tr>
+        <tr><td>更新資料</td><td class="numeric">230.9 ms</td><td class="numeric">230.8 ms</td></tr>
+        <tr><td>檢查 Skills</td><td class="numeric">232.0 ms</td><td class="numeric">231.8 ms</td></tr>
+        <tr><td>送出帳號驗證</td><td class="numeric">230.4 ms</td><td class="numeric">233.1 ms</td></tr>
+        <tr><td>Git 讀取</td><td class="numeric">229.8 ms</td><td class="numeric">230.7 ms</td></tr>
+        <tr><td>Git 寫入</td><td class="numeric">229.7 ms</td><td class="numeric">231.3 ms</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note caution">Mock acknowledgement 固定 160ms、completion 固定 220ms。完成時間包含這些人為延遲與排程，不能視為 GitLab API、網路或遠端寫入變快。首次回饋以腳本 DOM click capture 起算，到對應選取／停用／進度後等待一個 requestAnimationFrame；導覽與搜尋從瀏覽器內先建立的 DOM observer 等待兩個 requestAnimationFrame，不包含原生輸入送達時間。</p>
+    <details class="checks"><summary>正式方法、環境與證據識別</summary>
+      <p>methodVersion：<code>browser-capture-readiness/v2</code>。兩版使用同一 20 Repo fixture、Windows x64／Node v24.21.0／Chromium 155.0.8059.80。Driver 僅等待瀏覽器內已啟動的 readiness promise；搜尋核對輸入值與有序 Repo 路徑。記憶體取 GC 後的 Runtime.getHeapUsage，包含父頁及兩個同源 Webview。影格排程、GC、儀器與機器負載仍可能產生雜訊。</p>
+      <p class="small"><a href="evidence/harness-v2.mjs">harness SHA-256</a>：<span class="hash">014a198fbf2a0da93cb6a740b9df0b0e96be3180a61a0fd290379c3f172fc962</span><br>fixture SHA-256：<span class="hash">645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9</span></p>
+      <p class="small">原始 baseline VSIX SHA-256：<span class="hash">dd1194e9266441f25c66d2355cc487890d5e38cb4eb90d17a93868eae18433dd</span><br>revision VSIX SHA-256：<span class="hash">6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7</span></p>
+      <p class="small"><a href="evidence/baseline-v3/baseline.json">baseline-v3 JSON SHA-256</a>：<span class="hash">8f7fadfb4b956816e2532d50f2e988313c551d5f3fb65da9e7818040e1e4054e</span><br><a href="evidence/revision-v3/revision.json">revision-v3 JSON SHA-256</a>：<span class="hash">4fbfa22aed78f0bb6aeeb3695c1771bf8bcb1befe0c5116ee223dd388ac04502</span>。未重採樣或改 gate；先前失敗與 v2 紀錄另行保留。</p>
+    </details>
+  </section>
+  <section id="artifacts-final">
+    <div class="section-label">03 · 新版交付產物</div>
+    <h2>新版封裝與完整驗證 receipt</h2>
+    <div class="artifact-list">
+      <article class="artifact"><h3>新版 VSIX</h3><a href="../../../dist/gitlab-workspace-0.25.0.vsix">gitlab-workspace-0.25.0.vsix</a><p>5,608,018 bytes；SHA-256：</p><p class="hash">6a8176b43b9a8ce8a2278b1f722eba508541d9fd77606aa8da163da9efa107c7</p></article>
+      <article class="artifact"><h3>新版 kit／清單</h3><a href="../../../dist/gitlab-workspace-kit-0.25.0.zip">gitlab-workspace-kit-0.25.0.zip</a> · <a href="../../../dist/SHA256SUMS">SHA256SUMS</a><p>kit SHA-256（內容維持不變）：</p><p class="hash">73c12ab95eaf25f6a7ca05cda176601f47178e51bddb3709d4aab3e92f07ce4e</p></article>
+      <article class="artifact"><h3>完整 final-v3 證據</h3><a href="evidence/validation-v3/timings.json">timings.json</a> · <a href="evidence/validation-v3/prepared.json">prepared.json</a><p><a href="evidence/validation-v3/">30 個 stage 的完整 logs</a>；歷史候選保留於後段摺疊紀錄。</p></article>
+      <article class="artifact"><h3>正式效能／GUI／視覺證據</h3><a href="evidence/baseline-v3/baseline.json">baseline-v3</a> · <a href="evidence/revision-v3/revision.json">revision-v3</a> · <a href="evidence/git-gui-final-v5/git-gui-local.json">GUI v5</a> · <a href="evidence/git-gui-native-v3/git-gui-local-native.json">native-v3</a> · <a href="evidence/visual-qa-v3.json">visual-qa-v3</a><p>皆對應本節 VSIX SHA；<a href="verification.json">122／122 證據檢查 PASS</a>。<a href="evidence/packaged-content-identity.json">80 個直接複製檔逐 byte 一致</a>，0 mismatch／0 missing；排除 VSCE 轉換 README 與封裝 metadata。</p></article>
+    </div>
+    <p class="small">Base commit：<span class="hash">8cb5b1182fcd6d1c678b7ba4ec0e80ee8796ce4d</span> 加上未提交 worktree。final-v3 輸入 fingerprint：<br><span class="hash">7834e7c62215d13b09a799995ffdf62f1f8b5271430aff42fc4ae89ea63e309c</span><br>輸出 fingerprint：<br><span class="hash">9bb63dfb2baa111648f3e4e941f978baee5274f1a1602cab1d6889cd209d15ec</span></p>
+    <h3 style="margin-top:24px">Revision v3 畫面（6／6 Codex 視覺檢查 PASS）</h3>
+    <div class="gallery">
+      <figure><a href="evidence/revision-v3/revision-1440-skills.png"><img src="evidence/revision-v3/revision-1440-skills.png" alt="Revision v3：1440×900 Skills 畫面" loading="lazy"></a><figcaption>1440×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/revision-v3/revision-1440-settings.png"><img src="evidence/revision-v3/revision-1440-settings.png" alt="Revision v3：1440×900 設定畫面" loading="lazy"></a><figcaption>1440×900 · 設定</figcaption></figure>
+      <figure><a href="evidence/revision-v3/revision-800-projects.png"><img src="evidence/revision-v3/revision-800-projects.png" alt="Revision v3：800×900 專案畫面" loading="lazy"></a><figcaption>800×900 · 專案</figcaption></figure>
+      <figure><a href="evidence/revision-v3/revision-800-skills.png"><img src="evidence/revision-v3/revision-800-skills.png" alt="Revision v3：800×900 Skills 畫面" loading="lazy"></a><figcaption>800×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/revision-v3/revision-800-highcontrast-projects.png"><img src="evidence/revision-v3/revision-800-highcontrast-projects.png" alt="Revision v3：800×900 高對比專案畫面" loading="lazy"></a><figcaption>800×900 · 高對比專案</figcaption></figure>
+      <figure><a href="evidence/revision-v3/revision-800-highcontrast-skills.png"><img src="evidence/revision-v3/revision-800-highcontrast-skills.png" alt="Revision v3：800×900 高對比 Skills 畫面" loading="lazy"></a><figcaption>800×900 · 高對比 Skills</figcaption></figure>
+    </div>
+  </section>
+  <section id="goal">
+    <div class="section-label">04 · 目標與驗收方向</div>
+    <h2>統一操作生命週期，縮短首次可見回饋</h2>
+    <ul>
+      <li>操作後立即反映選取、按鈕狀態或進度；相同請求可共用處理，同一寫入資源維持互斥。</li>
+      <li>讀取與寫入都有可對帳的結果；切換帳號、Group、專案或選取項目後，過期回應不覆蓋目前內容。</li>
+      <li>保留編輯草稿與未確認寫入；將「操作已套用，但重新載入失敗」與「尚未確認是否寫入」分別呈現。</li>
+      <li>以封裝後的 UI 與隔離測試驗證行為，並將首次回饋時間與 mock Host 完成時間分開量測。</li>
+    </ul>
+  </section>
+  <section id="implementation">
+    <div class="section-label">05 · 實作摘要</div>
+    <h2>三層狀態各有責任，共用操作規則</h2>
+    <div class="tiers">
+      <article class="tier"><span class="number">01 · UI 狀態</span><h3>使用者當下的操作</h3><p>分頁、抽屜、搜尋條件、目前選取與輸入草稿保留在 UI；純本機互動立即更新，避免不必要的全頁等待。</p></article>
+      <article class="tier"><span class="number">02 · Operation 狀態</span><h3>請求生命週期</h3><p>共用 ActionController 與 policy，管理排隊、執行、成功、失敗、取消、資源互斥、重試及待確認寫入。</p></article>
+      <article class="tier"><span class="number">03 · Domain 資料</span><h3>實際業務結果</h3><p>Repo、Issue、MR、帳號、Skills 與工時保留各自資料與版本；Host 回執和快照負責將實際結果送回 UI。</p></article>
+    </div>
+    <div class="changes">
+      <article><h3>單一 action policy</h3><p>明確分類 local、read、write 與 control，宣告資源、並行規則、通知及重試能力。最新選取優先、相同讀取共用、寫入互斥使用同一套規則；共用讀取時沿用實際 correlation ID。</p></article>
+      <article><h3>共享 Host 與回執</h3><p>工作台、Issue、側欄與命令入口共用一個 tracker。預檢拒絕也有終態；同一 operation ID 不重複執行，回執可重播。快照附 session、revision 與操作範圍，可重新對帳遺漏回執。</p></article>
+      <article><h3>立即回饋與局部更新</h3><p>操作狀態同步建立，控制項依自身資源更新。refresh 與 MR 各自持有 busy owner；Clone 百分比更新以 150ms 合併，開始與終態立即送出。Skills 呈現等待、檢查、驗證及安裝階段。</p></article>
+      <article><h3>候選一量測後的修正</h3><p>修正 core history 保留、快照批次套用與 Feedback 延後重播；Git 在送出前登記請求，避免同步 Host 回覆被丟棄或完成後重掛 pending。Git／Issue 以資源篩選訂閱，側欄改用局部 selector 與穩定摘要，減少無關重繪。</p></article>
+      <article><h3>範圍與資源一致性</h3><p>使用 connection epoch、帳號／Group 與專案 revision 隔離操作；過期讀取取消。Issue 由 Host 正規化 project／iid，讓編輯與關係操作共用同一資源鎖。</p></article>
+      <article><h3>草稿與未知寫入</h3><p>保留原提交文字、草稿與 correlation；MR 留言與回覆在失敗或 <code>effect=unknown</code> 時保留。確認成功只清除對應的已提交文字，保留送出後的新編輯。未知結果先阻擋重送，再以 MR 標記、工時確認或原生人工核對取得明確結果；Host 重啟後只匯入已人工確認的回執 metadata。</p></article>
+      <article><h3>真實結果與失敗恢復</h3><p>Scan、Clone、Sync 的錯誤、取消及部分完成對應實際結果。已套用寫入若重新載入失敗，保留 <code>effect=applied</code> 與 <code>refreshError</code>；使用者可以重新載入資料，無須再次寫入。</p></article>
+    </div>
+  </section>
+  <section id="limits">
+    <div class="section-label">06 · 解讀限制</div>
+    <h2>量測範圍與未執行項目</h2>
+    <ul>
+      <li><strong>固定 mock 延遲為 acknowledgement 160ms、completion 220ms。</strong> 完成時間包含人為 Host 延遲與排程，不能解讀為 GitLab API、網路、Git 或遠端寫入完成時間，也不能據此宣告遠端效能提升。</li>
+      <li>封裝 UI 量測使用 VSIX 內的實際 Webview assets 與隔離 mock Host；該效能採樣沒有執行真正的 VS Code Extension Host、GitLab、Git 操作或 Codex。Extension Host 與本機 Git GUI 的驗證證據另列。</li>
+      <li>新版 final-v3 的 Extension Host 結果為 13 passing、2 項 opt-in pending：一項是另行執行的本機 Git GUI，另一項需要真實 GitLab 認證與 CDP。本次沒有真實 GitLab credentials，該真實伺服器案例未執行；未驗證真實權限、遠端網路延遲及遠端寫入成功率。</li>
+      <li>新版 Host log 有 1 條 <code>Invalid model for label change, rebuilding</code> 環境警告；13 個案例通過且 stage exit 0，共 20.072 秒。新版未出現候選三的 fileWatcher EPERM／utility crash 訊息；不將全 log 宣稱為零警告。</li>
+      <li>候選三 Host 的 13 個案例皆通過、exit code 0；VS Code 1.90 原生 fileWatcher 有 EPERM 與 utility crash（−1073741819）訊息，不能將整份 log 宣稱為零警告。本機 Git GUI 以獨立 profile 另驗 native watcher、閒置與快速切換。</li>
+      <li>高對比採用 VS Code body class 與 theme tokens 模擬；自動版面與鍵盤檢查不等同作業系統輔助技術驗證。v3 的 6 張正式量測及 8 張原生 UI 圖片均已由 Codex 視覺檢查通過，非真人審查。</li>
+      <li>未知寫入的人工確認只更新操作回執；使用者必須先核對原 GitLab／Repo。系統不藉此重新執行原操作。</li>
+      <li>報告中的目視檢查由 Codex 透過影像檢視完成，並非真人審查。產品的手動確認場景由測試 driver 在真實 Workbench DOM 對話框點擊，並非真人輸入；驗證的是實際 UI 入口與回執行為。</li>
+    </ul>
+    <p class="note">最終交付判定：<span class="ok">PASS_LOCAL_VALIDATION</span>。新版完整 npm、封裝、paired-v3 正式效能、完整 GUI v5、native-v3 與 14 張 Codex 視覺檢查均通過，122／122 證據交叉檢查成功。此結論涵蓋本機與隔離 mock／bare remote；真實 GitLab 伺服器驗證為 NOT_RUN。</p>
+  </section>
+  <section id="history">
+    <div class="section-label">07 · 歷史與方法校正</div>
+    <h2>保留失敗與診斷證據，與最終驗收分開</h2>
+    <p class="small">下列為過程紀錄。候選一的正式 FAIL 不改判；候選二診斷不替代正式 v2 gate，也不與舊 baseline 交叉計算改善幅度。</p>
+    <details class="checks" id="regular-gui-v4-scope"><summary>完整 GUI v4 FAIL 保留：docs fixture 修正 workspace 範圍後，v5 完整重跑 PASS</summary>
+      <p><a href="evidence/git-gui-final-v4/git-gui-local.json">v4 JSON</a>與<a href="evidence/git-gui-final-v4-run.log">原始 run log</a>保留 FAIL（5 passing、1 pending、1 failing）：空 Repo 的 native API 回傳 null。唯讀檢查本機 1.90 原生 Git source 後，確認 never 設定會拒絕 service workspace 外的 sibling Repo；此時產品尚未接手，不歸因為產品開啟空 Repo 的錯誤。</p>
+      <p>v5 僅將 docs fixture 的 <code>.code-workspace</code> folder 由 service 改為 demoRoot，使隔離 sibling Repo 都在測試 workspace 範圍內；never 設定、out／tests、60 秒閒置斷言、VSIX、產品及 scripts 均維持凍結。<a href="evidence/git-gui-final-v5/fixture-scope-correction.json">fixture 修正 manifest</a>維持 PREPARED setup receipt，另以<a href="evidence/git-gui-final-v5/git-gui-local.json">v5 原始結果 PASS</a>證明完整實跑；獨立 exact-byte 審計與 verifier 核對 canonical／corrected driver、允許變換及被保留的 v4 失敗雜湊。</p>
+    </details>
+    <details class="checks" id="host-environment-v3"><summary>final-v3 Host：13 passing／2 opt-in pending；1 條 label model 環境警告</summary>
+      <p><a href="evidence/validation-v3/extension.log">新版 Host log</a>記錄 13 passing（案例約 17 秒）、2 項 opt-in pending，stage exit 0、共 20.072 秒；有 1 條 <code>Invalid model for label change, rebuilding</code>。全文未出現舊候選三的 fileWatcher EPERM 或 utility crash；這次警告與歷史警告分開記錄，不宣稱全 log 零警告。</p>
+    </details>
+<details class="checks" id="candidate3-history"><summary>歷史候選三 7c018fba：full-v2／效能 v2／原生 GUI 通過；後續確認 Git 預檢終態缺口</summary>
+<p class="note caution">以下完整表格、產物 receipt 與截圖全部屬舊候選三 <code>7c018fba…</code>。原結果保留不改判，但不作為修正後 final-v3 的通過證據。</p>
+  <section id="candidate3-tests-final">
+    <div class="section-label">候選三 · full-v2 歷史測試</div>
+    <h2>候選三完整測試與封裝驗證通過</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">驗證項目</th><th scope="col">候選三 full-v2 結果</th><th scope="col">證據／範圍</th></tr></thead>
+      <tbody>
+        <tr><td>Extension Host</td><td class="ok">13 passing／2 opt-in pending</td><td><a href="evidence/validation-final/extension.log">最終 Host log</a>；2 項為本機 Git GUI 與真實 GitLab／CDP，後者未執行。</td></tr>
+        <tr><td>Unit tests</td><td class="ok">358／358 通過</td><td><a href="evidence/validation-final/unit.log">最終 unit log</a>；scope／session、去重、未知寫入、快照與資源鎖等。</td></tr>
+        <tr><td>Browser behavior</td><td class="ok">99／99 通過</td><td><a href="evidence/validation-final/behavior-node.log">最終 Browser log</a>；包含 Git 同步 Host 回覆與 Skills 連續 35 次完整快照／終態回執案例。</td></tr>
+        <tr><td>Issue BDD</td><td class="ok">30 scenarios／140 steps 通過</td><td><a href="evidence/validation-final/behavior-issues.log">最終 Issue BDD log</a></td></tr>
+        <tr><td>Connect BDD</td><td class="ok">10 scenarios／35 steps 通過</td><td><a href="evidence/validation-final/behavior-connect.log">最終 Connect BDD log</a></td></tr>
+        <tr><td>Release tooling</td><td class="ok">34／34 通過</td><td><a href="evidence/validation-final/release-tooling.log">最終 tooling log</a></td></tr>
+        <tr><td>Python release suites</td><td class="ok">14 suites 成功；208 通過／1 skip</td><td>209 個 unittest 案例；output style 的 symbolic link 案例因 WinError 1314 跳過；<a href="evidence/validation-final/">最終各 suite logs</a>。</td></tr>
+        <tr><td>編譯、types、Webviews／kit build</td><td class="ok">PASS</td><td><a href="evidence/validation-final/compile.log">compile</a> · <a href="evidence/validation-final/typecheck-webview.log">types</a> · <a href="evidence/validation-final/build-dashboard.log">dashboard</a> · <a href="evidence/validation-final/build-sidebar.log">sidebar</a> · <a href="evidence/validation-final/build-kit.log">kit</a></td></tr>
+        <tr><td>完整 npm／release／package 驗證</td><td class="ok">PASS · 786.275s／4 workers</td><td><a href="evidence/validation-final/timings.json">最終 timings.json</a> · <a href="evidence/validation-final/verify-package.log">最終產物驗證 log</a></td></tr>
+        <tr><td>Codex 視覺檢查</td><td class="ok">6／6 已檢視，PASS</td><td>檢視全部最終 Revision v2 截圖，並對照 baseline v2 設定／專案；版面一致，未見新水平溢出、遮擋或樣式破壞。高對比為 fixture 模擬。</td></tr>
+        <tr><td>原生 Commit／Push 確認 GUI</td><td class="ok">PASS · VS Code 1.142.0</td><td><a href="evidence/git-gui-native/git-gui-local-native.json">原生確認結果</a>；當時候選三 <code>7c018fba…</code>、隔離 local bare remote，3 張確認／完成截圖均已由 Codex 視覺檢查。</td></tr>
+        <tr><td>完整本機 Git GUI</td><td class="todo">待 fixture 修正後重跑</td><td>保留 WebSocket、未知結果等待與 bootstrap revision 競態的原始失敗；下一輪以 workspace 容器避免測試自行重啟 Host。詳見<a href="#git-gui-environment">失敗紀錄與重跑條件</a>。</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">最終 logs 已保存於 <a href="evidence/validation-final/">evidence/validation-final</a>，與候選一的 <code>evidence/validation</code> 分開。<a href="evidence/validation-final/prepared.json">prepared.json</a> 保存輸入與輸出 fingerprint。Opt-in pending 不計為已通過；Host log 含原生 fileWatcher 環境警告，詳見<a href="#host-environment">診斷紀錄</a>。</p>
+    <details class="checks"><summary>14 組 Python release suite 的案例數與紀錄</summary>
+      <div class="table-wrap"><table><thead><tr><th scope="col">Suite</th><th scope="col" class="numeric">案例數</th><th scope="col">結果</th></tr></thead><tbody>
+        <tr><td><a href="evidence/validation-final/release-delivery-overlay.log">Delivery overlay</a></td><td class="numeric">27</td><td>27 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-group_workflow.log">Group workflow</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-local_review_targets.log">Local review targets</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-megin-overlay.log">Megin overlay</a></td><td class="numeric">56</td><td>56 通過；另含 discovery rules、material checker 與 all-local-Repo fixture 檢查通過。</td></tr>
+        <tr><td><a href="evidence/validation-final/release-megin_discovery.log">Megin discovery</a></td><td class="numeric">1</td><td>1 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-megin_spec_export.log">Megin spec export</a></td><td class="numeric">5</td><td>5 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-output_style.log">Output style</a></td><td class="numeric">3</td><td>2 通過、1 skip：Windows 缺少建立 symbolic link 的權限（WinError 1314）。</td></tr>
+        <tr><td><a href="evidence/validation-final/release-release_manager.log">Release manager</a></td><td class="numeric">35</td><td>35 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-release_reviewer_integration.log">Release reviewer integration</a></td><td class="numeric">7</td><td>7 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-tool_installer.log">Tool installer</a></td><td class="numeric">18</td><td>18 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-workflow_kit_installer.log">Workflow kit installer</a></td><td class="numeric">12</td><td>12 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-workflow_kit_profiles.log">Workflow kit profiles</a></td><td class="numeric">16</td><td>16 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-workflow_kit_sources.log">Workflow kit sources</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation-final/release-workflow_kit_transactions.log">Workflow kit transactions</a></td><td class="numeric">20</td><td>20 通過</td></tr>
+        <tr><td><strong>合計（14 組）</strong></td><td class="numeric"><strong>209</strong></td><td><strong>208 通過、1 skip，無失敗。</strong></td></tr>
+      </tbody></table></div>
+    </details>
+  </section>
+  <section id="candidate3-performance-final">
+    <div class="section-label">候選三 · 正式 v2 歷史效能</div>
+    <h2>候選三首次回饋 8 類通過，回歸比較符合上限</h2>
+    <p class="note">正式 <a href="evidence/baseline-v2/baseline.json">baseline-v2</a> 與 <a href="evidence/revision-v2/revision.json">revision-v2</a> 各完成 800 筆首次回饋、300 筆暖啟導覽與 300 筆 Repo 搜尋。修正版 8 類首次回饋皆通過 100ms P95 目標，4 項回歸指標皆在 10% 上限內；兩版各 8 項 smoke 通過，runtime errors 與網路錯誤均為 0。</p>
+    <p><a href="evidence/harness-v2.mjs">v2 harness</a> 的 methodVersion 為 <code>browser-capture-readiness/v2</code>：在瀏覽器內的操作 capture 階段先建立匹配 DOM observer 與兩個 requestAnimationFrame 的 promise，driver 只等待已啟動的 promise。Repo 搜尋同時核對輸入值與有序路徑，避免結果筆數相同即誤判 ready。</p>
+    <p class="small">兩版同用 Windows x64、Node v24.21.0、Chromium 155.0.8059.80、20 Repo fixture。v2 harness SHA-256：<span class="hash">014a198fbf2a0da93cb6a740b9df0b0e96be3180a61a0fd290379c3f172fc962</span>；fixture SHA-256：<span class="hash">645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9</span>。Baseline 與 revision 的資產／artifact hashes 均保存在各自 JSON。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">首次可見回饋（各 100 筆）</th><th scope="col" class="numeric">Baseline v2 P95</th><th scope="col" class="numeric">候選三 Revision v2 P95</th><th scope="col">驗收</th></tr></thead>
+      <tbody>
+        <tr><td>側欄導覽</td><td class="numeric bad">194.5 ms</td><td class="numeric">34.6 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>選取 Issue</td><td class="numeric">34.6 ms</td><td class="numeric">34.1 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>選取 MR</td><td class="numeric">34.7 ms</td><td class="numeric">34.3 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>更新資料</td><td class="numeric">34.6 ms</td><td class="numeric">34.5 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>檢查 Skills</td><td class="numeric bad">195.4 ms</td><td class="numeric">34.6 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>送出帳號驗證</td><td class="numeric">28.7 ms</td><td class="numeric">29.9 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>Git 讀取</td><td class="numeric">34.4 ms</td><td class="numeric">34.5 ms</td><td class="ok">100／100，PASS</td></tr>
+        <tr><td>Git 寫入</td><td class="numeric">34.2 ms</td><td class="numeric">34.3 ms</td><td class="ok">100／100，PASS</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">回歸指標</th><th scope="col" class="numeric">Baseline v2</th><th scope="col" class="numeric">候選三 Revision v2</th><th scope="col">差異／驗收</th></tr></thead>
+      <tbody>
+        <tr><td>暖啟導覽 P95</td><td class="numeric">28.1 ms</td><td class="numeric">30.0 ms</td><td class="ok">+6.762%，PASS</td></tr>
+        <tr><td>Repo 搜尋 P95</td><td class="numeric">33.2 ms</td><td class="numeric">31.4 ms</td><td class="ok">−5.422%，PASS</td></tr>
+        <tr><td>Renderer retained heap P95</td><td class="numeric">6,787,320 B</td><td class="numeric">7,149,740 B</td><td class="ok">+5.340%，PASS</td></tr>
+        <tr><td>Renderer retained heap 最大值</td><td class="numeric">6,787,380 B</td><td class="numeric">7,149,752 B</td><td class="ok">+5.339%，PASS</td></tr>
+        <tr><td>封裝 UI smoke</td><td class="numeric">8／8 PASS</td><td class="numeric">8／8 PASS</td><td class="ok">PASS</td></tr>
+        <tr><td>Runtime／網路錯誤</td><td class="numeric">0／0</td><td class="numeric">0／0</td><td class="ok">PASS</td></tr>
+      </tbody>
+    </table></div>
+    <h3 style="margin-top:24px">Mock Host 完成時間另列，不作遠端效能結論</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">操作</th><th scope="col" class="numeric">Baseline mock 完成 P95</th><th scope="col" class="numeric">Revision mock 完成 P95</th></tr></thead>
+      <tbody>
+        <tr><td>側欄導覽</td><td class="numeric">231.0 ms</td><td class="numeric">234.9 ms</td></tr>
+        <tr><td>選取 Issue</td><td class="numeric">230.8 ms</td><td class="numeric">232.5 ms</td></tr>
+        <tr><td>選取 MR</td><td class="numeric">230.9 ms</td><td class="numeric">231.8 ms</td></tr>
+        <tr><td>更新資料</td><td class="numeric">231.4 ms</td><td class="numeric">231.4 ms</td></tr>
+        <tr><td>檢查 Skills</td><td class="numeric">230.9 ms</td><td class="numeric">230.9 ms</td></tr>
+        <tr><td>送出帳號驗證</td><td class="numeric">232.5 ms</td><td class="numeric">232.6 ms</td></tr>
+        <tr><td>Git 讀取</td><td class="numeric">231.1 ms</td><td class="numeric">231.4 ms</td></tr>
+        <tr><td>Git 寫入</td><td class="numeric">229.8 ms</td><td class="numeric">234.1 ms</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">固定 mock acknowledgement 160ms、completion 220ms，完成量測包含人為延遲與排程，不能解讀為 GitLab API、網路或遠端寫入變快。首次回饋改善與上述 mock 完成時間分別驗收。兩版採樣使用相同 harness／fixture／browser；GC、影格排程與機器負載仍可能產生量測雜訊。</p>
+  </section>
+  <section id="candidate3-artifacts-final">
+    <div class="section-label">候選三 · 歷史封裝與來源</div>
+    <h2>候選三封裝與來源 fingerprint</h2>
+    <div class="artifact-list">
+      <article class="artifact"><h3>候選三 VSIX</h3><a href="evidence/revision-v2/candidate3.vsix">candidate3.vsix</a><p>5,607,335 bytes；SHA-256：</p><p class="hash">7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1</p></article>
+      <article class="artifact"><h3>候選三 kit 雜湊</h3><a href="evidence/validation-final/verify-package.log">當時產物驗證紀錄</a><p>歷史 kit SHA-256：</p><p class="hash">73c12ab95eaf25f6a7ca05cda176601f47178e51bddb3709d4aab3e92f07ce4e</p></article>
+      <article class="artifact"><h3>候選三完整驗證</h3><a href="evidence/validation-final/timings.json">timings.json</a> · <a href="evidence/validation-final/prepared.json">prepared.json</a><p><a href="evidence/validation-final/">候選三所有 logs</a>；完整 npm 786.275 秒、4 workers，status=success。</p></article>
+      <article class="artifact"><h3>正式效能與畫面</h3><a href="evidence/baseline-v2/baseline.json">baseline-v2 JSON</a> · <a href="evidence/revision-v2/revision.json">revision-v2 JSON</a><p><a href="evidence/revision-v2/">最終畫面證據</a>；首次回饋、4 項回歸 gate 與 8 項 smoke 通過；6／6 截圖Codex 視覺檢查通過。</p></article>
+    </div>
+    <p class="small">候選三 Base commit：<span class="hash">8cb5b1182fcd6d1c678b7ba4ec0e80ee8796ce4d</span> 加上當時未提交 worktree。full-v2 輸入 fingerprint：<br><span class="hash">319bf0abfd54a8c265358d1902b7f1d5dfdf4c540eec165c0cb6303e49ee7460</span><br>full-v2 輸出 fingerprint：<br><span class="hash">d53caafe33d88eba025a4d58d7a1153e2de7766878bae538a5b93026f48c25a3</span></p>
+    <p class="small">預檢產品修正前的 test-only 附驗另有<a href="evidence/harness-correction-prepared.json">before／after receipt</a>：修正後 inputs <span class="hash">2e08629716aa5702510b717e6d3de0f37febc1151b4903be756ec5d633dac674</span>、outputs <span class="hash">da691c69e8d0127048bc67526ad349322e7a1b83c72e0783d8ee8a5c47b6808c</span>，只描述當時候選三的 test-only 附驗。相同檔名的<a href="evidence/packaged-content-identity.json">封裝一致性報告</a>現已重新核對新版 <code>6a8176b4…</code> 的 80 個檔案，屬主區新版證據，不拿來替代候選三的歷史 receipt。</p>
+    <p class="small">候選一 SHA <code>783076…</code> 僅對應後段保存的 <code>candidate1.vsix</code>，不與本節可變動的 dist 連結配對。</p>
+    <h3 style="margin-top:24px">候選三 Revision v2 歷史畫面</h3>
+    <div class="gallery">
+      <figure><a href="evidence/revision-v2/revision-1440-skills.png"><img src="evidence/revision-v2/revision-1440-skills.png" alt="最終：1440×900 Skills 畫面" loading="lazy"></a><figcaption>1440×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/revision-v2/revision-1440-settings.png"><img src="evidence/revision-v2/revision-1440-settings.png" alt="最終：1440×900 設定畫面" loading="lazy"></a><figcaption>1440×900 · 設定</figcaption></figure>
+      <figure><a href="evidence/revision-v2/revision-800-projects.png"><img src="evidence/revision-v2/revision-800-projects.png" alt="最終：800×900 專案畫面" loading="lazy"></a><figcaption>800×900 · 專案</figcaption></figure>
+      <figure><a href="evidence/revision-v2/revision-800-skills.png"><img src="evidence/revision-v2/revision-800-skills.png" alt="最終：800×900 Skills 畫面" loading="lazy"></a><figcaption>800×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/revision-v2/revision-800-highcontrast-projects.png"><img src="evidence/revision-v2/revision-800-highcontrast-projects.png" alt="最終：800×900 高對比專案畫面" loading="lazy"></a><figcaption>800×900 · 高對比專案</figcaption></figure>
+      <figure><a href="evidence/revision-v2/revision-800-highcontrast-skills.png"><img src="evidence/revision-v2/revision-800-highcontrast-skills.png" alt="最終：800×900 高對比 Skills 畫面" loading="lazy"></a><figcaption>800×900 · 高對比 Skills</figcaption></figure>
+    </div>
+    <p class="small">已由 Codex 視覺檢查上述 6 張最終畫面，並對照 baseline v2 的設定與專案畫面；未見新水平溢出、遮擋或樣式破壞。高對比採 VS Code class／theme tokens fixture 模擬，不代表作業系統輔助技術驗證。</p>
+  </section>
+</details>
+<details class="checks"><summary>候選一：完整 npm 通過，但正式效能未達標（530／800；Skills 第 31 次停住；Git 0 筆）</summary>
+  <section id="tests">
+    <div class="section-label">03 · 測試驗證</div>
+    <h2>候選一完整測試通過，後續效能未達標</h2>
+    <p class="note caution">以下是候選一完整 npm 紀錄：測試與封裝通過，但後續正式效能未達標，屬歷史追溯資料。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">驗證項目</th><th scope="col">主要驗收內容</th><th scope="col">候選一結果</th><th scope="col">數量／證據</th></tr></thead>
+      <tbody>
+        <tr><td>編譯與型別檢查</td><td>Extension Host、Webview 與共用 protocol／policy 一致；Webview 與 kit 建置。</td><td class="ok">PASS</td><td><a href="evidence/validation/compile.log">編譯</a>、<a href="evidence/validation/typecheck-webview.log">types</a>、<a href="evidence/validation/build-dashboard.log">dashboard</a>、<a href="evidence/validation/build-sidebar.log">sidebar</a>、<a href="evidence/validation/build-kit.log">kit</a> 全數通過。</td></tr>
+        <tr><td>Unit tests</td><td>去重、scope／session、回執對帳、資源鎖、未知寫入、登入與秘密保護。</td><td class="ok">PASS</td><td><a href="evidence/validation/unit.log">351／351 通過</a>。</td></tr>
+        <tr><td>Browser behavior tests</td><td>立即回饋、連續點擊、joined correlation、過期回覆、草稿、未知寫入及局部恢復；包含新增 MR 留言／回覆草稿案例。</td><td class="ok">PASS</td><td><a href="evidence/validation/behavior-node.log">96／96 通過</a>。</td></tr>
+        <tr><td>Issue BDD</td><td>Issue 使用流程與行為情境。</td><td class="ok">PASS</td><td><a href="evidence/validation/behavior-issues.log">30 scenarios／140 steps 通過</a>。</td></tr>
+        <tr><td>Connect BDD</td><td>連線、帳號與驗證流程。</td><td class="ok">PASS</td><td><a href="evidence/validation/behavior-connect.log">10 scenarios／35 steps 通過</a>。</td></tr>
+        <tr><td>Release tooling tests</td><td>Release 工具與檢查流程的測試案例。</td><td class="ok">PASS</td><td><a href="evidence/validation/release-tooling.log">34／34 通過</a>。</td></tr>
+        <tr><td>Python release suites</td><td>14 組 installer、workflow、overlay、來源及整合驗證。</td><td class="ok">PASS</td><td>209 個 unittest 案例：208 通過、1 個環境限制 skip；詳見下方分組表。</td></tr>
+        <tr><td>Extension Host</td><td>隔離 VS Code Host 的啟動、命令、帳號、Repo 與工作台整合。</td><td class="ok">13 passing</td><td><a href="evidence/validation/extension.log">完整 npm run：13 項通過、2 項 opt-in pending</a>；<a href="evidence/validation/extension-host.json">VS Code 1.90.0 Host 設定</a>。</td></tr>
+        <tr><td>本機 Git GUI</td><td>隔離本機 Repo 的讀寫、取消、已套用結果及原生確認流程。</td><td>候選一完整 run 未啟用</td><td>後續獨立 fixture 與最終狀態見<a href="#git-gui-environment">GUI 驗證紀錄</a>。</td></tr>
+        <tr><td>封裝 UI smoke</td><td>1440／800 寬度、鍵盤操作、焦點、抽屜及高對比版面。</td><td class="ok">PASS：候選一</td><td>基準與<a href="evidence/revision/revision.json">候選一各 8 項通過</a>；最新結果見前段。</td></tr>
+        <tr><td>VSIX package／release checks</td><td>候選一封裝內容、來源驗證與 artifact 雜湊。</td><td class="ok">PASS</td><td><a href="evidence/validation/package.log">候選一封裝成功</a>；<a href="evidence/validation/verify-package.log">候選一 VSIX／kit payload 與 SHA256SUMS 一致</a>。</td></tr>
+        <tr><td>Extension Host opt-in 案例</td><td>一項為本機 Git GUI；另一項為需真實 GitLab 認證與 CDP 的整合案例。</td><td>Pending（2 項）</td><td>本機 Git GUI 將另行執行並記錄結果；真實 GitLab 案例未執行。兩項 pending 不計為已通過。</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">候選一完整 npm validation：<a href="evidence/validation/timings.json">timings.json</a> 記錄 <code>mode=all</code>、<code>status=success</code>、4 workers、686.248 秒及各階段命令／exit code；<a href="evidence/validation/prepared.json">prepared.json</a> 保存該候選輸入 fingerprint。<a href="evidence/validation/">完整 log 副本</a>與<a href="../../../.gitlab-workspace-validation/runs/2026-10-17-operation-state-delivery/">原始 run 目錄</a>可供追溯。上述成功狀態不涵蓋後續正式效能驗證。</p>
+    <details class="checks"><summary>14 組 Python release suite 的案例數與紀錄</summary>
+      <div class="table-wrap"><table><thead><tr><th scope="col">Suite</th><th scope="col" class="numeric">案例數</th><th scope="col">結果</th></tr></thead><tbody>
+        <tr><td><a href="evidence/validation/release-delivery-overlay.log">Delivery overlay</a></td><td class="numeric">27</td><td>27 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-group_workflow.log">Group workflow</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-local_review_targets.log">Local review targets</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-megin-overlay.log">Megin overlay</a></td><td class="numeric">56</td><td>56 通過；另含 discovery rules、material checker 與 all-local-Repo fixture 檢查通過。</td></tr>
+        <tr><td><a href="evidence/validation/release-megin_discovery.log">Megin discovery</a></td><td class="numeric">1</td><td>1 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-megin_spec_export.log">Megin spec export</a></td><td class="numeric">5</td><td>5 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-output_style.log">Output style</a></td><td class="numeric">3</td><td>2 通過、1 skip：Windows 缺少建立 symbolic link 的權限（WinError 1314）。</td></tr>
+        <tr><td><a href="evidence/validation/release-release_manager.log">Release manager</a></td><td class="numeric">35</td><td>35 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-release_reviewer_integration.log">Release reviewer integration</a></td><td class="numeric">7</td><td>7 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-tool_installer.log">Tool installer</a></td><td class="numeric">18</td><td>18 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-workflow_kit_installer.log">Workflow kit installer</a></td><td class="numeric">12</td><td>12 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-workflow_kit_profiles.log">Workflow kit profiles</a></td><td class="numeric">16</td><td>16 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-workflow_kit_sources.log">Workflow kit sources</a></td><td class="numeric">3</td><td>3 通過</td></tr>
+        <tr><td><a href="evidence/validation/release-workflow_kit_transactions.log">Workflow kit transactions</a></td><td class="numeric">20</td><td>20 通過</td></tr>
+        <tr><td><strong>合計（14 組）</strong></td><td class="numeric"><strong>209</strong></td><td><strong>208 通過、1 skip，無失敗。</strong></td></tr>
+      </tbody></table></div>
+    </details>
+  </section>
+  <section id="performance">
+    <div class="section-label">04 · 效能量測</div>
+    <h2>首次回饋與完成時間分開比較</h2>
+    <p class="note caution"><a href="evidence/revision/revision.json">候選一正式量測</a>的首次回饋結果為 <strong>FAIL</strong>，完成 530／800 筆；下表保留原始失敗結果，不以修正後的短診斷取代。最終正式數據另見<a href="#performance-final">前段 v2 結果</a>。</p>
+    <p>以下基準採自 <a href="evidence/baseline/baseline.json">正式 baseline JSON</a>：2026-10-17 00:49（Asia/Taipei），Windows x64、Node v24.21.0、Chromium 155.0.8059.80。UI fixture 固定 20 個 Repo，工作台 1440×900、側欄寬 300。</p>
+    <p class="note">首次回饋由 DOM click capture 起算，直到對應選取、停用控制項或進度可見，再等待一個 requestAnimationFrame。每種操作 100 筆；P95 目標為 100ms 以內。此指標不包含原生輸入送達時間。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">操作</th><th scope="col" class="numeric">基準首次回饋 P95</th><th scope="col" class="numeric">候選一 P95</th><th scope="col">候選一驗收</th><th scope="col" class="numeric">基準 mock 完成 P95</th></tr></thead>
+      <tbody>
+        <tr><td>側欄導覽</td><td class="numeric bad">195.3 ms</td><td class="numeric">34.0 ms</td><td class="ok">100／100，PASS</td><td class="numeric">230.9 ms</td></tr>
+        <tr><td>選取 Issue</td><td class="numeric">34.2 ms</td><td class="numeric">33.9 ms</td><td class="ok">100／100，PASS</td><td class="numeric">230.3 ms</td></tr>
+        <tr><td>選取 MR</td><td class="numeric">34.5 ms</td><td class="numeric">33.8 ms</td><td class="ok">100／100，PASS</td><td class="numeric">230.8 ms</td></tr>
+        <tr><td>更新資料</td><td class="numeric">34.5 ms</td><td class="numeric">33.9 ms</td><td class="ok">100／100，PASS</td><td class="numeric">231.2 ms</td></tr>
+        <tr><td>檢查 Skills</td><td class="numeric bad">194.7 ms</td><td class="numeric">34.7 ms<br><span class="small">僅 30 筆</span></td><td class="bad">30／100；第 31 次無可用按鈕</td><td class="numeric">231.8 ms</td></tr>
+        <tr><td>送出帳號驗證</td><td class="numeric">29.6 ms</td><td class="numeric">28.7 ms</td><td class="ok">100／100，PASS</td><td class="numeric">229.3 ms</td></tr>
+        <tr><td>Git 讀取</td><td class="numeric">34.6 ms</td><td class="numeric">無採樣</td><td class="bad">0／100；初始按鈕未啟用</td><td class="numeric">232.1 ms</td></tr>
+        <tr><td>Git 寫入</td><td class="numeric">34.1 ms</td><td class="numeric">無採樣</td><td class="bad">0／100；初始按鈕未啟用</td><td class="numeric">230.6 ms</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">基準首次回饋有 6 項符合 100ms 目標。候選一僅 5 項取得完整 100 筆並通過；Skills 的 30 筆 P95 不能視為該項驗收通過，Git 兩項沒有有效採樣。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">回歸指標</th><th scope="col" class="numeric">基準</th><th scope="col" class="numeric">候選一</th><th scope="col" class="numeric">差異</th><th scope="col">候選一驗收</th></tr></thead>
+      <tbody>
+        <tr><td>暖啟導覽 P95</td><td class="numeric">30.8 ms</td><td class="numeric bad">42.8 ms</td><td class="numeric bad">+38.961%</td><td class="bad">超過 10% 退化上限</td></tr>
+        <tr><td>Repo 搜尋 P95</td><td class="numeric">48.4 ms</td><td class="numeric">46.8 ms</td><td class="numeric">−1.6 ms</td><td>單項觀察；整體未通過</td></tr>
+        <tr><td>Renderer retained heap P95</td><td class="numeric">6,762,592 B<br><span class="small">約 6.45 MiB</span></td><td class="numeric">6,818,928 B</td><td class="numeric">+56,336 B</td><td>單項觀察；整體未通過</td></tr>
+        <tr><td>Renderer retained heap 最大值</td><td class="numeric">6,764,600 B</td><td class="numeric">6,818,964 B</td><td class="numeric">+54,364 B</td><td>補充觀察</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">導覽與搜尋各 10 輪、每輪 30 筆；渲染延遲另等待兩個 requestAnimationFrame。記憶體由 HeapProfiler.collectGarbage 後的 Runtime.getHeapUsage 取得，涵蓋父頁與兩個同源 Webview。既定比較容許退化上限為 10%；最終結論需使用相同 fixture／harness 的 revision 採樣。</p>
+    <p><a href="evidence/revision/revision.json">候選一原始量測 JSON（保留失敗證據）</a> · <a href="evidence/revision/candidate1.vsix">候選一 VSIX</a>。原始 JSON 的整體 comparison 為 BLOCKED；此處另列已量到的暖啟導覽退化，未將採樣未完成的整體比較標為通過。</p>
+  </section>
+  <section id="evidence">
+    <div class="section-label">05 · 產物與可追溯證據</div>
+    <h2>封裝、原始結果與畫面</h2>
+    <div class="artifact-list">
+      <article class="artifact"><h3>基準 VSIX</h3><a href="baseline/gitlab-workspace-0.25.0.vsix">gitlab-workspace-0.25.0.vsix</a><p><a href="baseline/SHA256SUMS">基準 SHA256SUMS</a></p><p class="hash">dd1194e9266441f25c66d2355cc487890d5e38cb4eb90d17a93868eae18433dd</p></article>
+      <article class="artifact"><h3>候選一（後續效能未達標）</h3><a href="evidence/revision/candidate1.vsix">candidate1.vsix</a><p>5,605,000 bytes；候選一 SHA-256：</p><p class="hash">783076d020d2b0b8ef672665185a14d6ae90190bc2b69598da905a71efa714b2</p><p>該次 kit SHA-256（歷史紀錄）：</p><p class="hash">73c12ab95eaf25f6a7ca05cda176601f47178e51bddb3709d4aab3e92f07ce4e</p><p><a href="evidence/validation/verify-package.log">候選一產物驗證紀錄</a> · <a href="evidence/revision/revision.json">正式效能失敗證據</a></p></article>
+      <article class="artifact"><h3>正式採樣</h3><a href="evidence/baseline/baseline.json">baseline.json</a> · <a href="evidence/revision/revision.json">候選一 revision.json</a><p>正式基準每項首次回饋 100 筆；暖啟導覽與搜尋各 300 筆。候選一首次回饋僅 530／800 筆，結果 FAIL。<a href="diagnostic-baseline/baseline.json">3 筆診斷採樣</a>僅供除錯，不與正式數值混用。</p></article>
+      <article class="artifact"><h3>量測與整合證據</h3><a href="evidence/harness.mjs">保存的原方法 harness</a> · <a href="evidence/navigation-profile-summary.json">導覽 CDP trace 診斷摘要</a> · <a href="evidence/git-gui/git-gui-local.json">1.90 GUI fixture 原始結果</a><p><a href="evidence/validation/timings.json">候選一完整 validation timings</a> · <a href="evidence/validation/">所有驗證 logs</a>；最終 v2 與 Git GUI 證據另見前段。</p></article>
+    </div>
+    <details class="checks"><summary>基準採樣的 harness 與 fixture 雜湊</summary><p class="small">harness SHA-256：<span class="hash">83a2d7ebf0921e9eb2281b31ae7cfed8998e46d21f8be1052d2af848d429a1f4</span><br>fixture SHA-256：<span class="hash">645979d4ea2f3e7d1dbda1cac32165b02d91cb2b037352f220c8438a305b76d9</span></p></details>
+    <p class="small checks">候選一完整 npm input fingerprint（<a href="evidence/validation/prepared.json">prepared.json</a>，不代表修正後最終來源）：<br><span class="hash">e9c623cb245e7a33090d01ade69bb9fbd59b856133239293f463cd17abf5727d</span></p>
+    <h3 style="margin-top:24px">已保存的基準畫面</h3>
+    <div class="gallery">
+      <figure><a href="evidence/baseline/baseline-1440-skills.png"><img src="evidence/baseline/baseline-1440-skills.png" alt="基準：1440×900 Skills 畫面" loading="lazy"></a><figcaption>1440×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/baseline/baseline-1440-settings.png"><img src="evidence/baseline/baseline-1440-settings.png" alt="基準：1440×900 設定畫面" loading="lazy"></a><figcaption>1440×900 · 設定</figcaption></figure>
+      <figure><a href="evidence/baseline/baseline-800-projects.png"><img src="evidence/baseline/baseline-800-projects.png" alt="基準：800×900 專案畫面" loading="lazy"></a><figcaption>800×900 · 專案</figcaption></figure>
+      <figure><a href="evidence/baseline/baseline-800-skills.png"><img src="evidence/baseline/baseline-800-skills.png" alt="基準：800×900 Skills 畫面" loading="lazy"></a><figcaption>800×900 · Skills</figcaption></figure>
+      <figure><a href="evidence/baseline/baseline-800-highcontrast-projects.png"><img src="evidence/baseline/baseline-800-highcontrast-projects.png" alt="基準：800×900 高對比專案畫面" loading="lazy"></a><figcaption>800×900 · 高對比專案</figcaption></figure>
+      <figure><a href="evidence/baseline/baseline-800-highcontrast-skills.png"><img src="evidence/baseline/baseline-800-highcontrast-skills.png" alt="基準：800×900 高對比 Skills 畫面" loading="lazy"></a><figcaption>800×900 · 高對比 Skills</figcaption></figure>
+    </div>
+    <p class="small" style="margin-top:16px"><a href="evidence/revision/">候選一 revision 證據目錄</a>已保存量測 JSON、VSIX 與 6 張截圖；最終 Revision v2 畫面與視覺檢查另見<a href="#artifacts-final">交付產物</a>。</p>
+  </section>
+</details>
+<details class="checks"><summary>候選二：修正後診斷與 v2 observer preflight（非最終驗收）</summary>
+      <p>已修正 core history／批次快照／Feedback、Git 同步 Host 回覆，以及 domain 訂閱與局部 selector。Targeted core 40／40（包含新增 2 項 cheap-noop）、Git 同步回覆與 Skills 35 次回歸通過；最終完整測試以上方為準。</p>
+      <p><a href="evidence/candidate2-feedback-diagnostic/revision.json">候選二首次回饋診斷</a> · <a href="evidence/candidate2-warm-diagnostic/revision.json">候選二舊方法 warm 診斷</a> · <a href="evidence/candidate2-warm-diagnostic/candidate2.vsix">候選二 VSIX</a>。</p>
+      <p><a href="evidence/v2-observer-preflight/revision.json">v2 observer preflight</a>完成 10×30 導覽與搜尋採樣、8 項 smoke 通過、零 runtime errors；暖啟導覽 P95 30.3ms、搜尋 P95 31.2ms。這是候選二的預檢診斷，尚未配對正式 v2 baseline，不能據此宣告對舊 baseline 的改善。</p>
+      <p class="small">候選二 artifact SHA-256：<span class="hash">e90f69d41d9f54330e81f40aa12c65fc4bc9fb9248fc6c47064c1434fbdc1240</span>。</p>
+</details>
+<details class="checks"><summary>CDP 計時校正：舊 observer 起點跨到 paint 後，造成額外 frame 等待</summary>
+    <h3 style="margin-top:24px">導覽量測方法校正（診斷，非正式驗收）</h3>
+    <p><a href="evidence/navigation-profile-summary.json">CDP trace 診斷摘要</a>分別對基準與候選二各量測 30 次。DOM ready 與首次 paint 的 P95 如下；這些 trace 是定位等待時序的診斷證據，樣本與方法均不同於上方正式 gate。</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">CDP 診斷指標</th><th scope="col" class="numeric">基準（30 次）</th><th scope="col" class="numeric">候選二（30 次）</th></tr></thead>
+      <tbody>
+        <tr><td>DOM ready P95</td><td class="numeric">2.861 ms</td><td class="numeric">3.903 ms</td></tr>
+        <tr><td>首次 paint 結束 P95</td><td class="numeric">14.197 ms</td><td class="numeric">13.245 ms</td></tr>
+      </tbody>
+    </table></div>
+    <p>原暖啟導覽量測先等待 Playwright click 返回，才透過下一次 evaluate 開始觀察 DOM 並等待兩個 requestAnimationFrame。Trace 顯示候選二的慢尾端樣本在首次 paint 之後才開始觀察，因此額外等待影格；該時間包含自動化跨呼叫的起點偏移。</p>
+    <p class="note caution">原方法的 baseline 30.8ms 與候選一 42.8ms／FAIL 原樣保留，不因本次診斷改判 PASS。<a href="evidence/harness-v2.mjs">v2 harness</a> 在瀏覽器內、操作之前先註冊 DOM observer，再從匹配 DOM 開始等待兩個 requestAnimationFrame；基準與修正版使用相同 v2 方法各自正式重跑。方法校正當時尚未有正式 v2 結果，最新狀態以上方表格為準；不與舊方法數值交叉計算改善幅度。</p>
+
+</details>
+    <details class="checks" id="host-environment"><summary>歷史候選三 Extension Host 原生測試環境警告</summary>
+      <p><a href="evidence/validation-final/extension.log">最終 extension.log</a> 記錄 VS Code 1.90 的原生 fileWatcher 對暫存 fixture 路徑發生 <code>fs.watch EPERM</code>，以及 fileWatcher utility process crash code <code>−1073741819</code>。測試結果仍為 13 passing、2 opt-in pending、stage exit code 0。</p>
+      <p>Host stage 共 114.093 秒，包含原生程序收尾耗時，較前輪更長。這些是本次實際測試環境警告；不將其解讀為全部測試失敗，也不宣稱全 log 零警告。獨立本機 Git GUI profile 的 native watcher、idle 與 rapid switch 驗證另附證據。</p>
+    </details>
+    <details class="checks" id="git-gui-environment"><summary>Git GUI：原生確認 PASS；完整流程的 fixture API、revision 與 Host 重啟時序待重跑</summary>
+      <p><a href="evidence/git-gui/git-gui-local.json">VS Code 1.90 opt-in 原始結果</a>保留 <code>WebSocket is not defined</code> 失敗紀錄。這是測試 harness 所需 fixture API 在該環境不可用，未完成 GUI 驗證，不能解讀為 extension 功能失敗；相同 1.90 的完整 Host 測試仍有 13 項通過。</p>
+      <p>1.90 測試的 CJS 入口已補入 Playwright bundled <code>ws</code> shim，實際 Node 20.9 的 loopback probe 已 PASS。這是測試傳輸相容性修正；產品本身沒有全域 WebSocket 的需求。</p>
+      <p><a href="evidence/git-gui-installed/git-gui-local.json">VS Code 1.142.0 完整 GUI 首輪</a>保留 FAIL：harness 強制等待 <code>.git-progress</code> 消失，但 force-push lease 的寫入結果未知時，產品刻意保留資源鎖、寫入停用與核對提示。此輪驗證尚未完成，不能以更改等待條件直接改判通過。</p>
+      <p>Race 測試已改為驗證未知提示、寫入停用而讀取仍可用，核對本機與遠端 SHA，再透過真實 UI 核對及「已確認未執行」解除後繼續。<a href="evidence/git-gui-final/git-gui-local.json">修正後 1.90 首輪</a>仍為 FAIL，發生於 idle 驗收前：bootstrap <code>getGitRepositoryDetails</code> 與 native 初始化的 revision 競態，回覆「Repo 狀態已變更」。後續只對這個已知過期讀取加入有界重試；<a href="evidence/git-gui-final-run.log">該輪 runner log</a>保留原始過程。</p>
+      <p>原生 Diff 約 45 秒等待已定位到 fixture 的 workspace 啟動方式：本機 runner 以 service 單資料夾開啟，新增資料夾時轉為 multi-folder；<a href="../../../node_modules/@types/vscode/index.d.ts">本機 VS Code API 文件</a>的 <code>updateWorkspaceFolders</code>（第 13119 行起）明列 empty／single-folder 轉 multi-folder 可能終止並重新啟動 Extension Host。完整 npm 原本使用 <code>host.code-workspace</code>，因此其 13 個 Host 案例不走這個切換。</p>
+      <p>當時 runner 改為先建立 <code>.code-workspace</code> 容器再啟動，避免 harness 自行觸發 Host 重啟；<a href="evidence/git-gui-final-v2/">git-gui-final-v2</a>保留過程證據。該階段只改 test／harness、未放寬 timeout 或 skip，仍測候選三 <code>7c018fba…</code>；後續新案例才確認 Git 預檢終態的產品缺口，因此新版須另行完整驗證。</p>
+      <p><a href="evidence/git-gui-native/git-gui-local-native.json">候選三獨立原生確認測試</a>在安裝版 VS Code 1.142.0 的隔離 profile 已 PASS（約 19.5 秒），使用本機 bare remote；驗證部分／整檔暫存、原生 Commit／Push 確認及完成畫面。受測 artifact 為舊候選三 SHA-256：<span class="hash">7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1</span>。</p>
+      <p><a href="evidence/git-gui-native-final/git-gui-local-native.json">候選三原生未知寫入完整流程</a>另已 PASS：Push 次數 <code>1 → 2 → 2 → 2</code>，未知結果後保留寫入鎖、允許唯讀 refresh，refresh 命令正常開始／exit 0，沒有自動重送；核對本機與遠端 SHA 後，透過真實 modal 選「已確認未執行」解除。一般 lease race 放在相容性與隱藏還原驗收後保留未知鎖；真 modal 解鎖由 standalone 驗證。該 PASS 仍只適用候選三，新版須重跑。</p>
+      <div class="gallery">
+        <figure><a href="evidence/git-gui-native/screenshots/native-commit-confirmation.png"><img src="evidence/git-gui-native/screenshots/native-commit-confirmation.png" alt="原生 Commit 確認視窗" loading="lazy"></a><figcaption>Commit 確認 · 已由 Codex 視覺檢查</figcaption></figure>
+        <figure><a href="evidence/git-gui-native/screenshots/native-push-confirmation.png"><img src="evidence/git-gui-native/screenshots/native-push-confirmation.png" alt="原生 Push 確認視窗" loading="lazy"></a><figcaption>Push 確認 · 已由 Codex 視覺檢查</figcaption></figure>
+        <figure><a href="evidence/git-gui-native/screenshots/local-git-gui-native.png"><img src="evidence/git-gui-native/screenshots/local-git-gui-native.png" alt="原生確認完成後乾淨工作目錄" loading="lazy"></a><figcaption>乾淨完成畫面 · 已由 Codex 視覺檢查</figcaption></figure>
+      </div>
+      <p class="small">上述 3 張截圖均已Codex 視覺確認；這個獨立 PASS 不取代完整 Git GUI 流程重跑。</p>
+    </details>
+</section>
+  <footer>本報告使用繁體中文；所有產物與證據均以相對路徑連結。日期時間依 Asia/Taipei 呈現。HTML 無外部依賴，可直接瀏覽或列印。</footer>
+</main>
+</body>
+</html>

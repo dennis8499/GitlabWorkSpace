@@ -2,16 +2,26 @@ import type { GitRepositoryDetails, GitRepositorySummary } from '../git/gitProto
 import type { GitLabAccount, AccountOperation } from '../connection/accountProtocol';
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { WorkspaceMode } from './workspaceProtocol';
+import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 
 export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications'
   | 'addAccount' | 'switchAccount' | 'logoutAccount' | 'removeAccount' | 'manageAccounts';
 
-export type QuickActionsRequest =
+export interface QuickActionsOperationContext {
+  operationId?: string;
+  operationScope?: string;
+  hostSessionId?: string;
+  scopeEpoch?: number;
+}
+
+export type QuickActionsRequest = (
   | { type: 'ready' }
+  | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'repositoryDetails'; repositoryId: string; requestId: string }
   | { type: 'cancelRepositoryDetails'; repositoryId: string }
   | { type: 'perform'; action: Exclude<QuickAction, 'openRepository'> }
-  | { type: 'perform'; action: 'openRepository'; repositoryId: string };
+  | { type: 'perform'; action: 'openRepository'; repositoryId: string }
+) & QuickActionsOperationContext;
 
 export interface QuickActionsState {
   connected: boolean;
@@ -27,18 +37,31 @@ export interface QuickActionsState {
   repositories?: GitRepositorySummary[];
   gitAvailable?: boolean;
   gitMessage?: string;
+  operationSnapshot?: OperationSnapshot;
+  operationScope?: string;
+  scopeEpoch?: number;
 }
 
 export type QuickActionsResponse =
   | { type: 'state'; state: QuickActionsState }
+  | { type: 'operationChanged'; operation: WorkspaceOperationState }
+  | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'visibility'; visible: boolean }
   | { type: 'repositoryDetails'; repositoryId: string; requestId: string; details?: GitRepositoryDetails; error?: string };
 
 export function isQuickActionsRequest(value: unknown): value is QuickActionsRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const message = value as Record<string, unknown>;
-  const keys = Object.keys(message);
+  const metadata = ['operationId', 'operationScope', 'hostSessionId', 'scopeEpoch'];
+  if (message.operationId !== undefined && (typeof message.operationId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(message.operationId))) return false;
+  if (message.operationScope !== undefined && (typeof message.operationScope !== 'string' || message.operationScope.length > 500)) return false;
+  if (message.hostSessionId !== undefined && (typeof message.hostSessionId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(message.hostSessionId))) return false;
+  if (message.scopeEpoch !== undefined && (!Number.isSafeInteger(message.scopeEpoch) || (message.scopeEpoch as number) < 0)) return false;
+  const keys = Object.keys(message).filter(key => !metadata.includes(key));
   if (message.type === 'ready') return keys.length === 1 && keys[0] === 'type';
+  if (message.type === 'reconcileOperations') return keys.every(key => key === 'type' || key === 'pendingIds') &&
+    (message.pendingIds === undefined || Array.isArray(message.pendingIds) && message.pendingIds.length <= 200 &&
+      Array.from(message.pendingIds).every(id => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id)));
   if (message.type === 'repositoryDetails') return keys.length === 3 && keys.includes('type') && keys.includes('repositoryId') && keys.includes('requestId') &&
     typeof message.repositoryId === 'string' && /^[a-f0-9]{32}$/i.test(message.repositoryId) &&
     typeof message.requestId === 'string' && /^[a-z0-9-]{1,80}$/i.test(message.requestId);

@@ -1,0 +1,96 @@
+
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/88e1ca5c-a82e-49e2-82e1-35be6bf4d816
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-16T18:36:36.474Z] Error: Error mutex already exists
+    at bt.W (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.90.0\resources\app\out\vs\code\electron-main\main.js:110:70767)
+[main 2026-10-16T18:36:36.477Z] update#setState disabled
+[main 2026-10-16T18:36:36.477Z] update#ctor - updates are disabled by the environment
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-24176-1792175796014
+Started local extension host with pid 20296.
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-vscode-test/extensions-local-git-gui-24176-1792175796014
+Loading development extension at c:\Users\denni\AppData\Local\Temp\gitlab-workspace-vscode-test\live-vsix-0.25.0-7c018fba6fe5-24176\extension
+
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available (98ms)
+  Group delivery and version-bound report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+    √ recovers an already pushed immutable commit before invoking Git or requesting credentials
+    √ reconciles an uncertain multi-Repo MR response using the original Issue project
+  Live GitLab Workspace Webview validation
+Failed to fetch chat participant registry {}
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    1) exercises the packaged Git GUI against an isolated local bare remote
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Native readonly Git Diff snapshots
+[main 2026-10-16T18:36:42.968Z] Extension host with pid 20296 exited with code: 0, signal: unknown.
+Exit code:   1
+{
+  "mode": "local-git-gui",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+    "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+  },
+  "result": {
+    "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+    "generatedAt": "2026-10-16T18:36:43.178Z",
+    "mode": "local-only",
+    "vscodeVersion": "1.90.0",
+    "testedArtifact": {
+      "vsix": "dist/gitlab-workspace-0.25.0.vsix",
+      "sha256": "7c018fba6fe5df7cdfea6c2a3296a5aa72e6c806aa4ed86e0dabc81ab8dfa5c1"
+    },
+    "status": "FAIL",
+    "error": "Repo 狀態已變更，請重新展開以讀取分支與 Stash。",
+    "workspaceFolders": [
+      "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175795354-24176\\demo\\service"
+    ],
+    "nativeGitRepositoryState": {
+      "repositories": [
+        {
+          "id": "404560177ddb25255bc7f9da70d8239d",
+          "name": "service",
+          "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175795354-24176\\demo\\service",
+          "branch": "main",
+          "headCommit": "ee3a785157058369956bb904e737091a696d6bf3",
+          "tracking": "origin/main",
+          "ahead": 0,
+          "behind": 0,
+          "stagedCount": 0,
+          "unstagedCount": 0,
+          "conflictCount": 0,
+          "busy": false,
+          "revision": 2
+        }
+      ],
+      "available": true,
+      "revision": 4
+    },
+    "windowFocused": true,
+    "nativeGitActivity": {
+      "commands": 6,
+      "auxiliaryCommands": 1,
+      "nativeApiCalls": 6,
+      "nativeStatusEvents": 3
+    },
+    "nativeWorkingChanges": [
+      {
+        "path": "c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792175795354-24176\\demo\\service",
+        "changes": []
+      }
+    ],
+    "actionTrace": [
+      {
+        "phase": "start",
+        "repositoryId": "404560177ddb25255bc7f9da70d8239d",
+        "action": "open"
+      }
+    ],
+    "idleChecks": [],
+    "sourceRepository": "isolated generated Git seed"
+  }
+}

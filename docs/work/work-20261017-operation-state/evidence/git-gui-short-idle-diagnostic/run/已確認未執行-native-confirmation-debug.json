@@ -1,0 +1,5 @@
+{
+  "title": "[Extension Development Host] GitLab Workspace - local-git-gui (Workspace) - Visual Studio Code",
+  "visibleDialogText": [],
+  "bodyTextEnd": "File\nEdit\nSelection\nView\n[Extension Development Host] local-git-gui (Workspace)\nEXPLORER\nLOCAL-GIT-GUI (WORKSPACE)\nservice\ngui-amend-local-git-gui-1792176514482.txt\ngui-rebase-1-local-git-gui-1792176514482.txt\ngui-rebase-2-local-git-gui-1792176514482.txt\ngui-rebase-3-local-git-gui-1792176514482.txt\ngui-rebase-4-local-git-gui-1792176514482.txt\ngui-rebase-5-local-git-gui-1792176514482.txt\nREADME.md\nremote-fetch-local-git-gui-1792176514482.txt\nservice.ts\nOUTLINE\nTIMELINE\nGitLab Workspace\n validation/local-git-gui-1792176514482/mvbbmm84\n 1↓ 0↑\n 0 \n 0\n 0\nInfo: Would you like Visual Studio Code to periodically run \"git fetch\"?"
+}

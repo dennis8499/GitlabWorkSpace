@@ -1,4 +1,5 @@
 const { operationResource } = await import('../../out/src/workspace/operations.js');
+const { describeAction } = await import('../../out/src/workspace/actionPolicy.js');
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -7,6 +8,106 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
 const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
+
+test('account preflight terminal receipts release the form even without a domain login reply', async t => {
+  const state = { ...snapshot(), connected: false, accounts: [], currentUser: undefined };
+  const view = await mount({}, state, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'openAccountManager', intent: { id: 'login', startLogin: true } }); await view.tick(); await view.tick();
+  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
+  const token = document.querySelector('[name="token"]'); token.value = 'never-persist';
+  token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
+  const request = view.rawRequests.findLast(item => item.type === 'submitAccountLogin');
+  view.receipt(request, { status: 'failed', effect: 'none', error: 'Account switching' }); await view.tick();
+  assert.match(document.querySelector('.account-login-error').textContent, /Account switching/);
+  assert.equal(document.querySelector('.account-login fieldset').disabled, false);
+  assert.ok(!JSON.stringify(view.savedState).includes('never-persist'));
+});
+
+test('Issue and MR selections respond before host data and ignore old busy clearing', async t => {
+  const data = snapshot();
+  const view = await mount({}, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const rows = document.querySelectorAll('.work-row'); rows[0].click(); rows[1].click(); await view.tick();
+  assert.match(document.querySelector('.work-row.selected').textContent, /Beta milestone/);
+  assert.equal(view.requests.filter(request => request.type === 'selectIssue').length, 2);
+  const refresh = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === '更新資料');
+  refresh.click(); await view.tick();
+  assert.match(document.querySelector('.workspace-operation-area').textContent, /更新目前頁面/);
+  view.send({ type: 'busy', value: false }); await view.tick();
+  assert.match(document.querySelector('.workspace-operation-area').textContent, /更新目前頁面/);
+  view.receipt(view.rawRequests.findLast(request => request.type === 'refresh')); await view.tick();
+  assert.doesNotMatch(document.querySelector('.workspace-operation-area').textContent, /更新目前頁面/);
+});
+
+test('MR section failure remains stable until explicit retry and snapshot receipts clear pending', async t => {
+  const data = snapshot('reviewer'); data.operationScope = 'mr-scope';
+  const mr = { id: 1, iid: 1, project_id: 1, title: 'Review', source_branch: 'feature', target_branch: 'main', state: 'opened' };
+  data.mergeRequests = [mr];
+  data.selectedMergeRequest = { request: mr, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } }, freshness: { state: 'not_checked' }, warnings: [] };
+  const view = await mount({ mode: 'reviewer' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  assert.equal(view.requests.filter(request => request.type === 'loadMergeRequestSection').length, 1);
+  const failed = view.rawRequests.findLast(request => request.type === 'loadMergeRequestSection');
+  view.receipt(failed, { status: 'failed', error: 'offline' });
+  const error = { ...data, selectedMergeRequest: { ...data.selectedMergeRequest, sections: { ...data.selectedMergeRequest.sections, diffs: { status: 'error', error: 'offline' } } } };
+  for (let index = 0; index < 3; index++) { view.sendSnapshot(error); await view.tick(); }
+  assert.equal(view.requests.filter(request => request.type === 'loadMergeRequestSection').length, 1);
+  const sectionRetry = [...view.dom.window.document.querySelectorAll('.reviewer-detail .section-status button')].find(button => button.textContent === '重試');
+  sectionRetry.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'loadMergeRequestSection').length, 2);
+  const retry = view.rawRequests.findLast(request => request.type === 'loadMergeRequestSection');
+  view.send({ type: 'operationsSnapshot', snapshot: { sessionId: 'host', revision: 2, operations: [{ requestId: retry.operationId, scopeRevision: 'mr-scope', resourceKey: 'mr:1:1', action: 'loadMergeRequestSection', label: 'MR', status: 'failed', phase: '處理失敗', error: 'offline', startedAt: 1, finishedAt: 2, revision: 2 }] } });
+  await view.tick(); sectionRetry.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'loadMergeRequestSection').length, 3);
+});
+
+test('Skills recheck shows waiting inside settings immediately and preserves unrelated controls', async t => {
+  const view = await mount({}, snapshot(), {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const recheck = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '重新檢查安裝');
+  recheck.click(); await view.tick();
+  assert.equal(recheck.getAttribute('aria-busy'), 'true'); assert.equal(recheck.disabled, true);
+  assert.equal(document.querySelector('.notifications-trigger').disabled, false);
+  view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
+  assert.equal(recheck.disabled, false);
+});
+
+test('Skills recheck completes 35 full running snapshot and terminal receipt cycles without retaining busy state', async t => {
+  const sessionId = 'skills-soak-host';
+  const data = { ...snapshot(), operationScope: 'skills-soak', operationSnapshot: { sessionId, revision: 0, operations: [] } };
+  const view = await mount({}, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelector('.settings-trigger').click(); await view.tick();
+  const button = () => document.querySelector('.tool-drawer .drawer-footer button');
+  const recentTerminals = new Map();
+  let revision = 0;
+  for (let index = 0; index < 35; index++) {
+    assert.equal(button().disabled, false, `cycle ${index + 1} starts enabled`);
+    button().click(); await view.tick();
+    const request = view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').at(-1);
+    assert.equal(view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').length, index + 1);
+    const operation = { ...describeAction(request, { scopeRevision: data.operationScope, accountKey: data.instanceUserScope, rootKey: data.projectContext.root }),
+      requestId: request.operationId, scopeRevision: request.operationScope, hostSessionId: sessionId,
+      status: 'running', phase: '正在檢查安裝', startedAt: index + 1, revision: ++revision };
+    const operations = [...recentTerminals.values(), operation];
+    view.sendSnapshot({ ...data, operations, operationSnapshot: { sessionId, revision, operations } });
+    await view.tick();
+    assert.equal(button().disabled, true, `cycle ${index + 1} waits for its receipt`);
+    // The host publishes installed domain data while the operation is still
+    // running, then its terminal receipt in the same synchronous call stack.
+    // The resulting deferred legacy-snapshot effect must not resurrect running.
+    view.sendSnapshot({ ...data, workflowKit: { ...data.workflowKit, status: 'installed' }, operations,
+      operationSnapshot: { sessionId, revision: ++revision, operations } });
+    const terminal = { ...operation, status: 'succeeded', phase: '已完成', finishedAt: index + 2, revision: ++revision };
+    view.send({ type: 'operationChanged', operation: terminal });
+    await view.tick();
+    assert.equal(button().disabled, false, `cycle ${index + 1} releases after its terminal receipt`);
+    assert.notEqual(button().getAttribute('aria-busy'), 'true');
+    recentTerminals.set(terminal.requestId, terminal);
+    if (recentTerminals.size > 30) recentTerminals.delete(recentTerminals.keys().next().value);
+  }
+});
 
 test('message center keeps results out of the workbench and supports reading, filters, removal and focus', async t => {
   const notices = { sessionId: 'center-session', revision: 2, unreadCount: 1, items: [
@@ -106,6 +207,187 @@ async function finishGit(view, request, patch = {}) {
   view.send({ type: 'gitActionResult', requestId: request.requestId, commitCompleted: patch.commitCompleted });
   await view.tick();
 }
+
+test('Git synchronous Host replies settle initial open, refresh and confirmed write before dispatch returns', async t => {
+  let revision = 0;
+  let failNext;
+  const synchronousHost = window => {
+    const acquire = window.acquireVsCodeApi;
+    const send = data => window.dispatchEvent(new window.MessageEvent('message', { data }));
+    window.acquireVsCodeApi = () => {
+      const api = acquire();
+      return { ...api, postMessage(message) {
+        api.postMessage(message);
+        if (message.type === 'gitReady') send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] });
+        if (message.type !== 'gitAction') return;
+        if (message.action.type === failNext) { failNext = undefined; throw new Error('Synchronous bridge unavailable'); }
+        const write = message.action.type === 'commit';
+        send({ type: 'gitSnapshot', requestId: message.requestId, snapshot: gitSnapshot(message.repoId, {
+          revision: ++revision, branch: message.action.type === 'refresh' ? 'refreshed' : 'main',
+          ...(write ? { headCommit: 'd'.repeat(40), stagedCount: 0, changes: [] } : {})
+        }) });
+        send({ type: 'gitActionResult', requestId: message.requestId, write, ...(write ? { effect: 'applied', commitCompleted: true } : {}) });
+      } };
+    };
+  };
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, synchronousHost, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  await view.tick();
+  assert.equal(gitActions(view, 'open').length, 1);
+  assert.equal(document.querySelector('.git-branch-picker select').value, 'main', 'the initial synchronous snapshot is accepted');
+  assert.equal(document.querySelector('.git-refresh').disabled, false, 'initial open does not restore stale reading state');
+  document.querySelector('.git-refresh').click(); await view.tick();
+  assert.equal(gitActions(view, 'refresh').length, 1);
+  assert.equal(document.querySelector('.git-branch-picker select').value, 'refreshed');
+  assert.equal(document.querySelector('.git-refresh').disabled, false, 'a synchronous refresh finishes reading');
+  failNext = 'refresh'; document.querySelector('.git-refresh').click(); await view.tick();
+  assert.match(document.querySelector('.git-error').textContent, /Synchronous bridge unavailable/);
+  assert.equal(document.querySelector('.git-refresh').disabled, false, 'a blocked dispatch rolls back its provisional reading state');
+  document.querySelector('.git-refresh').click(); await view.tick();
+  assert.equal(document.querySelector('.git-error'), null);
+  const draft = document.querySelector('.git-commit-composer textarea');
+  draft.value = 'Synchronously confirmed'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  failNext = 'commit';
+  document.querySelector('.git-commit-composer').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  await view.tick();
+  assert.equal(document.querySelector('.git-commit-composer textarea').value, 'Synchronously confirmed');
+  assert.equal(view.savedState.gitUi.pendingWrites.length, 0, 'a blocked write drops only its provisional pending context');
+  assert.equal(document.querySelector('.git-commit-launch').disabled, false);
+  document.querySelector('.git-commit-composer').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  await view.tick();
+  const commit = gitActions(view, 'commit').at(-1); assert.ok(commit);
+  assert.equal(document.querySelector('.git-commit-composer textarea').value, '');
+  assert.equal(view.savedState.gitUi.pendingWrites.length, 0, 'a terminal reply cannot be overwritten by post-dispatch persistence');
+  assert.equal(document.querySelector('.git-refresh').disabled, false);
+  assert.equal(document.querySelector('.git-progress'), null);
+  assert.equal(view.requests.filter(item => item.type === 'gitAcknowledgeResult' && item.requestId === commit.requestId).length, 1);
+});
+
+for (const action of ['refresh', 'commit']) test(`Git preflight terminal receipts release ${action} without a domain result and preserve the latest owner`, async t => {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] });
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  const open = gitActions(view, 'open').at(-1); assert.ok(open);
+  await finishGit(view, open);
+  const draft = () => document.querySelector('.git-commit-composer textarea');
+  draft().value = 'Keep this Git draft'; draft().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const control = () => document.querySelector(action === 'commit' ? '.git-commit-launch' : '.git-refresh');
+  const start = async () => {
+    if (action === 'commit') document.querySelector('.git-commit-composer').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    else control().click();
+    await view.tick();
+    return view.rawRequests.findLast(request => request.type === 'gitAction' && request.action.type === action);
+  };
+  const reject = async request => {
+    // Host preflight can reject before the Git adapter runs, so there is no
+    // gitSnapshot or gitActionResult: only the correlated lifecycle terminal.
+    view.receipt(request, { status: 'failed', effect: 'none', correlationId: request.requestId, error: 'Host scope rejected before Git adapter' });
+    await view.tick();
+  };
+  assert.equal(control().disabled, false);
+  const rejected = await start(); assert.ok(rejected?.operationId);
+  assert.equal(control().disabled, true);
+  assert.ok(document.querySelector('.git-status-message .spinner'));
+  await reject(rejected);
+  assert.equal(draft().value, 'Keep this Git draft', 'a preflight rejection preserves unsubmitted and submitted input');
+  assert.equal(control().disabled, false, 'a lifecycle-only preflight failure must release the Git control for retry');
+  assert.equal(document.querySelector('.git-status-message .spinner'), null, 'reading and pending labels must also settle without a domain receipt');
+  assert.equal(view.savedState.gitUi.pendingWrites.length, 0);
+  const retry = await start(); assert.ok(retry?.operationId);
+  assert.notEqual(retry.operationId, rejected.operationId);
+  assert.equal(control().disabled, true, 'the retry owns its own waiting state');
+  await reject(rejected);
+  assert.equal(control().disabled, true, 'replaying the old terminal cannot clear the newer owner');
+  assert.ok(document.querySelector('.git-status-message .spinner'));
+  if (action === 'commit') assert.deepEqual(view.savedState.gitUi.pendingWrites.map(item => item.id), [retry.requestId]);
+  await reject(retry);
+  assert.equal(control().disabled, false);
+  assert.equal(document.querySelector('.git-status-message .spinner'), null);
+  assert.equal(view.savedState.gitUi.pendingWrites.length, 0);
+  assert.equal(draft().value, 'Keep this Git draft');
+});
+
+for (const status of ['failed', 'cancelled']) test(`Git initial open ${status} settles without a domain reply and retries only when requested`, async t => {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] });
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  const first = view.rawRequests.findLast(request => request.type === 'gitAction' && request.action.type === 'open');
+  assert.ok(first?.operationId);
+  const retryButton = () => document.querySelector('.git-empty-state button');
+  assert.match(document.querySelector('.git-empty-state h2').textContent, /正在開啟 Repo/);
+  assert.equal(retryButton().disabled, true);
+  const terminal = { status, effect: 'none', correlationId: first.requestId,
+    ...(status === 'failed' ? { error: 'The Host rejected the initial Repo open' } : {}) };
+  view.receipt(first, terminal); await view.tick();
+  assert.equal(document.querySelector('.git-empty-state h2').textContent, '無法開啟 Repo');
+  assert.match(document.querySelector('.git-empty-state p').textContent, status === 'failed' ? /Host rejected/ : /已中止/);
+  assert.equal(retryButton().disabled, false);
+  for (let attempt = 0; attempt < 3; attempt++) await view.tick();
+  assert.equal(gitActions(view, 'open').length, 1, 'a rejected open never starts an automatic retry loop');
+  const readyRequests = view.requests.filter(request => request.type === 'gitReady').length;
+  retryButton().click(); await view.tick();
+  const retry = view.rawRequests.findLast(request => request.type === 'gitAction' && request.action.type === 'open');
+  assert.notEqual(retry.requestId, first.requestId);
+  assert.equal(gitActions(view, 'open').length, 2);
+  assert.equal(view.requests.filter(request => request.type === 'gitReady').length, readyRequests, 'retry opens the selected Repo instead of only reloading its list');
+  assert.match(document.querySelector('.git-empty-state h2').textContent, /正在開啟 Repo/);
+  assert.equal(retryButton().disabled, true);
+  view.receipt(first, terminal);
+  view.send({ type: 'gitSnapshot', requestId: first.requestId, snapshot: gitSnapshot('repo-a', { revision: 2, branch: 'stale-branch' }) });
+  view.send({ type: 'gitActionResult', requestId: first.requestId, error: 'Late rejected open' });
+  await view.tick();
+  assert.ok(document.querySelector('.git-empty-state'), 'old domain and lifecycle replies cannot finish the newer open');
+  assert.equal(retryButton().disabled, true);
+  await finishGit(view, retry, { revision: 3, branch: 'current-branch' });
+  view.receipt(retry, { status: 'succeeded', effect: 'none', correlationId: retry.requestId }); await view.tick();
+  assert.equal(document.querySelector('.git-empty-state'), null);
+  assert.equal(document.querySelector('.git-branch-picker select').value, 'current-branch');
+  assert.equal(document.querySelector('.git-refresh').disabled, false);
+  assert.equal(document.querySelector('.git-status-message .spinner'), null);
+  assert.equal(document.querySelector('.git-error'), null);
+});
+
+for (const action of ['open', 'refresh']) test(`Git global retry rebuilds the ${action} domain request after a lifecycle-only rejection`, async t => {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] });
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  if (action === 'refresh') {
+    await finishGit(view, gitActions(view, 'open').at(-1));
+    document.querySelector('.git-refresh').click(); await view.tick();
+  }
+  const rejected = view.rawRequests.findLast(request => request.type === 'gitAction' && request.action.type === action);
+  const failure = { status: 'failed', effect: 'none', correlationId: rejected.requestId, startedAt: 1,
+    error: 'Preflight rejected this Git read' };
+  view.receipt(rejected, failure); await view.tick();
+  const feedback = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent.includes(failure.error));
+  assert.ok(feedback, 'the failed read is visible in the shared operation feedback');
+  const retryButton = [...feedback.querySelectorAll('button')].find(button => button.textContent === '重試');
+  assert.ok(retryButton);
+  const beforeRetry = gitActions(view, action).length;
+  retryButton.click(); await view.tick();
+  const retry = view.rawRequests.findLast(request => request.type === 'gitAction' && request.action.type === action);
+  assert.equal(gitActions(view, action).length, beforeRetry + 1);
+  assert.notEqual(retry.operationId, rejected.operationId);
+  assert.notEqual(retry.requestId, rejected.requestId, 'the domain adapter owns a fresh correlation and result context');
+  assert.equal(retry.repoId, rejected.repoId);
+  view.receipt(rejected, failure); await view.tick();
+  assert.equal(document.querySelector(action === 'open' ? '.git-empty-state button' : '.git-refresh').disabled, true,
+    'the earlier terminal cannot release the retry owner');
+  await finishGit(view, retry, { revision: 3, branch: 'recovered-through-global-retry' });
+  view.receipt(retry, { status: 'succeeded', effect: 'none', correlationId: retry.requestId }); await view.tick();
+  assert.equal(document.querySelector('.git-branch-picker select').value, 'recovered-through-global-retry', 'the retried snapshot reaches its domain consumer');
+  assert.equal(document.querySelector('.git-refresh').disabled, false);
+  assert.equal(document.querySelector('.git-status-message .spinner'), null);
+  assert.equal(document.querySelector('.git-error'), null);
+});
 
 test('Git refs read commit details; historical files open central Diff and merge parents remain explicit', async (t) => {
   const view = await mountGit(t);
@@ -350,7 +632,7 @@ function issueDetailData(issue, project) {
   };
 }
 
-async function mount(initialState, initialSnapshot, storage = {}, beforeMount = () => {}) {
+async function mount(initialState, initialSnapshot, storage = {}, beforeMount = () => {}, options = {}) {
   const runtimeErrors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', (error) => runtimeErrors.push(error.stack ?? error.message));
@@ -361,14 +643,14 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
     virtualConsole
   });
   dom.window.addEventListener('error', (event) => runtimeErrors.push(event.error?.stack ?? event.message));
-  const requests = [];
+  const requests = [], rawRequests = [];
   for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
   let state = initialState;
   dom.window.acquireVsCodeApi = () => ({
     postMessage: (message) => {
       const { operationId, operationScope, ...payload } = message;
-      requests.push(payload);
-      if (operationId) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: {
+      requests.push(payload); rawRequests.push(message);
+      if (operationId && options.autoOperations !== false) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: {
         type: 'operationChanged', operation: { requestId: operationId, scopeRevision: operationScope,
           resourceKey: operationResource(message), action: message.type, label: 'Fixture operation', status: 'succeeded', phase: '已完成', startedAt: Date.now() }
       } })));
@@ -394,6 +676,13 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   return {
     dom,
     requests,
+    rawRequests,
+    receipt(request, patch = {}) {
+      dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'operationChanged', operation: {
+        requestId: request.operationId, scopeRevision: request.operationScope, resourceKey: operationResource(request),
+        action: request.type, label: 'Controlled operation', status: 'succeeded', phase: 'Done', startedAt: Date.now(), ...patch
+      } } }));
+    },
     tick,
     get savedState() { return state; },
     sendSnapshot(value) {
@@ -579,6 +868,19 @@ test('offline Log administration filters and pages results, ignores stale replie
   view.send({ type: 'logsChanged' });
   await view.tick();
   assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, before + 1, 'disabling live refresh makes one query and ignores notifications');
+});
+
+test('identical pending Log refreshes keep the shared request correlation and finish loading', async t => {
+  const view = await mount({ mode: 'admin' }, { ...snapshot('admin'), connected: false, baseUrl: undefined, group: undefined }, {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const first = view.requests.findLast(request => request.type === 'queryLogs');
+  const refresh = [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '重新整理 Log');
+  refresh.click(); refresh.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, 1, 'same pending query joins its existing read');
+  view.send({ type: 'logsPage', requestId: first.requestId, page: { entries: [], total: 7, page: 0, pageSize: 100 } });
+  await view.tick();
+  assert.equal(document.querySelector('.log-actions [role="status"]').textContent, '7 筆紀錄');
 });
 
 test('offline local Repo inventory exposes every copy, scan progress, cancellation and registration errors', async (t) => {
@@ -1999,3 +2301,248 @@ function selectSkillControl(document, selector, value) {
   if (/Skills 功能|wiki-guide-selector/.test(selector)) { selectSkillFeature(document,value); return true; }
   return false;
 }
+
+function holdOperationReceipts(window) {
+  window.heldOperations = [];
+  const acquire = window.acquireVsCodeApi;
+  window.acquireVsCodeApi = () => {
+    const api = acquire();
+    return { ...api, postMessage: message => { window.heldOperations.push(message); api.postMessage({ ...message, operationId: undefined }); } };
+  };
+}
+async function mountGitLifecycle(t) {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] }); await view.tick();
+  const open = gitActions(view, 'open').at(-1); assert.ok(open);
+  await finishGit(view, open);
+  return view;
+}
+
+test('Git confirmed Commit clears only its submitted draft and acknowledges a refresh failure', async t => {
+  const view = await mountGitLifecycle(t), document = view.dom.window.document;
+  const composer = document.querySelector('.git-commit-composer'), draft = composer.querySelector('textarea');
+  draft.value = 'Confirmed commit'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  composer.dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  const commit = gitActions(view, 'commit').at(-1); assert.ok(commit);
+  assert.equal(view.savedState.gitUi.pendingWrites.length, 1);
+  view.send({ type: 'gitActionResult', requestId: commit.requestId, write: true, effect: 'applied', commitCompleted: true, refreshError: 'offline' }); await view.tick();
+  assert.equal(draft.value, ''); assert.equal(view.savedState.gitUi.pendingWrites.length, 0);
+  assert.equal(view.requests.filter(request => request.type === 'gitAcknowledgeResult' && request.requestId === commit.requestId).length, 1);
+  assert.match(document.querySelector('.git-error').textContent, /操作已完成.*更新失敗.*offline/);
+});
+
+test('Git uncertain write keeps its draft and receipt without sending or acknowledging another write', async t => {
+  const view = await mountGitLifecycle(t), document = view.dom.window.document;
+  const composer = document.querySelector('.git-commit-composer'), draft = composer.querySelector('textarea');
+  draft.value = 'Verify this commit'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  composer.dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  const commit = gitActions(view, 'commit').at(-1); assert.ok(commit);
+  view.send({ type: 'gitActionResult', requestId: commit.requestId, write: true, effect: 'unknown', error: 'socket closed' }); await view.tick();
+  const uncertainFeedback = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent.includes('socket closed'));
+  assert.ok(uncertainFeedback);
+  assert.equal([...uncertainFeedback.querySelectorAll('button')].some(button => button.textContent === '重試'), false, 'unknown writes offer confirmation instead of a resend');
+  assert.equal(draft.value, 'Verify this commit'); assert.equal(view.savedState.gitUi.pendingWrites.length, 1);
+  assert.equal(view.requests.some(request => request.type === 'gitAcknowledgeResult' && request.requestId === commit.requestId), false);
+  composer.dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  assert.equal(gitActions(view, 'commit').length, 1); assert.equal(composer.querySelector('button[type="submit"]').disabled, true);
+  assert.equal(document.querySelector('.git-refresh').disabled, false, 'reading remains available while verifying a write');
+  const sent = view.dom.window.heldOperations.find(message => message.requestId === commit.requestId);
+  view.send({ type: 'operationChanged', operation: { requestId: sent.operationId, scopeRevision: sent.operationScope, resourceKey: 'git:repo-a',
+    action: 'gitAction', kind: 'write', status: 'succeeded', effect: 'applied', correlationId: commit.requestId, label: 'Confirmed', phase: 'Confirmed', startedAt: 1, finishedAt: 2 } }); await view.tick();
+  assert.equal(draft.value, ''); assert.equal(view.savedState.gitUi.pendingWrites.length, 0);
+  assert.equal(view.requests.filter(request => request.type === 'gitAcknowledgeResult' && request.requestId === commit.requestId).length, 1);
+});
+
+test('Issue mutation receipts preserve newer drafts after a refresh failure and retain uncertain submissions', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data, {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document, revision = 70;
+  const issue = data.issues[0], detail = { ...issueDetailData(issue, data.projects[0]), canComment: true };
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, revision } }); await view.tick();
+  view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: detail } }); await view.tick();
+  const comment = document.querySelector('.issue-detail-column textarea[rows="5"]'); assert.ok(comment);
+  const submit = () => [...document.querySelectorAll('.issue-detail-column button')].find(button => button.textContent === '送出留言');
+  comment.value = 'Submitted comment'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  submit().click(); await view.tick();
+  const first = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'invoke'); assert.ok(first);
+  comment.value = 'Newer draft'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  view.send({ type: 'issueResponse', revision, response: { type: 'actionResult', requestId: first.request.requestId, status: 'succeeded', effect: 'applied', refreshError: 'offline' } }); await view.tick();
+  assert.equal(comment.value, 'Newer draft'); assert.match(document.querySelector('.issue-embed').textContent, /操作已完成.*更新失敗/);
+  submit().click(); await view.tick();
+  const second = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'invoke'); assert.notEqual(second.request.requestId, first.request.requestId);
+  view.send({ type: 'issueResponse', revision, response: { type: 'actionResult', requestId: second.request.requestId, status: 'failed', effect: 'unknown', error: 'Check GitLab before sending again' } }); await view.tick();
+  assert.equal(comment.value, 'Newer draft'); assert.equal(submit().disabled, true);
+  assert.equal(view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'invoke').length, 2);
+  assert.equal([...document.querySelectorAll('.issue-heading-actions button')].find(button => button.textContent === '重新整理').disabled, false);
+  assert.equal(Object.keys(view.savedState.issueEditorDrafts['instance-user'].uncertain).length, 1);
+  const sent = view.dom.window.heldOperations.find(message => message.request?.requestId === second.request.requestId);
+  view.send({ type: 'operationChanged', operation: { requestId: sent.operationId, scopeRevision: sent.operationScope, resourceKey: `issue:${issue.project_id}:${issue.iid}`,
+    action: 'issueRequest', kind: 'write', status: 'succeeded', effect: 'none', correlationId: second.request.requestId, label: 'Confirmed', phase: 'Confirmed', startedAt: 1, finishedAt: 2 } }); await view.tick();
+  assert.equal(comment.value, 'Newer draft'); assert.equal(submit().disabled, false);
+  assert.equal(Object.keys(view.savedState.issueEditorDrafts['instance-user'].uncertain).length, 0);
+});
+
+async function showLifecycleIssue(view, issue, project, revision, extra = {}) {
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, revision } }); await view.tick();
+  view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: { ...issueDetailData(issue, project), canComment: true, ...extra } } }); await view.tick();
+}
+
+test('Issue pending submissions survive reconstruction and reconcile the original Issue without clearing another draft', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data, {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document, first = data.issues[0], second = data.issues[1];
+  await showLifecycleIssue(view, first, data.projects[0], 80);
+  const input = document.querySelector('.issue-detail-column textarea[rows="5"]');
+  input.value = 'Original pending comment'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  [...document.querySelectorAll('.issue-detail-column button')].find(button => button.textContent === '送出留言').click();
+  const request = view.requests.findLast(message => message.type === 'issueRequest' && message.request.type === 'invoke'); assert.ok(request);
+  assert.ok(view.savedState.issueEditorDrafts['instance-user'].pending[request.request.requestId], 'submission metadata is durable before the next render');
+  const sent = view.dom.window.heldOperations.find(message => message.request?.requestId === request.request.requestId);
+  await showLifecycleIssue(view, second, data.projects[1], 81);
+  const secondInput = document.querySelector('.issue-detail-column textarea[rows="5"]');
+  secondInput.value = 'Keep the second Issue draft'; secondInput.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const saved = view.savedState; view.dom.window.close();
+  const restored = await mount(saved, data, {}, holdOperationReceipts); t.after(() => restored.dom.window.close());
+  restored.send({ type: 'issueResponse', revision: 81, response: { type: 'detailData', data: { ...issueDetailData(second, data.projects[1]), canComment: true } } }); await restored.tick();
+  const restoredInput = restored.dom.window.document.querySelector('.issue-detail-column textarea[rows="5"]');
+  assert.equal(restoredInput.value, 'Keep the second Issue draft');
+  const operation = { requestId: sent.operationId, scopeRevision: sent.operationScope, resourceKey: `issue:${first.project_id}:${first.iid}`,
+    action: 'issueRequest', kind: 'write', status: 'failed', effect: 'unknown', correlationId: request.request.requestId,
+    label: 'Verify original comment', phase: 'Unknown', startedAt: 1, finishedAt: 2, hostSessionId: 'restored-host', revision: 1 };
+  restored.send({ type: 'operationsSnapshot', snapshot: { sessionId: 'restored-host', revision: 1, operations: [operation] } }); await restored.tick();
+  restored.send({ type: 'operationChanged', operation: { ...operation, revision: 2, status: 'succeeded', effect: 'applied', phase: 'Confirmed' } }); await restored.tick();
+  assert.equal(restoredInput.value, 'Keep the second Issue draft');
+  const drafts = restored.savedState.issueEditorDrafts['instance-user'];
+  assert.equal(drafts.conversations[first.id].comment, ''); assert.equal(drafts.conversations[second.id].comment, 'Keep the second Issue draft');
+  assert.equal(Object.hasOwn(drafts.pending, request.request.requestId), false);
+  assert.equal(restored.requests.some(message => message.type === 'issueRequest' && message.request.type === 'invoke'), false, 'restoring never resends a write');
+});
+
+test('joined Issue previews, project searches and uploads use the original correlation and preserve their destination', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data, {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document, revision = 90;
+  await showLifecycleIssue(view, { ...data.issues[0], description: 'Description to preview' }, data.projects[0], revision, { canEdit: true, canClone: true });
+  [...document.querySelectorAll('.issue-detail-column button')].find(button => button.textContent === '編輯需求').click(); await view.tick();
+  const preview = [...document.querySelectorAll('.issue-detail-column .form-grid button')].find(button => button.textContent === '預覽 Markdown'); assert.ok(preview);
+  const previews = () => view.requests.filter(message => message.type === 'issueRequest' && message.request.type === 'preview' && message.request.target === 'description');
+  const before = previews().length; preview.click(); await view.tick(); preview.click(); await view.tick();
+  assert.equal(previews().length, before + 1);
+  view.send({ type: 'issueResponse', revision, response: { type: 'reply', requestId: previews().at(-1).request.requestId, result: { html: '<p>Joined description rendered</p>' } } }); await view.tick();
+  assert.match(document.querySelector('.field-wide.preview').textContent, /Joined description rendered/);
+  const comment = document.querySelector('.issue-detail-column textarea[rows="5"]'); comment.value = 'Preview this comment'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const commentToolbar = [...document.querySelectorAll('.issue-detail-column .toolbar')].find(element => element.textContent.includes('送出留言'));
+  const commentPreview = [...commentToolbar.querySelectorAll('button')].find(button => button.textContent === '預覽 Markdown');
+  commentPreview.click(); await view.tick(); commentPreview.click(); await view.tick();
+  const editorRequests = view.requests.filter(message => message.type === 'issueRequest' && message.request.type === 'preview' && message.request.target === 'editor:comment');
+  assert.equal(editorRequests.length, 1);
+  view.send({ type: 'issueResponse', revision, response: { type: 'reply', requestId: editorRequests[0].request.requestId, result: { html: '<p>Joined comment rendered</p>' } } }); await view.tick();
+  assert.match(document.querySelector('.issue-detail-column').textContent, /Joined comment rendered/);
+  const search = document.querySelector('input[aria-label="搜尋目標專案"]'); search.value = 'outside'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const searchButton = [...document.querySelectorAll('.issue-actions button')].find(button => button.textContent === '搜尋專案');
+  searchButton.click(); await view.tick(); searchButton.click(); await view.tick();
+  const searches = view.requests.filter(message => message.type === 'issueRequest' && message.request.type === 'searchProjects'); assert.equal(searches.length, 1);
+  view.send({ type: 'issueResponse', revision, response: { type: 'reply', requestId: searches[0].request.requestId, result: [{ ...project(99, 'outside'), path_with_namespace: 'outside/matched-project' }] } }); await view.tick();
+  assert.ok([...document.querySelectorAll('.issue-actions option')].some(option => option.textContent === 'outside/matched-project'));
+  const upload = [...commentToolbar.querySelectorAll('button')].find(button => button.textContent === '上傳附件');
+  upload.click(); await view.tick(); upload.click(); await view.tick();
+  const uploads = view.requests.filter(message => message.type === 'issueRequest' && message.request.type === 'upload'); assert.equal(uploads.length, 1);
+  view.send({ type: 'issueResponse', revision, response: { type: 'reply', requestId: uploads[0].request.requestId, effect: 'applied', result: { markdown: '[attachment](uploads/file.txt)' } } }); await view.tick();
+  assert.match(comment.value, /Preview this comment\n\n\[attachment\]/);
+});
+
+test('joined similar-Issue searches accept the original response', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data, {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close()); const revision = 91, document = view.dom.window.document;
+  view.send({ type: 'issueNavigation', navigation: { mode: 'create', revision } }); await view.tick();
+  view.send({ type: 'issueResponse', revision, response: { type: 'createData', projects: data.projects, selectedProjectId: 1,
+    options: { members: [], labels: [], milestones: [], templates: [] }, canSetStartDate: false, canCreateIssue: true } }); await view.tick();
+  const title = document.querySelector('.issue-embed .form-grid input[maxlength="1024"]'); title.value = 'Related bug'; title.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  title.dispatchEvent(new view.dom.window.FocusEvent('blur')); await view.tick(); title.dispatchEvent(new view.dom.window.FocusEvent('blur')); await view.tick();
+  const requests = view.requests.filter(message => message.type === 'issueRequest' && message.request.type === 'search'); assert.equal(requests.length, 1);
+  view.send({ type: 'issueResponse', revision, response: { type: 'reply', requestId: requests[0].request.requestId, result: [{ ...data.issues[0], title: 'Matched related bug' }] } }); await view.tick();
+  assert.match(document.querySelector('.issue-embed .hint').textContent, /Matched related bug/);
+});
+
+test('Git reconstruction after a Host reset recovers both legacy and current pending writes without resending', async t => {
+  for (const legacy of [true, false]) await t.test(legacy ? 'legacy correlation ID' : 'persisted operation ID', async t => {
+    const original = await mountGitLifecycle(t), document = original.dom.window.document;
+    const draft = document.querySelector('.git-commit-composer textarea'); draft.value = 'Verify after Host restart'; draft.dispatchEvent(new original.dom.window.Event('input', { bubbles: true })); await original.tick();
+    document.querySelector('.git-commit-composer').dispatchEvent(new original.dom.window.Event('submit', { bubbles: true, cancelable: true })); await original.tick();
+    const commit = gitActions(original, 'commit').at(-1); assert.ok(commit);
+    const saved = structuredClone(original.savedState); if (legacy) delete saved.gitUi.pendingWrites[0].operationId;
+    const pendingId = saved.gitUi.pendingWrites[0].operationId ?? commit.requestId;
+    original.dom.window.close();
+    const restored = await mount(saved, { ...snapshot('git'), operationSnapshot: { sessionId: 'new-git-host', revision: 0, operations: [] } }, {}, holdOperationReceipts);
+    t.after(() => restored.dom.window.close());
+    restored.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] }); await restored.tick();
+    await finishGit(restored, gitActions(restored, 'open').at(-1));
+    assert.ok(restored.requests.some(message => message.type === 'reconcileOperations' && message.pendingIds?.includes(pendingId)));
+    restored.send({ type: 'operationsSnapshot', snapshot: { sessionId: 'new-git-host', revision: 1, operations: [], requestedIds: [pendingId], missingIds: [pendingId] } }); await restored.tick();
+    const root = restored.dom.window.document;
+    assert.equal(root.querySelector('.git-commit-composer textarea').value, 'Verify after Host restart');
+    assert.equal(root.querySelector('.git-commit-launch').disabled, true); assert.equal(root.querySelector('.git-refresh').disabled, false);
+    const confirm = [...root.querySelectorAll('.workspace-operation-area button')].find(button => button.textContent === '核對寫入結果'); assert.ok(confirm); confirm.click(); await restored.tick();
+    assert.equal(restored.requests.findLast(message => message.type === 'confirmOperationResult').targetOperationId, pendingId);
+    assert.equal(gitActions(restored, 'commit').length, 0);
+    restored.send({ type: 'operationChanged', operation: { requestId: pendingId, correlationId: commit.requestId, resourceKey: 'git:repo-a', action: 'gitAction', kind: 'write',
+      scopeRevision: saved.gitUi.pendingWrites[0].scopeRevision ?? 'team-scope:root-team', status: 'succeeded', effect: legacy ? 'none' : 'applied', label: 'Verified', phase: 'Verified',
+      hostSessionId: 'new-git-host', revision: 2, startedAt: 1, finishedAt: 2 } }); await restored.tick();
+    assert.equal(restored.savedState.gitUi.pendingWrites.length, 0);
+    assert.equal(root.querySelector('.git-commit-composer textarea').value, legacy ? 'Verify after Host restart' : '');
+    assert.ok(restored.requests.some(message => message.type === 'gitAcknowledgeResult' && message.requestId === commit.requestId));
+  });
+});
+
+test('Issue reconstruction after a Host reset restores missing pending receipts as confirmable unknown operations', async t => {
+  const data = snapshot(), issue = data.issues[0], revision = 100, requestId = 'issue-before-host-reset', operationId = 'ui-before-host-reset';
+  const saved = { mode: 'developer', scopeKey: 'team-scope', instanceUserScope: 'instance-user',
+    issueNavigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, revision },
+    issueEditorDrafts: { 'instance-user': { create: {}, issues: {}, conversations: { [issue.id]: { comment: 'Verify this original comment', reply: {} } },
+      pending: { [requestId]: { issueId: issue.id, projectId: issue.project_id, issueIid: issue.iid, operationId, resourceKey: `issue:${issue.project_id}:${issue.iid}`,
+        scopeRevision: 'team-scope:root-team', action: 'note', replyId: null, submission: { body: 'Verify this original comment', taskTitle: '', taskDescription: '' }, form: null, creating: false } } } } };
+  const view = await mount(saved, { ...data, operationSnapshot: { sessionId: 'new-issue-host', revision: 0, operations: [] } }, {}, holdOperationReceipts);
+  t.after(() => view.dom.window.close());
+  view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: { ...issueDetailData(issue, data.projects[0]), canComment: true } } }); await view.tick();
+  assert.ok(view.requests.some(message => message.type === 'reconcileOperations' && message.pendingIds?.includes(operationId)));
+  view.send({ type: 'operationsSnapshot', snapshot: { sessionId: 'new-issue-host', revision: 1, operations: [], requestedIds: [operationId], missingIds: [operationId] } }); await view.tick();
+  const document = view.dom.window.document, comment = document.querySelector('.issue-detail-column textarea[rows="5"]');
+  const submit = () => [...document.querySelectorAll('.issue-detail-column button')].find(button => button.textContent === '送出留言');
+  assert.equal(comment.value, 'Verify this original comment'); assert.equal(submit().disabled, true);
+  assert.equal([...document.querySelectorAll('.issue-heading-actions button')].find(button => button.textContent === '重新整理').disabled, false);
+  const confirm = [...document.querySelectorAll('.workspace-operation-area button')].find(button => button.textContent === '核對寫入結果'); assert.ok(confirm); confirm.click(); await view.tick();
+  assert.equal(view.requests.findLast(message => message.type === 'confirmOperationResult').targetOperationId, operationId);
+  assert.equal(view.requests.some(message => message.type === 'issueRequest' && message.request.type === 'invoke'), false);
+  view.send({ type: 'operationChanged', operation: { requestId: operationId, correlationId: requestId, resourceKey: `issue:${issue.project_id}:${issue.iid}`, action: 'issueRequest', kind: 'write',
+    scopeRevision: 'team-scope:root-team', status: 'succeeded', effect: 'none', label: 'Verified', phase: 'Verified', hostSessionId: 'new-issue-host', revision: 2, startedAt: 1, finishedAt: 2 } }); await view.tick();
+  assert.equal(comment.value, 'Verify this original comment'); assert.equal(submit().disabled, false);
+  assert.equal(Object.hasOwn(view.savedState.issueEditorDrafts['instance-user'].pending, requestId), false);
+});
+
+test('MR discussion replies retain failed and uncertain drafts and clear only confirmed submitted text', async t => {
+  const data = snapshot('reviewer'), mr = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main' };
+  data.mergeRequests = [mr]; data.selectedMergeRequest = { request: mr, diffs: [], discussions: [{ id: 'thread-retain', notes: [{ id: 1, body: 'Review comment', author: { name: 'Reviewer' } }] }],
+    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, warnings: [], freshness: { state: 'current', checkedAt: Date.now() }, sourceSha: gitHead, targetSha: gitParent };
+  const view = await mount({ mode: 'reviewer', scopeKey: 'team-scope' }, data, {}, holdOperationReceipts); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '討論').click(); await view.tick();
+  const input = document.querySelector('input[aria-label="討論回覆"]'), button = input.parentElement.querySelector('button'), key = 'instance-user:1:4:thread-retain';
+  const type = async text => { input.value = text; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick(); };
+  const submit = async () => { button.click(); await view.tick(); return view.dom.window.heldOperations.findLast(message => message.type === 'replyMergeRequest'); };
+  const finish = async (sent, patch) => { view.send({ type: 'operationChanged', operation: { requestId: sent.operationId, scopeRevision: sent.operationScope, resourceKey: 'mr:1:4', action: 'replyMergeRequest', kind: 'write',
+    label: 'Reply', phase: 'Finished', startedAt: 1, finishedAt: 2, ...patch } }); await view.tick(); };
+  await type('Keep after failed send');
+  const failed = await submit(); assert.ok(failed); assert.equal(input.value, 'Keep after failed send');
+  await finish(failed, { status: 'failed', effect: 'none', error: 'GitLab rejected the reply' });
+  assert.equal(input.value, 'Keep after failed send'); assert.equal(view.savedState.mrReplyDrafts[key], input.value);
+  const uncertain = await submit();
+  await finish(uncertain, { status: 'failed', effect: 'unknown', error: 'Verify the posted reply' });
+  assert.equal(input.value, 'Keep after failed send'); assert.equal(button.disabled, true);
+  await finish(uncertain, { status: 'succeeded', effect: 'none' });
+  assert.equal(input.value, 'Keep after failed send'); assert.equal(button.disabled, false);
+  await type('Submitted original'); const edited = await submit();
+  await type('Newer draft typed while sending');
+  await finish(edited, { status: 'succeeded', effect: 'applied', refreshError: 'Discussions unavailable' });
+  assert.equal(input.value, 'Newer draft typed while sending'); assert.equal(view.savedState.mrReplyDrafts[key], input.value);
+  await type('Confirmed exact text'); const applied = await submit();
+  await finish(applied, { status: 'succeeded', effect: 'applied', refreshError: 'Discussions unavailable' });
+  assert.equal(input.value, ''); assert.equal(view.savedState.mrReplyDrafts[key], '');
+});

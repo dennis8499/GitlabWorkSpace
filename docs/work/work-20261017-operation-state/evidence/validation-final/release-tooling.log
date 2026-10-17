@@ -1,0 +1,51 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","--test","scripts/extension-test-environment.test.mjs","scripts/live-benchmark-comparison.test.mjs","scripts/live-fixture-plan.test.mjs","scripts/live-test-paths.test.mjs","scripts/live-validation-state.test.mjs","scripts/python-runtime.test.mjs","scripts/release-policy.test.mjs","scripts/release-workflow.test.mjs","scripts/validation-orchestration.test.mjs","scripts/validation-runtime.test.mjs"]
+✔ host launch removes inherited Electron/VS Code runtime state and preserves explicit test settings (2.3093ms)
+✔ host preflight rejects a missing, unsupported, or wrong-version editor before long suites (32.8144ms)
+✔ the real test CLI receives a temporary workspace and leaves the tracked fixture untouched (366.5827ms)
+✔ compares 10 cold sessions and 300 warm/search samples within the 10 percent budget (8.2857ms)
+✔ fails when a latency or memory sample regresses by more than 10 percent (0.5174ms)
+✔ compares complete baseline samples even when the baseline misses an absolute performance threshold (0.2976ms)
+✔ blocks a baseline with Extension Host test failures even when it has complete samples (0.2258ms)
+✔ blocks incomplete, mismatched or identical-artifact comparisons (0.1617ms)
+✔ the managed load plan creates exactly 20 projects, 500 issues, 50 merge requests and 200 graph nodes (2.6606ms)
+✔ load-plan helpers reject incomplete project inventories and preserve graph ordering across repositories (0.4668ms)
+✔ fixture paths on Windows compare case-insensitively after normalization (0.6441ms)
+✔ fixture paths still reject a different run or checkout directory (0.1803ms)
+✔ portable cold sessions have distinct roots matching the environment override (1.1727ms)
+✔ normal profiles preserve CLI paths and unsafe profile IDs are rejected (0.9542ms)
+✔ an interrupted load rerun reuses the existing Issue and records it only once (0.8574ms)
+✔ a two-way REST issue link found in GitLab response fields is recorded without a duplicate POST (0.6051ms)
+✔ the live API client backs off across repeated 429 responses with a zero Retry-After header (25.0623ms)
+✔ load cleanup refuses an unrecorded project and preserves its manifest and workspace (4.6542ms)
+✔ load cleanup accepts Windows path case changes and deletes only an exactly owned fixture (8.8185ms)
+✔ finds Python and Python launcher commands on Windows (1.7318ms)
+✔ selects only Python 3.11 or newer and sets explicit UTF-8 streams (0.2855ms)
+✔ [BDD-REL-001] accepts a tag when manifest, lockfile, and main ancestry agree (2.1574ms)
+✔ [BDD-REL-001] rejects malformed tags and mismatched manifests (1.9145ms)
+✔ [BDD-REL-002] derives the VSIX filename from package name and version (1.617ms)
+✔ [BDD-REL-004] marks only v0.1.0 and semantic prerelease versions as prereleases (0.4257ms)
+✔ [BDD-REL-003] retains all four platform cells and builds once per validation (2.1145ms)
+✔ keeps validation read-only and grants write only to guarded tag promotion (0.4173ms)
+✔ runs Xvfb only on Linux and the full suite directly on Windows (0.3732ms)
+✔ promotes exact proof-bound artifacts with complete fallback and bounded retention (0.3069ms)
+✔ full validation builds once, discovers suites, and packages only after every gate (1284.2951ms)
+✔ a real host launch failure stops before expensive suites and produces no publishable package (616.9977ms)
+✔ prepared execution rejects source drift, missing output, and an unprepared stage (107.7238ms)
+[validation] case-1 started
+[validation] case-0 started
+[validation] case-0: passed (0.167s); C:\Users\denni\AppData\Local\Temp\glw-validation-pool-IT4Oew\case-0.log
+[validation] case-1: FAILED (0.177s); C:\Users\denni\AppData\Local\Temp\glw-validation-pool-IT4Oew\case-1.log
+[validation] case-2 started
+[validation] case-3 started
+[validation] case-3: passed (0.148s); C:\Users\denni\AppData\Local\Temp\glw-validation-pool-IT4Oew\case-3.log
+[validation] case-2: passed (0.154s); C:\Users\denni\AppData\Local\Temp\glw-validation-pool-IT4Oew\case-2.log
+✔ bounded child processes retain all failures, stdout and stderr in separate logs (336.8581ms)
+✔ worker configuration cannot silently disable checks or create an unbounded pool (0.3306ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2110.3127

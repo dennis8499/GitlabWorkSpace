@@ -1,10 +1,23 @@
 import * as vscode from 'vscode';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
 import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { mapWithConcurrency } from '../workspace/issueGraph';
+import { operationResource, type OperationTracker, type WorkspaceOperationState } from '../workspace/operations';
+import { describeAction } from '../workspace/actionPolicy';
+
+interface IssueActionContext {
+  request: IssuePanelRequest;
+  writeStarted: boolean;
+  status: 'succeeded' | 'failed' | 'cancelled';
+  effect: 'none' | 'applied' | 'partial' | 'unknown';
+  error?: string;
+  refreshError?: string;
+}
 
 class IssueValidationError extends Error {
   constructor(message: string) { super(message); this.name = 'IssueValidationError'; }
@@ -117,6 +130,7 @@ export class IssuePanels implements vscode.Disposable {
   private hasNavigation = false;
   private mode: 'create' | 'detail' = 'create';
   private revision = 0;
+  private readonly actionContext = new AsyncLocalStorage<IssueActionContext>();
   private workspace?: {
     post: (message: WorkspaceResponse) => void;
     navigate: (navigation: IssueNavigation | null) => void;
@@ -126,7 +140,8 @@ export class IssuePanels implements vscode.Disposable {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly session: GitLabSession,
-    private readonly refreshIssues: () => void
+    private readonly refreshIssues: () => void,
+    private readonly operations?: OperationTracker
   ) {}
 
   setWorkspace(workspace: {
@@ -187,7 +202,8 @@ export class IssuePanels implements vscode.Disposable {
         if (!relations.canManageChildren || !relations.parentWorkItemId || !relations.taskTypeId) throw new Error('You cannot create child tasks on this issue.');
         const title = requiredString(action.title, 'Task title').trim();
         if (title.length > 1024) throw new Error('Task title is too long.');
-        await client.createChildTask(relations.project.path_with_namespace, relations.parentWorkItemId, relations.taskTypeId, title, this.session.issueCapabilities?.workItemCreatePathField);
+        const parentWorkItemId = relations.parentWorkItemId, taskTypeId = relations.taskTypeId;
+        await this.write(() => client.createChildTask(relations.project.path_with_namespace, parentWorkItemId, taskTypeId, title, this.session.issueCapabilities?.workItemCreatePathField));
         break;
       }
       case 'addChild': {
@@ -201,7 +217,8 @@ export class IssuePanels implements vscode.Disposable {
         if (item.type?.toLocaleLowerCase() !== 'task') throw new Error('The selected work item is not a Task.');
         if (item.parentId === relations.parentWorkItemId) throw new Error('This Task is already a child of the current issue.');
         if (item.parentId) throw new Error('This Task already has another parent. Remove its existing parent in GitLab before adding it here.');
-        await client.setChildParent(item.id, relations.parentWorkItemId);
+        const parentWorkItemId = relations.parentWorkItemId;
+        await this.write(() => client.setChildParent(item.id, parentWorkItemId));
         break;
       }
       case 'link': {
@@ -218,14 +235,14 @@ export class IssuePanels implements vscode.Disposable {
         if (relations.links.some((item) => item.project_id === targetProjectId && item.iid === targetIssueIid)) throw new Error('These issues are already linked.');
         if (!['relates_to', 'blocks', 'is_blocked_by'].includes(action.linkType)) throw new Error('Unsupported issue link type.');
         await client.getIssue(targetProjectId, targetIssueIid);
-        await client.addIssueLink(projectId, iid, targetProjectId, targetIssueIid, action.linkType);
+        await this.write(() => client.addIssueLink(projectId, iid, targetProjectId, targetIssueIid, action.linkType));
         break;
       }
       case 'unlink': {
         if (!relations.canLink) throw new Error('You do not have permission to remove issue links.');
         const linkId = requiredId(action.linkId, 'Issue link');
         if (!relations.links.some((item) => item.issue_link_id === linkId)) throw new Error('This link does not belong to the current issue.');
-        await client.removeIssueLink(projectId, iid, linkId);
+        await this.write(() => client.removeIssueLink(projectId, iid, linkId));
         break;
       }
       default: throw new Error('Unsupported issue relationship action.');
@@ -305,6 +322,18 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private post(message: IssuePanelResponse): void {
+    const action = this.actionContext.getStore();
+    if (action && message.type !== 'actionResult') {
+      if (message.type === 'error' || message.type === 'reply' && message.error) {
+        const error = message.type === 'error' ? message.message : message.error!;
+        if (action.effect === 'applied' || action.effect === 'partial') {
+          action.refreshError = error;
+          return;
+        }
+        action.status = 'failed'; action.error = error;
+      } else if (message.type === 'cancelled') action.status = 'cancelled';
+      message = { ...message, operationId: action.request.operationId, effect: action.effect };
+    }
     if (message.type === 'error' || message.type === 'reply' && message.error) {
       this.session.log?.record({ feature: 'issue', action: 'issueError', result: 'error',
         projectId: this.issue?.project_id, issueIid: this.issue?.iid, message: message.type === 'error' ? message.message : message.error });
@@ -318,15 +347,45 @@ export class IssuePanels implements vscode.Disposable {
         sections: { ...(previous.sections ?? {}), ...(message.patch.sections ?? {}) }
       } };
     }
-    if (!this.ready && message.type !== 'reply' && message.type !== 'error') return;
+    if (!this.ready && message.type !== 'reply' && message.type !== 'error' && message.type !== 'operationsSnapshot') return;
     this.workspace?.post({ type: 'issueResponse', revision: this.revision, response: message });
   }
 
-  async handle(raw: unknown, revision?: number): Promise<void> { return this.handleRequest(raw, revision); }
+  async handle(raw: unknown, revision?: number, alreadyTracked = false): Promise<void> { return this.handleRequest(raw, revision, alreadyTracked); }
 
-  private async handleRequest(raw: unknown, revision?: number): Promise<void> {
+  /** Bind locks to the Host's loaded Issue rather than client-supplied IDs. */
+  normalizeOperationRequest(request: IssuePanelRequest): IssuePanelRequest {
+    const current = this.mode === 'detail' ? this.issue : undefined;
+    if ('issueId' in request && (!current || request.issueId !== current.id)) throw new IssueValidationError('The displayed issue changed. Refresh before trying this action.');
+    const creation = request.type === 'create' || request.type === 'selectProject';
+    const control = request.type === 'ready' || request.type === 'reconcileOperations' || request.type === 'confirmOperationResult';
+    if (!current || creation || control) {
+      const normalized = { ...request }; delete normalized.issueIid;
+      return normalized;
+    }
+    if (request.projectId !== undefined && request.projectId !== current.project_id || request.issueIid !== undefined && request.issueIid !== current.iid) {
+      throw new IssueValidationError('The displayed issue changed. Refresh before trying this action.');
+    }
+    return { ...request, projectId: current.project_id, issueIid: current.iid };
+  }
+
+  private async handleRequest(raw: unknown, revision?: number, alreadyTracked = false): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
     const request = raw as IssuePanelRequest;
+    if (request.type === 'reconcileOperations') {
+      if (this.operations) this.post({ type: 'operationsSnapshot', snapshot: this.operations.snapshot(undefined, request.pendingIds) });
+      return;
+    }
+    if (request.type === 'confirmOperationResult') {
+      const operation = this.operations?.get(request.targetOperationId);
+      if (!operation || operation.effect !== 'unknown' || operation.hostSessionId !== this.operations?.sessionId || !operation.resourceKey.startsWith('issue:')) return;
+      const selected = await vscode.window.showWarningMessage('請先在 GitLab 核對這項 Issue 操作的實際結果，再選擇已確認的狀態。', { modal: true }, '已確認完成', '已確認未執行');
+      if (selected === '已確認完成' || selected === '已確認未執行') {
+        this.operations!.resolveUnknown(operation.requestId, { status: 'succeeded', effect: selected === '已確認完成' ? 'applied' : 'none', phase: '已核對操作結果', error: undefined, refreshError: undefined });
+        this.post({ type: 'operationsSnapshot', snapshot: this.operations!.snapshot(undefined, [operation.requestId]) });
+      }
+      return;
+    }
     if (revision !== undefined && revision !== this.revision) {
       if (request.type === 'copyDescription' && typeof request.requestId === 'string') {
         this.post({ type: 'reply', requestId: request.requestId, error: 'The displayed issue changed. Try copying the current issue again.' });
@@ -351,13 +410,66 @@ export class IssuePanels implements vscode.Disposable {
       }
       return this.load();
     }
-    return this.handleReadyRequest(request);
+    return this.handleReadyRequest(request, alreadyTracked);
   }
 
-  private async handleReadyRequest(request: IssuePanelRequest): Promise<void> {
-    const task = () => this.handleRequestBody(request);
-    return this.session.log?.run('issue', request.type === 'invoke' ? request.action : request.type,
-      { projectId: this.issue?.project_id, issueIid: this.issue?.iid }, task) ?? task();
+  private async handleReadyRequest(request: IssuePanelRequest, alreadyTracked: boolean): Promise<void> {
+    let normalizationError: unknown;
+    try { request = this.normalizeOperationRequest(request); }
+    catch (error) { normalizationError = error; }
+    const operationId = request.operationId ?? `issue-host-${randomUUID()}`;
+    const context: IssueActionContext = { request: { ...request, operationId }, writeStarted: false, status: 'succeeded', effect: 'none' };
+    const task = () => this.actionContext.run(context, async () => {
+      try {
+        const body = () => { if (normalizationError) throw normalizationError; return this.handleRequestBody(request); };
+        await (this.session.log?.run('issue', request.type === 'invoke' ? request.action : request.type,
+          { projectId: this.issue?.project_id, issueIid: this.issue?.iid }, body) ?? body());
+      } catch (error) {
+        context.status = 'failed'; context.error = safeError(error);
+        const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
+          error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
+        if (context.effect === 'applied' || context.effect === 'partial') {
+          context.status = 'succeeded'; context.refreshError = context.error; context.error = undefined;
+          return;
+        }
+        if (context.writeStarted && context.effect === 'none' && !definitive) context.effect = 'unknown';
+        if (error && typeof error === 'object' && Object.isExtensible(error)) Object.assign(error, { effect: context.effect });
+        throw error;
+      } finally {
+        this.operations?.noteOutcome(operationId, { status: context.status, effect: context.effect, error: context.error, refreshError: context.refreshError });
+        if (request.requestId) this.post({ type: 'actionResult', requestId: request.requestId, operationId,
+          status: context.status, effect: context.effect, error: context.error, refreshError: context.refreshError });
+      }
+    });
+    if (!this.operations || alreadyTracked) return task();
+    const scopeRevision = request.operationScope ?? `${this.session.baseUrl ?? 'offline'}:${this.session.selectedGroup?.id ?? 'none'}`;
+    const state: WorkspaceOperationState = {
+      ...describeAction({ type: 'issueRequest', request } as { type: string }, { scopeRevision }),
+      requestId: operationId, scopeRevision,
+      resourceKey: operationResource({ type: 'issueRequest', request }), action: 'issueRequest', label: '處理 Issue 操作',
+      phase: '正在處理…', status: 'queued', startedAt: Date.now(), correlationId: request.requestId
+    };
+    return this.operations.run(state, async () => {
+      await task();
+      return context.status === 'cancelled' ? 'cancelled' : context.status === 'failed' ? 'failed' : undefined;
+    });
+  }
+
+  /** Mark the effect only after GitLab confirms the mutation; reads never change it. */
+  private async write<T>(task: () => Promise<T>): Promise<T> {
+    const context = this.actionContext.getStore();
+    if (context) context.writeStarted = true;
+    try {
+      const result = await task();
+      if (context) context.effect = 'applied';
+      return result;
+    } catch (error) {
+      const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
+        error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
+      if (context && context.effect === 'none' && !definitive) context.effect = 'unknown';
+      if (error && typeof error === 'object' && Object.isExtensible(error)) Object.assign(error, { effect: context?.effect ?? (definitive ? 'none' : 'unknown') });
+      throw error;
+    }
   }
 
   private async load(forceNetwork = false): Promise<void> {
@@ -703,7 +815,7 @@ export class IssuePanels implements vscode.Disposable {
       const project = group ? (await client.listGroupProjects(group.id)).find((item) => item.id === projectId) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
       if (!this.session.issueCapabilities?.createPermission || !await client.canCreateIssue(project.path_with_namespace)) throw new Error('You cannot create issues in this project.');
-      const created = await client.createIssue(projectId, createInput(request.input));
+      const created = await this.write(() => client.createIssue(projectId, createInput(request.input)));
       const startDate = optionalDate(request.input.startDate);
       if (startDate) {
         if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue 已建立，但此 GitLab 版本沒有原生 Issue 開始日期欄位。';
@@ -714,7 +826,7 @@ export class IssuePanels implements vscode.Disposable {
             if (!details.supported) throw new Error('這個 Issue 類型沒有可用的開始日期 Widget。');
             const workItemId = await client.getWorkItemId(project.path_with_namespace, created.iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the new Work Item ID.');
-            await client.setIssueStartDate(workItemId, startDate);
+            await this.write(() => client.setIssueStartDate(workItemId, startDate));
           } catch (error) { this.operationWarning = `Issue created, but the start date was not saved: ${safeError(error)}`; }
         }
       }
@@ -751,12 +863,12 @@ export class IssuePanels implements vscode.Disposable {
           result = request.query.trim() ? await client.searchProjectIssues(projectId, request.query.trim()) : [];
         } else {
           const file = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Attach to GitLab Issue' });
-          if (!file?.[0] || file[0].scheme !== 'file') result = null;
+          if (!file?.[0] || file[0].scheme !== 'file') { result = null; const context = this.actionContext.getStore(); if (context) context.status = 'cancelled'; }
           else {
             const bytes = await vscode.workspace.fs.readFile(file[0]);
             const name = file[0].path.split('/').at(-1) ?? 'attachment';
             const type = /\.png$/i.test(name) ? 'image/png' : /\.jpe?g$/i.test(name) ? 'image/jpeg' : /\.gif$/i.test(name) ? 'image/gif' : 'application/octet-stream';
-            result = await client.uploadProjectFile(projectId, name, bytes, type);
+            result = await this.write(() => client.uploadProjectFile(projectId, name, bytes, type));
           }
         }
         this.post({ type: 'reply', requestId, result });
@@ -820,7 +932,7 @@ export class IssuePanels implements vscode.Disposable {
     if (request.type === 'update') {
       if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
       const input = updateInput(request.input);
-      await client.updateIssueIfUnchanged(projectId, iid, request.expectedUpdatedAt, input);
+      await this.write(() => client.updateIssueIfUnchanged(projectId, iid, request.expectedUpdatedAt, input));
       const currentDate = this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data.startDate : undefined;
       if (input.startDate !== undefined && input.startDate !== currentDate) {
         if (!this.session.issueCapabilities?.startDate) this.operationWarning = 'Issue 欄位已儲存，但此 GitLab 版本沒有原生 Issue 開始日期欄位。';
@@ -830,7 +942,7 @@ export class IssuePanels implements vscode.Disposable {
             const project = await client.getProject(projectId);
             const workItemId = await client.getWorkItemId(project.path_with_namespace, iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the Work Item ID.');
-            await client.setIssueStartDate(workItemId, input.startDate ?? null);
+            await this.write(() => client.setIssueStartDate(workItemId, input.startDate ?? null));
           } catch (error) { this.operationWarning = `Issue fields saved, but the start date was not saved: ${safeError(error)}`; }
         }
       }
@@ -842,37 +954,37 @@ export class IssuePanels implements vscode.Disposable {
     switch (request.action) {
       case 'close': case 'reopen':
         if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
-        await client.updateIssueIfUnchanged(projectId, iid, issue.updated_at, { stateEvent: request.action }); break;
-      case 'subscribe': await client.subscribeToIssue(projectId, iid); break;
-      case 'unsubscribe': await client.unsubscribeFromIssue(projectId, iid); break;
-      case 'todo': await client.createIssueTodo(projectId, iid); break;
-      case 'todoDone': await client.markTodoDone(requiredId(payload.todoId, 'To-do')); break;
+        await this.write(() => client.updateIssueIfUnchanged(projectId, iid, issue.updated_at, { stateEvent: request.action as 'close' | 'reopen' })); break;
+      case 'subscribe': await this.write(() => client.subscribeToIssue(projectId, iid)); break;
+      case 'unsubscribe': await this.write(() => client.unsubscribeFromIssue(projectId, iid)); break;
+      case 'todo': await this.write(() => client.createIssueTodo(projectId, iid)); break;
+      case 'todoDone': await this.write(() => client.markTodoDone(requiredId(payload.todoId, 'To-do'))); break;
       case 'note':
         if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
         if (payload.internal === true && !snapshot?.canInternalComment) throw new Error('You cannot post internal comments on this issue.');
-        await client.addIssueNote(projectId, iid, requiredString(payload.body, 'Comment'), payload.internal === true); break;
-      case 'editNote': await client.updateIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment'), requiredString(payload.body, 'Comment')); break;
-      case 'deleteNote': await client.deleteIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment')); break;
+        await this.write(() => client.addIssueNote(projectId, iid, requiredString(payload.body, 'Comment'), payload.internal === true)); break;
+      case 'editNote': await this.write(() => client.updateIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment'), requiredString(payload.body, 'Comment'))); break;
+      case 'deleteNote': await this.write(() => client.deleteIssueNote(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredId(payload.noteId, 'Comment'))); break;
       case 'thread':
         if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
         if (payload.internal === true) throw new Error('GitLab cannot create an internal issue thread. Use an internal comment.');
-        await client.createIssueThread(projectId, iid, requiredString(payload.body, 'Thread')); break;
+        await this.write(() => client.createIssueThread(projectId, iid, requiredString(payload.body, 'Thread'))); break;
       case 'reply':
         if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
-        await client.replyToIssueThread(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredString(payload.body, 'Reply')); break;
+        await this.write(() => client.replyToIssueThread(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredString(payload.body, 'Reply'))); break;
       case 'resolveThread':
         if (!this.session.issueCapabilities?.discussionResolve) throw new Error('This GitLab instance does not expose discussion resolution.');
-        await client.resolveIssueThread(requiredString(payload.discussionId, 'Thread'), payload.resolved === true); break;
-      case 'react': await client.addIssueReaction(projectId, iid, requiredString(payload.name, 'Emoji')); break;
-      case 'unreact': await client.removeIssueReaction(projectId, iid, requiredId(payload.reactionId, 'Reaction')); break;
+        await this.write(() => client.resolveIssueThread(requiredString(payload.discussionId, 'Thread'), payload.resolved === true)); break;
+      case 'react': await this.write(() => client.addIssueReaction(projectId, iid, requiredString(payload.name, 'Emoji'))); break;
+      case 'unreact': await this.write(() => client.removeIssueReaction(projectId, iid, requiredId(payload.reactionId, 'Reaction'))); break;
       case 'reactNote': case 'unreactNote': {
         const noteId = requiredId(payload.noteId, 'Comment');
         if (!snapshot?.discussions.some((discussion) => discussion.notes.some((note) => note.id === noteId && !note.system))) throw new Error('Comment is not part of this issue.');
-        if (request.action === 'reactNote') await client.addIssueNoteReaction(projectId, iid, noteId, requiredString(payload.name, 'Emoji'));
+        if (request.action === 'reactNote') await this.write(() => client.addIssueNoteReaction(projectId, iid, noteId, requiredString(payload.name, 'Emoji')));
         else {
           const reactionId = requiredId(payload.reactionId, 'Reaction');
           if (!snapshot.noteReactions[noteId]?.some((reaction) => reaction.id === reactionId && reaction.user.id === snapshot.user.id)) throw new Error('Reaction is not yours.');
-          await client.removeIssueNoteReaction(projectId, iid, noteId, reactionId);
+          await this.write(() => client.removeIssueNoteReaction(projectId, iid, noteId, reactionId));
         }
         break;
       }
@@ -882,15 +994,15 @@ export class IssuePanels implements vscode.Disposable {
         if (linkType !== 'relates_to' && this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.status !== 'supported') {
           throw new Error(this.session.capabilityDiagnostics.find((item) => item.id === 'blockingLinks')?.reason ?? '尚未確認此 GitLab 方案是否支援阻擋關聯。');
         }
-        await client.addIssueLink(projectId, iid, requiredId(payload.targetProjectId, 'Project'), requiredId(payload.targetIssueIid, 'Issue'), linkType);
+        await this.write(() => client.addIssueLink(projectId, iid, requiredId(payload.targetProjectId, 'Project'), requiredId(payload.targetIssueIid, 'Issue'), linkType));
         break;
       }
       case 'unlink':
         if (!snapshot?.canLink) throw new Error('GitLab does not report permission to remove Issue links.');
-        await client.removeIssueLink(projectId, iid, requiredId(payload.linkId, 'Link')); break;
+        await this.write(() => client.removeIssueLink(projectId, iid, requiredId(payload.linkId, 'Link'))); break;
       case 'estimate':
         if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to update this Issue time estimate.');
-        await client.setTimeEstimate(projectId, iid, requiredString(payload.duration, 'Duration')); break;
+        await this.write(() => client.setTimeEstimate(projectId, iid, requiredString(payload.duration, 'Duration'))); break;
       case 'spend': {
         if (!snapshot?.canLogTime) throw new Error('GitLab does not report permission to log time on this Issue.');
         const duration = requiredString(payload.duration, 'Duration');
@@ -903,11 +1015,11 @@ export class IssuePanels implements vscode.Disposable {
           const safeDuration = quickActionDuration(duration);
           const safeSummary = summary?.trim().replace(/[\r\n]+/g, ' ').replace(/^\s*\/[A-Za-z][A-Za-z0-9_-]*(?:\s|$)/, ' ').trim();
           const body = [safeSummary, `/spend ${safeDuration} ${spentDate}`].filter(Boolean).join('\n\n');
-          await client.addIssueNote(projectId, iid, body);
+          await this.write(() => client.addIssueNote(projectId, iid, body));
         } else if (capabilities?.timelogCreate && (!summary?.trim() || capabilities.timelogCreateSummary === true)) {
           const spentAt = spentDate ? new Date(`${spentDate}T12:00:00`).toISOString() : undefined;
-          await client.createIssueTimelog(issue.id, duration, summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
-        } else await client.addSpentTime(projectId, iid, duration, summary);
+          await this.write(() => client.createIssueTimelog(issue.id, duration, summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true));
+        } else await this.write(() => client.addSpentTime(projectId, iid, duration, summary));
         break;
       }
       case 'deleteTimelog': {
@@ -915,25 +1027,26 @@ export class IssuePanels implements vscode.Disposable {
         if (!snapshot?.canDeleteTimelog || !this.session.issueCapabilities?.timelogDelete || !snapshot.timelogs.some((entry) => entry.id === id && entry.userPermissions?.adminTimelog)) throw new Error('You cannot delete this time entry.');
         const confirm = await vscode.window.showWarningMessage('Delete this time entry?', { modal: true }, 'Delete time entry');
         if (confirm !== 'Delete time entry') { this.post({ type: 'cancelled' }); return; }
-        await client.deleteIssueTimelog(id);
+        await this.write(() => client.deleteIssueTimelog(id));
         break;
       }
       case 'resetEstimate': {
         if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to reset this Issue time estimate.');
         const confirm = await vscode.window.showWarningMessage('Reset this issue’s entire time estimate?', { modal: true }, 'Reset estimate');
         if (confirm !== 'Reset estimate') { this.post({ type: 'cancelled' }); return; }
-        await client.resetTimeEstimate(projectId, iid); break;
+        await this.write(() => client.resetTimeEstimate(projectId, iid)); break;
       }
       case 'resetSpent': {
         if (!snapshot?.canTrackTime) throw new Error('GitLab does not report permission to reset this Issue time.');
         const confirm = await vscode.window.showWarningMessage('Delete all time spent on this issue?', { modal: true }, 'Reset spent');
         if (confirm !== 'Reset spent') { this.post({ type: 'cancelled' }); return; }
-        await client.resetSpentTime(projectId, iid); break;
+        await this.write(() => client.resetSpentTime(projectId, iid)); break;
       }
       case 'createChild': {
         if (!snapshot?.canManageChildren) throw new Error('GitLab does not report permission to manage child tasks.');
         if (!snapshot?.parentWorkItemId || !snapshot.taskTypeId) throw new Error('This GitLab instance did not expose child task creation.');
-        await client.createChildTask(snapshot.project.path_with_namespace, snapshot.parentWorkItemId, snapshot.taskTypeId, requiredString(payload.title, 'Task title'), this.session.issueCapabilities?.workItemCreatePathField);
+        const parentWorkItemId = snapshot.parentWorkItemId, taskTypeId = snapshot.taskTypeId;
+        await this.write(() => client.createChildTask(snapshot.project.path_with_namespace, parentWorkItemId, taskTypeId, requiredString(payload.title, 'Task title'), this.session.issueCapabilities?.workItemCreatePathField));
         break;
       }
       case 'addChild': {
@@ -941,20 +1054,21 @@ export class IssuePanels implements vscode.Disposable {
         if (!snapshot?.parentWorkItemId) throw new Error('This GitLab instance did not expose child tasks.');
         const id = await client.getWorkItemId(snapshot.project.path_with_namespace, requiredId(payload.taskIid, 'Task'), this.session.issueCapabilities?.workItemScope);
         if (!id) throw new Error('Task was not found in this project.');
-        await client.setChildParent(id, snapshot.parentWorkItemId);
+        const parentWorkItemId = snapshot.parentWorkItemId;
+        await this.write(() => client.setChildParent(id, parentWorkItemId));
         break;
       }
       case 'removeChild': case 'setChildState': {
         const id = requiredString(payload.taskId, 'Task');
         if (!snapshot?.tasks.some((task) => task.id === id)) throw new Error('Task is not a child of this issue.');
-        if (request.action === 'removeChild') await client.setChildParent(id, null);
-        else await client.setChildState(id, payload.stateEvent === 'reopen' ? 'reopen' : 'close');
+        if (request.action === 'removeChild') await this.write(() => client.setChildParent(id, null));
+        else await this.write(() => client.setChildState(id, payload.stateEvent === 'reopen' ? 'reopen' : 'close'));
         break;
       }
       case 'updateChild': {
         const id = requiredString(payload.taskId, 'Task');
         if (!snapshot?.tasks.some((task) => task.id === id && task.canEdit)) throw new Error('You cannot edit this child task.');
-        await client.updateChildTask(id, requiredString(payload.title, 'Task title').trim(), optionalString(payload.description) ?? '');
+        await this.write(() => client.updateChildTask(id, requiredString(payload.title, 'Task title').trim(), optionalString(payload.description) ?? ''));
         break;
       }
       case 'move': {
@@ -962,7 +1076,7 @@ export class IssuePanels implements vscode.Disposable {
         const target = requiredId(payload.toProjectId, 'Target project');
         const confirm = await vscode.window.showWarningMessage(`Move issue #${iid} to project ${target}? GitLab closes the original issue.`, { modal: true }, 'Move');
         if (confirm !== 'Move') { this.post({ type: 'cancelled' }); return; }
-        this.issue = await client.moveIssue(projectId, iid, target);
+        this.issue = await this.write(() => client.moveIssue(projectId, iid, target));
         this.navigationVersion++;
         this.refreshIssues();
         return this.load();
@@ -970,7 +1084,7 @@ export class IssuePanels implements vscode.Disposable {
       case 'clone': {
         if (!snapshot?.canClone) throw new Error('GitLab does not report permission to clone this Issue.');
         const target = requiredId(payload.toProjectId, 'Target project');
-        this.issue = await client.cloneIssue(projectId, iid, target, payload.withNotes === true);
+        this.issue = await this.write(() => client.cloneIssue(projectId, iid, target, payload.withNotes === true));
         this.navigationVersion++;
         this.refreshIssues();
         return this.load();
@@ -979,7 +1093,7 @@ export class IssuePanels implements vscode.Disposable {
         if (!snapshot?.canDelete) throw new Error('GitLab does not report permission to delete this Issue.');
         const confirm = await vscode.window.showWarningMessage(`Permanently delete issue #${iid}?`, { modal: true }, 'Delete Issue');
         if (confirm !== 'Delete Issue') { this.post({ type: 'cancelled' }); return; }
-        await client.deleteIssue(projectId, iid);
+        await this.write(() => client.deleteIssue(projectId, iid));
         this.refreshIssues();
         this.post({ type: 'deleted' });
         return;
