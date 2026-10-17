@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ActionController, DispatchResult } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
+import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
 import type { WorkspaceRequest } from '../workspace/workspaceProtocol';
 import { isGitWriteAction, type GitAction, type GitChange, type GitCommitSummary, type GitPanelMessage, type GitRebasePlan, type GitRebaseTodoEntry, type GitRepositorySnapshot, type GitRepositorySummary, type GitStashSummary } from '../git/gitProtocol';
 import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
@@ -314,15 +315,20 @@ export function GitControlPanel({ post, actions: sharedActions, initialState, on
   }, [dialog?.kind]);
 
   function send(action: GitAction, repoId = selectedId): DispatchResult {
-    if (!repoId) return { status: 'blocked', reason: '請先選擇 Repo。' };
+    const showBlocked = (message: string) => setErrorsByRepo(current => ({ ...current, [repoId]: message }));
+    const blocked = (reason: string): DispatchResult => {
+      reportLocalFeedback(notice => actions.dispatch(notice), reason, { title: '版控操作', onInline: showBlocked });
+      return { status: 'blocked', reason };
+    };
+    if (!repoId) return blocked('請先選擇 Repo。');
     const write = isGitWriteAction(action);
-    if (write && writes.current.has(repoId)) return { status: 'blocked', reason: '此 Repo 正在處理另一項操作。' };
+    if (write && writes.current.has(repoId)) return blocked('此 Repo 正在處理另一項操作。');
     const key = repoId + ':' + JSON.stringify(action);
     const shared = inFlight.current.get(key);
     if (shared && action.type !== 'open' && (write || latestReadByRepo.current.get(repoId) === shared)) {
       const operation = actions.findByCorrelation(shared);
       return operation ? { status: 'joined', operationId: operation.requestId, correlationId: shared }
-        : { status: 'blocked', reason: '此 Repo 正在讀取資料，請等候完成。' };
+        : blocked('此 Repo 正在讀取資料，請等候完成。');
     }
     const id = 'git-ui-' + requestPrefix.current + '-' + (++requestId.current);
     const previousReadId = latestReadByRepo.current.get(repoId);
@@ -336,7 +342,8 @@ export function GitControlPanel({ post, actions: sharedActions, initialState, on
     else { latestReadByRepo.current.set(repoId, id); setReadingByRepo(current => ({ ...current, [repoId]: callName(action) })); }
     closeMenus();
     persist();
-    const result = actions.dispatch({ type: 'gitAction', repoId, requestId: id, action });
+    const result = dispatchWithFeedback(actions, { type: 'gitAction', repoId, requestId: id, action },
+      { title: '版控操作', fallbackMessage: '此 Repo 正在處理另一項操作。', onBlocked: showBlocked });
     const operation = result.operationId ? actions.get(result.operationId) : undefined;
     if (!write && result.operationId) actions.setRetryHandler(result.operationId, makeGitReadRetry(retrySender, action, repoId));
     if (result.status === 'started') {
@@ -366,7 +373,6 @@ export function GitControlPanel({ post, actions: sharedActions, initialState, on
         setReadingByRepo(current => ({ ...current, [repoId]: joined ? callName(joined.action) : restoredId && previousRead ? callName(previousRead.action) : '' }));
       }
     }
-    if (result.status === 'blocked') setErrorsByRepo(current => ({ ...current, [repoId]: result.reason ?? '此 Repo 正在處理另一項操作。' }));
     persist();
     return result;
   }
@@ -530,13 +536,20 @@ export function GitControlPanel({ post, actions: sharedActions, initialState, on
         }
       }
       if (!keepDialogOpen) setDialog(undefined);
-    } catch (caught) { setDialogError(caught instanceof Error ? caught.message : String(caught)); }
+    } catch (caught) {
+      reportLocalFeedback(notice => actions.dispatch(notice), caught instanceof Error ? caught.message : '請檢查 Git 操作欄位。',
+        { title: '版控操作', onInline: setDialogError });
+    }
   }
 
   function stageSelectedLines(reverse: boolean): void {
     if (!snapshot?.diffPath || !selectedChange || !selectedDiffLines.length) return;
     const diff = snapshot.diffText ?? '';
-    if (!makeSelectedPatch(diff, snapshot.diffPath, selectedDiffLines)) { setError('無法安全產生部分暫存 patch；請改用整檔操作。'); return; }
+    if (!makeSelectedPatch(diff, snapshot.diffPath, selectedDiffLines)) {
+      reportLocalFeedback(notice => actions.dispatch(notice), '無法安全產生部分暫存 patch；請改用整檔操作。',
+        { title: '版控操作', onInline: setError });
+      return;
+    }
     send({ type: 'stagePatch', path: snapshot.diffPath, lines: selectedDiffLines, basedOnDiff: diff, reverse });
   }
 

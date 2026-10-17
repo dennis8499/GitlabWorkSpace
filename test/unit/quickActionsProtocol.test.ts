@@ -69,3 +69,14 @@ test('reconciles bounded pending operation identities without changing ready val
   assert.equal(isQuickActionsRequest({ type: 'ready', pendingIds: [] }), false, 'ready retains its strict control shape');
   assert.equal(isQuickActionsRequest({ type: 'perform', action: 'openMyWork', pendingIds: [] }), false);
 });
+
+test('accepts bounded local feedback without weakening the sidebar command boundary', () => {
+  const notice = { type: 'publishNotification', level: 'warn', title: '快捷操作', message: '請稍候再試。',
+    operationScope: 'account-7|root-1', hostSessionId: 'host-1', scopeEpoch: 3 };
+  assert.equal(isQuickActionsRequest(notice), true);
+  for (const patch of [
+    { level: 'success' }, { level: {} }, { message: '' }, { message: '   ' }, { message: 1 },
+    { message: 'x'.repeat(4097) }, { title: 'x'.repeat(201) }, { title: {} },
+    { token: 'must-not-pass' }, { command: 'git push' }, { scopeEpoch: -1 }
+  ]) assert.equal(isQuickActionsRequest({ ...notice, ...patch }), false);
+});

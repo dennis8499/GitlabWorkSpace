@@ -423,7 +423,11 @@ export class IssuePanels implements vscode.Disposable {
       try {
         const body = () => { if (normalizationError) throw normalizationError; return this.handleRequestBody(request); };
         await (this.session.log?.run('issue', request.type === 'invoke' ? request.action : request.type,
-          { projectId: this.issue?.project_id, issueIid: this.issue?.iid }, body) ?? body());
+          { projectId: this.issue?.project_id, issueIid: this.issue?.iid }, body, () => ({
+            result: context.status === 'failed' ? 'error' : context.status === 'cancelled' ? 'cancelled' : 'success',
+            ...(context.refreshError || context.effect === 'partial' ? { level: 'warn' as const } : {}),
+            message: context.refreshError ?? context.error
+          })) ?? body());
       } catch (error) {
         context.status = 'failed'; context.error = safeError(error);
         const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
@@ -727,6 +731,12 @@ export class IssuePanels implements vscode.Disposable {
       if (active) return active;
       const loader = loaders[section];
       if (!loader) return;
+      const action = this.actionContext.getStore();
+      const failed = (message: string): void => {
+        if (!action) return;
+        if (action.effect === 'applied' || action.effect === 'partial') action.refreshError = message;
+        else { action.status = 'failed'; action.error = message; }
+      };
       data = { ...data, sections: { ...(data.sections ?? {}), [section]: 'loading' } };
       this.post({ type: 'detailPatch', issueId: issue.id, patch: { sections: data.sections } });
       const task = (async (): Promise<void> => {
@@ -736,10 +746,13 @@ export class IssuePanels implements vscode.Disposable {
           const optionErrors = section === 'options' ? value.options?.warnings : undefined;
           const loadWarning = value.loadErrors?.[section] ?? (optionErrors?.length ? optionErrors.join(' ') : undefined);
           const status = value.sections?.[section] ?? (loadWarning ? 'error' : 'ready');
+          if (status === 'error' && loadWarning) failed(loadWarning);
           patch(section, value, status, loadWarning);
         } catch (error) {
           if (!current()) return;
-          patch(section, {}, 'error', `Could not load ${section === 'options' ? 'fields' : section === 'mergeRequests' ? 'merge requests' : section === 'timelogs' ? 'time entries' : section === 'dates' ? 'start date' : section === 'tasks' ? 'child tasks' : section === 'todos' ? 'to-dos' : section}` + `: ${safeError(error)}`);
+          const message = `Could not load ${section === 'options' ? 'fields' : section === 'mergeRequests' ? 'merge requests' : section === 'timelogs' ? 'time entries' : section === 'dates' ? 'start date' : section === 'tasks' ? 'child tasks' : section === 'todos' ? 'to-dos' : section}` + `: ${safeError(error)}`;
+          failed(message);
+          patch(section, {}, 'error', message);
         } finally {
           running.delete(section);
         }

@@ -25,6 +25,27 @@ test('account preflight terminal receipts release the form even without a domain
   assert.ok(!JSON.stringify(view.savedState).includes('never-persist'));
 });
 
+test('account native and custom validation keep inline feedback and publish one fixed message without field values', async t => {
+  const view = await mount({}, { ...snapshot(), connected: false, accounts: [], currentUser: undefined }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'openAccountManager', intent: { id: 'validation', startLogin: true } }); await view.tick(); await view.tick();
+  const notices = () => view.requests.filter(request => request.type === 'publishNotification');
+  const url = document.querySelector('[name="baseUrl"]');
+  url.value = ''; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.account-login').requestSubmit(); await view.tick();
+  assert.equal(notices().length, 1); assert.match(document.querySelector('.account-login-error').textContent, /完整 HTTP 或 HTTPS 網址/);
+  url.value = 'ftp://private-user:private-password@private.example.test'; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
+  assert.equal(notices().length, 2); assert.equal(notices()[1].message, notices()[0].message);
+  assert.doesNotMatch(JSON.stringify(notices()), /private-user|private-password|private.example/);
+  url.value = 'https://gitlab.test'; url.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.account-login button[type="submit"]').click(); await view.tick();
+  document.querySelector('.account-login').requestSubmit(); await view.tick();
+  assert.equal(notices().length, 3); assert.equal(notices()[2].message, '請輸入 Personal Access Token。');
+  assert.equal(document.querySelector('.account-login-error').textContent, notices()[2].message);
+  assert.equal(view.requests.some(request => request.type === 'submitAccountLogin'), false);
+});
+
 test('Issue and MR selections respond before host data and ignore old busy clearing', async t => {
   const data = snapshot();
   const view = await mount({}, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
@@ -173,6 +194,171 @@ test('an expanded unread message remains readable after the host marks it read',
   details = document.querySelector('.notification-item details'); details.open = false;
   details.dispatchEvent(new view.dom.window.Event('toggle')); await view.tick();
   assert.equal(document.querySelectorAll('.notification-item').length, 0);
+});
+
+function notification(id, contentRevision = 1, patch = {}) {
+  return { id, level: 'info', title: `Result ${id}`, messages: [`Detail ${id}:${contentRevision}`], contentRevision,
+    createdAt: contentRevision, updatedAt: contentRevision, read: false, ...patch };
+}
+function notificationCenter(revision, items = [], sessionId = 'snack-session') {
+  return { sessionId, revision, items, unreadCount: items.filter(item => !item.read).length };
+}
+function snackbarClock(window) {
+  const setTimeout = window.setTimeout.bind(window), clearTimeout = window.clearTimeout.bind(window);
+  let now = 0, serial = 100000;
+  const timers = new Map();
+  window.Date.now = () => now;
+  window.setTimeout = (callback, delay = 0, ...args) => {
+    if (delay < 1000) return setTimeout(callback, delay, ...args);
+    const id = serial++; timers.set(id, { at: now + delay, callback: () => callback(...args) }); return id;
+  };
+  window.clearTimeout = id => { if (!timers.delete(id)) clearTimeout(id); };
+  return { get delays() { return [...timers.values()].map(timer => timer.at - now); }, advance(milliseconds) {
+    const end = now + milliseconds;
+    for (;;) {
+      const next = [...timers.entries()].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      timers.delete(next[0]); now = next[1].at; next[1].callback();
+    }
+    now = end;
+  } };
+}
+
+test('SnackBar queues new content, keeps unread state on dismissal, and View expands the matching message', async t => {
+  const old = notification('old');
+  const view = await mount({}, { ...snapshot(), notifications: notificationCenter(1, [old]) }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.equal(document.querySelector('.notification-snackbar'), null, 'hydration does not replay history');
+  const first = notification('first'), second = notification('second');
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(2, [first, old]) }); await view.tick();
+  assert.match(document.querySelector('.notification-snackbar').textContent, /Detail first:1/);
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(3, [second, first, old]) }); await view.tick();
+  assert.equal(document.querySelectorAll('.notification-snackbar').length, 1);
+  assert.match(document.querySelector('.notification-snackbar').textContent, /Detail first:1/);
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(4, [second, { ...first, read: true }, old]) }); await view.tick();
+  [...document.querySelectorAll('.notification-snackbar button')].find(button => button.textContent === '關閉').click(); await view.tick();
+  assert.match(document.querySelector('.notification-snackbar').textContent, /Detail second:1/);
+  assert.equal(view.requests.filter(request => request.type === 'markNotificationsRead').length, 0);
+  document.querySelector('.notification-snackbar button').focus(); document.querySelector('.notification-snackbar button').click(); await view.tick();
+  const details = [...document.querySelectorAll('.notification-item details')].find(item => item.textContent.includes('Result second'));
+  assert.equal(details.open, true);
+  assert.equal(document.activeElement, details.querySelector('summary'));
+  const read = view.requests.filter(request => request.type === 'markNotificationsRead');
+  assert.equal(read.length, 1); assert.deepEqual(Array.from(read[0].ids), ['second']); assert.equal(read[0].revision, 4);
+  assert.match(document.querySelector('.notifications-trigger').getAttribute('aria-label'), /2 筆未讀/);
+});
+
+test('SnackBar uses six seconds of active time, pauses for hover and focus, then advances its queue', async t => {
+  let clock;
+  const view = await mount({}, { ...snapshot(), notifications: notificationCenter(0) }, {}, window => { clock = snackbarClock(window); });
+  t.after(() => view.dom.window.close()); const document = view.dom.window.document;
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(1, [notification('second'), notification('first')]) }); await view.tick();
+  const snack = () => document.querySelector('.notification-snackbar');
+  const waitForTimer = async (delays) => {
+    for (let attempt = 0; attempt < 30 && JSON.stringify(clock.delays) !== JSON.stringify(delays); attempt++) await view.tick();
+    assert.deepEqual(clock.delays, delays, 'timer effects have settled before advancing the fake clock');
+  };
+  await waitForTimer([6000]);
+  clock.advance(2000); snack().dispatchEvent(new view.dom.window.Event('mouseenter')); await view.tick();
+  await waitForTimer([]);
+  snack().querySelector('button').focus(); await view.tick();
+  clock.advance(10000); await view.tick(); assert.match(snack().textContent, /Detail first:1/);
+  snack().dispatchEvent(new view.dom.window.Event('mouseleave')); await view.tick();
+  clock.advance(10000); await view.tick(); assert.match(snack().textContent, /Detail first:1/, 'focus keeps the timer paused after hover ends');
+  document.querySelector('.notifications-trigger').focus(); await view.tick();
+  await waitForTimer([4000]);
+  clock.advance(3999); await view.tick(); assert.match(snack().textContent, /Detail first:1/);
+  clock.advance(1); await view.tick(); assert.match(snack().textContent, /Detail second:1/);
+  await waitForTimer([6000]);
+  clock.advance(6000); await view.tick(); assert.equal(snack(), null);
+  assert.equal(view.requests.filter(request => request.type === 'markNotificationsRead').length, 0);
+});
+
+test('SnackBar keeps a queued replacement paused while focus or the pointer remains inside', async t => {
+  for (const pausedBy of ['focus', 'hover']) await t.test(pausedBy, async t => {
+    let clock;
+    const view = await mount({}, { ...snapshot(), notifications: notificationCenter(0) }, {}, window => { clock = snackbarClock(window); });
+    t.after(() => view.dom.window.close()); const document = view.dom.window.document;
+    view.send({ type: 'notificationsChanged', snapshot: notificationCenter(1, [notification('second'), notification('first')]) }); await view.tick();
+    const snack = () => document.querySelector('.notification-snackbar');
+    const waitForTimer = async delays => {
+      for (let attempt = 0; attempt < 30 && JSON.stringify(clock.delays) !== JSON.stringify(delays); attempt++) await view.tick();
+      assert.deepEqual(clock.delays, delays);
+    };
+    await waitForTimer([6000]);
+    if (pausedBy === 'focus') snack().querySelectorAll('button')[1].focus();
+    else snack().dispatchEvent(new view.dom.window.Event('mouseenter'));
+    await waitForTimer([]);
+    snack().querySelectorAll('button')[1].click(); await view.tick();
+    assert.match(snack().textContent, /Detail second:1/);
+    if (pausedBy === 'focus') assert.equal(document.activeElement, snack().querySelectorAll('button')[1], 'closing retains focus on the next message action');
+    await waitForTimer([]);
+    clock.advance(10000); await view.tick();
+    assert.ok(snack(), 'the replacement stays visible while interaction remains inside');
+    assert.match(snack().textContent, /Detail second:1/);
+    if (pausedBy === 'focus') document.querySelector('.notifications-trigger').focus();
+    else snack().dispatchEvent(new view.dom.window.Event('mouseleave'));
+    await waitForTimer([6000]); clock.advance(6000); await view.tick(); assert.equal(snack(), null);
+  });
+});
+
+test('SnackBar ignores duplicate snapshots, prunes removed messages and suppresses hidden history', async t => {
+  const view = await mount({}, { ...snapshot(), notifications: notificationCenter(0) }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, first = notification('first'), second = notification('second');
+  const snack = () => document.querySelector('.notification-snackbar');
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(1, [first]) }); await view.tick();
+  snack().querySelectorAll('button')[1].click(); await view.tick();
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(2, [{ ...first, read: true }]) }); await view.tick();
+  assert.equal(snack(), null, 'read-state revisions do not replay content');
+  const updated = notification('first', 2);
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(3, [updated]) }); await view.tick();
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(3, [updated]) }); await view.tick();
+  snack().querySelectorAll('button')[1].click(); await view.tick(); assert.equal(snack(), null, 'a content revision is queued once');
+  view.sendSnapshot({ ...snapshot(), notifications: notificationCenter(4, [second, updated]) }); await view.tick();
+  assert.match(snack().textContent, /Detail second:1/, 'new content in a full live snapshot is displayed');
+  snack().querySelectorAll('button')[1].click(); await view.tick();
+  view.sendSnapshot({ ...snapshot(), notifications: notificationCenter(4, [second, updated]) }); await view.tick();
+  assert.equal(snack(), null, 'a repeated full snapshot does not replay history');
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(5, [notification('third'), second, updated]) }); await view.tick();
+  assert.ok(snack());
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(6, [second, updated]) }); await view.tick();
+  assert.equal(snack(), null, 'removed messages leave the queue');
+  let hidden = true; Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+  document.dispatchEvent(new view.dom.window.Event('visibilitychange')); await view.tick();
+  const hiddenItem = notification('hidden');
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(7, [hiddenItem, second, updated]) }); await view.tick(); assert.equal(snack(), null);
+  hidden = false; document.dispatchEvent(new view.dom.window.Event('visibilitychange')); await view.tick();
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(8, [{ ...hiddenItem, read: true }, second, updated]) }); await view.tick();
+  assert.equal(snack(), null, 'restoring visibility does not replay hidden messages');
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(9, [notification('visible'), hiddenItem, second, updated]) }); await view.tick();
+  assert.match(snack().textContent, /Detail visible:1/);
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(0, [notification('session-history')], 'next-session') }); await view.tick(); assert.equal(snack(), null);
+  view.send({ type: 'notificationsChanged', snapshot: notificationCenter(10, [notification('retired')]) }); await view.tick(); assert.equal(snack(), null);
+});
+
+test('a live notification followed immediately by a full workspace snapshot still shows one SnackBar', async t => {
+  const initial = notificationCenter(0);
+  const view = await mount({}, { ...snapshot(), notifications: initial }); t.after(() => view.dom.window.close());
+  const center = notificationCenter(1, [notification('live')]);
+  view.send({ type: 'notificationsChanged', snapshot: center });
+  view.sendSnapshot({ ...snapshot(), notifications: center });
+  await view.tick();
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.notification-snackbar').textContent, /Detail live:1/);
+  document.querySelectorAll('.notification-snackbar button')[1].click(); await view.tick();
+  assert.equal(document.querySelector('.notification-snackbar'), null);
+});
+
+test('MR changes show partial-diff warnings and a GitLab link beside limited files', async t => {
+  const data = snapshot('reviewer');
+  const request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', web_url: 'https://gitlab.test/group/service/-/merge_requests/4' };
+  data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [{ old_path: 'large.ts', new_path: 'large.ts', diff: '', too_large: true }], discussions: [],
+    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, warnings: ['GitLab 僅回傳部分差異。'], freshness: { state: 'not_checked' } };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.mr-diff-warnings').textContent, /僅回傳部分差異/);
+  assert.equal(document.querySelector('.mr-diff-warnings a').href, request.web_url);
+  assert.match(document.querySelector('.diff-list').textContent, /檔案差異超過顯示限制/);
 });
 
 const gitHead = 'a'.repeat(40), gitParent = 'b'.repeat(40), gitSide = 'c'.repeat(40);
@@ -659,17 +845,20 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
     setState: (value) => { state = JSON.parse(JSON.stringify(value)); }
   });
   beforeMount(dom.window);
-  dom.window.eval(script);
-  for (let attempt = 0; attempt < 50 && requests.length === 0; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
   const tick = async () => {
     await new Promise((resolve) => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve)));
     await new Promise((resolve) => setTimeout(resolve, 0));
   };
-  await tick();
+  const waitFor = async (condition, description) => {
+    const deadline = performance.now() + 5000;
+    while (!condition() && performance.now() < deadline) await tick();
+    assert.ok(condition(), description);
+  };
+  dom.window.eval(script);
+  await waitFor(() => requests.some(request => request.type === 'ready'), 'the dashboard announces readiness before hydration');
   assert.equal(requests[0]?.type, 'ready');
   dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: initialSnapshot } }));
+  await waitFor(() => dom.window.document.querySelector('.app-shell'), 'the dashboard renders its initial snapshot');
   await tick();
   assert.equal(runtimeErrors.length, 0, runtimeErrors.join('\n'));
   assert.ok(dom.window.document.querySelector('.app-shell'), `the dashboard is mounted: root=${dom.window.document.querySelector('#workspace')?.innerHTML ?? 'missing'}, requests=${JSON.stringify(requests)}, errors=${runtimeErrors.join('; ')}`);

@@ -330,3 +330,20 @@ test('updates Repo summaries even when the Host keeps the details revision uncha
   assert.match(view.repoButtons()[0].textContent, /topic\/new/);
   assert.match(view.repoButtons()[0].textContent, /4/);
 });
+
+test('a locally blocked sidebar action publishes one center warning while keeping inline feedback', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close());
+  const uncertain = { requestId: 'uncertain-navigation', scopeRevision: 'sidebar-scope', resourceKey: 'openMyWork',
+    action: 'openMyWork', label: '開啟我的工作', kind: 'read', concurrency: 'latest', lockKey: 'remote:sidebar-scope:openMyWork',
+    status: 'failed', effect: 'unknown', error: '先核對結果', phase: '結果待確認', startedAt: 1,
+    hostSessionId: 'sidebar-host', revision: 1 };
+  view.sendState({ connected: true, operationSnapshot: { sessionId: 'sidebar-host', revision: 1, operations: [uncertain] } });
+  await waitFor(() => view.dom.window.document.querySelector('.action-message')?.textContent.includes('先核對結果'));
+  view.buttons()[1].click();
+  await waitFor(() => view.requests.some(request => request.type === 'publishNotification'));
+  const notices = view.requests.filter(request => request.type === 'publishNotification');
+  assert.equal(notices.length, 1); assert.equal(notices[0].level, 'warn');
+  assert.equal(notices[0].operationScope, 'sidebar-scope'); assert.equal(notices[0].scopeEpoch, 1);
+  assert.match(view.dom.window.document.querySelector('.action-message').textContent, /上次操作結果待確認/);
+  assert.equal(view.requests.some(request => request.type === 'perform'), false);
+});

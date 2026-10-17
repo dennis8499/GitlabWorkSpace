@@ -62,8 +62,55 @@ async function mount(t, profile, saved, features) {
     assert.ok(control, `missing ${id}`);
     control.value = value; control.dispatchEvent(new dom.window.Event(event, { bubbles: true })); await tick();
   };
-  return { dom, document, requests, tick, change, holdOperations: () => { holdOperations = true; }, get savedState() { return state; } };
+  const sendSnapshot = async value => {
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: value } }));
+    await tick();
+  };
+  return { dom, document, requests, tick, change, sendSnapshot, holdOperations: () => { holdOperations = true; }, get savedState() { return state; } };
 }
+
+test('Skills prompt validation publishes one fixed notice per error transition and preserves its starting scope', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  for (const [field, value] of [['repo', 'private-service'], ['base', 'private-base'], ['head', 'private-head']]) {
+    await view.change(`[id="wiki-input-merge-repo.${field}"]`, value, 'input');
+  }
+  const current = snapshot('group', ['merge-repo', 'release-review']);
+  current.operationScope = 'skills-origin';
+  current.skillsContext.workspaceRootAmbiguous = true;
+  const notices = () => view.requests.filter(request => request.type === 'publishNotification' && request.title === 'Skills 提示詞');
+  await view.sendSnapshot(current);
+  assert.equal(notices().length, 1);
+  assert.equal(notices()[0].operationScope, 'skills-origin');
+  assert.equal(notices()[0].level, 'warn');
+  assert.equal(notices()[0].message, '無法辨識唯一 VSCode 工作區根目錄；請先儲存 multi-root 工作區或開啟明確資料夾。');
+  assert.doesNotMatch(JSON.stringify(notices()), /private-service|private-base|private-head|inputs/);
+  assert.match(view.document.querySelector('.wiki-guide-card [role="alert"]').textContent, /無法辨識唯一 VSCode 工作區根目錄/);
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
+  for (let index = 0; index < 3; index++) await view.sendSnapshot({ ...current });
+  assert.equal(notices().length, 1, 'unchanged snapshots do not republish a rendered validation error');
+  await view.sendSnapshot({ ...current, skillsContext: { ...current.skillsContext, workspaceRootAmbiguous: false } });
+  assert.equal(view.document.querySelector('.wiki-guide-card [role="alert"]'), null);
+  await view.sendSnapshot(current);
+  assert.equal(notices().length, 2, 'an error returning after correction is a new feedback transition');
+  assert.equal(notices()[0].operationScope, 'skills-origin');
+});
+
+test('Skills prompt error deduplication resets for another card or operation context', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  const current = snapshot('group', ['merge-repo', 'release-review']);
+  current.operationScope = 'skills-old'; current.skillsContext.workspaceRootAmbiguous = true;
+  await view.sendSnapshot(current);
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  const notices = () => view.requests.filter(request => request.type === 'publishNotification' && request.title === 'Skills 提示詞');
+  assert.equal(notices().length, 1);
+  view.document.getElementById('skill-tool-release-reviewer').click(); await view.tick();
+  assert.equal(notices().length, 2, 'the same diagnostic on another card is recorded once for that card');
+  await view.sendSnapshot({ ...current, operationScope: 'skills-new', skillsContext: { ...current.skillsContext, revision: 'next-context' } });
+  assert.equal(notices().length, 3);
+  assert.deepEqual(notices().map(notice => notice.operationScope), ['skills-old', 'skills-old', 'skills-new']);
+  await view.tick(); assert.equal(notices().length, 3, 'feedback itself does not cause a publication render loop');
+});
 
 for (const profile of ['group', 'repository']) test(`${profile} native branch review uses three inputs and separate Codex opening`, async t => {
   const view = await mount(t, profile); const { document, change } = view;

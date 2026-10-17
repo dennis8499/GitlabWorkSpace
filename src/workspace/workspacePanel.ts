@@ -21,6 +21,7 @@ import { parseMeginHandoff, type MeginHandoff } from './meginHandoff';
 import { OperationTracker, type WorkspaceOperationState } from './operations';
 import { describeAction } from './actionPolicy';
 import { NotificationCenter } from '../notifications/notificationCenter';
+import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
 import type { NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, buildPostDeliveryWikiUpdatePrompt, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
@@ -44,6 +45,7 @@ import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOp
 import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
 import type { LogContext, LogQuery } from '../logging/logProtocol';
+import type { LogOutcome } from '../logging/operationLog';
 import { logGitCommand } from '../git/gitCommandLog';
 import { localPathKey, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from '../git/repositoryScanner';
 
@@ -166,7 +168,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installation: WorkflowKitInstallTarget | undefined; task: Promise<void> };
   private operationTracker?: OperationTracker;
   private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => {
-    if (operation.notify !== false) this.notifications.recordOperation(operation);
+    this.notifications.recordOperation(operation);
     this.post({ type: 'operationChanged', operation });
   }); }
   private operationContextStorage?: AsyncLocalStorage<string>;
@@ -454,12 +456,12 @@ export class WorkspacePanel implements vscode.Disposable {
   private logContext(): LogContext {
     return { accountId: this.session.activeAccountId, baseUrl: this.session.baseUrl, groupId: this.session.selectedGroup?.id };
   }
-  private runLogged<T>(action: string, task: () => Promise<T>, context: LogContext = {}): Promise<T> {
+  private runLogged<T>(action: string, task: () => Promise<T>, context: LogContext = {}, outcome?: () => LogOutcome): Promise<T> {
     const feature = /Account|connect|disconnect/i.test(action) ? 'account' : /timer|Time/i.test(action) ? 'time'
       : /Issue|issue/i.test(action) ? 'issue' : /Merge|Review|Delivery/i.test(action) ? 'workflow'
       : /Kit|Package/i.test(action) ? 'tools' : /scan|clone|syncRepos/i.test(action) ? 'projects' : /Group/i.test(action) ? 'group'
       : this.activeMode === 'sa' ? 'analysis' : 'workspace';
-    return this.session.log?.run(feature, action, { ...this.logContext(), ...context }, task) ?? task();
+    return this.session.log?.run(feature, action, { ...this.logContext(), ...context }, task, outcome) ?? task();
   }
 
   async cloneFromSidebar(
@@ -541,23 +543,8 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     if (message && typeof message === 'object' && 'type' in message) {
       const value = message as WorkspaceResponse;
-      if (value.type === 'message' || value.type === 'error' || value.type === 'gitError') {
-        this.notifications.publish({ level: value.type === 'message' ? 'info' : 'error', message: value.message,
-          origin: this.getNotificationOrigin() });
-        if (value.type === 'message') return;
-      } else if (value.type === 'gitActionResult' && value.error) {
-        const operation = this.operations.list().find(item => item.action === 'gitAction' && item.correlationId === value.requestId);
-        this.notifications.publish({ operationId: operation?.requestId ?? `git-${value.requestId}`, title: '版控操作', level: 'error', message: value.error });
-      } else if (value.type === 'issueResponse' && (value.response.type === 'error' || value.response.type === 'reply') && value.response.notificationOnly) {
-        this.notifications.publish({ level: 'error', title: 'Issue 操作', message: value.response.type === 'error' ? value.response.message : value.response.error ?? '' });
-      } else if (value.type === 'draftBundle') {
-        this.notifications.publish({ message: `已匯入 ${value.bundle.drafts.length} 張 Issue 草稿。` });
-      } else if (value.type === 'draftResults') {
-        const failed = value.results.filter(item => item.state === 'failed').length;
-        this.notifications.publish({ level: failed ? 'warn' : 'info', message: `Issue 已建立或確認 ${value.results.length - failed} 張${failed ? `，${failed} 張失敗；重試只會處理未建立項目` : ''}。` });
-      } else if (value.type === 'deliveryPreview' || value.type === 'deliveryProgress') {
-        this.notifications.publish({ level: value.delivery.error ? 'error' : 'info', message: value.delivery.error ?? '交付進度已保存。' });
-      }
+      if (collectWorkspaceFeedback(this.notifications, value, this.getNotificationOrigin(), this.operationContext.getStore(),
+        id => this.operations.get(id)?.requestId)) return;
     }
     if (message && typeof message === 'object' && 'type' in message) {
       if (message.type === 'issueResponse' && 'response' in message && message.response && typeof message.response === 'object'
@@ -792,10 +779,20 @@ export class WorkspacePanel implements vscode.Disposable {
     const logged = () => this.runLogged(policy.action, tracked, {
       projectId: typeof request.projectId === 'number' ? request.projectId : undefined,
       issueIid: typeof request.issueIid === 'number' ? request.issueIid : undefined
+    }, () => {
+      const operation = this.operations.get(requestId);
+      return { result: operation?.status === 'failed' ? 'error' : operation?.status === 'cancelled' ? 'cancelled' : 'success',
+        ...(operation?.refreshError || operation?.effect === 'partial' ? { level: 'warn' as const } : {}),
+        message: operation?.refreshError ?? operation?.error };
     });
-    // Only the tracker publishes the terminal result. Domain errors can still render inline.
-    if (policy.notify) await this.notifications.run({ operationId: requestId, title: policy.label, origin: this.getNotificationOrigin() }, logged);
-    else await logged();
+    // Capture reads too: a failure can arrive after the user switches accounts.
+    await this.notifications.run({ operationId: requestId, title: policy.label, origin: this.getNotificationOrigin() }, async () => {
+      try { await logged(); }
+      finally {
+        const operation = this.operations.get(requestId);
+        if (operation) this.notifications.recordOperation(operation);
+      }
+    });
   }
 
   private noteOutcome(outcome: ActionOutcome): void {
@@ -905,8 +902,12 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'confirmOperationResult': await this.confirmOperationResult(request.targetOperationId, request.recovery); break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
       case 'publishNotification':
-        if (!['info', 'warn', 'error'].includes(request.level) || typeof request.message !== 'string' || request.message.length > 4096) break;
-        this.notifications.publish({ level: request.level, message: request.message, origin: this.getNotificationOrigin(),
+        if (!['info', 'warn', 'error'].includes(request.level) || typeof request.message !== 'string' || request.message.length > 4096 ||
+          request.title !== undefined && (typeof request.title !== 'string' || request.title.length > 200)) break;
+        if (request.hostSessionId !== undefined && request.hostSessionId !== this.operations.sessionId ||
+          request.operationScope && request.operationScope !== this.operationScope() || request.scopeEpoch !== undefined &&
+          (!Number.isSafeInteger(request.scopeEpoch) || request.scopeEpoch < 0 || request.scopeEpoch !== this.session.connectionEpoch)) break;
+        this.notifications.publish({ level: request.level, message: request.message, title: request.title, origin: this.getNotificationOrigin(),
           operationId: typeof request.operationId === 'string' ? request.operationId : undefined }); break;
       case 'markNotificationsRead':
         if (Number.isSafeInteger(request.revision) && request.revision >= 0 && Array.isArray(request.ids) && request.ids.length <= 500 && request.ids.every(id => typeof id === 'string' && id.length <= 160)) this.notifications.markRead(request.ids, request.revision);
@@ -1883,6 +1884,7 @@ export class WorkspacePanel implements vscode.Disposable {
     } catch (error) {
       if (!matchesCurrentSelection()) return;
       this.issueBoardContent = { boardId, connectedScope, issueIds: [], status: 'error', error: readableError(error) };
+      this.noteOutcome({ status: 'failed', error: readableError(error) });
     }
     this.sendSnapshot();
   }
@@ -3101,9 +3103,11 @@ export class WorkspacePanel implements vscode.Disposable {
       const client = (await this.session.getClient()).withReadSignal(controller.signal);
       if (!isCurrent()) return;
       if (section === 'diffs') {
-        const diffs = await client.listMergeRequestDiffs(projectId, iid);
+        const result = await client.listMergeRequestDiffs(projectId, iid);
         if (!isCurrent()) return;
-        this.selectedMergeRequest = { ...this.selectedMergeRequest!, diffs, sections: { ...this.selectedMergeRequest!.sections, diffs: { status: 'ready' } } };
+        this.selectedMergeRequest = { ...this.selectedMergeRequest!, diffs: result.diffs, warnings: result.warnings,
+          sections: { ...this.selectedMergeRequest!.sections, diffs: { status: 'ready' } } };
+        for (const message of result.warnings) this.notifications.publish({ level: 'warn', title: 'MR 差異', message, origin: this.getNotificationOrigin() });
       } else {
         const discussions = await client.listMergeRequestDiscussions(projectId, iid);
         if (!isCurrent()) return;
@@ -3117,6 +3121,7 @@ export class WorkspacePanel implements vscode.Disposable {
     } catch (error) {
       if (isCurrent()) {
         this.noteOutcome({ status: 'failed', error: readableError(error) });
+        if (!this.operationContext.getStore()) this.notifications.publish({ level: 'error', title: section === 'diffs' ? 'MR 差異' : 'MR 討論串', message: readableError(error), origin: this.getNotificationOrigin() });
         this.selectedMergeRequest = { ...this.selectedMergeRequest!, sections: {
           ...this.selectedMergeRequest!.sections, [section]: { status: 'error', error: readableError(error) }
         } };

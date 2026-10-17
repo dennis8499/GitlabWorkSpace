@@ -14,6 +14,8 @@ export interface WorkspaceNotification {
   messages: string[];
   createdAt: number;
   updatedAt: number;
+  /** Changes only when published content changes, never for read/delete actions. */
+  contentRevision: number;
   read: boolean;
   operationId?: string;
   origin?: NotificationOrigin;
@@ -27,7 +29,7 @@ export interface NotificationSnapshot {
 }
 
 export type NotificationRequest =
-  | { type: 'publishNotification'; level: NotificationLevel; message: string; operationId?: string }
+  | { type: 'publishNotification'; level: NotificationLevel; message: string; title?: string; operationId?: string }
   | { type: 'markNotificationsRead'; ids: string[]; revision: number }
   | { type: 'markAllNotificationsRead'; revision: number }
   | { type: 'removeNotification'; id: string }

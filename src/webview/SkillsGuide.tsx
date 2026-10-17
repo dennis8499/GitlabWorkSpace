@@ -1,11 +1,12 @@
 /** @jsxImportSource preact */
 import type { JSX } from 'preact';
-import { useContext, useEffect } from 'preact/hooks';
+import { useContext, useEffect, useRef } from 'preact/hooks';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { buildWikiGuideContext } from './codebaseWikiGuideData';
 import { OperationFeedback } from './OperationFeedback';
 import { ActionController } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';
+import { reportLocalFeedback } from './notificationFeedback';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -57,6 +58,20 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   let prompt = '', promptError = '';
   try { prompt = `${buildWikiGuideContext(context)}\n\n${buildSkillGuidePrompt(card, state.inputs, context)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
+  const reportedPromptError = useRef('');
+  useEffect(() => {
+    if (!promptError) { reportedPromptError.current = ''; return; }
+    const key = JSON.stringify([operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
+    if (reportedPromptError.current === key) return;
+    reportedPromptError.current = key;
+    // Publish fixed diagnostics only; prompt builders can inspect private draft inputs.
+    const fixedErrors = [
+      '無法辨識唯一 VSCode 工作區根目錄；請先儲存 multi-root 工作區或開啟明確資料夾。',
+      'ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。'
+    ];
+    reportLocalFeedback(notice => actions.dispatch(notice), fixedErrors.includes(promptError) ? promptError : '無法產生 Skills 提示詞，請檢查工作區與欄位後重試。',
+      { title: 'Skills 提示詞', context: { operationScope } });
+  }, [actions, operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
   const ready = available && workIdAllowed && context.repositoryScanStatus === 'ready' && !promptError && canCopySkillPrompt(card, state.inputs);
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
     : !kitInstalled ? '請先安裝或更新工作流程包。' : !workIdAllowed ? '請選擇原本進行中的 Work ID。'

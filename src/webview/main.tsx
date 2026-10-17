@@ -7,6 +7,7 @@ import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSecti
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
+import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
 import { DeliveryEditor, TimeRow, type DeliveryFormState, type TimeEdit } from './issue-workflow';
 import { IssueRelationsEditor } from './issue-relations';
 import { buildDeveloperPrompt } from '../workspace/issueDrafts';
@@ -248,6 +249,12 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
   const [editorHtml, setEditorHtml] = useState<Record<string, string>>({});
   const [similar, setSimilar] = useState<GitLabIssue[]>([]);
   const [error, setError] = useState('');
+  const feedbackContext = { operationScope: snapshot?.operationScope, scopeEpoch: snapshot?.scopeEpoch,
+    hostSessionId: snapshot?.operationSnapshot?.sessionId };
+  const feedbackContextRef = useRef(feedbackContext);
+  feedbackContextRef.current = feedbackContext;
+  const localFeedback = (message: string, operationId?: string) => reportLocalFeedback(notice => actions.dispatch(notice), message,
+    { title: 'Issue 操作', onInline: setError, operationId, context: feedbackContextRef.current });
   const [loading, setBusy] = useState(false);
   const issueResource = detail ? `issue:${detail.issue.project_id}:${detail.issue.iid}` : `issue:${projectId || 'current'}`;
   const actionBusy = actions.getSnapshot().some(operation => actions.isResourceOperation(operation, issueResource) && operation.kind === 'write' &&
@@ -340,8 +347,8 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
     const current = displayedIssue.current;
     const issueContext = current && activeIssueId.current === current.id && request.type !== 'create' && request.type !== 'selectProject' &&
       (request.projectId === undefined || request.projectId === current.project_id) ? { projectId: current.project_id, issueIid: current.iid } : {};
-    const result = actions.dispatch({ type: 'issueRequest', request: { ...request, ...issueContext, requestId }, revision: navigation?.revision });
-    if (result.status === 'blocked') setError(result.reason ?? '此 Issue 正在處理另一項操作。');
+    const result = dispatchWithFeedback(actions, { type: 'issueRequest', request: { ...request, ...issueContext, requestId }, revision: navigation?.revision },
+      { title: 'Issue 操作', fallbackMessage: '此 Issue 正在處理另一項操作。', onBlocked: setError, context: feedbackContext });
     if (result.status === 'started' && ['create', 'update', 'invoke', 'selectProject', 'refresh'].includes(request.type)) activeRequest.current = { id: requestId, epoch: viewEpoch.current };
     if (result.status === 'started' && (request.type === 'create' || request.type === 'update' || request.type === 'invoke')) {
       const payload = request.type === 'invoke' ? request.payload : undefined;
@@ -367,8 +374,8 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
   };
   const postWorkspace = (request: WorkspaceRequest) => {
     if (!onWorkspaceAction && !sharedActions) return undefined;
-    const result = actions.dispatch(request);
-    if (result.status === 'blocked') setError(result.reason ?? '此 Issue 正在處理另一項操作。');
+    const result = dispatchWithFeedback(actions, request,
+      { title: 'Issue 操作', fallbackMessage: '此 Issue 正在處理另一項操作。', onBlocked: setError, context: feedbackContext });
     return result;
   };
   const postReplyRequest = (message: Extract<IssuePanelRequest, { requestId: string }>) => {
@@ -613,7 +620,9 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
         setStartDateEnabled(message.canSetStartDate);
         setCanCreateIssue(message.canCreateIssue);
         setOptions(message.options ?? emptyOptions); setForm(createDrafts.current.get(message.selectedProjectId ?? 0) ?? blankForm()); setDetail(null); setEditing(false); setPreviewHtml(''); setNoteHtml({}); setSimilar([]);
-        setError(message.projects.length ? '' : 'No projects are available in the selected group.'); setBusy(false);
+        if (message.projects.length) setError('');
+        else localFeedback('No projects are available in the selected group.', message.operationId);
+        setBusy(false);
       } else if (message.type === 'projectData') {
         viewEpoch.current++;
         busyRef.current = false;
@@ -671,7 +680,10 @@ export function IssueView({ onBack, snapshot, navigation, actions: sharedActions
         busyRef.current = false;
         setMode('detail'); setDetail(message.data); setProjects(message.data.projects); setOptions(message.data.options); setForm(draft ?? formFromIssue(message.data.issue, message.data.startDate));
         setSelectedTaskId((current) => current && message.data.tasks.some((task) => task.id === current) ? current : null);
-        setEditing(!!draft); setPreviewHtml(''); setError(restoredConflict ? 'Latest GitLab issue loaded. Review your preserved draft before saving again.' : ''); setBusy(false);
+        setEditing(!!draft); setPreviewHtml('');
+        if (restoredConflict) localFeedback('Latest GitLab issue loaded. Review your preserved draft before saving again.', message.operationId);
+        else setError('');
+        setBusy(false);
         const visibleDescription = draft?.description ?? message.data.issue.description;
         if (visibleDescription) {
           const requestId = `preview-${stamp()}`;

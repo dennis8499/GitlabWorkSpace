@@ -3,6 +3,7 @@ import type { GitLabAccount, AccountOperation } from '../connection/accountProto
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { WorkspaceMode } from './workspaceProtocol';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
+import type { NotificationRequest } from '../notifications/notificationProtocol';
 
 export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications'
   | 'addAccount' | 'switchAccount' | 'logoutAccount' | 'removeAccount' | 'manageAccounts';
@@ -16,6 +17,7 @@ export interface QuickActionsOperationContext {
 
 export type QuickActionsRequest = (
   | { type: 'ready' }
+  | Extract<NotificationRequest, { type: 'publishNotification' }>
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'repositoryDetails'; repositoryId: string; requestId: string }
   | { type: 'cancelRepositoryDetails'; repositoryId: string }
@@ -59,6 +61,10 @@ export function isQuickActionsRequest(value: unknown): value is QuickActionsRequ
   if (message.scopeEpoch !== undefined && (!Number.isSafeInteger(message.scopeEpoch) || (message.scopeEpoch as number) < 0)) return false;
   const keys = Object.keys(message).filter(key => !metadata.includes(key));
   if (message.type === 'ready') return keys.length === 1 && keys[0] === 'type';
+  if (message.type === 'publishNotification') return keys.every(key => ['type', 'level', 'message', 'title'].includes(key)) &&
+    typeof message.level === 'string' && ['info', 'warn', 'error'].includes(message.level) && typeof message.message === 'string' &&
+    !!message.message.trim() && message.message.length <= 4096 &&
+    (message.title === undefined || typeof message.title === 'string' && message.title.length <= 200);
   if (message.type === 'reconcileOperations') return keys.every(key => key === 'type' || key === 'pendingIds') &&
     (message.pendingIds === undefined || Array.isArray(message.pendingIds) && message.pendingIds.length <= 200 &&
       Array.from(message.pendingIds).every(id => typeof id === 'string' && /^[a-z0-9-]{1,100}$/i.test(id)));

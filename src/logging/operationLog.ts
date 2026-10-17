@@ -7,6 +7,7 @@ import type { LogContext, LogPage, LogQuery, OperationLogEntry } from './logProt
 
 type Scope = { operationId: string; context: LogContext };
 type LogInput = Pick<OperationLogEntry, 'feature' | 'action' | 'result'> & Partial<OperationLogEntry>;
+export type LogOutcome = Pick<OperationLogEntry, 'result'> & Partial<Pick<OperationLogEntry, 'level' | 'message'>>;
 const SEGMENT_NAME = /^\d{13}-[a-f0-9-]+\.jsonl$/;
 const operationLogs = new AsyncLocalStorage<OperationLog>();
 export const currentOperationLog = (): OperationLog | undefined => operationLogs.getStore();
@@ -88,7 +89,7 @@ export class OperationLog {
     });
   }
 
-  async run<T>(feature: string, action: string, context: LogContext, task: () => Promise<T>): Promise<T> {
+  async run<T>(feature: string, action: string, context: LogContext, task: () => Promise<T>, outcome?: () => LogOutcome): Promise<T> {
     const parent = this.scope.getStore();
     const scope: Scope = { operationId: parent?.operationId ?? randomUUID(), context: { ...(parent?.context ?? this.contextSource()), ...context } };
     return operationLogs.run(this, () => this.scope.run(scope, async () => {
@@ -96,7 +97,7 @@ export class OperationLog {
       this.record({ feature, action, result: 'started' });
       try {
         const value = await task();
-        this.record({ feature, action, result: 'success', durationMs: Date.now() - start });
+        this.record({ feature, action, result: 'success', ...outcome?.(), durationMs: Date.now() - start });
         return value;
       } catch (error) {
         const cancelled = error instanceof Error && error.name === 'AbortError';

@@ -88,3 +88,102 @@ test('command failures resolve with a center receipt so VS Code does not receive
   await center.runCommand({ operationId: 'open-center', title: '訊息中心' }, async () => undefined, false);
   assert.equal(center.snapshot().items.length, 2, 'opening the center does not generate another notification');
 });
+
+test('content revisions change only for new published content while read and delete actions advance the snapshot', () => {
+  const center = new NotificationCenter();
+  center.publish({ operationId: 'first-content', message: 'First result' });
+  center.publish({ operationId: 'second-content', message: 'Second result' });
+  const initial = center.snapshot();
+  const first = initial.items.find(item => item.operationId === 'first-content')!;
+  const second = initial.items.find(item => item.operationId === 'second-content')!;
+  center.markRead([first.id]);
+  assert.ok(center.snapshot().revision > initial.revision);
+  assert.equal(center.snapshot().items.find(item => item.id === first.id)?.contentRevision, first.contentRevision);
+  center.markAllRead(center.snapshot().revision);
+  assert.equal(center.snapshot().unreadCount, 0);
+  assert.equal(center.snapshot().items.find(item => item.id === second.id)?.contentRevision, second.contentRevision);
+  center.remove(first.id);
+  assert.equal(center.snapshot().items[0].contentRevision, second.contentRevision);
+  const readRevision = center.snapshot().revision;
+  center.publish({ operationId: 'second-content', message: 'Second result' });
+  assert.equal(center.snapshot().revision, readRevision);
+  assert.equal(center.snapshot().items[0].read, true);
+  center.publish({ operationId: 'second-content', message: 'New verification warning', level: 'warn' });
+  assert.ok(center.snapshot().items[0].contentRevision > second.contentRevision);
+  assert.equal(center.snapshot().items[0].read, false);
+});
+
+test('successful quiet reads and cancelled reads stay quiet while failed reads reach the center', () => {
+  const center = new NotificationCenter();
+  const operation = { requestId: 'quiet-read', scopeRevision: 'scope', resourceKey: 'mr:1:2', action: 'loadMergeRequestSection',
+    kind: 'read' as const, label: '載入 MR 差異', notify: false, phase: '已完成', startedAt: 1 };
+  center.recordOperation({ ...operation, status: 'succeeded' });
+  center.recordOperation({ ...operation, requestId: 'cancelled-read', status: 'cancelled', phase: '讀取已取消' });
+  assert.equal(center.snapshot().items.length, 0);
+  center.recordOperation({ ...operation, requestId: 'failed-read', status: 'failed', error: 'GitLab API request failed (HTTP 500).' });
+  const failed = center.snapshot().items[0];
+  assert.equal(center.snapshot().items.length, 1); assert.equal(failed.level, 'error');
+  assert.equal(failed.title, '載入 MR 差異'); assert.deepEqual(failed.messages, ['GitLab API request failed (HTTP 500).']);
+});
+
+test('an aborted run preserves cancellation and publishes no completion or error notice', async () => {
+  const center = new NotificationCenter(); let changes = 0;
+  center.onDidChange(() => changes++);
+  const aborted = new Error('The view is no longer active.'); aborted.name = 'AbortError';
+  await assert.rejects(center.run({ operationId: 'aborted-read', title: '載入差異' }, async () => { throw aborted; }, true), error => error === aborted);
+  assert.equal(center.snapshot().items.length, 0); assert.equal(changes, 0);
+});
+
+test('a refresh warning augments an existing success and becomes unread even for a quiet operation', () => {
+  const center = new NotificationCenter();
+  center.publish({ operationId: 'applied-refresh', title: '更新 Issue', message: 'Issue 已更新。' });
+  const original = center.snapshot().items[0]; center.markRead([original.id]);
+  center.recordOperation({ requestId: 'applied-refresh', scopeRevision: 'scope', resourceKey: 'issue:1:2', action: 'updateIssue',
+    label: '更新 Issue', status: 'succeeded', effect: 'applied', notify: false, refreshError: '重新載入逾時。', phase: '已完成', startedAt: 1 });
+  const warning = center.snapshot().items[0];
+  assert.equal(center.snapshot().items.length, 1); assert.equal(warning.level, 'warn'); assert.equal(warning.read, false);
+  assert.equal(warning.messages.length, 2); assert.equal(warning.messages[0], 'Issue 已更新。');
+  assert.match(warning.messages[1], /操作已完成.*重新載入逾時/);
+  assert.ok(warning.contentRevision > original.contentRevision);
+});
+
+test('partially applied outcomes produce warnings with the actual failure text', () => {
+  const center = new NotificationCenter();
+  center.recordOperation({ requestId: 'partial-update', scopeRevision: 'scope', resourceKey: 'repositories', action: 'clone',
+    label: '更新 Repo', status: 'failed', effect: 'partial', notify: false, error: '兩個 Repo 完成，一個 Repo 無法連線。', phase: '部分完成', startedAt: 1 });
+  const warning = center.snapshot().items[0];
+  assert.equal(warning.level, 'warn'); assert.deepEqual(warning.messages, ['兩個 Repo 完成，一個 Repo 無法連線。']);
+});
+
+test('removed and cleared results cannot be resurrected by replayed messages or terminal receipts', () => {
+  const center = new NotificationCenter();
+  const operation = { requestId: 'dismissed-result', scopeRevision: 'scope', resourceKey: 'repo', action: 'push', label: 'Push',
+    status: 'succeeded' as const, effect: 'applied' as const, phase: 'Push completed', startedAt: 1 };
+  center.publish({ operationId: operation.requestId, message: 'Pushed successfully' });
+  center.recordOperation(operation); center.remove(`operation:${operation.requestId}`);
+  const removedRevision = center.snapshot().revision;
+  center.publish({ operationId: operation.requestId, message: 'Pushed successfully' });
+  center.recordOperation({ ...operation, revision: 20 });
+  assert.equal(center.snapshot().items.length, 0); assert.equal(center.snapshot().revision, removedRevision);
+  center.publish({ operationId: 'cleared-result', message: 'Copied successfully' });
+  center.clear(center.snapshot().revision);
+  center.publish({ operationId: 'cleared-result', message: 'Copied successfully' });
+  assert.equal(center.snapshot().items.length, 0);
+});
+
+test('state warning snapshots publish once per transition and return after resolution', () => {
+  const center = new NotificationCenter(); let changes = 0;
+  center.onDidChange(() => changes++);
+  const warning = { level: 'warn' as const, title: 'MR 差異', message: '已改用相容差異 API。' };
+  center.publishState('mr:1:2:diffs', warning);
+  const original = center.snapshot();
+  for (let index = 0; index < 5; index++) center.publishState('mr:1:2:diffs', { ...warning });
+  assert.equal(center.snapshot().revision, original.revision); assert.equal(changes, 1);
+  center.remove(original.items[0].id);
+  center.publishState('mr:1:2:diffs', warning);
+  assert.equal(center.snapshot().items.length, 0, 'an unchanged snapshot does not undo dismissal');
+  center.publishState('mr:1:2:diffs');
+  center.publishState('mr:1:2:diffs', warning);
+  assert.equal(center.snapshot().items.length, 1); assert.equal(center.snapshot().unreadCount, 1);
+  assert.notEqual(center.snapshot().items[0].id, original.items[0].id);
+});

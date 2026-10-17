@@ -476,5 +476,19 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .notification-detail p { white-space:pre-wrap; }
 .notification-origin { font-size:11px; }
 .notification-remove { position:absolute; right:6px; top:9px; }
+.notification-snackbar { position:fixed; z-index:9; left:50%; bottom:42px; transform:translateX(-50%); display:flex; align-items:center; gap:18px; width:max-content; max-width:min(680px, calc(100vw - 32px)); padding:14px 16px; border:1px solid var(--border); border-left:4px solid var(--focus); border-radius:8px; background:var(--surface); color:var(--vscode-foreground, #e6edf3); box-shadow:0 6px 24px #0005; }
+.notification-snackbar.warn { border-left-color:var(--vscode-editorWarning-foreground, #cca700); }
+.notification-snackbar.error { border-left-color:var(--danger); }
+.notification-snackbar-content { display:flex; flex:1; min-width:0; flex-direction:column; gap:5px; overflow-wrap:anywhere; }
+.notification-snackbar-content span { white-space:pre-wrap; max-height:8em; overflow:auto; }
+.notification-snackbar-actions { display:flex; flex:none; gap:8px; }
+.notification-snackbar-actions button { min-height:32px; padding:5px 10px; }
+.mr-diff-warnings { margin:8px 0; padding:10px 12px; border:1px solid var(--vscode-editorWarning-foreground, #cca700); border-radius:6px; overflow-wrap:anywhere; }
+.mr-diff-warnings p { margin:0 0 6px; }
+.diff-limit { margin-left:10px; color:var(--vscode-editorWarning-foreground, #cca700); font-size:11px; }
+@media (max-width:540px) {
+  .notification-snackbar { bottom:36px; max-width:calc(100vw - 20px); width:calc(100vw - 20px); gap:12px; padding:12px; align-items:flex-start; flex-direction:column; }
+  .notification-snackbar-actions { align-self:flex-end; }
+}
 @media(max-width:960px) { .skills-workspace { grid-template-columns:minmax(0,1fr); gap:14px; } .skills-feature-navigation { display:flex; flex-wrap:wrap; gap:12px; } .skills-feature-navigation section { flex:1 1 180px; } .skills-feature-navigation h3 { margin-top:0; } }
 @media(max-width:520px) { .skills-tool-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .skills-tool-tabs button { font-size:12px; } .skills-environment { padding:12px; } }

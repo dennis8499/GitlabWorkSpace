@@ -6,6 +6,7 @@ import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import type { WorkspaceRequest, WorkspaceResponse, WorkspaceSnapshot } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
+import { dispatchWithFeedback, reportLocalFeedback } from './notificationFeedback';
 import './account-ui.css';
 
 export function AccountIdentity({ account, status }: { account: Pick<GitLabAccount, 'name' | 'username' | 'baseUrl'>; status: string }) {
@@ -30,7 +31,12 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
   const requestRef = useRef<string>();
   const formRef = useRef<HTMLFormElement>(null);
   const busy = pending || !!snapshot.accountOperation || actions.isPending('connection');
-  const post = (request: WorkspaceRequest) => actions.dispatch(request);
+  const feedbackContext = { operationScope: snapshot.operationScope, scopeEpoch: snapshot.scopeEpoch,
+    hostSessionId: snapshot.operationSnapshot?.sessionId };
+  const validationError = (message: string) => reportLocalFeedback(notice => actions.dispatch(notice), message,
+    { title: '帳號與連線', onInline: setError, context: feedbackContext });
+  const post = (request: WorkspaceRequest) => dispatchWithFeedback(actions, request,
+    { title: '帳號與連線', fallbackMessage: '帳號作業正在處理，請稍候。', onBlocked: setError, context: feedbackContext });
   const startLogin = (id?: string) => {
     if (requestRef.current || snapshot.accountOperation) return;
     const saved = snapshot.accounts?.find(account => account.id === id);
@@ -71,19 +77,21 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
     <div class="accounts-heading"><div><h3 id="accounts-title">帳號與連線</h3><p class="subtle">管理不同 GitLab 站台與帳號，並確認目前工作的身分。</p></div>
       <button class="secondary small" type="button" disabled={busy} onClick={() => startLogin()}>＋ 新增帳號</button></div>
     {snapshot.accountOperation && <p class="account-progress" role="status" aria-live="polite">{operationLabel[snapshot.accountOperation]}</p>}
-    {(step === 'url' || step === 'token') && <form ref={formRef} class="account-login" aria-label="GitLab 帳號登入" onSubmit={event => {
+    {(step === 'url' || step === 'token') && <form ref={formRef} class="account-login" aria-label="GitLab 帳號登入" onInvalidCapture={event => {
+      const name = (event.target as HTMLInputElement).name;
+      validationError(name === 'token' ? '請輸入 Personal Access Token。' : '請輸入完整 HTTP 或 HTTPS 網址，不可包含帳密、查詢參數或片段。');
+    }} onSubmit={event => {
       event.preventDefault();
       if (busy || requestRef.current) return;
       if (step === 'url') {
         try { setBaseUrl(normalizeGitLabBaseUrl(baseUrl)); setError(''); setStep('token'); }
-        catch { setError('請輸入完整 HTTP 或 HTTPS 網址，不可包含帳密、查詢參數或片段。'); }
+        catch { validationError('請輸入完整 HTTP 或 HTTPS 網址，不可包含帳密、查詢參數或片段。'); }
         return;
       }
-      if (!token.trim()) { setError('請輸入 Personal Access Token。'); return; }
+      if (!token.trim()) { validationError('請輸入 Personal Access Token。'); return; }
       const requestId = window.crypto.randomUUID();
       const dispatched = post({ type: 'submitAccountLogin', requestId, baseUrl, token: token.trim(), accountId });
       if (dispatched.status !== 'started') {
-        if (dispatched.status === 'blocked') setError(dispatched.reason ?? '帳號作業正在處理，請稍候。');
         return;
       }
       requestRef.current = requestId; setPending(true); setError('');

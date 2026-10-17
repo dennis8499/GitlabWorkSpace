@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { NotificationCenter } from './notifications/notificationCenter';
+import type { NotificationOrigin } from './notifications/notificationProtocol';
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { GitLabSession } from './connection/session';
@@ -35,7 +36,9 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     private readonly getRepositoryDetails?: (repositoryId: string) => Promise<GitRepositoryDetails>,
     private readonly notifications?: NotificationCenter,
     private readonly operations?: OperationTracker,
-    private readonly getOperationScope: () => string = () => `offline:none:${session.connectionEpoch ?? 0}`
+    private readonly getOperationScope: () => string = () => `offline:none:${session.connectionEpoch ?? 0}`,
+    private readonly getNotificationOrigin: () => NotificationOrigin = () => ({ accountId: session.activeAccountId,
+      baseUrl: session.baseUrl, groupId: session.selectedGroup?.id })
   ) {
     this.notificationSubscription = notifications?.onDidChange(() => { if (this.view?.visible) void this.sendState(); });
     this.operationSubscription = operations?.subscribe(operation => {
@@ -55,6 +58,13 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
         else if (message.type === 'reconcileOperations') this.sendOperationSnapshot(message.pendingIds);
         else if (message.type === 'repositoryDetails') void this.loadRepositoryDetails(message.repositoryId, message.requestId, message);
         else if (message.type === 'cancelRepositoryDetails') this.detailsRequests.delete(message.repositoryId);
+        else if (message.type === 'publishNotification') {
+          if (message.operationScope !== undefined && message.operationScope !== this.getOperationScope() ||
+            message.scopeEpoch !== undefined && message.scopeEpoch !== this.session.connectionEpoch ||
+            message.hostSessionId !== undefined && message.hostSessionId !== this.operations?.sessionId) return;
+          this.notifications?.publish({ level: message.level, message: message.message, title: message.title,
+            operationId: message.operationId, origin: this.getNotificationOrigin() });
+        }
         else void this.perform(message.action, message.action === 'openRepository' ? message.repositoryId : undefined, message);
       }),
       view.onDidChangeVisibility(() => {
@@ -110,8 +120,11 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private async loadRepositoryDetails(repositoryId: string, requestId: string, metadata: ActionMetadata = {}): Promise<void> {
     const view = this.view, generation = this.viewGeneration;
     if (!view?.visible) return;
+    const scopeRevision = this.getOperationScope(), scopeEpoch = this.session.connectionEpoch;
+    const origin = this.getNotificationOrigin();
     this.detailsRequests.set(repositoryId, requestId);
-    const current = () => this.view === view && view.visible && generation === this.viewGeneration && this.detailsRequests.get(repositoryId) === requestId;
+    const current = () => this.view === view && view.visible && generation === this.viewGeneration &&
+      scopeRevision === this.getOperationScope() && scopeEpoch === this.session.connectionEpoch && this.detailsRequests.get(repositoryId) === requestId;
     const read = async () => { try {
       // A collapse/hide in the same turn can cancel a read before it starts.
       await Promise.resolve();
@@ -122,23 +135,27 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       await this.sendState();
       if (current()) void view.webview.postMessage({ type: 'repositoryDetails', repositoryId, requestId, details } satisfies QuickActionsResponse);
     } catch (error) {
-      if (current()) void view.webview.postMessage({ type: 'repositoryDetails', repositoryId, requestId,
+      if (!current()) return { status: 'cancelled' as const, effect: 'none' as const };
+      void view.webview.postMessage({ type: 'repositoryDetails', repositoryId, requestId,
         error: error instanceof Error ? error.message : '無法載入 Repo 詳細資料。' } satisfies QuickActionsResponse);
+      if (!this.operations || !metadata.operationId) this.notifications?.publish({ level: 'error', title: '讀取 Repo 詳細資料',
+        message: error instanceof Error ? error.message : '無法載入 Repo 詳細資料。', origin });
       return { status: 'failed' as const, error: error instanceof Error ? error.message : '無法載入 Repo 詳細資料。', effect: 'none' as const };
     } finally {
       if (this.detailsRequests.get(repositoryId) === requestId) this.detailsRequests.delete(repositoryId);
     } };
     if (!this.operations || !metadata.operationId) { await read(); return; }
-    const scopeRevision = this.getOperationScope();
     const detailAction = { type: 'repositoryDetails', repositoryId };
     const policy = describeAction(detailAction, { scopeRevision });
-    await this.operations.run({ requestId: metadata.operationId, scopeRevision: metadata.operationScope ?? scopeRevision,
+    const tracked = () => this.operations!.run({ requestId: metadata.operationId!, scopeRevision: metadata.operationScope ?? scopeRevision,
       action: policy.action, resourceKey: policy.resourceKey, lockKey: policy.lockKey, kind: policy.kind, concurrency: policy.concurrency,
       label: policy.label, phase: '正在讀取 Repo 詳細資料…', status: 'queued', startedAt: Date.now(), notify: false }, async () => {
       if (metadata.hostSessionId && metadata.hostSessionId !== this.operations!.sessionId || metadata.operationScope && metadata.operationScope !== this.getOperationScope() ||
         metadata.scopeEpoch !== undefined && metadata.scopeEpoch !== this.session.connectionEpoch) return { status: 'failed', effect: 'none', error: '工作區或帳號已變更，請重試。' };
       return read();
     });
+    if (this.notifications) await this.notifications.run({ operationId: metadata.operationId, title: policy.label, origin }, tracked);
+    else await tracked();
   }
 
   private async sendState(): Promise<void> {

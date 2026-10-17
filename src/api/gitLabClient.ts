@@ -5,7 +5,7 @@ import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
   GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser, GitLabIssueBoard,
-  GitLabCommitSummary, GitLabCompareResult, GitLabGraphWorkItem, GitLabMergeRequest, GitLabMergeRequestDiff
+  GitLabCommitSummary, GitLabCompareResult, GitLabGraphWorkItem, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMergeRequestDiffResult
 } from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -100,6 +100,24 @@ export class GitLabConflictError extends Error {
 function isGraphqlComplexityError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /complexity.{0,120}(?:exceed|maximum|\blimit\b)|(?:exceed|maximum|\blimit\b).{0,120}complexity/i.test(message);
+}
+
+function mergeRequestDiffResult(values: unknown[], source: GitLabMergeRequestDiffResult['source'], warnings: string[] = [], overflow = false): GitLabMergeRequestDiffResult {
+  const diffs = values.map((value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new GitLabApiError('GitLab returned an invalid Merge Request diff entry.');
+    const entry = value as Record<string, unknown>;
+    const flags = ['new_file', 'renamed_file', 'deleted_file', 'generated_file', 'collapsed', 'too_large'];
+    if (typeof entry.old_path !== 'string' || !entry.old_path || typeof entry.new_path !== 'string' || !entry.new_path
+      || flags.some((flag) => entry[flag] !== undefined && typeof entry[flag] !== 'boolean')
+      || typeof entry.diff !== 'string' && !((entry.diff === undefined || entry.diff === null) && (entry.collapsed === true || entry.too_large === true))) {
+      throw new GitLabApiError('GitLab returned an invalid Merge Request diff entry.');
+    }
+    return { ...entry, diff: entry.diff ?? '' } as unknown as GitLabMergeRequestDiff;
+  });
+  if (overflow) warnings.push('GitLab 已限制差異回傳量，目前顯示的變更可能不完整；請在 GitLab 核對完整差異。');
+  if (diffs.some((diff) => diff.collapsed)) warnings.push('部分檔案差異已由 GitLab 折疊，尚未取得完整內容；請在 GitLab 展開檢視。');
+  if (diffs.some((diff) => diff.too_large)) warnings.push('部分檔案差異超過 GitLab 顯示上限，無法取得完整內容；請在 GitLab 核對。');
+  return { diffs, source, warnings, truncated: overflow || diffs.some((diff) => diff.collapsed || diff.too_large) };
 }
 
 export class GitLabClient {
@@ -396,8 +414,35 @@ export class GitLabClient {
     return this.getJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}`);
   }
 
-  async listMergeRequestDiffs(projectId: number, iid: number): Promise<GitLabMergeRequestDiff[]> {
-    return this.getPages<GitLabMergeRequestDiff>(`${this.projectPath(projectId)}/merge_requests/${iid}/diffs?per_page=100`);
+  async listMergeRequestDiffs(projectId: number, iid: number): Promise<GitLabMergeRequestDiffResult> {
+    const requestPath = `${this.projectPath(projectId)}/merge_requests/${iid}`;
+    const cancelled = (error: unknown): boolean => error instanceof Error && error.name === 'AbortError'
+      || (Array.isArray(this.readSignal) ? this.readSignal : [this.readSignal]).some((signal) => signal?.aborted);
+    try {
+      return mergeRequestDiffResult(await this.getPages<unknown>(`${requestPath}/diffs?per_page=100`), 'diffs');
+    } catch (primaryError) {
+      if (cancelled(primaryError) || !(primaryError instanceof GitLabApiError)
+        || ![404, 405, 500, 501, 502, 503, 504].includes(primaryError.status ?? 0)) throw primaryError;
+      try {
+        const result = await this.getJson<unknown>(`${requestPath}/changes`);
+        if (!result || typeof result !== 'object' || Array.isArray(result)
+          || !Array.isArray((result as Record<string, unknown>).changes)
+          || 'overflow' in result && typeof result.overflow !== 'boolean') {
+          throw new GitLabApiError('GitLab returned an invalid Merge Request changes response.');
+        }
+        const changes = result as { changes: unknown[]; overflow?: boolean };
+        return mergeRequestDiffResult(changes.changes, 'changes', [
+          `GitLab 差異 API 暫時無法使用（HTTP ${primaryError.status}），已改用相容差異 API。`
+        ], changes.overflow);
+      } catch (fallbackError) {
+        if (cancelled(fallbackError)) throw fallbackError;
+        const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
+        const error = new GitLabApiError(`MR 差異載入失敗：/diffs：${errorMessage(primaryError)}；/changes：${errorMessage(fallbackError)}`,
+          fallbackError instanceof GitLabApiError ? fallbackError.status : undefined);
+        error.cause = new AggregateError([primaryError, fallbackError]);
+        throw error;
+      }
+    }
   }
 
   listMergeRequestDiscussions(projectId: number, iid: number): Promise<GitLabIssueDiscussion[]> {

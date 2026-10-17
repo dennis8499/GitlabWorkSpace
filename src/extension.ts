@@ -32,7 +32,7 @@ let activeLog: OperationLog | undefined;
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const notifications = new NotificationCenter();
-  const operations = new OperationTracker(operation => { if (operation.notify !== false) notifications.recordOperation(operation); });
+  const operations = new OperationTracker(operation => notifications.recordOperation(operation));
   const log = new OperationLog(vscode.Uri.joinPath(context.globalStorageUri, 'logs').fsPath, message => notifications.publish({ level: 'warn', message }));
   notifications.setSanitizer(message => log.sanitize(message));
   activeLog = log;
@@ -63,7 +63,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       };
     },
     repositoryId => gitRepositories.getRepositoryDetails(repositoryId), notifications, operations,
-    () => workspacePanel?.getOperationScope() ?? `offline:none:${session.connectionEpoch}`
+    () => workspacePanel?.getOperationScope() ?? `offline:none:${session.connectionEpoch}`,
+    () => workspacePanel?.getNotificationOrigin() ?? { accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }
   );
   workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories, notifications, operations);
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);

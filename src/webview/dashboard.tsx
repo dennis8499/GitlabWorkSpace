@@ -19,6 +19,8 @@ import { legacyWikiInputs, restoreSkillGuideState, type SkillGuideState } from '
 import { SkillsGuide } from './SkillsGuide';
 import { OperationFeedback } from './OperationFeedback';
 import { NotificationDrawer } from './NotificationDrawer';
+import { NotificationSnackbar } from './NotificationSnackbar';
+import { dispatchWithFeedback } from './notificationFeedback';
 import type { NotificationSnapshot } from '../notifications/notificationProtocol';
 import { isActiveOperation } from '../workspace/operations';
 import { ActionController, type DispatchResult } from '../workspace/actionController';
@@ -162,9 +164,7 @@ const projectRequests = new Set(['selectProjectFolder', 'selectProjectRoot', 're
 const actions = new ActionController(message => vscode.postMessage({ ...message,
   ...(projectRequests.has(message.type) && projectRevision ? { projectRevision } : {}) }));
 function post(message: WorkspaceRequest): DispatchResult {
-  const result = actions.dispatch(message);
-  if (result.status === 'blocked' && result.reason) vscode.postMessage({ type: 'publishNotification', level: 'warn', message: result.reason });
-  return result;
+  return dispatchWithFeedback(actions, message, { publish: request => vscode.postMessage(request) });
 }
 
 function issueKey(projectId: number, iid: number): string { return `${projectId}#${iid}`; }
@@ -301,6 +301,7 @@ function App() {
   const [issueDetailSearch, setIssueDetailSearch] = useState(initial?.scopeKey ? initial?.scopedData?.[initial.scopeKey]?.issueDetailSearch ?? initial?.issueDetailSearch ?? '' : initial?.issueDetailSearch ?? '');
   const [notifications, setNotifications] = useState<NotificationSnapshot>();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationTarget, setNotificationTarget] = useState<{ id: string; request: number }>();
   const notificationReturnFocus = useRef<HTMLElement>();
   const retiredNotificationSessions = useRef(new Set<string>());
   const receiveNotifications = (next: NotificationSnapshot) => setNotifications(current => {
@@ -390,7 +391,7 @@ function App() {
       const message = event.data;
       if (!message) return;
       if (message.type === 'notificationsChanged') { receiveNotifications(message.snapshot); return; }
-      if (message.type === 'openNotifications') { setToolDrawer(false); setNotificationsOpen(true); return; }
+      if (message.type === 'openNotifications') { setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); return; }
       if (message.type === 'operationChanged') {
         actions.receive(message.operation);
         return;
@@ -899,7 +900,7 @@ function App() {
         {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={blockingWork} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={blockingWork} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
         <button class="quiet maximize-button" type="button" title="放大／還原工作台" aria-label="放大／還原工作台" onClick={() => post({ type: 'toggleFullDisplay' })}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
         <button class="quiet settings-trigger" type="button" onClick={event => { drawerReturnFocus.current = event.currentTarget; setAccountIntent(undefined); setSettingsSection('tools'); setToolDrawer(true); }}>設定</button>
-        <button class="quiet notifications-trigger" type="button" aria-label={`訊息中心，${notifications?.unreadCount ?? 0} 筆未讀`} onClick={event => { notificationReturnFocus.current = event.currentTarget; setToolDrawer(false); setNotificationsOpen(true); }}>訊息中心 <span class="notification-count">{notifications?.unreadCount ?? 0}</span></button>
+        <button class="quiet notifications-trigger" type="button" aria-label={`訊息中心，${notifications?.unreadCount ?? 0} 筆未讀`} onClick={event => { notificationReturnFocus.current = event.currentTarget; setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); }}>訊息中心 <span class="notification-count">{notifications?.unreadCount ?? 0}</span></button>
         <details class="account-menu"><summary class={`connection ${snapshot.connected ? 'connected' : ''}`}><i />{snapshot.connected ? `${snapshot.currentUser?.name ?? 'GitLab 已連線'}${snapshot.currentUser?.username ? ` · @${snapshot.currentUser.username}` : ''}` : '尚未登入 GitLab'}　⌄</summary>
           <div class="account-popover account-manager"><strong>{snapshot.baseUrl ?? '選擇或新增 GitLab 帳號'}</strong>
             {(snapshot.accounts ?? []).map(account => <div class="saved-account" key={account.id}><button class="quiet saved-account-select" type="button" disabled={blockingWork || snapshot.connected && snapshot.activeAccountId === account.id && !account.needsLogin} onClick={() => post({ type: account.needsLogin ? 'addAccount' : 'switchAccount', accountId: account.id })}><strong>{account.name || account.username}</strong><small>@{account.username} · {account.baseUrl}</small><small>{accountStatus(account, snapshot.activeAccountId, snapshot.connected)}</small></button></div>)}
@@ -1052,7 +1053,13 @@ function App() {
                   updateReviewerTab(nextTab);
                   event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nextIndex]?.focus();
                 }} onClick={() => updateReviewerTab(tab)}>{label}</button>)}</nav>
-                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />{selectedMr.sections.diffs.status === 'ready' && <><VirtualRows className="diff-list" items={selectedMr.diffs} itemKey={diffItemKey} estimateHeight={48} renderItem={(change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code></summary><pre>{change.diff || '此檔案沒有可顯示的 diff。'}</pre></details>} />{!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}</>}</section>
+                <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />
+                  {selectedMr.sections.diffs.status === 'ready' && <>
+                    {!!selectedMr.warnings?.length && <div class="mr-diff-warnings" role="status">{selectedMr.warnings.map(warning => <p key={warning}>{warning}</p>)}<a href={mr.web_url} target="_blank" rel="noopener noreferrer">在 GitLab 查看完整變更</a></div>}
+                    <VirtualRows className="diff-list" items={selectedMr.diffs} itemKey={diffItemKey} estimateHeight={48} renderItem={(change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code>{(change.too_large || change.collapsed) && <span class="diff-limit">{change.too_large ? '檔案差異超過顯示限制' : 'GitLab 已省略此檔案的差異'}</span>}</summary><pre>{change.diff || (change.too_large || change.collapsed ? '請在 GitLab 查看此檔案的完整差異。' : '此檔案沒有可顯示的 diff。')}</pre></details>} />
+                    {!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}
+                  </>}
+                </section>
                 <section class="section-card" hidden={reviewerTab !== 'report'}><h3>審查報告</h3><p class="subtle">新版 Merge Report 是本機分支審查結果。此處以一般留言發布；核准與合併由你決定。</p>
                   <label class="field">貼上 Merge Report 或其他審查文字<textarea rows={8} value={currentReport.text} onInput={(event) => {
                     const text = event.currentTarget.value;
@@ -1072,7 +1079,11 @@ function App() {
 
     <div class="workspace-operation-area"><OperationFeedback initialOperations={snapshot.operations} scopeRevision={snapshot.operationScope ?? operationScope} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
-    {notificationsOpen && <NotificationDrawer snapshot={notifications} post={post} onClose={() => { setNotificationsOpen(false); requestAnimationFrame(() => {
+    <NotificationSnackbar snapshot={notifications} onView={id => {
+      notificationReturnFocus.current = document.querySelector<HTMLButtonElement>('.notifications-trigger') ?? undefined;
+      setNotificationTarget(current => ({ id, request: (current?.request ?? 0) + 1 })); setToolDrawer(false); setNotificationsOpen(true);
+    }} />
+    {notificationsOpen && <NotificationDrawer snapshot={notifications} post={post} targetId={notificationTarget?.id} targetRequest={notificationTarget?.request} onClose={() => { setNotificationsOpen(false); requestAnimationFrame(() => {
       if (notificationReturnFocus.current?.isConnected) notificationReturnFocus.current.focus();
       else document.querySelector<HTMLButtonElement>('.notifications-trigger')?.focus();
     }); }} />}

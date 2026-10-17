@@ -1,0 +1,40 @@
+[
+  {
+    "width": 1440,
+    "bounds": {
+      "x": 423.4609375,
+      "y": 789,
+      "width": 593.078125,
+      "height": 69
+    },
+    "overflow": {
+      "document": false,
+      "snackbar": false
+    },
+    "expanded": {
+      "focusedSummary": true,
+      "readRequests": 1,
+      "drawerWidth": 620
+    },
+    "errors": []
+  },
+  {
+    "width": 480,
+    "bounds": {
+      "x": 10,
+      "y": 738,
+      "width": 460,
+      "height": 126
+    },
+    "overflow": {
+      "document": false,
+      "snackbar": false
+    },
+    "expanded": {
+      "focusedSummary": true,
+      "readRequests": 1,
+      "drawerWidth": 480
+    },
+    "errors": []
+  }
+]

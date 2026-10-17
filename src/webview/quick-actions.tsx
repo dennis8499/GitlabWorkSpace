@@ -9,6 +9,7 @@ import { ActionController } from '../workspace/actionController';
 import { describeAction } from '../workspace/actionPolicy';
 import { operationLabels, type WorkspaceOperationState } from '../workspace/operations';
 import { useActionSelector } from './useActions';
+import { dispatchWithFeedback } from './notificationFeedback';
 import './quick-actions.css';
 
 interface VsCodeBridge {
@@ -158,7 +159,7 @@ function GitSidebar() {
     const requestId = `details-${++requestSequence.current}`;
     requests.current.set(repository.id, requestId);
     setDetails(current => ({ ...current, [repository.id]: { status: 'loading', revision: repository.revision } }));
-    const result = actions.dispatch({ type: 'repositoryDetails', repositoryId: repository.id, requestId });
+    const result = dispatch({ type: 'repositoryDetails', repositoryId: repository.id, requestId });
     if (result.status === 'blocked') {
       requests.current.delete(repository.id);
       setDetails(current => ({ ...current, [repository.id]: { status: 'error', revision: repository.revision, error: result.reason ?? '無法載入 Repo 詳細資料。' } }));
@@ -200,12 +201,18 @@ function GitSidebar() {
   }
 
   function dispatchAction(request: QuickActionsRequest): void {
-    const result = actions.dispatch(request);
+    const result = dispatch(request);
     setDispatchNotice(result.status === 'blocked' && !result.operationId ? result.reason ?? '另一個操作正在處理，請稍後再試。' : '');
     if (result.status !== 'joined' && result.operationId) {
       retries.current.set(result.operationId, request);
       while (retries.current.size > 20) retries.current.delete(retries.current.keys().next().value!);
     }
+  }
+
+  function dispatch(request: QuickActionsRequest) {
+    const current = latestState.current;
+    return dispatchWithFeedback(actions, request, { title: '快捷操作', publish: notice => vscode.postMessage(notice),
+      context: { operationScope: current.operationScope, scopeEpoch: current.scopeEpoch, hostSessionId: current.operationSnapshot?.sessionId } });
   }
 
   const activeAccount = state.connected ? state.accounts?.find(account => account.id === state.activeAccountId) : undefined;

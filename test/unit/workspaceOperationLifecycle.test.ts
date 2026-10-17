@@ -3,6 +3,7 @@ import test from 'node:test';
 import { OperationTracker, type WorkspaceOperationState } from '../../src/workspace/operations';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 import { describeAction } from '../../src/workspace/actionPolicy';
+import { GitLabClient } from '../../src/api/gitLabClient';
 
 const vscode = { window: { showWarningMessage: async () => undefined as string | undefined } };
 const loader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
@@ -103,6 +104,79 @@ test('handled read failures and scanning errors remain failed operations', async
   f.host.dispatchMessage = async () => { f.host.repositoryScan = { status: 'error', errors: [{ message: 'Scan denied' }] }; };
   await f.host.handleMessage({ type: 'scanRepositories', operationId: 'scan' });
   assert.equal(f.operations.get('scan')?.status, 'failed'); assert.equal(f.operations.get('scan')?.error, 'Scan denied');
+  assert.equal(f.host.notifications.snapshot().items.length, 2);
+  assert.equal(f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'read-op').messages.length, 1);
+  assert.equal(f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'scan').messages[0], 'Scan denied');
+});
+
+test('MR fallback renders the recovered files and records a truthful warning; failed retries retain both errors', async () => {
+  const f = fixture(); let fallbackFails = false;
+  const summaries: any[] = [], endpoints: string[] = [];
+  f.host.runLogged = (WorkspacePanel.prototype as any).runLogged;
+  f.host.session.log = { run: async (_feature: string, _action: string, _context: unknown, task: () => Promise<unknown>, outcome: () => unknown) => {
+    const value = await task(); summaries.push(outcome()); return value;
+  } };
+  f.host.dispatchMessage = (WorkspacePanel.prototype as any).dispatchMessage;
+  f.host.mergeRequestSectionAborts = {}; f.host.mergeRequestSectionGenerations = { diffs: 0, discussions: 0 };
+  f.host.mergeRequestGeneration = 0; f.host.requestGeneration = 0;
+  f.host.selectedMergeRequest = { request: { project_id: 1, iid: 2 }, diffs: [], warnings: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
+  const client = new GitLabClient('https://gitlab.test', 'test-only', async input => {
+    const endpoint = new URL(String(input)).pathname; endpoints.push(endpoint);
+    return endpoint.endsWith('/diffs') ? new Response('{}', { status: 500 }) : fallbackFails ? new Response('{}', { status: 503 })
+      : new Response(JSON.stringify({ changes: [{ old_path: 'a.ts', new_path: 'a.ts', diff: '+restored' }], overflow: false }));
+  });
+  f.host.session.getClient = async () => client;
+  await f.host.handleMessage({ type: 'loadMergeRequestSection', section: 'diffs', projectId: 1, iid: 2, operationId: 'recovered' });
+  assert.equal(f.host.selectedMergeRequest.sections.diffs.status, 'ready');
+  assert.equal(f.host.selectedMergeRequest.diffs[0].diff, '+restored');
+  assert.match(f.host.selectedMergeRequest.warnings[0], /相容差異 API/);
+  assert.equal(f.host.notifications.snapshot().items.length, 1);
+  assert.equal(f.host.notifications.snapshot().items[0].level, 'warn');
+  assert.equal(summaries[0].result, 'success');
+  fallbackFails = true; f.host.selectedMergeRequest.sections.diffs = { status: 'error' };
+  await f.host.handleMessage({ type: 'loadMergeRequestSection', section: 'diffs', projectId: 1, iid: 2, operationId: 'failed-retry' });
+  assert.equal(f.host.selectedMergeRequest.sections.diffs.status, 'error');
+  assert.match(f.host.selectedMergeRequest.sections.diffs.error, /HTTP 500.*HTTP 503/);
+  assert.equal(f.operations.get('failed-retry')?.status, 'failed');
+  const failed = f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'failed-retry');
+  assert.equal(failed.level, 'error'); assert.equal(failed.messages.length, 1);
+  assert.equal(summaries[1].result, 'error'); assert.match(summaries[1].message, /HTTP 503/);
+  assert.equal(endpoints.length, 4);
+});
+
+test('quiet read failures keep their captured source and applied refresh warnings retain actual details', async () => {
+  const f = fixture(); let release!: () => void;
+  f.host.dispatchMessage = async () => { await new Promise<void>(resolve => { release = resolve; }); throw new Error('Preview unavailable'); };
+  const pending = f.host.handleMessage({ type: 'loadMergeRequestSection', projectId: 1, iid: 2, section: 'diffs', operationId: 'old-read' });
+  f.host.session.activeAccountId = 'new-account'; f.host.session.selectedGroup = { id: 9 }; f.host.projectContext = { root: 'C:/new', revision: 'new' };
+  release(); await assert.rejects(pending, /Preview unavailable/);
+  const item = f.host.notifications.snapshot().items[0];
+  assert.equal(item.origin.accountId, 'account'); assert.equal(item.origin.groupId, 1); assert.equal(item.origin.root, 'C:/workspace');
+  f.host.dispatchMessage = async () => {
+    f.host.post({ type: 'message', message: 'Saved' });
+    f.host.noteOutcome({ effect: 'applied', refreshError: 'Actual reload failure' });
+  };
+  await f.host.handleMessage({ type: 'installWorkflowKit', operationId: 'saved', packageId: 'bundled' });
+  const saved = f.host.notifications.snapshot().items.find((entry: any) => entry.operationId === 'saved');
+  assert.equal(saved.level, 'warn'); assert.match(saved.messages.join('\n'), /Saved.*Actual reload failure/s);
+  assert.equal(f.operations.get('saved')?.effect, 'applied');
+});
+
+test('Issue Board read failures settle as failed and stale local feedback is rejected', async () => {
+  const f = fixture();
+  f.host.dispatchMessage = (WorkspacePanel.prototype as any).dispatchMessage;
+  f.host.session.selectedGroup = { id: 1, full_path: 'group' };
+  f.host.connectedScopeKey = () => 'connected'; f.host.groupIssueBoards = [{ id: 3 }]; f.host.issueBoardGeneration = 0;
+  f.host.session.cachedRead = async () => { throw new Error('Board unavailable'); };
+  await f.host.handleMessage({ type: 'selectIssueBoard', operationId: 'board', boardId: 3, connectedScope: 'connected' });
+  assert.equal(f.operations.get('board')?.status, 'failed');
+  assert.equal(f.host.issueBoardContent.status, 'error');
+  assert.equal(f.host.notifications.snapshot().items[0].messages[0], 'Board unavailable');
+  const revision = f.host.notifications.snapshot().revision;
+  for (const context of [{ hostSessionId: 'retired-host' }, { scopeEpoch: 1.5 }, { scopeEpoch: -1 }]) {
+    await f.host.handleMessage({ type: 'publishNotification', level: 'warn', message: 'Stale notice', ...context });
+  }
+  assert.equal(f.host.notifications.snapshot().revision, revision);
 });
 
 test('applied mutations preserve their outcome when refreshing fails', async () => {

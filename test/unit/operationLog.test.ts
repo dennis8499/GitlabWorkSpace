@@ -102,3 +102,35 @@ test('log storage failures report a warning without failing business operations'
   assert.ok((await log.query()).error);
   log.dispose();
 });
+
+test('handled domain failures are logged as errors even when the adapter resolves normally', async t => {
+  const log = new OperationLog(await directory(t));
+  let handled = false, callbacks = 0;
+  const result = await log.run('workspace', 'loadMergeRequestSection', {}, async () => {
+    handled = true; return { status: 'error' };
+  }, () => {
+    callbacks++; assert.equal(handled, true, 'the domain outcome is read after the adapter completes');
+    return { result: 'error', level: 'error', message: 'GitLab API request failed (HTTP 500).' };
+  });
+  assert.deepEqual(result, { status: 'error' }); assert.equal(callbacks, 1);
+  const entries = (await log.query({ feature: 'workspace' })).entries;
+  assert.equal(entries.length, 2);
+  assert.ok(entries.every(entry => entry.action === 'loadMergeRequestSection'));
+  const completed = entries.find(entry => entry.result !== 'started')!;
+  assert.equal(completed.result, 'error'); assert.equal(completed.level, 'error');
+  assert.equal(completed.message, 'GitLab API request failed (HTTP 500).');
+  assert.equal(new Set(entries.map(entry => entry.operationId)).size, 1);
+  log.dispose();
+});
+
+test('applied writes with refresh warnings remain successful and retain the actual warning message', async t => {
+  const log = new OperationLog(await directory(t));
+  const warning = 'Issue 已更新，但重新載入失敗：GitLab read timed out after 30 seconds.';
+  const result = await log.run('workspace', 'updateIssue', {}, async () => 42,
+    () => ({ result: 'success', level: 'warn', message: warning }));
+  assert.equal(result, 42);
+  const completed = (await log.query({ result: 'success' })).entries;
+  assert.equal(completed.length, 1); assert.equal(completed[0].level, 'warn'); assert.equal(completed[0].message, warning);
+  assert.equal((await log.query({ result: 'error' })).total, 0);
+  log.dispose();
+});

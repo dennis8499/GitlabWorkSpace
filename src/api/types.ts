@@ -237,7 +237,17 @@ export interface GitLabMergeRequestDiff {
   new_file?: boolean;
   renamed_file?: boolean;
   deleted_file?: boolean;
+  generated_file?: boolean;
+  collapsed?: boolean;
+  too_large?: boolean;
   diff: string;
+}
+
+export interface GitLabMergeRequestDiffResult {
+  diffs: GitLabMergeRequestDiff[];
+  source: 'diffs' | 'changes';
+  warnings: string[];
+  truncated: boolean;
 }
 
 export interface GitLabCompareResult {
