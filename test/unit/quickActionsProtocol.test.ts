@@ -4,7 +4,7 @@ import { isQuickActionsRequest } from '../../src/workspace/quickActionsProtocol'
 
 test('accepts only the navigation initialization and supported destinations', () => {
   assert.equal(isQuickActionsRequest({ type: 'ready' }), true);
-  for (const action of ['openWorkspace', 'openMyWork', 'openProjects', 'openAdmin', 'openNotifications', 'addAccount', 'switchAccount', 'logoutAccount', 'removeAccount', 'manageAccounts']) {
+  for (const action of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openAdmin', 'openNotifications', 'addAccount', 'switchAccount', 'logoutAccount', 'removeAccount', 'manageAccounts']) {
     assert.equal(isQuickActionsRequest({ type: 'perform', action }), true, `${action} is supported`);
   }
 });
@@ -38,6 +38,7 @@ test('accepts bounded operation context on sidebar actions and lifecycle control
   for (const request of [
     { type: 'ready' }, { type: 'reconcileOperations' },
     { type: 'perform', action: 'openMyWork' },
+    { type: 'perform', action: 'openBmad' },
     { type: 'perform', action: 'openRepository', repositoryId: 'a'.repeat(32) },
     { type: 'repositoryDetails', repositoryId: 'a'.repeat(32), requestId: 'details-1' },
     { type: 'cancelRepositoryDetails', repositoryId: 'a'.repeat(32) }

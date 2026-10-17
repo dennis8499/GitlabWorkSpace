@@ -151,7 +151,9 @@ class TransactionTests(unittest.TestCase):
             result, data = self.install(self.group, archive=fixture / "workflow-kit.tar.xz", version="0.14.0")
         self.assertEqual(0, result.returncode, data)
         self.assertEqual(14, data["skills"])
-        self.assertEqual("update-available", self.status(self.group)["status"])
+        status = self.status(self.group)
+        self.assertEqual("update-available", status["status"])
+        self.assertNotIn("bmad-workflow", status["capabilities"])
         return data
 
     def test_real_014_install_upgrade_and_exact_rollback(self):
@@ -377,7 +379,14 @@ class TransactionTests(unittest.TestCase):
                          {p: hashlib.sha256(v).hexdigest() for p, v in self.snapshot(self.group).items()})
         journal["id"] = path.parent.name
         path.write_text(json.dumps(journal), encoding="utf-8")
-        target = self.group / ".agents/skills/codebase-wiki/SKILL.md"
+        # Crash injection counts actual operations; installed Skill ordering can
+        # change when the reviewed bundle gains tools. Tamper with a protected
+        # entry point that the interrupted transaction really wrote.
+        written = sorted(relative for relative in journal["installed_manifest"]["files"]
+                         if relative.startswith(".agents/skills/") and relative.endswith("/SKILL.md")
+                         and (self.group / relative).is_file())
+        self.assertTrue(written, "The interrupted install must have written a protected Skill entry point")
+        target = self.group / written[0]
         original = target.read_bytes()
         target.write_bytes(original + b"later edit\n")
         before = self.snapshot(self.group)
@@ -406,9 +415,10 @@ class TransactionTests(unittest.TestCase):
         source = self.root / "source"
         source.mkdir()
         paths = [ROOT / p for p in (".gitattributes", "package.json", "scripts/build-workflow-kit.py",
-                                    "resources/workflow-kit-installer.py")]
+                                    "resources/workflow-kit-installer.py", "resources/offline-tools/bmad-source.json")]
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
+        paths.extend(p for p in (ROOT / "resources/bmad").rglob("*") if p.is_file())
         sources = {record['filename'] for record in harness.CURRENT_SOURCES.values()}
         paths.extend(ROOT / 'resources/offline-tools/sources' / name for name in sorted(sources))
         paths.extend((ROOT / "scripts/workflow-kit-sources.py", ROOT / "resources/offline-tools/source-snapshots.json"))

@@ -4,6 +4,7 @@
     "onCommand:gitlabWorkspace.openNotifications",
     "onCommand:gitlabWorkspace.openCloneMode",
     "onCommand:gitlabWorkspace.openSaMode",
+    "onCommand:gitlabWorkspace.openBmadMode",
     "onCommand:gitlabWorkspace.openDeveloperMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onCommand:gitlabWorkspace.openGitMode",
@@ -41,6 +42,10 @@
       {
         "command": "gitlabWorkspace.openSaMode",
         "title": "GitLab Workspace: Skills 功能指引"
+      },
+      {
+        "command": "gitlabWorkspace.openBmadMode",
+        "title": "GitLab Workspace: BMAD 開發流程"
       },
       {
         "command": "gitlabWorkspace.openDeveloperMode",
@@ -184,9 +189,11 @@
     }
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "d3-force": "^3.0.0",
     "dompurify": "^3.4.16",
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "yaml": "^2.9.1"
   },
   "description": "在 VS Code 的單一工作台瀏覽專案、需求、Issue 與 Merge Request。",
   "devDependencies": {
@@ -252,5 +259,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.25.0"
+  "version": "0.26.0"
 }

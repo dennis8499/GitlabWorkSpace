@@ -81,6 +81,12 @@ export const workspaceActionKinds = {
   selectCloneRoot: 'write',
   resetCloneRoot: 'write',
   openCodexTerminal: 'write',
+  refreshBmad: 'read',
+  launchBmadStep: 'write',
+  copyBmadPrompt: 'write',
+  openBmadArtifact: 'local',
+  confirmBmadArtifact: 'write',
+  revokeBmadConfirmation: 'write',
   clone: 'write',
   syncRepos: 'write',
   copy: 'write',
@@ -189,6 +195,7 @@ export const quickActionKinds = {
   openMyWork: 'read',
   openProjects: 'read',
   openAnalysis: 'read',
+  openBmad: 'read',
   openReviewer: 'read',
   openGit: 'read',
   openAdmin: 'read',
@@ -202,6 +209,8 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
+  openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程', launchBmadStep: '啟動 BMAD 步驟',
+  copyBmadPrompt: '複製 BMAD 提示詞', openBmadArtifact: '查看 BMAD 產物', confirmBmadArtifact: '確認 BMAD 產物完成', revokeBmadConfirmation: '撤銷 BMAD 完成確認',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
   openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟後台管理', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
   refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', submitAccountLogin: '驗證帳號', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
@@ -215,7 +224,7 @@ export const operationLabels: Record<string, string> = {
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'queryLogs', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
-const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal']);
+const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'launchBmadStep', 'confirmBmadArtifact', 'revokeBmadConfirmation']);
 const canonicalRoot = (value?: string): string => (value ?? 'workspace').replace(/\\/g, '/').replace(/\/$/, '').toLocaleLowerCase('en-US');
 export function writeResourceLock(resourceKey: string, context: ActionContext = {}): string {
   const global = resourceKey === 'clipboard' || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:');
@@ -263,7 +272,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (rootActions.has(action)) resourceKey = 'repositories';
   else if (skillsActions.has(action)) resourceKey = 'skills';
   else if (request.id && /Timer|TimeEntry/.test(action)) resourceKey = 'time:' + request.id;
-  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
+  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyBmadPrompt' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
   const nestedType = request.type === 'gitAction' ? request.action.type : request.type === 'issueRequest' ? request.request.type : undefined;
   const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && action !== 'openNotifications')
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))

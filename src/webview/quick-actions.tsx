@@ -41,6 +41,7 @@ const destinations: Array<{
   { id: 'openMyWork', mode: 'developer', label: '我的工作', icon: '◷' },
   { id: 'openProjects', mode: 'clone', label: '專案', icon: '▣' },
   { id: 'openAnalysis', mode: 'sa', label: '分析', icon: '⌕' },
+  { id: 'openBmad', mode: 'bmad', label: 'BMAD 開發流程', icon: '◇' },
   { id: 'openReviewer', mode: 'reviewer', label: '待審查', icon: '⑂' },
   { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' }
 ];

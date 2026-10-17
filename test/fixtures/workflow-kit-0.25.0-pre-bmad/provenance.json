@@ -1,0 +1,30 @@
+{
+  "schema": "gitlab-workspace-predecessor-fixture/v1",
+  "version": "0.25.0",
+  "source": "reconstructed from exact repository HEAD inputs with its original offline builder",
+  "sourceCommit": "6d8dca05bb595159ac1f2ba78b184b3d8a841f3c",
+  "profiles": {
+    "group": {
+      "payloadSha256": "007c71025196679a24420bf884eb227e501511cca0e480feee3c01664c3588b7",
+      "skills": [
+        "codebase-wiki",
+        "merge-reviewer",
+        "output-style",
+        "release-reviewer"
+      ]
+    },
+    "repository": {
+      "payloadSha256": "912196959b2387f12a02cd20b67b571446b6e4c70d35a9ef8dca5181c24f484c",
+      "skills": [
+        "codebase-wiki",
+        "merge-reviewer",
+        "output-style",
+        "release-reviewer"
+      ]
+    }
+  },
+  "files": {
+    "installer.py": "8fa3f883950170a8e8894f5c9d528a2591b6ade51418e26791027f748fcfa200",
+    "workflow-kit.tar.xz": "85813865408670347f8348b2e11e6396b852c68341c4c79b6c4d07e430ee4310"
+  }
+}

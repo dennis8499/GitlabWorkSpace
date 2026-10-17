@@ -95,7 +95,8 @@ try {
       await required(node('unit', '--test', ...files.map(name => `out/test/unit/${name}`)));
     }
     if (mode === 'all' || mode === 'behavior') {
-      await required(node('behavior-node', '--test', 'test/behavior/quick-actions.test.mjs', 'test/behavior/dashboard.test.mjs', 'test/behavior/skills-guide.test.mjs'));
+      const files = (await readdir(path.join(root, 'test/behavior'))).filter(name => name.endsWith('.test.mjs')).sort();
+      await required(node('behavior-node', '--test', ...files.map(name => `test/behavior/${name}`)));
       for (const [id, steps, feature] of [['issues', 'steps.cjs', 'issues.feature'], ['connect', 'connect.steps.cjs', 'connect.feature']]) {
         await required(node(`behavior-${id}`, 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', `test/behavior/${steps}`, '--tags', '@automated', `test/behavior/${feature}`));
       }

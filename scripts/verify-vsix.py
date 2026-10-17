@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -22,6 +23,41 @@ MAX_ARCHIVE_BYTES = 80 * 1024 * 1024
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def verify_bmad_runtime(archive: zipfile.ZipFile) -> None:
+    """Resolve parsers from the delivered extension, independently of this checkout."""
+    prefixes = ('extension/node_modules/yaml/', 'extension/node_modules/@iarna/toml/')
+    reader = 'extension/out/src/workspace/bmadWorkflow.js'
+    catalog = 'extension/resources/bmad/bmad-help.csv'
+    with tempfile.TemporaryDirectory(prefix='gitlab-workspace-bmad-vsix-') as temporary:
+        root = Path(temporary)
+        for name in archive.namelist():
+            if name.endswith('/') or not (name.startswith(prefixes) or name in (reader, catalog)):
+                continue
+            parts = name.split('/')
+            if any(part in ('', '.', '..') or '\\' in part for part in parts):
+                raise ValueError('Unsafe packaged BMAD runtime path')
+            target = root.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.read(name))
+        script = """
+const fs = require('node:fs'), path = require('node:path');
+const root = path.resolve(process.argv[1], 'extension');
+const filename = path.join(root, 'out/src/workspace/bmadWorkflow.js');
+const local = require('node:module').createRequire(filename);
+for (const name of ['yaml', '@iarna/toml']) {
+  const resolved = local.resolve(name);
+  if (!resolved.startsWith(root + path.sep)) throw new Error('Parser resolved outside delivered VSIX: ' + name);
+}
+local(filename).readBmadWorkflow({bundledCatalog: fs.readFileSync(path.join(root, 'resources/bmad/bmad-help.csv'), 'utf8')})
+  .then(snapshot => { if (snapshot.nodes.length < 20) throw new Error('Packaged BMAD catalog is incomplete'); })
+  .catch(error => { console.error(error); process.exitCode = 1; });
+"""
+        result = subprocess.run(['node', '-e', script, str(root)], cwd=root,
+                                capture_output=True, text=True, encoding='utf-8', timeout=30)
+        if result.returncode:
+            raise ValueError('Packaged BMAD runtime could not load its parsers: ' + result.stderr[-4000:])
 
 
 def checked_tar_path(raw: str) -> str:
@@ -96,8 +132,14 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
        manifest.get("payloadFiles") != len(zip_payload["group"]) or tar_payload != zip_payload or \
        any(zip_payload[name] != zip_manifest.get("profiles", {}).get(name, {}).get("files") for name in ("group", "repository")):
         raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group and native Repo payloads")
-    if set(manifest.get("skills", [])) != {"codebase-wiki", "merge-reviewer", "release-reviewer", "output-style"}:
-        raise ValueError("Workflow kit must include exactly Wiki, both Reviewers and Output Style")
+    if set(manifest.get("skills", [])) != installer.managed_skills() or 'bmad-build' not in manifest['skills']:
+        raise ValueError("Workflow kit must include the reviewed BMAD, Wiki, Reviewers and Output Style skills")
+    for name in ('bmad-help.csv', 'source.json'):
+        resource = 'extension/resources/bmad/' + name
+        if resource not in members or archive.read(resource) != (ROOT / 'resources/bmad' / name).read_bytes():
+            raise ValueError('VSIX is missing its pinned BMAD catalog resource: ' + name)
+    if 'bmad-workflow' not in zip_manifest.get('capabilities', []):
+        raise ValueError('BMAD workflow capability is missing')
     return {archive_name, manifest_name}, manifest
 
 
@@ -137,7 +179,9 @@ def main() -> int:
                 "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
                 "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
                 "extension/resources/git-rebase-editor.cjs",
-                "extension/resources/workflow-kit-installer.py"
+                "extension/resources/workflow-kit-installer.py",
+                "extension/node_modules/yaml/package.json", "extension/node_modules/yaml/dist/index.js",
+                "extension/node_modules/@iarna/toml/package.json", "extension/node_modules/@iarna/toml/toml.js"
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
@@ -151,6 +195,7 @@ def main() -> int:
             if any(name.startswith("extension/resources/issue-webview/issue-test.") for name in members):
                 raise ValueError("VSIX contains the Issue behavior test fixture")
             _, kit_manifest = verify_offline_bundle(archive, members, installer)
+            verify_bmad_runtime(archive)
             entries = {entry.filename: entry for entry in archive.infolist()}
             for entry in entries.values():
                 if entry.compress_type == zipfile.ZIP_DEFLATED and entry.compress_size >= entry.file_size:

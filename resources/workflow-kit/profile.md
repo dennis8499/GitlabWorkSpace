@@ -1,10 +1,30 @@
 # GitLab Workspace Group profile
 
-The versioned kit installs Codebase LLM Wiki, MergeReviewer, ReleaseReviewer and
-Output Style. Install and update the complete package transactionally; use only
+The versioned kit installs BMAD Method, Codebase LLM Wiki, MergeReviewer,
+ReleaseReviewer and Output Style. Install and update the complete package transactionally; use only
 its verified manifest and source snapshots. This profile applies to the matched
 non-Git Group root and its actual direct-child Git repositories, including local
 Repos not yet mapped to GitLab. Repository names alone are not matching evidence.
+
+## Development
+
+BMAD Method is the default development route. For a feature, bug fix or
+refactor, invoke `$bmad-build` with the requested change. For an unclear idea,
+larger plan, or resuming existing work, invoke `$bmad-help` and follow the
+installed catalog rather than requiring every workflow to run. Clear, low-risk
+mechanical edits can proceed directly.
+
+Start Codex from this profile's root. BMAD reads `_bmad/config.toml` plus its
+custom layers; planning and implementation artifacts use those configured
+paths. Use the BMAD page for the installed workflow map, current evidence and
+launch instructions. Explicit final markers support automatic status; when
+a workflow has no reliable marker, ask the user to confirm.
+
+The kit supplies pinned BMAD 6.12.4 skills and runtime offline. `uv` and a
+Python 3.11+ interpreter must already be available for BMAD execution; `uv`
+may need cached dependencies for scripts that declare them. The kit update
+manages individual runtime files and preserves `_bmad/custom/`, personal
+config, render snapshots and generated output.
 
 ## Knowledge
 

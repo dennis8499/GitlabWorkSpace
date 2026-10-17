@@ -16,6 +16,8 @@ import { groupRepositoryPath, inspectWorkflowKitInstallRoot, localRepositoryStat
 import { resolvePythonRuntime } from './pythonRuntime';
 import { workflowKitFailure } from './workflowKitResult';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
+import { BmadWorkflowController } from './bmadWorkflowController';
+import { bmadTerminalOptions, buildBmadLaunchPrompt } from './bmadTerminal';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { OperationTracker, type WorkspaceOperationState } from './operations';
 import { describeAction } from './actionPolicy';
@@ -53,13 +55,17 @@ const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'developer', 'reviewer', 'git', 'admin']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'admin']);
 
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 type ActionMetadata = Pick<WorkspaceRequest, 'operationId' | 'operationScope' | 'hostSessionId' | 'scopeEpoch'>;
 type ActionOutcome = Parameters<OperationTracker['noteOutcome']>[1];
 
 export class WorkspacePanel implements vscode.Disposable {
+  private bmad?: BmadWorkflowController;
+  private bmadRuntimeReason: string | undefined = '正在檢查 Codex、Python 與 uv…';
+  private bmadRuntimeCheckedAt = 0;
+  private bmadRuntimeCheck?: Promise<void>;
   private issuePreview?: WorkspaceSnapshot['issuePreview'];
   private previewGeneration = 0;
   private previewAbort?: AbortController;
@@ -272,6 +278,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.bmad?.dispose();
     this.remoteWatchers?.forEach(watcher => watcher.dispose());
     if (this.remoteRefreshTimer) clearTimeout(this.remoteRefreshTimer);
     this.disposed = true;
@@ -729,7 +736,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async runCommandAction<T>(action: string, task: () => Promise<T>, metadata: ActionMetadata & { repositoryId?: string } = {}): Promise<T | undefined> {
     let result: T | undefined;
-    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openMyWork', 'openReviewer', 'openGit', 'openAdmin', 'openRepository', 'openNotifications', 'manageAccounts', 'logoutAccount'].includes(action);
+    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openBmad', 'openMyWork', 'openReviewer', 'openGit', 'openAdmin', 'openRepository', 'openNotifications', 'manageAccounts', 'logoutAccount'].includes(action);
     await this.runAction({ type: navigation ? 'perform' : action, ...(navigation ? { action } : {}), ...metadata }, async () => { result = await task(); });
     return result;
   }
@@ -897,6 +904,17 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'reconcileOperations': this.post({ type: 'operationsSnapshot', snapshot: this.operations.snapshot(undefined, request.pendingIds) }); break;
       case 'confirmOperationResult': await this.confirmOperationResult(request.targetOperationId, request.recovery); break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
+      case 'refreshBmad': await this.refreshBmadWorkflow(true); break;
+      case 'copyBmadPrompt': await this.copyBmadPrompt(request.revision, request.stepId); break;
+      case 'launchBmadStep': await this.launchBmadStep(request.revision, request.stepId); break;
+      case 'openBmadArtifact': await this.openBmadArtifact(request.revision, request.stepId, request.path); break;
+      case 'confirmBmadArtifact':
+      case 'revokeBmadConfirmation': {
+        await this.refreshBmadWorkflow();
+        await this.bmad?.confirm(request, request.type === 'revokeBmadConfirmation');
+        this.noteOutcome({ effect: 'applied' });
+        break;
+      }
       case 'publishNotification':
         if (!['info', 'warn', 'error'].includes(request.level) || typeof request.message !== 'string' || request.message.length > 4096 ||
           request.title !== undefined && (typeof request.title !== 'string' || request.title.length > 200)) break;
@@ -935,6 +953,8 @@ export class WorkspacePanel implements vscode.Disposable {
         if (request.mode !== 'developer') this.hideIssueGraph();
         await this.context.globalState.update(SELECTED_MODE_KEY, request.mode);
         this.sendSnapshot();
+        this.syncBmadVisibility();
+        if (request.mode === 'bmad') this.loadActiveModeSections('bmad');
         if (request.mode === 'reviewer') this.loadActiveModeSections('reviewer');
         if (request.mode === 'developer') this.loadActiveModeSections('developer');
         if (request.mode === 'git') this.scheduleGitRepositoryListSend();
@@ -1115,6 +1135,10 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private loadActiveModeSections(mode: WorkspaceMode, forceNetwork = false): void {
+    this.syncBmadVisibility();
+    if (mode === 'bmad' && !this.disposed && this.panel?.visible !== false) {
+      void this.refreshBmadWorkflow().catch(error => this.post({ type: 'error', message: readableError(error) }));
+    }
     const scope = this.connectedScopeKey();
     if (!scope || this.disposed || this.panel?.visible === false) return;
     if (mode === 'reviewer') void this.loadWorkspaceSection('mergeRequests', forceNetwork);
@@ -1148,6 +1172,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private suspendViewReads(): void {
+    this.bmad?.setContext(this.projectContext?.root, this.projectContext?.revision, false);
     this.viewGeneration++;
     this.viewReadAbort.abort();
     this.webviewReady = false;
@@ -1527,6 +1552,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const context = await this.resolveProjectContext();
     if (this.disposed || generation !== this.cloneRootGeneration || signature !== this.projectContextSignature()) return;
     this.projectContext = context;
+    this.syncBmadVisibility();
     this.cloneRoot = context.root; this.cloneRootError = context.error;
     this.cloneRootManual = context.manual; this.cloneRootScope = scope;
     const repositoryKey = scope && this.repositoryStateKey(scope, context.root, projects);
@@ -1713,6 +1739,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private onWorkspaceFoldersChanged(): void {
+    this.bmad?.setContext(undefined, undefined, false);
     this.projectContext = undefined;
     this.invalidateProjectRoot('正在辨識專案下載／更新位置…');
     this.skillsEnvironmentGeneration++;
@@ -2305,6 +2332,9 @@ export class WorkspacePanel implements vscode.Disposable {
       projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
         this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitImporting),
       projectContext: this.projectContext,
+      bmad: this.bmad?.snapshot?.root === root ? this.bmad?.snapshot : undefined,
+      bmadLaunchAvailable: this.activeMode === 'bmad' && !this.bmadLaunchReason(),
+      bmadLaunchReason: this.activeMode === 'bmad' ? this.bmadLaunchReason() : undefined,
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
       activeAccountId: this.session.activeAccountId,
@@ -2586,6 +2616,112 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     if (!root) throw new Error(error ?? '請先選擇工作區。');
     await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(root), false);
+  }
+
+  private syncBmadVisibility(): void {
+    this.bmad?.setContext(this.projectContext?.root, this.projectContext?.revision,
+      this.activeMode === 'bmad' && this.webviewReady && this.panel?.visible !== false);
+  }
+
+  private async refreshBmadWorkflow(checkRuntime = false): Promise<void> {
+    if (this.disposed || this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) return;
+    const signature = this.projectContextSignature();
+    const context = await this.resolveProjectContext();
+    if (this.disposed || signature !== this.projectContextSignature() || this.activeMode !== 'bmad' || !this.webviewReady) return;
+    this.projectContext = context;
+    if (!this.bmad) this.bmad = new BmadWorkflowController({
+      store: this.context.workspaceState,
+      bundledCatalog: () => readFile(vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'bmad', 'bmad-help.csv').fsPath, 'utf8'),
+      watch: (directory, changed) => {
+        if (!vscode.workspace.createFileSystemWatcher) return { dispose: () => undefined };
+        // Keep recursive coverage at the existing root while newly created output
+        // folders acquire their own native registrations. The controller filters
+        // unrelated paths before scheduling a read.
+        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '**/*'));
+        const onEvent = (uri: vscode.Uri) => changed(uri.fsPath);
+        const subscriptions = [watcher.onDidCreate(onEvent), watcher.onDidChange(onEvent), watcher.onDidDelete(onEvent)];
+        return { dispose: () => { subscriptions.forEach(subscription => subscription.dispose()); watcher.dispose(); } };
+      },
+      changed: () => this.sendSnapshot(),
+      error: message => this.post({ type: 'error', message })
+    });
+    this.bmad.setContext(context.root, context.revision, true);
+    void this.checkBmadRuntime(checkRuntime).catch(() => undefined);
+    await this.bmad.refresh();
+  }
+
+  private bmadLaunchReason(): string | undefined {
+    if (vscode.workspace?.isTrusted === false) return '請先信任此工作區，再啟動 BMAD。';
+    const skills = this.getSkillsContext();
+    if (!skills.root) return skills.reason ?? '請先選擇專案根目錄。';
+    if (!skills.availableFeatures.includes('bmad-workflow')) return skills.reason ?? '請安裝包含 BMAD 6.12.4 的工作流程包。';
+    if (this.bmad?.snapshot?.installation.state !== 'ready') return this.bmad?.snapshot?.installation.reason ?? '正在讀取 BMAD 環境…';
+    return this.bmadRuntimeReason;
+  }
+
+  private checkBmadRuntime(force = false): Promise<void> {
+    if (this.bmadRuntimeCheck) return this.bmadRuntimeCheck;
+    if (!force && Date.now() - this.bmadRuntimeCheckedAt < 30_000) return Promise.resolve();
+    const task = (async () => {
+      let reason: string | undefined;
+      if (!bmadTerminalOptions('')) reason = '找不到 Codex CLI。請將 Codex 安裝位置加入 PATH，再重新整理。';
+      if (!reason) {
+        try { await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')); }
+        catch { reason = 'BMAD 需要 Python 3.11+。請安裝 Python 或設定 gitlabWorkspace.pythonPath。'; }
+      }
+      if (!reason) {
+        try { await execFileAsync('uv', ['--version'], { windowsHide: true, timeout: 5000, maxBuffer: 32_000 }); }
+        catch { reason = 'BMAD 需要 uv。請依 BMAD 安裝說明安裝 uv 並加入 PATH，再重新整理。'; }
+      }
+      this.bmadRuntimeReason = reason;
+      this.bmadRuntimeCheckedAt = Date.now();
+      this.sendSnapshot();
+    })();
+    this.bmadRuntimeCheck = task;
+    void task.finally(() => { if (this.bmadRuntimeCheck === task) this.bmadRuntimeCheck = undefined; }).catch(() => undefined);
+    return task;
+  }
+
+  private async requireBmadStep(revision: string, stepId: string) {
+    const signature = this.projectContextSignature();
+    if (typeof stepId !== 'string' || stepId.length > 300) throw new Error('BMAD 步驟無效。');
+    await this.refreshBmadWorkflow();
+    const snapshot = await this.bmad?.requireSnapshot(revision);
+    if (signature !== this.projectContextSignature() || snapshot?.root !== this.projectContext?.root ||
+      this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) throw new Error('專案或頁面已變更，請重新確認 BMAD 步驟。');
+    const node = snapshot?.nodes.find(item => item.id === stepId);
+    if (!snapshot || !node) throw new Error('找不到此 BMAD 步驟，請重新整理。');
+    return { snapshot, node };
+  }
+
+  private async copyBmadPrompt(revision: string, stepId: string): Promise<void> {
+    const { node } = await this.requireBmadStep(revision, stepId);
+    await vscode.env.clipboard.writeText(buildBmadLaunchPrompt(node));
+    this.noteOutcome({ effect: 'applied' });
+  }
+
+  private async launchBmadStep(revision: string, stepId: string): Promise<void> {
+    const signature = this.projectContextSignature();
+    await this.refreshWorkflowKit();
+    const { snapshot, node } = await this.requireBmadStep(revision, stepId);
+    await this.checkBmadRuntime(true);
+    await this.bmad?.requireSnapshot(revision);
+    if (signature !== this.projectContextSignature() || snapshot.root !== this.projectContext?.root ||
+      this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) throw new Error('專案或頁面已變更，請重新啟動步驟。');
+    const reason = this.bmadLaunchReason();
+    if (reason || !snapshot.root) throw new Error(reason ?? '請先選擇專案根目錄。');
+    const options = bmadTerminalOptions(buildBmadLaunchPrompt(node));
+    if (!options) throw new Error('找不到可安全啟動的 Codex CLI。請安裝原生 Codex 或標準 npm Codex 套件。');
+    const terminal = vscode.window.createTerminal({ name: `BMAD · ${node.displayName}`, cwd: snapshot.root, ...options });
+    terminal.show();
+    this.noteOutcome({ effect: 'applied', phase: `已啟動 ${node.displayName}；進度依 BMAD 產物更新。` });
+  }
+
+  private async openBmadArtifact(revision: string, stepId: string, filename: string): Promise<void> {
+    const { snapshot } = await this.requireBmadStep(revision, stepId);
+    const artifact = snapshot.steps.find(step => step.id === stepId)?.artifacts.find(item => item.path === filename);
+    if (!artifact) throw new Error('找不到此步驟的產物，請重新整理。');
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(artifact.path)));
   }
 
   private async openCodexTerminal(expectedRevision?: string): Promise<void> {
@@ -3544,6 +3680,9 @@ export class WorkspacePanel implements vscode.Disposable {
     else if (state.status === 'error' && operation?.effect === 'applied') this.noteOutcome({ refreshError: state.message ?? 'Skills 已更新，但狀態檢查失敗。' });
     this.workflowKitInstallTarget = { ...target, state };
     if (!current()) return;
+    if (this.activeMode === 'bmad' && this.panel?.visible !== false && this.webviewReady) {
+      void this.refreshBmadWorkflow().catch(error => this.post({ type: 'error', message: readableError(error) }));
+    }
     if (publish) this.sendSnapshot();
   }
 

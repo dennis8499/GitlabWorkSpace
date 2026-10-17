@@ -13,6 +13,7 @@ import zipfile
 import workflow_kit_installer_test as harness
 
 ROOT, VERSION, ARCHIVE, MARKER = harness.ROOT, harness.VERSION, harness.ARCHIVE, harness.MARKER
+BASELINE_VERSION = '0.25.0'
 
 
 class MeginRemovalTests(unittest.TestCase):
@@ -25,13 +26,17 @@ class MeginRemovalTests(unittest.TestCase):
         root.mkdir()
         if profile == 'repository':
             subprocess.run(['git', 'init', '-q', str(root)], check=True, capture_output=True)
-        fixture = ROOT / 'test/fixtures/workflow-kit-0.25.0'
+        fixture = ROOT / f'test/fixtures/workflow-kit-{BASELINE_VERSION}'
         archive = fixture / 'workflow-kit.tar.xz'
         command = [sys.executable, '-X', 'utf8', '-B', str(fixture / 'installer.py'), 'install', str(archive),
-                   str(root), VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
+                   str(root), BASELINE_VERSION, 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
                    '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(), '--profile', profile]
         result = subprocess.run(command, capture_output=True, text=True, encoding='utf-8')
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        installed = json.loads((root / MARKER).read_text(encoding='utf-8'))
+        self.assertEqual(BASELINE_VERSION, installed['version'])
+        self.assertEqual(profile, installed['profile'])
+        self.assertIn('megin', installed['skills'])
         for name, data in {'docs/work/active/workflow.md': b'- status: active\n',
                            '.megin/workspace.lock.json': b'{"writer":"keep"}\n',
                            'exports/megin/personal.md': b'# Keep export\n',

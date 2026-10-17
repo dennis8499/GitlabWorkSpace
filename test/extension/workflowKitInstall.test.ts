@@ -63,6 +63,8 @@ suite('Local workflow kit installation', () => {
       const kitIndex = JSON.parse(await readFile(path.join(extensionRoot, 'resources/offline-tools/manifest.json'), 'utf8'));
       const expectedSkills = [...kitIndex.skills].sort();
       assert.ok(expectedSkills.includes('output-style'));
+      assert.ok(expectedSkills.includes('bmad-help'));
+      assert.ok(expectedSkills.includes('bmad-build'));
       const archivePath = path.join(extensionRoot, 'resources/offline-tools/workflow-kit.tar.xz');
       const selected = { id: 'bundled', archivePath, version: packageJSON.version, source: 'bundled',
         format: 'tar.xz', entryRoot: 'workflow-kit', sha256: createHash('sha256').update(await readFile(archivePath)).digest('hex') };
@@ -101,7 +103,7 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']);
+      assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
       const skills = host.getSkillsContext();
       assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
       for (const profile of ['group', 'repository']) {

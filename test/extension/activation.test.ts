@@ -31,6 +31,7 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openWorkspace',
       'gitlabWorkspace.openCloneMode',
       'gitlabWorkspace.openSaMode',
+      'gitlabWorkspace.openBmadMode',
       'gitlabWorkspace.openDeveloperMode',
       'gitlabWorkspace.openReviewerMode',
       'gitlabWorkspace.openGitMode',

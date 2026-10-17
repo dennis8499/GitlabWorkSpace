@@ -21,7 +21,9 @@ ARCHIVE = ROOT / "resources/offline-tools/workflow-kit.tar.xz"
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 CURRENT_SOURCES = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']
 RELEASE_ZIP = ROOT / f"dist/gitlab-workspace-kit-{VERSION}.zip"
-SKILLS = ("codebase-wiki", "merge-reviewer", "output-style", "release-reviewer")
+BMAD_SOURCE = json.loads((ROOT / 'resources/offline-tools/bmad-source.json').read_text(encoding='utf-8'))
+SKILLS = tuple(sorted({"codebase-wiki", "merge-reviewer", "output-style", "release-reviewer"} |
+                      {Path(name).parts[2] for name in BMAD_SOURCE['files'] if name.startswith('.agents/skills/')}))
 MARKER = ".gitlab-workspace/tool-manifests/workflow-kit.json"
 
 
@@ -238,7 +240,7 @@ class WorkflowKitInstallerTests(unittest.TestCase):
         self.assertEqual(64, len(manifest["payloadSha256"]))
         self.assertEqual(64, len(manifest["customProfile"]["files"]["profile.md"]))
         labels = {'codebase-wiki': 'Codebase LLM Wiki',
-                  'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer'}
+                  'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer', 'bmad-method': 'BMAD Method'}
         self.assertEqual(len(labels), len(manifest['sourceSummary']))
         for note, (tool, label) in zip(manifest['sourceSummary'], labels.items()):
             self.assertTrue(note.startswith(f"Native {label} {CURRENT_SOURCES[tool]['version']} "), note)

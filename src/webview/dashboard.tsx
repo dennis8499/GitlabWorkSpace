@@ -17,6 +17,8 @@ import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import type { WikiGuideInputValues } from './codebaseWikiGuideData';
 import { legacyWikiInputs, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
+import { BmadPanel } from './BmadPanel';
+import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { NotificationDrawer } from './NotificationDrawer';
 import { NotificationSnackbar } from './NotificationSnackbar';
@@ -36,6 +38,7 @@ import './dashboard.css';
 
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
 interface SavedState {
+  bmadUiByRoot?: Record<string, BmadPanelState>;
   gitUi?: GitPanelUiState;
   issueNavigation?: IssueNavigation | null;
   reviewerTab?: 'changes' | 'discussion' | 'report';
@@ -133,6 +136,7 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
   { id: 'sa', name: 'Skills 功能指引', short: '分析', icon: '⌕' },
+  { id: 'bmad', name: 'BMAD 開發流程', short: 'BMAD 開發', icon: '◇' },
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' },
   { id: 'git', name: '版控', short: '版控', icon: '⑂' },
   { id: 'admin', name: '後臺管理', short: '後臺管理', icon: '≡' }
@@ -233,6 +237,7 @@ function WorkspaceSectionNotice({ section, label, status, onRetry }: {
 
 function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
+  const [bmadUiByRoot, setBmadUiByRoot] = useState<Record<string, BmadPanelState>>(initial?.bmadUiByRoot ?? {});
   const [issueEditorDrafts, setIssueEditorDrafts] = useState<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
   const modeRef = useRef(mode);
@@ -639,6 +644,7 @@ function App() {
   useEffect(() => {
     const state: SavedState = {
       ...vscode.getState(), issueNavigation, reviewerTab, mrReplyDrafts,
+      bmadUiByRoot,
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
       projectGuideScope: wikiGuideScopeRef.current,
@@ -651,7 +657,7 @@ function App() {
       selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
     };
     vscode.setState(state);
-  }, [mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
+  }, [bmadUiByRoot, mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -924,8 +930,8 @@ function App() {
         {mode !== 'git' && (
         mode === 'admin' ? <AdminLogPanel accounts={snapshot.accounts ?? []} post={post} />
           : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
-          : !snapshot.connected && mode !== 'sa' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
-          : !snapshot.group && mode !== 'sa' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
+          : !snapshot.connected && mode !== 'sa' && mode !== 'bmad' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
+          : !snapshot.group && mode !== 'sa' && mode !== 'bmad' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || blockingWork} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
                 {visibleProjects.length ? <VirtualRows className="repo-list" items={visibleProjects} itemKey={projectItemKey} estimateHeight={58} renderItem={(project) => {
@@ -952,6 +958,16 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !snapshot.cloneRoot || snapshot.cloneRootError ? snapshot.cloneRootError ?? '請先選擇下載資料夾，或在 VS Code 開啟本機工作區。' : selectedProjectIds.length ? '下載前會確認本機目錄。' : '勾選專案後即可下載。'}</p>
                 </div>
               </div></div>
+            : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}
+              state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
+              canLaunch={snapshot.bmadLaunchAvailable === true && !blockingWork} launchReason={snapshot.bmadLaunchReason}
+              onRefresh={() => post({ type: 'refreshBmad' })}
+              onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
+              onLaunch={stepId => snapshot.bmad && post({ type: 'launchBmadStep', stepId, revision: snapshot.bmad.revision })}
+              onCopy={stepId => snapshot.bmad && post({ type: 'copyBmadPrompt', stepId, revision: snapshot.bmad.revision })}
+              onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
+              onConfirm={(stepId, artifactId) => snapshot.bmad && post({ type: 'confirmBmadArtifact', stepId, artifactId, revision: snapshot.bmad.revision })}
+              onRevoke={(stepId, artifactId) => snapshot.bmad && post({ type: 'revokeBmadConfirmation', stepId, artifactId, revision: snapshot.bmad.revision })} />
             : mode === 'sa' ? <SkillsGuide operationScope={snapshot.operationScope ?? operationScope} branchCandidates={skillBranches?.branches} branchError={skillBranches?.error}
               onLoadBranches={repo => { branchRequest.current = repo; setSkillBranches(undefined); if (snapshot.skillsContext) post({ type: 'loadSkillBranches', repo, revision: snapshot.skillsContext.revision }); }}
               workspaceRoot={snapshot.skillsContext?.workspaceRoot} workspaceFile={snapshot.skillsContext?.workspaceFile} workspaceRootAmbiguous={snapshot.skillsContext?.workspaceRootAmbiguous}

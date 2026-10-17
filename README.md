@@ -28,10 +28,15 @@
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製與開啟 Codex CLI 分開操作。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
+- 「BMAD 開發流程」提供 BMAD 6.12.4 的互動流程圖、目前位置、步驟教學與 Codex 執行入口；依本機產物自動更新進度，支援逐份人工確認及撤銷。BMAD 隨工作流程包離線安裝，新功能與程式修改預設使用 BMAD。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.26.0 更新
+
+新增 BMAD 6.12.4 動態開發流程工作台，包含互動流程圖、繁體中文教學、產物狀態追蹤、逐份人工確認與 Codex 步驟啟動。工作流程包內附官方 core／bmm Skills，並保留自訂設定與開發產物。
 
 ## 0.25.0 更新
 
@@ -74,6 +79,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 - Python 3.11+；匯入 ZIP、檢查及安裝工具時需要，可在 VS Code 設定 `gitlabWorkspace.pythonPath` 指定直譯器路徑。
+- 執行 BMAD 需要 Codex CLI、Python 3.11+ 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)；流程總覽與教學可在未安裝工具或未登入 GitLab 時瀏覽。
 
 ## 安裝
 
@@ -102,13 +108,13 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.25.0 的 VSIX 與組合包共用版本，整合 Wiki 0.6.2、MergeReviewer 0.14.0、ReleaseReviewer 0.4.1 與 Output Style，共四個 Skills。兩種 profile 均提供十四項指引功能，預設查詢 Wiki；來源快照保存實際 commit、dirty 狀態及 SHA-256。
+GitLab Workspace v0.26.0 的 VSIX 與組合包共用版本，整合 BMAD 6.12.4、Wiki 0.6.2、MergeReviewer 0.14.0、ReleaseReviewer 0.4.1 與 Output Style，共 33 個 Skills。兩種 profile 均提供十四項分析指引及獨立 BMAD 開發流程；開發修改預設使用 BMAD，查詢預設使用 Wiki。來源快照保存實際 commit、dirty 狀態及 SHA-256。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-0.25.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。升級以舊安裝紀錄驗證並移除已撤下的受管理 Skills，保留工作紀錄、鎖、Wiki、報告及既有產物。
+0.26.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4、0.25.0 升級與交易回復；未知或被修改的安裝保留內容並阻擋覆寫。升級以舊安裝紀錄驗證並移除已撤下的受管理 Skills，保留工作紀錄、鎖、Wiki、報告及既有產物。
 
-舊工作流程包可透過受信任摘要升級並交易回復；新版不再載入或續作開發工作。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
+舊工作流程包可透過受信任摘要升級並交易回復；新版開發流程使用 BMAD，既有 Megin 工作紀錄仍保留。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 

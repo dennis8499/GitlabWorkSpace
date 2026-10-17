@@ -1,0 +1,57 @@
+{
+  "schema": "BmadUiVisualCapture/v1",
+  "generatedAt": "2026-10-17T15:12:10.335Z",
+  "status": "PASS",
+  "browser": "155.0.8059.80",
+  "method": "Actual built dashboard assets in headless Chrome, official bundled catalog, synthetic workspace and artifact snapshot. This does not run VS Code, Codex or GitLab.",
+  "assets": {
+    "dashboardJsSha256": "3b9a80266dc771271009c847f795a6148ee1efdd5e3fa7b5c4694e49c03ee70f",
+    "dashboardCssSha256": "8ca10d31163a8175797f6b698983bc02026cd2226258323b00fcdf6ef1f9dfb1",
+    "catalogSha256": "fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365"
+  },
+  "results": [
+    {
+      "label": "1440-flow",
+      "screenshot": "bmad-1440-flow.png",
+      "viewport": 1440,
+      "bodyWidth": 1440,
+      "pageClientWidth": 1425,
+      "pageScrollWidth": 1425,
+      "panelClientWidth": 1377,
+      "panelScrollWidth": 1377,
+      "nodes": 25,
+      "edges": 7,
+      "currentPositions": 2,
+      "selectedStep": "BMad Method:bmad-build:"
+    },
+    {
+      "label": "480-flow",
+      "screenshot": "bmad-480-flow.png",
+      "viewport": 480,
+      "bodyWidth": 480,
+      "pageClientWidth": 465,
+      "pageScrollWidth": 465,
+      "panelClientWidth": 441,
+      "panelScrollWidth": 441,
+      "nodes": 25,
+      "edges": 7,
+      "currentPositions": 2,
+      "selectedStep": "BMad Method:bmad-build:"
+    },
+    {
+      "label": "480-guide",
+      "screenshot": "bmad-480-guide.png",
+      "viewport": 480,
+      "bodyWidth": 480,
+      "pageClientWidth": 465,
+      "pageScrollWidth": 465,
+      "panelClientWidth": 441,
+      "panelScrollWidth": 441,
+      "nodes": 25,
+      "edges": 7,
+      "currentPositions": 2,
+      "selectedStep": "BMad Method:bmad-build:"
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "gitlab-workspace-bmad-source/v1",
+  "id": "bmad-method",
+  "version": "6.12.4",
+  "repository": "https://github.com/bmad-code-org/BMAD-METHOD",
+  "commit": "bab9082c3e884e0d72c759bcd1a6d90bcc01be84",
+  "sourceKind": "official-installer",
+  "dirty": false,
+  "filename": "bmad-method-6.12.4-codex.zip",
+  "entryRoot": "bmad-method",
+  "archiveSha256": "3a9172ced5a3d0f4b41774d2477d0178476bbc822b0148784e75c69ec86bd819",
+  "treeSha256": "0dfa72a9ab036ef75a668bdf6846c98da19ca596f3ac76f165e2613c70beb5d6",
+  "installer": {
+    "modules": [
+      "core",
+      "bmm"
+    ],
+    "tools": [
+      "codex"
+    ],
+    "shims": false
+  },
+  "license": "MIT",
+  "sourceUrl": "https://github.com/bmad-code-org/BMAD-METHOD/tree/bab9082c3e884e0d72c759bcd1a6d90bcc01be84",
+  "npmIntegrity": "sha512-DBVws7H1NxpSOhv2DHvLEHTceQGCv9c+gBx/1cnVF38WhlN70854SnHUUCHkTuLIalu6hq/7LRVtAWCNHmnFEw==",
+  "normalizations": [
+    "Install timestamps fixed to 2024-01-01 UTC",
+    "Traditional Chinese shared communication fallback",
+    "Upstream MIT license included",
+    "Generated file inventory excludes personal files and matches normalized bytes"
+  ]
+}

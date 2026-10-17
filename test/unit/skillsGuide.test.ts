@@ -22,10 +22,11 @@ test('all executable guide prompts route optional output style once and preserve
   }
 });
 
-test('both Analysis profiles expose exactly the frozen package capability inventory', () => {
+test('both Analysis profiles expose the frozen analysis capabilities while BMAD has its own page', () => {
   const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../resources/offline-tools/source-snapshots.json'), 'utf8'));
   for (const profile of ['group', 'repository'] as const) {
-    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(), snapshot.capabilities[profile]);
+    assert.ok(snapshot.capabilities[profile].includes('bmad-workflow'));
+    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(), snapshot.capabilities[profile].filter((id: string) => id !== 'bmad-workflow'));
   }
 });
 

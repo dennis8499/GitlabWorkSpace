@@ -16,6 +16,7 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openMyWork: 'gitlabWorkspace.openDeveloperMode',
   openProjects: 'gitlabWorkspace.openCloneMode',
   openAnalysis: 'gitlabWorkspace.openSaMode',
+  openBmad: 'gitlabWorkspace.openBmadMode',
   openReviewer: 'gitlabWorkspace.openReviewerMode',
   openGit: 'gitlabWorkspace.openGitMode',
   openAdmin: 'gitlabWorkspace.openAdmin',
@@ -87,7 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
         ? args.pop() as { operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number; action?: string; repositoryId?: string } : {};
       const operationId = metadata.operationId ?? randomUUID();
       const aliases: Record<string, string> = {
-        openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openDeveloperMode: 'openMyWork',
+        openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openBmadMode: 'openBmad', openDeveloperMode: 'openMyWork',
         openReviewerMode: 'openReviewer', openGitMode: 'openGit', openRepository: 'openRepository',
         cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
       };
@@ -128,6 +129,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     }),
     registerLoggedCommand('gitlabWorkspace.openCloneMode', () => getWorkspace().navigateTo('clone')),
     registerLoggedCommand('gitlabWorkspace.openSaMode', () => getWorkspace().navigateTo('sa')),
+    registerLoggedCommand('gitlabWorkspace.openBmadMode', () => getWorkspace().navigateTo('bmad')),
     registerLoggedCommand('gitlabWorkspace.openDeveloperMode', () => getWorkspace().navigateTo('developer')),
     registerLoggedCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer')),
     registerLoggedCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),

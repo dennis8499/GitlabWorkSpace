@@ -1,0 +1,301 @@
+{
+  "schema": "gitlab-workspace-bmad-validation/v1",
+  "validatedAt": "2026-10-17T15:35:16.340Z",
+  "version": "0.26.0",
+  "bmad": {
+    "version": "6.12.4",
+    "modules": [
+      "core",
+      "bmm"
+    ],
+    "tool": "codex"
+  },
+  "command": "npm test",
+  "status": "passed",
+  "run": ".gitlab-workspace-validation/runs/2026-10-17T15-21-11.142Z-24408",
+  "preparedInputSha256": "1fe9796c7743cd85a11a7eb65ecabfed1acba7c66702cb31d8717b1c85cf16cb",
+  "hostVersion": "1.90.0",
+  "unit": {
+    "passed": 439
+  },
+  "behavior": {
+    "passed": 123
+  },
+  "extensionHost": {
+    "passed": 12,
+    "pending": 2,
+    "pendingReason": "Optional live GitLab and packaged Git GUI integration scenarios require external test configuration."
+  },
+  "watcherLatencyMs": {
+    "mkdir-and-draft": 317,
+    "final-write": 351,
+    "artifact-delete": 349,
+    "draft-recreate": 352,
+    "new-root-draft": 384
+  },
+  "releaseSuites": [
+    {
+      "id": "release-workflow_kit_transactions",
+      "passed": 20
+    },
+    {
+      "id": "release-workflow_kit_installer",
+      "passed": 10
+    },
+    {
+      "id": "release-workflow_kit_profiles",
+      "passed": 15
+    },
+    {
+      "id": "release-bmad_workflow_kit",
+      "passed": 10
+    },
+    {
+      "id": "release-release_reviewer_integration",
+      "passed": 7
+    },
+    {
+      "id": "release-group_workflow",
+      "passed": 2
+    },
+    {
+      "id": "release-local_review_targets",
+      "passed": 3
+    },
+    {
+      "id": "release-output_style",
+      "passed": 3
+    },
+    {
+      "id": "release-release_manager",
+      "passed": 38
+    },
+    {
+      "id": "release-tool_installer",
+      "passed": 16
+    },
+    {
+      "id": "release-workflow_kit_sources",
+      "passed": 3
+    },
+    {
+      "id": "release-megin_removal",
+      "passed": 5
+    }
+  ],
+  "stages": [
+    {
+      "id": "host-preflight",
+      "seconds": 0.151,
+      "exitCode": 0
+    },
+    {
+      "id": "clean-compiled",
+      "seconds": 0.101,
+      "exitCode": 0
+    },
+    {
+      "id": "compile",
+      "seconds": 0.651,
+      "exitCode": 0
+    },
+    {
+      "id": "typecheck-webview",
+      "seconds": 0.479,
+      "exitCode": 0
+    },
+    {
+      "id": "build-dashboard",
+      "seconds": 0.537,
+      "exitCode": 0
+    },
+    {
+      "id": "build-sidebar",
+      "seconds": 0.425,
+      "exitCode": 0
+    },
+    {
+      "id": "build-kit",
+      "seconds": 16.84,
+      "exitCode": 0
+    },
+    {
+      "id": "build-issue-tests",
+      "seconds": 0.419,
+      "exitCode": 0
+    },
+    {
+      "id": "extension",
+      "seconds": 34.623,
+      "exitCode": 0
+    },
+    {
+      "id": "unit",
+      "seconds": 43.845,
+      "exitCode": 0
+    },
+    {
+      "id": "behavior-node",
+      "seconds": 56.022,
+      "exitCode": 0
+    },
+    {
+      "id": "behavior-issues",
+      "seconds": 26.962,
+      "exitCode": 0
+    },
+    {
+      "id": "behavior-connect",
+      "seconds": 0.588,
+      "exitCode": 0
+    },
+    {
+      "id": "release-tooling",
+      "seconds": 3.374,
+      "exitCode": 0
+    },
+    {
+      "id": "release-workflow_kit_transactions",
+      "seconds": 240.751,
+      "exitCode": 0
+    },
+    {
+      "id": "release-workflow_kit_installer",
+      "seconds": 175.699,
+      "exitCode": 0
+    },
+    {
+      "id": "release-workflow_kit_profiles",
+      "seconds": 419.443,
+      "exitCode": 0
+    },
+    {
+      "id": "release-bmad_workflow_kit",
+      "seconds": 82.141,
+      "exitCode": 0
+    },
+    {
+      "id": "release-release_reviewer_integration",
+      "seconds": 94.944,
+      "exitCode": 0
+    },
+    {
+      "id": "release-group_workflow",
+      "seconds": 20.379,
+      "exitCode": 0
+    },
+    {
+      "id": "release-local_review_targets",
+      "seconds": 39.274,
+      "exitCode": 0
+    },
+    {
+      "id": "release-output_style",
+      "seconds": 0.572,
+      "exitCode": 0
+    },
+    {
+      "id": "release-release_manager",
+      "seconds": 43.029,
+      "exitCode": 0
+    },
+    {
+      "id": "release-tool_installer",
+      "seconds": 1.133,
+      "exitCode": 0
+    },
+    {
+      "id": "release-workflow_kit_sources",
+      "seconds": 0.747,
+      "exitCode": 0
+    },
+    {
+      "id": "release-megin_removal",
+      "seconds": 88.13,
+      "exitCode": 0
+    },
+    {
+      "id": "package",
+      "seconds": 7.318,
+      "exitCode": 0
+    },
+    {
+      "id": "verify-package",
+      "seconds": 3.312,
+      "exitCode": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/gitlab-workspace-0.26.0.vsix",
+      "bytes": 6686103,
+      "sha256": "15b4475f937151a8ea9e954e2bc0ee17dc72e7117cb72ec4c81a8dc423e4c050"
+    },
+    {
+      "path": "dist/gitlab-workspace-kit-0.26.0.zip",
+      "bytes": 12680517,
+      "sha256": "08610e95e85bf3b1cc31bae9d9c1188b9b6092ffa5d25a8b2f6a7dd75cb897e6"
+    }
+  ],
+  "visualEvidence": {
+    "path": "docs/work/work-20261017-bmad/evidence/ui-capture.json",
+    "schema": "BmadUiVisualCapture/v1",
+    "generatedAt": "2026-10-17T15:12:10.335Z",
+    "status": "PASS",
+    "browser": "155.0.8059.80",
+    "method": "Actual built dashboard assets in headless Chrome, official bundled catalog, synthetic workspace and artifact snapshot. This does not run VS Code, Codex or GitLab.",
+    "assets": {
+      "dashboardJsSha256": "3b9a80266dc771271009c847f795a6148ee1efdd5e3fa7b5c4694e49c03ee70f",
+      "dashboardCssSha256": "8ca10d31163a8175797f6b698983bc02026cd2226258323b00fcdf6ef1f9dfb1",
+      "catalogSha256": "fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365"
+    },
+    "results": [
+      {
+        "label": "1440-flow",
+        "screenshot": "bmad-1440-flow.png",
+        "viewport": 1440,
+        "bodyWidth": 1440,
+        "pageClientWidth": 1425,
+        "pageScrollWidth": 1425,
+        "panelClientWidth": 1377,
+        "panelScrollWidth": 1377,
+        "nodes": 25,
+        "edges": 7,
+        "currentPositions": 2,
+        "selectedStep": "BMad Method:bmad-build:"
+      },
+      {
+        "label": "480-flow",
+        "screenshot": "bmad-480-flow.png",
+        "viewport": 480,
+        "bodyWidth": 480,
+        "pageClientWidth": 465,
+        "pageScrollWidth": 465,
+        "panelClientWidth": 441,
+        "panelScrollWidth": 441,
+        "nodes": 25,
+        "edges": 7,
+        "currentPositions": 2,
+        "selectedStep": "BMad Method:bmad-build:"
+      },
+      {
+        "label": "480-guide",
+        "screenshot": "bmad-480-guide.png",
+        "viewport": 480,
+        "bodyWidth": 480,
+        "pageClientWidth": 465,
+        "pageScrollWidth": 465,
+        "panelClientWidth": 441,
+        "panelScrollWidth": 441,
+        "nodes": 25,
+        "edges": 7,
+        "currentPositions": 2,
+        "selectedStep": "BMad Method:bmad-build:"
+      }
+    ],
+    "errors": []
+  },
+  "limitations": [
+    "Live BMAD AI conversation was not executed; the local runtime check reports uv missing."
+  ]
+}

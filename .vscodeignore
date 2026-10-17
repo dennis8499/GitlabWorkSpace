@@ -11,6 +11,8 @@ docs/work/**
 test/**
 src/**
 node_modules/**
+!node_modules/yaml/**
+!node_modules/@iarna/toml/**
 dist/**
 out/test/**
 index.html
