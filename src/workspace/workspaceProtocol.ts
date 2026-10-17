@@ -250,7 +250,6 @@ export type WorkspaceRequest = (NotificationRequest
   | GitPanelRequest
   | { type: 'refresh' }
   | { type: 'retryInstanceCheck' }
-  | { type: 'toggleFullDisplay' }
   | { type: 'setMode'; mode: WorkspaceMode }
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }

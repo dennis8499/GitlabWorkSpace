@@ -933,7 +933,6 @@ export class WorkspacePanel implements vscode.Disposable {
           this.sendSnapshot();
         }
         break;
-      case 'toggleFullDisplay': await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup'); break;
       case 'setMode':
         if (!ALLOWED_MODES.has(request.mode)) return;
         this.activeMode = request.mode;

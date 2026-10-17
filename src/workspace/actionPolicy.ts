@@ -28,7 +28,6 @@ export const workspaceActionKinds = {
   setLogVisibility: 'control',
   setIssueGraphVisibility: 'control',
   cancelRepositoryScan: 'control',
-  toggleFullDisplay: 'local',
   setMode: 'local',
   closeIssue: 'local',
   openAccountManager: 'local',

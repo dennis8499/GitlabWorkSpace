@@ -1167,24 +1167,19 @@ test('Issue editing drafts remain separate across account changes and are restor
   assert.equal(view.savedState.issueEditorDrafts['account-a'].issues[101], undefined, 'a successfully submitted draft is removed');
 });
 
-test('bounds the dashboard, exposes the maximize icon, and keeps GitLab support details in settings', async (t) => {
+test('bounds the dashboard without a maximize control and keeps GitLab support details in settings', async (t) => {
   const data = snapshot('developer');
   data.instance = { version: '16.11.10', enterprise: false, warnings: ['Minimum version note'], capabilities: [{ id: 'timelogReport', label: '個別工時紀錄', status: 'supported', source: 'GraphQL' }] };
   const view = await mount({ mode: 'developer' }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const shell = document.querySelector('.app-shell');
-  const fullDisplayButton = document.querySelector('button[aria-label="放大／還原工作台"]');
   assert.ok(shell);
-  assert.ok(fullDisplayButton);
+  assert.equal(document.querySelector('button[aria-label="放大／還原工作台"]'), null);
   assert.equal(document.querySelector('.page > .alert[role="status"]'), null, 'instance diagnostics do not take space in the main dashboard');
-  assert.match(fullDisplayButton.getAttribute('title'), /放大／還原工作台/);
-  fullDisplayButton.click();
-  await view.tick();
-  assert.ok(view.requests.some((request) => request.type === 'toggleFullDisplay'));
-  assert.equal(document.querySelector('.app-shell'), shell, 'the click leaves the mounted workbench and its local view state in place');
   document.querySelector('.settings-trigger').click();
   await view.tick();
+  assert.equal(view.requests.some((request) => request.type === 'toggleFullDisplay'), false);
   assert.match(document.querySelector('.instance-capabilities').textContent, /GitLab 16\.11\.10.*Minimum version note/s);
   assert.match(document.querySelector('.instance-capabilities').textContent, /個別工時紀錄.*支援.*GraphQL/s);
   assert.match(dashboardCss, /\.app-shell\s*\{[^}]*height:\s*100dvh/s);
