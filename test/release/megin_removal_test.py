@@ -139,7 +139,7 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location('installer', sys.argv.pop(1))
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
-target = Path(sys.argv[3]) / '.agents/skills/megin'
+target = Path(sys.argv[3]).resolve() / '.agents/skills/megin'
 original = installer._action_hash
 def action_hash(path):
     if path == target:
