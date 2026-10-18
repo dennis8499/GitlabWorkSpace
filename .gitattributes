@@ -1,4 +1,5 @@
 .gitattributes text eol=lf
+.github/workflows/*.yml text eol=lf
 README.md text eol=lf
 docs/group-workflow.md text eol=lf
 package.json text eol=lf
@@ -26,6 +27,9 @@ test/fixtures/workflow-kit-0.23.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.23.0/*.tar.xz binary !eol
 test/fixtures/workflow-kit-0.24.0/*.py text eol=lf
 test/fixtures/workflow-kit-0.24.0/*.tar.xz binary !eol
+test/fixtures/workflow-kit-*/*.py text eol=lf
+test/fixtures/workflow-kit-*/*.json text eol=lf
+test/fixtures/workflow-kit-*/*.tar.xz binary !eol
 
 test/fixtures/workflow-kit-0.25.0-pre-bmad/*.py text eol=lf
 test/fixtures/workflow-kit-0.25.0-pre-bmad/*.tar.xz binary !eol

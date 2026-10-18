@@ -18,14 +18,17 @@ test('[BDD-REL-003] retains all four platform cells and builds once per validati
 });
 
 test('keeps validation read-only and grants write only to guarded tag promotion', () => {
-  const [validation, publish] = workflow.split('\n  publish:\n');
-  assert.doesNotMatch(validation, /contents:\s*write/);
-  assert.match(publish, /contents:\s*write/);
-  assert.match(publish, /github.event_name == 'push' && startsWith\(github.ref, 'refs\/tags\/'\)/);
-  assert.match(publish, /needs: \[select, build\]/);
-  assert.match(publish, /needs.build.result == 'success'/);
-  assert.match(publish, /needs.select.outputs.reuse_run_id != ''/);
-  assert.doesNotMatch(publish, /npm test|npm run package|npm ci/);
+  for (const eol of ['\n', '\r\n']) {
+    const text = workflow.replace(/\r?\n/g, eol);
+    const [validation, publish] = text.split(/\r?\n  publish:\r?\n/);
+    assert.doesNotMatch(validation, /contents:\s*write/);
+    assert.match(publish, /contents:\s*write/);
+    assert.match(publish, /github.event_name == 'push' && startsWith\(github.ref, 'refs\/tags\/'\)/);
+    assert.match(publish, /needs: \[select, build\]/);
+    assert.match(publish, /needs.build.result == 'success'/);
+    assert.match(publish, /needs.select.outputs.reuse_run_id != ''/);
+    assert.doesNotMatch(publish, /npm test|npm run package|npm ci/);
+  }
 });
 
 test('runs Xvfb only on Linux and the full suite directly on Windows', () => {
