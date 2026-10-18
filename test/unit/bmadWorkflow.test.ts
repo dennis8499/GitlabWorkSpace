@@ -198,6 +198,115 @@ test('classic sprint status and spec-centric story progress remain separate from
     const recommendations = snapshot.recommendations.map(item => snapshot.nodes.find(node => node.id === item.stepId)!.skill);
     assert.deepEqual(recommendations, ['bmad-code-review', 'bmad-build']);
     assert.equal(snapshot.currentCandidates.find(candidate => candidate.storyId?.endsWith('#1-1-first'))?.stepId, snapshot.nodes.find(node => node.skill === 'bmad-code-review')!.id);
+    assert.equal(snapshot.currentCandidates.find(candidate => candidate.storyId?.endsWith('#S1'))?.stepId, step(snapshot, 'bmad-build').id,
+      'A spec Build in-review resumes its built-in review rather than the optional extra Code Review skill');
+    assert.equal(snapshot.stories.find(story => story.mode === 'spec')?.stage, 'Build 內建審查中');
+  });
+});
+
+test('native Build status transitions retain work stages and a one-shot run does not invent a separate review phase', async () => {
+  await fixture(async (root, write) => {
+    const filename = '_bmad-output/implementation-artifacts/spec-fix.md';
+    const phases = [
+      ['draft', '規劃草稿'], ['ready-for-dev', '待實作'], ['in-progress', '實作中'], ['in-review', 'Build 內建審查中'], ['done', 'Build 已完成']
+    ];
+    for (const [status, stage] of phases) {
+      await write(filename, md(status));
+      const artifact = step(await read(root), 'bmad-build').artifacts[0];
+      assert.equal(artifact.nativeStatus, status); assert.equal(artifact.stage, stage);
+      assert.equal(artifact.status, status === 'done' ? 'complete' : 'draft');
+      assert.ok(Number.isFinite(Date.parse(artifact.observedAt!)));
+    }
+    await write(filename, '---\nstatus: in-progress\nroute: oneshot\n---\n');
+    assert.equal(step(await read(root), 'bmad-build').artifacts[0].stage, '實作與內建審查中');
+    await write(filename, md('draft'));
+    assert.equal(step(await read(root), 'bmad-build').artifacts[0].stage, '規劃草稿', 'A review loop can return to planning');
+  });
+});
+
+test('Build aggregate keeps completed records separate from unfinished and invalid classic sprint work', async () => {
+  await fixture(async (root, write) => {
+    await write('_bmad-output/implementation-artifacts/spec-1-1-first.md', md('done'));
+    const tracking = '_bmad-output/implementation-artifacts/sprint-status.yaml';
+    for (const pending of ['backlog', 'ready-for-dev', 'in-progress', 'review']) {
+      await write(tracking, `development_status:\n  1-1-first: done\n  1-2-second: ${pending}\n`);
+      const snapshot = await read(root); const build = step(snapshot, 'bmad-build');
+      assert.equal(build.status, 'draft'); assert.equal(build.artifacts[0].status, 'complete');
+      assert.match(build.summary, /1\/2 個 Story 未完成/);
+      assert.equal(snapshot.stories[1].nativeStatus, pending);
+      assert.ok(snapshot.stories[1].observedAt);
+    }
+    await write(tracking, 'development_status:\n  1-1-first: done\n  1-2-second: done\n');
+    assert.equal(step(await read(root), 'bmad-build').status, 'complete');
+    await write(tracking, 'development_status:\n  1-1-first: done\n  1-2-second: invented\n');
+    const invalid = await read(root);
+    assert.equal(step(invalid, 'bmad-build').status, 'error');
+    assert.equal(invalid.stories.find(story => story.label === '1-2-second')?.status, 'error');
+  });
+});
+
+test('PRFAQ native working states and completion ignore the downstream distillate companion', async () => {
+  await fixture(async (root, write) => {
+    const catalog = `${CATALOG}\nBMad Method,bmad-prfaq,PRFAQ,WB,Challenge,,,plan,,,false,planning_artifacts,prfaq document`;
+    await write('_bmad/_config/bmad-help.csv', catalog);
+    await write('_bmad-output/planning-artifacts/prfaq-example-distillate.md', '# Downstream detail pack');
+    // The pinned PRFAQ references write these states, then verdict.md writes complete.
+    for (const status of ['press-release', 'customer-faq', 'internal-faq', 'complete']) {
+      await write('_bmad-output/planning-artifacts/prfaq-example.md', md(status));
+      const snapshot = await read(root); const result = step(snapshot, 'bmad-prfaq');
+      assert.equal(result.artifacts.length, 1); assert.equal(result.artifacts[0].nativeStatus, status);
+      assert.equal(result.status, status === 'complete' ? 'complete' : 'draft');
+      assert.equal(snapshot.diagnostics.some(item => item.code === 'artifact-status-invalid'), false);
+    }
+  });
+});
+
+test('canonical Brainstorm memory and spec-folder architecture and retrospective records are observed', async () => {
+  await fixture(async (root, write) => {
+    const catalog = `${CATALOG}\nCore,bmad-brainstorming,Brainstorm,BSP,Ideas,,,anytime,,,false,{output_folder}/brainstorming,brainstorming session\nBMad Method,bmad-retrospective,Retro,ER,Retro,,,ship,,,false,implementation_artifacts,retrospective`;
+    await write('_bmad/_config/bmad-help.csv', catalog);
+    await write('_bmad-output/brainstorming/session-1/.memlog.md', '---\ntopic: Example\nstatus: complete\n---\n- (insight) Chosen direction\n');
+    await write('_bmad-output/specs/spec-example/SPEC.md', '# Scope');
+    await write('_bmad-output/specs/spec-example/ARCHITECTURE-SPINE.md', md('final'));
+    await write('_bmad-output/specs/spec-example/RETROSPECTIVE.md', '---\nverdict: rejected\ncriteria: declared\n---\n# Retrospective\n');
+    const snapshot = await read(root);
+    assert.equal(step(snapshot, 'bmad-brainstorming').status, 'complete');
+    assert.equal(step(snapshot, 'bmad-brainstorming').artifacts[0].relativePath, '_bmad-output/brainstorming/session-1/.memlog.md');
+    assert.equal(step(snapshot, 'bmad-architecture').status, 'complete');
+    const retro = step(snapshot, 'bmad-retrospective');
+    assert.equal(retro.artifacts.length, 1); assert.equal(retro.artifacts[0].nativeStatus, 'rejected');
+    assert.equal(retro.artifacts[0].stage, '驗收未通過');
+    assert.equal(retro.status, 'needs-confirmation', 'An acceptance verdict alone does not prove the retrospective workflow finished');
+  });
+});
+
+test('observation timestamps do not invalidate unchanged evidence revisions', async () => {
+  await fixture(async (root, write) => {
+    const relative = '_bmad-output/planning-artifacts/prd.md';
+    await write(relative, md('final'));
+    const original = await read(root); const first = step(original, 'bmad-prd').artifacts[0];
+    const touched = new Date(Date.parse(first.observedAt!) + 2000);
+    await fs.utimes(path.join(root, relative), touched, touched);
+    const next = await read(root);
+    assert.notEqual(step(next, 'bmad-prd').artifacts[0].observedAt, first.observedAt);
+    assert.equal(next.revision, original.revision);
+    assert.ok(Number.isFinite(Date.parse(next.observedAt!)));
+  });
+});
+
+test('bounded scans diagnose deeper unobserved outputs and flag only configured root-level artifact watching', async () => {
+  await fixture(async (root, write) => {
+    await write('_bmad/config.toml', '[modules.bmm]\nplanning_artifacts = "chosen"\n');
+    await write('chosen/prd.md', md('final'));
+    await write('chosen/one/two/three/four/five/six/prd.md', md('draft'));
+    let snapshot = await read(root);
+    assert.ok(snapshot.diagnostics.some(item => item.code === 'scan-depth-limit' && item.path?.endsWith('six')));
+    assert.equal(snapshot.watchRootArtifacts, undefined);
+    await write('_bmad/config.toml', '[modules.bmm]\nplanning_artifacts = "."\n');
+    await write('prd.md', md('final'));
+    snapshot = await read(root);
+    assert.equal(snapshot.watchRootArtifacts, true);
+    assert.equal(step(snapshot, 'bmad-prd').artifacts.length, 1, 'A root output must not recursively scan sibling repositories');
   });
 });
 

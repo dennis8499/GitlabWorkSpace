@@ -138,6 +138,37 @@
 .bmad-artifact-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 -3px -6px; font-size: 10px; }
 .bmad-empty-artifacts { color: var(--bmad-muted); font-size: 11px; padding: 8px 0; }
 .bmad-related-next { padding-top: 14px; border-top: 1px solid var(--bmad-border); }
+.bmad-observation-note { margin: 8px 0 12px !important; color: var(--bmad-muted); font-size: 11px; }
+.bmad-observation-time { text-align: right; }
+.bmad-native-progress { color: var(--bmad-link) !important; }
+.bmad-source-path { color: var(--bmad-muted); font-size: 10px; overflow-wrap: anywhere; }
+.bmad-stories li > .quiet { margin: 6px 0 -3px -6px; font-size: 10px; }
+.bmad-prompt-form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bmad-border); }
+.bmad-prompt-form .bmad-section-heading { align-items: flex-start; }
+.bmad-prompt-field { display: flex; flex-direction: column; gap: 6px; margin-top: 13px; min-width: 0; font-size: 11px; }
+.bmad-prompt-field > span { display: flex; align-items: center; gap: 8px; }
+.bmad-required { color: var(--bmad-muted); font-size: 9px; font-weight: normal; }
+.bmad-prompt-field input, .bmad-prompt-field textarea, .bmad-prompt-field select, .bmad-prompt-preview textarea {
+  box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; border: 1px solid var(--vscode-input-border, var(--bmad-border));
+  border-radius: 4px; background: var(--vscode-input-background, var(--bmad-surface-raised)); color: var(--vscode-input-foreground, inherit);
+  padding: 8px 10px; font: inherit; line-height: 1.55;
+}
+.bmad-prompt-field textarea, .bmad-prompt-preview textarea { resize: vertical; }
+.bmad-prompt-field input:focus-visible, .bmad-prompt-field textarea:focus-visible, .bmad-prompt-field select:focus-visible, .bmad-prompt-preview textarea:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, var(--bmad-link)); outline-offset: 1px;
+}
+.bmad-repository-choices { margin: 13px 0 0; padding: 10px 12px; border: 1px solid var(--bmad-border); border-radius: 4px; font-size: 11px; min-width: 0; }
+.bmad-repository-choices p { color: var(--bmad-muted); margin: 0 0 8px !important; }
+.bmad-repository-choices label { display: flex; align-items: flex-start; gap: 7px; margin-top: 7px; overflow-wrap: anywhere; }
+.bmad-repository-choices input { flex-shrink: 0; margin-top: 3px; }
+.bmad-repository-choices span { min-width: 0; }
+.bmad-prompt-preview { display: flex; flex-direction: column; gap: 7px; margin-top: 18px; font-size: 11px; }
+.bmad-prompt-preview > label { font-weight: 600; }
+.bmad-prompt-preview textarea { min-height: 180px; max-height: 420px; font-family: var(--vscode-editor-font-family, Consolas, monospace); font-size: 11px; }
+.bmad-prompt-errors { margin-top: 10px; padding: 9px 12px; border-left: 2px solid var(--bmad-warning); color: var(--bmad-warning); font-size: 11px; background: var(--bmad-surface-raised); }
+.bmad-prompt-errors ul { margin: 5px 0 0; padding-left: 18px; }
+.bmad-prompt-errors li { margin: 3px 0; }
+.bmad-handoff-note { color: var(--bmad-muted); margin-top: 9px !important; font-size: 11px; }
 @media (min-width: 1180px) {
   .bmad-workspace { grid-template-columns: minmax(0, 1.9fr) minmax(310px, 1fr); gap: 24px; }
   .bmad-step-detail { position: sticky; top: 0; }

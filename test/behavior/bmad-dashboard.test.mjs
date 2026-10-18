@@ -56,10 +56,13 @@ test('packaged dashboard opens BMAD before GitLab login and returns from environ
 test('packaged dashboard sends current revision and exact artifact identity for BMAD actions', async t => {
   const data = bmadWorkspaceSnapshot();
   const view = await mount(t, data);
-  for (const [label, type] of [['在 Codex 執行', 'launchBmadStep'], ['複製提示詞', 'copyBmadPrompt'], ['查看產物', 'openBmadArtifact'], ['確認這份產物已完成', 'confirmBmadArtifact']]) {
+  view.document.querySelector('.bmad-current-card').click(); await view.tick();
+  assert.equal(view.button('在 Codex 執行'), undefined);
+  for (const [label, type] of [['複製提示詞', 'copyBmadPrompt'], ['查看產物', 'openBmadArtifact'], ['確認這份產物已完成', 'confirmBmadArtifact']]) {
     await view.click(label);
     const request = view.requests.findLast(item => item.type === type);
     const expected = { type, stepId: 'build', revision: data.bmad.revision };
+    if (type === 'copyBmadPrompt') expected.inputs = { intent: 'resume', artifactId: 'story-a', storyId: 'story-a' };
     if (type === 'openBmadArtifact') expected.path = `${data.bmad.root}/_bmad-output/specs/spec-checkout/story-a.md`;
     if (type === 'confirmBmadArtifact') expected.artifactId = 'story-a';
     assert.deepEqual(requestShape(request), expected);

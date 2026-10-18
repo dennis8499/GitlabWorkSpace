@@ -1,19 +1,19 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { BmadCatalogNode, BmadPanelState, BmadProgressStatus, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
+import type { BmadCatalogNode, BmadPanelState, BmadProgressStatus, BmadPromptInputs, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
+import { buildBmadPrompt, getBmadPromptFields, getDefaultBmadPromptInputs, validateBmadPromptInputs } from '../workspace/bmadPrompt';
 import './bmad-panel.css';
 
 export interface BmadPanelProps {
   snapshot?: BmadWorkflowSnapshot;
   state?: BmadPanelState;
   onChange?: (state: BmadPanelState) => void;
-  canLaunch?: boolean;
-  launchReason?: string;
+  repositoryPaths?: string[];
+  repositoryMode?: boolean;
   onRefresh: () => void;
   onOpenSettings: () => void;
-  onLaunch: (stepId: string) => void;
-  onCopy: (stepId: string) => void;
+  onCopy: (stepId: string, inputs: BmadPromptInputs) => void;
   onOpenArtifact: (stepId: string, path: string) => void;
   onConfirm: (stepId: string, artifactId: string) => void;
   onRevoke: (stepId: string, artifactId: string) => void;
@@ -62,12 +62,14 @@ const storyStatusLabels: Record<string, string> = {
   done: '已完成', complete: '已完成', completed: '已完成', ready: '已就緒', draft: '草稿', planned: '已規劃', blocked: '受阻',
   'needs-confirmation': '待確認', conflict: '資料衝突', error: '讀取失敗'
 };
+const sourceUpdateTime = (value?: string): string | undefined => value && !Number.isNaN(Date.parse(value))
+  ? new Date(value).toLocaleString('zh-TW', { hour12: false }) : undefined;
 interface FlowLine { from: string; to: string; path: string }
 interface FlowGeometry { width: number; height: number; lines: FlowLine[] }
 
 /** All progress comes from the host snapshot. Selecting a node only changes its guide. */
-export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchReason,
-  onRefresh, onOpenSettings, onLaunch, onCopy, onOpenArtifact, onConfirm, onRevoke }: BmadPanelProps) {
+export function BmadPanel({ snapshot, state, onChange, repositoryPaths = [], repositoryMode = true,
+  onRefresh, onOpenSettings, onCopy, onOpenArtifact, onConfirm, onRevoke }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
   const ui = state ?? localState;
   const graphRef = useRef<HTMLDivElement>(null);
@@ -87,6 +89,7 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
     ?? snapshot?.recommendations.find(item => nodesById.has(item.stepId))?.stepId ?? nodes[0]?.id;
   const selected = selectedId ? nodesById.get(selectedId) : undefined;
   const selectedStep = selectedId ? stepsById.get(selectedId) : undefined;
+  const inputs: BmadPromptInputs = selected ? { ...getDefaultBmadPromptInputs(selected), ...ui.inputsByStep?.[selected.id] } : {};
   const currentIds = new Set(snapshot?.currentCandidates.map(item => item.stepId) ?? []);
   const recommendedIds = new Set(snapshot?.recommendations.map(item => item.stepId) ?? []);
   const expanded = ui.expandedPhases ?? phases.map(phase => phase.id);
@@ -96,17 +99,28 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
     setLocalState(next);
     onChange?.(next);
   };
-  const selectStep = (stepId: string, reveal = true, openGuide = true): void => {
+  const selectStep = (stepId: string, reveal = true, openGuide = true, work?: Pick<BmadPromptInputs, 'artifactId' | 'storyId'>): void => {
     if (!nodesById.has(stepId)) return;
     const phase = phases.find(item => item.nodeIds.includes(stepId));
+    const context = work ? {
+      artifactId: stepsById.get(stepId)?.artifacts.some(artifact => artifact.id === work.artifactId) ? work.artifactId : undefined,
+      storyId: snapshot?.stories.some(story => story.id === work.storyId) ? work.storyId : undefined
+    } : undefined;
     change({ selectedStepId: stepId, ...(reveal && phase && !expanded.includes(phase.id)
-      ? { expandedPhases: [...expanded, phase.id] } : {}) });
+      ? { expandedPhases: [...expanded, phase.id] } : {}), ...(context ? { inputsByStep: { ...ui.inputsByStep,
+        [stepId]: { ...getDefaultBmadPromptInputs(nodesById.get(stepId)!), ...ui.inputsByStep?.[stepId], ...context,
+          ...(nodesById.get(stepId)?.skill === 'bmad-build' ? { intent: 'resume' }
+            : nodesById.get(stepId)?.skill === 'bmad-prd' ? { intent: ui.inputsByStep?.[stepId]?.intent === 'validate' ? 'validate' : 'edit' } : {}) } } } : {}) });
     if (openGuide && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1179px)').matches) {
       requestAnimationFrame(() => {
         detailRef.current?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
         detailRef.current?.focus({ preventScroll: true });
       });
     }
+  };
+  const updateInputs = (patch: Partial<BmadPromptInputs>): void => {
+    if (selected) change({ inputsByStep: { ...ui.inputsByStep, [selected.id]: { ...inputs, ...patch,
+      ...(['new', 'create'].includes(patch.intent ?? '') ? { artifactId: undefined, storyId: undefined, target: undefined } : {}) } } });
   };
   const togglePhase = (id: string): void => change({ expandedPhases: expanded.includes(id)
     ? expanded.filter(value => value !== id) : [...expanded, id] });
@@ -169,14 +183,22 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
   const selectedStatus = selectedStep?.status ?? 'not-observed';
   const preceding = selected ? nodes.filter(node => snapshot.edges.some(edge => edge.to === selected.id && edge.from === node.id)) : [];
   const following = selected ? nodes.filter(node => snapshot.edges.some(edge => edge.from === selected.id && edge.to === node.id)) : [];
-  const actionReason = !ready ? snapshot.installation.reason || '請先安裝 BMAD，並選擇專案目錄。'
-    : !canLaunch ? launchReason || '請先完成開發環境設定。' : undefined;
+  const actionReason = !ready ? snapshot.installation.reason || '請先安裝 BMAD，並選擇專案目錄。' : undefined;
   const title = (id: string): string => nodesById.has(id) ? nodeTitle(nodesById.get(id)!) : id;
+  const fields = selected ? getBmadPromptFields(selected, inputs) : [];
+  const validationErrors = selected ? validateBmadPromptInputs(selected, inputs, snapshot) : [];
+  const prompt = selected ? buildBmadPrompt(selected, inputs, snapshot) : '';
+  const existingArtifacts = selectedStep?.artifacts ?? [];
+  const existingStories = snapshot.stories.filter(story => selected?.skill === 'bmad-build' ||
+    snapshot.currentCandidates.some(candidate => candidate.stepId === selected?.id && candidate.storyId === story.id));
+  const workValue = inputs.storyId ? `story:${inputs.storyId}` : inputs.artifactId ? `artifact:${inputs.artifactId}` : '';
+  const observedTime = snapshot.observedAt && !Number.isNaN(Date.parse(snapshot.observedAt))
+    ? new Date(snapshot.observedAt).toLocaleTimeString('zh-TW', { hour12: false }) : undefined;
 
   return <div class="bmad-panel">
     <header class="bmad-page-heading">
       <div><div class="bmad-eyebrow">BMAD METHOD{snapshot.version ? ` · ${snapshot.version}` : ''}</div>
-        <h1>開發流程</h1><p>從想法到實作，查看整體路線、目前位置與每一步的使用方式。</p></div>
+        <h1>開發流程</h1><p>選擇 BMAD 功能、填寫工作需求，複製提示詞給 AI，並在這裡追蹤產物進度。</p></div>
       <div class="bmad-heading-actions"><button type="button" class="secondary" onClick={onRefresh}>重新整理</button>
         <button type="button" class={ready ? 'secondary' : 'primary'} onClick={onOpenSettings}>{ready ? '開發環境設定' : '安裝／設定 BMAD'}</button></div>
     </header>
@@ -185,21 +207,33 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
       <span class="bmad-project-path" title={snapshot.root}>專案：{snapshot.root ?? '尚未選擇專案目錄'}</span>
       <span class="bmad-catalog-source">{snapshot.catalogSource === 'installed' ? '使用專案流程目錄' : '內建流程預覽'}</span></div>
     {!ready && <div class="bmad-environment-notice" role="status"><strong>可以先探索完整流程</strong>
-      <p>{snapshot.installation.reason || '選擇專案並安裝 BMAD 後，即可執行步驟與追蹤專案產物。'}</p></div>}
+      <p>{snapshot.installation.reason || '選擇專案並安裝 BMAD 後，即可產生工作提示詞與追蹤專案產物。'}</p></div>}
     {!!snapshot.diagnostics.length && <details class="bmad-diagnostics"><summary>有 {snapshot.diagnostics.length} 項資料需要留意</summary>
       <ul>{snapshot.diagnostics.map((item, index) => <li key={`${item.code}-${index}`}><span>{item.message}</span>{item.path && <code>{item.path}</code>}</li>)}</ul></details>}
 
     <section class="bmad-position" aria-labelledby="bmad-position-title">
-      <div class="bmad-section-heading"><h2 id="bmad-position-title">目前位置</h2><span>依專案產物更新</span></div>
+      <div class="bmad-section-heading"><h2 id="bmad-position-title">目前位置</h2><span class="bmad-observation-time">依已儲存的專案產物更新{observedTime && <> · <time dateTime={snapshot.observedAt}>最近觀察 {observedTime}</time></>}</span></div>
       {snapshot.currentCandidates.length ? <ul class="bmad-current-list">{snapshot.currentCandidates.map((candidate, index) => <li key={`${candidate.stepId}-${candidate.artifactId ?? candidate.storyId ?? index}`}>
-        <button type="button" class="bmad-current-card" onClick={() => selectStep(candidate.stepId)}>
+        <button type="button" class="bmad-current-card" onClick={() => selectStep(candidate.stepId, true, true,
+          candidate.artifactId || candidate.storyId ? { artifactId: candidate.artifactId, storyId: candidate.storyId } : undefined)}>
           <span class="bmad-current-label">{title(candidate.stepId)}</span><strong>{candidate.label}</strong><span>{candidate.reason}</span>
         </button></li>)}</ul> : <p class="bmad-empty-position">{ready ? '目前沒有明確的執行中步驟。可從建議的下一步開始，或點選流程查看說明。' : '安裝並產生專案文件後，這裡會顯示可辨識的目前位置。'}</p>}
       {snapshot.recommendations.length > 0 && <div class="bmad-recommendations"><strong>建議下一步</strong><ul>{snapshot.recommendations.map(item => <li key={item.stepId}>
         <button type="button" onClick={() => selectStep(item.stepId)} title={item.reason}>{title(item.stepId)} <span aria-hidden="true">↗</span></button><span>{item.reason}</span>
       </li>)}</ul></div>}
-      {snapshot.stories.length > 0 && <details class="bmad-stories"><summary>故事與工作項目（{snapshot.stories.length}）</summary>
-        <ul>{snapshot.stories.map(story => <li key={story.id}><strong>{story.label}</strong><span>{storyStatusLabels[story.status] ?? story.status}</span><p>{story.reason}</p></li>)}</ul></details>}
+      <p class="bmad-observation-note">AI 儲存 BMAD 文件後，階段與工作項目會自動更新；複製提示詞不會變更進度。</p>
+      {snapshot.stories.length > 0 && <details class="bmad-stories" open><summary>故事與工作項目（{snapshot.stories.length}）</summary>
+        <ul>{snapshot.stories.map(story => {
+          const current = snapshot.currentCandidates.find(candidate => candidate.storyId === story.id);
+          const workStep = current ? nodesById.get(current.stepId) : snapshot.nodes.find(node => node.skill ===
+            (story.mode === 'classic' && ['review', 'in-review'].includes(story.status) ? 'bmad-code-review' : 'bmad-build'));
+          return <li key={story.id}><strong>{story.label}</strong><span>{storyStatusLabels[story.status] ?? story.status}</span>
+            {(story.stage || story.nativeStatus) && <p class="bmad-native-progress">{story.stage && <>階段：{story.stage} </>}{story.nativeStatus && <> · 原生狀態：<code>{story.nativeStatus}</code></>}</p>}
+            <p>{story.reason}</p><p class="bmad-source-path" title={story.path}>來源：{story.path}</p>
+            {sourceUpdateTime(story.observedAt) && <p class="bmad-source-path">來源更新：<time dateTime={story.observedAt}>{sourceUpdateTime(story.observedAt)}</time></p>}
+            {workStep && <button type="button" class="quiet" onClick={() => selectStep(workStep.id, true, true, { storyId: story.id, artifactId: undefined })}>處理這個工作項目</button>}
+          </li>;
+        })}</ul></details>}
     </section>
 
     <div class="bmad-workspace">
@@ -239,9 +273,9 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
         </div> : <p class="bmad-empty-position">目前沒有可顯示的流程目錄，請重新整理或檢查開發環境。</p>}
         <details class="bmad-how-to"><summary>如何使用這個流程？</summary><ol>
           <li>先看「目前位置」與「建議下一步」，也可以直接點選任一步驟閱讀說明。</li>
-          <li>準備好環境後，在 Codex 執行 BMAD，或複製提示詞到現有對話。依引導完成工作並儲存產物。</li>
+          <li>填寫所選功能的需求，確認提示詞預覽後複製，手動貼到可讀取此專案與 Skills 的 AI 對話。</li>
           <li>流程會隨文件更新。缺少完成標記的產物可逐份人工確認；文件變更後需要重新確認。</li>
-          <li>不同故事可能同時位於不同步驟。選取節點、複製提示詞或啟動 Codex，都不會將步驟標記為完成。</li>
+          <li>不同故事可能同時位於不同步驟。選取節點或複製提示詞，都不會將步驟標記為完成。</li>
         </ol></details>
       </section>
 
@@ -263,19 +297,56 @@ export function BmadPanel({ snapshot, state, onChange, canLaunch = true, launchR
             {!!selected.outputs.length && <div><dt>預期產出</dt><dd>{selected.outputs.join('、')}</dd></div>}
             {selected.outputLocation && <div><dt>儲存位置</dt><dd><code>{selected.outputLocation}</code></dd></div>}</dl>
           {!!preceding.length && <div class="bmad-related"><h3>前置流程</h3><div>{preceding.map(node => <button type="button" key={node.id} onClick={() => selectStep(node.id)}>{nodeTitle(node)}</button>)}</div></div>}
-          <div class="bmad-step-instructions"><h3>使用方式</h3><ol>
-            <li>確認目前專案與前置文件，準備此步驟所需的背景資訊。</li>
-            <li>按「在 Codex 執行」開始，或複製提示詞到 Codex 對話，依 BMAD 引導操作。</li>
-            <li>儲存產物後，查看下方偵測結果；需要時逐份確認文件已完成。</li>
-          </ol></div>
-          <div class="bmad-step-actions"><button type="button" class="primary" disabled={!ready || !canLaunch || !selected.skill} onClick={() => onLaunch(selected.id)}>在 Codex 執行</button>
-            <button type="button" class="secondary" disabled={!ready || !selected.skill} onClick={() => onCopy(selected.id)}>複製提示詞</button></div>
-          {actionReason && <p class="bmad-action-reason" role="status">{actionReason}</p>}
+          <form class="bmad-prompt-form" onSubmit={event => { event.preventDefault(); if (ready && !validationErrors.length) onCopy(selected.id, inputs); }}>
+            <div class="bmad-section-heading"><h3>準備工作提示詞</h3><span>依功能整理需要的資訊</span></div>
+            {!repositoryMode && <fieldset class="bmad-repository-choices"><legend>要處理的程式庫</legend>
+              <p>選擇這次工作的 Repo，提示詞會一併帶入工作位置。</p>
+              {repositoryPaths.length ? repositoryPaths.map(repository => <label key={repository}>
+                <input type="checkbox" checked={inputs.repositoryPaths?.includes(repository) ?? false} onChange={event => updateInputs({ repositoryPaths: event.currentTarget.checked
+                  ? [...new Set([...(inputs.repositoryPaths ?? []), repository])] : inputs.repositoryPaths?.filter(value => value !== repository) ?? [] })} />
+                <span title={repository}>{repository}</span></label>) : <p>目前沒有可選擇的 Repo，請先檢查專案目錄。</p>}
+            </fieldset>}
+            {fields.map(field => {
+              const value = typeof inputs[field.id] === 'string' ? inputs[field.id] as string : '';
+              const id = `bmad-input-${field.id}`;
+              return <label class="bmad-prompt-field" key={field.id} htmlFor={id}><span>{field.label}{field.required && <span class="bmad-required">必填</span>}</span>
+                {field.kind === 'select' ? <select id={id} name={field.id} value={value} required={field.required} onChange={event => updateInputs({ [field.id]: event.currentTarget.value })}>
+                  {field.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select> : field.kind === 'textarea' ? <textarea id={id} name={field.id} value={value} required={field.required} placeholder={field.placeholder} rows={field.id === 'goal' ? 4 : 3}
+                  onInput={event => updateInputs({ [field.id]: event.currentTarget.value })} />
+                  : <input id={id} name={field.id} type="text" value={value} required={field.required} placeholder={field.placeholder} onInput={event => updateInputs({ [field.id]: event.currentTarget.value })} />}
+              </label>;
+            })}
+            {(existingArtifacts.length > 0 || existingStories.length > 0 || inputs.artifactId || inputs.storyId) && <label class="bmad-prompt-field" htmlFor="bmad-work-target">
+              <span>既有工作項目或產物</span><select id="bmad-work-target" value={workValue} onChange={event => {
+                const value = event.currentTarget.value;
+                updateInputs({ artifactId: value.startsWith('artifact:') ? value.slice(9) : undefined,
+                  storyId: value.startsWith('story:') ? value.slice(6) : undefined,
+                  ...(selected.skill === 'bmad-build' && value ? { intent: 'resume' }
+                    : selected.skill === 'bmad-prd' && value ? { intent: inputs.intent === 'validate' ? 'validate' : 'edit' } : {}) });
+              }}><option value="">不指定既有工作項目</option>
+                {inputs.storyId && !existingStories.some(story => story.id === inputs.storyId) && <option value={workValue}>先前選取的工作項目已變更，請重新選擇</option>}
+                {!inputs.storyId && inputs.artifactId && !existingArtifacts.some(artifact => artifact.id === inputs.artifactId) && <option value={workValue}>先前選取的產物已變更，請重新選擇</option>}
+                {existingStories.length > 0 && <optgroup label="故事與工作項目">{existingStories.map(story => <option key={story.id} value={`story:${story.id}`}>{story.label} · {storyStatusLabels[story.status] ?? story.status}</option>)}</optgroup>}
+                {existingArtifacts.length > 0 && <optgroup label="此步驟的產物">{existingArtifacts.map(artifact => <option key={artifact.id} value={`artifact:${artifact.id}`}>{artifact.relativePath || artifact.path}</option>)}</optgroup>}
+              </select></label>}
+            <div class="bmad-prompt-preview"><label htmlFor="bmad-prompt-preview">提示詞預覽</label>
+              <textarea id="bmad-prompt-preview" readOnly value={prompt} rows={10} spellcheck={false} />
+            </div>
+            {validationErrors.length > 0 && <div class="bmad-prompt-errors" role="status"><strong>完成以下資訊後即可複製</strong><ul>{validationErrors.map(error => <li key={error}>{error}</li>)}</ul></div>}
+            <div class="bmad-step-actions"><button type="submit" class="primary" disabled={!ready || !selected.skill || validationErrors.length > 0}>複製提示詞</button></div>
+            {actionReason && <p class="bmad-action-reason" role="status">{actionReason}</p>}
+            <p class="bmad-handoff-note">複製後，請手動貼到可讀取此專案與已安裝 Skills 的 AI 對話，依 BMAD 引導完成工作。儲存產物後，這個頁面會自動更新進度。</p>
+          </form>
           <section class="bmad-artifacts" aria-labelledby="bmad-artifacts-title"><div class="bmad-section-heading"><h3 id="bmad-artifacts-title">專案產物</h3><span>{selectedStep?.artifacts.length ?? 0} 份</span></div>
             {selectedStep?.artifacts.length ? <ul>{selectedStep.artifacts.map(artifact => <li key={artifact.id} class={`bmad-artifact bmad-status-${artifact.status}`}>
               <div class="bmad-artifact-heading"><strong title={artifact.path}>{artifact.relativePath || artifact.path}</strong>
                 <span class={`bmad-status-badge bmad-status-${artifact.status}`}>{artifact.confirmed ? '已人工確認' : progressLabels[artifact.status]}</span></div>
-              <p>{artifact.reason}</p><div class="bmad-artifact-actions"><button type="button" class="quiet" onClick={() => onOpenArtifact(selected.id, artifact.path)}>查看產物</button>
+              {(artifact.stage || artifact.nativeStatus) && <p class="bmad-native-progress">{artifact.stage && <>階段：{artifact.stage} </>}{artifact.nativeStatus && <> · 原生狀態：<code>{artifact.nativeStatus}</code></>}</p>}
+              <p>{artifact.reason}</p><p class="bmad-source-path">判定來源：{artifact.marker || (artifact.confirmed ? '這份內容的人工確認' : '文件內容與 BMAD 完成條件')}</p>
+              {sourceUpdateTime(artifact.observedAt) && <p class="bmad-source-path">來源更新：<time dateTime={artifact.observedAt}>{sourceUpdateTime(artifact.observedAt)}</time></p>}
+              <div class="bmad-artifact-actions"><button type="button" class="quiet" onClick={() => onOpenArtifact(selected.id, artifact.path)}>查看產物</button>
+                <button type="button" class="quiet" onClick={() => selectStep(selected.id, true, false, { artifactId: artifact.id, storyId: undefined })}>帶入工作提示詞</button>
                 {artifact.confirmed ? <button type="button" class="quiet" onClick={() => onRevoke(selected.id, artifact.id)}>撤銷人工確認</button>
                   : artifact.canConfirm && <button type="button" class="secondary" onClick={() => onConfirm(selected.id, artifact.id)}>確認這份產物已完成</button>}</div>
             </li>)}</ul> : <p class="bmad-empty-artifacts">尚未偵測到此步驟的產物。完成 BMAD 引導並儲存文件後，這裡會自動更新。</p>}

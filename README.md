@@ -28,7 +28,7 @@
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製與開啟 Codex CLI 分開操作。上板檢查只需指定 Repo、基礎分支及比較分支，延伸 Group 功能鏈，在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
-- 「BMAD 開發流程」提供 BMAD 6.12.4 的互動流程圖、目前位置、步驟教學與 Codex 執行入口；依本機產物自動更新進度，支援逐份人工確認及撤銷。BMAD 隨工作流程包離線安裝，新功能與程式修改預設使用 BMAD。
+- 「BMAD 開發流程」提供 BMAD 6.12.4 的互動流程圖、功能表單與提示詞預覽／複製；將提示詞貼到能讀寫同一專案的 AI，儲存產物後即可即時追蹤階段與並行工作。支援逐份人工確認及撤銷。BMAD 隨工作流程包離線安裝，新功能與程式修改預設使用 BMAD。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
 
@@ -36,7 +36,7 @@
 
 ## 0.26.0 更新
 
-新增 BMAD 6.12.4 動態開發流程工作台，包含互動流程圖、繁體中文教學、產物狀態追蹤、逐份人工確認與 Codex 步驟啟動。工作流程包內附官方 core／bmm Skills，並保留自訂設定與開發產物。
+BMAD 6.12.4 開發流程工作台提供功能表單、繁體中文提示詞、產物階段追蹤及逐份人工確認。可指定 PRD 建立／修改／檢查、Spec 整理／驗證及 Build 新建／續作，並帶入既有文件或 Story。工作流程包內附官方 core／bmm Skills，並保留自訂設定與開發產物。
 
 ## 0.25.0 更新
 
@@ -79,7 +79,8 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 - Python 3.11+；匯入 ZIP、檢查及安裝工具時需要，可在 VS Code 設定 `gitlabWorkspace.pythonPath` 指定直譯器路徑。
-- 執行 BMAD 需要 Codex CLI、Python 3.11+ 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)；流程總覽與教學可在未安裝工具或未登入 GitLab 時瀏覽。
+- BMAD 頁面的輸入、複製及產物監看不需要 Codex CLI／uv，也不需要登入 GitLab。實際執行交由可讀寫同一本機專案的 AI，執行環境依已安裝 Skill 的要求準備 Python 3.11+ 與 uv。
+- 監控依據已儲存的 BMAD 原生產物；Build 的草稿、待實作、實作中、內建審查與完成各別呈現，Story 狀態另列。尚無正式訊號時保留待確認；複製提示詞不會推進階段。Group 模式沿用共同安裝與輸出根目錄，勾選 Repo 只決定本次工作範圍。
 
 ## 安裝
 

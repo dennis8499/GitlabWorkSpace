@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import * as terminalModule from '../../src/workspace/bmadTerminal';
+import { buildBmadPrompt } from '../../src/workspace/bmadPrompt';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => `file:${fsPath}` });
@@ -30,9 +30,7 @@ const vscode = {
 };
 const loader = require('node:module') as { _load(name: string, parent: unknown, main: boolean): unknown };
 const originalLoad = loader._load;
-loader._load = (name, parent, main) => name === 'vscode' ? vscode : name === './bmadTerminal' ? {
-  ...terminalModule, bmadTerminalOptions: (prompt: string) => terminalAvailable ? { shellPath: 'codex-native', shellArgs: [prompt] } : undefined
-} : originalLoad(name, parent, main);
+loader._load = (name, parent, main) => name === 'vscode' ? vscode : originalLoad(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
 try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); }
 finally { loader._load = originalLoad; }
@@ -99,44 +97,29 @@ test('BMAD loads installed progress offline from the selected root and resolves 
   assert.notEqual(next.revision, first.revision);
 });
 
-test('launch creates a new interactive terminal with canonical cwd and prompt as an argument', async t => {
-  const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
-  await f.host.launchBmadStep(snapshot.revision, node.id);
-  await f.host.launchBmadStep(snapshot.revision, node.id);
-  assert.equal(terminals.length, 2);
-  for (const terminal of terminals) {
-    assert.equal(terminal.cwd, snapshot.root);
-    assert.equal(terminal.shellPath, 'codex-native');
-    assert.equal(terminal.shellArgs.length, 1);
-    assert.match(terminal.shellArgs[0], /\$bmad-build/);
-    assert.doesNotMatch(terminal.shellArgs[0], /codex exec/);
-  }
-  assert.equal(f.checks().kit, 2);
-  assert.equal(f.host.bmad.snapshot.steps.find((step: any) => step.id === node.id).status, 'not-observed');
-  assert.ok(f.outcomes.every((outcome: any) => !String(outcome.phase).includes('已完成')));
-});
-
-test('launch checks verified kit capability, workspace trust, runtime availability and executable discovery', async t => {
-  const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
-  f.setFeatures([]);
-  await assert.rejects(f.host.launchBmadStep(snapshot.revision, node.id), /安裝/);
-  f.setFeatures(['bmad-workflow']); vscode.workspace.isTrusted = false;
-  await assert.rejects(f.host.launchBmadStep(snapshot.revision, node.id), /信任/);
-  vscode.workspace.isTrusted = true; f.setRuntimeReason('缺少 uv');
-  await assert.rejects(f.host.launchBmadStep(snapshot.revision, node.id), /缺少 uv/);
-  f.setRuntimeReason(); terminalAvailable = false;
-  await assert.rejects(f.host.launchBmadStep(snapshot.revision, node.id), /Codex CLI/);
-  assert.equal(terminals.length, 0);
-});
-
 test('copy works offline without launching and stale artifact revisions are rejected', async t => {
   const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-prd')!;
   f.setFeatures([]); vscode.workspace.isTrusted = false;
-  await f.host.copyBmadPrompt(snapshot.revision, node.id);
+  await f.host.copyBmadPrompt(snapshot.revision, node.id, { goal: 'test requirement' });
   assert.equal(copied.length, 1); assert.match(copied[0], /\$bmad-prd/); assert.equal(terminals.length, 0);
+  assert.equal(copied[0], buildBmadPrompt(node, { goal: 'test requirement' }, snapshot), 'Clipboard matches the shared preview generator');
+  assert.deepEqual(f.checks(), { runtime: 0, kit: 0 }, 'Copying and observation never invoke tool checks');
   await f.write(f.root, '_bmad-output/planning-artifacts/prd.md', '---\nstatus: final\n---\n');
-  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id), /已變更/);
-  await assert.rejects(f.host.copyBmadPrompt((await f.refresh()).revision, 'invalid-step'), /找不到/);
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, { goal: 'test requirement' }), /已變更/);
+  await assert.rejects(f.host.copyBmadPrompt((await f.refresh()).revision, 'invalid-step', { goal: 'test requirement' }), /找不到/);
+});
+
+test('copy validates form, work identity, installation and selected repository before writing clipboard', async t => {
+  const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, {}), /填寫/);
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, { intent: 'resume', storyId: 'removed' }), /Story/);
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, { goal: 'task', repositoryPaths: [f.second] }), /Repo/);
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, { goal: 10 }), /格式/);
+  assert.equal(copied.length, 0);
+  await fs.unlink(path.join(f.root, '_bmad', '_config', 'manifest.yaml'));
+  const missing = await f.refresh();
+  await assert.rejects(f.host.copyBmadPrompt(missing.revision, node.id, { goal: 'task' }), /安裝/);
+  assert.equal(copied.length, 0);
 });
 
 test('openArtifact accepts only the selected snapshot step artifact path', async t => {
@@ -150,21 +133,9 @@ test('openArtifact accepts only the selected snapshot step artifact path', async
   assert.deepEqual(opened, [artifact.path]);
 });
 
-test('root or page changes while waiting for runtime prevent a delayed terminal launch', async t => {
-  const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
-  f.host.checkBmadRuntime = async () => { configuredRoots.set(uri(f.root).toString(), '../second'); f.host.projectContext = await f.host.resolveProjectContext(); };
-  await assert.rejects(f.host.launchBmadStep(snapshot.revision, node.id), /已變更/);
-  assert.equal(terminals.length, 0);
-  configuredRoots.clear(); f.host.projectContext = await f.host.resolveProjectContext();
-  const restored = await f.refresh();
-  f.host.checkBmadRuntime = async () => { f.host.activeMode = 'sa'; };
-  await assert.rejects(f.host.launchBmadStep(restored.revision, node.id), /已變更/);
-  assert.equal(terminals.length, 0);
-});
-
 test('root changes during snapshot verification block copy and artifact actions', async t => {
   const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-prd')!;
   f.host.bmad.requireSnapshot = async () => { configuredRoots.set(uri(f.root).toString(), '../second'); f.host.projectContext = await f.host.resolveProjectContext(); return snapshot; };
-  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id), /已變更/);
+  await assert.rejects(f.host.copyBmadPrompt(snapshot.revision, node.id, { goal: 'test requirement' }), /已變更/);
   assert.equal(copied.length, 0); assert.equal(opened.length, 0);
 });

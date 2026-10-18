@@ -17,7 +17,7 @@ interface ControllerOptions {
   read?: typeof readBmadWorkflow;
 }
 
-/** Owns only local observation and confirmations; opening a terminal is not workflow progress. */
+/** Owns local observation and confirmations; preparing a prompt is not workflow progress. */
 export class BmadWorkflowController implements Disposable {
   private root?: string;
   private contextRevision?: string;
@@ -41,7 +41,10 @@ export class BmadWorkflowController implements Disposable {
     this.generation++;
     this.readAbort?.abort();
     this.stopWatching();
-    if (changed) { this.value = undefined; this.readCache.clear(); }
+    if (changed) this.value = undefined;
+    // Events are intentionally unobserved while hidden. Reopening must not reuse
+    // file contents or derived data from before that observation gap.
+    if (changed || (!this.visible && visible)) this.readCache.clear();
     this.root = root;
     this.contextRevision = revision;
     this.visible = visible;
@@ -79,9 +82,13 @@ export class BmadWorkflowController implements Disposable {
     // Keep native registrations alive while output discovery changes the watch set.
     // Attach replacements before removing ancestors so discovery has no intentional gap.
     for (const directory of directories) {
-      if (!this.watchers.has(directory)) this.watchers.set(directory, this.options.watch(directory, filename => {
-        if (this.isRelevantChange(filename)) this.scheduleRefresh();
-      }));
+      if (!this.watchers.has(directory)) {
+        let active = true;
+        const watcher = this.options.watch(directory, filename => {
+          if (active && this.isRelevantChange(filename)) this.scheduleRefresh();
+        });
+        this.watchers.set(directory, { dispose: () => { active = false; watcher.dispose(); } });
+      }
     }
     for (const [directory, watcher] of this.watchers) {
       if (!directories.has(directory)) { watcher.dispose(); this.watchers.delete(directory); }
@@ -99,7 +106,11 @@ export class BmadWorkflowController implements Disposable {
       return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`);
     };
     if (!contains(root, filename)) return false;
-    if (path.relative(root, filename).toLowerCase() === 'agents.md') return true;
+    const relative = path.relative(root, filename);
+    if (relative.toLowerCase() === 'agents.md') return true;
+    // A configured output directory may be the project root itself. Only its
+    // direct Markdown/YAML artifacts belong to that otherwise discovery-only watch.
+    if (this.value?.watchRootArtifacts && path.dirname(relative) === '.' && /\.(?:md|ya?ml)$/i.test(relative)) return true;
     return this.value!.watchDirectories.some(directory => path.relative(root, directory) !== '' &&
       (contains(directory, filename) || contains(filename, directory)));
   }

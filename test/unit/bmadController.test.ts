@@ -3,7 +3,6 @@ import test from 'node:test';
 import path from 'node:path';
 import { BmadWorkflowController } from '../../src/workspace/bmadWorkflowController';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
-import { bmadTerminalOptions, buildBmadLaunchPrompt } from '../../src/workspace/bmadTerminal';
 
 function snapshot(root = '/project', revision = 'one'): BmadWorkflowSnapshot {
   return { root, revision, version: '6.12.4', installation: { state: 'ready', reason: 'Ready' }, catalogSource: 'installed',
@@ -95,6 +94,60 @@ test('recursive root events refresh only observed targets, their missing ancesto
   } finally { f.controller.dispose(); }
 });
 
+test('configured root outputs observe direct Markdown and YAML artifacts without widening the recursive scope', async () => {
+  const root = path.resolve('/project');
+  let reads = 0;
+  let watchRootArtifacts = true;
+  const f = fixture(async () => { reads++; return { ...snapshot(root), watchRootArtifacts }; });
+  try {
+    f.controller.setContext(root, 'project', true);
+    await f.controller.refresh();
+    const watcher = f.watchers[0];
+    watcher.changed(path.join(root, 'src', 'unrelated.md'));
+    watcher.changed(path.join(root, 'source.ts'));
+    watcher.changed(path.resolve('/another-project/prd.md'));
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(reads, 1, 'Root outputs do not enable unrelated descendant or source-file events');
+    for (const filename of ['prd.md', 'sprint-status.yaml', 'stories.yml']) {
+      watcher.changed(path.join(root, filename));
+      await new Promise(resolve => setTimeout(resolve, 220));
+    }
+    assert.equal(reads, 4, 'Each supported root artifact extension must invalidate the snapshot');
+    watchRootArtifacts = false;
+    await f.controller.refresh();
+    watcher.changed(path.join(root, 'prd.md'));
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(reads, 5, 'Discovery-only root registrations must still ignore unrelated Markdown');
+  } finally { f.controller.dispose(); }
+});
+
+test('showing a hidden view rereads uncached files and ignores callbacks from its disposed watchers', async () => {
+  let value = 'before hiding', reads = 0;
+  const seen: string[] = [];
+  const f = fixture(async ({ cache }) => {
+    reads++;
+    seen.push(cache.derive('same-file-stamp', 10, () => value));
+    return snapshot();
+  });
+  try {
+    f.controller.setContext('/project', 'project', true);
+    await f.controller.refresh();
+    const disposedWatcher = f.watchers[0];
+    f.controller.setContext('/project', 'project', false);
+    value = 'changed while hidden';
+    await f.controller.refresh();
+    assert.equal(reads, 1);
+    f.controller.setContext('/project', 'project', true);
+    await f.controller.refresh();
+    assert.deepEqual(seen, ['before hiding', 'changed while hidden']);
+    assert.equal(disposedWatcher.disposed, true);
+    disposedWatcher.changed();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(reads, 2, 'A disposed native watch callback cannot schedule a read after reopening');
+    assert.equal(f.watchers.length, 2, 'Reopening must attach a fresh observer');
+  } finally { f.controller.dispose(); }
+});
+
 test('late reads from an old project or hidden view never publish', async () => {
   let finish!: (value: BmadWorkflowSnapshot) => void;
   const f = fixture(async ({ root }) => root === '/old' ? new Promise(resolve => { finish = resolve; }) : snapshot(root));
@@ -166,18 +219,4 @@ test('manual completion is persisted with evidence and rejects stale or explicit
   value.steps[0].artifacts[0].status = 'draft';
   await assert.rejects(f.controller.confirm({ revision: 'two', stepId: 'brief', artifactId: 'file' }), /確認|完成/);
   f.controller.dispose();
-});
-
-test('Codex terminal receives one literal prompt argument, including shell metacharacters', () => {
-  const prompt = '文字 " & %PATH% $() `command`\nnext line';
-  const executable = 'C:\\Codex tools\\codex.exe';
-  assert.deepEqual(bmadTerminalOptions(prompt, { PATH: 'C:\\Codex tools' }, 'win32', filename => filename === executable),
-    { shellPath: executable, shellArgs: [prompt] });
-  const script = 'C:\\npm\\node_modules\\@openai\\codex\\bin\\codex.js';
-  const files = new Set(['C:\\npm\\codex.cmd', script, 'C:\\node\\node.exe']);
-  assert.deepEqual(bmadTerminalOptions(prompt, { PATH: 'C:\\npm;C:\\node' }, 'win32', filename => files.has(filename)),
-    { shellPath: 'C:\\node\\node.exe', shellArgs: [script, prompt] });
-  assert.equal(bmadTerminalOptions(prompt, { PATH: 'C:\\npm' }, 'win32', filename => filename.endsWith('codex.cmd')), undefined);
-  assert.match(buildBmadLaunchPrompt(snapshot().nodes[0]), /\$bmad-product-brief/);
-  assert.throws(() => buildBmadLaunchPrompt({ ...snapshot().nodes[0], skill: 'bmad-help & calc' }), /無效/);
 });

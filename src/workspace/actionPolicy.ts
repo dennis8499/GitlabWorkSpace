@@ -84,7 +84,6 @@ export const workspaceActionKinds = {
   resetCloneRoot: 'write',
   openCodexTerminal: 'write',
   refreshBmad: 'read',
-  launchBmadStep: 'write',
   copyBmadPrompt: 'write',
   openBmadArtifact: 'local',
   confirmBmadArtifact: 'write',
@@ -213,7 +212,7 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
-  openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程', launchBmadStep: '啟動 BMAD 步驟',
+  openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
   copyBmadPrompt: '複製 BMAD 提示詞', openBmadArtifact: '查看 BMAD 產物', confirmBmadArtifact: '確認 BMAD 產物完成', revokeBmadConfirmation: '撤銷 BMAD 完成確認',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
   openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟後台管理', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
@@ -228,7 +227,7 @@ export const operationLabels: Record<string, string> = {
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'queryLogs', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
-const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'launchBmadStep', 'confirmBmadArtifact', 'revokeBmadConfirmation']);
+const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'confirmBmadArtifact', 'revokeBmadConfirmation']);
 const canonicalRoot = (value?: string): string => (value ?? 'workspace').replace(/\\/g, '/').replace(/\/$/, '').toLocaleLowerCase('en-US');
 export function writeResourceLock(resourceKey: string, context: ActionContext = {}): string {
   const global = resourceKey === 'clipboard' || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:');

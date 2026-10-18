@@ -999,11 +999,12 @@ function App() {
               </div></div>
             : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}
               state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
-              canLaunch={snapshot.bmadLaunchAvailable === true && !blockingWork} launchReason={snapshot.bmadLaunchReason}
+              key={projectRoot ?? 'none'}
+              repositoryMode={snapshot.skillsContext?.mode === 'repository'}
+              repositoryPaths={snapshot.skillsContext?.repositories.map(repo => repo.path) ?? []}
               onRefresh={() => post({ type: 'refreshBmad' })}
               onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
-              onLaunch={stepId => snapshot.bmad && post({ type: 'launchBmadStep', stepId, revision: snapshot.bmad.revision })}
-              onCopy={stepId => snapshot.bmad && post({ type: 'copyBmadPrompt', stepId, revision: snapshot.bmad.revision })}
+              onCopy={(stepId, inputs) => snapshot.bmad && post({ type: 'copyBmadPrompt', stepId, inputs, revision: snapshot.bmad.revision })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
               onConfirm={(stepId, artifactId) => snapshot.bmad && post({ type: 'confirmBmadArtifact', stepId, artifactId, revision: snapshot.bmad.revision })}
               onRevoke={(stepId, artifactId) => snapshot.bmad && post({ type: 'revokeBmadConfirmation', stepId, artifactId, revision: snapshot.bmad.revision })} />

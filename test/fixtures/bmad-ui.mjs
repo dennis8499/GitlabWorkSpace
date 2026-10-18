@@ -36,5 +36,5 @@ export function bmadWorkspaceSnapshot(root = 'C:/專案/服務 A', bmad = bmadUi
     skillsContext: { mode: root ? 'repository' : 'unavailable', root, revision: `skills:${root ?? 'none'}`,
       repositories, installed, availableFeatures: installed.capabilities,
       groupMatch: { status: root ? 'matched' : 'unverified', root, profile: 'repository', repositories } },
-    bmad, bmadLaunchAvailable: true };
+    bmad };
 }

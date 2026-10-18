@@ -12,6 +12,7 @@ export interface BmadArtifact {
   id: string; path: string; relativePath: string; fingerprint: string;
   status: Exclude<BmadProgressStatus, 'not-observed' | 'conflict'>;
   reason: string; marker?: string; canConfirm: boolean; confirmed: boolean;
+  nativeStatus?: string; stage?: string; observedAt?: string;
 }
 export interface BmadStep {
   id: string; status: BmadProgressStatus; summary: string; artifacts: BmadArtifact[];
@@ -19,6 +20,7 @@ export interface BmadStep {
 export interface BmadStoryProgress {
   id: string; label: string; mode: 'classic' | 'spec'; path: string;
   status: string; reason: string;
+  nativeStatus?: string; stage?: string; observedAt?: string;
   inventoryPath?: string;
   association?: 'confirmed' | 'unconfirmed' | 'ambiguous' | 'not-observed';
 }
@@ -34,6 +36,15 @@ export interface BmadWorkflowSnapshot {
   steps: BmadStep[]; stories: BmadStoryProgress[];
   currentCandidates: BmadCurrentCandidate[]; recommendations: BmadRecommendation[];
   watchDirectories: string[]; diagnostics: BmadDiagnostic[];
+  observedAt?: string; watchRootArtifacts?: boolean;
 }
 export interface BmadConfirmationRequest { revision: string; stepId: string; artifactId: string }
-export interface BmadPanelState { selectedStepId?: string; expandedPhases?: string[] }
+export interface BmadPromptInputs {
+  intent?: string; goal?: string; background?: string; constraints?: string;
+  references?: string; target?: string; acceptance?: string; parameter?: string;
+  repositoryPaths?: string[]; artifactId?: string; storyId?: string;
+}
+export interface BmadPanelState {
+  selectedStepId?: string; expandedPhases?: string[];
+  inputsByStep?: Record<string, BmadPromptInputs>;
+}

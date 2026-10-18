@@ -95,7 +95,7 @@ function frontmatter(content: string): Record<string, unknown> {
   if (!match) throw new Error('Markdown frontmatter 尚未寫完。');
   return yaml(match[1]);
 }
-interface ReadFile { content: string; fingerprint: string }
+interface ReadFile { content: string; fingerprint: string; observedAt: string }
 /** Only bounded file contents are cached. Every hit still verifies path and file identity. */
 export class BmadReadCache {
   private readonly values = new Map<string, { stamp: string; value: ReadFile; bytes: number }>();
@@ -164,7 +164,7 @@ function makeReader(root: string, diagnostics: BmadDiagnostic[], limit: number, 
         if (current.isSymbolicLink() || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== current.ino || before.dev !== current.dev) throw new Error('檔案寫入中；請稍後重新整理。');
         const content = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length));
         signal?.throwIfAborted();
-        const value = { content, fingerprint: hash(buffer.subarray(0, length)) }; cache.set(file, stamp, value); return value;
+        const value = { content, fingerprint: hash(buffer.subarray(0, length)), observedAt: before.mtime.toISOString() }; cache.set(file, stamp, value); return value;
       } finally { await handle.close(); }
     } catch (error) { if (signal?.aborted) throw error; if (missing(error) && optional) return undefined; diagnostic('read-failed', (error as Error).message, file); return undefined; }
   } };
@@ -172,9 +172,9 @@ function makeReader(root: string, diagnostics: BmadDiagnostic[], limit: number, 
 
 const NAMES: Record<string, RegExp> = {
   'bmad-project-context': /^AGENTS\.md$/i,
-  'bmad-brainstorming': /brainstorm.*\.md$/i,
+  'bmad-brainstorming': /^(?:\.memlog|brainstorm.*)\.md$/i,
   'bmad-product-brief': /^(?:product-brief(?:-.+)?|brief)\.md$/i,
-  'bmad-prfaq': /prfaq.*\.md$/i,
+  'bmad-prfaq': /^prfaq(?!.*-distillate\.md$).*\.md$/i,
   'bmad-prd': /^prd(?:-.+)?\.md$/i,
   'bmad-ux': /^(?:DESIGN|EXPERIENCE)\.md$/i,
   'bmad-architecture': /^ARCHITECTURE-SPINE\.md$/i,
@@ -187,16 +187,34 @@ const NAMES: Record<string, RegExp> = {
 const FINAL_SKILLS = new Set(['bmad-prd', 'bmad-ux', 'bmad-architecture', 'bmad-create-epics-and-stories']);
 const STORY_STATUSES = new Set(['draft', 'backlog', 'ready-for-dev', 'in-progress', 'review', 'in-review', 'done']);
 const PHASE_LABELS: Record<string, string> = { plan: '規劃與設計', '2-planning': '需求規劃', ship: '實作與交付', anytime: '隨時可用' };
+const WORK_STAGES: Record<string, string> = { draft: '草稿', backlog: '待開始', 'ready-for-dev': '待實作',
+  'in-progress': '進行中', review: '待審查', 'in-review': '審查中', done: '已完成', final: '正式完成', incomplete: '未完成' };
+const BUILD_STAGES: Record<string, string> = { draft: '規劃草稿', 'ready-for-dev': '待實作', 'in-progress': '實作中', 'in-review': 'Build 內建審查中', done: 'Build 已完成' };
+const PRFAQ_STAGES: Record<string, string> = { ignition: '構想釐清', 'press-release': '新聞稿', 'customer-faq': '客戶 FAQ', 'internal-faq': '內部 FAQ', complete: '結論完成' };
+const RETRO_VERDICTS: Record<string, string> = { accepted: '驗收通過', 'accepted-with-open-items': '驗收通過，仍有待辦', rejected: '驗收未通過' };
 
-function artifactState(node: BmadCatalogNode, content: string, fm = frontmatter(content)): Pick<BmadArtifact, 'status' | 'reason' | 'marker' | 'canConfirm'> {
+function buildStage(status: string, route?: unknown): string | undefined {
+  return status === 'in-progress' && route === 'oneshot' ? '實作與內建審查中' : BUILD_STAGES[status] ?? WORK_STAGES[status];
+}
+
+function artifactState(node: BmadCatalogNode, content: string, fm = frontmatter(content)): Pick<BmadArtifact, 'status' | 'reason' | 'marker' | 'canConfirm' | 'nativeStatus' | 'stage'> {
   const raw = fm.status;
   if (raw !== undefined && typeof raw !== 'string') return { status: 'error', reason: 'status 不是字串，無法判讀。', canConfirm: false };
   const status = typeof raw === 'string' ? raw.toLowerCase().trim() : undefined;
-  if (node.skill === 'bmad-build' && status === 'done') return { status: 'complete', reason: 'Build 產物明確標示 done；Story 審查狀態另依正式追蹤來源顯示。', marker: 'status: done', canConfirm: false };
-  if (status === 'final' && FINAL_SKILLS.has(node.skill)) return { status: 'complete', reason: 'BMAD 正式完成標記。', marker: 'status: final', canConfirm: false };
-  if (['draft', 'in-progress', 'incomplete', 'ready-for-dev', 'review', 'in-review', 'backlog'].includes(status ?? '')) return { status: 'draft', reason: `產物明確標示 ${status}。`, marker: `status: ${status}`, canConfirm: false };
-  if (status && !['final', 'done', 'complete', 'completed'].includes(status)) return { status: 'error', reason: `未支援的 status: ${status}；不能自行確認覆寫。`, marker: `status: ${status}`, canConfirm: false };
-  return { status: 'needs-confirmation', reason: '已偵測產物，但沒有此流程可驗證的完成標記。', marker: status ? `status: ${status}` : undefined, canConfirm: true };
+  const native = { nativeStatus: status, stage: status ? node.skill === 'bmad-build' ? buildStage(status, fm.route) : WORK_STAGES[status] : undefined };
+  if (node.skill === 'bmad-prfaq' && status && PRFAQ_STAGES[status]) return { ...native, stage: PRFAQ_STAGES[status],
+    status: status === 'complete' ? 'complete' : 'draft', reason: `PRFAQ 正式狀態：${status}。`, marker: `status: ${status}`, canConfirm: false };
+  if (node.skill === 'bmad-brainstorming' && status === 'complete') return { ...native, stage: '腦力激盪完成', status: 'complete', reason: 'Brainstorm 記錄明確標示 complete。', marker: 'status: complete', canConfirm: false };
+  if (node.skill === 'bmad-retrospective' && fm.verdict !== undefined) {
+    if (typeof fm.verdict !== 'string' || !RETRO_VERDICTS[fm.verdict]) return { ...native, status: 'error', reason: 'Retrospective verdict 無法判讀。', canConfirm: false };
+    if (!status) return { status: 'needs-confirmation', nativeStatus: fm.verdict, stage: RETRO_VERDICTS[fm.verdict],
+      reason: `已記錄回顧結論「${RETRO_VERDICTS[fm.verdict]}」；verdict 不代表回顧流程已完成。`, marker: `verdict: ${fm.verdict}`, canConfirm: true };
+  }
+  if (node.skill === 'bmad-build' && status === 'done') return { ...native, status: 'complete', reason: 'Build 產物明確標示 done；Story 審查狀態另依正式追蹤來源顯示。', marker: 'status: done', canConfirm: false };
+  if (status === 'final' && FINAL_SKILLS.has(node.skill)) return { ...native, status: 'complete', reason: 'BMAD 正式完成標記。', marker: 'status: final', canConfirm: false };
+  if (['draft', 'in-progress', 'incomplete', 'ready-for-dev', 'review', 'in-review', 'backlog'].includes(status ?? '')) return { ...native, status: 'draft', reason: `產物明確標示 ${status}。`, marker: `status: ${status}`, canConfirm: false };
+  if (status && !['final', 'done', 'complete', 'completed'].includes(status)) return { ...native, status: 'error', reason: `未支援的 status: ${status}；不能自行確認覆寫。`, marker: `status: ${status}`, canConfirm: false };
+  return { ...native, status: 'needs-confirmation', reason: '已偵測產物，但沒有此流程可驗證的完成標記。', marker: status ? `status: ${status}` : undefined, canConfirm: true };
 }
 
 function stepStatus(artifacts: BmadArtifact[], node: BmadCatalogNode): { status: BmadProgressStatus; summary: string } {
@@ -272,7 +290,8 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
   const build = snapshot.nodes.find(node => node.skill === 'bmad-build');
   const review = snapshot.nodes.find(node => node.skill === 'bmad-code-review');
   const help = snapshot.nodes.find(node => node.skill === 'bmad-help');
-  const storyNode = (story: BmadStoryProgress): BmadCatalogNode | undefined => story.status === 'conflict' || story.association === 'unconfirmed' || story.association === 'ambiguous' ? help ?? build : ['review', 'in-review'].includes(story.status) ? review ?? build : build;
+  const storyNode = (story: BmadStoryProgress): BmadCatalogNode | undefined => story.status === 'conflict' || story.association === 'unconfirmed' || story.association === 'ambiguous' ? help ?? build
+    : story.mode === 'spec' ? build : ['review', 'in-review'].includes(story.status) ? review ?? build : build;
   for (const story of snapshot.stories.filter(story => story.status !== 'done' && story.status !== 'backlog')) {
     const node = storyNode(story); if (node) snapshot.currentCandidates.push({ stepId: node.id, storyId: story.id, label: story.label, reason: story.reason });
   }
@@ -299,7 +318,10 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
   }
   snapshot.watchDirectories = [...new Set(snapshot.watchDirectories)].sort();
   options.signal?.throwIfAborted();
-  snapshot.revision = hash(JSON.stringify({ ...snapshot, revision: '' }));
+  // Observation time can change without any semantic workflow change. It must
+  // not invalidate a copy or confirmation request pinned to this evidence.
+  snapshot.revision = hash(JSON.stringify({ ...snapshot, revision: '' }, (key, value) => key === 'observedAt' ? undefined : value));
+  snapshot.observedAt = new Date().toISOString();
   return snapshot;
 }
 
@@ -320,6 +342,7 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
     if (/\{[^}]+\}/.test(value)) { reader.diagnostic('output-unresolved', `無法解析輸出路徑：${location}`); return undefined; }
     const target = path.resolve(root, value);
     if (!inside(root, target)) { reader.diagnostic('output-outside-root', '輸出路徑超出目前專案，未掃描。', target); return undefined; }
+    if (target === root) snapshot.watchRootArtifacts = true;
     return target;
   };
   const filesCache = new Map<string, Promise<string[]>>(); let scannedFiles = 0, scannedDirectories = 0;
@@ -340,7 +363,10 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
             if (scannedFiles >= MAX_FILES) { reader.diagnostic('scan-limit', `輸出掃描達 ${MAX_FILES} 個檔案上限。`, current); return; }
             const target = path.join(current, entry.name);
             if (entry.isSymbolicLink()) { reader.diagnostic('unsafe-symlink', '略過符號連結。', target); continue; }
-            if (entry.isDirectory() && current !== root && depth < MAX_DEPTH && !['.git', 'node_modules', '_bmad'].includes(entry.name)) await visit(target, depth + 1);
+            if (entry.isDirectory() && current !== root && !['.git', 'node_modules', '_bmad'].includes(entry.name)) {
+              if (depth < MAX_DEPTH) await visit(target, depth + 1);
+              else reader.diagnostic('scan-depth-limit', `輸出掃描達 ${MAX_DEPTH} 層目錄上限；較深的產物未讀取。`, target);
+            }
             else if (entry.isFile()) { scannedFiles++; if (/\.(?:md|ya?ml)$/i.test(entry.name)) results.push(target); }
           }
         } catch (error) { if (options.signal?.aborted) throw error; if (!missing(error)) reader.diagnostic('scan-failed', (error as Error).message, current); }
@@ -348,14 +374,17 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
       await visit(directory, 0); return results;
     })(); filesCache.set(directory, task); return task;
   };
-  const implementation = resolve('implementation_artifacts'); const specRoot = resolve('{output_folder}/specs');
+  const implementation = resolve('implementation_artifacts'); const specRoot = resolve('{output_folder}/specs'); const planning = resolve('planning_artifacts');
   const storyFiles = new Set<string>();
+  const sprintFiles = new Set<string>();
   const specFolders = new Map<string, { inventory?: string; hasSpec: boolean; records: string[] }>();
   const folderFor = (directory: string) => { let folder = specFolders.get(directory); if (!folder) { folder = { hasSpec: false, records: [] }; specFolders.set(directory, folder); } return folder; };
-  for (const directory of [implementation, specRoot].filter((value): value is string => !!value)) {
+  for (const directory of [...new Set([implementation, specRoot, planning].filter((value): value is string => !!value))]) {
     snapshot.watchDirectories.push(directory);
     for (const file of await scan(directory)) {
-      if (/^sprint-status\.ya?ml$/i.test(path.basename(file))) await readClassicStories(file, reader, snapshot.stories);
+      if (/^sprint-status\.ya?ml$/i.test(path.basename(file))) {
+        if (!sprintFiles.has(file)) { sprintFiles.add(file); await readClassicStories(file, reader, snapshot.stories); }
+      }
       else if (path.basename(file) === 'stories.yaml') folderFor(path.dirname(file)).inventory = file;
       else if (path.basename(file) === 'SPEC.md') folderFor(path.dirname(file)).hasSpec = true;
       else if (path.basename(path.dirname(file)) === 'stories' && /\.md$/i.test(file)) folderFor(path.dirname(path.dirname(file))).records.push(file);
@@ -368,14 +397,13 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
   for (const node of snapshot.nodes) {
     const artifacts: BmadArtifact[] = []; const pattern = NAMES[node.skill];
     if (pattern && !node.action) {
-      let directory: string | undefined;
-      if (node.skill === 'bmad-project-context') directory = root;
-      else if (node.skill === 'bmad-spec') directory = specRoot;
-      else directory = resolve(node.outputLocation || 'planning_artifacts');
-      if (directory) {
-        snapshot.watchDirectories.push(directory);
+      const directories = node.skill === 'bmad-project-context' ? [root] : node.skill === 'bmad-spec' ? [specRoot]
+        : [resolve(node.outputLocation || 'planning_artifacts'), ...(['bmad-architecture', 'bmad-retrospective'].includes(node.skill) ? [specRoot, planning, implementation] : [])];
+      const outputDirectories = [...new Set(directories.filter((value): value is string => !!value))];
+      if (outputDirectories.length) {
+        snapshot.watchDirectories.push(...outputDirectories);
         const matches = node.skill === 'bmad-project-context' ? [path.join(root, 'AGENTS.md')] : [...new Set([
-          ...(await scan(directory)).filter(file => pattern.test(path.basename(file)) && (node.skill !== 'bmad-build' || path.basename(path.dirname(file)) !== 'stories')),
+          ...(await Promise.all(outputDirectories.map(scan))).flat().filter(file => pattern.test(path.basename(file)) && (node.skill !== 'bmad-build' || path.basename(path.dirname(file)) !== 'stories')),
           ...(node.skill === 'bmad-build' ? [...storyFiles] : [])
         ])].sort();
         for (const file of matches) {
@@ -397,7 +425,7 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
           catch (error) { state = { status: 'error', reason: (error as Error).message, canConfirm: false }; reader.diagnostic('artifact-invalid', state.reason, file); }
           const id = hash(`${node.id}\0${path.relative(root, file)}`);
           const confirmed = state.canConfirm && !!options.confirmations?.some(item => item.root === root && item.stepId === node.id && item.artifactId === id && item.fingerprint === data.fingerprint);
-          artifacts.push({ id, path: file, relativePath: path.relative(root, file).split(path.sep).join('/'), fingerprint: data.fingerprint, ...state,
+          artifacts.push({ id, path: file, relativePath: path.relative(root, file).split(path.sep).join('/'), fingerprint: data.fingerprint, observedAt: data.observedAt, ...state,
             ...(confirmed ? { status: 'complete' as const, reason: '使用者已確認這份內容完成；內容變更後需重新確認。' } : {}), confirmed });
         }
       }
@@ -405,16 +433,24 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
     const aggregate = stepStatus(artifacts, node);
     if (node.skill === 'bmad-build' && aggregate.status !== 'error') {
       const inventoryStories = snapshot.stories.filter(story => story.mode === 'spec');
+      const classicStories = snapshot.stories.filter(story => story.mode === 'classic');
       const missingRecords = inventoryStories.filter(story => story.association === 'not-observed').length;
       if (inventoryStories.some(story => story.association === 'ambiguous' || story.status === 'conflict')) {
         aggregate.status = 'conflict'; aggregate.summary = 'Story 歸屬或同一記錄的狀態有衝突；已完成的個別 Build 證據仍保留。';
-      } else if (inventoryStories.some(story => story.status === 'error')) {
-        aggregate.status = 'error'; aggregate.summary = '部分 inventory Story 的正式進度無法判讀；已完成的個別 Build 證據仍保留。';
+      } else if (snapshot.stories.some(story => story.status === 'error') || snapshot.diagnostics.some(item => item.code === 'sprint-invalid' || item.code === 'read-failed' && sprintFiles.has(item.path ?? ''))) {
+        aggregate.status = 'error'; aggregate.summary = '部分 Story 的正式進度無法判讀；已完成的個別 Build 證據仍保留。';
       } else if (missingRecords) {
         aggregate.status = artifacts.length ? 'draft' : 'not-observed';
         aggregate.summary = `已完成 ${artifacts.filter(artifact => artifact.status === 'complete').length} 份 Build 記錄；尚有 ${missingRecords} 個 inventory Story 沒有執行記錄，不能宣告整體完成。`;
       } else if (inventoryStories.some(story => story.association === 'unconfirmed') && aggregate.status !== 'draft') {
         aggregate.status = 'needs-confirmation'; aggregate.summary = '有可讀記錄，但部分 Story 的 inventory 歸屬未確認；不宣告整體完成。';
+      }
+      const pendingClassic = classicStories.filter(story => story.status !== 'done');
+      if (!['error', 'conflict'].includes(aggregate.status) && pendingClassic.length) {
+        if (aggregate.status !== 'needs-confirmation') aggregate.status = artifacts.length || pendingClassic.some(story => story.status !== 'backlog') ? 'draft' : 'not-observed';
+        aggregate.summary += ` Sprint 仍有 ${pendingClassic.length}/${classicStories.length} 個 Story 未完成；個別 Build 完成不代表整體交付完成。`;
+      } else if (aggregate.status === 'not-observed' && classicStories.length && !inventoryStories.length) {
+        aggregate.status = 'complete'; aggregate.summary = `Sprint 正式記錄的 ${classicStories.length} 個 Story 均為 done；未偵測到個別 Build 產物。`;
       }
     }
     snapshot.steps.push({ id: node.id, artifacts, ...aggregate });
@@ -427,9 +463,17 @@ async function readClassicStories(file: string, reader: Reader, stories: BmadSto
     const entries = object(object(reader.value(data)).development_status);
     if (!Object.keys(entries).length) throw new Error('Sprint 追蹤檔沒有 development_status。');
     for (const [id, status] of Object.entries(entries)) {
-      if (/^epic-\d+(?:-retrospective)?$/.test(id)) continue;
-      if (typeof status !== 'string' || !STORY_STATUSES.has(status)) { reader.diagnostic('story-status-invalid', `無效 Story 狀態：${id}`, file); continue; }
-      stories.push({ id: `${file}#${id}`, label: id, mode: 'classic', path: file, status, reason: `Sprint 正式記錄：${status}。` });
+      if (/^epic-\d+(?:-retrospective)?$/.test(id)) {
+        if (typeof status !== 'string' || !STORY_STATUSES.has(status) && status !== 'optional') reader.diagnostic('sprint-invalid', `無效 Epic 或 Retrospective 狀態：${id}`, file);
+        continue;
+      }
+      if (typeof status !== 'string' || !STORY_STATUSES.has(status)) {
+        reader.diagnostic('story-status-invalid', `無效 Story 狀態：${id}`, file);
+        stories.push({ id: `${file}#${id}`, label: id, mode: 'classic', path: file, status: 'error', observedAt: data.observedAt,
+          nativeStatus: typeof status === 'string' ? status : undefined, reason: 'Sprint Story 的正式狀態無法判讀。' });
+        continue;
+      }
+      stories.push({ id: `${file}#${id}`, label: id, mode: 'classic', path: file, status, nativeStatus: status, stage: WORK_STAGES[status], observedAt: data.observedAt, reason: `Sprint 正式記錄：${status}。` });
     }
   } catch (error) { reader.diagnostic('sprint-invalid', (error as Error).message, file); }
 }
@@ -455,9 +499,10 @@ function parseStoryInventory(content: string, value = yamlValue(content)): Story
 
 async function readSpecInventory(inventory: string | undefined, records: string[], reader: Reader, stories: BmadStoryProgress[]): Promise<string[]> {
   let entries: StoryInventoryEntry[] | undefined;
+  let inventoryObservedAt: string | undefined;
   if (inventory) {
     const data = await reader.read(inventory);
-    if (data) { try { entries = parseStoryInventory(data.content, reader.value(data)); } catch (error) { reader.diagnostic('story-inventory-invalid', (error as Error).message, inventory); } }
+    if (data) { inventoryObservedAt = data.observedAt; try { entries = parseStoryInventory(data.content, reader.value(data)); } catch (error) { reader.diagnostic('story-inventory-invalid', (error as Error).message, inventory); } }
   }
   const parsed = new Map<string, BmadStoryProgress | undefined>();
   const record = async (file: string): Promise<BmadStoryProgress | undefined> => {
@@ -471,7 +516,7 @@ async function readSpecInventory(inventory: string | undefined, records: string[
     for (const file of matches) consumed.add(file);
     if (!matches.length) {
       stories.push({ id, label: entry.title, mode: 'spec', path: inventory!, inventoryPath: inventory,
-        association: 'not-observed', status: 'backlog', reason: `Inventory 列出 Story ${entry.id}；尚未偵測到 stories/${entry.id}-*.md build record，inventory 本身沒有進度。` });
+        association: 'not-observed', status: 'backlog', stage: '待開始', observedAt: inventoryObservedAt, reason: `Inventory 列出 Story ${entry.id}；尚未偵測到 stories/${entry.id}-*.md build record，inventory 本身沒有進度。` });
     } else if (matches.length > 1) {
       const markers: string[] = [];
       for (const file of matches) { const row = await record(file); markers.push(`${path.basename(file)} (${row?.status ?? '無法判讀'})`); reader.diagnostic('story-record-ambiguous', `Story ${entry.id} 有多個匹配的 build record，未自動選取。`, file); }
@@ -505,10 +550,10 @@ async function readSpecStory(file: string, reader: Reader, stories: BmadStoryPro
     const bodyStatus = section?.[1].toLowerCase();
     if (bodyStatus && STORY_STATUSES.has(bodyStatus) && typeof status === 'string' && STORY_STATUSES.has(status) && bodyStatus !== status) {
       reader.diagnostic('story-status-conflict', 'Story frontmatter 與 Status 區段不一致；請由 BMAD 核對。', file);
-      stories.push({ id: file, label: typeof fm.title === 'string' ? fm.title : path.basename(file, '.md'), mode: 'spec', path: file, status: 'conflict', reason: `同一 Story 的狀態不同：frontmatter=${status}，Status=${bodyStatus}。` });
+      stories.push({ id: file, label: typeof fm.title === 'string' ? fm.title : path.basename(file, '.md'), mode: 'spec', path: file, status: 'conflict', nativeStatus: status, observedAt: data.observedAt, reason: `同一 Story 的狀態不同：frontmatter=${status}，Status=${bodyStatus}。` });
       return;
     }
     if (typeof status !== 'string' || !STORY_STATUSES.has(status)) { reader.diagnostic('story-status-invalid', 'Story frontmatter 沒有可識別的狀態。', file); return; }
-    stories.push({ id: file, label: typeof fm.title === 'string' ? fm.title : path.basename(file, '.md'), mode: 'spec', path: file, status, reason: `Story 正式記錄：${status}。` });
+    stories.push({ id: file, label: typeof fm.title === 'string' ? fm.title : path.basename(file, '.md'), mode: 'spec', path: file, status, nativeStatus: status, stage: buildStage(status, fm.route), observedAt: data.observedAt, reason: `Story 正式記錄：${status}。` });
   } catch (error) { reader.diagnostic('story-invalid', (error as Error).message, file); }
 }
