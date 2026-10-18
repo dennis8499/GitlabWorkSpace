@@ -115,7 +115,7 @@ export class BmadWorkflowController implements Disposable {
       // only after discovery confirms their directories have been created.
       const directories = await this.existingDirectories(snapshot.watchDirectories, snapshot.root);
       if (!this.current(generation)) return;
-      const newBindings = this.watchers.size > 0 && directories.some(directory => !this.watchers.has(directory));
+      const newBindings = directories.some(directory => !this.watchers.has(directory));
       const lastSuccessfulAt = this.value?.observation.lastSuccessfulAt;
       const readFailure = snapshot.observation.state === 'error' ? snapshot.observation.error ?? 'BMAD 文件無法完整讀取。' : undefined;
       const watchFailure = this.attachWatchers(directories, !!readFailure);

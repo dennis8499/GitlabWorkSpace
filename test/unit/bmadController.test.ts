@@ -66,7 +66,7 @@ test('output discovery retains common native watches and adds replacements befor
   assert.equal(f.watchers.every(watcher => watcher.disposed), true);
 });
 
-test('recursive root events refresh only observed targets, their missing ancestors, and root AGENTS.md', async () => {
+test('root events refresh only observed targets, their missing ancestors, and root AGENTS.md', async () => {
   const root = path.resolve('/project');
   const output = path.join(root, 'custom', 'deep', 'output');
   let reads = 0;
@@ -74,24 +74,26 @@ test('recursive root events refresh only observed targets, their missing ancesto
   try {
     f.controller.setContext(root, 'project', true);
     await f.controller.refresh();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const settledReads = reads;
     const rootWatcher = f.watchers[0];
     rootWatcher.changed(path.resolve('/another-project/custom/deep/output/prd.md'));
     rootWatcher.changed(path.join(root, 'src', 'unrelated.ts'));
     rootWatcher.changed(path.join(root, 'README.md'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 1, 'Unrelated trees and other roots must not schedule reads');
+    assert.equal(reads, settledReads, 'Unrelated trees and other roots must not schedule reads');
     rootWatcher.changed(path.join(root, 'custom'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 2, 'Creating an ancestor of a configured missing output must refresh discovery');
+    assert.equal(reads, settledReads + 1, 'Creating an ancestor of a configured missing output must refresh discovery');
     rootWatcher.changed(path.join(output, 'prd.md'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 3, 'A descendant artifact must refresh through the stable recursive root registration');
+    assert.equal(reads, settledReads + 2, 'A descendant artifact must refresh through its observation callback');
     rootWatcher.changed(path.join(root, 'AGENTS.md'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 4, 'Root agent instructions are part of the BMAD observation');
+    assert.equal(reads, settledReads + 3, 'Root agent instructions are part of the BMAD observation');
     rootWatcher.changed();
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 5, 'Watch adapters without a path remain supported');
+    assert.equal(reads, settledReads + 4, 'Watch adapters without a path remain supported');
   } finally { f.controller.dispose(); }
 });
 
@@ -103,22 +105,24 @@ test('configured root outputs observe direct Markdown and YAML artifacts without
   try {
     f.controller.setContext(root, 'project', true);
     await f.controller.refresh();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const settledReads = reads;
     const watcher = f.watchers[0];
     watcher.changed(path.join(root, 'src', 'unrelated.md'));
     watcher.changed(path.join(root, 'source.ts'));
     watcher.changed(path.resolve('/another-project/prd.md'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 1, 'Root outputs do not enable unrelated descendant or source-file events');
+    assert.equal(reads, settledReads, 'Root outputs do not enable unrelated descendant or source-file events');
     for (const filename of ['prd.md', 'sprint-status.yaml', 'stories.yml']) {
       watcher.changed(path.join(root, filename));
       await new Promise(resolve => setTimeout(resolve, 220));
     }
-    assert.equal(reads, 4, 'Each supported root artifact extension must invalidate the snapshot');
+    assert.equal(reads, settledReads + 3, 'Each supported root artifact extension must invalidate the snapshot');
     watchRootArtifacts = false;
     await f.controller.refresh();
     watcher.changed(path.join(root, 'prd.md'));
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 5, 'Discovery-only root registrations must still ignore unrelated Markdown');
+    assert.equal(reads, settledReads + 4, 'Discovery-only root registrations must still ignore unrelated Markdown');
   } finally { f.controller.dispose(); }
 });
 
@@ -142,9 +146,11 @@ test('showing a hidden view rereads uncached files and ignores callbacks from it
     await f.controller.refresh();
     assert.deepEqual(seen, ['before hiding', 'changed while hidden']);
     assert.equal(disposedWatcher.disposed, true);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const settledReads = reads;
     disposedWatcher.changed();
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 2, 'A disposed native watch callback cannot schedule a read after reopening');
+    assert.equal(reads, settledReads, 'A disposed native watch callback cannot schedule a read after reopening');
     assert.equal(f.watchers.length, 2, 'Reopening must attach a fresh observer');
   } finally { f.controller.dispose(); }
 });
@@ -319,6 +325,28 @@ test('new directories catch changes during native registration and stop after se
     assert.equal(reads, 4);
     await new Promise(resolve => setTimeout(resolve, 220));
     assert.equal(reads, 4, 'The catch-up must stop after the new bindings settle');
+  } finally { f.controller.dispose(); }
+});
+
+test('initial registrations catch an installation missed before native readiness and then become idle', async () => {
+  const root = path.resolve('/project');
+  let installed = false, reads = 0;
+  const f = fixture(async () => { reads++; return snapshot(root, installed ? 'installed' : 'missing'); });
+  try {
+    f.controller.setContext(root, 'project', true);
+    await f.controller.refresh();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(reads, 2);
+    installed = true; // The native adapter has not started delivering events yet.
+    const started = Date.now();
+    while (f.controller.snapshot?.revision !== 'installed' && Date.now() - started < 1000) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(f.controller.snapshot?.revision, 'installed');
+    assert.ok(Date.now() - started < 1000);
+    assert.equal(reads, 3);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.equal(reads, 3, 'Initial registration must not leave an idle polling loop');
   } finally { f.controller.dispose(); }
 });
 
