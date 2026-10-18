@@ -24,7 +24,7 @@ suite('Local workflow kit installation', () => {
     }
   });
 
-  test('installs real bundled Skills and follows shared root changes for offline Skills', async function () {
+  test('installs the four bundled Skills without BMAD and follows offline shared root changes', async function () {
     this.timeout(120_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
@@ -62,9 +62,8 @@ suite('Local workflow kit installation', () => {
       const packageJSON = JSON.parse(await readFile(path.join(extensionRoot, 'package.json'), 'utf8'));
       const kitIndex = JSON.parse(await readFile(path.join(extensionRoot, 'resources/offline-tools/manifest.json'), 'utf8'));
       const expectedSkills = [...kitIndex.skills].sort();
-      assert.ok(expectedSkills.includes('output-style'));
-      assert.ok(expectedSkills.includes('bmad-help'));
-      assert.ok(expectedSkills.includes('bmad-build'));
+      assert.deepEqual(expectedSkills, ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']);
+      assert.equal(Object.hasOwn(kitIndex.upstream, 'bmad-method'), false, 'BMAD is installed independently through its official CLI');
       const archivePath = path.join(extensionRoot, 'resources/offline-tools/workflow-kit.tar.xz');
       const selected = { id: 'bundled', archivePath, version: packageJSON.version, source: 'bundled',
         format: 'tar.xz', entryRoot: 'workflow-kit', sha256: createHash('sha256').update(await readFile(archivePath)).digest('hex') };
@@ -103,7 +102,7 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
+      assert.equal((await readdir(root)).includes('_bmad'), false, 'The workflow kit cannot initialize BMAD');
       const skills = host.getSkillsContext();
       assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
       for (const profile of ['group', 'repository']) {
@@ -118,6 +117,7 @@ suite('Local workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
         assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(), expectedSkills);
+        assert.equal((await readdir(externalRoot)).includes('_bmad'), false, 'Neither profile installs the BMAD runtime');
         assert.equal(host.getSkillsContext().root, externalRoot);
         assert.equal(host.getSkillsContext().installed.profile, profile);
         assert.notEqual(host.getSkillsContext().revision, skills.revision);

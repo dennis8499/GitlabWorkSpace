@@ -5,26 +5,25 @@ import { BmadWorkflowController } from '../../src/workspace/bmadWorkflowControll
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 function snapshot(root = '/project', revision = 'one'): BmadWorkflowSnapshot {
-  return { root, revision, version: '6.12.4', installation: { state: 'ready', reason: 'Ready' }, catalogSource: 'installed',
+  return { root, revision, version: '6.12.4', guidanceVersion: '6.12.4', compatibility: 'verified',
+    codex: { state: 'ready', skills: ['bmad-help', 'bmad-product-brief'], reason: 'Ready' }, observation: { state: 'paused' }, installation: { state: 'ready', reason: 'Ready' }, catalogSource: 'installed',
     nodes: [{ id: 'brief', module: 'BMad Method', skill: 'bmad-product-brief', displayName: 'Brief', menuCode: 'CB', description: '',
       action: '', args: '-A', phase: 'plan', required: false, precededBy: [], followedBy: [], outputLocation: '', outputs: [] }],
     phases: [], edges: [], stories: [], currentCandidates: [], recommendations: [], diagnostics: [], watchDirectories: [root],
     steps: [{ id: 'brief', status: 'needs-confirmation', summary: '', artifacts: [{ id: 'file', path: root + '/brief.md', relativePath: 'brief.md',
-      fingerprint: 'a'.repeat(64), status: 'needs-confirmation', reason: 'Unknown', canConfirm: true, confirmed: false }] }] };
+      fingerprint: 'a'.repeat(64), status: 'needs-confirmation', reason: 'Unknown' }] }] };
 }
 function fixture(reader: (options: any) => Promise<BmadWorkflowSnapshot>) {
-  const data = new Map<string, unknown>();
+  const errors: string[] = [];
   const watchers: Array<{ directory: string; changed(filename?: string): void; disposed: boolean }> = [];
   const watchOrder: string[] = [];
   let changes = 0;
   const controller = new BmadWorkflowController({
-    store: { get: <T>(key: string, fallback: T): T => data.has(key) ? data.get(key) as T : fallback,
-      update: async (key, value) => { data.set(key, value); } },
     bundledCatalog: async () => 'catalog', read: reader,
     watch: (directory, changed) => { const watcher = { directory, changed, disposed: false }; watchers.push(watcher); watchOrder.push(`add:${directory}`); return { dispose: () => { watcher.disposed = true; watchOrder.push(`remove:${directory}`); } }; },
-    changed: () => changes++, error: message => assert.fail(message)
+    changed: () => changes++, error: message => errors.push(message)
   });
-  return { controller, data, watchers, watchOrder, changes: () => changes };
+  return { controller, errors, watchers, watchOrder, changes: () => changes };
 }
 
 test('BMAD watcher coalesces changes and is disposed while hidden or after shutdown', async () => {
@@ -194,29 +193,112 @@ test('snapshot validation rejects a filesystem event during its read instead of 
     finish(snapshot('/project', 'two'));
     await rejected;
     assert.equal(f.controller.snapshot?.revision, 'one', 'The obsolete read was discarded; its cached predecessor must not authorize an action');
-    assert.equal(f.changes(), 1, 'An invalidated read must not publish');
+    assert.equal(f.changes(), 2, 'Only refreshing state may publish before an invalidated read is discarded');
   } finally { f.controller.dispose(); }
 });
 
-test('manual completion is persisted with evidence and rejects stale or explicit draft state', async () => {
+test('failed refresh preserves last evidence, reports observation error and recovers on the next file event', async () => {
+  let fail = false;
+  const f = fixture(async () => { if (fail) throw new Error('Temporary read failure'); return snapshot(); });
+  try {
+    f.controller.setContext('/project', 'project', true);
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.observation.state, 'watching');
+    const lastSuccessfulAt = f.controller.snapshot?.observation.lastSuccessfulAt;
+    fail = true;
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.revision, 'one');
+    assert.equal(f.controller.snapshot?.steps[0].artifacts[0].status, 'needs-confirmation');
+    assert.equal(f.controller.snapshot?.observation.state, 'error');
+    assert.equal(f.controller.snapshot?.observation.lastSuccessfulAt, lastSuccessfulAt);
+    assert.match(f.controller.snapshot?.observation.error ?? '', /Temporary/);
+    await assert.rejects(f.controller.requireSnapshot('one'), /尚未恢復/);
+    fail = false;
+    f.watchers[0].changed();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(f.controller.snapshot?.observation.state, 'watching');
+    assert.equal(f.controller.snapshot?.observation.error, undefined);
+    assert.equal((await f.controller.requireSnapshot('one')).revision, 'one');
+    f.controller.setContext('/project', 'project', false);
+    assert.equal(f.controller.snapshot?.observation.state, 'paused');
+  } finally { f.controller.dispose(); }
+});
+
+test('initial reader failure retains an installation observer and can recover without changing project', async () => {
+  let fail = true;
+  const f = fixture(async () => { if (fail) throw new Error('Initial read failure'); return snapshot(); });
+  try {
+    f.controller.setContext('/project', 'project', true);
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.observation.state, 'error');
+    assert.equal(f.controller.snapshot?.observation.lastSuccessfulAt, undefined);
+    assert.ok(f.watchers.length > 0);
+    fail = false;
+    f.watchers[0].changed();
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(f.controller.snapshot?.observation.state, 'watching');
+  } finally { f.controller.dispose(); }
+});
+
+test('initial failure fallback revisions are bound to the selected root and remain stable while retrying', async () => {
+  const f = fixture(async () => { throw new Error('Read unavailable'); });
+  try {
+    f.controller.setContext('/first', 'first-project', true);
+    await f.controller.refresh();
+    const first = f.controller.snapshot!;
+    assert.equal(first.root, '/first');
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.revision, first.revision, 'Recovery guidance stays copyable across retries');
+    f.controller.setContext('/second', 'second-project', true);
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.root, '/second');
+    assert.notEqual(f.controller.snapshot?.revision, first.revision, 'An old root cannot authorize a terminal in the new root');
+    f.controller.setContext(undefined, undefined, true);
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.root, undefined, 'A failed uninitialized context cannot invent a terminal cwd');
+    assert.notEqual(f.controller.snapshot?.revision, first.revision);
+  } finally { f.controller.dispose(); }
+});
+
+test('watch registration failure stays visible, preserves existing coverage and retries', async () => {
+  let fail = false;
   let value = snapshot();
-  const f = fixture(async ({ confirmations }) => {
-    const found = confirmations?.some((item: any) => item.fingerprint === value.steps[0].artifacts[0].fingerprint);
-    return { ...value, steps: value.steps.map(step => ({ ...step, artifacts: step.artifacts.map(artifact => ({ ...artifact, confirmed: !!found })) })) };
+  const watched = new Map<string, boolean>();
+  const controller = new BmadWorkflowController({
+    bundledCatalog: async () => 'catalog', read: async () => value,
+    watch: directory => {
+      if (fail && directory.endsWith('new-output')) throw new Error('Watcher unavailable');
+      watched.set(directory, true);
+      return { dispose: () => { watched.set(directory, false); } };
+    }, changed: () => undefined, error: () => undefined
   });
-  f.controller.setContext('/project', 'project', true);
-  await f.controller.refresh();
-  await f.controller.confirm({ revision: 'one', stepId: 'brief', artifactId: 'file' });
-  const stored = [...f.data.values()][0] as any[];
-  assert.equal(stored.length, 1);
-  assert.equal(stored[0].root, '/project');
-  assert.equal(stored[0].fingerprint, 'a'.repeat(64));
-  await f.controller.confirm({ revision: 'one', stepId: 'brief', artifactId: 'file' }, true);
-  assert.deepEqual([...f.data.values()][0], []);
-  value = { ...value, revision: 'two' };
-  await assert.rejects(f.controller.confirm({ revision: 'one', stepId: 'brief', artifactId: 'file' }), /已變更/);
-  value.steps[0].artifacts[0].canConfirm = false;
-  value.steps[0].artifacts[0].status = 'draft';
-  await assert.rejects(f.controller.confirm({ revision: 'two', stepId: 'brief', artifactId: 'file' }), /確認|完成/);
-  f.controller.dispose();
+  try {
+    controller.setContext('/project', 'project', true);
+    await controller.refresh();
+    value = { ...snapshot(), watchDirectories: ['/project/new-output'] };
+    fail = true;
+    await controller.refresh();
+    assert.equal(controller.snapshot?.observation.state, 'error');
+    assert.equal(watched.get('/project'), true, 'A failed replacement must retain the prior discovery watch');
+    fail = false;
+    await controller.refresh();
+    assert.equal(controller.snapshot?.observation.state, 'watching');
+    assert.equal(watched.get('/project/new-output'), true);
+    assert.equal(watched.get('/project'), false);
+  } finally { controller.dispose(); }
+});
+
+test('read failure retains progress but publishes current installation diagnostics', async () => {
+  let value = snapshot();
+  const f = fixture(async () => value);
+  try {
+    f.controller.setContext('/project', 'project', true);
+    await f.controller.refresh();
+    value = { ...snapshot(), installation: { state: 'error', reason: 'Manifest cannot be read' },
+      observation: { state: 'error', error: 'Read failed' }, steps: [], diagnostics: [{ code: 'read-failed', message: 'Read failed' }] };
+    await f.controller.refresh();
+    assert.equal(f.controller.snapshot?.installation.state, 'error');
+    assert.equal(f.controller.snapshot?.steps.length, 1);
+    assert.equal(f.controller.snapshot?.observation.state, 'error');
+  } finally { f.controller.dispose(); }
 });

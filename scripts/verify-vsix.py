@@ -25,15 +25,16 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def verify_bmad_runtime(archive: zipfile.ZipFile) -> None:
+def verify_bmad_parsers(archive: zipfile.ZipFile) -> None:
     """Resolve parsers from the delivered extension, independently of this checkout."""
     prefixes = ('extension/node_modules/yaml/', 'extension/node_modules/@iarna/toml/')
     reader = 'extension/out/src/workspace/bmadWorkflow.js'
+    guide = 'extension/out/src/workspace/bmadGuide.js'
     catalog = 'extension/resources/bmad/bmad-help.csv'
     with tempfile.TemporaryDirectory(prefix='gitlab-workspace-bmad-vsix-') as temporary:
         root = Path(temporary)
         for name in archive.namelist():
-            if name.endswith('/') or not (name.startswith(prefixes) or name in (reader, catalog)):
+            if name.endswith('/') or not (name.startswith(prefixes) or name in (reader, guide, catalog)):
                 continue
             parts = name.split('/')
             if any(part in ('', '.', '..') or '\\' in part for part in parts):
@@ -132,14 +133,16 @@ def verify_offline_bundle(archive: zipfile.ZipFile, members: set[str], installer
        manifest.get("payloadFiles") != len(zip_payload["group"]) or tar_payload != zip_payload or \
        any(zip_payload[name] != zip_manifest.get("profiles", {}).get(name, {}).get("files") for name in ("group", "repository")):
         raise ValueError("Embedded TAR.XZ and release ZIP do not contain the same valid Group and native Repo payloads")
-    if set(manifest.get("skills", [])) != installer.managed_skills() or 'bmad-build' not in manifest['skills']:
-        raise ValueError("Workflow kit must include the reviewed BMAD, Wiki, Reviewers and Output Style skills")
+    if set(manifest.get("skills", [])) != installer.managed_skills():
+        raise ValueError("Workflow kit must include the reviewed Wiki, Reviewers and Output Style skills")
     for name in ('bmad-help.csv', 'source.json'):
         resource = 'extension/resources/bmad/' + name
         if resource not in members or archive.read(resource) != (ROOT / 'resources/bmad' / name).read_bytes():
             raise ValueError('VSIX is missing its pinned BMAD catalog resource: ' + name)
-    if 'bmad-workflow' not in zip_manifest.get('capabilities', []):
-        raise ValueError('BMAD workflow capability is missing')
+    if 'bmad-method' in zip_manifest['upstream'] or any(installer.external_bmad_path(name) for profile in zip_payload.values() for name in profile):
+        raise ValueError('Workflow kit must leave BMAD installation to the user CLI')
+    if any('bmad-method-' in name or '/_bmad/' in name or '/skills/bmad-' in name for name in members):
+        raise ValueError('VSIX contains a BMAD runtime, Skill or installer archive')
     return {archive_name, manifest_name}, manifest
 
 
@@ -195,7 +198,7 @@ def main() -> int:
             if any(name.startswith("extension/resources/issue-webview/issue-test.") for name in members):
                 raise ValueError("VSIX contains the Issue behavior test fixture")
             _, kit_manifest = verify_offline_bundle(archive, members, installer)
-            verify_bmad_runtime(archive)
+            verify_bmad_parsers(archive)
             entries = {entry.filename: entry for entry in archive.infolist()}
             for entry in entries.values():
                 if entry.compress_type == zipfile.ZIP_DEFLATED and entry.compress_size >= entry.file_size:

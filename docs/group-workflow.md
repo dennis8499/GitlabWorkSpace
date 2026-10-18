@@ -4,6 +4,8 @@ GitLab Workspace 工作流程包包含 Codebase LLM Wiki、MergeReviewer、Relea
 與 Output Style 四個 Skills。Group 和 repository profile 均提供十四項指引功能，
 預設為「查詢 Wiki」。所有安裝、更新及來源檢查以整包為單位；VSIX 內附離線包。
 
+BMAD 由使用者另行透過官方 CLI 安裝。工作台的 BMAD 頁面提供 Codex 教學、能力選擇與已儲存文件的即時進度；不需要安裝此工作流程包，操作見[使用指南](user-guide.md#bmad-教學能力與進度)。
+
 ## 安裝與升級
 
 下載、Skills 與 Codex 共用設定中的專案根目錄。Group profile 使用非 Git 根目錄與
@@ -20,7 +22,7 @@ GitLab Workspace 工作流程包包含 Codebase LLM Wiki、MergeReviewer、Relea
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.25.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.27.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。
@@ -32,6 +34,12 @@ python -X utf8 -B resources/workflow-kit-installer.py rollback <Group> <transact
 ```
 
 回復前核對交易身分、安裝紀錄、全部受管理路徑與備份 bytes。安裝後修改、備份缺漏、變造或越界均阻擋回復並保留資料；成功回復的交易不可重用。
+
+### 0.26.0 BMAD 移轉
+
+升級到 0.27.0 時，舊包的 `_bmad/` 與 `.agents/skills/bmad-*` 保持原地，改由使用者管理。BMAD 的本機修改不阻擋其他套件更新；新版安裝器在更新、移除、復原與 rollback 時均排除這些路徑。使用官方 CLI 更新 BMAD 後，再以新版安裝器 rollback 或重新升級仍會保留更新後內容。
+
+回復舊套件紀錄亦不會重新接管 BMAD。此契約由新版安裝器執行；若直接使用舊版安裝器，其舊有摘要驗證仍可能因 BMAD 已更新而停止。若偵測到含 BMAD 操作的舊未完成交易，安裝器會先停止並提供復原說明，避免混用交易規則。
 
 ## Wiki 與分析
 

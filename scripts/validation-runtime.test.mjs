@@ -22,9 +22,9 @@ test('prepared execution rejects source drift, missing output, and an unprepared
   await writeFile(path.join(root, 'resources/bmad/bmad-help.csv'), 'changed catalog');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, 'resources/bmad/bmad-help.csv'));
-  await writeFile(path.join(root, 'resources/offline-tools/bmad-source.json'), 'changed source metadata');
+  await writeFile(path.join(root, 'resources/bmad/source.json'), 'changed teaching metadata');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
-  await writeFile(path.join(root, 'resources/offline-tools/bmad-source.json'), 'input');
+  await rm(path.join(root, 'resources/bmad/source.json'));
   await writeFile(path.join(root, 'docs/new-guide.md'), 'new packaged guide');
   await assert.rejects(assertPrepared(root, ['compile']), /changed/);
   await rm(path.join(root, 'docs/new-guide.md'));

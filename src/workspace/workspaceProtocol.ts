@@ -12,7 +12,8 @@ import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
-import type { BmadPromptInputs, BmadWorkflowSnapshot } from './bmadProtocol';
+import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
+import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 
 export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git' | 'admin';
 export type AnalysisIntent = 'requirements' | 'audit';
@@ -150,6 +151,7 @@ export interface WorkflowKitPackageSummary {
 
 export interface WorkspaceSnapshot {
   bmad?: BmadWorkflowSnapshot;
+  bmadEnvironment?: BmadEnvironmentCheck;
   notifications?: NotificationSnapshot;
   projectOperationBusy?: boolean;
   operationScope?: string;
@@ -277,10 +279,9 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'resetCloneRoot' }
   | { type: 'openCodexTerminal'; revision: string }
   | { type: 'refreshBmad' }
-  | { type: 'copyBmadPrompt'; revision: string; stepId: string; inputs: BmadPromptInputs }
+  | ({ type: 'copyBmadCommand' } & { [Key in keyof BmadCommandRequest]: BmadCommandRequest[Key] })
+  | { type: 'openBmadTerminal'; revision: string }
   | { type: 'openBmadArtifact'; revision: string; stepId: string; path: string }
-  | { type: 'confirmBmadArtifact'; revision: string; stepId: string; artifactId: string }
-  | { type: 'revokeBmadConfirmation'; revision: string; stepId: string; artifactId: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
   | { type: 'cloneSelection'; requestId: string; scopeKey?: string; projectIds: number[] }
   | { type: 'syncRepos' }

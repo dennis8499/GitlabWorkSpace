@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { BmadReadCache, createBmadConfirmation, parseBmadCatalog, readBmadWorkflow, revokeBmadConfirmation } from '../../src/workspace/bmadWorkflow';
+import { BmadReadCache, parseBmadCatalog, readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 const HEADER = 'module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs';
@@ -43,6 +43,10 @@ async function fixture(run: (root: string, write: (relative: string, content: st
   try {
     await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 6.12.4\nmodules:\n  - name: bmm\n');
     await write('_bmad/_config/bmad-help.csv', CATALOG);
+    await write('_bmad/config.toml', '[core]\noutput_folder = \"_bmad-output\"\n');
+    await write('_bmad/scripts/resolve_config.py', '# Official resolver fixture');
+    await write('_bmad/scripts/render_skill.py', '# Official renderer fixture');
+    for (const skill of new Set(['bmad-help', ...parseBmadCatalog(CATALOG).map(node => node.skill)])) await write(`.agents/skills/${skill}/SKILL.md`, `# ${skill}`);
     await run(root, write);
   } finally {
     assert.ok(root.startsWith(path.join(os.tmpdir(), 'bmad-test-')));
@@ -87,14 +91,133 @@ test('catalog supports RFC quoting, action identities, soft edges and future pha
   assert.equal(snapshot.currentCandidates.length, 0);
 });
 
-test('absent and unsupported installations still expose the complete bundled catalog', async () => {
+test('absent and unsupported installations still expose the complete guidance catalog', async () => {
   await fixture(async (root, write) => {
     await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 7.0.0\n');
     await write('_bmad-output/planning-artifacts/prd.md', md('final'));
     const snapshot = await read(root);
     assert.equal(snapshot.installation.state, 'unsupported');
-    assert.equal(snapshot.catalogSource, 'bundled');
+    assert.equal(snapshot.catalogSource, 'guidance');
     assert.equal(step(snapshot, 'bmad-prd').status, 'not-observed');
+  });
+});
+
+test('external CLI installation is detected without Workflow Kit and validates actual Codex skills', async () => {
+  await fixture(async (root, write) => {
+    let snapshot = await read(root);
+    assert.equal(snapshot.guidanceVersion, '6.12.4');
+    assert.equal(snapshot.compatibility, 'verified');
+    assert.equal(snapshot.installation.state, 'ready');
+    assert.equal(snapshot.catalogSource, 'installed');
+    assert.equal(snapshot.codex.state, 'ready');
+    await assert.rejects(fs.access(path.join(root, '.agents/gitlab-workspace-kit')));
+    await write('_bmad-output/planning-artifacts/prd.md', md('final'));
+    await fs.unlink(path.join(root, '.agents/skills/bmad-build/SKILL.md'));
+    snapshot = await read(root);
+    assert.equal(snapshot.installation.state, 'ready');
+    assert.equal(snapshot.codex.state, 'partial');
+    assert.equal(snapshot.codex.skills.includes('bmad-build'), false);
+    assert.equal(snapshot.codex.skills.includes('bmad-prd'), true);
+    assert.equal(step(snapshot, 'bmad-prd').status, 'complete', 'A missing Codex skill does not erase native progress');
+    await write('.agents/skills/bmad-build/SKILL.md', '# Restored by external installer');
+    assert.equal((await read(root)).codex.state, 'ready');
+    await fs.unlink(path.join(root, '_bmad/scripts/render_skill.py'));
+    snapshot = await read(root);
+    assert.equal(snapshot.installation.state, 'partial');
+    assert.equal(step(snapshot, 'bmad-prd').status, 'not-observed');
+  });
+});
+
+test('missing, interrupted, malformed and restored installation states remain distinct', async () => {
+  await fixture(async (root, write) => {
+    await fs.unlink(path.join(root, '_bmad/_config/manifest.yaml'));
+    assert.equal((await read(root)).installation.state, 'partial');
+    await write('_bmad/_config/manifest.yaml', 'installation:\n  version: [half-written\n');
+    assert.equal((await read(root)).installation.state, 'error');
+    await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 6.12.4\n');
+    await fs.unlink(path.join(root, '_bmad/_config/bmad-help.csv'));
+    assert.equal((await read(root)).installation.state, 'partial');
+    await write('_bmad/_config/bmad-help.csv', 'broken,catalog\n');
+    assert.equal((await read(root)).installation.state, 'error');
+    await write('_bmad/_config/bmad-help.csv', CATALOG);
+    assert.equal((await read(root)).installation.state, 'ready');
+    await write('_bmad/scripts/render_skill.py', '');
+    assert.equal((await read(root)).installation.state, 'partial', 'An empty runtime file is an interrupted installation');
+    await write('_bmad/scripts/render_skill.py', '# Restored renderer');
+    await write('_bmad/config.toml', '');
+    assert.equal((await read(root)).installation.state, 'partial', 'An empty central configuration is incomplete');
+  });
+  const empty = await fs.mkdtemp(path.join(os.tmpdir(), 'bmad-test-empty-'));
+  try {
+    const snapshot = await read(empty);
+    assert.equal(snapshot.installation.state, 'missing');
+    assert.equal(snapshot.codex.state, 'missing');
+    assert.equal(snapshot.catalogSource, 'guidance');
+    assert.ok(snapshot.watchDirectories.includes(path.join(snapshot.root!, '.agents/skills')));
+    assert.deepEqual(await fs.readdir(empty), [], 'Observation never initializes a project');
+  } finally { await fs.rm(empty, { recursive: true, force: true }); }
+});
+
+test('same-major versions use installed catalog with an explicit unverified label and future major versions stay unsupported', async () => {
+  await fixture(async (root, write) => {
+    await write('_bmad-output/planning-artifacts/prd.md', md('final'));
+    await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 6.12.5\n');
+    let snapshot = await read(root);
+    assert.equal(snapshot.compatibility, 'unverified');
+    assert.equal(snapshot.catalogSource, 'installed');
+    assert.equal(step(snapshot, 'bmad-prd').status, 'complete');
+    await write('_bmad/_config/manifest.yaml', 'installation:\n  version: 7.0.0-alpha.1\n');
+    snapshot = await read(root);
+    assert.equal(snapshot.compatibility, 'unsupported');
+    assert.equal(snapshot.installation.state, 'unsupported');
+    assert.equal(snapshot.catalogSource, 'guidance');
+    assert.equal(step(snapshot, 'bmad-prd').status, 'not-observed');
+    await write('_bmad/_config/manifest.yaml', 'installation:\n  modules: [core, bmm]\n');
+    snapshot = await read(root);
+    assert.equal(snapshot.compatibility, 'unknown');
+    assert.equal(snapshot.installation.state, 'partial');
+  });
+});
+
+test('invalid installation parsers report an observation failure and recover after an external correction', async () => {
+  await fixture(async (root, write) => {
+    for (const [filename, broken, restored] of [
+      ['_bmad/config.toml', '[unfinished', '[core]\noutput_folder = "_bmad-output"\n'],
+      ['_bmad/_config/manifest.yaml', 'installation:\n  version: [unfinished\n', 'installation:\n  version: 6.12.4\n'],
+      ['_bmad/_config/bmad-help.csv', 'broken,catalog\n', CATALOG]
+    ]) {
+      await write(filename, broken);
+      const invalid = await read(root);
+      assert.equal(invalid.installation.state, 'error', filename);
+      assert.equal(invalid.observation.state, 'error', filename);
+      assert.ok(invalid.observation.error, filename);
+      assert.equal(invalid.observation.lastSuccessfulAt, undefined);
+      await write(filename, restored);
+      const recovered = await read(root);
+      assert.equal(recovered.installation.state, 'ready', filename);
+      assert.equal(recovered.observation.error, undefined, filename);
+      assert.ok(recovered.observation.lastSuccessfulAt, filename);
+    }
+  });
+});
+
+test('native Auto blocked status remains blocked and resumes only after the recorded state changes', async () => {
+  await fixture(async (root, write) => {
+    const prefix = '_bmad-output/specs/spec-example';
+    await write(`${prefix}/stories.yaml`, '- id: "1"\n  title: Example\n  description: Native Auto work\n');
+    await write(`${prefix}/stories/1-example.md`, '---\nstatus: blocked\nblocked_reason: Missing test dependency\n---\n');
+    let snapshot = await read(root);
+    const build = step(snapshot, 'bmad-build');
+    assert.equal(build.status, 'blocked');
+    assert.equal(build.artifacts[0].status, 'blocked');
+    assert.equal(build.artifacts[0].stage, 'Build 受阻');
+    assert.equal(snapshot.stories[0].nativeStatus, 'blocked');
+    assert.ok(snapshot.currentCandidates.some(candidate => candidate.storyId));
+    await write(`${prefix}/stories/1-example.md`, md('in-progress'));
+    snapshot = await read(root);
+    assert.equal(step(snapshot, 'bmad-build').status, 'draft');
+    await write(`${prefix}/stories/1-example.md`, md('done'));
+    assert.equal(step(await read(root), 'bmad-build').status, 'complete');
   });
 });
 
@@ -103,9 +226,6 @@ test('file existence and stepsCompleted never imply final completion', async () 
     await write('_bmad-output/planning-artifacts/prd.md', '---\nstepsCompleted: [1, 2, 3, 4, 99]\nstatus: draft\n---\n');
     const snapshot = await read(root);
     assert.equal(step(snapshot, 'bmad-prd').status, 'draft');
-    assert.equal(step(snapshot, 'bmad-prd').artifacts[0].canConfirm, false);
-    const artifact = step(snapshot, 'bmad-prd').artifacts[0];
-    assert.throws(() => createBmadConfirmation(snapshot, { revision: snapshot.revision, stepId: step(snapshot, 'bmad-prd').id, artifactId: artifact.id }), /不可覆寫/);
     await write('_bmad-output/planning-artifacts/prd.md', md('final'));
     const final = await read(root);
     assert.equal(step(final, 'bmad-prd').status, 'complete');
@@ -129,20 +249,16 @@ test('UX requires both final documents and multiple artifacts retain distinct st
   });
 });
 
-test('manual confirmation is artifact-scoped, revision-checked and invalidated by any content change', async () => {
+test('historical manual confirmations cannot change native evidence or create completion', async () => {
   await fixture(async (root, write) => {
     await write('_bmad-output/planning-artifacts/brief.md', md(undefined));
-    let snapshot = await read(root); const initialStep = step(snapshot, 'bmad-product-brief'); const artifact = initialStep.artifacts[0];
-    const request = { revision: snapshot.revision, stepId: initialStep.id, artifactId: artifact.id };
-    assert.throws(() => createBmadConfirmation(snapshot, { ...request, revision: 'stale' }), /已變更/);
-    const confirmation = createBmadConfirmation(snapshot, request, new Date('2026-10-17T00:00:00Z'));
-    snapshot = await readBmadWorkflow({ root, bundledCatalog: CATALOG, confirmations: [confirmation] });
-    assert.equal(step(snapshot, 'bmad-product-brief').status, 'complete');
-    assert.equal(step(snapshot, 'bmad-product-brief').artifacts[0].confirmed, true);
-    assert.deepEqual(revokeBmadConfirmation([confirmation], snapshot.root!, initialStep.id, artifact.id), []);
-    await write('_bmad-output/planning-artifacts/brief.md', 'Changed content');
-    snapshot = await readBmadWorkflow({ root, bundledCatalog: CATALOG, confirmations: [confirmation] });
+    const initial = await read(root); const initialStep = step(initial, 'bmad-product-brief'); const artifact = initialStep.artifacts[0];
+    const options = { root, bundledCatalog: CATALOG, confirmations: [{ root: initial.root, stepId: initialStep.id, artifactId: artifact.id, fingerprint: artifact.fingerprint, confirmedAt: new Date().toISOString() }] };
+    const snapshot = await readBmadWorkflow(options);
     assert.equal(step(snapshot, 'bmad-product-brief').status, 'needs-confirmation');
+    assert.equal('confirmed' in step(snapshot, 'bmad-product-brief').artifacts[0], false);
+    assert.equal('canConfirm' in step(snapshot, 'bmad-product-brief').artifacts[0], false);
+    assert.equal(await fs.readFile(path.join(root, '_bmad-output/planning-artifacts/brief.md'), 'utf8'), md(undefined));
     await fs.unlink(path.join(root, '_bmad-output/planning-artifacts/brief.md'));
     assert.equal(step(await read(root), 'bmad-product-brief').status, 'not-observed');
   });
@@ -330,12 +446,11 @@ test('recommendations honor the observed path and use BMAD Help when the path is
   });
 });
 
-test('invalid sprint tracking cannot be manually confirmed and root outputs never scan sibling repositories', async () => {
+test('invalid sprint tracking remains unknown and root outputs never scan sibling repositories', async () => {
   await fixture(async (root, write) => {
     await write('_bmad-output/implementation-artifacts/sprint-status.yaml', 'development_status:\n  1-1-first: invented-state\n');
     let snapshot = await read(root);
     assert.equal(step(snapshot, 'bmad-sprint-planning').status, 'error');
-    assert.equal(step(snapshot, 'bmad-sprint-planning').artifacts[0].canConfirm, false);
     await write('_bmad/config.toml', '[modules.bmm]\nplanning_artifacts = "."\n');
     await write('prd.md', md('final'));
     await write('other-repo/prd.md', md('draft'));
@@ -443,12 +558,11 @@ test('arbitrary stories folders are not official inventory stories and orphan re
   });
 });
 
-test('invalid, oversized and half-written artifacts provide diagnostics and cannot be manually completed', async () => {
+test('invalid, oversized and half-written artifacts provide diagnostics and remain unreadable', async () => {
   await fixture(async (root, write) => {
     await write('_bmad-output/planning-artifacts/prd.md', '---\nstatus: draft');
     let snapshot = await read(root);
     assert.equal(step(snapshot, 'bmad-prd').status, 'error');
-    assert.equal(step(snapshot, 'bmad-prd').artifacts[0].canConfirm, false);
     await write('_bmad-output/planning-artifacts/prd.md', md('mystery'));
     snapshot = await read(root);
     assert.equal(step(snapshot, 'bmad-prd').status, 'error');

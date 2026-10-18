@@ -30,4 +30,6 @@ test/fixtures/workflow-kit-0.24.0/*.tar.xz binary !eol
 test/fixtures/workflow-kit-0.25.0-pre-bmad/*.py text eol=lf
 test/fixtures/workflow-kit-0.25.0-pre-bmad/*.tar.xz binary !eol
 resources/bmad/** text eol=lf
-resources/offline-tools/bmad-source.json text eol=lf
+test/fixtures/workflow-kit-0.26.0/*.py text eol=lf
+test/fixtures/workflow-kit-0.26.0/*.json text eol=lf
+test/fixtures/workflow-kit-0.26.0/*.tar.xz binary !eol

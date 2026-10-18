@@ -96,12 +96,7 @@ def check(compare_local: bool = True) -> dict:
             raise ValueError(f'{tool}: source tree digest differs')
         if (pins[tool]['version'], pins[tool]['sha256'], pins[tool]['filename']) != (record['version'], record['archiveSha256'], record['filename']):
             raise ValueError(f'{tool}: builder pins differ from reviewed source snapshot')
-        if tool == 'bmad-method':
-            official = json.loads((ROOT / 'resources/offline-tools/bmad-source.json').read_text(encoding='utf-8'))
-            if any(record.get(key) != official.get(key) for key in
-                   ('version', 'commit', 'sourceKind', 'archiveSha256', 'treeSha256', 'files')):
-                raise ValueError('BMAD snapshot differs from its pinned official installer metadata')
-        elif compare_local:
+        if compare_local:
             version, local = local_entries(tool)
             differences = sorted(name for name in set(local) | set(archived) if local.get(name) != archived.get(name))
             if version != record['version'] or differences:
@@ -143,8 +138,6 @@ def freeze() -> dict:
         pin.update(version=version, filename=filename, sha256=records[tool]['archiveSha256'])
         if tool == 'codebase-wiki':
             pin['root'] = prefix
-    official = json.loads((ROOT / 'resources/offline-tools/bmad-source.json').read_text(encoding='utf-8'))
-    records['bmad-method'] = official
     builder_path = ROOT / 'scripts/build-workflow-kit.py'
     source = builder_path.read_text(encoding='utf-8')
     lines = source.splitlines(keepends=True)

@@ -17,8 +17,10 @@ import { resolvePythonRuntime } from './pythonRuntime';
 import { workflowKitFailure } from './workflowKitResult';
 import { windowsCodexTerminalOptions } from './windowsTerminal';
 import { BmadWorkflowController } from './bmadWorkflowController';
-import { buildBmadPrompt, validateBmadPromptInputs } from './bmadPrompt';
-import type { BmadPromptInputs } from './bmadProtocol';
+import { buildBmadCommand } from './bmadCommand';
+import { inspectBmadEnvironment } from './bmadEnvironment';
+import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
+import type { BmadCommandRequest } from './bmadProtocol';
 import { IssueTimeTracker, gitLabDuration } from './timeTracker';
 import { OperationTracker, isActiveOperation, type WorkspaceOperationState } from './operations';
 import { SnapshotTransport } from './snapshotTransport';
@@ -65,6 +67,8 @@ type ActionOutcome = Parameters<OperationTracker['noteOutcome']>[1];
 
 export class WorkspacePanel implements vscode.Disposable {
   private bmad?: BmadWorkflowController;
+  private bmadEnvironment?: BmadEnvironmentCheck;
+  private bmadEnvironmentRead?: { root?: string; task: Promise<void> };
   private issuePreview?: WorkspaceSnapshot['issuePreview'];
   private previewGeneration = 0;
   private previewAbort?: AbortController;
@@ -932,16 +936,11 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'cancelRepositoryOperation': this.repositoryOperationAbort?.abort(); break;
       case 'confirmOperationResult': await this.confirmOperationResult(request.targetOperationId, request.recovery); break;
       case 'refresh': await this.refresh({ forceNetwork: true, forceRepositories: true }); break;
-      case 'refreshBmad': await this.refreshBmadWorkflow(); break;
-      case 'copyBmadPrompt': await this.copyBmadPrompt(request.revision, request.stepId, request.inputs); break;
+      case 'refreshBmad': await this.refreshBmadWorkflow(true); break;
+      case 'copyBmadCommand': await this.copyBmadCommand({ revision: request.revision, command: request.command, skill: request.skill,
+        stepId: request.stepId, artifactId: request.artifactId, storyId: request.storyId }); break;
+      case 'openBmadTerminal': await this.openBmadTerminal(request.revision); break;
       case 'openBmadArtifact': await this.openBmadArtifact(request.revision, request.stepId, request.path); break;
-      case 'confirmBmadArtifact':
-      case 'revokeBmadConfirmation': {
-        await this.refreshBmadWorkflow();
-        await this.bmad?.confirm(request, request.type === 'revokeBmadConfirmation');
-        this.noteOutcome({ effect: 'applied' });
-        break;
-      }
       case 'publishNotification':
         if (!['info', 'warn', 'error'].includes(request.level) || typeof request.message !== 'string' || request.message.length > 4096 ||
           request.title !== undefined && (typeof request.title !== 'string' || request.title.length > 200)) break;
@@ -2429,6 +2428,7 @@ export class WorkspacePanel implements vscode.Disposable {
         this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitImporting),
       projectContext: this.projectContext,
       bmad: this.bmad?.snapshot?.root === root ? this.bmad?.snapshot : undefined,
+      bmadEnvironment: this.bmadEnvironment?.root === root ? this.bmadEnvironment : undefined,
       connected: !!this.session.baseUrl,
       accounts: this.session.accounts,
       activeAccountId: this.session.activeAccountId,
@@ -2749,14 +2749,13 @@ export class WorkspacePanel implements vscode.Disposable {
       this.activeMode === 'bmad' && this.webviewReady && this.panel?.visible !== false);
   }
 
-  private async refreshBmadWorkflow(): Promise<void> {
+  private async refreshBmadWorkflow(recheckEnvironment = false): Promise<void> {
     if (this.disposed || this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) return;
     const signature = this.projectContextSignature();
     const context = await this.resolveProjectContext();
     if (this.disposed || signature !== this.projectContextSignature() || this.activeMode !== 'bmad' || !this.webviewReady) return;
     this.projectContext = context;
     if (!this.bmad) this.bmad = new BmadWorkflowController({
-      store: this.context.workspaceState,
       bundledCatalog: () => readFile(vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'bmad', 'bmad-help.csv').fsPath, 'utf8'),
       watch: (directory, changed) => {
         if (!vscode.workspace.createFileSystemWatcher) return { dispose: () => undefined };
@@ -2772,34 +2771,50 @@ export class WorkspacePanel implements vscode.Disposable {
       error: message => this.post({ type: 'error', message })
     });
     this.bmad.setContext(context.root, context.revision, true);
+    void this.refreshBmadEnvironment(context.root, recheckEnvironment);
     await this.bmad.refresh();
   }
 
-  private async requireBmadStep(revision: string, stepId: string) {
+  private async refreshBmadEnvironment(root?: string, force = false): Promise<void> {
+    if (this.bmadEnvironmentRead && this.bmadEnvironmentRead.root === root) return this.bmadEnvironmentRead.task;
+    if (!force && this.bmadEnvironment && this.bmadEnvironment.root === root && Date.now() - Date.parse(this.bmadEnvironment.checkedAt) < 30_000) return;
+    const task = inspectBmadEnvironment(root, { probeVersions: vscode.workspace.isTrusted }).then(environment => {
+      if (!this.disposed && this.projectContext?.root === root) { this.bmadEnvironment = environment; this.sendSnapshot(); }
+    }).catch(() => undefined);
+    const entry = { root, task }; this.bmadEnvironmentRead = entry;
+    await task;
+    if (this.bmadEnvironmentRead === entry) this.bmadEnvironmentRead = undefined;
+  }
+
+  private async requireBmadSnapshot(revision: string, guidanceOnly = false) {
     const signature = this.projectContextSignature();
-    if (typeof stepId !== 'string' || stepId.length > 300) throw new Error('BMAD 步驟無效。');
     await this.refreshBmadWorkflow();
-    const snapshot = await this.bmad?.requireSnapshot(revision);
+    const snapshot = guidanceOnly ? this.bmad?.snapshot : await this.bmad?.requireSnapshot(revision);
     if (signature !== this.projectContextSignature() || snapshot?.root !== this.projectContext?.root ||
       this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) throw new Error('專案或頁面已變更，請重新確認 BMAD 步驟。');
+    if (!snapshot || snapshot.revision !== revision) throw new Error('BMAD 狀態已變更，請重新偵測。');
+    return snapshot;
+  }
+
+  private async requireBmadStep(revision: string, stepId: string) {
+    if (typeof stepId !== 'string' || stepId.length > 300) throw new Error('BMAD 步驟無效。');
+    const snapshot = await this.requireBmadSnapshot(revision);
     const node = snapshot?.nodes.find(item => item.id === stepId);
     if (!snapshot || !node) throw new Error('找不到此 BMAD 步驟，請重新整理。');
     return { snapshot, node };
   }
 
-  private async copyBmadPrompt(revision: string, stepId: string, inputs: BmadPromptInputs): Promise<void> {
-    const { node, snapshot } = await this.requireBmadStep(revision, stepId);
-    if (snapshot.installation.state !== 'ready' || !snapshot.root) throw new Error(snapshot.installation.reason);
-    const errors = validateBmadPromptInputs(node, inputs, snapshot);
-    if (errors.length) throw new Error(errors.join(' '));
-    const skills = this.getSkillsContext();
-    const repositories = skills.repositories ?? [];
-    if (inputs.repositoryPaths?.some(target => !repositories.some(repo => sameLocalPath(repo.path, target)) &&
-      !(skills.mode === 'repository' && sameLocalPath(snapshot.root!, target)))) {
-      throw new Error('目標 Repo 已不屬於目前專案，請重新選擇。');
-    }
-    await vscode.env.clipboard.writeText(buildBmadPrompt(node, inputs, snapshot));
+  private async copyBmadCommand(request: BmadCommandRequest): Promise<void> {
+    const snapshot = await this.requireBmadSnapshot(request.revision, !request.artifactId && !request.storyId);
+    await vscode.env.clipboard.writeText(buildBmadCommand(snapshot, request));
     this.noteOutcome({ effect: 'applied' });
+  }
+
+  private async openBmadTerminal(revision: string): Promise<void> {
+    const snapshot = await this.requireBmadSnapshot(revision, true);
+    if (!snapshot.root) throw new Error('請先開啟或選擇本機專案資料夾。');
+    const terminal = vscode.window.createTerminal({ name: 'BMAD 專案終端', cwd: snapshot.root });
+    terminal.show();
   }
 
   private async openBmadArtifact(revision: string, stepId: string, filename: string): Promise<void> {

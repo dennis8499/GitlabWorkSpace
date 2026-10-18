@@ -1,0 +1,67 @@
+{
+  "schema": "gitlab-workspace-bmad-cli-verification/v1",
+  "status": "PASS",
+  "version": "0.27.0",
+  "generatedAt": "2026-10-18T13:24:25.524Z",
+  "sourceInputsSha256": "618dbb9076e08d56d10161a73b6d0ca7050e47dc2bd53509f26350327dc75bf5",
+  "validation": {
+    "command": "npm test",
+    "seconds": 552.174,
+    "stages": 28,
+    "counts": {
+      "unit": 521,
+      "behavior-node": 144,
+      "extension": 12,
+      "pendingExtension": 3
+    },
+    "log": "full-validation.json"
+  },
+  "extensionHost": {
+    "version": "1.142.0",
+    "nativeWatcherLatencyMs": {
+      "external-cli-install": 427,
+      "external-codex-skill-delete": 306,
+      "external-codex-skill-restore": 331,
+      "external-runtime-delete": 330,
+      "external-runtime-restore": 322,
+      "mkdir-and-draft": 281,
+      "final-write": 333,
+      "artifact-delete": 327,
+      "draft-recreate": 335,
+      "new-root-draft": 309,
+      "hidden-write-show-catch-up": 45,
+      "custom-output-first-create": 283,
+      "build-draft": 359,
+      "build-ready-for-dev": 324,
+      "build-in-progress": 342,
+      "build-in-review": 308,
+      "build-blocked": 341,
+      "build-done": 343,
+      "parallel-classic-stories": 352,
+      "root-output-first-create": 257,
+      "root-output-modify": 332,
+      "root-output-yaml-create": 336,
+      "root-output-delete": 325
+    }
+  },
+  "visual": {
+    "status": "PASS",
+    "scenarios": 8,
+    "log": "ui-verification.json"
+  },
+  "packages": [
+    {
+      "filename": "gitlab-workspace-0.27.0.vsix",
+      "bytes": 5793030,
+      "sha256": "b09f8bde36ce1bccd2a8722bb5a1241c1afa36700b3db9ed3c43b501addcbfdb"
+    },
+    {
+      "filename": "gitlab-workspace-kit-0.27.0.zip",
+      "bytes": 10797431,
+      "sha256": "6b24581afccb94ce714bfbc128f4cdc02ffc95ac3189fb0909b88f200c48ab51"
+    }
+  ],
+  "boundaries": [
+    "BMAD installation and external Codex AI execution are performed by the user; progress is observed from saved native project artifacts."
+  ]
+}

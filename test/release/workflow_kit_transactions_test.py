@@ -415,7 +415,7 @@ class TransactionTests(unittest.TestCase):
         source = self.root / "source"
         source.mkdir()
         paths = [ROOT / p for p in (".gitattributes", "package.json", "scripts/build-workflow-kit.py",
-                                    "resources/workflow-kit-installer.py", "resources/offline-tools/bmad-source.json")]
+                                    "resources/workflow-kit-installer.py")]
         paths.extend(p for p in (ROOT / "resources/workflow-kit").rglob("*")
                      if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
         paths.extend(p for p in (ROOT / "resources/bmad").rglob("*") if p.is_file())

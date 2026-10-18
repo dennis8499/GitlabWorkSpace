@@ -1,5 +1,5 @@
 /** Data-only BMAD protocol shared by the Extension Host and webview. */
-export type BmadProgressStatus = 'not-observed' | 'draft' | 'complete' | 'needs-confirmation' | 'conflict' | 'error';
+export type BmadProgressStatus = 'not-observed' | 'draft' | 'blocked' | 'complete' | 'needs-confirmation' | 'conflict' | 'error';
 export interface BmadCatalogNode {
   id: string; module: string; skill: string; displayName: string; menuCode: string;
   description: string; action: string; args: string; phase: string; required: boolean;
@@ -11,7 +11,7 @@ export interface BmadDiagnostic { code: string; message: string; path?: string }
 export interface BmadArtifact {
   id: string; path: string; relativePath: string; fingerprint: string;
   status: Exclude<BmadProgressStatus, 'not-observed' | 'conflict'>;
-  reason: string; marker?: string; canConfirm: boolean; confirmed: boolean;
+  reason: string; marker?: string;
   nativeStatus?: string; stage?: string; observedAt?: string;
 }
 export interface BmadStep {
@@ -26,25 +26,25 @@ export interface BmadStoryProgress {
 }
 export interface BmadCurrentCandidate { stepId: string; artifactId?: string; storyId?: string; label: string; reason: string }
 export interface BmadRecommendation { stepId: string; reason: string }
-export interface BmadConfirmation {
-  root: string; stepId: string; artifactId: string; fingerprint: string; confirmedAt: string;
-}
 export interface BmadWorkflowSnapshot {
   root?: string; revision: string; version?: string;
-  installation: { state: 'ready' | 'missing' | 'unsupported' | 'error'; reason: string };
-  catalogSource: 'installed' | 'bundled'; nodes: BmadCatalogNode[]; phases: BmadPhase[]; edges: BmadEdge[];
+  guidanceVersion: string;
+  compatibility: 'verified' | 'unverified' | 'unsupported' | 'unknown';
+  installation: { state: 'ready' | 'missing' | 'partial' | 'unsupported' | 'error'; reason: string };
+  codex: { state: 'ready' | 'missing' | 'partial' | 'unknown'; skills: string[]; reason: string };
+  observation: { state: 'watching' | 'refreshing' | 'paused' | 'error'; lastSuccessfulAt?: string; error?: string };
+  catalogSource: 'installed' | 'guidance'; nodes: BmadCatalogNode[]; phases: BmadPhase[]; edges: BmadEdge[];
   steps: BmadStep[]; stories: BmadStoryProgress[];
   currentCandidates: BmadCurrentCandidate[]; recommendations: BmadRecommendation[];
   watchDirectories: string[]; diagnostics: BmadDiagnostic[];
   observedAt?: string; watchRootArtifacts?: boolean;
 }
-export interface BmadConfirmationRequest { revision: string; stepId: string; artifactId: string }
-export interface BmadPromptInputs {
-  intent?: string; goal?: string; background?: string; constraints?: string;
-  references?: string; target?: string; acceptance?: string; parameter?: string;
-  repositoryPaths?: string[]; artifactId?: string; storyId?: string;
+export interface BmadCommandRequest {
+  revision: string; command: 'install' | 'codex' | 'skill';
+  skill?: string; stepId?: string; artifactId?: string; storyId?: string;
 }
 export interface BmadPanelState {
+  selectedSection?: 'start' | 'capabilities' | 'progress'; selectedTaskId?: string;
   selectedStepId?: string; expandedPhases?: string[];
-  inputsByStep?: Record<string, BmadPromptInputs>;
+  showCatalog?: boolean;
 }

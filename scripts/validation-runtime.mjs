@@ -34,8 +34,7 @@ export function preparationInputs() {
     '.vscodeignore', 'README.md', 'CONTRIBUTING.md', 'resources/git-rebase-editor.cjs',
     'resources/gitlab-workspace.svg', 'resources/tool-installer.py',
     'resources/workflow-kit', 'resources/workflow-kit-installer.py', 'resources/bmad',
-    'resources/offline-tools/sources', 'resources/offline-tools/source-snapshots.json',
-    'resources/offline-tools/bmad-source.json'];
+    'resources/offline-tools/sources', 'resources/offline-tools/source-snapshots.json'];
 }
 
 export async function savePreparation(root, stages, outputs) {

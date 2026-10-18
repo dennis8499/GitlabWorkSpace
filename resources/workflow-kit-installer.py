@@ -28,113 +28,8 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = '0.26.0'
+VERSION = '0.27.0'
 KIT_EXTENSION_FILES = {}
-BMAD_RUNTIME_FILES = {'_bmad/LICENSE': '0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66',
- '_bmad/_config/bmad-help.csv': 'fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365',
- '_bmad/_config/files-manifest.csv': 'a3e609486256b49b4a5f9f3cb24f5545d63ea01ecbd3028bb40a2db75af35d9b',
- '_bmad/_config/manifest.yaml': 'f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8',
- '_bmad/_config/skill-manifest.csv': '6d414dcda3fbfc4c8716ab309dbfa5493c0ce0fee8566cc822918e5c874a2544',
- '_bmad/bmm/config.yaml': '5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729',
- '_bmad/bmm/module-help.csv': 'c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a',
- '_bmad/bmm/v6-shims/README.md': '5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972',
- '_bmad/config.toml': 'ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3',
- '_bmad/core/config.yaml': '7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c',
- '_bmad/core/module-help.csv': '38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7',
- '_bmad/core/v6-shims/README.md': '017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2',
- '_bmad/scripts/config_utils.py': '48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651',
- '_bmad/scripts/memlog.py': '4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240',
- '_bmad/scripts/render_skill.py': '8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942',
- '_bmad/scripts/resolve_config.py': '70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768',
- '_bmad/scripts/resolve_customization.py': 'c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284'}
-BMAD_CONFIG_TEMPLATE = ('# ─────────────────────────────────────────────────────────────────\n'
- '# Installer-managed. Regenerated on every install — treat as read-only.\n'
- '#\n'
- '# Direct edits to this file will be overwritten on the next install.\n'
- '# To change an install answer durably, re-run the installer (your prior\n'
- '# answers are remembered as defaults). To pin a value regardless of\n'
- '# install answers, or to add custom agents / override descriptors, use:\n'
- '#   _bmad/custom/config.toml       (team, committed)\n'
- '#   _bmad/custom/config.user.toml  (personal, gitignored)\n'
- '# Those files are never touched by the installer.\n'
- '# ─────────────────────────────────────────────────────────────────\n'
- '\n'
- '[core]\n'
- 'user_name = "BMad"\n'
- 'communication_language = "Traditional Chinese"\n'
- 'project_name = "BMAD"\n'
- 'document_output_language = "Traditional Chinese"\n'
- 'output_folder = "_bmad-output"\n'
- '\n'
- '[modules.bmm]\n'
- 'user_skill_level = "intermediate"\n'
- 'planning_artifacts = "{project-root}/_bmad-output/planning-artifacts"\n'
- 'implementation_artifacts = "{project-root}/_bmad-output/implementation-artifacts"\n'
- 'project_knowledge = "{project-root}/docs"\n'
- '\n'
- '[agents.bmad-agent-analyst]\n'
- 'module = "bmm"\n'
- 'team = "software-development"\n'
- 'name = "Mary"\n'
- 'title = "Business Analyst"\n'
- 'icon = "📊"\n'
- 'description = "Channels Porter\'s strategic rigor and Minto\'s Pyramid Principle, grounds every finding in '
- 'verifiable evidence, represents every stakeholder voice. Speaks like a treasure hunter narrating the find: '
- 'thrilled by every clue, precise once the pattern emerges."\n'
- '\n'
- '[agents.bmad-agent-pm]\n'
- 'module = "bmm"\n'
- 'team = "software-development"\n'
- 'name = "John"\n'
- 'title = "Product Manager"\n'
- 'icon = "📋"\n'
- 'description = "Drives Jobs-to-be-Done over template filling, user value first, technical feasibility is a '
- 'constraint not the driver. Speaks like a detective interrogating a cold case: short questions, sharper '
- 'follow-ups, every \'why?\' tightening the net."\n'
- '\n'
- '[agents.bmad-agent-ux-designer]\n'
- 'module = "bmm"\n'
- 'team = "software-development"\n'
- 'name = "Sally"\n'
- 'title = "UX Designer"\n'
- 'icon = "🎨"\n'
- 'description = "Balances empathy with edge-case rigor, starts simple and evolves through feedback, every '
- 'decision serves a genuine user need. Speaks like a filmmaker pitching the scene before the code exists, '
- 'painting user stories that make you feel the problem."\n'
- '\n'
- '[agents.bmad-agent-architect]\n'
- 'module = "bmm"\n'
- 'team = "software-development"\n'
- 'name = "Winston"\n'
- 'title = "System Architect"\n'
- 'icon = "🏗️"\n'
- 'description = "Favors boring technology for stability, developer productivity as architecture, ties every '
- 'decision to business value. Speaks like a seasoned engineer at the whiteboard: measured, always laying out '
- 'trade-offs rather than verdicts."\n'
- '\n'
- '[agents.bmad-agent-dev]\n'
- 'module = "bmm"\n'
- 'team = "software-development"\n'
- 'name = "Amelia"\n'
- 'title = "Senior Software Engineer"\n'
- 'icon = "💻"\n'
- 'description = "Test-first discipline (red, green, refactor), 100% pass before review, no fluff all '
- 'precision. Speaks like a terminal prompt: exact file paths, AC IDs, and commit-message brevity — every '
- 'statement citable."\n')
-BMAD_FILES_MANIFEST_TEMPLATE = ('type,name,module,path,hash\n'
- 'yaml,manifest,_config,_config/manifest.yaml,f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8\n'
- 'csv,module-help,bmm,bmm/module-help.csv,c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a\n'
- 'md,README,bmm,bmm/v6-shims/README.md,5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972\n'
- 'yaml,config,bmm,bmm/config.yaml,5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729\n'
- 'toml,config,config.toml,config.toml,ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3\n'
- 'csv,module-help,core,core/module-help.csv,38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7\n'
- 'md,README,core,core/v6-shims/README.md,017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2\n'
- 'yaml,config,core,core/config.yaml,7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c\n'
- 'py,config_utils,scripts,scripts/config_utils.py,48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651\n'
- 'py,memlog,scripts,scripts/memlog.py,4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240\n'
- 'py,render_skill,scripts,scripts/render_skill.py,8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942\n'
- 'py,resolve_config,scripts,scripts/resolve_config.py,70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768\n'
- 'py,resolve_customization,scripts,scripts/resolve_customization.py,c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284\n')
 WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                        'hooks = true\n'
                        '\n'
@@ -216,11 +111,10 @@ WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                       '}\n'}
 
 
-PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '4da94770ca8742b754d58d8247cdac18622d498c913d66f7a37ce940aafe3c24',
+PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '126efd52f34f73aaa7cd3eb0b790b7896d37aafc9773ce1f962e6423d2106668',
            'capabilities': ['adr',
                             'archaeology',
                             'audit',
-                            'bmad-workflow',
                             'business-analysis',
                             'functional-exploration',
                             'ingest',
@@ -232,223 +126,9 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '4da94770ca8742b754d58d8247cd
                             'synthesis',
                             'system-analysis',
                             'system-design'],
-           'files': {'.agents/gitlab-workspace-kit/group-instructions.md': '3a634fd019f17db59581653e408f16bfbe91f12e9acda7419828606ec847ea1a',
+           'files': {'.agents/gitlab-workspace-kit/group-instructions.md': 'ddd2353b6c2a12a07f225332ca3b31e99126f12d4ddc9013f8f031b4077b12a9',
                      '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
-                     '.agents/gitlab-workspace-kit/profile.md': 'c5cdff6d85903936e6664b23423351e3bae86bbd73b0a0bb7794e65366373ef3',
-                     '.agents/skills/bmad-advanced-elicitation/SKILL.md': 'd38cb53f1c7c77f13664c340026a1a4932ae1ca5a24471eebaeb172b88c7942f',
-                     '.agents/skills/bmad-advanced-elicitation/assets/methods.csv': 'd110ff5f076fb9421552b83692fde2c2d367734049169c7a55f7267a3dc7ef89',
-                     '.agents/skills/bmad-advanced-elicitation/customize.toml': '735a276edd51786ccfd2c3417d9a2b9dee4244a6102698981b3888f68d979ed9',
-                     '.agents/skills/bmad-advanced-elicitation/scripts/pick_methods.py': '60020ec4767894ea3d8707c4b61e78b679d434315be1dd29154bf64d88126fff',
-                     '.agents/skills/bmad-advanced-elicitation/scripts/tests/test_pick_methods.py': '610099d8494529f9203d7262567810b500552bcef006b3b6388d58da3da71978',
-                     '.agents/skills/bmad-agent-analyst/SKILL.md': '6bfe0ccc9d85be7c651f9d430f37192abc32c67b5445f037dfea9c87d95ce4f0',
-                     '.agents/skills/bmad-agent-analyst/customize.toml': 'd6e2c5c660e8900866298961266a0b1c189c8643f2c1c9da602101e9f98d3388',
-                     '.agents/skills/bmad-agent-architect/SKILL.md': '02b2361438d39181f7990940a35af73658d37831572dd5d5ab9cfca17e8f0817',
-                     '.agents/skills/bmad-agent-architect/customize.toml': 'bd0ebb48faeab1e6f709d0291a13d33003484a597ed2b9c90f221b2345513b06',
-                     '.agents/skills/bmad-agent-dev/SKILL.md': '5e81cd7db67a76626bef308374a06664cd52395b97c15966d09543765257f33d',
-                     '.agents/skills/bmad-agent-dev/customize.toml': 'ab52d8840427e10d5956b592c34e63edc77ebdafd7b54ce60da11cf67ed72ced',
-                     '.agents/skills/bmad-agent-pm/SKILL.md': 'cd3e8bf36b6e77d4b2d33c5700f0528a6cd2796b24ea22b227301bc60168b083',
-                     '.agents/skills/bmad-agent-pm/customize.toml': '4613c72cfe3bc3143bd50c5732bce464c21c7266fe7dd930bc659c54e7315b39',
-                     '.agents/skills/bmad-agent-ux-designer/SKILL.md': '3c28653423072119cbf8eb7b6e09a0fb6f1cd7679ee1a27735dea20a2a76c28d',
-                     '.agents/skills/bmad-agent-ux-designer/customize.toml': '4acd1d9cdbf4a4328c389229ea9e9f2885d0692f8e10e3d9456da45844337c2c',
-                     '.agents/skills/bmad-architecture/SKILL.md': '4a256afa9c725e0bf5b55961d21774f1eb00011dbe31509e280a955bdb1a5c09',
-                     '.agents/skills/bmad-architecture/assets/spine-template.md': 'ef4ff795624eb5439fae54a06edb389feb5a0cf79cb01ae007af51109335d198',
-                     '.agents/skills/bmad-architecture/customize.toml': 'e9c5f75bd6605199f3908d6a1f013d6b42fb12b6f35c9a5e13a44f7f872b7b79',
-                     '.agents/skills/bmad-architecture/references/headless.md': '4db2708f335c94cb024b5eba022b1e3d88b1ec61c94c4716626d9b89684f5833',
-                     '.agents/skills/bmad-architecture/references/reviewer-gate.md': 'd32e32a3c1d59b5612b947004f3f6fef1117a13ce9f1ffa428d616e0b5d4db69',
-                     '.agents/skills/bmad-architecture/scripts/lint_spine.py': 'dd48be20384adfa281d295e34a39c1ae55727af7e98efe42525be31d1c5c001e',
-                     '.agents/skills/bmad-architecture/scripts/tests/test_lint_spine.py': 'e86bb9a62c5cca74ddc89c843386f2b992610fcc1792d40e03bc9cd445b77681',
-                     '.agents/skills/bmad-brainstorming/SKILL.md': '2657a2088329651fd06f030e61997fc9f21986588d65ce96f14043af14d8534e',
-                     '.agents/skills/bmad-brainstorming/assets/brain-icons.json': 'a101c56e89f1d0f9e4131dfdfc19e10c746e3a61c3f92537d04a6f4897b7d331',
-                     '.agents/skills/bmad-brainstorming/assets/brain-methods.csv': 'fff112eabca1a9cb8b190f8314bc47678becc5782a2372e11c83daa0e33b6dfd',
-                     '.agents/skills/bmad-brainstorming/assets/brain-selector.html': 'c110919a3366bd96061f050f98503e3586185e3d1df5ff8b62a5a046c571a436',
-                     '.agents/skills/bmad-brainstorming/customize.toml': '313c3b348473cd40ba02ceae4b299c617300af78debb2f5585c8d3941cc2d8d3',
-                     '.agents/skills/bmad-brainstorming/references/converge.md': '1528c32ddc64f8061fec663306f7208d2fd4d4a90e660552b8138bda7e452dc0',
-                     '.agents/skills/bmad-brainstorming/references/finalize.md': 'b6074e7fb4d86ffcf899abc50b9049b4a1f6fe550917f4be7a1c7a888477e07e',
-                     '.agents/skills/bmad-brainstorming/references/headless.md': 'b8ea5951199cff7e4813e06aef35683ca0658230fa015e358cacc466b1138a42',
-                     '.agents/skills/bmad-brainstorming/references/in-chat-techniques.md': '18239464e3e4f00ea9063d015d26d6b0a696b72e7e3c5be92352da6db9a3f244',
-                     '.agents/skills/bmad-brainstorming/references/mode-autonomous.md': 'd815d2c7f0f8cc0cdfa7c619eaf61f59fd78142f13c69365eda257da38b97bdf',
-                     '.agents/skills/bmad-brainstorming/references/mode-facilitator.md': '1b908498d285d190859aed00c3ba5b399d7f6aa8e94d54e95456d15cd6fe6073',
-                     '.agents/skills/bmad-brainstorming/references/mode-partner.md': 'caa0ed378c116def4de382f4e5a95173c6ae6cc5464f1792e7d8196360f79c8a',
-                     '.agents/skills/bmad-brainstorming/references/resume.md': '0f79535d72eefe6c55bd5ae47fe4753de8d27235cf129f10b2c596a124c26526',
-                     '.agents/skills/bmad-brainstorming/scripts/brain.py': 'f81b28fe590f607b95c7218a7cdd6fb6eb91d3a76b9671acf54bcaf36fd4e6ca',
-                     '.agents/skills/bmad-brainstorming/scripts/tests/test_brain.py': 'b219da8e5e3ccd4ebae95fb02bc5683d6b62593d71db75a712adc7a1b9017bc3',
-                     '.agents/skills/bmad-build-auto/SKILL.md': 'ea798a5f7df3b11eb73555a54fc0516c70d8f98739bd7857d968297b26f6ef94',
-                     '.agents/skills/bmad-build-auto/compile-epic-context.md': '64d13b41974cfa0dfc1de64b6fbd8365e9b99f91c7c98f0ee1a9fbd018f324ca',
-                     '.agents/skills/bmad-build-auto/customize.toml': '31417a8239f213c00621bb9016c3099631ae7ef03731ce5be209a5668a5730ee',
-                     '.agents/skills/bmad-build-auto/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
-                     '.agents/skills/bmad-build-auto/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                     '.agents/skills/bmad-build-auto/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
-                     '.agents/skills/bmad-build-auto/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
-                     '.agents/skills/bmad-build-auto/spec-template.md': '59a046df2773ec05af0688823d17238bfde2bb54c0c3b3eff6acec4856f1eb7a',
-                     '.agents/skills/bmad-build-auto/step-01-clarify-and-route.md': '50674ecef3b4b7a26b993685c9a79ccd87b00b2255d51b6b9c13ed32aa6d1ffa',
-                     '.agents/skills/bmad-build-auto/step-02-plan.md': 'a08e303c10f88dbfce88c55044757ec5059afe338793eb414e1ddb0b7c324625',
-                     '.agents/skills/bmad-build-auto/step-03-implement.md': '0dc9c9634eca148baaec03e7d154840a14101f92492b7ab469625bf13b4e2ab5',
-                     '.agents/skills/bmad-build-auto/step-04-review.md': 'c5530c50c89f197720275b83466b382f896fa27a0bba30d4b75c6af162148cdf',
-                     '.agents/skills/bmad-build-auto/workflow.md': '611f429206029a903ec9433ccdfd9b186fbafc6dc95da0a21fbcdf5965ad25ea',
-                     '.agents/skills/bmad-build/SKILL.md': '1cdf5406965ba24236d2375739d839699eb56b619834490539d1bd3d5111f890',
-                     '.agents/skills/bmad-build/compile-epic-context.md': '6793b15ae85766cee529e6b349e45f2c6ec9e3212019611c29e8c77b4dc4b924',
-                     '.agents/skills/bmad-build/customize.toml': '0ee9b033a40640420d1dc3411de7428146d00bf8c1409c9a9cfe6c1743cd53b9',
-                     '.agents/skills/bmad-build/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
-                     '.agents/skills/bmad-build/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                     '.agents/skills/bmad-build/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
-                     '.agents/skills/bmad-build/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
-                     '.agents/skills/bmad-build/spec-template.md': 'e217325964857ebd90a9508bf171eddc2c4ad1b0b9b32a119775ac5c015695fd',
-                     '.agents/skills/bmad-build/step-01-clarify-and-route.md': '1e8095b08e9e9c57d9b24678b524e07d0b6bbb5af72ba213622f12a1c7d909cc',
-                     '.agents/skills/bmad-build/step-02-plan.md': '5c999430f818f58fc5e4f64309a1b0f81358ce0ddcfbd3f44b25d56279ef25d8',
-                     '.agents/skills/bmad-build/step-03-implement.md': '15fd02d2f655d4102c515134ed6aa40cd055bd9d811e49d529512f8f36d09b03',
-                     '.agents/skills/bmad-build/step-04-review.md': 'f6b3f3fa5d3af0b324db2efee9351d4c348bdc0dfa4dad6c058eb4fd37921333',
-                     '.agents/skills/bmad-build/step-05-present.md': '551e0847e2ebb64575180a5dacca5786b9b9d7825dcd986e1b3b58442eaf713a',
-                     '.agents/skills/bmad-build/step-oneshot.md': '241fa52e227c048a5d8e4428bef0f153267475f697640899deb218b58ebfd378',
-                     '.agents/skills/bmad-build/sync-sprint-status.md': '7ff44d21f5d813f4993780271eec8df2fce1373f525ff80e595b7c10618c4c36',
-                     '.agents/skills/bmad-build/workflow.md': '481ff00ef349a9c7845feca02bbfd5722b1e318ccabac858355da6c90c2d8a39',
-                     '.agents/skills/bmad-code-review/SKILL.md': 'de287a30b672fd3c435f68f644d231091fb788e6d857a3e9f9d1ca22e67e13c1',
-                     '.agents/skills/bmad-code-review/customize.toml': '282d9483ccb74acab1efb965ce10ebd6206a61da94da245a705a6358dbf0dc2e',
-                     '.agents/skills/bmad-code-review/references/claims-check.md': '7be5d35dd90a1950addc2062acdf8669026b239117efe1e398da1e8161cfa6f9',
-                     '.agents/skills/bmad-code-review/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                     '.agents/skills/bmad-code-review/review-prompts/edge-case-hunter.md': '5f4572d57340b4c0d155f33454d644a44af101cd7fd02a01591be68a4ebb8b7f',
-                     '.agents/skills/bmad-code-review/review-prompts/verification-gap.md': '06f6184d7d94c808970d0146cdc4585dfd66b94a7b7ab2988277fb6fc4208508',
-                     '.agents/skills/bmad-code-review/steps/step-01-gather-context.md': '51941fd52406cf075ac9172cdcbeebefe85df91ea818ad8ec723724de67a1831',
-                     '.agents/skills/bmad-code-review/steps/step-02-review.md': 'f2b8e654cf595746656d9861c4ac722f65b02939c53900f4f6d8b24988b2155a',
-                     '.agents/skills/bmad-code-review/steps/step-03-triage.md': '337ac3ad2cd8cabb34f4e47c8778cfd703f919753573dd9d708b7218fd5de684',
-                     '.agents/skills/bmad-code-review/steps/step-04-present.md': 'a9619f7df9b9112c0e42ee71a362f73dfa38ef6dff7b403975dbd6d2480a8d9f',
-                     '.agents/skills/bmad-correct-course/SKILL.md': '1a56020a13e17f20a420a206ad6d7b09b5f91fe89f6a14918ad77e691bd05686',
-                     '.agents/skills/bmad-correct-course/checklist.md': '3e082b95def90ccb876e3101ce0bbaf797a0f03a9471e1347361897f27977327',
-                     '.agents/skills/bmad-correct-course/customize.toml': '9990c3d4a1aa90a207f7e3380a7a48a5c9c005702194f63c6a959a4b1a18586f',
-                     '.agents/skills/bmad-create-epics-and-stories/SKILL.md': '506d7c2e02a301e012eb75b918c00e6f53ba1dd6295f6e313cc7bf0a77c83261',
-                     '.agents/skills/bmad-create-epics-and-stories/customize.toml': 'e7633a4e6e33161c7cb13034e5132d9d29f8a7031e75765d16a60724f2089557',
-                     '.agents/skills/bmad-create-epics-and-stories/steps/step-01-validate-prerequisites.md': '7181608c1ee4e55c084c6627d68fc55a8a0b6917e489f8ac77531a0530428a30',
-                     '.agents/skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md': '7c66987808c1f84e853fe54b7aff26d209196d450b5644704110f124a15179bc',
-                     '.agents/skills/bmad-create-epics-and-stories/steps/step-03-create-stories.md': 'c5b787a82e4e49ed9cd9c028321ee1689f32b8cd69d89eea609b37cd3d481afc',
-                     '.agents/skills/bmad-create-epics-and-stories/steps/step-04-final-validation.md': '12b869b4f0531c9cf68a6b7a076409643858de245916ad4c1651e42189c86835',
-                     '.agents/skills/bmad-create-epics-and-stories/templates/epics-template.md': '542c4fd17c2382ea36aa3b7b15929f3fd62a8092631c60c83a78629bfc56e368',
-                     '.agents/skills/bmad-customize/SKILL.md': 'ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598',
-                     '.agents/skills/bmad-customize/scripts/list_customizable_skills.py': '9bfc913e6d23c3553096a68844823b022505f8b2ca7844eccdaf40b1b9288992',
-                     '.agents/skills/bmad-customize/scripts/tests/test_list_customizable_skills.py': '24c3d384b3b5d490b7335c17866bfe0425af253ce669c32382fa88feb705934d',
-                     '.agents/skills/bmad-deep-recon/SKILL.md': 'e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5',
-                     '.agents/skills/bmad-deep-recon/assets/research.template.md': '87d7cfa85fa5036b5a309b7bfb88f7934f50bb81f3cff02d2b49b4c7345cfc38',
-                     '.agents/skills/bmad-deep-recon/customize.toml': '24d1383066034fd4fcf282279aaf0d29d21910fd1247dfe3dbad74a70e78814d',
-                     '.agents/skills/bmad-deep-recon/references/draft.md': 'ac19b33a00ca529c3281df6076f87a833a3b11fc30915ca2c6e7590f7986b90e',
-                     '.agents/skills/bmad-deep-recon/references/finalize.md': 'd2ba4bee615dfbca6e7725179fb5ebd856dd34a54ba3f306e25255dfd7b1d126',
-                     '.agents/skills/bmad-deep-recon/references/html-briefing.md': 'cd3a88c1a5505fa7f1b715afc3adb34f3d64ade66f4c6b49a59f7e8cfcbe38d4',
-                     '.agents/skills/bmad-deep-recon/references/lifecycle.md': '2315fd9cb9223504639616b861ad593bfecb53d605efbd598ae2cf94fb6c4cdf',
-                     '.agents/skills/bmad-deep-recon/references/process.md': '9017d04774807a29103ea97331e555e2793f90098af65752b72f3ee09df85906',
-                     '.agents/skills/bmad-deep-recon/references/run.md': '8e259dc88820ac989c79620af5c37e24f00df21ac4af308ce3563c0e66c9406c',
-                     '.agents/skills/bmad-deep-recon/references/selection.md': '2b488c08f9550afe7fda32c2dc5d4591927afd7b9ad507fcce0ae8593c4b9d31',
-                     '.agents/skills/bmad-deep-recon/references/synthesis.md': '4d9ef1247ab45241f919010e94c99699abc0a6e18b5bd68fa93ae54afe59d172',
-                     '.agents/skills/bmad-deep-recon/references/verification.md': '0393ded4828fec69a4819d7236827910d641d09c3b61144c0211a9a78776fdd2',
-                     '.agents/skills/bmad-deep-recon/scripts/recon_kit.py': '20785a881170b3d54122967041016a3986f4ebab407c979409c4f22c8b1c1d49',
-                     '.agents/skills/bmad-deep-recon/scripts/tests/test_recon_kit.py': '1b4ddf482dd2d11a214ee2f821c35d7a8c41905b5d8d9cc69a293304bb8a1665',
-                     '.agents/skills/bmad-deep-recon/types/academic-lit.md': '514b0b7b1184cb95363dedeb0c2298a9bf5c430c74146fe2114f31780fadb325',
-                     '.agents/skills/bmad-deep-recon/types/competitive.md': '39b53df87d295fdc4388719fcdf31ad2221e64afc136e669207f46d2727a3aec',
-                     '.agents/skills/bmad-deep-recon/types/domain.md': '3a34b2e62c3589f8c8d01158357ee9fba32648c9fdfe70035bb3ca971862896b',
-                     '.agents/skills/bmad-deep-recon/types/market.md': '81ac04499da441857672e29fcd7169436a7e239e67194288ac0d526ec514cb5e',
-                     '.agents/skills/bmad-deep-recon/types/technical.md': '55f71428c70547b89d67ef0c6cdad59caeb0ee21082cd1230c05618ba8d04707',
-                     '.agents/skills/bmad-deep-recon/types/user-voice.md': '1831ce46e53e8c68244d28e336c5ef9e53e64f21a00b74a817b9b2924c1e8e72',
-                     '.agents/skills/bmad-forge-idea/SKILL.md': 'e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b',
-                     '.agents/skills/bmad-forge-idea/customize.toml': '839f57b89c8b04038fa795525f55799ee5c23431b17d429fe668880e78399ef2',
-                     '.agents/skills/bmad-forge-idea/scripts/resolve_personas.py': '9273c71595d6317e0a1035b1a632a47a8943379797d0a4db0d2842e5787c31cc',
-                     '.agents/skills/bmad-forge-idea/scripts/tests/test_resolve_personas.py': 'f8d040801d53e48c1aec147d1e28c5b279e459f49ea1fd1673dbd7e340022a99',
-                     '.agents/skills/bmad-help/SKILL.md': '72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c',
-                     '.agents/skills/bmad-party-mode/SKILL.md': '7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0',
-                     '.agents/skills/bmad-party-mode/customize.toml': '332aca1a85a681ff38a78850deb552e954d6a7d0b32f8d22caf9b2b2324b4e24',
-                     '.agents/skills/bmad-party-mode/references/create-party.md': 'e7fdf66d779e7e08d1cd4fbcbb63b78ba2dd8b1d781af0d0da8bea8c7110176b',
-                     '.agents/skills/bmad-party-mode/references/mode-agent-team.md': 'def759a17f4bb45463b68fb74c2b828b0a4241720b2b6cc1c9c611a1016ae9d7',
-                     '.agents/skills/bmad-party-mode/references/mode-auto.md': 'a37fd24f76dfcde385890d5c5947bb6f40ca44bea86c805d267b6ae3aab39f70',
-                     '.agents/skills/bmad-party-mode/references/mode-subagent.md': '86161b24a0b13b8f9cb9309042e4249d8caefff8cc33728b084cd2ec22f9d2e1',
-                     '.agents/skills/bmad-party-mode/references/party-memory.md': '800b4b4b920bb881a7b32aaabca8559a98273799b2476d83a23e290e301fb315',
-                     '.agents/skills/bmad-party-mode/scripts/resolve_party.py': '810d7838ddb4623c60e29639a3b2484ae140ebc59147acf98bfb934b55577a58',
-                     '.agents/skills/bmad-party-mode/scripts/tests/test_resolve_party.py': 'e2a7b1bbbe011b56a917dc54449fa29fb3df8716674a5998a32a50e3b5ee60e7',
-                     '.agents/skills/bmad-prd/SKILL.md': 'eafebb3fbebc4e276a055ca9916e20e36e95dca03f819eeeaaf80a3a9c16f07b',
-                     '.agents/skills/bmad-prd/assets/headless-schemas.md': '8d3621333a72400512bd62511bc4c73fc745711505e1f852c697ff8c5fa2de93',
-                     '.agents/skills/bmad-prd/assets/prd-template.md': 'b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab',
-                     '.agents/skills/bmad-prd/assets/prd-validation-checklist.md': '41d9f09064772a92ec908d970618e47ba63dc86b5c5a1a21d5a2c676d3ba8e3f',
-                     '.agents/skills/bmad-prd/assets/validation-report-template.html': 'a80becdd8205d2d7c18738855830b096172a496b96b5ca8a0820ec55c9bb8bf9',
-                     '.agents/skills/bmad-prd/customize.toml': 'd23707fe7ff5f5060a05b5b8bda3f170b9b1d9be61e409e9f7ae91f83572db6a',
-                     '.agents/skills/bmad-prd/references/headless.md': '4dad58ebee63933a53179016513ff94d143ce9f68e226489d390e2c36bf1d848',
-                     '.agents/skills/bmad-prd/references/validate.md': '19b2fa66d58cb4fef3d920cd09c81f8add4ee44dd4191bec87eaba84c2093338',
-                     '.agents/skills/bmad-prfaq/SKILL.md': 'e16d295601af1ebdf94e2f6da2c5ef3235029997bd78d0cbdab592e3d839dde7',
-                     '.agents/skills/bmad-prfaq/agents/artifact-analyzer.md': '7bdc44830f8d593346ec0ee15e36e1e431432fcc6c38b70bb861999315c9cfa4',
-                     '.agents/skills/bmad-prfaq/agents/web-researcher.md': '6e9127bb9bd3e4b15c701e4ced9eef328769262cd34eadc221bebe954c1f3aef',
-                     '.agents/skills/bmad-prfaq/assets/prfaq-template.md': 'b27e6964f0437ab4e78c8c0ffbe5052c28e3b3ef2fc811726cbb394d5a5c7559',
-                     '.agents/skills/bmad-prfaq/bmad-manifest.json': 'b67b016cd68535a97bd9164c237fbfe19a5b26bc1a3f0afe203fecfa40aab6ff',
-                     '.agents/skills/bmad-prfaq/customize.toml': 'b764b9ea360734d681115b958d0ccd478f1b56ce0045ecd6f71311ef005d8980',
-                     '.agents/skills/bmad-prfaq/references/customer-faq.md': '96f8565197649c58908a1d61b6cd805fd01f57da7945ba889c18d087ad597aeb',
-                     '.agents/skills/bmad-prfaq/references/internal-faq.md': '26eb83f844cda1ed8efb50f4703d61713ada8a64bd27eb387f759f858b5748de',
-                     '.agents/skills/bmad-prfaq/references/press-release.md': 'c406adb0e2d2cc326cbc45d0174f89d014523448ad82bc272293999d22aec596',
-                     '.agents/skills/bmad-prfaq/references/verdict.md': 'c962ce2c97e824cb53dae70c898153ffac3ea56b56565012ca2b96bb21c9618c',
-                     '.agents/skills/bmad-product-brief/SKILL.md': '88618d280e90cdfdf8ece62f0e9e6406e3db2d93b70aad66806d1be4bdfa3dbd',
-                     '.agents/skills/bmad-product-brief/assets/brief-template.md': 'bb28edf75d023067551c8d417b19b8803324e7acfb2ad0c80f882e9134f4c1f1',
-                     '.agents/skills/bmad-product-brief/customize.toml': 'bef95b0ab71793d214ec59ed7397a25f7253e63fad5d60570248614db6186905',
-                     '.agents/skills/bmad-project-context/SKILL.md': '50b0ee0f4905273dd7f8a57a4e79b2ff47eabb074b6f4bce8242b950b37dfb63',
-                     '.agents/skills/bmad-project-context/customize.toml': '9bf8a3aa919832cd8932853da550fcaebd06a9e13c0cde453f4379d8327f9c0f',
-                     '.agents/skills/bmad-project-context/references/best-practices.md': '850c45d2e1de44b1cd8e3b06b8175df53aac8983326d73351eab547bfacc532b',
-                     '.agents/skills/bmad-project-context/references/template.md': '5e2bc291e734a481fd2925877adfbe82b03313f300baf67dfdb6fa22a1181601',
-                     '.agents/skills/bmad-qa-generate-e2e-tests/SKILL.md': 'f8f6a62c390f0cf7fc88ea04fa1bc236dedde27cdc1ce95cdb6ebc1cd8f33251',
-                     '.agents/skills/bmad-qa-generate-e2e-tests/checklist.md': 'b58f810aeb1040c2f6758c88aa133afce72f8cc178d3d97ff0fbaa3d943057dc',
-                     '.agents/skills/bmad-qa-generate-e2e-tests/customize.toml': '4fbbd9d96e5af24ae012d33e59582b88867e8203dcd5a29f0d46b42ef6d747b8',
-                     '.agents/skills/bmad-retrospective/SKILL.md': 'd3f12423a0e456a7c2a25d5aa005df4eb4cb8c0b5cd400755b026c3c100b99dd',
-                     '.agents/skills/bmad-retrospective/customize.toml': '33ce7da5bad6dfe1791218d8d607b749f9b58586b232df7ea0d3263ec50ec466',
-                     '.agents/skills/bmad-retrospective/references/acceptance-verdict.md': '09a65007c39af83e01e039331c252e6e670b134cd5e2a4b5e05ac9d9fb7e37f1',
-                     '.agents/skills/bmad-retrospective/references/aggregate-views.md': '5b278afce4a53692d8715b4af178e4233da0876921dc3154b5763d056cb5ff0b',
-                     '.agents/skills/bmad-retrospective/references/evidence-gathering.md': '575bace78d7c03c48d86a209dd664f7dd22295a222b75e6d6298894cb7b7ce00',
-                     '.agents/skills/bmad-retrospective/references/retro-document.md': 'de8164664cd2be7f73b8ba5552e9e0f58816d2a7c4be8efc7715461846bb7001',
-                     '.agents/skills/bmad-retrospective/references/team-discussion.md': 'a9c504c436038c7e47d08322413aa3c213d2859b36ae30e873cb8c60fd9e008e',
-                     '.agents/skills/bmad-retrospective/scripts/git_evidence.py': '2acbb8b5804d0680b5939629a0c3786a72cde30f5f2cecd75858325c6e778d89',
-                     '.agents/skills/bmad-retrospective/scripts/sprint_status.py': '7c9f0a514a6e0834182f3c30485de49e0a4decb9be51027cc8be58aecdb9fc44',
-                     '.agents/skills/bmad-retrospective/scripts/tests/fixtures/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
-                     '.agents/skills/bmad-retrospective/scripts/tests/test_git_evidence.py': '0abfc8fad338830fc2db656d3ccc500631b0ea7a2ab87d853c13a6bbd46ff13c',
-                     '.agents/skills/bmad-retrospective/scripts/tests/test_sprint_status.py': '23da16cca54904a256fcf88fd8f912c3f6091ea343768c241bbd2aeebbca2af3',
-                     '.agents/skills/bmad-review/SKILL.md': 'c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7',
-                     '.agents/skills/bmad-review/customize.toml': '005dde84f09c0b1ab0ef0ee87f1ed1985922c893089cc3595157611fb83b3ebd',
-                     '.agents/skills/bmad-review/references/editorial-common.md': 'f0cdc72ea345b2c5dc3001477b3dfcc909ca11b78f7db8865b6763d18ffc66c8',
-                     '.agents/skills/bmad-review/references/lens-adversarial.md': '7c5ce97ab2f3ecb96ceb6aa76417f68c1b7df535edd3cc51666d8e1216e6e557',
-                     '.agents/skills/bmad-review/references/lens-edge-case-hunter.md': '5f0c4778d7b393d11156af8c1bd9bf88aafeb9d50fff5f460ca67df50d927e7d',
-                     '.agents/skills/bmad-review/references/lens-prose.md': '4cbcb1eaea8567d272f5db7c6cdfd74ed5a8aae6831053cb2f01cbfc2cb98b98',
-                     '.agents/skills/bmad-review/references/lens-structure.md': '98c08221f517133e57ef6325013935360c3365ebd7dcb8411b2050d7df507ee3',
-                     '.agents/skills/bmad-review/references/lens-verification-gap.md': 'e7123d81171eeeee1b3782d13d94c2988969fe357dd71949131a5eb97803e2c6',
-                     '.agents/skills/bmad-review/references/structure-models.md': 'f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292',
-                     '.agents/skills/bmad-review/scripts/tests/test_word_metrics.py': '3b5a285d3c9f611b3cda8c9c1d52d6b214c1f72e6e64a94ea5b0e220db5a8765',
-                     '.agents/skills/bmad-review/scripts/word_metrics.py': 'fb45007a7f3cfc18d13ee8bd4787facdaae297570193bc769456297dd33da78b',
-                     '.agents/skills/bmad-spec/SKILL.md': '46a2c3d5541d63af1520fac6b7abfff161a94b52fed51df6454115e3da5639c7',
-                     '.agents/skills/bmad-spec/assets/headless-schemas.md': '83afb3614716db2347d83586a67b9c524492dd50db5282436ccb35c99fb5f08a',
-                     '.agents/skills/bmad-spec/assets/spec-template.md': '4b3a032c045fdd0903933446fc07f93e879997f28a0294ed4344da71192b20ee',
-                     '.agents/skills/bmad-spec/assets/stories-schema.md': '4f8137c00e2710288354a4466d1cfb90704f4b2a04bd3b63924218fd589cc6a9',
-                     '.agents/skills/bmad-spec/customize.toml': 'd0f1f926bed79d514f8fdbc458a1883167fb64663bf2464c40e3c50dc2dcdbea',
-                     '.agents/skills/bmad-sprint-planning/SKILL.md': '391fdc181c605ec9da99028f9a82776410c86b50d2cc273b2b8d3d4b266a2012',
-                     '.agents/skills/bmad-sprint-planning/customize.toml': '54c7f6a8af77ff7ea6c9dbb00b515023999e011aabc802b7b328e82f505b0299',
-                     '.agents/skills/bmad-sprint-planning/references/fix-sprint-status.md': '0406c31b70da33e2a354d9785f43d8f9918f4b923d0aac2ebd1e3707ebad5806',
-                     '.agents/skills/bmad-sprint-planning/references/generate-tracking.md': '4dbf7aca26d0e6e893f288fc5e6158dbbcd65f77bbaf95e941ca705abceb1741',
-                     '.agents/skills/bmad-sprint-planning/references/readiness-gate.md': '7d58ea61fafe3c1d8218203abc7512e322ca384c78d9e71829df55dfabe1245b',
-                     '.agents/skills/bmad-sprint-planning/references/status-view.md': 'c3547e221ebf6e55c874e2ada3e8c18198835213c76f0bb2e0e64150aac355ab',
-                     '.agents/skills/bmad-sprint-planning/references/validate.md': 'ac680fa0a0f945a9bc0fc89ca709b2a8e6bc3b2617cd0d3d730378c4b5edd86d',
-                     '.agents/skills/bmad-sprint-planning/scripts/sprint_plan.py': 'c4e4daf4200f233501a069a43db56d097c5d4e71f74cd29f132f88b83c2fc95f',
-                     '.agents/skills/bmad-sprint-planning/scripts/tests/test_sprint_plan.py': 'f1c3b640e156946b0a234e233807b2a3983cb0d3f2d13dbb9830fbe0c67e5238',
-                     '.agents/skills/bmad-sprint-planning/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
-                     '.agents/skills/bmad-ux/SKILL.md': 'b437d6ad812577e31cb6845c2417aa491c2f3a17487aa43ed7960b3b9299b564',
-                     '.agents/skills/bmad-ux/assets/color-themes.md': 'ccb6e4ef47a196476cf9392d788938ad3ca8d07b9ce095b7c092dcb4e06735f0',
-                     '.agents/skills/bmad-ux/assets/design-directions.md': 'eab73b948da76a27abc908e1e7d6b124e8ff0362e6dd1990f7e60b9541cbcb98',
-                     '.agents/skills/bmad-ux/assets/design-example-editorial.md': 'a659166845b1a4ed3f9aef942c5935537a97382b10303684fbb78ed86265870e',
-                     '.agents/skills/bmad-ux/assets/design-example-mobile.md': 'a93fb9f114f2e83af0c961c0d7909b3859fc80bcd713715517cd639a53a0372a',
-                     '.agents/skills/bmad-ux/assets/design-example-shadcn.md': '25e0dfb2bb21483973a8f0a6ed650288b3dc2ae5ed02aa0f091bb9b6b0b39fc0',
-                     '.agents/skills/bmad-ux/assets/excalidraw-wireframe.md': '660bbcdebff50cd044a3752eda43f3cb303aca4b0f521b55a270da93b89ddb18',
-                     '.agents/skills/bmad-ux/assets/experience-example-mobile.md': 'f8cd54c92193cd8c34a472df9c212ac7330976f6a115b729721dcb60034dc4f0',
-                     '.agents/skills/bmad-ux/assets/experience-example-shadcn.md': 'd6ca16e87b768e8b41f352c02ee08af21d7cdac04ca21e6ae1556864b4d27590',
-                     '.agents/skills/bmad-ux/assets/headless-schemas.md': 'e3a773dde85286f1a6f6dd8b26fc17e09ccea96f6257dfe7fb436353cd79242d',
-                     '.agents/skills/bmad-ux/assets/key-screens.md': 'ff1c5060673dd595edd61e76806bae876264ec6895c2eaadf8a6190785bf5f7b',
-                     '.agents/skills/bmad-ux/assets/validation-report-template.html': '8656945636fabe96624f8ef8fce931b073b5aecbe42d490584c1d5c7f31e1353',
-                     '.agents/skills/bmad-ux/customize.toml': 'e85144ed214dc1e002ee7fc6589a0a7ef352c5f79ab4cb37a4e05ee8e245549c',
-                     '.agents/skills/bmad-ux/references/creative-tools.md': 'e281292d7c0fdecdbb67ca9b7d95d4bed803626ba5edfd8dcc99146fcaa118e6',
-                     '.agents/skills/bmad-ux/references/design-md-spec.md': 'd04d5f663607aba3f3181e818ae33856e6caf5e560dcb16fa64ed80b7cf3d590',
-                     '.agents/skills/bmad-ux/references/headless.md': '8da7e23d269b1644f45b5104a243a6a27fd8d075aebb95d9b7752f0d143f0f5d',
-                     '.agents/skills/bmad-ux/references/validate.md': '7c2189d9ac1585d9408b6ed0346ba564869e7db89dba8f81044db3431cfcee65',
-                     '.agents/skills/bmad-walkthrough/SKILL.md': '2294849558370f1219e5fa7306b731b30aedb0e6649eeeac95d88bff1301d938',
-                     '.agents/skills/bmad-walkthrough/customize.toml': '2a4b14c5b25729a2d8fa9d9762ab3f12ac9429cfc6bd31fd80a81d86eed98630',
-                     '.agents/skills/bmad-walkthrough/generate-trail.md': '4a5936d86fbe5a85285b4535097b1e2edda8849da35586f4b588a982d7224459',
-                     '.agents/skills/bmad-walkthrough/step-01-orientation.md': 'd9e3b949c36d49a025f3535773af2b51888fe4ce616b6d6d69683a122716b1d2',
-                     '.agents/skills/bmad-walkthrough/step-02-walkthrough.md': '66cf893f8f968ee81034e9ccd8c20415692c3a8c23a9a143c2245fe6c800acdc',
-                     '.agents/skills/bmad-walkthrough/step-03-detail-pass.md': 'd48163b9f305f15af57729a8443142e47beb6c3e977554afe12b39ee49cb9fc0',
-                     '.agents/skills/bmad-walkthrough/step-04-testing.md': '28a56e868968ea2d18add0df8c4bccced0f94b698e218df3d45ddac072ce369c',
-                     '.agents/skills/bmad-walkthrough/step-05-wrapup.md': '5bfe0f9240ae073f1b5c843d172c11e76cbe6067e8df414ea6a338c81f113f5d',
+                     '.agents/gitlab-workspace-kit/profile.md': 'a8acee6ad458be73c83d1a76472fc231a8f44eed1aea71774b792982370bf71b',
                      '.agents/skills/codebase-wiki/SKILL.md': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
                      '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
                      '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
@@ -576,69 +256,19 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '4da94770ca8742b754d58d8247cd
                      '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
                      '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
                      '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
-                     '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5',
-                     '_bmad/LICENSE': '0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66',
-                     '_bmad/_config/bmad-help.csv': 'fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365',
-                     '_bmad/_config/files-manifest.csv': 'a3e609486256b49b4a5f9f3cb24f5545d63ea01ecbd3028bb40a2db75af35d9b',
-                     '_bmad/_config/manifest.yaml': 'f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8',
-                     '_bmad/_config/skill-manifest.csv': '6d414dcda3fbfc4c8716ab309dbfa5493c0ce0fee8566cc822918e5c874a2544',
-                     '_bmad/bmm/config.yaml': '5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729',
-                     '_bmad/bmm/module-help.csv': 'c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a',
-                     '_bmad/bmm/v6-shims/README.md': '5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972',
-                     '_bmad/config.toml': 'ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3',
-                     '_bmad/core/config.yaml': '7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c',
-                     '_bmad/core/module-help.csv': '38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7',
-                     '_bmad/core/v6-shims/README.md': '017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2',
-                     '_bmad/scripts/config_utils.py': '48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651',
-                     '_bmad/scripts/memlog.py': '4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240',
-                     '_bmad/scripts/render_skill.py': '8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942',
-                     '_bmad/scripts/resolve_config.py': '70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768',
-                     '_bmad/scripts/resolve_customization.py': 'c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284'},
+                     '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
            'overlays': {'codebase-wiki': {'added': {},
                                           'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
                                                                                                  'upstream_sha256': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4'}}}},
-           'payloadSha256': '75c23c518209088710be3f34788a4fe4a0327c23e5aa8318c495b08058380e6b',
-           'profileHashes': {'group-instructions.md': '3a634fd019f17db59581653e408f16bfbe91f12e9acda7419828606ec847ea1a',
+           'payloadSha256': '8b655ef4dd764fe498f6035bd9cb0a11b6da67052388f9b93a36db36d7955a19',
+           'profileHashes': {'group-instructions.md': 'ddd2353b6c2a12a07f225332ca3b31e99126f12d4ddc9013f8f031b4077b12a9',
                              'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
-                             'profile.md': 'c5cdff6d85903936e6664b23423351e3bae86bbd73b0a0bb7794e65366373ef3'},
-           'skills': ['bmad-advanced-elicitation',
-                      'bmad-agent-analyst',
-                      'bmad-agent-architect',
-                      'bmad-agent-dev',
-                      'bmad-agent-pm',
-                      'bmad-agent-ux-designer',
-                      'bmad-architecture',
-                      'bmad-brainstorming',
-                      'bmad-build',
-                      'bmad-build-auto',
-                      'bmad-code-review',
-                      'bmad-correct-course',
-                      'bmad-create-epics-and-stories',
-                      'bmad-customize',
-                      'bmad-deep-recon',
-                      'bmad-forge-idea',
-                      'bmad-help',
-                      'bmad-party-mode',
-                      'bmad-prd',
-                      'bmad-prfaq',
-                      'bmad-product-brief',
-                      'bmad-project-context',
-                      'bmad-qa-generate-e2e-tests',
-                      'bmad-retrospective',
-                      'bmad-review',
-                      'bmad-spec',
-                      'bmad-sprint-planning',
-                      'bmad-ux',
-                      'bmad-walkthrough',
-                      'codebase-wiki',
-                      'merge-reviewer',
-                      'output-style',
-                      'release-reviewer']},
- 'repository': {'agentBlockSha256': 'ac6040dac0b06bf74fa60c914d7aa48217a10e9cbb4ce2e83f08c5160b95f46d',
+                             'profile.md': 'a8acee6ad458be73c83d1a76472fc231a8f44eed1aea71774b792982370bf71b'},
+           'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']},
+ 'repository': {'agentBlockSha256': '3a8923db0a1e65f6102abe8fa528441cc41eccfee06d22797b9ff50122c5d1e8',
                 'capabilities': ['adr',
                                  'archaeology',
                                  'audit',
-                                 'bmad-workflow',
                                  'business-analysis',
                                  'functional-exploration',
                                  'ingest',
@@ -650,223 +280,9 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '4da94770ca8742b754d58d8247cd
                                  'synthesis',
                                  'system-analysis',
                                  'system-design'],
-                'files': {'.agents/gitlab-workspace-kit/group-instructions.md': 'f01c5b160e9080d5a65c35309da00d46bb0597ed89cc89eb748d253ae643d2da',
+                'files': {'.agents/gitlab-workspace-kit/group-instructions.md': '57c2dac61e73ffaef02a7de131a427d62d835522c9ff9eadeaa5c999df56ea5c',
                           '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
-                          '.agents/gitlab-workspace-kit/profile.md': 'cfe7b1d261c5ec747771848fd91f51dbcaa3351397954cae78f596715b2de1e0',
-                          '.agents/skills/bmad-advanced-elicitation/SKILL.md': 'd38cb53f1c7c77f13664c340026a1a4932ae1ca5a24471eebaeb172b88c7942f',
-                          '.agents/skills/bmad-advanced-elicitation/assets/methods.csv': 'd110ff5f076fb9421552b83692fde2c2d367734049169c7a55f7267a3dc7ef89',
-                          '.agents/skills/bmad-advanced-elicitation/customize.toml': '735a276edd51786ccfd2c3417d9a2b9dee4244a6102698981b3888f68d979ed9',
-                          '.agents/skills/bmad-advanced-elicitation/scripts/pick_methods.py': '60020ec4767894ea3d8707c4b61e78b679d434315be1dd29154bf64d88126fff',
-                          '.agents/skills/bmad-advanced-elicitation/scripts/tests/test_pick_methods.py': '610099d8494529f9203d7262567810b500552bcef006b3b6388d58da3da71978',
-                          '.agents/skills/bmad-agent-analyst/SKILL.md': '6bfe0ccc9d85be7c651f9d430f37192abc32c67b5445f037dfea9c87d95ce4f0',
-                          '.agents/skills/bmad-agent-analyst/customize.toml': 'd6e2c5c660e8900866298961266a0b1c189c8643f2c1c9da602101e9f98d3388',
-                          '.agents/skills/bmad-agent-architect/SKILL.md': '02b2361438d39181f7990940a35af73658d37831572dd5d5ab9cfca17e8f0817',
-                          '.agents/skills/bmad-agent-architect/customize.toml': 'bd0ebb48faeab1e6f709d0291a13d33003484a597ed2b9c90f221b2345513b06',
-                          '.agents/skills/bmad-agent-dev/SKILL.md': '5e81cd7db67a76626bef308374a06664cd52395b97c15966d09543765257f33d',
-                          '.agents/skills/bmad-agent-dev/customize.toml': 'ab52d8840427e10d5956b592c34e63edc77ebdafd7b54ce60da11cf67ed72ced',
-                          '.agents/skills/bmad-agent-pm/SKILL.md': 'cd3e8bf36b6e77d4b2d33c5700f0528a6cd2796b24ea22b227301bc60168b083',
-                          '.agents/skills/bmad-agent-pm/customize.toml': '4613c72cfe3bc3143bd50c5732bce464c21c7266fe7dd930bc659c54e7315b39',
-                          '.agents/skills/bmad-agent-ux-designer/SKILL.md': '3c28653423072119cbf8eb7b6e09a0fb6f1cd7679ee1a27735dea20a2a76c28d',
-                          '.agents/skills/bmad-agent-ux-designer/customize.toml': '4acd1d9cdbf4a4328c389229ea9e9f2885d0692f8e10e3d9456da45844337c2c',
-                          '.agents/skills/bmad-architecture/SKILL.md': '4a256afa9c725e0bf5b55961d21774f1eb00011dbe31509e280a955bdb1a5c09',
-                          '.agents/skills/bmad-architecture/assets/spine-template.md': 'ef4ff795624eb5439fae54a06edb389feb5a0cf79cb01ae007af51109335d198',
-                          '.agents/skills/bmad-architecture/customize.toml': 'e9c5f75bd6605199f3908d6a1f013d6b42fb12b6f35c9a5e13a44f7f872b7b79',
-                          '.agents/skills/bmad-architecture/references/headless.md': '4db2708f335c94cb024b5eba022b1e3d88b1ec61c94c4716626d9b89684f5833',
-                          '.agents/skills/bmad-architecture/references/reviewer-gate.md': 'd32e32a3c1d59b5612b947004f3f6fef1117a13ce9f1ffa428d616e0b5d4db69',
-                          '.agents/skills/bmad-architecture/scripts/lint_spine.py': 'dd48be20384adfa281d295e34a39c1ae55727af7e98efe42525be31d1c5c001e',
-                          '.agents/skills/bmad-architecture/scripts/tests/test_lint_spine.py': 'e86bb9a62c5cca74ddc89c843386f2b992610fcc1792d40e03bc9cd445b77681',
-                          '.agents/skills/bmad-brainstorming/SKILL.md': '2657a2088329651fd06f030e61997fc9f21986588d65ce96f14043af14d8534e',
-                          '.agents/skills/bmad-brainstorming/assets/brain-icons.json': 'a101c56e89f1d0f9e4131dfdfc19e10c746e3a61c3f92537d04a6f4897b7d331',
-                          '.agents/skills/bmad-brainstorming/assets/brain-methods.csv': 'fff112eabca1a9cb8b190f8314bc47678becc5782a2372e11c83daa0e33b6dfd',
-                          '.agents/skills/bmad-brainstorming/assets/brain-selector.html': 'c110919a3366bd96061f050f98503e3586185e3d1df5ff8b62a5a046c571a436',
-                          '.agents/skills/bmad-brainstorming/customize.toml': '313c3b348473cd40ba02ceae4b299c617300af78debb2f5585c8d3941cc2d8d3',
-                          '.agents/skills/bmad-brainstorming/references/converge.md': '1528c32ddc64f8061fec663306f7208d2fd4d4a90e660552b8138bda7e452dc0',
-                          '.agents/skills/bmad-brainstorming/references/finalize.md': 'b6074e7fb4d86ffcf899abc50b9049b4a1f6fe550917f4be7a1c7a888477e07e',
-                          '.agents/skills/bmad-brainstorming/references/headless.md': 'b8ea5951199cff7e4813e06aef35683ca0658230fa015e358cacc466b1138a42',
-                          '.agents/skills/bmad-brainstorming/references/in-chat-techniques.md': '18239464e3e4f00ea9063d015d26d6b0a696b72e7e3c5be92352da6db9a3f244',
-                          '.agents/skills/bmad-brainstorming/references/mode-autonomous.md': 'd815d2c7f0f8cc0cdfa7c619eaf61f59fd78142f13c69365eda257da38b97bdf',
-                          '.agents/skills/bmad-brainstorming/references/mode-facilitator.md': '1b908498d285d190859aed00c3ba5b399d7f6aa8e94d54e95456d15cd6fe6073',
-                          '.agents/skills/bmad-brainstorming/references/mode-partner.md': 'caa0ed378c116def4de382f4e5a95173c6ae6cc5464f1792e7d8196360f79c8a',
-                          '.agents/skills/bmad-brainstorming/references/resume.md': '0f79535d72eefe6c55bd5ae47fe4753de8d27235cf129f10b2c596a124c26526',
-                          '.agents/skills/bmad-brainstorming/scripts/brain.py': 'f81b28fe590f607b95c7218a7cdd6fb6eb91d3a76b9671acf54bcaf36fd4e6ca',
-                          '.agents/skills/bmad-brainstorming/scripts/tests/test_brain.py': 'b219da8e5e3ccd4ebae95fb02bc5683d6b62593d71db75a712adc7a1b9017bc3',
-                          '.agents/skills/bmad-build-auto/SKILL.md': 'ea798a5f7df3b11eb73555a54fc0516c70d8f98739bd7857d968297b26f6ef94',
-                          '.agents/skills/bmad-build-auto/compile-epic-context.md': '64d13b41974cfa0dfc1de64b6fbd8365e9b99f91c7c98f0ee1a9fbd018f324ca',
-                          '.agents/skills/bmad-build-auto/customize.toml': '31417a8239f213c00621bb9016c3099631ae7ef03731ce5be209a5668a5730ee',
-                          '.agents/skills/bmad-build-auto/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
-                          '.agents/skills/bmad-build-auto/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                          '.agents/skills/bmad-build-auto/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
-                          '.agents/skills/bmad-build-auto/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
-                          '.agents/skills/bmad-build-auto/spec-template.md': '59a046df2773ec05af0688823d17238bfde2bb54c0c3b3eff6acec4856f1eb7a',
-                          '.agents/skills/bmad-build-auto/step-01-clarify-and-route.md': '50674ecef3b4b7a26b993685c9a79ccd87b00b2255d51b6b9c13ed32aa6d1ffa',
-                          '.agents/skills/bmad-build-auto/step-02-plan.md': 'a08e303c10f88dbfce88c55044757ec5059afe338793eb414e1ddb0b7c324625',
-                          '.agents/skills/bmad-build-auto/step-03-implement.md': '0dc9c9634eca148baaec03e7d154840a14101f92492b7ab469625bf13b4e2ab5',
-                          '.agents/skills/bmad-build-auto/step-04-review.md': 'c5530c50c89f197720275b83466b382f896fa27a0bba30d4b75c6af162148cdf',
-                          '.agents/skills/bmad-build-auto/workflow.md': '611f429206029a903ec9433ccdfd9b186fbafc6dc95da0a21fbcdf5965ad25ea',
-                          '.agents/skills/bmad-build/SKILL.md': '1cdf5406965ba24236d2375739d839699eb56b619834490539d1bd3d5111f890',
-                          '.agents/skills/bmad-build/compile-epic-context.md': '6793b15ae85766cee529e6b349e45f2c6ec9e3212019611c29e8c77b4dc4b924',
-                          '.agents/skills/bmad-build/customize.toml': '0ee9b033a40640420d1dc3411de7428146d00bf8c1409c9a9cfe6c1743cd53b9',
-                          '.agents/skills/bmad-build/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
-                          '.agents/skills/bmad-build/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                          '.agents/skills/bmad-build/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
-                          '.agents/skills/bmad-build/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
-                          '.agents/skills/bmad-build/spec-template.md': 'e217325964857ebd90a9508bf171eddc2c4ad1b0b9b32a119775ac5c015695fd',
-                          '.agents/skills/bmad-build/step-01-clarify-and-route.md': '1e8095b08e9e9c57d9b24678b524e07d0b6bbb5af72ba213622f12a1c7d909cc',
-                          '.agents/skills/bmad-build/step-02-plan.md': '5c999430f818f58fc5e4f64309a1b0f81358ce0ddcfbd3f44b25d56279ef25d8',
-                          '.agents/skills/bmad-build/step-03-implement.md': '15fd02d2f655d4102c515134ed6aa40cd055bd9d811e49d529512f8f36d09b03',
-                          '.agents/skills/bmad-build/step-04-review.md': 'f6b3f3fa5d3af0b324db2efee9351d4c348bdc0dfa4dad6c058eb4fd37921333',
-                          '.agents/skills/bmad-build/step-05-present.md': '551e0847e2ebb64575180a5dacca5786b9b9d7825dcd986e1b3b58442eaf713a',
-                          '.agents/skills/bmad-build/step-oneshot.md': '241fa52e227c048a5d8e4428bef0f153267475f697640899deb218b58ebfd378',
-                          '.agents/skills/bmad-build/sync-sprint-status.md': '7ff44d21f5d813f4993780271eec8df2fce1373f525ff80e595b7c10618c4c36',
-                          '.agents/skills/bmad-build/workflow.md': '481ff00ef349a9c7845feca02bbfd5722b1e318ccabac858355da6c90c2d8a39',
-                          '.agents/skills/bmad-code-review/SKILL.md': 'de287a30b672fd3c435f68f644d231091fb788e6d857a3e9f9d1ca22e67e13c1',
-                          '.agents/skills/bmad-code-review/customize.toml': '282d9483ccb74acab1efb965ce10ebd6206a61da94da245a705a6358dbf0dc2e',
-                          '.agents/skills/bmad-code-review/references/claims-check.md': '7be5d35dd90a1950addc2062acdf8669026b239117efe1e398da1e8161cfa6f9',
-                          '.agents/skills/bmad-code-review/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
-                          '.agents/skills/bmad-code-review/review-prompts/edge-case-hunter.md': '5f4572d57340b4c0d155f33454d644a44af101cd7fd02a01591be68a4ebb8b7f',
-                          '.agents/skills/bmad-code-review/review-prompts/verification-gap.md': '06f6184d7d94c808970d0146cdc4585dfd66b94a7b7ab2988277fb6fc4208508',
-                          '.agents/skills/bmad-code-review/steps/step-01-gather-context.md': '51941fd52406cf075ac9172cdcbeebefe85df91ea818ad8ec723724de67a1831',
-                          '.agents/skills/bmad-code-review/steps/step-02-review.md': 'f2b8e654cf595746656d9861c4ac722f65b02939c53900f4f6d8b24988b2155a',
-                          '.agents/skills/bmad-code-review/steps/step-03-triage.md': '337ac3ad2cd8cabb34f4e47c8778cfd703f919753573dd9d708b7218fd5de684',
-                          '.agents/skills/bmad-code-review/steps/step-04-present.md': 'a9619f7df9b9112c0e42ee71a362f73dfa38ef6dff7b403975dbd6d2480a8d9f',
-                          '.agents/skills/bmad-correct-course/SKILL.md': '1a56020a13e17f20a420a206ad6d7b09b5f91fe89f6a14918ad77e691bd05686',
-                          '.agents/skills/bmad-correct-course/checklist.md': '3e082b95def90ccb876e3101ce0bbaf797a0f03a9471e1347361897f27977327',
-                          '.agents/skills/bmad-correct-course/customize.toml': '9990c3d4a1aa90a207f7e3380a7a48a5c9c005702194f63c6a959a4b1a18586f',
-                          '.agents/skills/bmad-create-epics-and-stories/SKILL.md': '506d7c2e02a301e012eb75b918c00e6f53ba1dd6295f6e313cc7bf0a77c83261',
-                          '.agents/skills/bmad-create-epics-and-stories/customize.toml': 'e7633a4e6e33161c7cb13034e5132d9d29f8a7031e75765d16a60724f2089557',
-                          '.agents/skills/bmad-create-epics-and-stories/steps/step-01-validate-prerequisites.md': '7181608c1ee4e55c084c6627d68fc55a8a0b6917e489f8ac77531a0530428a30',
-                          '.agents/skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md': '7c66987808c1f84e853fe54b7aff26d209196d450b5644704110f124a15179bc',
-                          '.agents/skills/bmad-create-epics-and-stories/steps/step-03-create-stories.md': 'c5b787a82e4e49ed9cd9c028321ee1689f32b8cd69d89eea609b37cd3d481afc',
-                          '.agents/skills/bmad-create-epics-and-stories/steps/step-04-final-validation.md': '12b869b4f0531c9cf68a6b7a076409643858de245916ad4c1651e42189c86835',
-                          '.agents/skills/bmad-create-epics-and-stories/templates/epics-template.md': '542c4fd17c2382ea36aa3b7b15929f3fd62a8092631c60c83a78629bfc56e368',
-                          '.agents/skills/bmad-customize/SKILL.md': 'ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598',
-                          '.agents/skills/bmad-customize/scripts/list_customizable_skills.py': '9bfc913e6d23c3553096a68844823b022505f8b2ca7844eccdaf40b1b9288992',
-                          '.agents/skills/bmad-customize/scripts/tests/test_list_customizable_skills.py': '24c3d384b3b5d490b7335c17866bfe0425af253ce669c32382fa88feb705934d',
-                          '.agents/skills/bmad-deep-recon/SKILL.md': 'e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5',
-                          '.agents/skills/bmad-deep-recon/assets/research.template.md': '87d7cfa85fa5036b5a309b7bfb88f7934f50bb81f3cff02d2b49b4c7345cfc38',
-                          '.agents/skills/bmad-deep-recon/customize.toml': '24d1383066034fd4fcf282279aaf0d29d21910fd1247dfe3dbad74a70e78814d',
-                          '.agents/skills/bmad-deep-recon/references/draft.md': 'ac19b33a00ca529c3281df6076f87a833a3b11fc30915ca2c6e7590f7986b90e',
-                          '.agents/skills/bmad-deep-recon/references/finalize.md': 'd2ba4bee615dfbca6e7725179fb5ebd856dd34a54ba3f306e25255dfd7b1d126',
-                          '.agents/skills/bmad-deep-recon/references/html-briefing.md': 'cd3a88c1a5505fa7f1b715afc3adb34f3d64ade66f4c6b49a59f7e8cfcbe38d4',
-                          '.agents/skills/bmad-deep-recon/references/lifecycle.md': '2315fd9cb9223504639616b861ad593bfecb53d605efbd598ae2cf94fb6c4cdf',
-                          '.agents/skills/bmad-deep-recon/references/process.md': '9017d04774807a29103ea97331e555e2793f90098af65752b72f3ee09df85906',
-                          '.agents/skills/bmad-deep-recon/references/run.md': '8e259dc88820ac989c79620af5c37e24f00df21ac4af308ce3563c0e66c9406c',
-                          '.agents/skills/bmad-deep-recon/references/selection.md': '2b488c08f9550afe7fda32c2dc5d4591927afd7b9ad507fcce0ae8593c4b9d31',
-                          '.agents/skills/bmad-deep-recon/references/synthesis.md': '4d9ef1247ab45241f919010e94c99699abc0a6e18b5bd68fa93ae54afe59d172',
-                          '.agents/skills/bmad-deep-recon/references/verification.md': '0393ded4828fec69a4819d7236827910d641d09c3b61144c0211a9a78776fdd2',
-                          '.agents/skills/bmad-deep-recon/scripts/recon_kit.py': '20785a881170b3d54122967041016a3986f4ebab407c979409c4f22c8b1c1d49',
-                          '.agents/skills/bmad-deep-recon/scripts/tests/test_recon_kit.py': '1b4ddf482dd2d11a214ee2f821c35d7a8c41905b5d8d9cc69a293304bb8a1665',
-                          '.agents/skills/bmad-deep-recon/types/academic-lit.md': '514b0b7b1184cb95363dedeb0c2298a9bf5c430c74146fe2114f31780fadb325',
-                          '.agents/skills/bmad-deep-recon/types/competitive.md': '39b53df87d295fdc4388719fcdf31ad2221e64afc136e669207f46d2727a3aec',
-                          '.agents/skills/bmad-deep-recon/types/domain.md': '3a34b2e62c3589f8c8d01158357ee9fba32648c9fdfe70035bb3ca971862896b',
-                          '.agents/skills/bmad-deep-recon/types/market.md': '81ac04499da441857672e29fcd7169436a7e239e67194288ac0d526ec514cb5e',
-                          '.agents/skills/bmad-deep-recon/types/technical.md': '55f71428c70547b89d67ef0c6cdad59caeb0ee21082cd1230c05618ba8d04707',
-                          '.agents/skills/bmad-deep-recon/types/user-voice.md': '1831ce46e53e8c68244d28e336c5ef9e53e64f21a00b74a817b9b2924c1e8e72',
-                          '.agents/skills/bmad-forge-idea/SKILL.md': 'e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b',
-                          '.agents/skills/bmad-forge-idea/customize.toml': '839f57b89c8b04038fa795525f55799ee5c23431b17d429fe668880e78399ef2',
-                          '.agents/skills/bmad-forge-idea/scripts/resolve_personas.py': '9273c71595d6317e0a1035b1a632a47a8943379797d0a4db0d2842e5787c31cc',
-                          '.agents/skills/bmad-forge-idea/scripts/tests/test_resolve_personas.py': 'f8d040801d53e48c1aec147d1e28c5b279e459f49ea1fd1673dbd7e340022a99',
-                          '.agents/skills/bmad-help/SKILL.md': '72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c',
-                          '.agents/skills/bmad-party-mode/SKILL.md': '7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0',
-                          '.agents/skills/bmad-party-mode/customize.toml': '332aca1a85a681ff38a78850deb552e954d6a7d0b32f8d22caf9b2b2324b4e24',
-                          '.agents/skills/bmad-party-mode/references/create-party.md': 'e7fdf66d779e7e08d1cd4fbcbb63b78ba2dd8b1d781af0d0da8bea8c7110176b',
-                          '.agents/skills/bmad-party-mode/references/mode-agent-team.md': 'def759a17f4bb45463b68fb74c2b828b0a4241720b2b6cc1c9c611a1016ae9d7',
-                          '.agents/skills/bmad-party-mode/references/mode-auto.md': 'a37fd24f76dfcde385890d5c5947bb6f40ca44bea86c805d267b6ae3aab39f70',
-                          '.agents/skills/bmad-party-mode/references/mode-subagent.md': '86161b24a0b13b8f9cb9309042e4249d8caefff8cc33728b084cd2ec22f9d2e1',
-                          '.agents/skills/bmad-party-mode/references/party-memory.md': '800b4b4b920bb881a7b32aaabca8559a98273799b2476d83a23e290e301fb315',
-                          '.agents/skills/bmad-party-mode/scripts/resolve_party.py': '810d7838ddb4623c60e29639a3b2484ae140ebc59147acf98bfb934b55577a58',
-                          '.agents/skills/bmad-party-mode/scripts/tests/test_resolve_party.py': 'e2a7b1bbbe011b56a917dc54449fa29fb3df8716674a5998a32a50e3b5ee60e7',
-                          '.agents/skills/bmad-prd/SKILL.md': 'eafebb3fbebc4e276a055ca9916e20e36e95dca03f819eeeaaf80a3a9c16f07b',
-                          '.agents/skills/bmad-prd/assets/headless-schemas.md': '8d3621333a72400512bd62511bc4c73fc745711505e1f852c697ff8c5fa2de93',
-                          '.agents/skills/bmad-prd/assets/prd-template.md': 'b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab',
-                          '.agents/skills/bmad-prd/assets/prd-validation-checklist.md': '41d9f09064772a92ec908d970618e47ba63dc86b5c5a1a21d5a2c676d3ba8e3f',
-                          '.agents/skills/bmad-prd/assets/validation-report-template.html': 'a80becdd8205d2d7c18738855830b096172a496b96b5ca8a0820ec55c9bb8bf9',
-                          '.agents/skills/bmad-prd/customize.toml': 'd23707fe7ff5f5060a05b5b8bda3f170b9b1d9be61e409e9f7ae91f83572db6a',
-                          '.agents/skills/bmad-prd/references/headless.md': '4dad58ebee63933a53179016513ff94d143ce9f68e226489d390e2c36bf1d848',
-                          '.agents/skills/bmad-prd/references/validate.md': '19b2fa66d58cb4fef3d920cd09c81f8add4ee44dd4191bec87eaba84c2093338',
-                          '.agents/skills/bmad-prfaq/SKILL.md': 'e16d295601af1ebdf94e2f6da2c5ef3235029997bd78d0cbdab592e3d839dde7',
-                          '.agents/skills/bmad-prfaq/agents/artifact-analyzer.md': '7bdc44830f8d593346ec0ee15e36e1e431432fcc6c38b70bb861999315c9cfa4',
-                          '.agents/skills/bmad-prfaq/agents/web-researcher.md': '6e9127bb9bd3e4b15c701e4ced9eef328769262cd34eadc221bebe954c1f3aef',
-                          '.agents/skills/bmad-prfaq/assets/prfaq-template.md': 'b27e6964f0437ab4e78c8c0ffbe5052c28e3b3ef2fc811726cbb394d5a5c7559',
-                          '.agents/skills/bmad-prfaq/bmad-manifest.json': 'b67b016cd68535a97bd9164c237fbfe19a5b26bc1a3f0afe203fecfa40aab6ff',
-                          '.agents/skills/bmad-prfaq/customize.toml': 'b764b9ea360734d681115b958d0ccd478f1b56ce0045ecd6f71311ef005d8980',
-                          '.agents/skills/bmad-prfaq/references/customer-faq.md': '96f8565197649c58908a1d61b6cd805fd01f57da7945ba889c18d087ad597aeb',
-                          '.agents/skills/bmad-prfaq/references/internal-faq.md': '26eb83f844cda1ed8efb50f4703d61713ada8a64bd27eb387f759f858b5748de',
-                          '.agents/skills/bmad-prfaq/references/press-release.md': 'c406adb0e2d2cc326cbc45d0174f89d014523448ad82bc272293999d22aec596',
-                          '.agents/skills/bmad-prfaq/references/verdict.md': 'c962ce2c97e824cb53dae70c898153ffac3ea56b56565012ca2b96bb21c9618c',
-                          '.agents/skills/bmad-product-brief/SKILL.md': '88618d280e90cdfdf8ece62f0e9e6406e3db2d93b70aad66806d1be4bdfa3dbd',
-                          '.agents/skills/bmad-product-brief/assets/brief-template.md': 'bb28edf75d023067551c8d417b19b8803324e7acfb2ad0c80f882e9134f4c1f1',
-                          '.agents/skills/bmad-product-brief/customize.toml': 'bef95b0ab71793d214ec59ed7397a25f7253e63fad5d60570248614db6186905',
-                          '.agents/skills/bmad-project-context/SKILL.md': '50b0ee0f4905273dd7f8a57a4e79b2ff47eabb074b6f4bce8242b950b37dfb63',
-                          '.agents/skills/bmad-project-context/customize.toml': '9bf8a3aa919832cd8932853da550fcaebd06a9e13c0cde453f4379d8327f9c0f',
-                          '.agents/skills/bmad-project-context/references/best-practices.md': '850c45d2e1de44b1cd8e3b06b8175df53aac8983326d73351eab547bfacc532b',
-                          '.agents/skills/bmad-project-context/references/template.md': '5e2bc291e734a481fd2925877adfbe82b03313f300baf67dfdb6fa22a1181601',
-                          '.agents/skills/bmad-qa-generate-e2e-tests/SKILL.md': 'f8f6a62c390f0cf7fc88ea04fa1bc236dedde27cdc1ce95cdb6ebc1cd8f33251',
-                          '.agents/skills/bmad-qa-generate-e2e-tests/checklist.md': 'b58f810aeb1040c2f6758c88aa133afce72f8cc178d3d97ff0fbaa3d943057dc',
-                          '.agents/skills/bmad-qa-generate-e2e-tests/customize.toml': '4fbbd9d96e5af24ae012d33e59582b88867e8203dcd5a29f0d46b42ef6d747b8',
-                          '.agents/skills/bmad-retrospective/SKILL.md': 'd3f12423a0e456a7c2a25d5aa005df4eb4cb8c0b5cd400755b026c3c100b99dd',
-                          '.agents/skills/bmad-retrospective/customize.toml': '33ce7da5bad6dfe1791218d8d607b749f9b58586b232df7ea0d3263ec50ec466',
-                          '.agents/skills/bmad-retrospective/references/acceptance-verdict.md': '09a65007c39af83e01e039331c252e6e670b134cd5e2a4b5e05ac9d9fb7e37f1',
-                          '.agents/skills/bmad-retrospective/references/aggregate-views.md': '5b278afce4a53692d8715b4af178e4233da0876921dc3154b5763d056cb5ff0b',
-                          '.agents/skills/bmad-retrospective/references/evidence-gathering.md': '575bace78d7c03c48d86a209dd664f7dd22295a222b75e6d6298894cb7b7ce00',
-                          '.agents/skills/bmad-retrospective/references/retro-document.md': 'de8164664cd2be7f73b8ba5552e9e0f58816d2a7c4be8efc7715461846bb7001',
-                          '.agents/skills/bmad-retrospective/references/team-discussion.md': 'a9c504c436038c7e47d08322413aa3c213d2859b36ae30e873cb8c60fd9e008e',
-                          '.agents/skills/bmad-retrospective/scripts/git_evidence.py': '2acbb8b5804d0680b5939629a0c3786a72cde30f5f2cecd75858325c6e778d89',
-                          '.agents/skills/bmad-retrospective/scripts/sprint_status.py': '7c9f0a514a6e0834182f3c30485de49e0a4decb9be51027cc8be58aecdb9fc44',
-                          '.agents/skills/bmad-retrospective/scripts/tests/fixtures/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
-                          '.agents/skills/bmad-retrospective/scripts/tests/test_git_evidence.py': '0abfc8fad338830fc2db656d3ccc500631b0ea7a2ab87d853c13a6bbd46ff13c',
-                          '.agents/skills/bmad-retrospective/scripts/tests/test_sprint_status.py': '23da16cca54904a256fcf88fd8f912c3f6091ea343768c241bbd2aeebbca2af3',
-                          '.agents/skills/bmad-review/SKILL.md': 'c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7',
-                          '.agents/skills/bmad-review/customize.toml': '005dde84f09c0b1ab0ef0ee87f1ed1985922c893089cc3595157611fb83b3ebd',
-                          '.agents/skills/bmad-review/references/editorial-common.md': 'f0cdc72ea345b2c5dc3001477b3dfcc909ca11b78f7db8865b6763d18ffc66c8',
-                          '.agents/skills/bmad-review/references/lens-adversarial.md': '7c5ce97ab2f3ecb96ceb6aa76417f68c1b7df535edd3cc51666d8e1216e6e557',
-                          '.agents/skills/bmad-review/references/lens-edge-case-hunter.md': '5f0c4778d7b393d11156af8c1bd9bf88aafeb9d50fff5f460ca67df50d927e7d',
-                          '.agents/skills/bmad-review/references/lens-prose.md': '4cbcb1eaea8567d272f5db7c6cdfd74ed5a8aae6831053cb2f01cbfc2cb98b98',
-                          '.agents/skills/bmad-review/references/lens-structure.md': '98c08221f517133e57ef6325013935360c3365ebd7dcb8411b2050d7df507ee3',
-                          '.agents/skills/bmad-review/references/lens-verification-gap.md': 'e7123d81171eeeee1b3782d13d94c2988969fe357dd71949131a5eb97803e2c6',
-                          '.agents/skills/bmad-review/references/structure-models.md': 'f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292',
-                          '.agents/skills/bmad-review/scripts/tests/test_word_metrics.py': '3b5a285d3c9f611b3cda8c9c1d52d6b214c1f72e6e64a94ea5b0e220db5a8765',
-                          '.agents/skills/bmad-review/scripts/word_metrics.py': 'fb45007a7f3cfc18d13ee8bd4787facdaae297570193bc769456297dd33da78b',
-                          '.agents/skills/bmad-spec/SKILL.md': '46a2c3d5541d63af1520fac6b7abfff161a94b52fed51df6454115e3da5639c7',
-                          '.agents/skills/bmad-spec/assets/headless-schemas.md': '83afb3614716db2347d83586a67b9c524492dd50db5282436ccb35c99fb5f08a',
-                          '.agents/skills/bmad-spec/assets/spec-template.md': '4b3a032c045fdd0903933446fc07f93e879997f28a0294ed4344da71192b20ee',
-                          '.agents/skills/bmad-spec/assets/stories-schema.md': '4f8137c00e2710288354a4466d1cfb90704f4b2a04bd3b63924218fd589cc6a9',
-                          '.agents/skills/bmad-spec/customize.toml': 'd0f1f926bed79d514f8fdbc458a1883167fb64663bf2464c40e3c50dc2dcdbea',
-                          '.agents/skills/bmad-sprint-planning/SKILL.md': '391fdc181c605ec9da99028f9a82776410c86b50d2cc273b2b8d3d4b266a2012',
-                          '.agents/skills/bmad-sprint-planning/customize.toml': '54c7f6a8af77ff7ea6c9dbb00b515023999e011aabc802b7b328e82f505b0299',
-                          '.agents/skills/bmad-sprint-planning/references/fix-sprint-status.md': '0406c31b70da33e2a354d9785f43d8f9918f4b923d0aac2ebd1e3707ebad5806',
-                          '.agents/skills/bmad-sprint-planning/references/generate-tracking.md': '4dbf7aca26d0e6e893f288fc5e6158dbbcd65f77bbaf95e941ca705abceb1741',
-                          '.agents/skills/bmad-sprint-planning/references/readiness-gate.md': '7d58ea61fafe3c1d8218203abc7512e322ca384c78d9e71829df55dfabe1245b',
-                          '.agents/skills/bmad-sprint-planning/references/status-view.md': 'c3547e221ebf6e55c874e2ada3e8c18198835213c76f0bb2e0e64150aac355ab',
-                          '.agents/skills/bmad-sprint-planning/references/validate.md': 'ac680fa0a0f945a9bc0fc89ca709b2a8e6bc3b2617cd0d3d730378c4b5edd86d',
-                          '.agents/skills/bmad-sprint-planning/scripts/sprint_plan.py': 'c4e4daf4200f233501a069a43db56d097c5d4e71f74cd29f132f88b83c2fc95f',
-                          '.agents/skills/bmad-sprint-planning/scripts/tests/test_sprint_plan.py': 'f1c3b640e156946b0a234e233807b2a3983cb0d3f2d13dbb9830fbe0c67e5238',
-                          '.agents/skills/bmad-sprint-planning/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
-                          '.agents/skills/bmad-ux/SKILL.md': 'b437d6ad812577e31cb6845c2417aa491c2f3a17487aa43ed7960b3b9299b564',
-                          '.agents/skills/bmad-ux/assets/color-themes.md': 'ccb6e4ef47a196476cf9392d788938ad3ca8d07b9ce095b7c092dcb4e06735f0',
-                          '.agents/skills/bmad-ux/assets/design-directions.md': 'eab73b948da76a27abc908e1e7d6b124e8ff0362e6dd1990f7e60b9541cbcb98',
-                          '.agents/skills/bmad-ux/assets/design-example-editorial.md': 'a659166845b1a4ed3f9aef942c5935537a97382b10303684fbb78ed86265870e',
-                          '.agents/skills/bmad-ux/assets/design-example-mobile.md': 'a93fb9f114f2e83af0c961c0d7909b3859fc80bcd713715517cd639a53a0372a',
-                          '.agents/skills/bmad-ux/assets/design-example-shadcn.md': '25e0dfb2bb21483973a8f0a6ed650288b3dc2ae5ed02aa0f091bb9b6b0b39fc0',
-                          '.agents/skills/bmad-ux/assets/excalidraw-wireframe.md': '660bbcdebff50cd044a3752eda43f3cb303aca4b0f521b55a270da93b89ddb18',
-                          '.agents/skills/bmad-ux/assets/experience-example-mobile.md': 'f8cd54c92193cd8c34a472df9c212ac7330976f6a115b729721dcb60034dc4f0',
-                          '.agents/skills/bmad-ux/assets/experience-example-shadcn.md': 'd6ca16e87b768e8b41f352c02ee08af21d7cdac04ca21e6ae1556864b4d27590',
-                          '.agents/skills/bmad-ux/assets/headless-schemas.md': 'e3a773dde85286f1a6f6dd8b26fc17e09ccea96f6257dfe7fb436353cd79242d',
-                          '.agents/skills/bmad-ux/assets/key-screens.md': 'ff1c5060673dd595edd61e76806bae876264ec6895c2eaadf8a6190785bf5f7b',
-                          '.agents/skills/bmad-ux/assets/validation-report-template.html': '8656945636fabe96624f8ef8fce931b073b5aecbe42d490584c1d5c7f31e1353',
-                          '.agents/skills/bmad-ux/customize.toml': 'e85144ed214dc1e002ee7fc6589a0a7ef352c5f79ab4cb37a4e05ee8e245549c',
-                          '.agents/skills/bmad-ux/references/creative-tools.md': 'e281292d7c0fdecdbb67ca9b7d95d4bed803626ba5edfd8dcc99146fcaa118e6',
-                          '.agents/skills/bmad-ux/references/design-md-spec.md': 'd04d5f663607aba3f3181e818ae33856e6caf5e560dcb16fa64ed80b7cf3d590',
-                          '.agents/skills/bmad-ux/references/headless.md': '8da7e23d269b1644f45b5104a243a6a27fd8d075aebb95d9b7752f0d143f0f5d',
-                          '.agents/skills/bmad-ux/references/validate.md': '7c2189d9ac1585d9408b6ed0346ba564869e7db89dba8f81044db3431cfcee65',
-                          '.agents/skills/bmad-walkthrough/SKILL.md': '2294849558370f1219e5fa7306b731b30aedb0e6649eeeac95d88bff1301d938',
-                          '.agents/skills/bmad-walkthrough/customize.toml': '2a4b14c5b25729a2d8fa9d9762ab3f12ac9429cfc6bd31fd80a81d86eed98630',
-                          '.agents/skills/bmad-walkthrough/generate-trail.md': '4a5936d86fbe5a85285b4535097b1e2edda8849da35586f4b588a982d7224459',
-                          '.agents/skills/bmad-walkthrough/step-01-orientation.md': 'd9e3b949c36d49a025f3535773af2b51888fe4ce616b6d6d69683a122716b1d2',
-                          '.agents/skills/bmad-walkthrough/step-02-walkthrough.md': '66cf893f8f968ee81034e9ccd8c20415692c3a8c23a9a143c2245fe6c800acdc',
-                          '.agents/skills/bmad-walkthrough/step-03-detail-pass.md': 'd48163b9f305f15af57729a8443142e47beb6c3e977554afe12b39ee49cb9fc0',
-                          '.agents/skills/bmad-walkthrough/step-04-testing.md': '28a56e868968ea2d18add0df8c4bccced0f94b698e218df3d45ddac072ce369c',
-                          '.agents/skills/bmad-walkthrough/step-05-wrapup.md': '5bfe0f9240ae073f1b5c843d172c11e76cbe6067e8df414ea6a338c81f113f5d',
+                          '.agents/gitlab-workspace-kit/profile.md': '92922d3a8e3aff039295303b0b5b841811d6a8e43ba8fd10055907677350dfa8',
                           '.agents/skills/codebase-wiki/SKILL.md': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4',
                           '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
                           '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
@@ -994,62 +410,13 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '4da94770ca8742b754d58d8247cd
                           '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
                           '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
                           '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
-                          '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5',
-                          '_bmad/LICENSE': '0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66',
-                          '_bmad/_config/bmad-help.csv': 'fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365',
-                          '_bmad/_config/files-manifest.csv': 'a3e609486256b49b4a5f9f3cb24f5545d63ea01ecbd3028bb40a2db75af35d9b',
-                          '_bmad/_config/manifest.yaml': 'f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8',
-                          '_bmad/_config/skill-manifest.csv': '6d414dcda3fbfc4c8716ab309dbfa5493c0ce0fee8566cc822918e5c874a2544',
-                          '_bmad/bmm/config.yaml': '5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729',
-                          '_bmad/bmm/module-help.csv': 'c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a',
-                          '_bmad/bmm/v6-shims/README.md': '5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972',
-                          '_bmad/config.toml': 'ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3',
-                          '_bmad/core/config.yaml': '7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c',
-                          '_bmad/core/module-help.csv': '38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7',
-                          '_bmad/core/v6-shims/README.md': '017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2',
-                          '_bmad/scripts/config_utils.py': '48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651',
-                          '_bmad/scripts/memlog.py': '4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240',
-                          '_bmad/scripts/render_skill.py': '8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942',
-                          '_bmad/scripts/resolve_config.py': '70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768',
-                          '_bmad/scripts/resolve_customization.py': 'c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284'},
+                          '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
                 'overlays': {},
-                'payloadSha256': '5ea71a0efe40bf246ea696c739ca09e6a4779922d386ce1177ebb5f4de6c5a46',
-                'profileHashes': {'group-instructions.md': 'f01c5b160e9080d5a65c35309da00d46bb0597ed89cc89eb748d253ae643d2da',
+                'payloadSha256': '2b924d5af10f2a07a61b8ef5df9496b6a878ded0a815a84a39d32462666e8d64',
+                'profileHashes': {'group-instructions.md': '57c2dac61e73ffaef02a7de131a427d62d835522c9ff9eadeaa5c999df56ea5c',
                                   'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
-                                  'profile.md': 'cfe7b1d261c5ec747771848fd91f51dbcaa3351397954cae78f596715b2de1e0'},
-                'skills': ['bmad-advanced-elicitation',
-                           'bmad-agent-analyst',
-                           'bmad-agent-architect',
-                           'bmad-agent-dev',
-                           'bmad-agent-pm',
-                           'bmad-agent-ux-designer',
-                           'bmad-architecture',
-                           'bmad-brainstorming',
-                           'bmad-build',
-                           'bmad-build-auto',
-                           'bmad-code-review',
-                           'bmad-correct-course',
-                           'bmad-create-epics-and-stories',
-                           'bmad-customize',
-                           'bmad-deep-recon',
-                           'bmad-forge-idea',
-                           'bmad-help',
-                           'bmad-party-mode',
-                           'bmad-prd',
-                           'bmad-prfaq',
-                           'bmad-product-brief',
-                           'bmad-project-context',
-                           'bmad-qa-generate-e2e-tests',
-                           'bmad-retrospective',
-                           'bmad-review',
-                           'bmad-spec',
-                           'bmad-sprint-planning',
-                           'bmad-ux',
-                           'bmad-walkthrough',
-                           'codebase-wiki',
-                           'merge-reviewer',
-                           'output-style',
-                           'release-reviewer']}}
+                                  'profile.md': '92922d3a8e3aff039295303b0b5b841811d6a8e43ba8fd10055907677350dfa8'},
+                'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer']}}
 WORKSPACE_CONTRACT = 2
 ARCHIVE_LIMIT = 80 * 1024 * 1024
 EXPANDED_LIMIT = 400 * 1024 * 1024
@@ -1063,12 +430,7 @@ END = "<!-- gitlab-workspace-kit:managed:end -->"
 WIKI_BEGIN = "<!-- codebase-wiki:managed:start -->"
 WIKI_END = "<!-- codebase-wiki:managed:end -->"
 LEGACY_MARKERS = ('.gitlab-workspace/tool-manifests/codebase-wiki.json', '.gitlab-workspace/tool-manifests/merge-reviewer.json')
-UPSTREAM = {'bmad-method': {'asset': 'bmad-method-6.12.4-codex.zip',
-                 'repository': 'bmad-code-org/BMAD-METHOD',
-                 'root': 'bmad-method',
-                 'sha256': '3a9172ced5a3d0f4b41774d2477d0178476bbc822b0148784e75c69ec86bd819',
-                 'version': '6.12.4'},
- 'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+UPSTREAM = {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
                    'repository': 'code-base-llm-wiki',
                    'root': 'codebase-llm-wiki-codex-0.6.2',
                    'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
@@ -1083,9 +445,9 @@ UPSTREAM = {'bmad-method': {'asset': 'bmad-method-6.12.4-codex.zip',
                       'root': '',
                       'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39',
                       'version': '0.4.1'}}
-PROFILE_HASHES = {'group-instructions.md': '3a634fd019f17db59581653e408f16bfbe91f12e9acda7419828606ec847ea1a',
+PROFILE_HASHES = {'group-instructions.md': 'ddd2353b6c2a12a07f225332ca3b31e99126f12d4ddc9013f8f031b4077b12a9',
  'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
- 'profile.md': 'c5cdff6d85903936e6664b23423351e3bae86bbd73b0a0bb7794e65366373ef3'}
+ 'profile.md': 'a8acee6ad458be73c83d1a76472fc231a8f44eed1aea71774b792982370bf71b'}
 SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.2 is single-codebase; GitlabWorkSpace overlay restores Group-relative '
  'specifications and shared-Wiki rules.',
  'Native MergeReviewer 0.14.0 accepts one Repo and explicit base/head branches, uses Codex-native review and '
@@ -1095,228 +457,11 @@ SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.2 is single-codebase; GitlabWork
  'MR-specific report adapter is applied.',
  'Native ReleaseReviewer 0.4.1 accepts only an explicit Repo and base/head branches, traces affected Group '
  'functionality using pinned local default branches, and writes one concise v3 blocker/resource report with '
- 'an editable manual checklist at the VSCode workspace root without an overlay.',
- 'Native BMAD Method 6.12.4 is generated by the pinned official Codex installer with core and bmm, without '
- 'deprecated shims. Its installed catalog guides development; Wiki, branch review and release review retain '
- 'their specialized routes.']
-AGENT_BLOCK_SHA256 = '4da94770ca8742b754d58d8247cdac18622d498c913d66f7a37ce940aafe3c24'
+ 'an editable manual checklist at the VSCode workspace root without an overlay.']
+AGENT_BLOCK_SHA256 = '126efd52f34f73aaa7cd3eb0b790b7896d37aafc9773ce1f962e6423d2106668'
 OVERLAY_HASHES = {'codebase-wiki': '83c9ca1b2961b102e9d315eb50aa3f5244076ce9c025a6ebcca523551856f672'}
-CURRENT_PAYLOAD_SHA256 = '75c23c518209088710be3f34788a4fe4a0327c23e5aa8318c495b08058380e6b'
-CURRENT_SKILL_FILES = {'.agents/skills/bmad-advanced-elicitation/SKILL.md': 'd38cb53f1c7c77f13664c340026a1a4932ae1ca5a24471eebaeb172b88c7942f',
- '.agents/skills/bmad-advanced-elicitation/assets/methods.csv': 'd110ff5f076fb9421552b83692fde2c2d367734049169c7a55f7267a3dc7ef89',
- '.agents/skills/bmad-advanced-elicitation/customize.toml': '735a276edd51786ccfd2c3417d9a2b9dee4244a6102698981b3888f68d979ed9',
- '.agents/skills/bmad-advanced-elicitation/scripts/pick_methods.py': '60020ec4767894ea3d8707c4b61e78b679d434315be1dd29154bf64d88126fff',
- '.agents/skills/bmad-advanced-elicitation/scripts/tests/test_pick_methods.py': '610099d8494529f9203d7262567810b500552bcef006b3b6388d58da3da71978',
- '.agents/skills/bmad-agent-analyst/SKILL.md': '6bfe0ccc9d85be7c651f9d430f37192abc32c67b5445f037dfea9c87d95ce4f0',
- '.agents/skills/bmad-agent-analyst/customize.toml': 'd6e2c5c660e8900866298961266a0b1c189c8643f2c1c9da602101e9f98d3388',
- '.agents/skills/bmad-agent-architect/SKILL.md': '02b2361438d39181f7990940a35af73658d37831572dd5d5ab9cfca17e8f0817',
- '.agents/skills/bmad-agent-architect/customize.toml': 'bd0ebb48faeab1e6f709d0291a13d33003484a597ed2b9c90f221b2345513b06',
- '.agents/skills/bmad-agent-dev/SKILL.md': '5e81cd7db67a76626bef308374a06664cd52395b97c15966d09543765257f33d',
- '.agents/skills/bmad-agent-dev/customize.toml': 'ab52d8840427e10d5956b592c34e63edc77ebdafd7b54ce60da11cf67ed72ced',
- '.agents/skills/bmad-agent-pm/SKILL.md': 'cd3e8bf36b6e77d4b2d33c5700f0528a6cd2796b24ea22b227301bc60168b083',
- '.agents/skills/bmad-agent-pm/customize.toml': '4613c72cfe3bc3143bd50c5732bce464c21c7266fe7dd930bc659c54e7315b39',
- '.agents/skills/bmad-agent-ux-designer/SKILL.md': '3c28653423072119cbf8eb7b6e09a0fb6f1cd7679ee1a27735dea20a2a76c28d',
- '.agents/skills/bmad-agent-ux-designer/customize.toml': '4acd1d9cdbf4a4328c389229ea9e9f2885d0692f8e10e3d9456da45844337c2c',
- '.agents/skills/bmad-architecture/SKILL.md': '4a256afa9c725e0bf5b55961d21774f1eb00011dbe31509e280a955bdb1a5c09',
- '.agents/skills/bmad-architecture/assets/spine-template.md': 'ef4ff795624eb5439fae54a06edb389feb5a0cf79cb01ae007af51109335d198',
- '.agents/skills/bmad-architecture/customize.toml': 'e9c5f75bd6605199f3908d6a1f013d6b42fb12b6f35c9a5e13a44f7f872b7b79',
- '.agents/skills/bmad-architecture/references/headless.md': '4db2708f335c94cb024b5eba022b1e3d88b1ec61c94c4716626d9b89684f5833',
- '.agents/skills/bmad-architecture/references/reviewer-gate.md': 'd32e32a3c1d59b5612b947004f3f6fef1117a13ce9f1ffa428d616e0b5d4db69',
- '.agents/skills/bmad-architecture/scripts/lint_spine.py': 'dd48be20384adfa281d295e34a39c1ae55727af7e98efe42525be31d1c5c001e',
- '.agents/skills/bmad-architecture/scripts/tests/test_lint_spine.py': 'e86bb9a62c5cca74ddc89c843386f2b992610fcc1792d40e03bc9cd445b77681',
- '.agents/skills/bmad-brainstorming/SKILL.md': '2657a2088329651fd06f030e61997fc9f21986588d65ce96f14043af14d8534e',
- '.agents/skills/bmad-brainstorming/assets/brain-icons.json': 'a101c56e89f1d0f9e4131dfdfc19e10c746e3a61c3f92537d04a6f4897b7d331',
- '.agents/skills/bmad-brainstorming/assets/brain-methods.csv': 'fff112eabca1a9cb8b190f8314bc47678becc5782a2372e11c83daa0e33b6dfd',
- '.agents/skills/bmad-brainstorming/assets/brain-selector.html': 'c110919a3366bd96061f050f98503e3586185e3d1df5ff8b62a5a046c571a436',
- '.agents/skills/bmad-brainstorming/customize.toml': '313c3b348473cd40ba02ceae4b299c617300af78debb2f5585c8d3941cc2d8d3',
- '.agents/skills/bmad-brainstorming/references/converge.md': '1528c32ddc64f8061fec663306f7208d2fd4d4a90e660552b8138bda7e452dc0',
- '.agents/skills/bmad-brainstorming/references/finalize.md': 'b6074e7fb4d86ffcf899abc50b9049b4a1f6fe550917f4be7a1c7a888477e07e',
- '.agents/skills/bmad-brainstorming/references/headless.md': 'b8ea5951199cff7e4813e06aef35683ca0658230fa015e358cacc466b1138a42',
- '.agents/skills/bmad-brainstorming/references/in-chat-techniques.md': '18239464e3e4f00ea9063d015d26d6b0a696b72e7e3c5be92352da6db9a3f244',
- '.agents/skills/bmad-brainstorming/references/mode-autonomous.md': 'd815d2c7f0f8cc0cdfa7c619eaf61f59fd78142f13c69365eda257da38b97bdf',
- '.agents/skills/bmad-brainstorming/references/mode-facilitator.md': '1b908498d285d190859aed00c3ba5b399d7f6aa8e94d54e95456d15cd6fe6073',
- '.agents/skills/bmad-brainstorming/references/mode-partner.md': 'caa0ed378c116def4de382f4e5a95173c6ae6cc5464f1792e7d8196360f79c8a',
- '.agents/skills/bmad-brainstorming/references/resume.md': '0f79535d72eefe6c55bd5ae47fe4753de8d27235cf129f10b2c596a124c26526',
- '.agents/skills/bmad-brainstorming/scripts/brain.py': 'f81b28fe590f607b95c7218a7cdd6fb6eb91d3a76b9671acf54bcaf36fd4e6ca',
- '.agents/skills/bmad-brainstorming/scripts/tests/test_brain.py': 'b219da8e5e3ccd4ebae95fb02bc5683d6b62593d71db75a712adc7a1b9017bc3',
- '.agents/skills/bmad-build-auto/SKILL.md': 'ea798a5f7df3b11eb73555a54fc0516c70d8f98739bd7857d968297b26f6ef94',
- '.agents/skills/bmad-build-auto/compile-epic-context.md': '64d13b41974cfa0dfc1de64b6fbd8365e9b99f91c7c98f0ee1a9fbd018f324ca',
- '.agents/skills/bmad-build-auto/customize.toml': '31417a8239f213c00621bb9016c3099631ae7ef03731ce5be209a5668a5730ee',
- '.agents/skills/bmad-build-auto/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
- '.agents/skills/bmad-build-auto/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
- '.agents/skills/bmad-build-auto/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
- '.agents/skills/bmad-build-auto/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
- '.agents/skills/bmad-build-auto/spec-template.md': '59a046df2773ec05af0688823d17238bfde2bb54c0c3b3eff6acec4856f1eb7a',
- '.agents/skills/bmad-build-auto/step-01-clarify-and-route.md': '50674ecef3b4b7a26b993685c9a79ccd87b00b2255d51b6b9c13ed32aa6d1ffa',
- '.agents/skills/bmad-build-auto/step-02-plan.md': 'a08e303c10f88dbfce88c55044757ec5059afe338793eb414e1ddb0b7c324625',
- '.agents/skills/bmad-build-auto/step-03-implement.md': '0dc9c9634eca148baaec03e7d154840a14101f92492b7ab469625bf13b4e2ab5',
- '.agents/skills/bmad-build-auto/step-04-review.md': 'c5530c50c89f197720275b83466b382f896fa27a0bba30d4b75c6af162148cdf',
- '.agents/skills/bmad-build-auto/workflow.md': '611f429206029a903ec9433ccdfd9b186fbafc6dc95da0a21fbcdf5965ad25ea',
- '.agents/skills/bmad-build/SKILL.md': '1cdf5406965ba24236d2375739d839699eb56b619834490539d1bd3d5111f890',
- '.agents/skills/bmad-build/compile-epic-context.md': '6793b15ae85766cee529e6b349e45f2c6ec9e3212019611c29e8c77b4dc4b924',
- '.agents/skills/bmad-build/customize.toml': '0ee9b033a40640420d1dc3411de7428146d00bf8c1409c9a9cfe6c1743cd53b9',
- '.agents/skills/bmad-build/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
- '.agents/skills/bmad-build/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
- '.agents/skills/bmad-build/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
- '.agents/skills/bmad-build/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
- '.agents/skills/bmad-build/spec-template.md': 'e217325964857ebd90a9508bf171eddc2c4ad1b0b9b32a119775ac5c015695fd',
- '.agents/skills/bmad-build/step-01-clarify-and-route.md': '1e8095b08e9e9c57d9b24678b524e07d0b6bbb5af72ba213622f12a1c7d909cc',
- '.agents/skills/bmad-build/step-02-plan.md': '5c999430f818f58fc5e4f64309a1b0f81358ce0ddcfbd3f44b25d56279ef25d8',
- '.agents/skills/bmad-build/step-03-implement.md': '15fd02d2f655d4102c515134ed6aa40cd055bd9d811e49d529512f8f36d09b03',
- '.agents/skills/bmad-build/step-04-review.md': 'f6b3f3fa5d3af0b324db2efee9351d4c348bdc0dfa4dad6c058eb4fd37921333',
- '.agents/skills/bmad-build/step-05-present.md': '551e0847e2ebb64575180a5dacca5786b9b9d7825dcd986e1b3b58442eaf713a',
- '.agents/skills/bmad-build/step-oneshot.md': '241fa52e227c048a5d8e4428bef0f153267475f697640899deb218b58ebfd378',
- '.agents/skills/bmad-build/sync-sprint-status.md': '7ff44d21f5d813f4993780271eec8df2fce1373f525ff80e595b7c10618c4c36',
- '.agents/skills/bmad-build/workflow.md': '481ff00ef349a9c7845feca02bbfd5722b1e318ccabac858355da6c90c2d8a39',
- '.agents/skills/bmad-code-review/SKILL.md': 'de287a30b672fd3c435f68f644d231091fb788e6d857a3e9f9d1ca22e67e13c1',
- '.agents/skills/bmad-code-review/customize.toml': '282d9483ccb74acab1efb965ce10ebd6206a61da94da245a705a6358dbf0dc2e',
- '.agents/skills/bmad-code-review/references/claims-check.md': '7be5d35dd90a1950addc2062acdf8669026b239117efe1e398da1e8161cfa6f9',
- '.agents/skills/bmad-code-review/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
- '.agents/skills/bmad-code-review/review-prompts/edge-case-hunter.md': '5f4572d57340b4c0d155f33454d644a44af101cd7fd02a01591be68a4ebb8b7f',
- '.agents/skills/bmad-code-review/review-prompts/verification-gap.md': '06f6184d7d94c808970d0146cdc4585dfd66b94a7b7ab2988277fb6fc4208508',
- '.agents/skills/bmad-code-review/steps/step-01-gather-context.md': '51941fd52406cf075ac9172cdcbeebefe85df91ea818ad8ec723724de67a1831',
- '.agents/skills/bmad-code-review/steps/step-02-review.md': 'f2b8e654cf595746656d9861c4ac722f65b02939c53900f4f6d8b24988b2155a',
- '.agents/skills/bmad-code-review/steps/step-03-triage.md': '337ac3ad2cd8cabb34f4e47c8778cfd703f919753573dd9d708b7218fd5de684',
- '.agents/skills/bmad-code-review/steps/step-04-present.md': 'a9619f7df9b9112c0e42ee71a362f73dfa38ef6dff7b403975dbd6d2480a8d9f',
- '.agents/skills/bmad-correct-course/SKILL.md': '1a56020a13e17f20a420a206ad6d7b09b5f91fe89f6a14918ad77e691bd05686',
- '.agents/skills/bmad-correct-course/checklist.md': '3e082b95def90ccb876e3101ce0bbaf797a0f03a9471e1347361897f27977327',
- '.agents/skills/bmad-correct-course/customize.toml': '9990c3d4a1aa90a207f7e3380a7a48a5c9c005702194f63c6a959a4b1a18586f',
- '.agents/skills/bmad-create-epics-and-stories/SKILL.md': '506d7c2e02a301e012eb75b918c00e6f53ba1dd6295f6e313cc7bf0a77c83261',
- '.agents/skills/bmad-create-epics-and-stories/customize.toml': 'e7633a4e6e33161c7cb13034e5132d9d29f8a7031e75765d16a60724f2089557',
- '.agents/skills/bmad-create-epics-and-stories/steps/step-01-validate-prerequisites.md': '7181608c1ee4e55c084c6627d68fc55a8a0b6917e489f8ac77531a0530428a30',
- '.agents/skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md': '7c66987808c1f84e853fe54b7aff26d209196d450b5644704110f124a15179bc',
- '.agents/skills/bmad-create-epics-and-stories/steps/step-03-create-stories.md': 'c5b787a82e4e49ed9cd9c028321ee1689f32b8cd69d89eea609b37cd3d481afc',
- '.agents/skills/bmad-create-epics-and-stories/steps/step-04-final-validation.md': '12b869b4f0531c9cf68a6b7a076409643858de245916ad4c1651e42189c86835',
- '.agents/skills/bmad-create-epics-and-stories/templates/epics-template.md': '542c4fd17c2382ea36aa3b7b15929f3fd62a8092631c60c83a78629bfc56e368',
- '.agents/skills/bmad-customize/SKILL.md': 'ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598',
- '.agents/skills/bmad-customize/scripts/list_customizable_skills.py': '9bfc913e6d23c3553096a68844823b022505f8b2ca7844eccdaf40b1b9288992',
- '.agents/skills/bmad-customize/scripts/tests/test_list_customizable_skills.py': '24c3d384b3b5d490b7335c17866bfe0425af253ce669c32382fa88feb705934d',
- '.agents/skills/bmad-deep-recon/SKILL.md': 'e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5',
- '.agents/skills/bmad-deep-recon/assets/research.template.md': '87d7cfa85fa5036b5a309b7bfb88f7934f50bb81f3cff02d2b49b4c7345cfc38',
- '.agents/skills/bmad-deep-recon/customize.toml': '24d1383066034fd4fcf282279aaf0d29d21910fd1247dfe3dbad74a70e78814d',
- '.agents/skills/bmad-deep-recon/references/draft.md': 'ac19b33a00ca529c3281df6076f87a833a3b11fc30915ca2c6e7590f7986b90e',
- '.agents/skills/bmad-deep-recon/references/finalize.md': 'd2ba4bee615dfbca6e7725179fb5ebd856dd34a54ba3f306e25255dfd7b1d126',
- '.agents/skills/bmad-deep-recon/references/html-briefing.md': 'cd3a88c1a5505fa7f1b715afc3adb34f3d64ade66f4c6b49a59f7e8cfcbe38d4',
- '.agents/skills/bmad-deep-recon/references/lifecycle.md': '2315fd9cb9223504639616b861ad593bfecb53d605efbd598ae2cf94fb6c4cdf',
- '.agents/skills/bmad-deep-recon/references/process.md': '9017d04774807a29103ea97331e555e2793f90098af65752b72f3ee09df85906',
- '.agents/skills/bmad-deep-recon/references/run.md': '8e259dc88820ac989c79620af5c37e24f00df21ac4af308ce3563c0e66c9406c',
- '.agents/skills/bmad-deep-recon/references/selection.md': '2b488c08f9550afe7fda32c2dc5d4591927afd7b9ad507fcce0ae8593c4b9d31',
- '.agents/skills/bmad-deep-recon/references/synthesis.md': '4d9ef1247ab45241f919010e94c99699abc0a6e18b5bd68fa93ae54afe59d172',
- '.agents/skills/bmad-deep-recon/references/verification.md': '0393ded4828fec69a4819d7236827910d641d09c3b61144c0211a9a78776fdd2',
- '.agents/skills/bmad-deep-recon/scripts/recon_kit.py': '20785a881170b3d54122967041016a3986f4ebab407c979409c4f22c8b1c1d49',
- '.agents/skills/bmad-deep-recon/scripts/tests/test_recon_kit.py': '1b4ddf482dd2d11a214ee2f821c35d7a8c41905b5d8d9cc69a293304bb8a1665',
- '.agents/skills/bmad-deep-recon/types/academic-lit.md': '514b0b7b1184cb95363dedeb0c2298a9bf5c430c74146fe2114f31780fadb325',
- '.agents/skills/bmad-deep-recon/types/competitive.md': '39b53df87d295fdc4388719fcdf31ad2221e64afc136e669207f46d2727a3aec',
- '.agents/skills/bmad-deep-recon/types/domain.md': '3a34b2e62c3589f8c8d01158357ee9fba32648c9fdfe70035bb3ca971862896b',
- '.agents/skills/bmad-deep-recon/types/market.md': '81ac04499da441857672e29fcd7169436a7e239e67194288ac0d526ec514cb5e',
- '.agents/skills/bmad-deep-recon/types/technical.md': '55f71428c70547b89d67ef0c6cdad59caeb0ee21082cd1230c05618ba8d04707',
- '.agents/skills/bmad-deep-recon/types/user-voice.md': '1831ce46e53e8c68244d28e336c5ef9e53e64f21a00b74a817b9b2924c1e8e72',
- '.agents/skills/bmad-forge-idea/SKILL.md': 'e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b',
- '.agents/skills/bmad-forge-idea/customize.toml': '839f57b89c8b04038fa795525f55799ee5c23431b17d429fe668880e78399ef2',
- '.agents/skills/bmad-forge-idea/scripts/resolve_personas.py': '9273c71595d6317e0a1035b1a632a47a8943379797d0a4db0d2842e5787c31cc',
- '.agents/skills/bmad-forge-idea/scripts/tests/test_resolve_personas.py': 'f8d040801d53e48c1aec147d1e28c5b279e459f49ea1fd1673dbd7e340022a99',
- '.agents/skills/bmad-help/SKILL.md': '72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c',
- '.agents/skills/bmad-party-mode/SKILL.md': '7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0',
- '.agents/skills/bmad-party-mode/customize.toml': '332aca1a85a681ff38a78850deb552e954d6a7d0b32f8d22caf9b2b2324b4e24',
- '.agents/skills/bmad-party-mode/references/create-party.md': 'e7fdf66d779e7e08d1cd4fbcbb63b78ba2dd8b1d781af0d0da8bea8c7110176b',
- '.agents/skills/bmad-party-mode/references/mode-agent-team.md': 'def759a17f4bb45463b68fb74c2b828b0a4241720b2b6cc1c9c611a1016ae9d7',
- '.agents/skills/bmad-party-mode/references/mode-auto.md': 'a37fd24f76dfcde385890d5c5947bb6f40ca44bea86c805d267b6ae3aab39f70',
- '.agents/skills/bmad-party-mode/references/mode-subagent.md': '86161b24a0b13b8f9cb9309042e4249d8caefff8cc33728b084cd2ec22f9d2e1',
- '.agents/skills/bmad-party-mode/references/party-memory.md': '800b4b4b920bb881a7b32aaabca8559a98273799b2476d83a23e290e301fb315',
- '.agents/skills/bmad-party-mode/scripts/resolve_party.py': '810d7838ddb4623c60e29639a3b2484ae140ebc59147acf98bfb934b55577a58',
- '.agents/skills/bmad-party-mode/scripts/tests/test_resolve_party.py': 'e2a7b1bbbe011b56a917dc54449fa29fb3df8716674a5998a32a50e3b5ee60e7',
- '.agents/skills/bmad-prd/SKILL.md': 'eafebb3fbebc4e276a055ca9916e20e36e95dca03f819eeeaaf80a3a9c16f07b',
- '.agents/skills/bmad-prd/assets/headless-schemas.md': '8d3621333a72400512bd62511bc4c73fc745711505e1f852c697ff8c5fa2de93',
- '.agents/skills/bmad-prd/assets/prd-template.md': 'b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab',
- '.agents/skills/bmad-prd/assets/prd-validation-checklist.md': '41d9f09064772a92ec908d970618e47ba63dc86b5c5a1a21d5a2c676d3ba8e3f',
- '.agents/skills/bmad-prd/assets/validation-report-template.html': 'a80becdd8205d2d7c18738855830b096172a496b96b5ca8a0820ec55c9bb8bf9',
- '.agents/skills/bmad-prd/customize.toml': 'd23707fe7ff5f5060a05b5b8bda3f170b9b1d9be61e409e9f7ae91f83572db6a',
- '.agents/skills/bmad-prd/references/headless.md': '4dad58ebee63933a53179016513ff94d143ce9f68e226489d390e2c36bf1d848',
- '.agents/skills/bmad-prd/references/validate.md': '19b2fa66d58cb4fef3d920cd09c81f8add4ee44dd4191bec87eaba84c2093338',
- '.agents/skills/bmad-prfaq/SKILL.md': 'e16d295601af1ebdf94e2f6da2c5ef3235029997bd78d0cbdab592e3d839dde7',
- '.agents/skills/bmad-prfaq/agents/artifact-analyzer.md': '7bdc44830f8d593346ec0ee15e36e1e431432fcc6c38b70bb861999315c9cfa4',
- '.agents/skills/bmad-prfaq/agents/web-researcher.md': '6e9127bb9bd3e4b15c701e4ced9eef328769262cd34eadc221bebe954c1f3aef',
- '.agents/skills/bmad-prfaq/assets/prfaq-template.md': 'b27e6964f0437ab4e78c8c0ffbe5052c28e3b3ef2fc811726cbb394d5a5c7559',
- '.agents/skills/bmad-prfaq/bmad-manifest.json': 'b67b016cd68535a97bd9164c237fbfe19a5b26bc1a3f0afe203fecfa40aab6ff',
- '.agents/skills/bmad-prfaq/customize.toml': 'b764b9ea360734d681115b958d0ccd478f1b56ce0045ecd6f71311ef005d8980',
- '.agents/skills/bmad-prfaq/references/customer-faq.md': '96f8565197649c58908a1d61b6cd805fd01f57da7945ba889c18d087ad597aeb',
- '.agents/skills/bmad-prfaq/references/internal-faq.md': '26eb83f844cda1ed8efb50f4703d61713ada8a64bd27eb387f759f858b5748de',
- '.agents/skills/bmad-prfaq/references/press-release.md': 'c406adb0e2d2cc326cbc45d0174f89d014523448ad82bc272293999d22aec596',
- '.agents/skills/bmad-prfaq/references/verdict.md': 'c962ce2c97e824cb53dae70c898153ffac3ea56b56565012ca2b96bb21c9618c',
- '.agents/skills/bmad-product-brief/SKILL.md': '88618d280e90cdfdf8ece62f0e9e6406e3db2d93b70aad66806d1be4bdfa3dbd',
- '.agents/skills/bmad-product-brief/assets/brief-template.md': 'bb28edf75d023067551c8d417b19b8803324e7acfb2ad0c80f882e9134f4c1f1',
- '.agents/skills/bmad-product-brief/customize.toml': 'bef95b0ab71793d214ec59ed7397a25f7253e63fad5d60570248614db6186905',
- '.agents/skills/bmad-project-context/SKILL.md': '50b0ee0f4905273dd7f8a57a4e79b2ff47eabb074b6f4bce8242b950b37dfb63',
- '.agents/skills/bmad-project-context/customize.toml': '9bf8a3aa919832cd8932853da550fcaebd06a9e13c0cde453f4379d8327f9c0f',
- '.agents/skills/bmad-project-context/references/best-practices.md': '850c45d2e1de44b1cd8e3b06b8175df53aac8983326d73351eab547bfacc532b',
- '.agents/skills/bmad-project-context/references/template.md': '5e2bc291e734a481fd2925877adfbe82b03313f300baf67dfdb6fa22a1181601',
- '.agents/skills/bmad-qa-generate-e2e-tests/SKILL.md': 'f8f6a62c390f0cf7fc88ea04fa1bc236dedde27cdc1ce95cdb6ebc1cd8f33251',
- '.agents/skills/bmad-qa-generate-e2e-tests/checklist.md': 'b58f810aeb1040c2f6758c88aa133afce72f8cc178d3d97ff0fbaa3d943057dc',
- '.agents/skills/bmad-qa-generate-e2e-tests/customize.toml': '4fbbd9d96e5af24ae012d33e59582b88867e8203dcd5a29f0d46b42ef6d747b8',
- '.agents/skills/bmad-retrospective/SKILL.md': 'd3f12423a0e456a7c2a25d5aa005df4eb4cb8c0b5cd400755b026c3c100b99dd',
- '.agents/skills/bmad-retrospective/customize.toml': '33ce7da5bad6dfe1791218d8d607b749f9b58586b232df7ea0d3263ec50ec466',
- '.agents/skills/bmad-retrospective/references/acceptance-verdict.md': '09a65007c39af83e01e039331c252e6e670b134cd5e2a4b5e05ac9d9fb7e37f1',
- '.agents/skills/bmad-retrospective/references/aggregate-views.md': '5b278afce4a53692d8715b4af178e4233da0876921dc3154b5763d056cb5ff0b',
- '.agents/skills/bmad-retrospective/references/evidence-gathering.md': '575bace78d7c03c48d86a209dd664f7dd22295a222b75e6d6298894cb7b7ce00',
- '.agents/skills/bmad-retrospective/references/retro-document.md': 'de8164664cd2be7f73b8ba5552e9e0f58816d2a7c4be8efc7715461846bb7001',
- '.agents/skills/bmad-retrospective/references/team-discussion.md': 'a9c504c436038c7e47d08322413aa3c213d2859b36ae30e873cb8c60fd9e008e',
- '.agents/skills/bmad-retrospective/scripts/git_evidence.py': '2acbb8b5804d0680b5939629a0c3786a72cde30f5f2cecd75858325c6e778d89',
- '.agents/skills/bmad-retrospective/scripts/sprint_status.py': '7c9f0a514a6e0834182f3c30485de49e0a4decb9be51027cc8be58aecdb9fc44',
- '.agents/skills/bmad-retrospective/scripts/tests/fixtures/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
- '.agents/skills/bmad-retrospective/scripts/tests/test_git_evidence.py': '0abfc8fad338830fc2db656d3ccc500631b0ea7a2ab87d853c13a6bbd46ff13c',
- '.agents/skills/bmad-retrospective/scripts/tests/test_sprint_status.py': '23da16cca54904a256fcf88fd8f912c3f6091ea343768c241bbd2aeebbca2af3',
- '.agents/skills/bmad-review/SKILL.md': 'c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7',
- '.agents/skills/bmad-review/customize.toml': '005dde84f09c0b1ab0ef0ee87f1ed1985922c893089cc3595157611fb83b3ebd',
- '.agents/skills/bmad-review/references/editorial-common.md': 'f0cdc72ea345b2c5dc3001477b3dfcc909ca11b78f7db8865b6763d18ffc66c8',
- '.agents/skills/bmad-review/references/lens-adversarial.md': '7c5ce97ab2f3ecb96ceb6aa76417f68c1b7df535edd3cc51666d8e1216e6e557',
- '.agents/skills/bmad-review/references/lens-edge-case-hunter.md': '5f0c4778d7b393d11156af8c1bd9bf88aafeb9d50fff5f460ca67df50d927e7d',
- '.agents/skills/bmad-review/references/lens-prose.md': '4cbcb1eaea8567d272f5db7c6cdfd74ed5a8aae6831053cb2f01cbfc2cb98b98',
- '.agents/skills/bmad-review/references/lens-structure.md': '98c08221f517133e57ef6325013935360c3365ebd7dcb8411b2050d7df507ee3',
- '.agents/skills/bmad-review/references/lens-verification-gap.md': 'e7123d81171eeeee1b3782d13d94c2988969fe357dd71949131a5eb97803e2c6',
- '.agents/skills/bmad-review/references/structure-models.md': 'f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292',
- '.agents/skills/bmad-review/scripts/tests/test_word_metrics.py': '3b5a285d3c9f611b3cda8c9c1d52d6b214c1f72e6e64a94ea5b0e220db5a8765',
- '.agents/skills/bmad-review/scripts/word_metrics.py': 'fb45007a7f3cfc18d13ee8bd4787facdaae297570193bc769456297dd33da78b',
- '.agents/skills/bmad-spec/SKILL.md': '46a2c3d5541d63af1520fac6b7abfff161a94b52fed51df6454115e3da5639c7',
- '.agents/skills/bmad-spec/assets/headless-schemas.md': '83afb3614716db2347d83586a67b9c524492dd50db5282436ccb35c99fb5f08a',
- '.agents/skills/bmad-spec/assets/spec-template.md': '4b3a032c045fdd0903933446fc07f93e879997f28a0294ed4344da71192b20ee',
- '.agents/skills/bmad-spec/assets/stories-schema.md': '4f8137c00e2710288354a4466d1cfb90704f4b2a04bd3b63924218fd589cc6a9',
- '.agents/skills/bmad-spec/customize.toml': 'd0f1f926bed79d514f8fdbc458a1883167fb64663bf2464c40e3c50dc2dcdbea',
- '.agents/skills/bmad-sprint-planning/SKILL.md': '391fdc181c605ec9da99028f9a82776410c86b50d2cc273b2b8d3d4b266a2012',
- '.agents/skills/bmad-sprint-planning/customize.toml': '54c7f6a8af77ff7ea6c9dbb00b515023999e011aabc802b7b328e82f505b0299',
- '.agents/skills/bmad-sprint-planning/references/fix-sprint-status.md': '0406c31b70da33e2a354d9785f43d8f9918f4b923d0aac2ebd1e3707ebad5806',
- '.agents/skills/bmad-sprint-planning/references/generate-tracking.md': '4dbf7aca26d0e6e893f288fc5e6158dbbcd65f77bbaf95e941ca705abceb1741',
- '.agents/skills/bmad-sprint-planning/references/readiness-gate.md': '7d58ea61fafe3c1d8218203abc7512e322ca384c78d9e71829df55dfabe1245b',
- '.agents/skills/bmad-sprint-planning/references/status-view.md': 'c3547e221ebf6e55c874e2ada3e8c18198835213c76f0bb2e0e64150aac355ab',
- '.agents/skills/bmad-sprint-planning/references/validate.md': 'ac680fa0a0f945a9bc0fc89ca709b2a8e6bc3b2617cd0d3d730378c4b5edd86d',
- '.agents/skills/bmad-sprint-planning/scripts/sprint_plan.py': 'c4e4daf4200f233501a069a43db56d097c5d4e71f74cd29f132f88b83c2fc95f',
- '.agents/skills/bmad-sprint-planning/scripts/tests/test_sprint_plan.py': 'f1c3b640e156946b0a234e233807b2a3983cb0d3f2d13dbb9830fbe0c67e5238',
- '.agents/skills/bmad-sprint-planning/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
- '.agents/skills/bmad-ux/SKILL.md': 'b437d6ad812577e31cb6845c2417aa491c2f3a17487aa43ed7960b3b9299b564',
- '.agents/skills/bmad-ux/assets/color-themes.md': 'ccb6e4ef47a196476cf9392d788938ad3ca8d07b9ce095b7c092dcb4e06735f0',
- '.agents/skills/bmad-ux/assets/design-directions.md': 'eab73b948da76a27abc908e1e7d6b124e8ff0362e6dd1990f7e60b9541cbcb98',
- '.agents/skills/bmad-ux/assets/design-example-editorial.md': 'a659166845b1a4ed3f9aef942c5935537a97382b10303684fbb78ed86265870e',
- '.agents/skills/bmad-ux/assets/design-example-mobile.md': 'a93fb9f114f2e83af0c961c0d7909b3859fc80bcd713715517cd639a53a0372a',
- '.agents/skills/bmad-ux/assets/design-example-shadcn.md': '25e0dfb2bb21483973a8f0a6ed650288b3dc2ae5ed02aa0f091bb9b6b0b39fc0',
- '.agents/skills/bmad-ux/assets/excalidraw-wireframe.md': '660bbcdebff50cd044a3752eda43f3cb303aca4b0f521b55a270da93b89ddb18',
- '.agents/skills/bmad-ux/assets/experience-example-mobile.md': 'f8cd54c92193cd8c34a472df9c212ac7330976f6a115b729721dcb60034dc4f0',
- '.agents/skills/bmad-ux/assets/experience-example-shadcn.md': 'd6ca16e87b768e8b41f352c02ee08af21d7cdac04ca21e6ae1556864b4d27590',
- '.agents/skills/bmad-ux/assets/headless-schemas.md': 'e3a773dde85286f1a6f6dd8b26fc17e09ccea96f6257dfe7fb436353cd79242d',
- '.agents/skills/bmad-ux/assets/key-screens.md': 'ff1c5060673dd595edd61e76806bae876264ec6895c2eaadf8a6190785bf5f7b',
- '.agents/skills/bmad-ux/assets/validation-report-template.html': '8656945636fabe96624f8ef8fce931b073b5aecbe42d490584c1d5c7f31e1353',
- '.agents/skills/bmad-ux/customize.toml': 'e85144ed214dc1e002ee7fc6589a0a7ef352c5f79ab4cb37a4e05ee8e245549c',
- '.agents/skills/bmad-ux/references/creative-tools.md': 'e281292d7c0fdecdbb67ca9b7d95d4bed803626ba5edfd8dcc99146fcaa118e6',
- '.agents/skills/bmad-ux/references/design-md-spec.md': 'd04d5f663607aba3f3181e818ae33856e6caf5e560dcb16fa64ed80b7cf3d590',
- '.agents/skills/bmad-ux/references/headless.md': '8da7e23d269b1644f45b5104a243a6a27fd8d075aebb95d9b7752f0d143f0f5d',
- '.agents/skills/bmad-ux/references/validate.md': '7c2189d9ac1585d9408b6ed0346ba564869e7db89dba8f81044db3431cfcee65',
- '.agents/skills/bmad-walkthrough/SKILL.md': '2294849558370f1219e5fa7306b731b30aedb0e6649eeeac95d88bff1301d938',
- '.agents/skills/bmad-walkthrough/customize.toml': '2a4b14c5b25729a2d8fa9d9762ab3f12ac9429cfc6bd31fd80a81d86eed98630',
- '.agents/skills/bmad-walkthrough/generate-trail.md': '4a5936d86fbe5a85285b4535097b1e2edda8849da35586f4b588a982d7224459',
- '.agents/skills/bmad-walkthrough/step-01-orientation.md': 'd9e3b949c36d49a025f3535773af2b51888fe4ce616b6d6d69683a122716b1d2',
- '.agents/skills/bmad-walkthrough/step-02-walkthrough.md': '66cf893f8f968ee81034e9ccd8c20415692c3a8c23a9a143c2245fe6c800acdc',
- '.agents/skills/bmad-walkthrough/step-03-detail-pass.md': 'd48163b9f305f15af57729a8443142e47beb6c3e977554afe12b39ee49cb9fc0',
- '.agents/skills/bmad-walkthrough/step-04-testing.md': '28a56e868968ea2d18add0df8c4bccced0f94b698e218df3d45ddac072ce369c',
- '.agents/skills/bmad-walkthrough/step-05-wrapup.md': '5bfe0f9240ae073f1b5c843d172c11e76cbe6067e8df414ea6a338c81f113f5d',
- '.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
+CURRENT_PAYLOAD_SHA256 = '8b655ef4dd764fe498f6035bd9cb0a11b6da67052388f9b93a36db36d7955a19'
+CURRENT_SKILL_FILES = {'.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
  '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
  '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
  '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
@@ -7632,6 +6777,1068 @@ TRUSTED_PREDECESSORS = {'local_updates': [{'baseline_manifest_sha256': '491f28c1
                              '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
                              '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
                              '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
+               'wikiInstalledVersionSha256': 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'},
+              {'agentBlockSha256': '4da94770ca8742b754d58d8247cdac18622d498c913d66f7a37ce940aafe3c24',
+               'bmadConfigTemplate': '# ─────────────────────────────────────────────────────────────────\n'
+                                     '# Installer-managed. Regenerated on every install — treat as '
+                                     'read-only.\n'
+                                     '#\n'
+                                     '# Direct edits to this file will be overwritten on the next install.\n'
+                                     '# To change an install answer durably, re-run the installer (your '
+                                     'prior\n'
+                                     '# answers are remembered as defaults). To pin a value regardless of\n'
+                                     '# install answers, or to add custom agents / override descriptors, '
+                                     'use:\n'
+                                     '#   _bmad/custom/config.toml       (team, committed)\n'
+                                     '#   _bmad/custom/config.user.toml  (personal, gitignored)\n'
+                                     '# Those files are never touched by the installer.\n'
+                                     '# ─────────────────────────────────────────────────────────────────\n'
+                                     '\n'
+                                     '[core]\n'
+                                     'user_name = "BMad"\n'
+                                     'communication_language = "Traditional Chinese"\n'
+                                     'project_name = "BMAD"\n'
+                                     'document_output_language = "Traditional Chinese"\n'
+                                     'output_folder = "_bmad-output"\n'
+                                     '\n'
+                                     '[modules.bmm]\n'
+                                     'user_skill_level = "intermediate"\n'
+                                     'planning_artifacts = "{project-root}/_bmad-output/planning-artifacts"\n'
+                                     'implementation_artifacts = '
+                                     '"{project-root}/_bmad-output/implementation-artifacts"\n'
+                                     'project_knowledge = "{project-root}/docs"\n'
+                                     '\n'
+                                     '[agents.bmad-agent-analyst]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Mary"\n'
+                                     'title = "Business Analyst"\n'
+                                     'icon = "📊"\n'
+                                     'description = "Channels Porter\'s strategic rigor and Minto\'s Pyramid '
+                                     'Principle, grounds every finding in verifiable evidence, represents '
+                                     'every stakeholder voice. Speaks like a treasure hunter narrating the '
+                                     'find: thrilled by every clue, precise once the pattern emerges."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-pm]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "John"\n'
+                                     'title = "Product Manager"\n'
+                                     'icon = "📋"\n'
+                                     'description = "Drives Jobs-to-be-Done over template filling, user '
+                                     'value first, technical feasibility is a constraint not the driver. '
+                                     'Speaks like a detective interrogating a cold case: short questions, '
+                                     'sharper follow-ups, every \'why?\' tightening the net."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-ux-designer]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Sally"\n'
+                                     'title = "UX Designer"\n'
+                                     'icon = "🎨"\n'
+                                     'description = "Balances empathy with edge-case rigor, starts simple '
+                                     'and evolves through feedback, every decision serves a genuine user '
+                                     'need. Speaks like a filmmaker pitching the scene before the code '
+                                     'exists, painting user stories that make you feel the problem."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-architect]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Winston"\n'
+                                     'title = "System Architect"\n'
+                                     'icon = "🏗️"\n'
+                                     'description = "Favors boring technology for stability, developer '
+                                     'productivity as architecture, ties every decision to business value. '
+                                     'Speaks like a seasoned engineer at the whiteboard: measured, always '
+                                     'laying out trade-offs rather than verdicts."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-dev]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Amelia"\n'
+                                     'title = "Senior Software Engineer"\n'
+                                     'icon = "💻"\n'
+                                     'description = "Test-first discipline (red, green, refactor), 100% pass '
+                                     'before review, no fluff all precision. Speaks like a terminal prompt: '
+                                     'exact file paths, AC IDs, and commit-message brevity — every statement '
+                                     'citable."\n',
+               'bmadFiles': {'_bmad/LICENSE': '0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66',
+                             '_bmad/_config/bmad-help.csv': 'fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365',
+                             '_bmad/_config/files-manifest.csv': 'a3e609486256b49b4a5f9f3cb24f5545d63ea01ecbd3028bb40a2db75af35d9b',
+                             '_bmad/_config/manifest.yaml': 'f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8',
+                             '_bmad/_config/skill-manifest.csv': '6d414dcda3fbfc4c8716ab309dbfa5493c0ce0fee8566cc822918e5c874a2544',
+                             '_bmad/bmm/config.yaml': '5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729',
+                             '_bmad/bmm/module-help.csv': 'c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a',
+                             '_bmad/bmm/v6-shims/README.md': '5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972',
+                             '_bmad/config.toml': 'ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3',
+                             '_bmad/core/config.yaml': '7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c',
+                             '_bmad/core/module-help.csv': '38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7',
+                             '_bmad/core/v6-shims/README.md': '017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2',
+                             '_bmad/scripts/config_utils.py': '48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651',
+                             '_bmad/scripts/memlog.py': '4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240',
+                             '_bmad/scripts/render_skill.py': '8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942',
+                             '_bmad/scripts/resolve_config.py': '70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768',
+                             '_bmad/scripts/resolve_customization.py': 'c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284'},
+               'bmadFilesManifestTemplate': 'type,name,module,path,hash\n'
+                                            'yaml,manifest,_config,_config/manifest.yaml,f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8\n'
+                                            'csv,module-help,bmm,bmm/module-help.csv,c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a\n'
+                                            'md,README,bmm,bmm/v6-shims/README.md,5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972\n'
+                                            'yaml,config,bmm,bmm/config.yaml,5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729\n'
+                                            'toml,config,config.toml,config.toml,ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3\n'
+                                            'csv,module-help,core,core/module-help.csv,38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7\n'
+                                            'md,README,core,core/v6-shims/README.md,017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2\n'
+                                            'yaml,config,core,core/config.yaml,7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c\n'
+                                            'py,config_utils,scripts,scripts/config_utils.py,48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651\n'
+                                            'py,memlog,scripts,scripts/memlog.py,4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240\n'
+                                            'py,render_skill,scripts,scripts/render_skill.py,8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942\n'
+                                            'py,resolve_config,scripts,scripts/resolve_config.py,70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768\n'
+                                            'py,resolve_customization,scripts,scripts/resolve_customization.py,c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284\n',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'bmad-workflow',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {},
+               'files': {'.agents/skills/bmad-advanced-elicitation/SKILL.md': 'd38cb53f1c7c77f13664c340026a1a4932ae1ca5a24471eebaeb172b88c7942f',
+                         '.agents/skills/bmad-advanced-elicitation/assets/methods.csv': 'd110ff5f076fb9421552b83692fde2c2d367734049169c7a55f7267a3dc7ef89',
+                         '.agents/skills/bmad-advanced-elicitation/customize.toml': '735a276edd51786ccfd2c3417d9a2b9dee4244a6102698981b3888f68d979ed9',
+                         '.agents/skills/bmad-advanced-elicitation/scripts/pick_methods.py': '60020ec4767894ea3d8707c4b61e78b679d434315be1dd29154bf64d88126fff',
+                         '.agents/skills/bmad-advanced-elicitation/scripts/tests/test_pick_methods.py': '610099d8494529f9203d7262567810b500552bcef006b3b6388d58da3da71978',
+                         '.agents/skills/bmad-agent-analyst/SKILL.md': '6bfe0ccc9d85be7c651f9d430f37192abc32c67b5445f037dfea9c87d95ce4f0',
+                         '.agents/skills/bmad-agent-analyst/customize.toml': 'd6e2c5c660e8900866298961266a0b1c189c8643f2c1c9da602101e9f98d3388',
+                         '.agents/skills/bmad-agent-architect/SKILL.md': '02b2361438d39181f7990940a35af73658d37831572dd5d5ab9cfca17e8f0817',
+                         '.agents/skills/bmad-agent-architect/customize.toml': 'bd0ebb48faeab1e6f709d0291a13d33003484a597ed2b9c90f221b2345513b06',
+                         '.agents/skills/bmad-agent-dev/SKILL.md': '5e81cd7db67a76626bef308374a06664cd52395b97c15966d09543765257f33d',
+                         '.agents/skills/bmad-agent-dev/customize.toml': 'ab52d8840427e10d5956b592c34e63edc77ebdafd7b54ce60da11cf67ed72ced',
+                         '.agents/skills/bmad-agent-pm/SKILL.md': 'cd3e8bf36b6e77d4b2d33c5700f0528a6cd2796b24ea22b227301bc60168b083',
+                         '.agents/skills/bmad-agent-pm/customize.toml': '4613c72cfe3bc3143bd50c5732bce464c21c7266fe7dd930bc659c54e7315b39',
+                         '.agents/skills/bmad-agent-ux-designer/SKILL.md': '3c28653423072119cbf8eb7b6e09a0fb6f1cd7679ee1a27735dea20a2a76c28d',
+                         '.agents/skills/bmad-agent-ux-designer/customize.toml': '4acd1d9cdbf4a4328c389229ea9e9f2885d0692f8e10e3d9456da45844337c2c',
+                         '.agents/skills/bmad-architecture/SKILL.md': '4a256afa9c725e0bf5b55961d21774f1eb00011dbe31509e280a955bdb1a5c09',
+                         '.agents/skills/bmad-architecture/assets/spine-template.md': 'ef4ff795624eb5439fae54a06edb389feb5a0cf79cb01ae007af51109335d198',
+                         '.agents/skills/bmad-architecture/customize.toml': 'e9c5f75bd6605199f3908d6a1f013d6b42fb12b6f35c9a5e13a44f7f872b7b79',
+                         '.agents/skills/bmad-architecture/references/headless.md': '4db2708f335c94cb024b5eba022b1e3d88b1ec61c94c4716626d9b89684f5833',
+                         '.agents/skills/bmad-architecture/references/reviewer-gate.md': 'd32e32a3c1d59b5612b947004f3f6fef1117a13ce9f1ffa428d616e0b5d4db69',
+                         '.agents/skills/bmad-architecture/scripts/lint_spine.py': 'dd48be20384adfa281d295e34a39c1ae55727af7e98efe42525be31d1c5c001e',
+                         '.agents/skills/bmad-architecture/scripts/tests/test_lint_spine.py': 'e86bb9a62c5cca74ddc89c843386f2b992610fcc1792d40e03bc9cd445b77681',
+                         '.agents/skills/bmad-brainstorming/SKILL.md': '2657a2088329651fd06f030e61997fc9f21986588d65ce96f14043af14d8534e',
+                         '.agents/skills/bmad-brainstorming/assets/brain-icons.json': 'a101c56e89f1d0f9e4131dfdfc19e10c746e3a61c3f92537d04a6f4897b7d331',
+                         '.agents/skills/bmad-brainstorming/assets/brain-methods.csv': 'fff112eabca1a9cb8b190f8314bc47678becc5782a2372e11c83daa0e33b6dfd',
+                         '.agents/skills/bmad-brainstorming/assets/brain-selector.html': 'c110919a3366bd96061f050f98503e3586185e3d1df5ff8b62a5a046c571a436',
+                         '.agents/skills/bmad-brainstorming/customize.toml': '313c3b348473cd40ba02ceae4b299c617300af78debb2f5585c8d3941cc2d8d3',
+                         '.agents/skills/bmad-brainstorming/references/converge.md': '1528c32ddc64f8061fec663306f7208d2fd4d4a90e660552b8138bda7e452dc0',
+                         '.agents/skills/bmad-brainstorming/references/finalize.md': 'b6074e7fb4d86ffcf899abc50b9049b4a1f6fe550917f4be7a1c7a888477e07e',
+                         '.agents/skills/bmad-brainstorming/references/headless.md': 'b8ea5951199cff7e4813e06aef35683ca0658230fa015e358cacc466b1138a42',
+                         '.agents/skills/bmad-brainstorming/references/in-chat-techniques.md': '18239464e3e4f00ea9063d015d26d6b0a696b72e7e3c5be92352da6db9a3f244',
+                         '.agents/skills/bmad-brainstorming/references/mode-autonomous.md': 'd815d2c7f0f8cc0cdfa7c619eaf61f59fd78142f13c69365eda257da38b97bdf',
+                         '.agents/skills/bmad-brainstorming/references/mode-facilitator.md': '1b908498d285d190859aed00c3ba5b399d7f6aa8e94d54e95456d15cd6fe6073',
+                         '.agents/skills/bmad-brainstorming/references/mode-partner.md': 'caa0ed378c116def4de382f4e5a95173c6ae6cc5464f1792e7d8196360f79c8a',
+                         '.agents/skills/bmad-brainstorming/references/resume.md': '0f79535d72eefe6c55bd5ae47fe4753de8d27235cf129f10b2c596a124c26526',
+                         '.agents/skills/bmad-brainstorming/scripts/brain.py': 'f81b28fe590f607b95c7218a7cdd6fb6eb91d3a76b9671acf54bcaf36fd4e6ca',
+                         '.agents/skills/bmad-brainstorming/scripts/tests/test_brain.py': 'b219da8e5e3ccd4ebae95fb02bc5683d6b62593d71db75a712adc7a1b9017bc3',
+                         '.agents/skills/bmad-build-auto/SKILL.md': 'ea798a5f7df3b11eb73555a54fc0516c70d8f98739bd7857d968297b26f6ef94',
+                         '.agents/skills/bmad-build-auto/compile-epic-context.md': '64d13b41974cfa0dfc1de64b6fbd8365e9b99f91c7c98f0ee1a9fbd018f324ca',
+                         '.agents/skills/bmad-build-auto/customize.toml': '31417a8239f213c00621bb9016c3099631ae7ef03731ce5be209a5668a5730ee',
+                         '.agents/skills/bmad-build-auto/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
+                         '.agents/skills/bmad-build-auto/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-build-auto/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
+                         '.agents/skills/bmad-build-auto/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
+                         '.agents/skills/bmad-build-auto/spec-template.md': '59a046df2773ec05af0688823d17238bfde2bb54c0c3b3eff6acec4856f1eb7a',
+                         '.agents/skills/bmad-build-auto/step-01-clarify-and-route.md': '50674ecef3b4b7a26b993685c9a79ccd87b00b2255d51b6b9c13ed32aa6d1ffa',
+                         '.agents/skills/bmad-build-auto/step-02-plan.md': 'a08e303c10f88dbfce88c55044757ec5059afe338793eb414e1ddb0b7c324625',
+                         '.agents/skills/bmad-build-auto/step-03-implement.md': '0dc9c9634eca148baaec03e7d154840a14101f92492b7ab469625bf13b4e2ab5',
+                         '.agents/skills/bmad-build-auto/step-04-review.md': 'c5530c50c89f197720275b83466b382f896fa27a0bba30d4b75c6af162148cdf',
+                         '.agents/skills/bmad-build-auto/workflow.md': '611f429206029a903ec9433ccdfd9b186fbafc6dc95da0a21fbcdf5965ad25ea',
+                         '.agents/skills/bmad-build/SKILL.md': '1cdf5406965ba24236d2375739d839699eb56b619834490539d1bd3d5111f890',
+                         '.agents/skills/bmad-build/compile-epic-context.md': '6793b15ae85766cee529e6b349e45f2c6ec9e3212019611c29e8c77b4dc4b924',
+                         '.agents/skills/bmad-build/customize.toml': '0ee9b033a40640420d1dc3411de7428146d00bf8c1409c9a9cfe6c1743cd53b9',
+                         '.agents/skills/bmad-build/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
+                         '.agents/skills/bmad-build/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-build/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
+                         '.agents/skills/bmad-build/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
+                         '.agents/skills/bmad-build/spec-template.md': 'e217325964857ebd90a9508bf171eddc2c4ad1b0b9b32a119775ac5c015695fd',
+                         '.agents/skills/bmad-build/step-01-clarify-and-route.md': '1e8095b08e9e9c57d9b24678b524e07d0b6bbb5af72ba213622f12a1c7d909cc',
+                         '.agents/skills/bmad-build/step-02-plan.md': '5c999430f818f58fc5e4f64309a1b0f81358ce0ddcfbd3f44b25d56279ef25d8',
+                         '.agents/skills/bmad-build/step-03-implement.md': '15fd02d2f655d4102c515134ed6aa40cd055bd9d811e49d529512f8f36d09b03',
+                         '.agents/skills/bmad-build/step-04-review.md': 'f6b3f3fa5d3af0b324db2efee9351d4c348bdc0dfa4dad6c058eb4fd37921333',
+                         '.agents/skills/bmad-build/step-05-present.md': '551e0847e2ebb64575180a5dacca5786b9b9d7825dcd986e1b3b58442eaf713a',
+                         '.agents/skills/bmad-build/step-oneshot.md': '241fa52e227c048a5d8e4428bef0f153267475f697640899deb218b58ebfd378',
+                         '.agents/skills/bmad-build/sync-sprint-status.md': '7ff44d21f5d813f4993780271eec8df2fce1373f525ff80e595b7c10618c4c36',
+                         '.agents/skills/bmad-build/workflow.md': '481ff00ef349a9c7845feca02bbfd5722b1e318ccabac858355da6c90c2d8a39',
+                         '.agents/skills/bmad-code-review/SKILL.md': 'de287a30b672fd3c435f68f644d231091fb788e6d857a3e9f9d1ca22e67e13c1',
+                         '.agents/skills/bmad-code-review/customize.toml': '282d9483ccb74acab1efb965ce10ebd6206a61da94da245a705a6358dbf0dc2e',
+                         '.agents/skills/bmad-code-review/references/claims-check.md': '7be5d35dd90a1950addc2062acdf8669026b239117efe1e398da1e8161cfa6f9',
+                         '.agents/skills/bmad-code-review/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-code-review/review-prompts/edge-case-hunter.md': '5f4572d57340b4c0d155f33454d644a44af101cd7fd02a01591be68a4ebb8b7f',
+                         '.agents/skills/bmad-code-review/review-prompts/verification-gap.md': '06f6184d7d94c808970d0146cdc4585dfd66b94a7b7ab2988277fb6fc4208508',
+                         '.agents/skills/bmad-code-review/steps/step-01-gather-context.md': '51941fd52406cf075ac9172cdcbeebefe85df91ea818ad8ec723724de67a1831',
+                         '.agents/skills/bmad-code-review/steps/step-02-review.md': 'f2b8e654cf595746656d9861c4ac722f65b02939c53900f4f6d8b24988b2155a',
+                         '.agents/skills/bmad-code-review/steps/step-03-triage.md': '337ac3ad2cd8cabb34f4e47c8778cfd703f919753573dd9d708b7218fd5de684',
+                         '.agents/skills/bmad-code-review/steps/step-04-present.md': 'a9619f7df9b9112c0e42ee71a362f73dfa38ef6dff7b403975dbd6d2480a8d9f',
+                         '.agents/skills/bmad-correct-course/SKILL.md': '1a56020a13e17f20a420a206ad6d7b09b5f91fe89f6a14918ad77e691bd05686',
+                         '.agents/skills/bmad-correct-course/checklist.md': '3e082b95def90ccb876e3101ce0bbaf797a0f03a9471e1347361897f27977327',
+                         '.agents/skills/bmad-correct-course/customize.toml': '9990c3d4a1aa90a207f7e3380a7a48a5c9c005702194f63c6a959a4b1a18586f',
+                         '.agents/skills/bmad-create-epics-and-stories/SKILL.md': '506d7c2e02a301e012eb75b918c00e6f53ba1dd6295f6e313cc7bf0a77c83261',
+                         '.agents/skills/bmad-create-epics-and-stories/customize.toml': 'e7633a4e6e33161c7cb13034e5132d9d29f8a7031e75765d16a60724f2089557',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-01-validate-prerequisites.md': '7181608c1ee4e55c084c6627d68fc55a8a0b6917e489f8ac77531a0530428a30',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md': '7c66987808c1f84e853fe54b7aff26d209196d450b5644704110f124a15179bc',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-03-create-stories.md': 'c5b787a82e4e49ed9cd9c028321ee1689f32b8cd69d89eea609b37cd3d481afc',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-04-final-validation.md': '12b869b4f0531c9cf68a6b7a076409643858de245916ad4c1651e42189c86835',
+                         '.agents/skills/bmad-create-epics-and-stories/templates/epics-template.md': '542c4fd17c2382ea36aa3b7b15929f3fd62a8092631c60c83a78629bfc56e368',
+                         '.agents/skills/bmad-customize/SKILL.md': 'ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598',
+                         '.agents/skills/bmad-customize/scripts/list_customizable_skills.py': '9bfc913e6d23c3553096a68844823b022505f8b2ca7844eccdaf40b1b9288992',
+                         '.agents/skills/bmad-customize/scripts/tests/test_list_customizable_skills.py': '24c3d384b3b5d490b7335c17866bfe0425af253ce669c32382fa88feb705934d',
+                         '.agents/skills/bmad-deep-recon/SKILL.md': 'e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5',
+                         '.agents/skills/bmad-deep-recon/assets/research.template.md': '87d7cfa85fa5036b5a309b7bfb88f7934f50bb81f3cff02d2b49b4c7345cfc38',
+                         '.agents/skills/bmad-deep-recon/customize.toml': '24d1383066034fd4fcf282279aaf0d29d21910fd1247dfe3dbad74a70e78814d',
+                         '.agents/skills/bmad-deep-recon/references/draft.md': 'ac19b33a00ca529c3281df6076f87a833a3b11fc30915ca2c6e7590f7986b90e',
+                         '.agents/skills/bmad-deep-recon/references/finalize.md': 'd2ba4bee615dfbca6e7725179fb5ebd856dd34a54ba3f306e25255dfd7b1d126',
+                         '.agents/skills/bmad-deep-recon/references/html-briefing.md': 'cd3a88c1a5505fa7f1b715afc3adb34f3d64ade66f4c6b49a59f7e8cfcbe38d4',
+                         '.agents/skills/bmad-deep-recon/references/lifecycle.md': '2315fd9cb9223504639616b861ad593bfecb53d605efbd598ae2cf94fb6c4cdf',
+                         '.agents/skills/bmad-deep-recon/references/process.md': '9017d04774807a29103ea97331e555e2793f90098af65752b72f3ee09df85906',
+                         '.agents/skills/bmad-deep-recon/references/run.md': '8e259dc88820ac989c79620af5c37e24f00df21ac4af308ce3563c0e66c9406c',
+                         '.agents/skills/bmad-deep-recon/references/selection.md': '2b488c08f9550afe7fda32c2dc5d4591927afd7b9ad507fcce0ae8593c4b9d31',
+                         '.agents/skills/bmad-deep-recon/references/synthesis.md': '4d9ef1247ab45241f919010e94c99699abc0a6e18b5bd68fa93ae54afe59d172',
+                         '.agents/skills/bmad-deep-recon/references/verification.md': '0393ded4828fec69a4819d7236827910d641d09c3b61144c0211a9a78776fdd2',
+                         '.agents/skills/bmad-deep-recon/scripts/recon_kit.py': '20785a881170b3d54122967041016a3986f4ebab407c979409c4f22c8b1c1d49',
+                         '.agents/skills/bmad-deep-recon/scripts/tests/test_recon_kit.py': '1b4ddf482dd2d11a214ee2f821c35d7a8c41905b5d8d9cc69a293304bb8a1665',
+                         '.agents/skills/bmad-deep-recon/types/academic-lit.md': '514b0b7b1184cb95363dedeb0c2298a9bf5c430c74146fe2114f31780fadb325',
+                         '.agents/skills/bmad-deep-recon/types/competitive.md': '39b53df87d295fdc4388719fcdf31ad2221e64afc136e669207f46d2727a3aec',
+                         '.agents/skills/bmad-deep-recon/types/domain.md': '3a34b2e62c3589f8c8d01158357ee9fba32648c9fdfe70035bb3ca971862896b',
+                         '.agents/skills/bmad-deep-recon/types/market.md': '81ac04499da441857672e29fcd7169436a7e239e67194288ac0d526ec514cb5e',
+                         '.agents/skills/bmad-deep-recon/types/technical.md': '55f71428c70547b89d67ef0c6cdad59caeb0ee21082cd1230c05618ba8d04707',
+                         '.agents/skills/bmad-deep-recon/types/user-voice.md': '1831ce46e53e8c68244d28e336c5ef9e53e64f21a00b74a817b9b2924c1e8e72',
+                         '.agents/skills/bmad-forge-idea/SKILL.md': 'e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b',
+                         '.agents/skills/bmad-forge-idea/customize.toml': '839f57b89c8b04038fa795525f55799ee5c23431b17d429fe668880e78399ef2',
+                         '.agents/skills/bmad-forge-idea/scripts/resolve_personas.py': '9273c71595d6317e0a1035b1a632a47a8943379797d0a4db0d2842e5787c31cc',
+                         '.agents/skills/bmad-forge-idea/scripts/tests/test_resolve_personas.py': 'f8d040801d53e48c1aec147d1e28c5b279e459f49ea1fd1673dbd7e340022a99',
+                         '.agents/skills/bmad-help/SKILL.md': '72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c',
+                         '.agents/skills/bmad-party-mode/SKILL.md': '7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0',
+                         '.agents/skills/bmad-party-mode/customize.toml': '332aca1a85a681ff38a78850deb552e954d6a7d0b32f8d22caf9b2b2324b4e24',
+                         '.agents/skills/bmad-party-mode/references/create-party.md': 'e7fdf66d779e7e08d1cd4fbcbb63b78ba2dd8b1d781af0d0da8bea8c7110176b',
+                         '.agents/skills/bmad-party-mode/references/mode-agent-team.md': 'def759a17f4bb45463b68fb74c2b828b0a4241720b2b6cc1c9c611a1016ae9d7',
+                         '.agents/skills/bmad-party-mode/references/mode-auto.md': 'a37fd24f76dfcde385890d5c5947bb6f40ca44bea86c805d267b6ae3aab39f70',
+                         '.agents/skills/bmad-party-mode/references/mode-subagent.md': '86161b24a0b13b8f9cb9309042e4249d8caefff8cc33728b084cd2ec22f9d2e1',
+                         '.agents/skills/bmad-party-mode/references/party-memory.md': '800b4b4b920bb881a7b32aaabca8559a98273799b2476d83a23e290e301fb315',
+                         '.agents/skills/bmad-party-mode/scripts/resolve_party.py': '810d7838ddb4623c60e29639a3b2484ae140ebc59147acf98bfb934b55577a58',
+                         '.agents/skills/bmad-party-mode/scripts/tests/test_resolve_party.py': 'e2a7b1bbbe011b56a917dc54449fa29fb3df8716674a5998a32a50e3b5ee60e7',
+                         '.agents/skills/bmad-prd/SKILL.md': 'eafebb3fbebc4e276a055ca9916e20e36e95dca03f819eeeaaf80a3a9c16f07b',
+                         '.agents/skills/bmad-prd/assets/headless-schemas.md': '8d3621333a72400512bd62511bc4c73fc745711505e1f852c697ff8c5fa2de93',
+                         '.agents/skills/bmad-prd/assets/prd-template.md': 'b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab',
+                         '.agents/skills/bmad-prd/assets/prd-validation-checklist.md': '41d9f09064772a92ec908d970618e47ba63dc86b5c5a1a21d5a2c676d3ba8e3f',
+                         '.agents/skills/bmad-prd/assets/validation-report-template.html': 'a80becdd8205d2d7c18738855830b096172a496b96b5ca8a0820ec55c9bb8bf9',
+                         '.agents/skills/bmad-prd/customize.toml': 'd23707fe7ff5f5060a05b5b8bda3f170b9b1d9be61e409e9f7ae91f83572db6a',
+                         '.agents/skills/bmad-prd/references/headless.md': '4dad58ebee63933a53179016513ff94d143ce9f68e226489d390e2c36bf1d848',
+                         '.agents/skills/bmad-prd/references/validate.md': '19b2fa66d58cb4fef3d920cd09c81f8add4ee44dd4191bec87eaba84c2093338',
+                         '.agents/skills/bmad-prfaq/SKILL.md': 'e16d295601af1ebdf94e2f6da2c5ef3235029997bd78d0cbdab592e3d839dde7',
+                         '.agents/skills/bmad-prfaq/agents/artifact-analyzer.md': '7bdc44830f8d593346ec0ee15e36e1e431432fcc6c38b70bb861999315c9cfa4',
+                         '.agents/skills/bmad-prfaq/agents/web-researcher.md': '6e9127bb9bd3e4b15c701e4ced9eef328769262cd34eadc221bebe954c1f3aef',
+                         '.agents/skills/bmad-prfaq/assets/prfaq-template.md': 'b27e6964f0437ab4e78c8c0ffbe5052c28e3b3ef2fc811726cbb394d5a5c7559',
+                         '.agents/skills/bmad-prfaq/bmad-manifest.json': 'b67b016cd68535a97bd9164c237fbfe19a5b26bc1a3f0afe203fecfa40aab6ff',
+                         '.agents/skills/bmad-prfaq/customize.toml': 'b764b9ea360734d681115b958d0ccd478f1b56ce0045ecd6f71311ef005d8980',
+                         '.agents/skills/bmad-prfaq/references/customer-faq.md': '96f8565197649c58908a1d61b6cd805fd01f57da7945ba889c18d087ad597aeb',
+                         '.agents/skills/bmad-prfaq/references/internal-faq.md': '26eb83f844cda1ed8efb50f4703d61713ada8a64bd27eb387f759f858b5748de',
+                         '.agents/skills/bmad-prfaq/references/press-release.md': 'c406adb0e2d2cc326cbc45d0174f89d014523448ad82bc272293999d22aec596',
+                         '.agents/skills/bmad-prfaq/references/verdict.md': 'c962ce2c97e824cb53dae70c898153ffac3ea56b56565012ca2b96bb21c9618c',
+                         '.agents/skills/bmad-product-brief/SKILL.md': '88618d280e90cdfdf8ece62f0e9e6406e3db2d93b70aad66806d1be4bdfa3dbd',
+                         '.agents/skills/bmad-product-brief/assets/brief-template.md': 'bb28edf75d023067551c8d417b19b8803324e7acfb2ad0c80f882e9134f4c1f1',
+                         '.agents/skills/bmad-product-brief/customize.toml': 'bef95b0ab71793d214ec59ed7397a25f7253e63fad5d60570248614db6186905',
+                         '.agents/skills/bmad-project-context/SKILL.md': '50b0ee0f4905273dd7f8a57a4e79b2ff47eabb074b6f4bce8242b950b37dfb63',
+                         '.agents/skills/bmad-project-context/customize.toml': '9bf8a3aa919832cd8932853da550fcaebd06a9e13c0cde453f4379d8327f9c0f',
+                         '.agents/skills/bmad-project-context/references/best-practices.md': '850c45d2e1de44b1cd8e3b06b8175df53aac8983326d73351eab547bfacc532b',
+                         '.agents/skills/bmad-project-context/references/template.md': '5e2bc291e734a481fd2925877adfbe82b03313f300baf67dfdb6fa22a1181601',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/SKILL.md': 'f8f6a62c390f0cf7fc88ea04fa1bc236dedde27cdc1ce95cdb6ebc1cd8f33251',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/checklist.md': 'b58f810aeb1040c2f6758c88aa133afce72f8cc178d3d97ff0fbaa3d943057dc',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/customize.toml': '4fbbd9d96e5af24ae012d33e59582b88867e8203dcd5a29f0d46b42ef6d747b8',
+                         '.agents/skills/bmad-retrospective/SKILL.md': 'd3f12423a0e456a7c2a25d5aa005df4eb4cb8c0b5cd400755b026c3c100b99dd',
+                         '.agents/skills/bmad-retrospective/customize.toml': '33ce7da5bad6dfe1791218d8d607b749f9b58586b232df7ea0d3263ec50ec466',
+                         '.agents/skills/bmad-retrospective/references/acceptance-verdict.md': '09a65007c39af83e01e039331c252e6e670b134cd5e2a4b5e05ac9d9fb7e37f1',
+                         '.agents/skills/bmad-retrospective/references/aggregate-views.md': '5b278afce4a53692d8715b4af178e4233da0876921dc3154b5763d056cb5ff0b',
+                         '.agents/skills/bmad-retrospective/references/evidence-gathering.md': '575bace78d7c03c48d86a209dd664f7dd22295a222b75e6d6298894cb7b7ce00',
+                         '.agents/skills/bmad-retrospective/references/retro-document.md': 'de8164664cd2be7f73b8ba5552e9e0f58816d2a7c4be8efc7715461846bb7001',
+                         '.agents/skills/bmad-retrospective/references/team-discussion.md': 'a9c504c436038c7e47d08322413aa3c213d2859b36ae30e873cb8c60fd9e008e',
+                         '.agents/skills/bmad-retrospective/scripts/git_evidence.py': '2acbb8b5804d0680b5939629a0c3786a72cde30f5f2cecd75858325c6e778d89',
+                         '.agents/skills/bmad-retrospective/scripts/sprint_status.py': '7c9f0a514a6e0834182f3c30485de49e0a4decb9be51027cc8be58aecdb9fc44',
+                         '.agents/skills/bmad-retrospective/scripts/tests/fixtures/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
+                         '.agents/skills/bmad-retrospective/scripts/tests/test_git_evidence.py': '0abfc8fad338830fc2db656d3ccc500631b0ea7a2ab87d853c13a6bbd46ff13c',
+                         '.agents/skills/bmad-retrospective/scripts/tests/test_sprint_status.py': '23da16cca54904a256fcf88fd8f912c3f6091ea343768c241bbd2aeebbca2af3',
+                         '.agents/skills/bmad-review/SKILL.md': 'c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7',
+                         '.agents/skills/bmad-review/customize.toml': '005dde84f09c0b1ab0ef0ee87f1ed1985922c893089cc3595157611fb83b3ebd',
+                         '.agents/skills/bmad-review/references/editorial-common.md': 'f0cdc72ea345b2c5dc3001477b3dfcc909ca11b78f7db8865b6763d18ffc66c8',
+                         '.agents/skills/bmad-review/references/lens-adversarial.md': '7c5ce97ab2f3ecb96ceb6aa76417f68c1b7df535edd3cc51666d8e1216e6e557',
+                         '.agents/skills/bmad-review/references/lens-edge-case-hunter.md': '5f0c4778d7b393d11156af8c1bd9bf88aafeb9d50fff5f460ca67df50d927e7d',
+                         '.agents/skills/bmad-review/references/lens-prose.md': '4cbcb1eaea8567d272f5db7c6cdfd74ed5a8aae6831053cb2f01cbfc2cb98b98',
+                         '.agents/skills/bmad-review/references/lens-structure.md': '98c08221f517133e57ef6325013935360c3365ebd7dcb8411b2050d7df507ee3',
+                         '.agents/skills/bmad-review/references/lens-verification-gap.md': 'e7123d81171eeeee1b3782d13d94c2988969fe357dd71949131a5eb97803e2c6',
+                         '.agents/skills/bmad-review/references/structure-models.md': 'f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292',
+                         '.agents/skills/bmad-review/scripts/tests/test_word_metrics.py': '3b5a285d3c9f611b3cda8c9c1d52d6b214c1f72e6e64a94ea5b0e220db5a8765',
+                         '.agents/skills/bmad-review/scripts/word_metrics.py': 'fb45007a7f3cfc18d13ee8bd4787facdaae297570193bc769456297dd33da78b',
+                         '.agents/skills/bmad-spec/SKILL.md': '46a2c3d5541d63af1520fac6b7abfff161a94b52fed51df6454115e3da5639c7',
+                         '.agents/skills/bmad-spec/assets/headless-schemas.md': '83afb3614716db2347d83586a67b9c524492dd50db5282436ccb35c99fb5f08a',
+                         '.agents/skills/bmad-spec/assets/spec-template.md': '4b3a032c045fdd0903933446fc07f93e879997f28a0294ed4344da71192b20ee',
+                         '.agents/skills/bmad-spec/assets/stories-schema.md': '4f8137c00e2710288354a4466d1cfb90704f4b2a04bd3b63924218fd589cc6a9',
+                         '.agents/skills/bmad-spec/customize.toml': 'd0f1f926bed79d514f8fdbc458a1883167fb64663bf2464c40e3c50dc2dcdbea',
+                         '.agents/skills/bmad-sprint-planning/SKILL.md': '391fdc181c605ec9da99028f9a82776410c86b50d2cc273b2b8d3d4b266a2012',
+                         '.agents/skills/bmad-sprint-planning/customize.toml': '54c7f6a8af77ff7ea6c9dbb00b515023999e011aabc802b7b328e82f505b0299',
+                         '.agents/skills/bmad-sprint-planning/references/fix-sprint-status.md': '0406c31b70da33e2a354d9785f43d8f9918f4b923d0aac2ebd1e3707ebad5806',
+                         '.agents/skills/bmad-sprint-planning/references/generate-tracking.md': '4dbf7aca26d0e6e893f288fc5e6158dbbcd65f77bbaf95e941ca705abceb1741',
+                         '.agents/skills/bmad-sprint-planning/references/readiness-gate.md': '7d58ea61fafe3c1d8218203abc7512e322ca384c78d9e71829df55dfabe1245b',
+                         '.agents/skills/bmad-sprint-planning/references/status-view.md': 'c3547e221ebf6e55c874e2ada3e8c18198835213c76f0bb2e0e64150aac355ab',
+                         '.agents/skills/bmad-sprint-planning/references/validate.md': 'ac680fa0a0f945a9bc0fc89ca709b2a8e6bc3b2617cd0d3d730378c4b5edd86d',
+                         '.agents/skills/bmad-sprint-planning/scripts/sprint_plan.py': 'c4e4daf4200f233501a069a43db56d097c5d4e71f74cd29f132f88b83c2fc95f',
+                         '.agents/skills/bmad-sprint-planning/scripts/tests/test_sprint_plan.py': 'f1c3b640e156946b0a234e233807b2a3983cb0d3f2d13dbb9830fbe0c67e5238',
+                         '.agents/skills/bmad-sprint-planning/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
+                         '.agents/skills/bmad-ux/SKILL.md': 'b437d6ad812577e31cb6845c2417aa491c2f3a17487aa43ed7960b3b9299b564',
+                         '.agents/skills/bmad-ux/assets/color-themes.md': 'ccb6e4ef47a196476cf9392d788938ad3ca8d07b9ce095b7c092dcb4e06735f0',
+                         '.agents/skills/bmad-ux/assets/design-directions.md': 'eab73b948da76a27abc908e1e7d6b124e8ff0362e6dd1990f7e60b9541cbcb98',
+                         '.agents/skills/bmad-ux/assets/design-example-editorial.md': 'a659166845b1a4ed3f9aef942c5935537a97382b10303684fbb78ed86265870e',
+                         '.agents/skills/bmad-ux/assets/design-example-mobile.md': 'a93fb9f114f2e83af0c961c0d7909b3859fc80bcd713715517cd639a53a0372a',
+                         '.agents/skills/bmad-ux/assets/design-example-shadcn.md': '25e0dfb2bb21483973a8f0a6ed650288b3dc2ae5ed02aa0f091bb9b6b0b39fc0',
+                         '.agents/skills/bmad-ux/assets/excalidraw-wireframe.md': '660bbcdebff50cd044a3752eda43f3cb303aca4b0f521b55a270da93b89ddb18',
+                         '.agents/skills/bmad-ux/assets/experience-example-mobile.md': 'f8cd54c92193cd8c34a472df9c212ac7330976f6a115b729721dcb60034dc4f0',
+                         '.agents/skills/bmad-ux/assets/experience-example-shadcn.md': 'd6ca16e87b768e8b41f352c02ee08af21d7cdac04ca21e6ae1556864b4d27590',
+                         '.agents/skills/bmad-ux/assets/headless-schemas.md': 'e3a773dde85286f1a6f6dd8b26fc17e09ccea96f6257dfe7fb436353cd79242d',
+                         '.agents/skills/bmad-ux/assets/key-screens.md': 'ff1c5060673dd595edd61e76806bae876264ec6895c2eaadf8a6190785bf5f7b',
+                         '.agents/skills/bmad-ux/assets/validation-report-template.html': '8656945636fabe96624f8ef8fce931b073b5aecbe42d490584c1d5c7f31e1353',
+                         '.agents/skills/bmad-ux/customize.toml': 'e85144ed214dc1e002ee7fc6589a0a7ef352c5f79ab4cb37a4e05ee8e245549c',
+                         '.agents/skills/bmad-ux/references/creative-tools.md': 'e281292d7c0fdecdbb67ca9b7d95d4bed803626ba5edfd8dcc99146fcaa118e6',
+                         '.agents/skills/bmad-ux/references/design-md-spec.md': 'd04d5f663607aba3f3181e818ae33856e6caf5e560dcb16fa64ed80b7cf3d590',
+                         '.agents/skills/bmad-ux/references/headless.md': '8da7e23d269b1644f45b5104a243a6a27fd8d075aebb95d9b7752f0d143f0f5d',
+                         '.agents/skills/bmad-ux/references/validate.md': '7c2189d9ac1585d9408b6ed0346ba564869e7db89dba8f81044db3431cfcee65',
+                         '.agents/skills/bmad-walkthrough/SKILL.md': '2294849558370f1219e5fa7306b731b30aedb0e6649eeeac95d88bff1301d938',
+                         '.agents/skills/bmad-walkthrough/customize.toml': '2a4b14c5b25729a2d8fa9d9762ab3f12ac9429cfc6bd31fd80a81d86eed98630',
+                         '.agents/skills/bmad-walkthrough/generate-trail.md': '4a5936d86fbe5a85285b4535097b1e2edda8849da35586f4b588a982d7224459',
+                         '.agents/skills/bmad-walkthrough/step-01-orientation.md': 'd9e3b949c36d49a025f3535773af2b51888fe4ce616b6d6d69683a122716b1d2',
+                         '.agents/skills/bmad-walkthrough/step-02-walkthrough.md': '66cf893f8f968ee81034e9ccd8c20415692c3a8c23a9a143c2245fe6c800acdc',
+                         '.agents/skills/bmad-walkthrough/step-03-detail-pass.md': 'd48163b9f305f15af57729a8443142e47beb6c3e977554afe12b39ee49cb9fc0',
+                         '.agents/skills/bmad-walkthrough/step-04-testing.md': '28a56e868968ea2d18add0df8c4bccced0f94b698e218df3d45ddac072ce369c',
+                         '.agents/skills/bmad-walkthrough/step-05-wrapup.md': '5bfe0f9240ae073f1b5c843d172c11e76cbe6067e8df414ea6a338c81f113f5d',
+                         '.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
+                         '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
+                         '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': 'f89ff4cf4d9d037f57f17af850061fcb30d7a804a995473f1f3669a6f9a9d92a',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': '33f3b93a16939fb4db35b7a416d9beb10c9b45727e03801944ad9f9cf31d3a0e',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c117d7fd6f5dba50da998da576775d2c72e19324cf15c46a5f426f2fcf0dfc76',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec',
+                         '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': '3c2e323ecf4d3b8274974b18ad82a33e2c25fac227697c66fd0470aabde65c46',
+                         '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': 'ba14f8c8eb4c2d89a909d69cacd9a058a18ed2f6a6b3e0b4067d47587c7926c3',
+                         '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
+                         '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
+                         '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '044dcf261c85c3f733b5674c12b8859158abe0dd7b89f8d9c5603cebc1953bc2',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
+               'overlays': {'codebase-wiki': {'added': {},
+                                              'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
+                                                                                                     'upstream_sha256': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4'}}}},
+               'payloadSha256': '75c23c518209088710be3f34788a4fe4a0327c23e5aa8318c495b08058380e6b',
+               'profile': 'group',
+               'profileHashes': {'group-instructions.md': '3a634fd019f17db59581653e408f16bfbe91f12e9acda7419828606ec847ea1a',
+                                 'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                                 'profile.md': 'c5cdff6d85903936e6664b23423351e3bae86bbd73b0a0bb7794e65366373ef3'},
+               'skills': ['bmad-advanced-elicitation',
+                          'bmad-agent-analyst',
+                          'bmad-agent-architect',
+                          'bmad-agent-dev',
+                          'bmad-agent-pm',
+                          'bmad-agent-ux-designer',
+                          'bmad-architecture',
+                          'bmad-brainstorming',
+                          'bmad-build',
+                          'bmad-build-auto',
+                          'bmad-code-review',
+                          'bmad-correct-course',
+                          'bmad-create-epics-and-stories',
+                          'bmad-customize',
+                          'bmad-deep-recon',
+                          'bmad-forge-idea',
+                          'bmad-help',
+                          'bmad-party-mode',
+                          'bmad-prd',
+                          'bmad-prfaq',
+                          'bmad-product-brief',
+                          'bmad-project-context',
+                          'bmad-qa-generate-e2e-tests',
+                          'bmad-retrospective',
+                          'bmad-review',
+                          'bmad-spec',
+                          'bmad-sprint-planning',
+                          'bmad-ux',
+                          'bmad-walkthrough',
+                          'codebase-wiki',
+                          'merge-reviewer',
+                          'output-style',
+                          'release-reviewer'],
+               'upstream': {'bmad-method': {'asset': 'bmad-method-6.12.4-codex.zip',
+                                            'repository': 'bmad-code-org/BMAD-METHOD',
+                                            'sha256': '3a9172ced5a3d0f4b41774d2477d0178476bbc822b0148784e75c69ec86bd819',
+                                            'version': '6.12.4'},
+                            'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
+                                              'version': '0.6.2'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.14.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3',
+                                               'version': '0.14.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.4.1.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39',
+                                                 'version': '0.4.1'}},
+               'version': '0.26.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': '1dc692c5cd1feed9bc333a02b298034bcac2d557c0b8db02bf74f3aab41e5f0c',
+                             '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '24537d815569007b82bb644368ae477ad385fda6dfd3a0e719b2c176c0169aa9',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '938d67d251c20f1a0508aaaa102a2f02ea284bab9c48c73523bd674e7acdd5a8',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': '581f6462ba0ea6c13f432e103692b6700b67e493f64c5e923828e961aa4f5604',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5cbc4b3197410ff68d089f640827ae8e7bcccf10bb78e7a43b0c2faadc6ca973',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
+               'wikiInstalledVersionSha256': 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'},
+              {'agentBlockSha256': 'ac6040dac0b06bf74fa60c914d7aa48217a10e9cbb4ce2e83f08c5160b95f46d',
+               'bmadConfigTemplate': '# ─────────────────────────────────────────────────────────────────\n'
+                                     '# Installer-managed. Regenerated on every install — treat as '
+                                     'read-only.\n'
+                                     '#\n'
+                                     '# Direct edits to this file will be overwritten on the next install.\n'
+                                     '# To change an install answer durably, re-run the installer (your '
+                                     'prior\n'
+                                     '# answers are remembered as defaults). To pin a value regardless of\n'
+                                     '# install answers, or to add custom agents / override descriptors, '
+                                     'use:\n'
+                                     '#   _bmad/custom/config.toml       (team, committed)\n'
+                                     '#   _bmad/custom/config.user.toml  (personal, gitignored)\n'
+                                     '# Those files are never touched by the installer.\n'
+                                     '# ─────────────────────────────────────────────────────────────────\n'
+                                     '\n'
+                                     '[core]\n'
+                                     'user_name = "BMad"\n'
+                                     'communication_language = "Traditional Chinese"\n'
+                                     'project_name = "BMAD"\n'
+                                     'document_output_language = "Traditional Chinese"\n'
+                                     'output_folder = "_bmad-output"\n'
+                                     '\n'
+                                     '[modules.bmm]\n'
+                                     'user_skill_level = "intermediate"\n'
+                                     'planning_artifacts = "{project-root}/_bmad-output/planning-artifacts"\n'
+                                     'implementation_artifacts = '
+                                     '"{project-root}/_bmad-output/implementation-artifacts"\n'
+                                     'project_knowledge = "{project-root}/docs"\n'
+                                     '\n'
+                                     '[agents.bmad-agent-analyst]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Mary"\n'
+                                     'title = "Business Analyst"\n'
+                                     'icon = "📊"\n'
+                                     'description = "Channels Porter\'s strategic rigor and Minto\'s Pyramid '
+                                     'Principle, grounds every finding in verifiable evidence, represents '
+                                     'every stakeholder voice. Speaks like a treasure hunter narrating the '
+                                     'find: thrilled by every clue, precise once the pattern emerges."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-pm]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "John"\n'
+                                     'title = "Product Manager"\n'
+                                     'icon = "📋"\n'
+                                     'description = "Drives Jobs-to-be-Done over template filling, user '
+                                     'value first, technical feasibility is a constraint not the driver. '
+                                     'Speaks like a detective interrogating a cold case: short questions, '
+                                     'sharper follow-ups, every \'why?\' tightening the net."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-ux-designer]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Sally"\n'
+                                     'title = "UX Designer"\n'
+                                     'icon = "🎨"\n'
+                                     'description = "Balances empathy with edge-case rigor, starts simple '
+                                     'and evolves through feedback, every decision serves a genuine user '
+                                     'need. Speaks like a filmmaker pitching the scene before the code '
+                                     'exists, painting user stories that make you feel the problem."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-architect]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Winston"\n'
+                                     'title = "System Architect"\n'
+                                     'icon = "🏗️"\n'
+                                     'description = "Favors boring technology for stability, developer '
+                                     'productivity as architecture, ties every decision to business value. '
+                                     'Speaks like a seasoned engineer at the whiteboard: measured, always '
+                                     'laying out trade-offs rather than verdicts."\n'
+                                     '\n'
+                                     '[agents.bmad-agent-dev]\n'
+                                     'module = "bmm"\n'
+                                     'team = "software-development"\n'
+                                     'name = "Amelia"\n'
+                                     'title = "Senior Software Engineer"\n'
+                                     'icon = "💻"\n'
+                                     'description = "Test-first discipline (red, green, refactor), 100% pass '
+                                     'before review, no fluff all precision. Speaks like a terminal prompt: '
+                                     'exact file paths, AC IDs, and commit-message brevity — every statement '
+                                     'citable."\n',
+               'bmadFiles': {'_bmad/LICENSE': '0aa79baf6328b4a1e694ce10a12ffc36d7666554da128dff0e8fcda0fc536a66',
+                             '_bmad/_config/bmad-help.csv': 'fc9c206d394e72d18a051b0de6eb18e2f1b3abae8f585927496cbf8f7a8ac365',
+                             '_bmad/_config/files-manifest.csv': 'a3e609486256b49b4a5f9f3cb24f5545d63ea01ecbd3028bb40a2db75af35d9b',
+                             '_bmad/_config/manifest.yaml': 'f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8',
+                             '_bmad/_config/skill-manifest.csv': '6d414dcda3fbfc4c8716ab309dbfa5493c0ce0fee8566cc822918e5c874a2544',
+                             '_bmad/bmm/config.yaml': '5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729',
+                             '_bmad/bmm/module-help.csv': 'c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a',
+                             '_bmad/bmm/v6-shims/README.md': '5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972',
+                             '_bmad/config.toml': 'ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3',
+                             '_bmad/core/config.yaml': '7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c',
+                             '_bmad/core/module-help.csv': '38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7',
+                             '_bmad/core/v6-shims/README.md': '017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2',
+                             '_bmad/scripts/config_utils.py': '48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651',
+                             '_bmad/scripts/memlog.py': '4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240',
+                             '_bmad/scripts/render_skill.py': '8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942',
+                             '_bmad/scripts/resolve_config.py': '70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768',
+                             '_bmad/scripts/resolve_customization.py': 'c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284'},
+               'bmadFilesManifestTemplate': 'type,name,module,path,hash\n'
+                                            'yaml,manifest,_config,_config/manifest.yaml,f35203ac12ca0e15e2c4e3a865bd58d91c142df0730b2f698c58db7f157a24c8\n'
+                                            'csv,module-help,bmm,bmm/module-help.csv,c3c1033c8fffef924bb71342e22a0a2a8243911a0b856e2aa7804d8bb49feb5a\n'
+                                            'md,README,bmm,bmm/v6-shims/README.md,5495469425b50bca1cd74899c6ebfe840f137cf2a68d008bc993aa2574bd9972\n'
+                                            'yaml,config,bmm,bmm/config.yaml,5c336426099f8fbc17eb406e0a58e459efc87660fb2247b805ad9664ab4f6729\n'
+                                            'toml,config,config.toml,config.toml,ee4b98d08da4414c6983c88d4becd17e90d9e30b1dc822f80d742e9b812dbcf3\n'
+                                            'csv,module-help,core,core/module-help.csv,38846d71f87159345d6a6256a170c142fb3f53d9cf9c258c9ee6f26bd88a86c7\n'
+                                            'md,README,core,core/v6-shims/README.md,017900bb03baeddc0262041a6aa85bce744e8c45991dcde32ef042f9bc2a32b2\n'
+                                            'yaml,config,core,core/config.yaml,7186a057f980ef1d07722b17764b01c03907bbabdbdb85ecd52f888f2d58eb0c\n'
+                                            'py,config_utils,scripts,scripts/config_utils.py,48afe2bc18a29201e343cce3703be1e70df9c83ee74eeb68e57ef8ef42e8c651\n'
+                                            'py,memlog,scripts,scripts/memlog.py,4916a9c63ec164568cf428ce27b44d6657933f098ee3ae3970b25f0f9d8f9240\n'
+                                            'py,render_skill,scripts,scripts/render_skill.py,8496d0d8b449d64c21b42a9aab3b13fc8a813a430c0695ffd84ad75bb1da7942\n'
+                                            'py,resolve_config,scripts,scripts/resolve_config.py,70d7577396ed40ab9462ab75dce51f852bc2e094b2d1a054214f1b30c8789768\n'
+                                            'py,resolve_customization,scripts,scripts/resolve_customization.py,c95aab9f2dc500d6ab7db77d6a7860028701ce414e03690613a282cc3659d284\n',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'bmad-workflow',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {},
+               'files': {'.agents/skills/bmad-advanced-elicitation/SKILL.md': 'd38cb53f1c7c77f13664c340026a1a4932ae1ca5a24471eebaeb172b88c7942f',
+                         '.agents/skills/bmad-advanced-elicitation/assets/methods.csv': 'd110ff5f076fb9421552b83692fde2c2d367734049169c7a55f7267a3dc7ef89',
+                         '.agents/skills/bmad-advanced-elicitation/customize.toml': '735a276edd51786ccfd2c3417d9a2b9dee4244a6102698981b3888f68d979ed9',
+                         '.agents/skills/bmad-advanced-elicitation/scripts/pick_methods.py': '60020ec4767894ea3d8707c4b61e78b679d434315be1dd29154bf64d88126fff',
+                         '.agents/skills/bmad-advanced-elicitation/scripts/tests/test_pick_methods.py': '610099d8494529f9203d7262567810b500552bcef006b3b6388d58da3da71978',
+                         '.agents/skills/bmad-agent-analyst/SKILL.md': '6bfe0ccc9d85be7c651f9d430f37192abc32c67b5445f037dfea9c87d95ce4f0',
+                         '.agents/skills/bmad-agent-analyst/customize.toml': 'd6e2c5c660e8900866298961266a0b1c189c8643f2c1c9da602101e9f98d3388',
+                         '.agents/skills/bmad-agent-architect/SKILL.md': '02b2361438d39181f7990940a35af73658d37831572dd5d5ab9cfca17e8f0817',
+                         '.agents/skills/bmad-agent-architect/customize.toml': 'bd0ebb48faeab1e6f709d0291a13d33003484a597ed2b9c90f221b2345513b06',
+                         '.agents/skills/bmad-agent-dev/SKILL.md': '5e81cd7db67a76626bef308374a06664cd52395b97c15966d09543765257f33d',
+                         '.agents/skills/bmad-agent-dev/customize.toml': 'ab52d8840427e10d5956b592c34e63edc77ebdafd7b54ce60da11cf67ed72ced',
+                         '.agents/skills/bmad-agent-pm/SKILL.md': 'cd3e8bf36b6e77d4b2d33c5700f0528a6cd2796b24ea22b227301bc60168b083',
+                         '.agents/skills/bmad-agent-pm/customize.toml': '4613c72cfe3bc3143bd50c5732bce464c21c7266fe7dd930bc659c54e7315b39',
+                         '.agents/skills/bmad-agent-ux-designer/SKILL.md': '3c28653423072119cbf8eb7b6e09a0fb6f1cd7679ee1a27735dea20a2a76c28d',
+                         '.agents/skills/bmad-agent-ux-designer/customize.toml': '4acd1d9cdbf4a4328c389229ea9e9f2885d0692f8e10e3d9456da45844337c2c',
+                         '.agents/skills/bmad-architecture/SKILL.md': '4a256afa9c725e0bf5b55961d21774f1eb00011dbe31509e280a955bdb1a5c09',
+                         '.agents/skills/bmad-architecture/assets/spine-template.md': 'ef4ff795624eb5439fae54a06edb389feb5a0cf79cb01ae007af51109335d198',
+                         '.agents/skills/bmad-architecture/customize.toml': 'e9c5f75bd6605199f3908d6a1f013d6b42fb12b6f35c9a5e13a44f7f872b7b79',
+                         '.agents/skills/bmad-architecture/references/headless.md': '4db2708f335c94cb024b5eba022b1e3d88b1ec61c94c4716626d9b89684f5833',
+                         '.agents/skills/bmad-architecture/references/reviewer-gate.md': 'd32e32a3c1d59b5612b947004f3f6fef1117a13ce9f1ffa428d616e0b5d4db69',
+                         '.agents/skills/bmad-architecture/scripts/lint_spine.py': 'dd48be20384adfa281d295e34a39c1ae55727af7e98efe42525be31d1c5c001e',
+                         '.agents/skills/bmad-architecture/scripts/tests/test_lint_spine.py': 'e86bb9a62c5cca74ddc89c843386f2b992610fcc1792d40e03bc9cd445b77681',
+                         '.agents/skills/bmad-brainstorming/SKILL.md': '2657a2088329651fd06f030e61997fc9f21986588d65ce96f14043af14d8534e',
+                         '.agents/skills/bmad-brainstorming/assets/brain-icons.json': 'a101c56e89f1d0f9e4131dfdfc19e10c746e3a61c3f92537d04a6f4897b7d331',
+                         '.agents/skills/bmad-brainstorming/assets/brain-methods.csv': 'fff112eabca1a9cb8b190f8314bc47678becc5782a2372e11c83daa0e33b6dfd',
+                         '.agents/skills/bmad-brainstorming/assets/brain-selector.html': 'c110919a3366bd96061f050f98503e3586185e3d1df5ff8b62a5a046c571a436',
+                         '.agents/skills/bmad-brainstorming/customize.toml': '313c3b348473cd40ba02ceae4b299c617300af78debb2f5585c8d3941cc2d8d3',
+                         '.agents/skills/bmad-brainstorming/references/converge.md': '1528c32ddc64f8061fec663306f7208d2fd4d4a90e660552b8138bda7e452dc0',
+                         '.agents/skills/bmad-brainstorming/references/finalize.md': 'b6074e7fb4d86ffcf899abc50b9049b4a1f6fe550917f4be7a1c7a888477e07e',
+                         '.agents/skills/bmad-brainstorming/references/headless.md': 'b8ea5951199cff7e4813e06aef35683ca0658230fa015e358cacc466b1138a42',
+                         '.agents/skills/bmad-brainstorming/references/in-chat-techniques.md': '18239464e3e4f00ea9063d015d26d6b0a696b72e7e3c5be92352da6db9a3f244',
+                         '.agents/skills/bmad-brainstorming/references/mode-autonomous.md': 'd815d2c7f0f8cc0cdfa7c619eaf61f59fd78142f13c69365eda257da38b97bdf',
+                         '.agents/skills/bmad-brainstorming/references/mode-facilitator.md': '1b908498d285d190859aed00c3ba5b399d7f6aa8e94d54e95456d15cd6fe6073',
+                         '.agents/skills/bmad-brainstorming/references/mode-partner.md': 'caa0ed378c116def4de382f4e5a95173c6ae6cc5464f1792e7d8196360f79c8a',
+                         '.agents/skills/bmad-brainstorming/references/resume.md': '0f79535d72eefe6c55bd5ae47fe4753de8d27235cf129f10b2c596a124c26526',
+                         '.agents/skills/bmad-brainstorming/scripts/brain.py': 'f81b28fe590f607b95c7218a7cdd6fb6eb91d3a76b9671acf54bcaf36fd4e6ca',
+                         '.agents/skills/bmad-brainstorming/scripts/tests/test_brain.py': 'b219da8e5e3ccd4ebae95fb02bc5683d6b62593d71db75a712adc7a1b9017bc3',
+                         '.agents/skills/bmad-build-auto/SKILL.md': 'ea798a5f7df3b11eb73555a54fc0516c70d8f98739bd7857d968297b26f6ef94',
+                         '.agents/skills/bmad-build-auto/compile-epic-context.md': '64d13b41974cfa0dfc1de64b6fbd8365e9b99f91c7c98f0ee1a9fbd018f324ca',
+                         '.agents/skills/bmad-build-auto/customize.toml': '31417a8239f213c00621bb9016c3099631ae7ef03731ce5be209a5668a5730ee',
+                         '.agents/skills/bmad-build-auto/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
+                         '.agents/skills/bmad-build-auto/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-build-auto/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
+                         '.agents/skills/bmad-build-auto/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
+                         '.agents/skills/bmad-build-auto/spec-template.md': '59a046df2773ec05af0688823d17238bfde2bb54c0c3b3eff6acec4856f1eb7a',
+                         '.agents/skills/bmad-build-auto/step-01-clarify-and-route.md': '50674ecef3b4b7a26b993685c9a79ccd87b00b2255d51b6b9c13ed32aa6d1ffa',
+                         '.agents/skills/bmad-build-auto/step-02-plan.md': 'a08e303c10f88dbfce88c55044757ec5059afe338793eb414e1ddb0b7c324625',
+                         '.agents/skills/bmad-build-auto/step-03-implement.md': '0dc9c9634eca148baaec03e7d154840a14101f92492b7ab469625bf13b4e2ab5',
+                         '.agents/skills/bmad-build-auto/step-04-review.md': 'c5530c50c89f197720275b83466b382f896fa27a0bba30d4b75c6af162148cdf',
+                         '.agents/skills/bmad-build-auto/workflow.md': '611f429206029a903ec9433ccdfd9b186fbafc6dc95da0a21fbcdf5965ad25ea',
+                         '.agents/skills/bmad-build/SKILL.md': '1cdf5406965ba24236d2375739d839699eb56b619834490539d1bd3d5111f890',
+                         '.agents/skills/bmad-build/compile-epic-context.md': '6793b15ae85766cee529e6b349e45f2c6ec9e3212019611c29e8c77b4dc4b924',
+                         '.agents/skills/bmad-build/customize.toml': '0ee9b033a40640420d1dc3411de7428146d00bf8c1409c9a9cfe6c1743cd53b9',
+                         '.agents/skills/bmad-build/references/claims-check.md': '50ea17cb89a78ef815286dde2dabfd09f1dc9841d07a10857f88b39ab7b9bd2a',
+                         '.agents/skills/bmad-build/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-build/review-prompts/edge-case-hunter.md': '8fc046af1cbf4ecc928207cec75e29c3c260adb86cc7da77537ade3b3a3b9448',
+                         '.agents/skills/bmad-build/review-prompts/verification-gap.md': '45ab0b8c4c56c5c055c97a293a8591a67e256d0b1a2058ce1f093cd866be8d03',
+                         '.agents/skills/bmad-build/spec-template.md': 'e217325964857ebd90a9508bf171eddc2c4ad1b0b9b32a119775ac5c015695fd',
+                         '.agents/skills/bmad-build/step-01-clarify-and-route.md': '1e8095b08e9e9c57d9b24678b524e07d0b6bbb5af72ba213622f12a1c7d909cc',
+                         '.agents/skills/bmad-build/step-02-plan.md': '5c999430f818f58fc5e4f64309a1b0f81358ce0ddcfbd3f44b25d56279ef25d8',
+                         '.agents/skills/bmad-build/step-03-implement.md': '15fd02d2f655d4102c515134ed6aa40cd055bd9d811e49d529512f8f36d09b03',
+                         '.agents/skills/bmad-build/step-04-review.md': 'f6b3f3fa5d3af0b324db2efee9351d4c348bdc0dfa4dad6c058eb4fd37921333',
+                         '.agents/skills/bmad-build/step-05-present.md': '551e0847e2ebb64575180a5dacca5786b9b9d7825dcd986e1b3b58442eaf713a',
+                         '.agents/skills/bmad-build/step-oneshot.md': '241fa52e227c048a5d8e4428bef0f153267475f697640899deb218b58ebfd378',
+                         '.agents/skills/bmad-build/sync-sprint-status.md': '7ff44d21f5d813f4993780271eec8df2fce1373f525ff80e595b7c10618c4c36',
+                         '.agents/skills/bmad-build/workflow.md': '481ff00ef349a9c7845feca02bbfd5722b1e318ccabac858355da6c90c2d8a39',
+                         '.agents/skills/bmad-code-review/SKILL.md': 'de287a30b672fd3c435f68f644d231091fb788e6d857a3e9f9d1ca22e67e13c1',
+                         '.agents/skills/bmad-code-review/customize.toml': '282d9483ccb74acab1efb965ce10ebd6206a61da94da245a705a6358dbf0dc2e',
+                         '.agents/skills/bmad-code-review/references/claims-check.md': '7be5d35dd90a1950addc2062acdf8669026b239117efe1e398da1e8161cfa6f9',
+                         '.agents/skills/bmad-code-review/references/deletion-check.md': '0f1f124e4e957147e89164a272b10bedc694ad0d9ad2618c8610ac74ee9cb0da',
+                         '.agents/skills/bmad-code-review/review-prompts/edge-case-hunter.md': '5f4572d57340b4c0d155f33454d644a44af101cd7fd02a01591be68a4ebb8b7f',
+                         '.agents/skills/bmad-code-review/review-prompts/verification-gap.md': '06f6184d7d94c808970d0146cdc4585dfd66b94a7b7ab2988277fb6fc4208508',
+                         '.agents/skills/bmad-code-review/steps/step-01-gather-context.md': '51941fd52406cf075ac9172cdcbeebefe85df91ea818ad8ec723724de67a1831',
+                         '.agents/skills/bmad-code-review/steps/step-02-review.md': 'f2b8e654cf595746656d9861c4ac722f65b02939c53900f4f6d8b24988b2155a',
+                         '.agents/skills/bmad-code-review/steps/step-03-triage.md': '337ac3ad2cd8cabb34f4e47c8778cfd703f919753573dd9d708b7218fd5de684',
+                         '.agents/skills/bmad-code-review/steps/step-04-present.md': 'a9619f7df9b9112c0e42ee71a362f73dfa38ef6dff7b403975dbd6d2480a8d9f',
+                         '.agents/skills/bmad-correct-course/SKILL.md': '1a56020a13e17f20a420a206ad6d7b09b5f91fe89f6a14918ad77e691bd05686',
+                         '.agents/skills/bmad-correct-course/checklist.md': '3e082b95def90ccb876e3101ce0bbaf797a0f03a9471e1347361897f27977327',
+                         '.agents/skills/bmad-correct-course/customize.toml': '9990c3d4a1aa90a207f7e3380a7a48a5c9c005702194f63c6a959a4b1a18586f',
+                         '.agents/skills/bmad-create-epics-and-stories/SKILL.md': '506d7c2e02a301e012eb75b918c00e6f53ba1dd6295f6e313cc7bf0a77c83261',
+                         '.agents/skills/bmad-create-epics-and-stories/customize.toml': 'e7633a4e6e33161c7cb13034e5132d9d29f8a7031e75765d16a60724f2089557',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-01-validate-prerequisites.md': '7181608c1ee4e55c084c6627d68fc55a8a0b6917e489f8ac77531a0530428a30',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-02-design-epics.md': '7c66987808c1f84e853fe54b7aff26d209196d450b5644704110f124a15179bc',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-03-create-stories.md': 'c5b787a82e4e49ed9cd9c028321ee1689f32b8cd69d89eea609b37cd3d481afc',
+                         '.agents/skills/bmad-create-epics-and-stories/steps/step-04-final-validation.md': '12b869b4f0531c9cf68a6b7a076409643858de245916ad4c1651e42189c86835',
+                         '.agents/skills/bmad-create-epics-and-stories/templates/epics-template.md': '542c4fd17c2382ea36aa3b7b15929f3fd62a8092631c60c83a78629bfc56e368',
+                         '.agents/skills/bmad-customize/SKILL.md': 'ef42ffe69d1758ee12f22d6c143262926f715dd13fecb874c8a5971916d41598',
+                         '.agents/skills/bmad-customize/scripts/list_customizable_skills.py': '9bfc913e6d23c3553096a68844823b022505f8b2ca7844eccdaf40b1b9288992',
+                         '.agents/skills/bmad-customize/scripts/tests/test_list_customizable_skills.py': '24c3d384b3b5d490b7335c17866bfe0425af253ce669c32382fa88feb705934d',
+                         '.agents/skills/bmad-deep-recon/SKILL.md': 'e6de27d7c037e2951c5684d976186f6772cc724279af4b3cac05e21c42156db5',
+                         '.agents/skills/bmad-deep-recon/assets/research.template.md': '87d7cfa85fa5036b5a309b7bfb88f7934f50bb81f3cff02d2b49b4c7345cfc38',
+                         '.agents/skills/bmad-deep-recon/customize.toml': '24d1383066034fd4fcf282279aaf0d29d21910fd1247dfe3dbad74a70e78814d',
+                         '.agents/skills/bmad-deep-recon/references/draft.md': 'ac19b33a00ca529c3281df6076f87a833a3b11fc30915ca2c6e7590f7986b90e',
+                         '.agents/skills/bmad-deep-recon/references/finalize.md': 'd2ba4bee615dfbca6e7725179fb5ebd856dd34a54ba3f306e25255dfd7b1d126',
+                         '.agents/skills/bmad-deep-recon/references/html-briefing.md': 'cd3a88c1a5505fa7f1b715afc3adb34f3d64ade66f4c6b49a59f7e8cfcbe38d4',
+                         '.agents/skills/bmad-deep-recon/references/lifecycle.md': '2315fd9cb9223504639616b861ad593bfecb53d605efbd598ae2cf94fb6c4cdf',
+                         '.agents/skills/bmad-deep-recon/references/process.md': '9017d04774807a29103ea97331e555e2793f90098af65752b72f3ee09df85906',
+                         '.agents/skills/bmad-deep-recon/references/run.md': '8e259dc88820ac989c79620af5c37e24f00df21ac4af308ce3563c0e66c9406c',
+                         '.agents/skills/bmad-deep-recon/references/selection.md': '2b488c08f9550afe7fda32c2dc5d4591927afd7b9ad507fcce0ae8593c4b9d31',
+                         '.agents/skills/bmad-deep-recon/references/synthesis.md': '4d9ef1247ab45241f919010e94c99699abc0a6e18b5bd68fa93ae54afe59d172',
+                         '.agents/skills/bmad-deep-recon/references/verification.md': '0393ded4828fec69a4819d7236827910d641d09c3b61144c0211a9a78776fdd2',
+                         '.agents/skills/bmad-deep-recon/scripts/recon_kit.py': '20785a881170b3d54122967041016a3986f4ebab407c979409c4f22c8b1c1d49',
+                         '.agents/skills/bmad-deep-recon/scripts/tests/test_recon_kit.py': '1b4ddf482dd2d11a214ee2f821c35d7a8c41905b5d8d9cc69a293304bb8a1665',
+                         '.agents/skills/bmad-deep-recon/types/academic-lit.md': '514b0b7b1184cb95363dedeb0c2298a9bf5c430c74146fe2114f31780fadb325',
+                         '.agents/skills/bmad-deep-recon/types/competitive.md': '39b53df87d295fdc4388719fcdf31ad2221e64afc136e669207f46d2727a3aec',
+                         '.agents/skills/bmad-deep-recon/types/domain.md': '3a34b2e62c3589f8c8d01158357ee9fba32648c9fdfe70035bb3ca971862896b',
+                         '.agents/skills/bmad-deep-recon/types/market.md': '81ac04499da441857672e29fcd7169436a7e239e67194288ac0d526ec514cb5e',
+                         '.agents/skills/bmad-deep-recon/types/technical.md': '55f71428c70547b89d67ef0c6cdad59caeb0ee21082cd1230c05618ba8d04707',
+                         '.agents/skills/bmad-deep-recon/types/user-voice.md': '1831ce46e53e8c68244d28e336c5ef9e53e64f21a00b74a817b9b2924c1e8e72',
+                         '.agents/skills/bmad-forge-idea/SKILL.md': 'e44d0008db0c0b30f3fa533e987efe66b2c852530b70fed03f0d4d9cbabe2b4b',
+                         '.agents/skills/bmad-forge-idea/customize.toml': '839f57b89c8b04038fa795525f55799ee5c23431b17d429fe668880e78399ef2',
+                         '.agents/skills/bmad-forge-idea/scripts/resolve_personas.py': '9273c71595d6317e0a1035b1a632a47a8943379797d0a4db0d2842e5787c31cc',
+                         '.agents/skills/bmad-forge-idea/scripts/tests/test_resolve_personas.py': 'f8d040801d53e48c1aec147d1e28c5b279e459f49ea1fd1673dbd7e340022a99',
+                         '.agents/skills/bmad-help/SKILL.md': '72573fbbd205cab6119015b7a20951055c7f1f583162674ebed7a68368dc889c',
+                         '.agents/skills/bmad-party-mode/SKILL.md': '7bf82a11627595762244c969cdcc836869c935c5aa99a7c5ec5657581c1f4dd0',
+                         '.agents/skills/bmad-party-mode/customize.toml': '332aca1a85a681ff38a78850deb552e954d6a7d0b32f8d22caf9b2b2324b4e24',
+                         '.agents/skills/bmad-party-mode/references/create-party.md': 'e7fdf66d779e7e08d1cd4fbcbb63b78ba2dd8b1d781af0d0da8bea8c7110176b',
+                         '.agents/skills/bmad-party-mode/references/mode-agent-team.md': 'def759a17f4bb45463b68fb74c2b828b0a4241720b2b6cc1c9c611a1016ae9d7',
+                         '.agents/skills/bmad-party-mode/references/mode-auto.md': 'a37fd24f76dfcde385890d5c5947bb6f40ca44bea86c805d267b6ae3aab39f70',
+                         '.agents/skills/bmad-party-mode/references/mode-subagent.md': '86161b24a0b13b8f9cb9309042e4249d8caefff8cc33728b084cd2ec22f9d2e1',
+                         '.agents/skills/bmad-party-mode/references/party-memory.md': '800b4b4b920bb881a7b32aaabca8559a98273799b2476d83a23e290e301fb315',
+                         '.agents/skills/bmad-party-mode/scripts/resolve_party.py': '810d7838ddb4623c60e29639a3b2484ae140ebc59147acf98bfb934b55577a58',
+                         '.agents/skills/bmad-party-mode/scripts/tests/test_resolve_party.py': 'e2a7b1bbbe011b56a917dc54449fa29fb3df8716674a5998a32a50e3b5ee60e7',
+                         '.agents/skills/bmad-prd/SKILL.md': 'eafebb3fbebc4e276a055ca9916e20e36e95dca03f819eeeaaf80a3a9c16f07b',
+                         '.agents/skills/bmad-prd/assets/headless-schemas.md': '8d3621333a72400512bd62511bc4c73fc745711505e1f852c697ff8c5fa2de93',
+                         '.agents/skills/bmad-prd/assets/prd-template.md': 'b6fe8fc1390b8e46961d5eb5e6f2fe6c65dca2f30623d492677672e02868f7ab',
+                         '.agents/skills/bmad-prd/assets/prd-validation-checklist.md': '41d9f09064772a92ec908d970618e47ba63dc86b5c5a1a21d5a2c676d3ba8e3f',
+                         '.agents/skills/bmad-prd/assets/validation-report-template.html': 'a80becdd8205d2d7c18738855830b096172a496b96b5ca8a0820ec55c9bb8bf9',
+                         '.agents/skills/bmad-prd/customize.toml': 'd23707fe7ff5f5060a05b5b8bda3f170b9b1d9be61e409e9f7ae91f83572db6a',
+                         '.agents/skills/bmad-prd/references/headless.md': '4dad58ebee63933a53179016513ff94d143ce9f68e226489d390e2c36bf1d848',
+                         '.agents/skills/bmad-prd/references/validate.md': '19b2fa66d58cb4fef3d920cd09c81f8add4ee44dd4191bec87eaba84c2093338',
+                         '.agents/skills/bmad-prfaq/SKILL.md': 'e16d295601af1ebdf94e2f6da2c5ef3235029997bd78d0cbdab592e3d839dde7',
+                         '.agents/skills/bmad-prfaq/agents/artifact-analyzer.md': '7bdc44830f8d593346ec0ee15e36e1e431432fcc6c38b70bb861999315c9cfa4',
+                         '.agents/skills/bmad-prfaq/agents/web-researcher.md': '6e9127bb9bd3e4b15c701e4ced9eef328769262cd34eadc221bebe954c1f3aef',
+                         '.agents/skills/bmad-prfaq/assets/prfaq-template.md': 'b27e6964f0437ab4e78c8c0ffbe5052c28e3b3ef2fc811726cbb394d5a5c7559',
+                         '.agents/skills/bmad-prfaq/bmad-manifest.json': 'b67b016cd68535a97bd9164c237fbfe19a5b26bc1a3f0afe203fecfa40aab6ff',
+                         '.agents/skills/bmad-prfaq/customize.toml': 'b764b9ea360734d681115b958d0ccd478f1b56ce0045ecd6f71311ef005d8980',
+                         '.agents/skills/bmad-prfaq/references/customer-faq.md': '96f8565197649c58908a1d61b6cd805fd01f57da7945ba889c18d087ad597aeb',
+                         '.agents/skills/bmad-prfaq/references/internal-faq.md': '26eb83f844cda1ed8efb50f4703d61713ada8a64bd27eb387f759f858b5748de',
+                         '.agents/skills/bmad-prfaq/references/press-release.md': 'c406adb0e2d2cc326cbc45d0174f89d014523448ad82bc272293999d22aec596',
+                         '.agents/skills/bmad-prfaq/references/verdict.md': 'c962ce2c97e824cb53dae70c898153ffac3ea56b56565012ca2b96bb21c9618c',
+                         '.agents/skills/bmad-product-brief/SKILL.md': '88618d280e90cdfdf8ece62f0e9e6406e3db2d93b70aad66806d1be4bdfa3dbd',
+                         '.agents/skills/bmad-product-brief/assets/brief-template.md': 'bb28edf75d023067551c8d417b19b8803324e7acfb2ad0c80f882e9134f4c1f1',
+                         '.agents/skills/bmad-product-brief/customize.toml': 'bef95b0ab71793d214ec59ed7397a25f7253e63fad5d60570248614db6186905',
+                         '.agents/skills/bmad-project-context/SKILL.md': '50b0ee0f4905273dd7f8a57a4e79b2ff47eabb074b6f4bce8242b950b37dfb63',
+                         '.agents/skills/bmad-project-context/customize.toml': '9bf8a3aa919832cd8932853da550fcaebd06a9e13c0cde453f4379d8327f9c0f',
+                         '.agents/skills/bmad-project-context/references/best-practices.md': '850c45d2e1de44b1cd8e3b06b8175df53aac8983326d73351eab547bfacc532b',
+                         '.agents/skills/bmad-project-context/references/template.md': '5e2bc291e734a481fd2925877adfbe82b03313f300baf67dfdb6fa22a1181601',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/SKILL.md': 'f8f6a62c390f0cf7fc88ea04fa1bc236dedde27cdc1ce95cdb6ebc1cd8f33251',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/checklist.md': 'b58f810aeb1040c2f6758c88aa133afce72f8cc178d3d97ff0fbaa3d943057dc',
+                         '.agents/skills/bmad-qa-generate-e2e-tests/customize.toml': '4fbbd9d96e5af24ae012d33e59582b88867e8203dcd5a29f0d46b42ef6d747b8',
+                         '.agents/skills/bmad-retrospective/SKILL.md': 'd3f12423a0e456a7c2a25d5aa005df4eb4cb8c0b5cd400755b026c3c100b99dd',
+                         '.agents/skills/bmad-retrospective/customize.toml': '33ce7da5bad6dfe1791218d8d607b749f9b58586b232df7ea0d3263ec50ec466',
+                         '.agents/skills/bmad-retrospective/references/acceptance-verdict.md': '09a65007c39af83e01e039331c252e6e670b134cd5e2a4b5e05ac9d9fb7e37f1',
+                         '.agents/skills/bmad-retrospective/references/aggregate-views.md': '5b278afce4a53692d8715b4af178e4233da0876921dc3154b5763d056cb5ff0b',
+                         '.agents/skills/bmad-retrospective/references/evidence-gathering.md': '575bace78d7c03c48d86a209dd664f7dd22295a222b75e6d6298894cb7b7ce00',
+                         '.agents/skills/bmad-retrospective/references/retro-document.md': 'de8164664cd2be7f73b8ba5552e9e0f58816d2a7c4be8efc7715461846bb7001',
+                         '.agents/skills/bmad-retrospective/references/team-discussion.md': 'a9c504c436038c7e47d08322413aa3c213d2859b36ae30e873cb8c60fd9e008e',
+                         '.agents/skills/bmad-retrospective/scripts/git_evidence.py': '2acbb8b5804d0680b5939629a0c3786a72cde30f5f2cecd75858325c6e778d89',
+                         '.agents/skills/bmad-retrospective/scripts/sprint_status.py': '7c9f0a514a6e0834182f3c30485de49e0a4decb9be51027cc8be58aecdb9fc44',
+                         '.agents/skills/bmad-retrospective/scripts/tests/fixtures/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
+                         '.agents/skills/bmad-retrospective/scripts/tests/test_git_evidence.py': '0abfc8fad338830fc2db656d3ccc500631b0ea7a2ab87d853c13a6bbd46ff13c',
+                         '.agents/skills/bmad-retrospective/scripts/tests/test_sprint_status.py': '23da16cca54904a256fcf88fd8f912c3f6091ea343768c241bbd2aeebbca2af3',
+                         '.agents/skills/bmad-review/SKILL.md': 'c571dd7d3aa75f3b40749cf9db352c5e76244de22139cfb13c26629d28be1fa7',
+                         '.agents/skills/bmad-review/customize.toml': '005dde84f09c0b1ab0ef0ee87f1ed1985922c893089cc3595157611fb83b3ebd',
+                         '.agents/skills/bmad-review/references/editorial-common.md': 'f0cdc72ea345b2c5dc3001477b3dfcc909ca11b78f7db8865b6763d18ffc66c8',
+                         '.agents/skills/bmad-review/references/lens-adversarial.md': '7c5ce97ab2f3ecb96ceb6aa76417f68c1b7df535edd3cc51666d8e1216e6e557',
+                         '.agents/skills/bmad-review/references/lens-edge-case-hunter.md': '5f0c4778d7b393d11156af8c1bd9bf88aafeb9d50fff5f460ca67df50d927e7d',
+                         '.agents/skills/bmad-review/references/lens-prose.md': '4cbcb1eaea8567d272f5db7c6cdfd74ed5a8aae6831053cb2f01cbfc2cb98b98',
+                         '.agents/skills/bmad-review/references/lens-structure.md': '98c08221f517133e57ef6325013935360c3365ebd7dcb8411b2050d7df507ee3',
+                         '.agents/skills/bmad-review/references/lens-verification-gap.md': 'e7123d81171eeeee1b3782d13d94c2988969fe357dd71949131a5eb97803e2c6',
+                         '.agents/skills/bmad-review/references/structure-models.md': 'f84f85070e1af75f2482757aba9d37d69d805a20826d185527e598f2ba6b9292',
+                         '.agents/skills/bmad-review/scripts/tests/test_word_metrics.py': '3b5a285d3c9f611b3cda8c9c1d52d6b214c1f72e6e64a94ea5b0e220db5a8765',
+                         '.agents/skills/bmad-review/scripts/word_metrics.py': 'fb45007a7f3cfc18d13ee8bd4787facdaae297570193bc769456297dd33da78b',
+                         '.agents/skills/bmad-spec/SKILL.md': '46a2c3d5541d63af1520fac6b7abfff161a94b52fed51df6454115e3da5639c7',
+                         '.agents/skills/bmad-spec/assets/headless-schemas.md': '83afb3614716db2347d83586a67b9c524492dd50db5282436ccb35c99fb5f08a',
+                         '.agents/skills/bmad-spec/assets/spec-template.md': '4b3a032c045fdd0903933446fc07f93e879997f28a0294ed4344da71192b20ee',
+                         '.agents/skills/bmad-spec/assets/stories-schema.md': '4f8137c00e2710288354a4466d1cfb90704f4b2a04bd3b63924218fd589cc6a9',
+                         '.agents/skills/bmad-spec/customize.toml': 'd0f1f926bed79d514f8fdbc458a1883167fb64663bf2464c40e3c50dc2dcdbea',
+                         '.agents/skills/bmad-sprint-planning/SKILL.md': '391fdc181c605ec9da99028f9a82776410c86b50d2cc273b2b8d3d4b266a2012',
+                         '.agents/skills/bmad-sprint-planning/customize.toml': '54c7f6a8af77ff7ea6c9dbb00b515023999e011aabc802b7b328e82f505b0299',
+                         '.agents/skills/bmad-sprint-planning/references/fix-sprint-status.md': '0406c31b70da33e2a354d9785f43d8f9918f4b923d0aac2ebd1e3707ebad5806',
+                         '.agents/skills/bmad-sprint-planning/references/generate-tracking.md': '4dbf7aca26d0e6e893f288fc5e6158dbbcd65f77bbaf95e941ca705abceb1741',
+                         '.agents/skills/bmad-sprint-planning/references/readiness-gate.md': '7d58ea61fafe3c1d8218203abc7512e322ca384c78d9e71829df55dfabe1245b',
+                         '.agents/skills/bmad-sprint-planning/references/status-view.md': 'c3547e221ebf6e55c874e2ada3e8c18198835213c76f0bb2e0e64150aac355ab',
+                         '.agents/skills/bmad-sprint-planning/references/validate.md': 'ac680fa0a0f945a9bc0fc89ca709b2a8e6bc3b2617cd0d3d730378c4b5edd86d',
+                         '.agents/skills/bmad-sprint-planning/scripts/sprint_plan.py': 'c4e4daf4200f233501a069a43db56d097c5d4e71f74cd29f132f88b83c2fc95f',
+                         '.agents/skills/bmad-sprint-planning/scripts/tests/test_sprint_plan.py': 'f1c3b640e156946b0a234e233807b2a3983cb0d3f2d13dbb9830fbe0c67e5238',
+                         '.agents/skills/bmad-sprint-planning/sprint-status-template.yaml': '64b1a937e1fe03b8b8d158e3b1caeb89e7d51692a56c16038e2af091decc553a',
+                         '.agents/skills/bmad-ux/SKILL.md': 'b437d6ad812577e31cb6845c2417aa491c2f3a17487aa43ed7960b3b9299b564',
+                         '.agents/skills/bmad-ux/assets/color-themes.md': 'ccb6e4ef47a196476cf9392d788938ad3ca8d07b9ce095b7c092dcb4e06735f0',
+                         '.agents/skills/bmad-ux/assets/design-directions.md': 'eab73b948da76a27abc908e1e7d6b124e8ff0362e6dd1990f7e60b9541cbcb98',
+                         '.agents/skills/bmad-ux/assets/design-example-editorial.md': 'a659166845b1a4ed3f9aef942c5935537a97382b10303684fbb78ed86265870e',
+                         '.agents/skills/bmad-ux/assets/design-example-mobile.md': 'a93fb9f114f2e83af0c961c0d7909b3859fc80bcd713715517cd639a53a0372a',
+                         '.agents/skills/bmad-ux/assets/design-example-shadcn.md': '25e0dfb2bb21483973a8f0a6ed650288b3dc2ae5ed02aa0f091bb9b6b0b39fc0',
+                         '.agents/skills/bmad-ux/assets/excalidraw-wireframe.md': '660bbcdebff50cd044a3752eda43f3cb303aca4b0f521b55a270da93b89ddb18',
+                         '.agents/skills/bmad-ux/assets/experience-example-mobile.md': 'f8cd54c92193cd8c34a472df9c212ac7330976f6a115b729721dcb60034dc4f0',
+                         '.agents/skills/bmad-ux/assets/experience-example-shadcn.md': 'd6ca16e87b768e8b41f352c02ee08af21d7cdac04ca21e6ae1556864b4d27590',
+                         '.agents/skills/bmad-ux/assets/headless-schemas.md': 'e3a773dde85286f1a6f6dd8b26fc17e09ccea96f6257dfe7fb436353cd79242d',
+                         '.agents/skills/bmad-ux/assets/key-screens.md': 'ff1c5060673dd595edd61e76806bae876264ec6895c2eaadf8a6190785bf5f7b',
+                         '.agents/skills/bmad-ux/assets/validation-report-template.html': '8656945636fabe96624f8ef8fce931b073b5aecbe42d490584c1d5c7f31e1353',
+                         '.agents/skills/bmad-ux/customize.toml': 'e85144ed214dc1e002ee7fc6589a0a7ef352c5f79ab4cb37a4e05ee8e245549c',
+                         '.agents/skills/bmad-ux/references/creative-tools.md': 'e281292d7c0fdecdbb67ca9b7d95d4bed803626ba5edfd8dcc99146fcaa118e6',
+                         '.agents/skills/bmad-ux/references/design-md-spec.md': 'd04d5f663607aba3f3181e818ae33856e6caf5e560dcb16fa64ed80b7cf3d590',
+                         '.agents/skills/bmad-ux/references/headless.md': '8da7e23d269b1644f45b5104a243a6a27fd8d075aebb95d9b7752f0d143f0f5d',
+                         '.agents/skills/bmad-ux/references/validate.md': '7c2189d9ac1585d9408b6ed0346ba564869e7db89dba8f81044db3431cfcee65',
+                         '.agents/skills/bmad-walkthrough/SKILL.md': '2294849558370f1219e5fa7306b731b30aedb0e6649eeeac95d88bff1301d938',
+                         '.agents/skills/bmad-walkthrough/customize.toml': '2a4b14c5b25729a2d8fa9d9762ab3f12ac9429cfc6bd31fd80a81d86eed98630',
+                         '.agents/skills/bmad-walkthrough/generate-trail.md': '4a5936d86fbe5a85285b4535097b1e2edda8849da35586f4b588a982d7224459',
+                         '.agents/skills/bmad-walkthrough/step-01-orientation.md': 'd9e3b949c36d49a025f3535773af2b51888fe4ce616b6d6d69683a122716b1d2',
+                         '.agents/skills/bmad-walkthrough/step-02-walkthrough.md': '66cf893f8f968ee81034e9ccd8c20415692c3a8c23a9a143c2245fe6c800acdc',
+                         '.agents/skills/bmad-walkthrough/step-03-detail-pass.md': 'd48163b9f305f15af57729a8443142e47beb6c3e977554afe12b39ee49cb9fc0',
+                         '.agents/skills/bmad-walkthrough/step-04-testing.md': '28a56e868968ea2d18add0df8c4bccced0f94b698e218df3d45ddac072ce369c',
+                         '.agents/skills/bmad-walkthrough/step-05-wrapup.md': '5bfe0f9240ae073f1b5c843d172c11e76cbe6067e8df414ea6a338c81f113f5d',
+                         '.agents/skills/merge-reviewer/SKILL.md': '053160628d0ebafb6232ee157fa5b997f4e7a0fcc57b350a5ba751f453971fd8',
+                         '.agents/skills/merge-reviewer/VERSION': '065582655aacd6fc83ff742a5715c04bb4a57395bf3ee4559798fa42c2ce4589',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'ecc4ca6b80baec31b883ba5050ba5ab84c217c3fc4891989077f51be671aa377',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/report-style.md': 'ae227e5e75073a0026b71673035d78c353864bd2e7ca02cb70274ecec50b3fd6',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': '9f73cf2e4612cc5bea51e91e4e32dfb9cd857c532ffaa01d85a9aa026fa3741d',
+                         '.agents/skills/merge-reviewer/references/usage.md': 'f2d216cca6bf11e70629166ef59b8967633429716720c7decffa356c85d4107b',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': 'f89ff4cf4d9d037f57f17af850061fcb30d7a804a995473f1f3669a6f9a9d92a',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'fa23f7f1ef90f218435894075e7fdf5a5c332341911ea917d19b2c05c2394a47',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': '33f3b93a16939fb4db35b7a416d9beb10c9b45727e03801944ad9f9cf31d3a0e',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': '5e7845821c85e4d3cd867928aa02379e592dd7cb1a6653b2da1d549b393026ea',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': 'c117d7fd6f5dba50da998da576775d2c72e19324cf15c46a5f426f2fcf0dfc76',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': 'ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec',
+                         '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': '3c2e323ecf4d3b8274974b18ad82a33e2c25fac227697c66fd0470aabde65c46',
+                         '.agents/skills/release-reviewer/VERSION': 'f62184cee8787f2f6941c82041a5725d4edc9aa293ebe5dbf664406e82ec1fe1',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': 'de2c4735d8a4fc9738b0a0b1d7ddedf41aa9bb6cb4e3fa52becd0aab59d83a9f',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': 'ba14f8c8eb4c2d89a909d69cacd9a058a18ed2f6a6b3e0b4067d47587c7926c3',
+                         '.agents/skills/release-reviewer/references/group-review.md': '86ea04230413fb5ea9f81111cbae95365e29d2923cde392aa7afb315f09fbabf',
+                         '.agents/skills/release-reviewer/references/report-style.md': '355d5b2d780d84bb941db7dc24274750a4989ed450f7ca9fa3403d322a0ed723',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'eed50ec34238691a4683bec3c9f5e024e7ecc0b84f3e907f5e516b7e0a436a26',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '2e9a5ac12f53e78bcf6eb4972aaa8574e142a54dc296f6efcd1b03cf90399194',
+                         '.agents/skills/release-reviewer/references/review-rules.md': 'a3cf705c5989edc2e70acdd7e67b46fb861d35634fdfb4c19bcacc2a6c2fedcb',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '7c71a2eefa5c768d439154f76c46d10f3142ea96b6dd9766cfb2e57c592ce164',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '044dcf261c85c3f733b5674c12b8859158abe0dd7b89f8d9c5603cebc1953bc2',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': 'c4ee2256d207ba4cc69196e4a97108e2e55e4f4b205acdc34d0f82f4bfc26113',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '6945e1616bb98770380e590b8d007fd20a1aaff816a4170845d1ce70acad01ce',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '71724dee5341f2f5b986a7b14e67ac4a9c8730277e52c90a2589d3dff007daa9',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': 'aec585e105a0446d485ee1a0153ef1a8ed37455106b726053a96b5c6a11019f6',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '504a9d454bbb1f001552f1a536fad4643ec9309a70878ba3f37eddd5d60dc2d5',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': '720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5'},
+               'overlays': {},
+               'payloadSha256': '5ea71a0efe40bf246ea696c739ca09e6a4779922d386ce1177ebb5f4de6c5a46',
+               'profile': 'repository',
+               'profileHashes': {'group-instructions.md': 'f01c5b160e9080d5a65c35309da00d46bb0597ed89cc89eb748d253ae643d2da',
+                                 'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                                 'profile.md': 'cfe7b1d261c5ec747771848fd91f51dbcaa3351397954cae78f596715b2de1e0'},
+               'skills': ['bmad-advanced-elicitation',
+                          'bmad-agent-analyst',
+                          'bmad-agent-architect',
+                          'bmad-agent-dev',
+                          'bmad-agent-pm',
+                          'bmad-agent-ux-designer',
+                          'bmad-architecture',
+                          'bmad-brainstorming',
+                          'bmad-build',
+                          'bmad-build-auto',
+                          'bmad-code-review',
+                          'bmad-correct-course',
+                          'bmad-create-epics-and-stories',
+                          'bmad-customize',
+                          'bmad-deep-recon',
+                          'bmad-forge-idea',
+                          'bmad-help',
+                          'bmad-party-mode',
+                          'bmad-prd',
+                          'bmad-prfaq',
+                          'bmad-product-brief',
+                          'bmad-project-context',
+                          'bmad-qa-generate-e2e-tests',
+                          'bmad-retrospective',
+                          'bmad-review',
+                          'bmad-spec',
+                          'bmad-sprint-planning',
+                          'bmad-ux',
+                          'bmad-walkthrough',
+                          'codebase-wiki',
+                          'merge-reviewer',
+                          'output-style',
+                          'release-reviewer'],
+               'upstream': {'bmad-method': {'asset': 'bmad-method-6.12.4-codex.zip',
+                                            'repository': 'bmad-code-org/BMAD-METHOD',
+                                            'sha256': '3a9172ced5a3d0f4b41774d2477d0178476bbc822b0148784e75c69ec86bd819',
+                                            'version': '6.12.4'},
+                            'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
+                                              'version': '0.6.2'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.14.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3',
+                                               'version': '0.14.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.4.1.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39',
+                                                 'version': '0.4.1'}},
+               'version': '0.26.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': '9c84286a521b46016023ab7792592d9aed548fc4878532da6630dd15a321b0b4',
+                             '.agents/skills/codebase-wiki/VERSION': '87b241b275c591694846560e9879f50c9da3150f854efdabd782c539772f3033',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '24537d815569007b82bb644368ae477ad385fda6dfd3a0e719b2c176c0169aa9',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c19f5dfbf664831cb12f5e295059b154ecfc10d5a872285b6bfd891b34b74b39',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': 'ef2c0a9198a5db5469ed6346599c18538003e0256533bc231f6aedfe46acdc0b',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '6a991678557aafa5e4c4a1e257bdfddf8322efbbfc4c174372859ce56e5e3ca9',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '938d67d251c20f1a0508aaaa102a2f02ea284bab9c48c73523bd674e7acdd5a8',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': '581f6462ba0ea6c13f432e103692b6700b67e493f64c5e923828e961aa4f5604',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5cbc4b3197410ff68d089f640827ae8e7bcccf10bb78e7a43b0c2faadc6ca973',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '765780049a4954398c318b50e52464139ae72197b2d4c012919c49189774d0b8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': '5d0a3a672a5beed9e8cbf97299909cd6c1f82c9104f8217b46bb51b44f9b7a18',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': '4e0643bfcccd6ce26c7d4105ab832459fa345ccff21a74bfb4c4672c514cdd17',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '27b88103e55b3fa9e6a50f1026dbb4560c769cc1658cca5abfb278c875880216',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '753c162c43e98549883ddd039c7f16cd290273f906715e14e757bbe9b4644037',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': 'be392beb5585811481f68a1ab4e3106013cb9f5ea1df09fda46c443c8602a444',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': 'b25b2438f81cce4b449117059499c499fae0c6563437b0f94d1ba8622ff9c60e',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '1de6c647f4e44f1dbfcf2a60a8d66d8f88a6bd72900b0e4d20f8d40577be3e6d',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '42fbfb2a4424c1b2f6b12ca492488f61ee893bbe120ba8cec2e87d7b4936bc6a',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': '13f1a60b64998bc35ed9a2b184e76971357b06244301d84d76f03ceee9429a4e',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494'},
                'wikiInstalledVersionSha256': 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'}],
  'schema': 'gitlab-workspace-kit-predecessors/v1'}
 SPECIAL_RULES = {'mergeRequestReview': 'branch-review-handoff-manual-comment',
@@ -7947,12 +8154,6 @@ def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], 
                 destination = f".agents/skills/{name.as_posix()}"
                 expected[destination] = archive.read(member)
 
-    bmad = _read_pinned_zip(sources[UPSTREAM['bmad-method']['asset']], UPSTREAM['bmad-method'])
-    for relative, content in bmad.items():
-        if not relative.startswith(('_bmad/', '.agents/skills/bmad-')):
-            fail('BMAD source contains an unexpected payload path')
-        expected[relative] = content
-
     all_upstream_paths = set(expected)
     added_paths: set[str] = set()
     replaced_paths: dict[str, dict[str, str]] = {}
@@ -8006,10 +8207,7 @@ def _verify_upstream_payload(payload: dict[str, bytes], wiki: dict[str, bytes], 
                   if name.startswith((".agents/gitlab-workspace-kit/scripts/", ".agents/gitlab-workspace-kit/references/"))}
     if extensions != KIT_EXTENSION_FILES:
         fail("Kit extensions differ from the pinned common resources.")
-    runtime = {name for name in expected if name.startswith('_bmad/')}
-    if {name: digest(payload.get(name, b'')) for name in runtime} != BMAD_RUNTIME_FILES:
-        fail('BMAD runtime differs from its pinned official payload')
-    if set(payload) != expected_profiles | actual_skill_paths | set(KIT_EXTENSION_FILES) | runtime or not expected_profiles.issubset(payload):
+    if set(payload) != expected_profiles | actual_skill_paths | set(KIT_EXTENSION_FILES) or not expected_profiles.issubset(payload):
         fail("Payload contains undeclared files outside the Skills and workspace profile.")
     if skill_names != expected_skill_names or set(expected_skill_names) != managed_skills():
         fail("Skill names differ from the exact upstream and overlay composition.")
@@ -8184,7 +8382,7 @@ def kit_gitignore(root: Path, skills: list[str], files: dict[str, str]) -> tuple
     paths = {"/.agents/skills/" + name + "/" for name in skills} | {
         "/.agents/gitlab-workspace-kit/", "/.gitlab-workspace/tool-installs/",
         "/" + MARKER, "/" + INSTALL_LOCK,
-    } | {"/" + name for name in files if name.startswith("_bmad/")}
+    }
     body = "\n".join(sorted(paths))
     target = assert_safe(root, ".gitignore", allow_missing=True)
     original = read_regular(target, FILE_LIMIT) if target.exists() else None
@@ -8257,14 +8455,8 @@ def trusted_package(raw: dict[str, Any]) -> dict[str, Any]:
               if p.startswith(".agents/skills/") and not p.startswith(".agents/skills/codebase-wiki/")}
     if actual != selected["files"]:
         fail("Installed Skill hashes differ from the reviewed package.")
-    runtime = dict(BMAD_RUNTIME_FILES) if raw.get('upstream') == upstream else dict(selected.get('bmadFiles', {}))
-    if runtime:
-        installed_root = raw.get('installedRoot')
-        if not isinstance(installed_root, str) or not Path(installed_root).is_absolute():
-            fail('Installed BMAD root identity is missing')
-        runtime.update({name: digest(data) for name, data in generated_bmad_files(Path(installed_root)).items()})
-    if bmad_files(raw) != runtime:
-        fail('Installed BMAD ownership differs from the reviewed package')
+    if bmad_files(raw) != legacy_bmad_identity(raw, selected):
+        fail('Installed legacy BMAD marker identity differs from the reviewed package')
     return selected
 
 
@@ -8272,24 +8464,49 @@ def trusted_skill_files(raw: dict[str, Any]) -> dict[str, str]:
     return trusted_package(raw)["files"]
 
 
-def bmad_config(root: Path) -> bytes:
-    """Personalize the install-owned template; custom layers remain user-owned."""
-    text = BMAD_CONFIG_TEMPLATE
-    start = text.index('[core]') + len('[core]')
-    end = text.find('\n[', start)
-    end = len(text) if end < 0 else end
-    block = re.sub(r'(?m)^project_name\s*=.*$',
-                   lambda _: 'project_name = ' + json.dumps(root.name, ensure_ascii=False), text[start:end])
-    return (text[:start] + block + text[end:]).encode('utf-8')
 
 
 def bmad_files(raw: dict[str, Any] | None) -> dict[str, str]:
     return {p: h for p, h in (raw or {}).get('files', {}).items() if p.startswith('_bmad/')}
 
 
-def generated_bmad_files(root: Path) -> dict[str, bytes]:
-    config = bmad_config(root)
-    reader = csv.DictReader(io.StringIO(BMAD_FILES_MANIFEST_TEMPLATE))
+
+
+
+
+
+
+WIKI_INSTALLED_VERSION_SHA256 = 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'
+
+
+def external_bmad_path(value: str) -> bool:
+    """BMAD belongs to its CLI for every current and historical kit transaction."""
+    parts = str(value).replace('\\', '/').casefold().split('/')
+    if parts[0] in ('_bmad', '_bmad-output'):
+        return True
+    return len(parts) >= 3 and parts[1] == 'skills' and parts[2].startswith('bmad-')
+
+
+def reject_bmad_operations(operations: list[dict[str, Any]]) -> None:
+    if any(isinstance(operation, dict) and external_bmad_path(operation.get('path', '')) for operation in operations):
+        fail('This legacy transaction contains BMAD operations. Preserve its journal and use its original installer to resolve it before updating the kit.')
+
+
+def legacy_bmad_identity(raw: dict[str, Any], reviewed: dict[str, Any]) -> dict[str, str]:
+    """Authenticate historical marker bytes without inspecting external BMAD files."""
+    expected = dict(reviewed.get('bmadFiles', {}))
+    if not expected:
+        return expected
+    installed_root = raw.get('installedRoot')
+    if not isinstance(installed_root, str) or not Path(installed_root).is_absolute():
+        fail('Installed legacy BMAD root identity is missing')
+    text = reviewed['bmadConfigTemplate']
+    start = text.index('[core]') + len('[core]')
+    end = text.find('\n[', start)
+    end = len(text) if end < 0 else end
+    block = re.sub(r'(?m)^project_name\s*=.*$', lambda _: 'project_name = ' + json.dumps(Path(installed_root).name, ensure_ascii=False), text[start:end])
+    config = (text[:start] + block + text[end:]).encode('utf-8')
+    reader = csv.DictReader(io.StringIO(reviewed['bmadFilesManifestTemplate']))
     rows = list(reader)
     for row in rows:
         if row['path'] == 'config.toml':
@@ -8298,75 +8515,8 @@ def generated_bmad_files(root: Path) -> dict[str, bytes]:
     writer = csv.DictWriter(output, fieldnames=reader.fieldnames, lineterminator='\n')
     writer.writeheader()
     writer.writerows(rows)
-    return {'_bmad/config.toml': config, '_bmad/_config/files-manifest.csv': output.getvalue().encode('utf-8')}
-
-
-def verify_bmad_operation(operation: dict[str, Any], installed: dict[str, Any],
-                          previous: dict[str, Any] | None) -> None:
-    """Bind each runtime operation to both reviewed before and after manifests."""
-    path = operation.get('path', '')
-    if not path.startswith('_bmad/'):
-        return
-    old_hash = bmad_files(previous).get(path)
-    new_hash = bmad_files(installed).get(path)
-    if (operation.get('hadPrevious') != (old_hash is not None)
-            or operation.get('expectedPreviousSha256') != old_hash
-            or operation.get('newSha256') != new_hash
-            or bool(operation.get('delete')) != (new_hash is None)):
-        fail('BMAD transaction differs from its reviewed before and after file manifests')
-
-
-def verify_bmad(root: Path, raw: dict[str, Any]) -> None:
-    expected = bmad_files(raw)
-    if 'bmad-method' in raw.get('upstream', {}):
-        pinned = dict(BMAD_RUNTIME_FILES)
-        pinned.update({name: digest(data) for name, data in generated_bmad_files(root).items()})
-        if expected != pinned:
-            fail('Installed BMAD runtime hashes differ from the reviewed generated payload')
-    elif expected:
-        fail('Installed BMAD ownership is not recognized')
-    directory = assert_safe(root, '_bmad', allow_missing=True)
-    if not directory.exists():
-        if expected:
-            fail('Installed BMAD runtime is missing')
-        return
-    if not directory.is_dir():
-        fail('BMAD runtime path is not a regular directory')
-    observed = {}
-    preserved = {'custom', 'render', '_memory', 'memory'}
-    for current, directories, files in os.walk(directory, followlinks=False):
-        base = Path(current)
-        directories[:] = [name for name in directories if not (base == directory and name in preserved)
-                          and name != '__pycache__']
-        for name in directories:
-            assert_safe(root, (base / name).relative_to(root).as_posix())
-        for name in files:
-            path = base / name
-            if (base == directory and name.endswith('.user.toml')) or path.suffix in ('.pyc', '.pyo'):
-                continue
-            relative = path.relative_to(root).as_posix()
-            observed[relative] = digest(read_regular(assert_safe(root, relative), FILE_LIMIT))
-    if observed and not expected:
-        fail('An existing BMAD installation has unknown ownership; preserving it')
-    if observed != expected:
-        fail('BMAD runtime contains locally modified, missing or unowned files; preserving it')
-    if 'bmad-method' in raw.get('upstream', {}):
-        # Skills are replaced as directories by the existing kit transaction.
-        # Check their whole tree before granting ownership of that operation.
-        for name in raw.get('skills', []):
-            if not name.startswith('bmad-'):
-                continue
-            prefix = '.agents/skills/' + name + '/'
-            expected_skill = {p: h for p, h in raw['files'].items() if p.startswith(prefix)}
-            directory = assert_safe(root, prefix.rstrip('/'))
-            actual_skill = {prefix + p: h for p, h in hash_tree(root, directory).items()
-                            if '__pycache__' not in PurePosixPath(p).parts
-                            and PurePosixPath(p).suffix not in ('.pyc', '.pyo')}
-            if actual_skill != expected_skill:
-                fail(f'BMAD Skill contains locally modified, missing or unowned files; preserving it: {name}')
-
-
-WIKI_INSTALLED_VERSION_SHA256 = 'a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f'
+    expected.update({'_bmad/config.toml': digest(config), '_bmad/_config/files-manifest.csv': digest(output.getvalue().encode('utf-8'))})
+    return expected
 
 
 def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
@@ -8380,7 +8530,6 @@ def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(raw.get("payloadSha256"), str) or not re.fullmatch(r"[a-f0-9]{64}", raw["payloadSha256"]):
             fail("Installed final payload digest is invalid.")
     trusted = trusted_package(raw)
-    verify_bmad(root, raw)
     wiki_prefix = ".agents/skills/codebase-wiki/"
     # Reviewed same-version predecessors can have different Wiki bytes. Match
     # the provenance selected above instead of inferring identity from version.
@@ -8419,6 +8568,8 @@ def verify_installed(root: Path, raw: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(expected, dict) or not expected:
         fail("Group 組合包缺少安裝檔案摘要。")
     for relative, expected_digest in expected.items():
+        if external_bmad_path(relative):
+            continue
         safe = safe_relative(relative)
         path = assert_safe(root, safe)
         if not isinstance(expected_digest, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_digest):
@@ -8882,6 +9033,7 @@ def _recover_transaction(root: Path, stage: Path, journal: dict[str, Any]) -> No
     operations = journal.get("operations")
     if not isinstance(operations, list):
         fail("待回復套件交易紀錄無效；暫存檔已保留。")
+    reject_bmad_operations(operations)
     journal["phase"] = "recovering"
     _atomic_json(stage / "transaction.json", journal)
     for operation in reversed(operations):
@@ -8931,7 +9083,7 @@ def transaction_paths(installed: dict[str, Any] | None = None,
     names = set(installed["skills"]) if installed else managed_skills()
     if previous:
         names.update(previous["skills"])
-    return set(bmad_files(installed)) | set(bmad_files(previous)) | {".agents/skills/" + name for name in names} | {
+    return {".agents/skills/" + name for name in names if not name.casefold().startswith("bmad-")} | {
         ".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json",
         "AGENTS.md", "wiki", MARKER,
     } | ({".gitignore"} if (installed or {}).get("gitignoreBlockSha256") else set())
@@ -8949,10 +9101,10 @@ def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) 
     allowed = transaction_paths(installed, journal.get("previous_manifest"))
     retired = ({".agents/skills/" + name for name in journal.get("previous_manifest", {}).get("skills", [])}
                - {".agents/skills/" + name for name in installed["skills"]}) if journal.get("previous_manifest") else set()
-    retired |= set(bmad_files(journal.get('previous_manifest'))) - set(bmad_files(installed))
     operations = journal.get("operations")
     if not isinstance(operations, list) or not operations:
         fail("Pending transaction operations missing.")
+    reject_bmad_operations(operations)
     paths, backups = set(), set()
     for operation in operations:
         if not isinstance(operation, dict) or operation.get("kind") != "path":
@@ -8965,7 +9117,6 @@ def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) 
             fail("Pending transaction path or backup identity differs.")
         paths.add(path)
         backups.add(backup_name)
-        verify_bmad_operation(operation, installed, journal.get('previous_manifest'))
         if (type(operation.get("hadPrevious")) is not bool
                 or operation.get("expectedPreviousPresent") != operation["hadPrevious"]):
             fail("Pending transaction before-image identity differs.")
@@ -9094,6 +9245,7 @@ def _action_hash(path: Path) -> str:
 
 
 def _apply_operations(root: Path, stage: Path, operations: list[dict[str, Any]], journal_path: Path, journal: dict[str, Any]) -> None:
+    reject_bmad_operations(operations)
     journal["operations"] = operations
     journal["phase"] = "applying"
     _atomic_json(journal_path, journal)
@@ -9176,8 +9328,6 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             except (UnicodeDecodeError, json.JSONDecodeError):
                 fail("現有 GitLab Workspace 組合包紀錄無法讀取；請先保存並檢查。")
             verify_installed(root, old_manifest)
-        else:
-            verify_bmad(root, {'files': {}})
         ensure_no_legacy(root, old_manifest is not None)
         wiki_path = assert_safe(root, "wiki", allow_missing=True)
         if wiki_path.exists() and not wiki_path.is_dir():
@@ -9213,8 +9363,6 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             candidate_payload = stage / "candidate" / "payload"
             _copy_extracted_payload(payload, candidate_payload)
             (candidate_payload / ".gitignore").write_bytes(gitignore)
-            for name, data in generated_bmad_files(root).items():
-                (candidate_payload / name).write_bytes(data)
             installed_wiki_skill = candidate_payload / ".agents/skills/codebase-wiki"
             if installed_wiki_skill.exists():
                 shutil.rmtree(installed_wiki_skill)
@@ -9254,7 +9402,7 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             actual_payload = digest_payload_tree(candidate_payload)
             installed_files = {
                 relative: value for relative, value in actual_payload.items()
-                if relative.startswith((".agents/skills/", ".agents/gitlab-workspace-kit/", "_bmad/"))
+                if relative.startswith((".agents/skills/", ".agents/gitlab-workspace-kit/"))
             }
             skill_dirs = sorted(path.name for path in (candidate_payload / ".agents/skills").iterdir() if path.is_dir())
             if skill_dirs != sorted(manifest["skills"]):
@@ -9349,11 +9497,11 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
         operations = journal.get("operations")
         if not isinstance(operations, list) or not operations:
             fail("Rollback operations missing.")
+        reject_bmad_operations(operations)
         allowed = transaction_paths(current, previous)
         required = allowed - {"wiki"}
         retired = ({".agents/skills/" + name for name in previous["skills"]}
                    - {".agents/skills/" + name for name in current["skills"]}) if previous else set()
-        retired |= set(bmad_files(previous)) - set(bmad_files(current))
         seen, backups = set(), set()
         # Validate the entire rollback, including every before-image, before changing anything.
         for operation in operations:
@@ -9363,7 +9511,6 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
             if not isinstance(path, str) or safe_relative(path).as_posix() != path or path not in allowed or path in seen:
                 fail("Rollback path is duplicate or outside bundle ownership.")
             seen.add(path)
-            verify_bmad_operation(operation, current, previous)
             backup_name = operation.get("backup", "")
             if not re.fullmatch(r"backups/[0-9]{5}", backup_name) or backup_name in backups or operation.get("incoming") != "incoming/" + path:
                 fail("Rollback backup identity differs.")
@@ -9425,14 +9572,9 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
 
     relative_paths = [(skill.relative_to(payload).as_posix(), skill.relative_to(payload).as_posix()) for skill in new_skills]
     relative_paths += [(relative, relative) for relative in (".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json", "AGENTS.md", ".gitignore")]
-    for relative in sorted(set(bmad_files(installed)) | set(bmad_files(old_manifest))):
-        destination = assert_safe(root, relative, allow_missing=True)
-        if destination.exists() and relative not in bmad_files(old_manifest):
-            fail(f'BMAD file has unknown ownership; preserving it: {relative}')
-        relative_paths.append((relative if relative in bmad_files(installed) else None, relative))
     if (payload / "wiki").exists():
         relative_paths.append(("wiki", "wiki"))
-    retired = sorted(old_skill_names - {skill.name for skill in new_skills})
+    retired = sorted(name for name in old_skill_names - {skill.name for skill in new_skills} if not name.casefold().startswith("bmad-"))
     relative_paths += [(None, ".agents/skills/" + name) for name in retired]
     relative_paths.append(("tool-manifest.json", MARKER))
     for ordinal, (source_relative, relative) in enumerate(relative_paths):
@@ -9445,7 +9587,7 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
                 destination.exists() != (gitignore_previous_sha256 is not None) or
                 destination.exists() and _action_hash(destination) != gitignore_previous_sha256):
             fail(".gitignore changed during preflight; preserving it. Please retry installation.")
-        bundle_owned = relative.startswith((".agents/skills/", "_bmad/")) or relative == ".agents/gitlab-workspace-kit"
+        bundle_owned = relative.startswith(".agents/skills/") or relative == ".agents/gitlab-workspace-kit"
         if destination.exists() and bundle_owned and not old_manifest:
             fail(f"A bundle-managed path already exists; refusing to overwrite it: {relative}")
         if relative == "wiki" and destination.exists():
@@ -9465,13 +9607,6 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
         if deleting:
             if not previous_present:
                 fail(f"Retired managed Skill disappeared after verification: {relative}")
-            if relative.startswith('_bmad/'):
-                if digest(read_regular(destination, FILE_LIMIT)) != old_manifest['files'][relative]:
-                    fail(f'Retired BMAD file changed locally: {relative}')
-                operation['delete'] = True
-                operation['expectedPreviousSha256'] = _action_hash(destination)
-                operations.append(operation)
-                continue
             owned = {name[len(relative) + 1:]: value for name, value in old_manifest["files"].items()
                      if name.startswith(relative + "/")}
             actual = hash_tree(root, destination)

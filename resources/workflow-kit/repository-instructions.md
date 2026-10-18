@@ -11,11 +11,10 @@ For human-readable output, use the installed `$output-style` at
 Preserve required artifact structure, evidence and completion gates. If absent,
 keep the selected Skill's original output style.
 
-Use BMAD for development: invoke `$bmad-build` for a feature, bug fix or refactor;
-use `$bmad-help` to select or resume planning when the work needs several sessions.
-Run from this profile's root and use its installed BMAD catalog and artifacts.
-A matching output shows a workflow started; use explicit final statuses or
-the user's confirmation before treating it as completed.
+Choose the development workflow requested by the user. BMAD is an optional,
+separate CLI installation; use the BMAD page for setup and capability guidance.
+When selected, run installed BMAD skills from their project root and use explicit
+artifact statuses as evidence of progress. Preserve its runtime, skills and outputs.
 
 Use `$codebase-wiki` for Wiki maintenance, queries, functional exploration,
 static code audit, ADR, Synthesis, BA/SA/SD, NotebookLM export and archaeology.

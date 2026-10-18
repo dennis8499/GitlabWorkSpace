@@ -962,7 +962,7 @@ function App() {
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {(gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
-        {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
+        {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button>}</div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => setProjectTab('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => setProjectTab('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { setProjectTab('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
@@ -1000,14 +1000,13 @@ function App() {
             : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}
               state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
               key={projectRoot ?? 'none'}
-              repositoryMode={snapshot.skillsContext?.mode === 'repository'}
-              repositoryPaths={snapshot.skillsContext?.repositories.map(repo => repo.path) ?? []}
+              environment={snapshot.bmadEnvironment}
               onRefresh={() => post({ type: 'refreshBmad' })}
-              onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
-              onCopy={(stepId, inputs) => snapshot.bmad && post({ type: 'copyBmadPrompt', stepId, inputs, revision: snapshot.bmad.revision })}
+              onCopyCommand={request => post({ type: 'copyBmadCommand', ...request })}
+              onOpenTerminal={() => snapshot.bmad && post({ type: 'openBmadTerminal', revision: snapshot.bmad.revision })}
+              onOpenDocumentation={url => post({ type: 'openExternal', url })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
-              onConfirm={(stepId, artifactId) => snapshot.bmad && post({ type: 'confirmBmadArtifact', stepId, artifactId, revision: snapshot.bmad.revision })}
-              onRevoke={(stepId, artifactId) => snapshot.bmad && post({ type: 'revokeBmadConfirmation', stepId, artifactId, revision: snapshot.bmad.revision })} />
+              />
             : mode === 'sa' ? <SkillsGuide operationScope={snapshot.operationScope ?? operationScope} branchCandidates={skillBranches?.branches} branchError={skillBranches?.error}
               onLoadBranches={repo => { branchRequest.current = repo; setSkillBranches(undefined); if (snapshot.skillsContext) post({ type: 'loadSkillBranches', repo, revision: snapshot.skillsContext.revision }); }}
               workspaceRoot={snapshot.skillsContext?.workspaceRoot} workspaceFile={snapshot.skillsContext?.workspaceFile} workspaceRootAmbiguous={snapshot.skillsContext?.workspaceRootAmbiguous}

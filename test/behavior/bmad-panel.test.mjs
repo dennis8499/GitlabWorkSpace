@@ -3,11 +3,11 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { build } from 'vite';
 import { JSDOM, VirtualConsole } from 'jsdom';
+import { bmadEnvironmentSnapshot, bmadUiSnapshot } from '../fixtures/bmad-ui.mjs';
 
-// Exercise the isolated component without changing generated extension assets.
+// The isolated component build stays in memory and does not rewrite extension assets.
 const panelPath = fileURLToPath(new URL('../../src/webview/BmadPanel.tsx', import.meta.url)).replaceAll('\\', '/');
-const result = await build({
-  configFile: false, publicDir: false, logLevel: 'silent',
+const result = await build({ configFile: false, publicDir: false, logLevel: 'silent',
   plugins: [{ name: 'bmad-panel-behavior-entry', resolveId: id => id === 'virtual:bmad-panel-test' ? '\0bmad-panel-test' : undefined,
     load: id => id === '\0bmad-panel-test' ? `import { h, render } from 'preact';
       import { BmadPanel } from ${JSON.stringify(panelPath)};
@@ -18,29 +18,10 @@ const result = await build({
 const script = result.output.find(item => item.type === 'chunk').code;
 const copy = value => JSON.parse(JSON.stringify(value));
 
-function snapshot() {
-  const node = (id, displayName, phase, required = true) => ({ id, displayName, phase, required,
-    module: 'bmm', skill: ({ brief: 'bmad-product-brief', arch: 'bmad-architecture', dev: 'bmad-build', review: 'bmad-code-review' })[id] ?? `bmad-${id}`, menuCode: id.toUpperCase(), description: `${displayName}的工作說明`,
-    action: id === 'prd' ? 'create' : '', args: '', precededBy: [], followedBy: [],
-    outputLocation: '_bmad-output', outputs: [`${id}.md`] });
-  const nodes = [node('brief', '產品簡報', 'analysis', false), node('prd', '需求文件', 'planning'),
-    node('arch', '架構設計', 'solutioning'), node('dev', '故事開發', 'implementation'), node('review', '程式碼審查', 'implementation')];
-  const artifact = (id, patch = {}) => ({ id, path: `C:/專案/_bmad-output/${id}.md`, relativePath: `_bmad-output/${id}.md`,
-    fingerprint: `sha-${id}`, status: 'needs-confirmation', reason: '已偵測到文件，請確認內容。', canConfirm: true, confirmed: false, ...patch });
-  return { root: 'C:/專案', revision: 'revision-1', version: '6.2.0', installation: { state: 'ready', reason: 'BMAD 已安裝。' },
-    catalogSource: 'installed', nodes,
-    phases: [{ id: 'analysis', label: '探索', nodeIds: ['brief'] }, { id: 'planning', label: '規劃', nodeIds: ['prd'] },
-      { id: 'solutioning', label: '設計', nodeIds: ['arch'] }, { id: 'implementation', label: '實作', nodeIds: ['dev', 'review'] }],
-    edges: [{ from: 'brief', to: 'prd' }, { from: 'prd', to: 'arch' }, { from: 'arch', to: 'dev' }, { from: 'dev', to: 'review' }],
-    steps: nodes.map(item => ({ id: item.id, status: item.id === 'brief' ? 'complete' : item.id === 'dev' ? 'draft' : 'not-observed',
-      summary: `${item.displayName}狀態`, artifacts: item.id === 'dev' ? [artifact('story-a'),
-        artifact('story-b', { status: 'complete', reason: '文件包含完成標記。', canConfirm: false }),
-        artifact('story-c', { status: 'complete', confirmed: true, canConfirm: false, reason: '已人工確認。' })] : [] })),
-    stories: [{ id: 'story-a', label: '故事 A', mode: 'classic', path: 'story-a.md', status: 'in-progress', reason: '正在實作。' },
-      { id: 'story-b', label: '故事 B', mode: 'classic', path: 'story-b.md', status: 'review', reason: '等待審查。' }],
-    currentCandidates: [{ stepId: 'dev', artifactId: 'story-a', storyId: 'story-a', label: '故事 A', reason: '開發進行中。' },
-      { stepId: 'review', artifactId: 'story-b', storyId: 'story-b', label: '故事 B', reason: '等待程式碼審查。' }],
-    recommendations: [{ stepId: 'arch', reason: '接續確認整體架構。' }], watchDirectories: ['C:/專案/_bmad-output'], diagnostics: [] };
+function withoutProgress(data = bmadUiSnapshot()) {
+  data.steps.forEach(step => { step.status = 'not-observed'; step.artifacts = []; });
+  data.stories = []; data.currentCandidates = []; data.recommendations = [];
+  return data;
 }
 
 async function mount(t, options = {}) {
@@ -53,286 +34,192 @@ async function mount(t, options = {}) {
   t.after(() => { dom.window.close(); assert.deepEqual(errors, []); });
   dom.window.eval(script);
   let saved = options.state;
-  let props = {
-    snapshot: options.snapshot ?? snapshot(), ...options,
-    onRefresh: () => calls.push(['refresh']), onOpenSettings: () => calls.push(['settings']),
-    onCopy: (id, inputs) => calls.push(['copy', id, copy(inputs)]),
-    onOpenArtifact: (id, path) => calls.push(['open', id, path]), onConfirm: (id, artifactId) => calls.push(['confirm', id, artifactId]),
-    onRevoke: (id, artifactId) => calls.push(['revoke', id, artifactId]),
+  let props = { snapshot: options.snapshot ?? bmadUiSnapshot(), ...options,
+    onRefresh: () => calls.push(['refresh']), onOpenTerminal: () => calls.push(['terminal']),
+    onCopyCommand: request => calls.push(['copy', copy(request)]),
+    onOpenDocumentation: url => calls.push(['documentation', url]),
+    onOpenArtifact: (id, path) => calls.push(['open', id, path]),
     onChange: state => { saved = copy(state); if (options.controlled) { props = { ...props, state: saved }; dom.window.mountBmad(props); } }
   };
   const tick = async () => { await new Promise(resolve => dom.window.requestAnimationFrame(() => dom.window.requestAnimationFrame(resolve))); };
   const render = async patch => { props = { ...props, ...patch }; dom.window.mountBmad(props); await tick(); };
   await render({});
   const document = dom.window.document;
-  const button = text => [...document.querySelectorAll('button')].find(item => item.textContent.trim() === text);
+  const button = text => [...document.querySelectorAll('button')].find(item => item.textContent.trim() === text || item.getAttribute('aria-label') === text);
   const click = async text => { const item = button(text); assert.ok(item, `Missing button ${text}`); item.click(); await tick(); };
-  const input = async (id, value) => { const field = document.getElementById(id); assert.ok(field, `Missing field ${id}`); field.value = value;
-    field.dispatchEvent(new dom.window.Event(field.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); await tick(); };
-  return { dom, document, calls, button, click, input, tick, render, get saved() { return saved; } };
+  const task = async id => { const item = document.querySelector(`[data-task-id="${id}"]`); assert.ok(item); item.click(); await tick(); };
+  return { dom, document, calls, button, click, task, tick, render, get saved() { return saved; } };
 }
 
-test('flow selection keeps independent current positions and recommendations intact', async t => {
-  const view = await mount(t);
-  const current = () => [...view.document.querySelectorAll('.bmad-flow-step[aria-current="step"]')].map(node => node.dataset.stepId);
-  assert.deepEqual(current(), ['dev', 'review']);
+test('first use teaches the pinned external CLI and native Codex skills without running an installer', async t => {
+  const data = withoutProgress(); data.root = undefined; data.version = undefined; data.compatibility = 'unknown';
+  data.installation = { state: 'missing', reason: '尚未選擇專案。' };
+  data.codex = { state: 'missing', skills: [], reason: '尚未偵測 Codex Skills。' }; data.catalogSource = 'guidance';
+  const view = await mount(t, { snapshot: data });
+  assert.equal(view.document.querySelector('#bmad-tab-start').getAttribute('aria-selected'), 'true');
+  assert.match(view.document.querySelector('.bmad-setup-steps').textContent, /npx bmad-method@6\.12\.4 install --modules bmm --tools codex/);
+  assert.equal(view.button('開啟終端機').disabled, true);
+  assert.equal(view.document.querySelector('form, textarea, input'), null);
+  assert.equal(view.button('確認這份產物已完成'), undefined);
+  await view.click('複製安裝指令');
+  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'install' }]);
+  await view.click('複製 $bmad-help');
+  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'skill', skill: 'bmad-help', stepId: 'help' }]);
+  assert.equal(view.calls.some(call => call[0] === 'terminal'), false, 'copying cannot launch or install anything');
+  assert.equal(view.document.querySelector('.tool-drawer'), null);
+});
+
+test('initial section follows artifacts, ready environment, and explicit saved selection', async t => {
+  const active = await mount(t); assert.equal(active.document.querySelector('#bmad-tab-progress').getAttribute('aria-selected'), 'true');
+  const empty = await mount(t, { snapshot: withoutProgress() });
+  assert.equal(empty.document.querySelector('#bmad-tab-capabilities').getAttribute('aria-selected'), 'true');
+  assert.equal(empty.document.querySelector('.bmad-catalog-toggle').getAttribute('aria-expanded'), 'false');
+  assert.equal(empty.document.querySelector('#bmad-catalog-content'), null);
+  const saved = await mount(t, { state: { selectedSection: 'start' } });
+  assert.equal(saved.document.querySelector('#bmad-tab-start').getAttribute('aria-selected'), 'true');
+});
+
+test('task guidance distinguishes direct Build, separate Spec, full planning, review and testing', async t => {
+  const view = await mount(t, { snapshot: withoutProgress(), controlled: true });
+  assert.match(view.document.querySelector('.bmad-task-note').textContent, /不必先跑完整 PRD 或 Sprint/);
+  const commands = () => [...view.document.querySelectorAll('.bmad-task-detail .bmad-command-line code')].map(item => item.textContent);
+  assert.deepEqual(commands(), ['$bmad-build']);
+  await view.task('spec'); assert.deepEqual(commands(), ['$bmad-spec', '$bmad-build']);
+  assert.match(view.document.querySelector('.bmad-task-detail').textContent, /SPEC\.md/);
+  await view.task('product');
+  assert.deepEqual(commands(), ['$bmad-prd', '$bmad-architecture', '$bmad-create-epics-and-stories', '$bmad-sprint-planning', '$bmad-build']);
+  assert.match(view.document.querySelector('.bmad-task-note').textContent, /在架構前加入 UX/);
+  await view.task('review'); assert.deepEqual(commands(), ['$bmad-code-review', '$bmad-review']);
+  assert.match(view.document.querySelector('.bmad-task-note').textContent, /選用檢查/);
+  await view.task('tests'); assert.deepEqual(commands(), ['$bmad-qa-generate-e2e-tests']);
+  await view.task('continue'); await view.click('複製 $bmad-sprint-planning status');
+  assert.deepEqual(view.calls.at(-1), ['copy', { revision: bmadUiSnapshot().revision, command: 'skill', skill: 'bmad-sprint-planning', stepId: 'sprint-status' }]);
+  assert.equal(view.saved.selectedTaskId, 'continue');
+});
+
+test('capability cards provide concrete next steps and first-use guidance covers PowerShell launchers', async t => {
+  const view = await mount(t, { snapshot: withoutProgress() });
+  const nextSteps = () => [...view.document.querySelectorAll('.bmad-task-detail .bmad-command-card')].map(card => {
+    const fact = [...card.querySelectorAll('.bmad-capability-facts > div')].find(item => item.querySelector('dt')?.textContent === '下一步');
+    assert.ok(fact?.querySelector('dd')?.textContent.trim(), 'each capability explains its next step');
+    return fact.querySelector('dd').textContent;
+  });
+  assert.match(nextSteps()[0], /Code Review 為選用/);
+  for (const task of ['product', 'spec', 'ux', 'research', 'review', 'tests', 'continue']) {
+    await view.task(task); const steps = nextSteps(); assert.ok(steps.length);
+    if (task === 'ux') assert.match(steps[0], /\$bmad-architecture/);
+    if (task === 'research') assert.match(steps[0], /\$bmad-spec.*\$bmad-prd/);
+    if (task === 'tests') assert.match(steps[0], /執行測試.*驗收條件/);
+  }
+  await view.click('開始使用');
+  assert.match(view.document.querySelector('.bmad-setup-steps').textContent, /PowerShell.*npx\.ps1.*npx\.cmd.*codex\.cmd/);
+  assert.deepEqual(view.calls, [], 'reading alternatives does not execute any command');
+});
+
+test('missing capabilities remain clearly labeled teaching commands and partial installs never fake readiness', async t => {
+  const data = withoutProgress(); data.codex.skills = data.codex.skills.filter(skill => skill !== 'bmad-qa-generate-e2e-tests'); data.codex.state = 'partial';
+  const view = await mount(t, { snapshot: data, controlled: true, state: { selectedSection: 'capabilities', selectedTaskId: 'tests' } });
+  assert.match(view.document.querySelector('.bmad-command-card').textContent, /此專案尚未安裝此能力/);
+  assert.match(view.document.querySelector('.bmad-codex-state').textContent, /部分缺少/);
+  await view.click('複製 $bmad-qa-generate-e2e-tests'); assert.equal(view.calls.at(-1)[1].skill, 'bmad-qa-generate-e2e-tests');
+  data.nodes = data.nodes.filter(node => node.skill !== 'bmad-qa-generate-e2e-tests');
+  await view.render({ snapshot: copy(data) }); await view.click('複製 $bmad-qa-generate-e2e-tests');
+  assert.equal(view.calls.at(-1)[1].stepId, undefined, 'known canonical teaching can be copied without an installed catalog entry');
+  const installed = withoutProgress(); await view.render({ snapshot: installed });
+  assert.equal(view.saved.selectedTaskId, 'tests');
+  assert.match(view.document.querySelector('.bmad-command-card').textContent, /已偵測 Codex Skill/);
+});
+
+test('environment checks display actual tool evidence and pinned documentation links', async t => {
+  const data = withoutProgress(), environment = bmadEnvironmentSnapshot(data.root);
+  environment.tools.find(tool => tool.id === 'uv').state = 'missing'; environment.tools.find(tool => tool.id === 'uv').reason = 'PATH 找不到 uv。';
+  const view = await mount(t, { snapshot: data, environment, state: { selectedSection: 'start' } });
+  assert.equal(view.document.querySelectorAll('.bmad-tool-checks li').length, 4);
+  assert.match(view.document.querySelector('.bmad-tool-missing').textContent, /PATH 找不到 uv/);
+  assert.match(view.document.querySelector('.bmad-tool-found').textContent, /已找到指令/);
+  assert.match(view.document.querySelector('.bmad-prerequisites').textContent, /20\.12/);
+  await view.click('開啟終端機'); assert.deepEqual(view.calls.at(-1), ['terminal']);
+  await view.click('官方安裝教學 ↗'); assert.match(view.calls.at(-1)[1], /\/blob\/v6\.12\.4\/docs\/start\/install-bmad\.md$/);
+  await view.click('查看最新 Release ↗'); assert.equal(view.calls.at(-1)[1], 'https://github.com/bmad-code-org/BMAD-METHOD/releases/latest');
+  await view.render({ environment: bmadEnvironmentSnapshot('C:/another-project') });
+  assert.equal(view.document.querySelector('.bmad-tool-checks'), null, 'checks from a previous project cannot appear as current evidence');
+});
+
+test('compact progress keeps parallel positions and exact native work identity without manual completion', async t => {
+  const data = bmadUiSnapshot(); const view = await mount(t, { snapshot: data });
   assert.equal(view.document.querySelectorAll('.bmad-current-card').length, 2);
-  assert.equal(view.document.querySelector('.bmad-step-detail h2').textContent, '故事開發');
-  view.document.querySelector('[data-step-id="arch"]').click(); await view.tick();
-  assert.equal(view.document.querySelector('.bmad-step-detail h2').textContent, '架構設計');
-  assert.equal(view.document.querySelector('[data-step-id="arch"]').getAttribute('aria-pressed'), 'true');
-  assert.equal(view.document.querySelector('[data-step-id="arch"]').hasAttribute('aria-current'), false);
-  assert.deepEqual(current(), ['dev', 'review']);
-  assert.equal(view.document.querySelectorAll('[role="progressbar"]').length, 0);
+  assert.equal(view.document.querySelector('.bmad-progress-details').open, false);
+  assert.equal(view.document.querySelector('[role="progressbar"]'), null);
   assert.doesNotMatch(view.document.querySelector('.bmad-position').textContent, /\d+%/);
-  assert.deepEqual(view.calls, [], 'viewing a guide does not trigger an operation');
+  assert.equal(view.button('確認這份產物已完成'), undefined);
+  const first = view.document.querySelector('.bmad-current-card button'); first.click(); await view.tick();
+  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'skill', skill: 'bmad-build', stepId: 'build', storyId: data.stories[0].id }]);
+  assert.equal(view.calls.at(-1)[1].artifactId, undefined, 'a native command identifies one work source at a time');
+  assert.match(view.document.querySelector('.bmad-artifact').textContent, /status: in-progress/);
+  await view.click('開啟產物'); assert.deepEqual(view.calls.at(-1), ['open', 'build', data.steps.find(step => step.id === 'build').artifacts[0].path]);
+  assert.match(view.document.querySelector('.bmad-artifact .bmad-status-badge').textContent, /進行中/);
 });
 
-test('phases expand, collapse, reveal recommendations and restore saved keyboard selection', async t => {
-  const view = await mount(t, { controlled: true, state: { selectedStepId: 'prd', expandedPhases: ['planning'] } });
-  assert.equal(view.document.getElementById('bmad-phase-analysis').getAttribute('aria-expanded'), 'false');
-  assert.equal(view.document.getElementById('bmad-phase-content-analysis').hidden, true);
-  view.document.querySelector('.bmad-recommendations button').click(); await view.tick();
-  assert.equal(view.document.getElementById('bmad-phase-solutioning').getAttribute('aria-expanded'), 'true');
-  assert.equal(view.saved.selectedStepId, 'arch');
-  await view.click('全部展開');
-  const arch = view.document.querySelector('[data-step-id="arch"]');
-  arch.focus(); arch.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
-  assert.equal(view.document.activeElement.dataset.stepId, 'dev');
-  assert.equal(view.saved.selectedStepId, 'dev');
-  view.document.activeElement.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); await view.tick();
-  assert.equal(view.saved.selectedStepId, 'brief');
-  await view.click('全部收合');
-  assert.equal([...view.document.querySelectorAll('.bmad-phase-heading')].every(item => item.getAttribute('aria-expanded') === 'false'), true);
-  const reopened = await mount(t, { controlled: true, state: view.saved });
-  assert.equal(reopened.document.querySelector('.bmad-step-detail h2').textContent, '產品簡報');
-  assert.equal([...reopened.document.querySelectorAll('.bmad-phase-heading')].every(item => item.getAttribute('aria-expanded') === 'false'), true);
-});
-
-test('artifacts are opened, confirmed and revoked individually without optimistic completion', async t => {
-  const view = await mount(t);
-  assert.equal(view.document.querySelectorAll('.bmad-artifact').length, 3);
-  await view.click('確認這份產物已完成');
-  assert.deepEqual(view.calls.at(-1), ['confirm', 'dev', 'story-a']);
-  assert.equal(view.document.querySelector('[data-step-id="dev"]').classList.contains('bmad-status-draft'), true);
-  assert.equal(view.document.querySelectorAll('.bmad-artifact .bmad-status-badge')[0].textContent, '待確認');
-  await view.click('撤銷人工確認');
-  assert.deepEqual(view.calls.at(-1), ['revoke', 'dev', 'story-c']);
-  await view.click('查看產物');
-  assert.deepEqual(view.calls.at(-1), ['open', 'dev', 'C:/專案/_bmad-output/story-a.md']);
-  assert.equal([...view.document.querySelectorAll('.bmad-artifact')][1].textContent.includes('確認這份產物已完成'), false);
-});
-
-test('keyboard navigation skips collapsed phases and keeps focus on visible flow nodes', async t => {
-  const view = await mount(t, { controlled: true, state: { selectedStepId: 'brief', expandedPhases: ['analysis', 'solutioning', 'implementation'] } });
-  const brief = view.document.querySelector('[data-step-id="brief"]');
-  brief.focus();
-  brief.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
-  assert.equal(view.document.activeElement.dataset.stepId, 'arch', 'ArrowDown skips the hidden PRD node');
-  assert.equal(view.saved.selectedStepId, 'arch');
-  assert.equal(view.document.querySelector('[data-step-id="prd"]').getAttribute('aria-pressed'), 'false');
-
-  view.document.getElementById('bmad-phase-implementation').click(); await view.tick();
-  const arch = view.document.querySelector('[data-step-id="arch"]');
-  arch.focus();
-  arch.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'End', bubbles: true })); await view.tick();
-  assert.equal(view.document.activeElement.dataset.stepId, 'arch', 'End targets the last visible node when the final phase is collapsed');
-  assert.equal(view.saved.selectedStepId, 'arch');
-  arch.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })); await view.tick();
-  assert.equal(view.document.activeElement.dataset.stepId, 'brief', 'ArrowUp skips the hidden intermediate phase');
-  assert.equal(view.saved.selectedStepId, 'brief');
-});
-
-test('host snapshots update parallel positions and evidence without changing an explicit selection', async t => {
-  const view = await mount(t);
-  view.document.querySelector('[data-step-id="prd"]').click(); await view.tick();
-  const updated = snapshot(); updated.revision = 'revision-2';
-  updated.currentCandidates = [{ stepId: 'review', label: '故事 A 與 B', reason: '兩份故事都在等待審查。' }];
-  updated.steps.find(item => item.id === 'prd').status = 'complete';
-  updated.steps.find(item => item.id === 'prd').summary = '需求文件已完整。';
-  updated.diagnostics = [{ code: 'parse', message: '另有文件尚未完成儲存。', path: '_bmad-output/draft.md' }];
+test('artifact snapshots refresh native status and freshness while explicit guidance selection survives', async t => {
+  const data = bmadUiSnapshot(); const view = await mount(t, { snapshot: data, controlled: true });
+  await view.click('我想做什麼'); await view.task('research');
+  const updated = copy(data); updated.revision = 'after-write'; updated.observation = { state: 'refreshing', lastSuccessfulAt: data.observedAt };
   await view.render({ snapshot: updated });
-  assert.equal(view.document.querySelector('.bmad-step-detail h2').textContent, '需求文件');
-  assert.equal(view.document.querySelector('.bmad-step-detail .bmad-status-badge').textContent, '已完成');
-  assert.equal(view.document.querySelectorAll('.bmad-current-card').length, 1);
-  assert.equal(view.document.querySelector('[data-step-id="dev"]').hasAttribute('aria-current'), false);
-  assert.match(view.document.querySelector('.bmad-diagnostics').textContent, /文件尚未完成儲存/);
-  assert.equal(view.document.querySelector('.bmad-step-summary').textContent, '需求文件已完整。');
-});
-
-test('catalog stays readable before installation and copy becomes available after valid input without launching tools', async t => {
-  const missing = snapshot(); missing.root = undefined; missing.installation = { state: 'missing', reason: '請選擇專案並安裝 BMAD。' };
-  missing.catalogSource = 'bundled'; missing.currentCandidates = []; missing.recommendations = [];
-  const view = await mount(t, { snapshot: missing });
-  assert.equal(view.document.querySelectorAll('.bmad-flow-step').length, missing.nodes.length);
-  assert.equal(view.button('在 Codex 執行'), undefined);
-  assert.equal(view.button('複製提示詞').disabled, true);
-  view.document.querySelector('[data-step-id="arch"]').click(); await view.tick();
-  assert.equal(view.document.querySelector('.bmad-step-detail h2').textContent, '架構設計');
-  await view.click('安裝／設定 BMAD'); assert.deepEqual(view.calls.at(-1), ['settings']);
-  await view.render({ snapshot: snapshot() });
-  await view.input('bmad-input-goal', '為訂單服務建立架構，保留現有 API。');
-  assert.equal(view.button('複製提示詞').disabled, false);
-  await view.click('複製提示詞'); assert.equal(view.calls.at(-1)[0], 'copy'); assert.equal(view.calls.at(-1)[1], 'arch');
-  assert.match(view.calls.at(-1)[2].goal, /訂單服務/);
-  assert.equal(view.calls.some(call => call[0] === 'launch'), false);
-  await view.click('重新整理'); assert.deepEqual(view.calls.at(-1), ['refresh']);
-  assert.equal(view.document.querySelector('[data-step-id="arch"]').classList.contains('bmad-status-not-observed'), true);
-});
-
-test('unassigned catalog nodes remain reachable and obsolete saved selection safely falls back', async t => {
-  const value = snapshot(); value.phases = value.phases.filter(item => item.id !== 'solutioning');
-  const view = await mount(t, { snapshot: value, state: { selectedStepId: 'removed-upstream-step' } });
-  assert.ok(view.document.querySelector('[data-step-id="arch"]'));
-  assert.match(view.document.getElementById('bmad-phase-other').textContent, /其他工作流程/);
-  assert.equal(view.document.querySelector('.bmad-step-detail h2').textContent, '故事開發');
-  assert.equal(view.calls.length, 0);
-});
-
-test('PRD forms change with intent, render literal preview and preserve drafts independently per step', async t => {
-  const view = await mount(t, { controlled: true, state: { selectedStepId: 'prd' } });
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'create');
-  assert.equal(view.button('複製提示詞').disabled, true);
-  const goal = '結帳流程 <script>unexpected()</script>\n保留現有 API';
-  await view.input('bmad-input-goal', goal);
-  await view.input('bmad-input-constraints', '不可變更資料庫 schema');
-  assert.equal(view.button('複製提示詞').disabled, false);
-  assert.match(view.document.getElementById('bmad-prompt-preview').value, /<script>unexpected\(\)<\/script>/);
-  assert.equal(view.document.querySelector('.bmad-prompt-preview script'), null);
-  await view.click('複製提示詞');
-  assert.equal(view.calls.at(-1)[2].goal, goal);
-  assert.equal(view.saved.inputsByStep.prd.constraints, '不可變更資料庫 schema');
-  await view.input('bmad-input-intent', 'edit');
-  assert.ok(view.document.getElementById('bmad-input-target'));
-  assert.equal(view.button('複製提示詞').disabled, true);
-  await view.input('bmad-input-target', '_bmad-output/planning-artifacts/prd.md');
-  assert.equal(view.button('複製提示詞').disabled, false);
-  view.document.querySelector('[data-step-id="arch"]').click(); await view.tick();
-  await view.input('bmad-input-goal', '設計訂單架構');
-  view.document.querySelector('[data-step-id="prd"]').click(); await view.tick();
-  assert.equal(view.document.getElementById('bmad-input-goal').value, goal);
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'edit');
-  const reopened = await mount(t, { controlled: true, state: view.saved });
-  assert.equal(reopened.document.getElementById('bmad-input-target').value, '_bmad-output/planning-artifacts/prd.md');
-  assert.equal(reopened.saved.inputsByStep.arch.goal, '設計訂單架構');
-});
-
-test('current work selection carries Story and matching artifact identity into a resumable prompt without changing progress', async t => {
-  const view = await mount(t, { controlled: true });
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'new');
-  assert.equal(view.button('複製提示詞').disabled, true);
-  view.document.querySelector('.bmad-current-card').click(); await view.tick();
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'resume');
-  assert.equal(view.saved.inputsByStep.dev.storyId, 'story-a');
-  assert.equal(view.saved.inputsByStep.dev.artifactId, 'story-a');
-  assert.equal(view.button('複製提示詞').disabled, false);
-  const preview = view.document.getElementById('bmad-prompt-preview').value;
-  assert.match(preview, /故事 A/); assert.match(preview, /story-a\.md/);
-  await view.click('複製提示詞');
-  assert.equal(view.calls.at(-1)[2].storyId, 'story-a');
-  assert.equal(view.calls.at(-1)[2].artifactId, 'story-a');
-  assert.equal(view.document.querySelector('[data-step-id="dev"]').classList.contains('bmad-status-draft'), true);
-  assert.equal(view.document.querySelectorAll('.bmad-current-card').length, 2);
-  view.document.querySelectorAll('.bmad-current-card')[1].click(); await view.tick();
-  assert.equal(view.saved.inputsByStep.review.storyId, 'story-b');
-  assert.equal(view.saved.inputsByStep.review.artifactId, undefined, 'A candidate cannot import an artifact from another step');
-});
-
-test('Group repository choices accompany copied inputs and current drafts survive observed stage updates', async t => {
-  const data = snapshot(); data.observedAt = '2026-10-18T09:00:00Z';
-  data.stories[0].nativeStatus = 'in-progress'; data.stories[0].stage = 'implement';
-  data.stories[0].observedAt = '2026-10-18T08:55:00Z';
-  data.steps.find(item => item.id === 'dev').artifacts[0].nativeStatus = 'in-progress';
-  data.steps.find(item => item.id === 'dev').artifacts[0].stage = 'implement';
-  data.steps.find(item => item.id === 'dev').artifacts[0].marker = 'frontmatter status: in-progress';
-  data.steps.find(item => item.id === 'dev').artifacts[0].observedAt = '2026-10-18T08:55:00Z';
-  const view = await mount(t, { snapshot: data, controlled: true, repositoryMode: false, repositoryPaths: ['C:/專案/服務 A', 'C:/專案/服務 B'] });
-  await view.input('bmad-input-goal', '新增結帳 API');
-  const choices = view.document.querySelectorAll('.bmad-repository-choices input');
-  choices[1].click(); await view.tick();
-  await view.click('複製提示詞');
-  assert.deepEqual(view.calls.at(-1)[2].repositoryPaths, ['C:/專案/服務 B']);
-  assert.match(view.document.getElementById('bmad-prompt-preview').value, /C:\/專案\/服務 B/);
-  assert.match(view.document.querySelector('.bmad-stories').textContent, /階段：implement/);
-  assert.match(view.document.querySelector('.bmad-artifact').textContent, /frontmatter status: in-progress/);
-  assert.ok(view.document.querySelector('time[datetime="2026-10-18T09:00:00Z"]'));
-  assert.ok(view.document.querySelector('.bmad-stories time[datetime="2026-10-18T08:55:00Z"]'));
+  assert.equal(view.document.querySelector('#bmad-tab-capabilities').getAttribute('aria-selected'), 'true');
+  assert.equal(view.document.querySelector('#bmad-task-title').textContent, '先研究再做決定');
+  assert.match(view.document.querySelector('.bmad-observation').textContent, /正在更新/);
+  updated.observation = { state: 'watching', lastSuccessfulAt: '2026-10-18T09:01:00Z' };
+  const artifact = updated.steps.find(step => step.id === 'build').artifacts[0];
+  Object.assign(artifact, { status: 'complete', nativeStatus: 'done', stage: 'Build 已完成', marker: 'status: done', reason: '工作文件明確標示 done。' });
+  await view.render({ snapshot: copy(updated) }); await view.click('目前進度');
+  assert.match(view.document.querySelector('.bmad-artifact').textContent, /原生狀態已完成/);
+  assert.ok(view.document.querySelector('.bmad-observation time[datetime="2026-10-18T09:01:00Z"]'));
   assert.ok(view.document.querySelector('.bmad-artifact time[datetime="2026-10-18T08:55:00Z"]'));
-  const updated = copy(data); updated.revision = 'revision-2'; updated.observedAt = '2026-10-18T09:00:01Z';
-  updated.stories[0].stage = 'review'; updated.stories[0].status = 'review';
-  await view.render({ snapshot: updated });
-  assert.match(view.document.querySelector('.bmad-stories').textContent, /階段：review/);
-  assert.equal(view.document.getElementById('bmad-input-goal').value, '新增結帳 API');
-  assert.deepEqual(view.saved.inputsByStep.dev.repositoryPaths, ['C:/專案/服務 B']);
-  await view.render({ repositoryMode: true });
-  assert.equal(view.document.querySelector('.bmad-repository-choices'), null, 'Single Repo mode uses the project root implicitly');
+  assert.equal(view.document.querySelectorAll('.bmad-current-card').length, 2);
+  assert.deepEqual(view.calls, [], 'observed progress never triggers a mutation');
 });
 
-test('a removed existing work item leaves the draft visible and disables copying until resolved', async t => {
+test('unknown versions, blocked evidence and observation failures remain visible without invented completion', async t => {
+  const data = bmadUiSnapshot(); data.version = '6.13.0'; data.compatibility = 'unverified';
+  data.observation = { state: 'error', lastSuccessfulAt: data.observedAt, error: '檔案正在寫入，請稍後重新偵測。' };
+  data.steps.find(step => step.id === 'build').artifacts[0].status = 'blocked';
+  data.diagnostics = [{ code: 'conflict', message: '兩個正式來源的狀態不同。', path: '_bmad-output/story.md' }];
+  const view = await mount(t, { snapshot: data });
+  assert.match(view.document.querySelector('.bmad-version').textContent, /6\.13\.0.*6\.12\.4/);
+  assert.match(view.document.querySelector('.bmad-environment-notice').textContent, /尚未經本頁驗證/);
+  assert.match(view.document.querySelector('.bmad-observation').textContent, /更新失敗/);
+  assert.match(view.document.querySelector('.bmad-artifact').textContent, /受阻/);
+  assert.match(view.document.querySelector('.bmad-diagnostics').textContent, /正式來源/);
+  await view.click('重新偵測'); assert.deepEqual(view.calls.at(-1), ['refresh']);
+  await view.click('我想做什麼'); await view.click('複製 $bmad-build');
+  assert.equal(view.calls.at(-1)[1].command, 'skill', 'generic teaching stays available when observation is temporarily unavailable');
+});
+
+test('catalog stays collapsed until requested, keeps custom entries readable and skips folded phases with keyboard', async t => {
+  const data = withoutProgress(); data.nodes.push({ ...data.nodes[0], id: 'custom', skill: 'bmad-custom', displayName: '<script>custom()</script>', phase: 'custom', description: '專案新增的能力。' });
+  const view = await mount(t, { snapshot: data, controlled: true, state: { selectedSection: 'capabilities', selectedTaskId: 'obsolete', selectedStepId: 'removed', expandedPhases: ['plan', 'solutioning', 'ship', 'anytime', 'other'] } });
+  assert.equal(view.document.querySelector('#bmad-catalog-content'), null);
+  view.document.querySelector('.bmad-catalog-toggle').click(); await view.tick();
+  assert.match(view.document.querySelector('#bmad-phase-other').textContent, /其他能力/);
+  assert.equal(view.document.querySelector('#bmad-phase-content-planning').hidden, true);
+  const brief = view.document.querySelector('[data-step-id="brief"]'); brief.focus();
+  brief.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
+  assert.equal(view.document.activeElement.dataset.stepId, 'arch'); assert.equal(view.saved.selectedStepId, 'arch');
+  assert.match(view.document.querySelector('.bmad-related').textContent, /參考順序/);
+  view.document.querySelector('[data-step-id="custom"]').click(); await view.tick();
+  assert.equal(view.document.querySelector('.bmad-step-detail h3').textContent, '<script>custom()</script>');
+  assert.match(view.document.querySelector('.bmad-step-detail').textContent, /用 \$bmad-help 依目前產物判斷下一步/);
+  assert.equal(view.document.querySelector('.bmad-step-detail script'), null);
+  const reopened = await mount(t, { snapshot: data, state: view.saved });
+  assert.equal(reopened.document.querySelector('.bmad-catalog-toggle').getAttribute('aria-expanded'), 'true');
+  assert.equal(reopened.document.querySelector('[data-step-id="custom"]').getAttribute('aria-pressed'), 'true');
+});
+
+test('section tabs support keyboard navigation and persist the chosen section', async t => {
   const view = await mount(t, { controlled: true });
-  view.document.querySelector('.bmad-current-card').click(); await view.tick();
-  assert.equal(view.button('複製提示詞').disabled, false);
-  const updated = snapshot(); updated.revision = 'revision-after-delete';
-  updated.stories = updated.stories.filter(story => story.id !== 'story-a');
-  updated.steps.find(item => item.id === 'dev').artifacts = [];
-  updated.currentCandidates = updated.currentCandidates.filter(candidate => candidate.storyId !== 'story-a');
-  await view.render({ snapshot: updated });
-  assert.equal(view.button('複製提示詞').disabled, true);
-  assert.match(view.document.querySelector('.bmad-prompt-errors').textContent, /已不存在/);
-  assert.match(view.document.querySelector('#bmad-work-target').textContent, /請重新選擇/);
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'resume');
-  await view.input('bmad-work-target', '');
-  await view.input('bmad-input-target', '_bmad-output/implementation-artifacts/spec-checkout.md');
-  assert.equal(view.button('複製提示詞').disabled, false);
-});
-
-test('Story actions follow host workflow associations and review choices exclude unrelated stories', async t => {
-  const data = snapshot();
-  data.stories.push({ id: 'spec-review', label: '規格內建檢視', mode: 'spec', path: '_bmad-output/specs/spec-a/stories/1-api.md', status: 'in-review', reason: 'Build 正在內建檢視。' });
-  data.currentCandidates.push({ stepId: 'dev', storyId: 'spec-review', label: '規格內建檢視', reason: '保留 Build 的內建檢視流程。' });
-  const view = await mount(t, { snapshot: data, controlled: true });
-  const storyCard = [...view.document.querySelectorAll('.bmad-stories li')].find(item => item.textContent.includes('規格內建檢視'));
-  storyCard.querySelector('button').click(); await view.tick();
-  assert.equal(view.saved.selectedStepId, 'dev');
-  assert.equal(view.saved.inputsByStep.dev.intent, 'resume');
-  assert.equal(view.saved.inputsByStep.dev.storyId, 'spec-review');
-  view.document.querySelector('[data-step-id="review"]').click(); await view.tick();
-  const choices = [...view.document.querySelectorAll('#bmad-work-target option')].map(item => item.value);
-  assert.equal(choices.includes('story:story-b'), true);
-  assert.equal(choices.includes('story:spec-review'), false);
-  assert.equal(choices.includes('story:story-a'), false);
-  const withoutCandidate = copy(data); withoutCandidate.currentCandidates = [];
-  await view.render({ snapshot: withoutCandidate });
-  const fallback = [...view.document.querySelectorAll('.bmad-stories li')].find(item => item.textContent.includes('規格內建檢視'));
-  fallback.querySelector('button').click(); await view.tick();
-  assert.equal(view.saved.selectedStepId, 'dev', 'Spec in-review remains within Build even before a candidate appears');
-});
-
-test('new work clears resumed context and importing a PRD draft prepares edit or preserved validation intent', async t => {
-  const data = snapshot();
-  const prdArtifact = { id:'prd-draft', path:'C:/專案/_bmad-output/planning-artifacts/prd.md', relativePath:'_bmad-output/planning-artifacts/prd.md',
-    fingerprint:'prd-sha', status:'draft', reason:'需求草稿。', canConfirm:false, confirmed:false };
-  data.steps.find(item => item.id === 'prd').artifacts = [prdArtifact];
-  data.currentCandidates.push({ stepId:'prd', artifactId:'prd-draft', label:'需求草稿', reason:'待續作。' });
-  const view = await mount(t, { snapshot:data, controlled:true });
-  view.document.querySelector('.bmad-current-card').click(); await view.tick();
-  await view.input('bmad-input-target', 'old-story.md');
-  await view.input('bmad-input-goal', '建立新的付款查詢 API');
-  await view.input('bmad-input-intent', 'new');
-  assert.equal(view.saved.inputsByStep.dev.artifactId, undefined);
-  assert.equal(view.saved.inputsByStep.dev.storyId, undefined);
-  assert.equal(view.saved.inputsByStep.dev.target, undefined);
-  assert.equal(view.button('複製提示詞').disabled, false);
-  assert.doesNotMatch(view.document.getElementById('bmad-prompt-preview').value, /已選 Story|已選產物|old-story/);
-  const candidate = [...view.document.querySelectorAll('.bmad-current-card')].find(item => item.textContent.includes('需求草稿'));
-  candidate.click(); await view.tick();
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'edit');
-  assert.equal(view.saved.inputsByStep.prd.artifactId, 'prd-draft');
-  assert.equal(view.button('複製提示詞').disabled, false);
-  await view.input('bmad-input-intent', 'validate');
-  await view.click('帶入工作提示詞');
-  assert.equal(view.document.getElementById('bmad-input-intent').value, 'validate');
-  await view.input('bmad-input-intent', 'create');
-  assert.equal(view.saved.inputsByStep.prd.artifactId, undefined);
-  assert.equal(view.saved.inputsByStep.prd.target, undefined);
+  const progress = view.document.getElementById('bmad-tab-progress'); progress.focus();
+  progress.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); await view.tick();
+  assert.equal(view.saved.selectedSection, 'start'); assert.equal(view.document.activeElement.id, 'bmad-tab-start');
+  view.document.activeElement.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await view.tick();
+  assert.equal(view.saved.selectedSection, 'capabilities'); assert.equal(view.document.activeElement.id, 'bmad-tab-capabilities');
 });

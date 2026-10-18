@@ -432,6 +432,16 @@ def freeze_predecessor(root, version, source_sha, files, installer):
                 info = tarfile.TarInfo(name)
                 info.size, info.mode, info.mtime = len(data), 0o644, 0
                 stream.addfile(info, io.BytesIO(data))
+    legacy_bmad = {}
+    if 'bmad-method' in manifest['upstream']:
+        names = {'BMAD_RUNTIME_FILES': 'bmadFiles', 'BMAD_CONFIG_TEMPLATE': 'bmadConfigTemplate',
+                 'BMAD_FILES_MANIFEST_TEMPLATE': 'bmadFilesManifestTemplate'}
+        for node in ast.parse(installer.decode('utf-8')).body:
+            if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name) and node.targets[0].id in names):
+                legacy_bmad[names[node.targets[0].id]] = ast.literal_eval(node.value)
+        if set(legacy_bmad) != set(names.values()):
+            raise ReleaseError('Predecessor lacks exact legacy BMAD marker identity')
     trusted_path = root / 'resources/workflow-kit/trusted-predecessors.json'
     trusted = json.loads(trusted_path.read_text(encoding='utf-8'))
     for profile, fields in manifest['profiles'].items():
@@ -444,6 +454,7 @@ def freeze_predecessor(root, version, source_sha, files, installer):
         record['wikiFiles'] = {key: value for key, value in fields['files'].items() if key.startswith('.agents/skills/codebase-wiki/')}
         record['extensionFiles'] = {key: value for key, value in fields['files'].items()
                                     if key.startswith(('.agents/gitlab-workspace-kit/scripts/', '.agents/gitlab-workspace-kit/references/'))}
+        record.update(legacy_bmad)
         old = next((item for item in trusted['packages'] if item.get('version') == version and item.get('profile') == profile), None)
         if old and old != record:
             raise ReleaseError('Existing trusted predecessor conflicts with official manifest')

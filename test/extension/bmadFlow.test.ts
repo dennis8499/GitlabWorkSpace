@@ -5,6 +5,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import * as vscode from 'vscode';
 import { BmadWorkflowController } from '../../src/workspace/bmadWorkflowController';
+import { parseBmadCatalog } from '../../src/workspace/bmadWorkflow';
 import type { BmadArtifact, BmadStep, BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 const pause = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds));
@@ -24,7 +25,6 @@ suite('BMAD dynamic artifact progress', () => {
     const temporary = await mkdtemp(path.join(temporaryParent, 'gw-bmad-flow-'));
     const extensionRoot = path.resolve(__dirname, '../../..');
     const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
-    const values = new Map<string, unknown>();
     const activeWatchers = new Map<vscode.FileSystemWatcher, string>();
     const rawEvents: Array<{ path: string; time: number }> = [];
     const errors: string[] = [];
@@ -43,6 +43,13 @@ suite('BMAD dynamic artifact progress', () => {
         `planning_artifacts = "${planning}"`,
         `implementation_artifacts = "${implementation}"`, ''
       ].join('\n'));
+      await mkdir(path.join(directory, '_bmad', 'scripts'), { recursive: true });
+      await writeFile(path.join(directory, '_bmad', 'scripts', 'resolve_config.py'), '# External installer fixture');
+      await writeFile(path.join(directory, '_bmad', 'scripts', 'render_skill.py'), '# External installer fixture');
+      for (const skill of new Set(['bmad-help', ...parseBmadCatalog(catalog).map(node => node.skill)])) {
+        await mkdir(path.join(directory, '.agents', 'skills', skill), { recursive: true });
+        await writeFile(path.join(directory, '.agents', 'skills', skill, 'SKILL.md'), `# ${skill}`);
+      }
       return realpath(directory);
     }
     async function waitFor(check: () => boolean, label: string, timeout = 5000): Promise<void> {
@@ -66,10 +73,6 @@ suite('BMAD dynamic artifact progress', () => {
     try {
       const first = await fixture('第一個專案'), second = await fixture('第二個專案');
       controller = new BmadWorkflowController({
-        store: {
-          get: <T>(key: string, fallback: T) => values.has(key) ? values.get(key) as T : fallback,
-          update: async (key: string, value: unknown) => { values.set(key, value); }
-        },
         bundledCatalog: async () => catalog,
         watch: (directory, changed) => {
           const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '**/*'));
@@ -83,6 +86,25 @@ suite('BMAD dynamic artifact progress', () => {
         },
         changed: () => { publications++; }, error: message => { errors.push(message); }
       });
+      const external = path.join(temporary, '使用者CLI初始化');
+      await mkdir(external);
+      controller.setContext(external, 'external-root', true);
+      await controller.refresh();
+      assert.equal(controller.snapshot?.installation.state, 'missing');
+      assert.equal(controller.snapshot?.observation.state, 'watching');
+      await pause(200);
+      await observedTransition('external-cli-install', async () => { await fixture('使用者CLI初始化'); },
+        () => controller?.snapshot?.installation.state === 'ready' && controller.snapshot.codex.state === 'ready');
+      const buildSkill = path.join(external, '.agents', 'skills', 'bmad-build', 'SKILL.md');
+      await observedTransition('external-codex-skill-delete', () => unlink(buildSkill),
+        () => controller?.snapshot?.codex.state === 'partial' && !controller.snapshot.codex.skills.includes('bmad-build'));
+      await observedTransition('external-codex-skill-restore', () => writeFile(buildSkill, '# Restored by user CLI'),
+        () => controller?.snapshot?.codex.state === 'ready');
+      const renderer = path.join(external, '_bmad', 'scripts', 'render_skill.py');
+      await observedTransition('external-runtime-delete', () => unlink(renderer),
+        () => controller?.snapshot?.installation.state === 'partial');
+      await observedTransition('external-runtime-restore', () => writeFile(renderer, '# Restored by user CLI'),
+        () => controller?.snapshot?.installation.state === 'ready');
       controller.setContext(first, 'first-root', true);
       await controller.refresh();
       assert.equal(prdStatus(controller.snapshot), 'not-observed');
@@ -141,7 +163,7 @@ suite('BMAD dynamic artifact progress', () => {
       }, 'draft');
       const customImplementation = path.join(custom, 'generated', 'custom', 'implementation-artifacts');
       const buildRecord = path.join(customImplementation, 'spec-feature.md');
-      for (const nativeStatus of ['draft', 'ready-for-dev', 'in-progress', 'in-review', 'done']) {
+      for (const nativeStatus of ['draft', 'ready-for-dev', 'in-progress', 'in-review', 'blocked', 'done']) {
         await observedTransition(`build-${nativeStatus}`, async () => {
           await mkdir(customImplementation, { recursive: true });
           await writeFile(buildRecord, `---\nstatus: ${nativeStatus}\n---\nBuild record\n`);
@@ -149,7 +171,7 @@ suite('BMAD dynamic artifact progress', () => {
         const artifact: BmadArtifact = buildStep(controller.snapshot)!.artifacts.find(item => item.path === buildRecord)!;
         assert.ok(artifact.stage, 'Native Build state must expose its current phase');
         assert.ok(artifact.observedAt && !Number.isNaN(Date.parse(artifact.observedAt)), 'Build state must include its last observation time');
-        assert.equal(artifact.status, nativeStatus === 'done' ? 'complete' : 'draft');
+        assert.equal(artifact.status, nativeStatus === 'done' ? 'complete' : nativeStatus === 'blocked' ? 'blocked' : 'draft');
       }
       const sprint = path.join(customImplementation, 'sprint-status.yaml');
       await observedTransition('parallel-classic-stories', () => writeFile(sprint,
@@ -171,8 +193,10 @@ suite('BMAD dynamic artifact progress', () => {
       () => controller?.snapshot?.stories[0]?.nativeStatus === 'in-progress');
       await transition('root-output-delete', () => unlink(rootArtifact), 'not-observed');
 
-      const finalSnapshot = controller.snapshot, finalPublications = publications;
+      const finalPublications = publications;
       controller.dispose();
+      const finalSnapshot = controller.snapshot;
+      assert.equal(finalSnapshot?.observation.state, 'paused');
       assert.equal(activeWatchers.size, 0);
       assert.equal(disposedWatchers, createdWatchers);
       await writeFile(rootArtifact, '---\nstatus: final\n---\nAfter disposal\n');
