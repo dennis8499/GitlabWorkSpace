@@ -31,20 +31,20 @@ PINNED_SOURCES = ({'id': 'codebase-wiki',
   'asset': 'codebase-llm-wiki-codex.zip',
   'filename': 'codebase-llm-wiki-codex-0.6.2.zip',
   'version': '0.6.2',
-  'sha256': '611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab',
+  'sha256': 'ef96009302e563a368f92961e2855037ebdd72058486d15836163a8e5d3de7b5',
   'root': 'codebase-llm-wiki-codex-0.6.2'},
  {'id': 'merge-reviewer',
   'repository': 'MergeReviewer',
   'asset': 'merge-reviewer-0.14.0.zip',
   'filename': 'merge-reviewer-0.14.0.zip',
   'version': '0.14.0',
-  'sha256': '12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3'},
+  'sha256': '5eefd22d684666ef83061d13bd3540e0416a785ddaba0d8722c0f9ceceec860f'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
   'asset': 'release-reviewer-0.4.1.zip',
   'filename': 'release-reviewer-0.4.1.zip',
   'version': '0.4.1',
-  'sha256': '3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39'})
+  'sha256': '30bf13b5102794bb22e5b8f58356deb2525050b12c861da99764d1bc8b69e53e'})
 
 
 def digest(data: bytes) -> str:

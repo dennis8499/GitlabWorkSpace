@@ -36,7 +36,7 @@
   "schema": "GitLabWorkspaceSourceSnapshots/v1",
   "sources": {
     "codebase-wiki": {
-      "archiveSha256": "611b9727d723dec1d231654693b098f1b4454a20c893d3fd6f88f6f7b0d65aab",
+      "archiveSha256": "ef96009302e563a368f92961e2855037ebdd72058486d15836163a8e5d3de7b5",
       "commit": "facc909f0f6c5fda38c4cd05c28187ed2ea063d0",
       "dirty": false,
       "entryRoot": "codebase-llm-wiki-codex-0.6.2",
@@ -145,13 +145,13 @@
         "VERSION": "a466ef209f5c3aee5ff0c702e2e9d5cced4783d2a655e8ab66330f21a5557b3f"
       },
       "repository": "code-base-llm-wiki",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "93ff87d6c36ef5b382bbbfd10d99d37fe3b4dce219e464794e2b21f969b10f9d",
       "version": "0.6.2"
     },
     "merge-reviewer": {
-      "archiveSha256": "12896a08c49ce5c4aeacf0354fa125084b03bc7ee564156c660a671badf11cd3",
-      "commit": "05298732215327c20cc5f1f16be5f315d59cb27f",
+      "archiveSha256": "5eefd22d684666ef83061d13bd3540e0416a785ddaba0d8722c0f9ceceec860f",
+      "commit": "b577f2c687244de517de6f69af222df07b758f0c",
       "dirty": false,
       "entryRoot": "merge-reviewer",
       "filename": "merge-reviewer-0.14.0.zip",
@@ -171,13 +171,13 @@
         "scripts/workspace_report.py": "ba48f6f210b5157c2a59e6d949365764c665c0d2438d80803acb8d60b3ee56ec"
       },
       "repository": "MergeReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "760f3534bc8e4d228a9d5519f51ea50b646753c33b1bee551671a1cf3a7d3e15",
       "version": "0.14.0"
     },
     "release-reviewer": {
-      "archiveSha256": "3ffc3bada0bd961cc5a7681e0e7ffd6743abfb6d3032198561caba2d5bdd7f39",
-      "commit": "896f758c64ae216aa5e4b3b8c87d7b10c2c4654d",
+      "archiveSha256": "30bf13b5102794bb22e5b8f58356deb2525050b12c861da99764d1bc8b69e53e",
+      "commit": "9e1c1e534779e95a36f5a1f3e3ed50972aea83e1",
       "dirty": false,
       "entryRoot": "release-reviewer",
       "filename": "release-reviewer-0.4.1.zip",
@@ -202,7 +202,7 @@
         "scripts/review_worklist.py": "720d0447b70b549f2e158b94368d750bcf8e0adde2df0845cb6819e08d9054d5"
       },
       "repository": "ReleaseReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "302c4179864ec97244e03227ad8a073c91457afdf48cd2d0c358f79a15289369",
       "version": "0.4.1"
     }

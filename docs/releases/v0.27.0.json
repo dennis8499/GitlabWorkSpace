@@ -1,0 +1,13 @@
+{
+  "candidate": "017c3a92db374ad459f1978c57432f26ec6b0e4f",
+  "dependencies": {
+    "MergeReviewer": "b577f2c687244de517de6f69af222df07b758f0c",
+    "ReleaseReviewer": "9e1c1e534779e95a36f5a1f3e3ed50972aea83e1",
+    "code-base-llm-wiki": "facc909f0f6c5fda38c4cd05c28187ed2ea063d0"
+  },
+  "previousTag": "v0.24.4",
+  "repository": "GitlabWorkSpace",
+  "runId": "20261018T145255Z-40e8e7e0",
+  "schema": "workspace-release/v1",
+  "targetVersion": "0.27.0"
+}
