@@ -1,0 +1,9 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/output_style_test.py"]
+test_linked_resources_are_rejected (__main__.OutputStylePackageTests.test_linked_resources_are_rejected) ... skipped "Symbolic links are unavailable: [WinError 1314] 用戶端沒有這項特殊權限。: 'C:\\\\Users\\\\denni\\\\AppData\\\\Local\\\\Temp\\\\output-style-link-00eez5it\\\\outside.md' -> 'C:\\\\Users\\\\denni\\\\AppData\\\\Local\\\\Temp\\\\output-style-link-00eez5it\\\\skills\\\\output-style\\\\linked.md'"
+test_missing_entrypoint_and_oversized_resource_fail_before_build (__main__.OutputStylePackageTests.test_missing_entrypoint_and_oversized_resource_fail_before_build) ... ok
+test_source_resources_keep_discoverable_paths_and_resolve_local_links (__main__.OutputStylePackageTests.test_source_resources_keep_discoverable_paths_and_resolve_local_links) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.017s
+
+OK (skipped=1)

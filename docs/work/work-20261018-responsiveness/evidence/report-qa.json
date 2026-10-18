@@ -1,0 +1,937 @@
+{
+  "schema": "GitLabWorkspaceReportQa/v1",
+  "checkedAt": "2026-10-17T18:22:13.896Z",
+  "status": "PASS",
+  "reportSha256": "9fce3f18a650b2e283c0305218ff4d3f1b75ba5c656376bc052af29c779944ab",
+  "verificationSha256": "23c1393193377a345886c491393c39c1437717cf3c1907bc52a01f5880da4fb6",
+  "verificationGeneratedAt": "2026-10-17T18:22:10.861Z",
+  "candidateSha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e",
+  "scope": "Static delivery report only: headless layout, local evidence links and displayed values. External links are inventoried without network requests. No product or native tests are executed.",
+  "checks": [
+    {
+      "name": "strict UTF-8 decoding and Chinese headings",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: Chinese UTF-8 document",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: no body or document horizontal overflow",
+      "status": "PASS",
+      "detail": {
+        "document": [
+          1440,
+          1440
+        ],
+        "body": [
+          1198,
+          1198
+        ]
+      }
+    },
+    {
+      "name": "1440: tables allow internal horizontal scrolling",
+      "status": "PASS",
+      "detail": [
+        {
+          "index": 0,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 1,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 2,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 3,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 4,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 5,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 6,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 7,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 8,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 9,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 10,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        }
+      ]
+    },
+    {
+      "name": "1440: no rendering placeholders",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: no runtime errors or external asset requests",
+      "status": "PASS",
+      "detail": {
+        "errors": [],
+        "blockedRequests": []
+      }
+    },
+    {
+      "name": "1440: regression counts and phase durations match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: final Renderer comparison matches verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: all eight feedback rows match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: snapshot workloads match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: graph metrics match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: historical search FAIL is retained",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: all acceptance rows match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: artifact identity and unpublished status are explicit",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: real GitLab, native cold start and peak memory remain pending",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: Renderer pass cannot imply global native or file-read acceptance",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: matrix counts match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: five idle phases and VS Code background activity stay separate",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: GUI adapter and standalone confirmation are identified",
+      "status": "PASS"
+    },
+    {
+      "name": "1440: feature scope is not claimed as full acceptance",
+      "status": "PASS"
+    },
+    {
+      "name": "all local evidence links resolve with HTTP 200",
+      "status": "PASS"
+    },
+    {
+      "name": "local fragment anchors resolve",
+      "status": "PASS",
+      "detail": {
+        "checked": 0,
+        "missingAnchors": []
+      }
+    },
+    {
+      "name": "390: Chinese UTF-8 document",
+      "status": "PASS"
+    },
+    {
+      "name": "390: no body or document horizontal overflow",
+      "status": "PASS",
+      "detail": {
+        "document": [
+          390,
+          390
+        ],
+        "body": [
+          390,
+          390
+        ]
+      }
+    },
+    {
+      "name": "390: tables allow internal horizontal scrolling",
+      "status": "PASS",
+      "detail": [
+        {
+          "index": 0,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 1,
+          "clientWidth": 342,
+          "scrollWidth": 407,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 2,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 3,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 4,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 5,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 6,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 7,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 8,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 9,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 10,
+          "clientWidth": 342,
+          "scrollWidth": 354,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        }
+      ]
+    },
+    {
+      "name": "390: no rendering placeholders",
+      "status": "PASS"
+    },
+    {
+      "name": "390: no runtime errors or external asset requests",
+      "status": "PASS",
+      "detail": {
+        "errors": [],
+        "blockedRequests": []
+      }
+    },
+    {
+      "name": "390: regression counts and phase durations match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: final Renderer comparison matches verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: all eight feedback rows match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: snapshot workloads match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: graph metrics match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: historical search FAIL is retained",
+      "status": "PASS"
+    },
+    {
+      "name": "390: all acceptance rows match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: artifact identity and unpublished status are explicit",
+      "status": "PASS"
+    },
+    {
+      "name": "390: real GitLab, native cold start and peak memory remain pending",
+      "status": "PASS"
+    },
+    {
+      "name": "390: Renderer pass cannot imply global native or file-read acceptance",
+      "status": "PASS"
+    },
+    {
+      "name": "390: matrix counts match verification",
+      "status": "PASS"
+    },
+    {
+      "name": "390: five idle phases and VS Code background activity stay separate",
+      "status": "PASS"
+    },
+    {
+      "name": "390: GUI adapter and standalone confirmation are identified",
+      "status": "PASS"
+    },
+    {
+      "name": "390: feature scope is not claimed as full acceptance",
+      "status": "PASS"
+    },
+    {
+      "name": "report and verification did not change during QA",
+      "status": "PASS"
+    }
+  ],
+  "viewports": [
+    {
+      "width": 1440,
+      "language": "zh-Hant",
+      "charset": "UTF-8",
+      "clientWidth": 1440,
+      "scrollWidth": 1440,
+      "bodyClientWidth": 1198,
+      "bodyScrollWidth": 1198,
+      "tables": [
+        {
+          "index": 0,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 1,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 2,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 3,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 4,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 5,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 6,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 7,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 8,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 9,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 10,
+          "clientWidth": 1150,
+          "scrollWidth": 1150,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        }
+      ],
+      "headings": [
+        "修正與行為",
+        "完整回歸與真實 VS Code",
+        "本機 Git 閒置與確認方式",
+        "封裝 Renderer 前後比較",
+        "中間候選已完成的配對量測",
+        "大型工作台快照",
+        "圖譜實際 Browser 量測",
+        "逐項回應時間門檻",
+        "真實 VS Code 圖譜 Worker",
+        "驗收限制與待驗",
+        "候選與重現"
+      ],
+      "errors": [],
+      "blockedRequests": []
+    },
+    {
+      "width": 390,
+      "language": "zh-Hant",
+      "charset": "UTF-8",
+      "clientWidth": 390,
+      "scrollWidth": 390,
+      "bodyClientWidth": 390,
+      "bodyScrollWidth": 390,
+      "tables": [
+        {
+          "index": 0,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 1,
+          "clientWidth": 342,
+          "scrollWidth": 407,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 2,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 3,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 4,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 5,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 6,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 7,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 8,
+          "clientWidth": 342,
+          "scrollWidth": 860,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        },
+        {
+          "index": 9,
+          "clientWidth": 342,
+          "scrollWidth": 342,
+          "overflowX": "auto",
+          "scrollable": false,
+          "canScroll": false
+        },
+        {
+          "index": 10,
+          "clientWidth": 342,
+          "scrollWidth": 354,
+          "overflowX": "auto",
+          "scrollable": true,
+          "canScroll": true
+        }
+      ],
+      "headings": [
+        "修正與行為",
+        "完整回歸與真實 VS Code",
+        "本機 Git 閒置與確認方式",
+        "封裝 Renderer 前後比較",
+        "中間候選已完成的配對量測",
+        "大型工作台快照",
+        "圖譜實際 Browser 量測",
+        "逐項回應時間門檻",
+        "真實 VS Code 圖譜 Worker",
+        "驗收限制與待驗",
+        "候選與重現"
+      ],
+      "errors": [],
+      "blockedRequests": []
+    }
+  ],
+  "screenshots": [
+    "evidence/report-1440-top.png",
+    "evidence/report-1440-performance.png",
+    "evidence/report-1440-gates.png",
+    "evidence/report-1440-idle.png",
+    "evidence/report-1440-pending.png",
+    "evidence/report-390-top.png",
+    "evidence/report-390-performance.png",
+    "evidence/report-390-gates.png",
+    "evidence/report-390-idle.png",
+    "evidence/report-390-pending.png"
+  ],
+  "visualReview": {
+    "status": "PASS",
+    "reviewedAt": "2026-10-17T18:23:01.355Z",
+    "reviewer": "workflow_audit",
+    "viewports": [
+      1440,
+      390
+    ],
+    "notes": [
+      "Reviewed desktop and mobile top, performance, acceptance gates, idle and pending screenshots. Chinese text and spacing are readable; no overlapping content.",
+      "Wide mobile tables retain readable columns inside their own scroll region, with an explicit horizontal-scroll hint and keyboard focus.",
+      "Renderer-only PASS is separate from native latency/peak-memory and global idle file-read PENDING. Five Git GUI extension deltas and VS Code background +4 are shown separately.",
+      "Unpublished status, 19 complete offline feature scenarios versus 38 pending, real GitLab and cold-start/peak-memory limits remain visible."
+    ]
+  },
+  "browser": "155.0.8059.80",
+  "links": {
+    "local": [
+      {
+        "href": "functional-matrix.html",
+        "label": "57 項功能矩陣（可篩選）",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "verification.json",
+        "label": "機器可讀交付結果",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "feature-matrix.json",
+        "label": "功能矩陣 JSON",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "../../../dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "label": "候選 VSIX",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/timings.json",
+        "label": "evidence/regression/timings.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/unit.log",
+        "label": "evidence/regression/unit.log",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/behavior-node.log",
+        "label": "evidence/regression/behavior-node.log",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/extension-1.90.log",
+        "label": "evidence/extension-1.90.log",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/extension.log",
+        "label": "evidence/regression/extension.log",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/git-gui-local.json",
+        "label": "evidence/git-gui-local.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/git-gui-local-native.json",
+        "label": "evidence/git-gui-local-native.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/timings.json",
+        "label": "各階段紀錄",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/git-gui-local.json",
+        "label": "五段閒置與一般 Git 流程",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/git-gui-local-native.json",
+        "label": "standalone 原生確認與未知結果核對",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-selector-interrupted.log",
+        "label": "原中斷 baseline log",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-revision.json",
+        "label": "完整樣本與定義",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-initial-revision.json",
+        "label": "失敗原始資料",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-initial-baseline.json",
+        "label": "早期基線",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-initial-refresh-diagnostic.json",
+        "label": "同一舊候選的獨立 refresh 診斷",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-1440-skills.png",
+        "label": "revision-1440-skills.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-1440-settings.png",
+        "label": "revision-1440-settings.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-800-projects.png",
+        "label": "revision-800-projects.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-800-skills.png",
+        "label": "revision-800-skills.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-800-highcontrast-projects.png",
+        "label": "revision-800-highcontrast-projects.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/revision-800-highcontrast-skills.png",
+        "label": "revision-800-highcontrast-skills.png",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-pre-draft-baseline.json",
+        "label": "此輪基線",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/packaged-ui-pre-draft-revision.json",
+        "label": "此輪候選完整樣本",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/workspace-updates.json",
+        "label": "原始結果",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-renderer-final.json",
+        "label": "候選原始量測",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-renderer-baseline-idle.json",
+        "label": "基線",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-large-final.png",
+        "label": "深色圖譜",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-large-light.png",
+        "label": "淺色圖譜",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-large-highcontrast.png",
+        "label": "高對比",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-visual-check.json",
+        "label": "搜尋、Worker、鍵盤與主題驗證",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-verified/git-gui-local.json",
+        "label": "1.90 通過原始證據",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-verified/native-graph-worker-lifecycle-target-events.json",
+        "label": "1.90 原始 target 事件",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/local-graph-worker-report.json",
+        "label": "1.142 通過原始證據",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/native-graph-worker-lifecycle-target-events.json",
+        "label": "1.142 原始 target 事件",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/graph-worker-smoke.json",
+        "label": "嚴格 Blob CSP smoke",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-final/git-gui-local.json",
+        "label": "evidence/worker-1.90-final/git-gui-local.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-delivery/git-gui-local.json",
+        "label": "evidence/worker-1.90-delivery/git-gui-local.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-final/native-graph-worker-failure.json",
+        "label": "第一次詳細紀錄",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/worker-1.90-delivery/native-graph-worker-failure.json",
+        "label": "第二次詳細紀錄",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/fixture-artifact-equivalence.json",
+        "label": "fixture 重編譯後的逐檔等價證據",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "verification.json",
+        "label": "verification.json",
+        "exists": true,
+        "status": 200
+      },
+      {
+        "href": "evidence/regression/timings.json",
+        "label": "timings.json",
+        "exists": true,
+        "status": 200
+      }
+    ],
+    "externalNotFetched": [
+      {
+        "href": "https://code.visualstudio.com/api/extension-guides/webview#using-web-workers",
+        "label": "VS Code Webview 官方限制"
+      }
+    ],
+    "missingAnchors": []
+  }
+}

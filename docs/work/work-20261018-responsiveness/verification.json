@@ -1,0 +1,1783 @@
+{
+  "schema": "GitLabWorkspaceResponsivenessDelivery/v1",
+  "generatedAt": "2026-10-17T18:22:10.861Z",
+  "timezone": "Asia/Taipei",
+  "baseline": {
+    "commit": "c4ad5d1bbb0e0a5f82e896be914e7be13cd3e906",
+    "artifactSha256": "15b4475f937151a8ea9e954e2bc0ee17dc72e7117cb72ec4c81a8dc423e4c050"
+  },
+  "candidate": {
+    "path": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+    "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e",
+    "bytes": 6713540,
+    "version": "0.26.0",
+    "published": false,
+    "preparedInputsSha256": "f270fe0abd2de8ffb409e328330331335fbf285e623d650531b00ce9c37b3bdc"
+  },
+  "regression": {
+    "status": "PASS",
+    "stages": 28,
+    "seconds": 1502.849,
+    "durationMeaning": "Sum of selected stage durations, including the two parallel toolkit workers; not wall-clock elapsed time.",
+    "unitTests": 497,
+    "unitPassed": 497,
+    "behaviorTests": 140,
+    "behaviorPassed": 140,
+    "sourceRuns": [
+      {
+        "name": "final6-prepare",
+        "originalStatus": "success",
+        "selectedStages": [
+          "clean-compiled",
+          "compile",
+          "typecheck-webview",
+          "build-dashboard",
+          "build-sidebar",
+          "build-kit",
+          "build-issue-tests"
+        ]
+      },
+      {
+        "name": "final-unit",
+        "originalStatus": "success",
+        "selectedStages": [
+          "unit"
+        ]
+      },
+      {
+        "name": "final3-behavior",
+        "originalStatus": "success",
+        "selectedStages": [
+          "behavior-node",
+          "behavior-issues",
+          "behavior-connect"
+        ]
+      },
+      {
+        "name": "final3-extension",
+        "originalStatus": "success",
+        "selectedStages": [
+          "host-preflight",
+          "extension"
+        ]
+      },
+      {
+        "name": "final-validation-4",
+        "originalStatus": "failed",
+        "selectedStages": [
+          "release-tooling",
+          "release-workflow_kit_transactions",
+          "release-workflow_kit_profiles",
+          "release-workflow_kit_installer",
+          "release-bmad_workflow_kit",
+          "release-release_reviewer_integration",
+          "release-group_workflow",
+          "release-local_review_targets",
+          "release-output_style",
+          "release-release_manager",
+          "release-tool_installer",
+          "release-workflow_kit_sources",
+          "release-megin_removal"
+        ]
+      },
+      {
+        "name": "final4-package",
+        "originalStatus": "success",
+        "selectedStages": [
+          "package",
+          "verify-package"
+        ]
+      }
+    ],
+    "methodology": "The final3 behavior and native Host checks cover the final product source, including internal-note draft preservation, cancel-edit restoration, VirtualRows keyboard focus and reduced measurement work for small-list search. A later first-feedback navigation harness defect omitted BMAD from its button-index order; the corrected harness selects visible labels and asserts completed host.activeMode equals the destination. Product source did not change for that correction; final4-package remains the delivered artifact. Native fixture observations were then corrected without product changes and recompiled in final6-prepare. Every extension/ file in the preserved VSIX was compared with the rebuilt workspace: runtime files and resources are byte-identical, with only the documented deterministic VSCE README-link transformation allowed. The equivalence report and delivered VSIX SHA256 must match before collection; container metadata is excluded. The interrupted baseline and two unsuccessful native observation attempts remain incomplete/failed historical evidence. Accepted native graph runs independently prove the original iframe target disappears after hide, a new target/context/Blob Worker restores finite positions, and unmount terminates its Workers. The unchanged product retains final3 behavior/Host checks. Historical warm-navigation/search paths already used labels, so the observed +11.111% search FAIL is retained and is not attributed to the first-feedback selector bug. Unchanged backend modules retain the successful 497-unit checks from final-unit; unchanged toolkit inputs retain all release checks from final-validation-4, with the toolkit archive SHA256 checked before reuse. Historical failures remain separate from final delivery evidence and do not establish a proven performance root cause.",
+    "extensionHost": [
+      {
+        "vscode": "1.90.0",
+        "passed": 12,
+        "pending": 3
+      },
+      {
+        "vscode": "1.142.0",
+        "passed": 12,
+        "pending": 3
+      }
+    ],
+    "note": "Host 的 opt-in suite 不在一般測試執行；本機 Git GUI／圖譜另有獨立結果，真實 GitLab 未執行。"
+  },
+  "packagedRenderer": {
+    "metrics": {
+      "warmNavigationP95Ms": 28.9,
+      "repoSearchP95Ms": 35.2,
+      "rendererRetainedHeapP95Bytes": 7365172,
+      "rendererRetainedHeapMaxBytes": 7365220
+    },
+    "comparison": {
+      "status": "PASS",
+      "metrics": {
+        "warmNavigationP95Ms": {
+          "baseline": 28.6,
+          "revision": 28.9,
+          "increasePercent": 1.049,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "repoSearchP95Ms": {
+          "baseline": 35,
+          "revision": 35.2,
+          "increasePercent": 0.571,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "rendererRetainedHeapP95Bytes": {
+          "baseline": 7250168,
+          "revision": 7365172,
+          "increasePercent": 1.586,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "rendererRetainedHeapMaxBytes": {
+          "baseline": 7250184,
+          "revision": 7365220,
+          "increasePercent": 1.587,
+          "limitPercent": 10,
+          "status": "PASS"
+        }
+      },
+      "note": "Observed comparison only. Frame scheduling, GC, machine load and instrumentation add noise; a threshold failure is reported as measured and must not be rewritten as a pass."
+    },
+    "firstFeedback": {
+      "status": "PASS",
+      "cases": [
+        {
+          "action": "navigation",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.5,
+          "mockCompletionP95Ms": 233.7,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "issue-selection",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.2,
+          "mockCompletionP95Ms": 235,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "mr-selection",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 36.7,
+          "mockCompletionP95Ms": 234.7,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "refresh",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 36.2,
+          "mockCompletionP95Ms": 232.8,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "skills-check",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.8,
+          "mockCompletionP95Ms": 233.4,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "account-submit",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 28.5,
+          "mockCompletionP95Ms": 234.5,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "git-read",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 38.3,
+          "mockCompletionP95Ms": 231.9,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "git-write",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.5,
+          "mockCompletionP95Ms": 231,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        }
+      ]
+    },
+    "smoke": "PASS",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "harnessSha256": "20bf402b4ec27de8de2637f2219cc9117eece1f5a23664d78171f1bc006d9000",
+    "fixtureSha256": "cf8472b3bd01584d002bd380ff926189e99b2ac7bd644f1e6cbc428ef57ef8d2",
+    "measurement": {
+      "rounds": 10,
+      "samplesPerRound": 30,
+      "repoCount": 20,
+      "dashboardWidth": 1440,
+      "sidebarWidth": 300,
+      "height": 900,
+      "methodVersion": "browser-capture-readiness/v2",
+      "latency": "Browser-owned readiness observer starts at UI postMessage/input capture; matching rendered DOM followed by two requestAnimationFrame callbacks; driver evaluation only awaits the existing completion promise; excludes Playwright input delivery",
+      "readiness": "Navigation matches actual page data-mode; search matches input value and visible repository identities. Five-second timeout; observers and pending animation frames are cleaned up on completion, timeout or supersession.",
+      "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+      "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+      "comparisonLimitPercent": 10,
+      "firstFeedback": {
+        "samplesPerAction": 100,
+        "limitP95Ms": 100,
+        "mockAcknowledgementDelayMs": 160,
+        "mockCompletionDelayMs": 220,
+        "timing": "DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery",
+        "completion": "Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance."
+      }
+    }
+  },
+  "measurementCorrections": [
+    {
+      "evidence": "evidence/packaged-ui-selector-interrupted.log",
+      "status": "INCOMPLETE_TOOL_FAILURE",
+      "validForCompleteAcceptance": false,
+      "affectedPath": "firstFeedback.navigation",
+      "productSourceChangedForCorrection": false,
+      "correction": "The first-feedback navigation harness selected a button by index but omitted BMAD from its mode order. It now selects the visible label and asserts that the completed host.activeMode equals the requested destination. The interrupted baseline is retained as incomplete tool evidence; delivery baseline and revision are rerun with the same corrected harness.",
+      "historicalMetrics": "Warm navigation and repository search already selected visible labels. The previously measured +11.111% repository-search FAIL remains valid historical evidence and is not reclassified by the first-feedback selector correction."
+    }
+  ],
+  "preDraftRendererObservation": {
+    "baselineArtifact": {
+      "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\optimization\\baseline.vsix",
+      "sha256": "15b4475f937151a8ea9e954e2bc0ee17dc72e7117cb72ec4c81a8dc423e4c050"
+    },
+    "revisionArtifact": {
+      "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+      "sha256": "fc14601c4dc90cd4a5bcf76bc9a503158eb4f34fd9ae4ede60e5d5f89935ec2d"
+    },
+    "baseline": {
+      "warmNavigationP95Ms": 28.3,
+      "repoSearchP95Ms": 36.9,
+      "rendererRetainedHeapP95Bytes": 7252748,
+      "rendererRetainedHeapMaxBytes": 7252868
+    },
+    "revision": {
+      "warmNavigationP95Ms": 27.6,
+      "repoSearchP95Ms": 41,
+      "rendererRetainedHeapP95Bytes": 7594472,
+      "rendererRetainedHeapMaxBytes": 7594528
+    },
+    "comparison": {
+      "status": "FAIL",
+      "metrics": {
+        "warmNavigationP95Ms": {
+          "baseline": 28.3,
+          "revision": 27.6,
+          "increasePercent": -2.473,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "repoSearchP95Ms": {
+          "baseline": 36.9,
+          "revision": 41,
+          "increasePercent": 11.111,
+          "limitPercent": 10,
+          "status": "FAIL"
+        },
+        "rendererRetainedHeapP95Bytes": {
+          "baseline": 7252748,
+          "revision": 7594472,
+          "increasePercent": 4.712,
+          "limitPercent": 10,
+          "status": "PASS"
+        },
+        "rendererRetainedHeapMaxBytes": {
+          "baseline": 7252868,
+          "revision": 7594528,
+          "increasePercent": 4.711,
+          "limitPercent": 10,
+          "status": "PASS"
+        }
+      },
+      "note": "Observed comparison only. Frame scheduling, GC, machine load and instrumentation add noise; a threshold failure is reported as measured and must not be rewritten as a pass."
+    },
+    "firstFeedback": {
+      "status": "PASS",
+      "cases": [
+        {
+          "action": "navigation",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.1,
+          "mockCompletionP95Ms": 231.7,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "issue-selection",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.3,
+          "mockCompletionP95Ms": 232.4,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "mr-selection",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.4,
+          "mockCompletionP95Ms": 233,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "refresh",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.2,
+          "mockCompletionP95Ms": 232,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "skills-check",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 38.7,
+          "mockCompletionP95Ms": 232.1,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "account-submit",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 27.9,
+          "mockCompletionP95Ms": 235.9,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "git-read",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.6,
+          "mockCompletionP95Ms": 234.8,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        },
+        {
+          "action": "git-write",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.6,
+          "mockCompletionP95Ms": 231.1,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        }
+      ]
+    },
+    "smoke": "PASS",
+    "note": "此中間候選配對量測的本機搜尋回退超過 10%，比較結果為 FAIL；暖切頁與搜尋當時已使用可見 label，原量測 FAIL 不受後來 first-feedback navigation 索引誤點影響。retained heap、舊工具記錄的 8×100 回饋與 smoke 結果保留，但舊 navigation 回饋不作完整驗收。搜尋回退原因尚未證實，後續程式修正與 delivery 新一輪量測不能覆寫本輪失敗，也不構成根因已定位的證據。"
+  },
+  "initialRendererObservation": {
+    "baseline": {
+      "warmNavigationP95Ms": 24.6,
+      "repoSearchP95Ms": 36.5,
+      "rendererRetainedHeapP95Bytes": 7250292,
+      "rendererRetainedHeapMaxBytes": 7252928
+    },
+    "revision": {
+      "warmNavigationP95Ms": 29.4,
+      "repoSearchP95Ms": 40,
+      "rendererRetainedHeapP95Bytes": 7597216,
+      "rendererRetainedHeapMaxBytes": 7597352
+    },
+    "feedback": "FAIL",
+    "comparison": {
+      "status": "BLOCKED",
+      "reason": "Comparison requires distinct artifacts, identical harness/fixture/browser/method and complete 10 × 30 samples."
+    },
+    "refreshDiagnostic": {
+      "artifact": {
+        "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "sha256": "2fca9b4abca1f8336d470935ed1104343ff7bc56e12208b93828e6ef0fda3a55"
+      },
+      "status": "PASS",
+      "cases": [
+        {
+          "action": "refresh",
+          "status": "PASS",
+          "sampleCount": 100,
+          "requiredSamples": 100,
+          "firstFeedbackP95Ms": 34.4,
+          "mockCompletionP95Ms": 231.6,
+          "blockedNetworkRequests": [],
+          "runtimeErrors": []
+        }
+      ]
+    },
+    "note": "舊候選完整量測的 refresh 第 13 次未被量測到可見回饋；同一舊候選獨立 refresh 100 次診斷又通過，原失敗尚未完全重現定位。後續補強按鈕同步 busy/aria/text 與 100 輪回歸，不能以此宣稱舊失敗原因已證實。初次暖切頁 24.6→29.4 ms 的觀測保留，最終另以相鄰時段與同一量測程式比較，不覆寫舊結果。"
+  },
+  "snapshotBenchmark": {
+    "schema": "GitLabWorkspaceSnapshotBenchmark/v1",
+    "measuredAt": "2026-10-17T17:56:53.611Z",
+    "node": "v24.21.0",
+    "methodology": "Production WorkspacePanel.sendSnapshot, fixed same-scope local inventory, real JSON serialization; 30 selection updates for daily/medium workloads and three bounded stress updates. The Skills context is pinned to isolate workspace updates. No VS Code bridge, renderer, disk or GitLab network is measured.",
+    "workloads": [
+      {
+        "repos": 50,
+        "issues": 100,
+        "sampleCount": 30,
+        "baseline": {
+          "firstSnapshotMs": 31.408,
+          "firstSnapshotBytes": 61221,
+          "samples": [
+            22.794,
+            23.45,
+            22.323,
+            23.183,
+            25.446,
+            24.346,
+            26.47,
+            19.838,
+            21.446,
+            20.419,
+            23.02,
+            24.901,
+            22.869,
+            22.896,
+            22.118,
+            20.395,
+            20.508,
+            20.342,
+            23.809,
+            22.429,
+            22.01,
+            20.66,
+            22.19,
+            22.296,
+            21.407,
+            21.001,
+            22.148,
+            21.623,
+            20.874,
+            21.164
+          ],
+          "updateP95Ms": 25.446,
+          "updateMaxMs": 26.47,
+          "updateBytes": 1837311,
+          "messageCount": 30,
+          "snapshotMessages": 30,
+          "patchMessages": 0
+        },
+        "revision": {
+          "firstSnapshotMs": 4.344,
+          "firstSnapshotBytes": 61327,
+          "samples": [
+            0.563,
+            0.381,
+            0.477,
+            0.362,
+            0.23,
+            0.361,
+            0.169,
+            0.159,
+            0.255,
+            0.161,
+            0.123,
+            0.427,
+            0.309,
+            0.462,
+            0.213,
+            0.112,
+            0.121,
+            0.096,
+            0.099,
+            0.087,
+            0.093,
+            0.084,
+            0.553,
+            0.196,
+            0.114,
+            0.237,
+            0.172,
+            0.108,
+            0.241,
+            0.215
+          ],
+          "updateP95Ms": 0.553,
+          "updateMaxMs": 0.563,
+          "updateBytes": 5854,
+          "messageCount": 30,
+          "snapshotMessages": 0,
+          "patchMessages": 30
+        },
+        "transferReductionPercent": 99.681
+      },
+      {
+        "repos": 500,
+        "issues": 1000,
+        "sampleCount": 30,
+        "baseline": {
+          "firstSnapshotMs": 2352.327,
+          "firstSnapshotBytes": 608977,
+          "samples": [
+            2004.611,
+            1975.058,
+            1956.478,
+            2000.786,
+            2327.659,
+            2136.76,
+            2057.899,
+            2209.663,
+            2187.951,
+            2035.166,
+            2003.722,
+            1983.851,
+            1976.96,
+            1983.467,
+            1963.619,
+            1975.487,
+            1922.652,
+            1899.316,
+            1915.304,
+            1894.148,
+            1880.058,
+            1919.361,
+            2031.378,
+            1976.389,
+            1842.442,
+            1764.499,
+            1745.047,
+            1705.124,
+            1721.664,
+            1681.022
+          ],
+          "updateP95Ms": 2209.663,
+          "updateMaxMs": 2327.659,
+          "updateBytes": 18269991,
+          "messageCount": 30,
+          "snapshotMessages": 30,
+          "patchMessages": 0
+        },
+        "revision": {
+          "firstSnapshotMs": 8.359,
+          "firstSnapshotBytes": 609083,
+          "samples": [
+            0.209,
+            0.128,
+            0.114,
+            0.135,
+            0.108,
+            0.109,
+            0.175,
+            0.133,
+            0.101,
+            0.096,
+            0.32,
+            0.157,
+            0.117,
+            0.112,
+            0.107,
+            0.141,
+            0.11,
+            0.184,
+            0.113,
+            0.103,
+            0.12,
+            0.109,
+            0.11,
+            0.304,
+            0.121,
+            0.112,
+            0.108,
+            0.103,
+            0.105,
+            0.098
+          ],
+          "updateP95Ms": 0.304,
+          "updateMaxMs": 0.32,
+          "updateBytes": 5854,
+          "messageCount": 30,
+          "snapshotMessages": 0,
+          "patchMessages": 30
+        },
+        "transferReductionPercent": 99.968
+      },
+      {
+        "repos": 2000,
+        "issues": 10000,
+        "sampleCount": 3,
+        "baseline": {
+          "firstSnapshotMs": 31590.702,
+          "firstSnapshotBytes": 4787162,
+          "samples": [
+            30520.664,
+            29007.078,
+            28806.817
+          ],
+          "updateP95Ms": null,
+          "updateMaxMs": 30520.664,
+          "updateBytes": 14361552,
+          "messageCount": 3,
+          "snapshotMessages": 3,
+          "patchMessages": 0
+        },
+        "revision": {
+          "firstSnapshotMs": 41.84,
+          "firstSnapshotBytes": 4787268,
+          "samples": [
+            0.571,
+            0.339,
+            0.404
+          ],
+          "updateP95Ms": null,
+          "updateMaxMs": 0.571,
+          "updateBytes": 579,
+          "messageCount": 3,
+          "snapshotMessages": 0,
+          "patchMessages": 3
+        },
+        "transferReductionPercent": 99.996,
+        "limitation": "Three stress samples bound the expensive legacy work; no p95 is reported for this workload."
+      }
+    ]
+  },
+  "graphBenchmark": [
+    {
+      "nodes": 200,
+      "rounds": 3,
+      "selectionP95BeforeMs": 80.5,
+      "selectionP95AfterMs": 70.7,
+      "zoomP95BeforeMs": 50.5,
+      "zoomP95AfterMs": 50,
+      "mountLongTasksAfterMs": [
+        71,
+        72,
+        66
+      ],
+      "interactionLongTasksAfter": 0
+    },
+    {
+      "nodes": 2000,
+      "rounds": 3,
+      "selectionP95BeforeMs": 717.6,
+      "selectionP95AfterMs": 36.2,
+      "zoomP95BeforeMs": 283.8,
+      "zoomP95AfterMs": 36.2,
+      "mountLongTasksAfterMs": [
+        53,
+        50,
+        51
+      ],
+      "interactionLongTasksAfter": 0
+    }
+  ],
+  "nativeGit": {
+    "status": "PASS",
+    "confirmationStatus": "PASS",
+    "vscodeVersion": "1.142.0",
+    "idleChecks": [
+      {
+        "phase": "open",
+        "idleMs": 60013,
+        "before": {
+          "commands": 7,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 5,
+          "nativeStatusEvents": 3
+        },
+        "after": {
+          "commands": 7,
+          "auxiliaryCommands": 1,
+          "nativeApiCalls": 5,
+          "nativeStatusEvents": 3
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 36,
+          "after": 36,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "select-file",
+        "idleMs": 60011,
+        "before": {
+          "commands": 23,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 20,
+          "nativeStatusEvents": 8
+        },
+        "after": {
+          "commands": 23,
+          "auxiliaryCommands": 3,
+          "nativeApiCalls": 20,
+          "nativeStatusEvents": 8
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 77,
+          "after": 77,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "stage",
+        "idleMs": 60016,
+        "before": {
+          "commands": 45,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 38,
+          "nativeStatusEvents": 14
+        },
+        "after": {
+          "commands": 45,
+          "auxiliaryCommands": 7,
+          "nativeApiCalls": 38,
+          "nativeStatusEvents": 14
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 113,
+          "after": 113,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "commit",
+        "idleMs": 60014,
+        "before": {
+          "commands": 50,
+          "auxiliaryCommands": 8,
+          "nativeApiCalls": 45,
+          "nativeStatusEvents": 18
+        },
+        "after": {
+          "commands": 50,
+          "auxiliaryCommands": 8,
+          "nativeApiCalls": 45,
+          "nativeStatusEvents": 18
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 135,
+          "after": 135,
+          "backgroundDelta": 0
+        }
+      },
+      {
+        "phase": "hidden",
+        "idleMs": 60014,
+        "before": {
+          "commands": 256,
+          "auxiliaryCommands": 42,
+          "nativeApiCalls": 217,
+          "nativeStatusEvents": 86
+        },
+        "after": {
+          "commands": 256,
+          "auxiliaryCommands": 42,
+          "nativeApiCalls": 217,
+          "nativeStatusEvents": 87
+        },
+        "extensionDelta": {
+          "commands": 0,
+          "auxiliaryCommands": 0,
+          "nativeApiCalls": 0
+        },
+        "vscodeGitLog": {
+          "before": 610,
+          "after": 614,
+          "backgroundDelta": 4
+        }
+      }
+    ],
+    "guiDecisionPath": {
+      "commit": "test-adapter",
+      "push": "test-adapter",
+      "interactiveConfirmationUI": "BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable."
+    },
+    "standaloneConfirmation": {
+      "mode": "local-only-native-confirmation",
+      "status": "PASS",
+      "interactiveConfirmationUI": "PASS",
+      "commit": "workbench-dom",
+      "push": "workbench-dom"
+    },
+    "note": "單次隔離本機 bare remote；五段 extension commands／auxiliaryCommands／nativeApiCalls 增量與 VS Code 自身背景 Git log 分開列。一般 Git 流程決策採 test-adapter，原生確認互動由獨立 standalone Workbench 證據提供；不代表遠端 GitLab 效能或 10 次冷啟動驗收。"
+  },
+  "nativeGraphWorkers": [
+    {
+      "vscodeVersion": "1.90.0",
+      "status": "PASS",
+      "graphWorker": {
+        "status": "PASS",
+        "nodes": 2000,
+        "canvas": true,
+        "startup": {
+          "created": 2,
+          "terminated": 1,
+          "live": 1,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/352c53ac-a6c6-4fc8-aa82-d9c4746d5693",
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/1e6f3d4c-e343-4c4f-b080-92e3dcc757b2"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260411050-cnlqb6m03x",
+          "webviewTargetId": "BCC89E9B055696A353C554A74706DE1A"
+        },
+        "hidden": {
+          "destroyed": true,
+          "strategy": "browser-iframe-target-lifecycle",
+          "originalTarget": {
+            "targetId": "BCC89E9B055696A353C554A74706DE1A",
+            "type": "iframe",
+            "title": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+            "url": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+            "attached": true,
+            "canAccessOpener": false,
+            "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+          },
+          "guestDebuggerDetachedBeforeHide": true,
+          "originalTargetAbsent": true,
+          "targetDestroyedEvent": {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "BCC89E9B055696A353C554A74706DE1A"
+            },
+            "observedAt": "2026-10-17T18:06:51.560Z"
+          }
+        },
+        "restored": {
+          "created": 2,
+          "terminated": 1,
+          "live": 1,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260411784-bbzuv21vesr",
+          "webviewTargetId": "3D367BEEB5B25C99B785C5C8F4F60E67"
+        },
+        "cleanup": {
+          "created": 2,
+          "terminated": 2,
+          "live": 0,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+            "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260411784-bbzuv21vesr"
+        },
+        "readyCount": 2,
+        "targetEvents": [
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "9948B7C4D7BB85B447A74D8F5583C817",
+                "type": "page",
+                "title": "[Extension Development Host] Native Graph Worker Probe - local-git-gui (Workspace) - Visual Studio Code",
+                "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.90.0/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.539Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "B07310465FD009F858DBC21AB29D09C2",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/1e6f3d4c-e343-4c4f-b080-92e3dcc757b2",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/1e6f3d4c-e343-4c4f-b080-92e3dcc757b2",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.540Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "B390FA931E259BDCF565AA67B33B7411",
+                "type": "service_worker",
+                "title": "Service Worker vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+                "url": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.540Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "BCC89E9B055696A353C554A74706DE1A",
+                "type": "iframe",
+                "title": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "url": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.540Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "B07310465FD009F858DBC21AB29D09C2",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/1e6f3d4c-e343-4c4f-b080-92e3dcc757b2",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/1e6f3d4c-e343-4c4f-b080-92e3dcc757b2",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.559Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "BCC89E9B055696A353C554A74706DE1A",
+                "type": "iframe",
+                "title": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "url": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=0b309ad7-3b7e-49fa-86c8-c5a7b3c761d9&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.559Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "BCC89E9B055696A353C554A74706DE1A"
+            },
+            "observedAt": "2026-10-17T18:06:51.560Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "B07310465FD009F858DBC21AB29D09C2"
+            },
+            "observedAt": "2026-10-17T18:06:51.668Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "3D367BEEB5B25C99B785C5C8F4F60E67",
+                "type": "iframe",
+                "title": "",
+                "url": "",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.732Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "3D367BEEB5B25C99B785C5C8F4F60E67",
+                "type": "iframe",
+                "title": "",
+                "url": "",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.732Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "3D367BEEB5B25C99B785C5C8F4F60E67",
+                "type": "iframe",
+                "title": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=97d3d704-2d8e-4d9b-ac23-11d9e5bc4a0d&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "url": "vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/index.html?id=97d3d704-2d8e-4d9b-ac23-11d9e5bc4a0d&origin=5851e7a1-bf83-4e78-a566-3f0b44f154d5&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.746Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "8CD0D75098354E368B0DB772BEF6D034",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.948Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "8CD0D75098354E368B0DB772BEF6D034",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.949Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "8CD0D75098354E368B0DB772BEF6D034",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/3871384d-1425-4b7b-9f56-51bf37de65b7",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.969Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "8CD0D75098354E368B0DB772BEF6D034"
+            },
+            "observedAt": "2026-10-17T18:06:51.970Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "8EAD798E3C9EDBFEA67F019DDB2EC028",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.977Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "8EAD798E3C9EDBFEA67F019DDB2EC028",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:51.977Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "8EAD798E3C9EDBFEA67F019DDB2EC028",
+                "type": "worker",
+                "title": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "url": "blob:vscode-webview://02h835ja0a646sutrcugvuf1lvjhqk4b142tjqj1i55bujiqld4a/a3914b4e-4303-47f6-ad0b-f2b552fa9449",
+                "attached": false,
+                "canAccessOpener": false,
+                "browserContextId": "6C1E5E020135D5BEFAE5008AE767B56C"
+              }
+            },
+            "observedAt": "2026-10-17T18:06:52.076Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "8EAD798E3C9EDBFEA67F019DDB2EC028"
+            },
+            "observedAt": "2026-10-17T18:06:52.077Z"
+          }
+        ],
+        "requests": [
+          "ready",
+          "issueRequest",
+          "setIssueGraphVisibility",
+          "setIssueGraphVisibility",
+          "ready",
+          "issueRequest",
+          "setIssueGraphVisibility",
+          "setIssueGraphVisibility"
+        ],
+        "apiDispatch": false
+      },
+      "testedArtifact": {
+        "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+      }
+    },
+    {
+      "vscodeVersion": "1.142.0",
+      "status": "PASS",
+      "graphWorker": {
+        "status": "PASS",
+        "nodes": 2000,
+        "canvas": true,
+        "startup": {
+          "created": 2,
+          "terminated": 1,
+          "live": 1,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/657be37f-b989-4c2d-a0fa-d50d7909cf44",
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/45f9e736-f828-4223-9988-14242aaf150d"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260870871-owkcybzo5sp",
+          "webviewTargetId": "3219FDF67A07212F5F1D7EF6680D53C4"
+        },
+        "hidden": {
+          "destroyed": true,
+          "strategy": "browser-iframe-target-lifecycle",
+          "originalTarget": {
+            "targetId": "3219FDF67A07212F5F1D7EF6680D53C4",
+            "type": "iframe",
+            "title": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+            "url": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+            "attached": true,
+            "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+            "canAccessOpener": false,
+            "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+            "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+          },
+          "guestDebuggerDetachedBeforeHide": true,
+          "originalTargetAbsent": true,
+          "targetDestroyedEvent": {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "3219FDF67A07212F5F1D7EF6680D53C4"
+            },
+            "observedAt": "2026-10-17T18:14:31.345Z"
+          }
+        },
+        "restored": {
+          "created": 2,
+          "terminated": 1,
+          "live": 1,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260871490-dji4qlsxuai",
+          "webviewTargetId": "7B9D62B20F91322F7962A8C766B9B30D"
+        },
+        "cleanup": {
+          "created": 2,
+          "terminated": 2,
+          "live": 0,
+          "starts": 2,
+          "pauses": 0,
+          "resumes": 1,
+          "responses": 1,
+          "positions": 4000,
+          "finitePositions": true,
+          "canvasFrames": 3,
+          "urls": [
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+            "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376"
+          ],
+          "errors": [],
+          "nodes": 2000,
+          "contextId": "1792260871490-dji4qlsxuai"
+        },
+        "readyCount": 2,
+        "targetEvents": [
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "2E31401561DDE020487BDE20422962E6",
+                "type": "service_worker",
+                "title": "Service Worker vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+                "url": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.325Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "3219FDF67A07212F5F1D7EF6680D53C4",
+                "type": "iframe",
+                "title": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+                "url": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+                "attached": true,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.326Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "33EB74A9A3FC6900C4ED01937531800B",
+                "type": "worker",
+                "title": "editorWorkerService",
+                "url": "blob:vscode-file://vscode-app/6a578a36-1d90-47c0-9528-e545c32b3104",
+                "attached": true,
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.326Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "5028F9E4C17F71CA88D2254D561ED470",
+                "type": "page",
+                "title": "[Extension Development Host] Native Graph Worker Probe - local-git-gui (Workspace) - Visual Studio Code",
+                "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.142.0/6d62b1d5da/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.327Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "813B2911701A42FA7B47994B3A2610FB",
+                "type": "worker",
+                "title": "LanguageDetectionWorker",
+                "url": "blob:vscode-file://vscode-app/53bdf242-5e86-40e3-b64a-691dd024acc6",
+                "attached": true,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.327Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "98C54C8D9A9059A177ACB3956A673BBC",
+                "type": "service_worker",
+                "title": "Service Worker vscode-webview://09c6rhq52r4ruhkgb0ektod2v70f01aigdneeq1np0u25e2mjkkj/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+                "url": "vscode-webview://09c6rhq52r4ruhkgb0ektod2v70f01aigdneeq1np0u25e2mjkkj/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+                "attached": true,
+                "canAccessOpener": false,
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.327Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "C8CF2ECA05FC97F03F4C90CF035183A0",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/45f9e736-f828-4223-9988-14242aaf150d",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/45f9e736-f828-4223-9988-14242aaf150d",
+                "attached": true,
+                "parentId": "3219FDF67A07212F5F1D7EF6680D53C4",
+                "canAccessOpener": false,
+                "parentFrameId": "7D405797B6FBD85D34E0E5AFA1577A47",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.328Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "C8CF2ECA05FC97F03F4C90CF035183A0",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/45f9e736-f828-4223-9988-14242aaf150d",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/45f9e736-f828-4223-9988-14242aaf150d",
+                "attached": false,
+                "parentId": "3219FDF67A07212F5F1D7EF6680D53C4",
+                "canAccessOpener": false,
+                "parentFrameId": "7D405797B6FBD85D34E0E5AFA1577A47",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.344Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "3219FDF67A07212F5F1D7EF6680D53C4",
+                "type": "iframe",
+                "title": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+                "url": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=0d07c8f3-c8f8-4828-a001-2067c970b64c&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=32fa7074-58ba-464b-bb92-c56e22f1612d",
+                "attached": false,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.345Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "3219FDF67A07212F5F1D7EF6680D53C4"
+            },
+            "observedAt": "2026-10-17T18:14:31.345Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "C8CF2ECA05FC97F03F4C90CF035183A0"
+            },
+            "observedAt": "2026-10-17T18:14:31.364Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "type": "iframe",
+                "title": "",
+                "url": "",
+                "attached": false,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.431Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "type": "iframe",
+                "title": "",
+                "url": "",
+                "attached": true,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.431Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "type": "iframe",
+                "title": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=1eb5d8dc-d6b0-4603-a532-13b8e96615f7&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=a85720fc-13a5-4435-a7d4-416ea3b0bead",
+                "url": "vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/index.html?id=1eb5d8dc-d6b0-4603-a532-13b8e96615f7&parentId=1&origin=12208240-194e-4894-b6cd-fba1150f7d09&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=a85720fc-13a5-4435-a7d4-416ea3b0bead",
+                "attached": true,
+                "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+                "canAccessOpener": false,
+                "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.443Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "A091F42B3AA19B335E52F09E7227B0CC",
+                "type": "worker",
+                "title": "",
+                "url": "",
+                "attached": false,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.602Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "A091F42B3AA19B335E52F09E7227B0CC",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+                "attached": true,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.604Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "A091F42B3AA19B335E52F09E7227B0CC",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/4a425bbf-173c-47e8-8cf3-c40b9c32f4ce",
+                "attached": false,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.617Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "A091F42B3AA19B335E52F09E7227B0CC"
+            },
+            "observedAt": "2026-10-17T18:14:31.617Z"
+          },
+          {
+            "method": "Target.targetCreated",
+            "params": {
+              "targetInfo": {
+                "targetId": "BB5EB4D78D5AAB693463438625826673",
+                "type": "worker",
+                "title": "",
+                "url": "",
+                "attached": false,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.621Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "BB5EB4D78D5AAB693463438625826673",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376",
+                "attached": true,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.624Z"
+          },
+          {
+            "method": "Target.targetInfoChanged",
+            "params": {
+              "targetInfo": {
+                "targetId": "BB5EB4D78D5AAB693463438625826673",
+                "type": "worker",
+                "title": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376",
+                "url": "blob:vscode-webview://08rf6c5r5e576ttkib6kv2m56bvdc3gejd2hq968075a5tetmku5/f96a6d3e-4077-46df-b295-d25af5fbc376",
+                "attached": false,
+                "parentId": "7B9D62B20F91322F7962A8C766B9B30D",
+                "canAccessOpener": false,
+                "parentFrameId": "1E1338C0DEA0BB4360029EF706325384",
+                "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+              }
+            },
+            "observedAt": "2026-10-17T18:14:31.705Z"
+          },
+          {
+            "method": "Target.targetDestroyed",
+            "params": {
+              "targetId": "BB5EB4D78D5AAB693463438625826673"
+            },
+            "observedAt": "2026-10-17T18:14:31.706Z"
+          }
+        ],
+        "requests": [
+          "ready",
+          "issueRequest",
+          "setIssueGraphVisibility",
+          "setIssueGraphVisibility",
+          "ready",
+          "issueRequest",
+          "setIssueGraphVisibility",
+          "setIssueGraphVisibility"
+        ],
+        "apiDispatch": false
+      },
+      "testedArtifact": {
+        "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+      }
+    }
+  ],
+  "nativeGraphObservationFailures": [
+    {
+      "evidence": "evidence/worker-1.90-final/git-gui-local.json",
+      "status": "FAIL",
+      "error": "CDP exposes the real production Blob Worker before the panel is hidden",
+      "testedArtifact": {
+        "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+      },
+      "validForAcceptance": false,
+      "explanation": "第一次觀測要求 browser Target.getTargets 列出 dedicated Blob Worker；該次未列出而失敗，前段真實 Worker 回覆、Canvas 與有限座標不代表完整生命週期已驗收。"
+    },
+    {
+      "evidence": "evidence/worker-1.90-delivery/git-gui-local.json",
+      "status": "FAIL",
+      "error": "The production graph owner context 3 was not destroyed after native hide.",
+      "testedArtifact": {
+        "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+        "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+      },
+      "validForAcceptance": false,
+      "explanation": "第二次觀測已識別正確 owner context，但 hide 後未在 guest session 收到要求的 Runtime 銷毀事件而失敗；不能把此失敗改寫成該次清理已通過，也不能據此證明產品有延遲銷毀缺陷。"
+    }
+  ],
+  "artifactEquivalence": {
+    "evidence": "evidence/fixture-artifact-equivalence.json",
+    "schema": "GitLabWorkspaceArtifactEquivalence/v1",
+    "status": "PASS",
+    "artifact": {
+      "path": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+      "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+    },
+    "checkedFiles": 345,
+    "normalizedFiles": [
+      {
+        "path": "readme.md",
+        "normalization": "VSCE relative documentation links to repository blob/HEAD URLs"
+      }
+    ],
+    "mismatches": [],
+    "scope": "Every file under extension/ in the delivered VSIX compared with the rebuilt workspace. Runtime files are byte-identical; README links undergo the deterministic VSCE Marketplace rewrite. VSIX container metadata is excluded. Later changes only corrected native test instrumentation; test/ and out/test/ are excluded from the VSIX."
+  },
+  "functionalMatrix": {
+    "features": 57,
+    "completeOfflineScenarios": 19,
+    "pendingOfflineScenarios": 38
+  },
+  "acceptance": [
+    {
+      "item": "按下操作後可見回饋",
+      "target": "p95 ≤100 ms",
+      "measured": "38.3 ms（8 類操作中最高 p95）",
+      "status": "PASS",
+      "scope": "封裝 Renderer + mock host"
+    },
+    {
+      "item": "已載入頁面暖切換",
+      "target": "p95 ≤200 ms",
+      "measured": "28.9 ms",
+      "status": "PASS",
+      "scope": "封裝 Renderer + mock host"
+    },
+    {
+      "item": "本機搜尋",
+      "target": "p95 ≤100 ms",
+      "measured": "35.2 ms",
+      "status": "PASS",
+      "scope": "20 Repo 封裝 sidebar；其他輸入未全面量測"
+    },
+    {
+      "item": "工作台骨架／離線入口",
+      "target": "p95 ≤1 秒",
+      "measured": "待 10 次真實程序冷啟動量測",
+      "status": "PENDING",
+      "scope": "原生 Host 功能可用已測；延遲分位數未測"
+    },
+    {
+      "item": "隱藏或取消後停止讀取",
+      "target": "≤1 秒",
+      "measured": "取消與程序樹清理回歸通過；全部 E2E 路徑未量測",
+      "status": "PENDING",
+      "scope": "單元／Host 回歸與原生完整門檻分開"
+    },
+    {
+      "item": "Git GUI extension 穩定閒置 60 秒",
+      "target": "不新增無關 Git 查詢",
+      "measured": "開啟／選檔／暫存／提交／隱藏五個階段的 extension 三項增量皆為 0；VS Code 背景 Git 另列",
+      "status": "PASS",
+      "scope": "單次隔離本機 Git GUI；不含 VS Code 自身背景 Git 或所有功能的檔案讀取"
+    },
+    {
+      "item": "封裝 Renderer 延遲／GC 後保留記憶體回退",
+      "target": "同機同負載 ≤10%",
+      "measured": "PASS",
+      "status": "PASS",
+      "scope": "VSIX Renderer＋mock host 的延遲與 GC 後 retained heap"
+    },
+    {
+      "item": "完整原生延遲／峰值記憶體回退",
+      "target": "同機同負載 ≤10%",
+      "measured": "未執行完整 10 次冷啟動、每輪 30 次暖切頁／搜尋與峰值記憶體量測",
+      "status": "PENDING",
+      "scope": "包含 Extension Host、GitLab 網路與整個應用程式峰值；封裝 Renderer 結果不能代替"
+    },
+    {
+      "item": "所有功能的閒置檔案讀取",
+      "target": "穩定閒置 60 秒不新增不必要的檔案讀取",
+      "measured": "尚未覆蓋所有功能的檔案讀取觀測",
+      "status": "PENDING",
+      "scope": "Git GUI extension Git／native API 計數不能自動提升為全域檔案讀取驗收"
+    }
+  ],
+  "pending": [
+    "真實 GitLab CE 16.11.10 與其他實機環境的隔離測試帳號／群組讀寫、權限及未知寫入核對。",
+    "各真實環境 10 次冷啟動、每輪 30 次暖切頁與搜尋；含 Extension Host、GitLab 網路及完整峰值記憶體。",
+    "工作台骨架／離線入口 p95 ≤1 秒，以及全部隱藏／取消路徑 ≤1 秒的實機量測。",
+    "矩陣中仍為 pending 的逐項取消、重試、範圍切換或恢復情境；完整測試通過不會自動提升這些狀態。"
+  ],
+  "limitations": [
+    "封裝 Renderer 比較使用 20 Repo 的隔離 mock host，10 個新 Browser context，每輪 30 次暖切頁及搜尋；不是 10 次真實 VS Code 程序冷啟動。",
+    "Renderer 記憶體是 GC 後 retained heap；不等於 Extension Host 或整個應用程式峰值。",
+    "工作台快照量測涵蓋 50/500/2000 Repo 與 100/1000/10000 Issue，僅量測 host 計算與 JSON 序列化；壓力負載只有 3 筆，未報 p95。",
+    "圖譜比較每負載 3 輪，選取共 90 筆、縮放共 45 筆；2000 節點以 Canvas/Worker 執行，初始掛載仍可出現 >50 ms 長任務。",
+    "早期 sandbox 啟動失敗、舊 fixture 及已修正的回歸失敗保留於原始 optimization 目錄；此報告引用最後完整通過的一輪。"
+  ]
+}

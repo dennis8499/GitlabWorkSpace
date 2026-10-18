@@ -10,7 +10,7 @@ export interface IssueFormOptions {
   members: GitLabMember[];
   labels: GitLabLabel[];
   milestones: GitLabMilestone[];
-  templates: GitLabIssueTemplate[];
+  templates: Array<GitLabIssueTemplate & { key?: string; loaded?: boolean }>;
   warnings?: string[];
 }
 
@@ -93,8 +93,10 @@ export type IssuePanelRequest = (
   | { type: 'ready' }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'confirmOperationResult'; targetOperationId: string }
+  | { type: 'cancelUpload'; targetRequestId: string }
   | { type: 'refresh' }
   | { type: 'loadSection'; sections: IssueDetailSection[] }
+  | { type: 'loadTemplate'; requestId: string; projectId: number; key: string }
   | { type: 'copyDescription'; requestId: string; issueId: number }
   | { type: 'selectProject'; projectId: number }
   | { type: 'create'; projectId: number; input: IssueCreateInput }
@@ -117,8 +119,8 @@ export type IssueAction =
   | 'createChild' | 'addChild' | 'removeChild' | 'setChildState' | 'updateChild';
 
 export type IssuePanelResponse = (
-  | { type: 'createData'; projects: GitLabProject[]; selectedProjectId?: number; options?: IssueFormOptions; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
-  | { type: 'projectData'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }
+  | { type: 'createData'; projects: GitLabProject[]; selectedProjectId?: number; options?: IssueFormOptions; optionsLoading?: boolean; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
+  | { type: 'projectData'; projectId: number; options: IssueFormOptions; optionsLoading?: boolean; preserveDraft?: boolean; canSetStartDate?: boolean; canCreateIssue: boolean }
   | { type: 'detailData'; data: IssueDetailData }
   | { type: 'detailPatch'; issueId: number; patch: Partial<IssueDetailData> }
   | { type: 'reply'; requestId: string; result?: unknown; error?: string; notificationOnly?: boolean }

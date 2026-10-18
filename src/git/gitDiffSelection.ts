@@ -17,7 +17,8 @@ export function makeDiffLines(diff: string): GitDiffLine[] {
 
 export function makeSelectedPatch(diff: string, file: string, selectedLines: number[]): string {
   if (!file || file.includes('\0') || /[\r\n]/.test(file)) return '';
-  const rows = diff.split(/\r?\n/);
+  // Content CR bytes and Git's EOF markers are part of the patch, not display formatting.
+  const rows = diff.split('\n');
   const header = rows.filter((row) => row.startsWith('diff --git ') || row.startsWith('--- ') || row.startsWith('+++ '));
   if (!header.some((row) => row.includes('a/' + file)) || !header.some((row) => row.includes('b/' + file))) return '';
   const chosen = new Set(selectedLines.filter((line) => Number.isSafeInteger(line) && line >= 0 && line < rows.length));
@@ -26,14 +27,15 @@ export function makeSelectedPatch(diff: string, file: string, selectedLines: num
   const hunks: string[] = [];
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index];
+    const content = row + (rows[index + 1]?.startsWith('\\ No newline') ? '\n' + rows[index + 1] : '');
     const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(row);
     if (match) { oldLine = Number(match[1]); newLine = Number(match[3]); continue; }
     if (row.startsWith('\\ No newline')) continue;
     if (row.startsWith('+') && !row.startsWith('+++')) {
-      if (chosen.has(index)) hunks.push('@@ -' + oldLine + ',0 +' + newLine + ',1 @@\n' + row);
+      if (chosen.has(index)) hunks.push('@@ -' + oldLine + ',0 +' + newLine + ',1 @@\n' + content);
       newLine++;
     } else if (row.startsWith('-') && !row.startsWith('---')) {
-      if (chosen.has(index)) hunks.push('@@ -' + oldLine + ',1 +' + newLine + ',0 @@\n' + row);
+      if (chosen.has(index)) hunks.push('@@ -' + oldLine + ',1 +' + newLine + ',0 @@\n' + content);
       oldLine++;
     } else if (!row.startsWith('diff --git ') && !row.startsWith('index ') && !row.startsWith('--- ') && !row.startsWith('+++ ') && !row.startsWith('@@')) {
       oldLine++; newLine++;

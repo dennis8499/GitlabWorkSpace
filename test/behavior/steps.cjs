@@ -403,10 +403,12 @@ When('I create a child Task and a related Issue from its detail view', async fun
     localRepositories: {}, workflowKit: { status: 'installed', version: '0.9.0' }, workflowKitSource: 'bundled'
   } });
   await this.detail();
+  assert.equal(this.workspaceActions.filter((item) => item.type === 'loadIssueRelations').length, 0,
+    'Issue relations load only when their tab is opened');
+  await this.tab('關聯與子工作');
   const load = this.workspaceActions.filter((item) => item.type === 'loadIssueRelations').at(-1);
   assert.equal(load?.connectedScope, 'team-scope');
   await this.send({ type: 'issueRelations', requestId: load.requestId, connectedScope: 'team-scope', projectId: 42, issueIid: 7, data: this.data });
-  await this.tab('關聯與子工作');
   await this.input('input[aria-label="新子工作標題"]', 'Preserve this Task draft');
   await this.click('建立子工作');
   const childAction = this.workspaceActions.filter((item) => item.type === 'mutateIssueRelations').at(-1);

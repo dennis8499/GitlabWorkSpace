@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { TextDecoder } from 'node:util';
 import { parse as parseToml } from '@iarna/toml';
 import { parseDocument } from 'yaml';
+import { setImmediate as yieldToHost } from 'node:timers/promises';
 import type {
   BmadArtifact, BmadCatalogNode, BmadConfirmation, BmadConfirmationRequest, BmadDiagnostic,
   BmadProgressStatus, BmadStoryProgress, BmadWorkflowSnapshot
@@ -15,6 +16,8 @@ export interface ReadBmadWorkflowOptions {
   bundledCatalog: string;
   confirmations?: readonly BmadConfirmation[];
   maxArtifactBytes?: number;
+  signal?: AbortSignal;
+  cache?: BmadReadCache;
 }
 const CONFIG_PATHS = ['_bmad/config.toml', '_bmad/config.user.toml', '_bmad/custom/config.toml', '_bmad/custom/config.user.toml'];
 const MAX_FILES = 2000;
@@ -93,33 +96,77 @@ function frontmatter(content: string): Record<string, unknown> {
   return yaml(match[1]);
 }
 interface ReadFile { content: string; fingerprint: string }
+/** Only bounded file contents are cached. Every hit still verifies path and file identity. */
+export class BmadReadCache {
+  private readonly values = new Map<string, { stamp: string; value: ReadFile; bytes: number }>();
+  private bytes = 0;
+  private readonly derived = new Map<string, { value: unknown; bytes: number }>();
+  private derivedBytes = 0;
+  constructor(private readonly maxBytes = 16 * 1024 * 1024) {}
+  clear(): void { this.values.clear(); this.bytes = 0; this.derived.clear(); this.derivedBytes = 0; }
+  derive<T>(key: string, sourceBytes: number, compute: () => T): T {
+    const cached = this.derived.get(key);
+    if (cached) { this.derived.delete(key); this.derived.set(key, cached); return cached.value as T; }
+    const value = compute(), bytes = sourceBytes * 32 + 256;
+    if (bytes > this.maxBytes) return value;
+    this.derived.set(key, { value, bytes }); this.derivedBytes += bytes;
+    while (this.derivedBytes > this.maxBytes || this.derived.size > 2048) {
+      const oldest = this.derived.keys().next().value!; this.derivedBytes -= this.derived.get(oldest)!.bytes; this.derived.delete(oldest);
+    }
+    return value;
+  }
+  get(file: string, stamp: string): ReadFile | undefined {
+    const cached = this.values.get(file);
+    if (!cached || cached.stamp !== stamp) return undefined;
+    this.values.delete(file); this.values.set(file, cached); return cached.value;
+  }
+  set(file: string, stamp: string, value: ReadFile): void {
+    const old = this.values.get(file); if (old) { this.bytes -= old.bytes; this.values.delete(file); }
+    const bytes = Buffer.byteLength(value.content) * 2;
+    if (bytes > this.maxBytes) return;
+    this.values.set(file, { stamp, value, bytes }); this.bytes += bytes;
+    while (this.bytes > this.maxBytes || this.values.size > 2048) {
+      const key = this.values.keys().next().value!; this.bytes -= this.values.get(key)!.bytes; this.values.delete(key);
+    }
+  }
+}
 interface Reader {
   read(file: string, optional?: boolean): Promise<ReadFile | undefined>;
+  metadata(data: ReadFile): Record<string, unknown>;
+  value(data: ReadFile): unknown;
   diagnostic(code: string, message: string, file?: string): void;
 }
-function makeReader(root: string, diagnostics: BmadDiagnostic[], limit: number): Reader {
+function makeReader(root: string, diagnostics: BmadDiagnostic[], limit: number, signal?: AbortSignal, cache = new BmadReadCache()): Reader {
   const diagnostic = (code: string, message: string, file?: string): void => { diagnostics.push({ code, message, path: file }); };
-  return { diagnostic, async read(file, optional = true) {
+  return { diagnostic,
+    metadata: data => cache.derive('frontmatter:' + data.fingerprint, Buffer.byteLength(data.content), () => frontmatter(data.content)),
+    value: data => cache.derive('yaml:' + data.fingerprint, Buffer.byteLength(data.content), () => yamlValue(data.content)),
+    async read(file, optional = true) {
+    signal?.throwIfAborted();
     try {
       if (!inside(root, file)) throw new Error('路徑超出目前專案根目錄。');
       const before = await fs.lstat(file);
       if (before.isSymbolicLink() || !before.isFile()) throw new Error('不讀取符號連結或非一般檔案。');
       if (!inside(root, await fs.realpath(file))) throw new Error('實際路徑超出目前專案根目錄。');
       if (before.size > limit) throw new Error(`檔案超過 ${limit} bytes，未讀取。`);
+      signal?.throwIfAborted();
+      const stamp = `${before.dev}:${before.ino}:${before.size}:${before.mtimeMs}:${before.ctimeMs}`;
+      const cached = cache.get(file, stamp); if (cached) return cached;
       const handle = await fs.open(file, 'r');
       try {
         const opened = await handle.stat();
         if (opened.ino !== before.ino || opened.dev !== before.dev || !opened.isFile()) throw new Error('檔案身分已變更；請稍後重新整理。');
         if (opened.size > limit) throw new Error(`檔案超過 ${limit} bytes，未讀取。`);
-        const buffer = Buffer.alloc(limit + 1); let length = 0;
-        while (length < buffer.length) { const result = await handle.read(buffer, length, buffer.length - length, length); if (!result.bytesRead) break; length += result.bytesRead; }
+        const buffer = Buffer.alloc(Math.min(limit + 1, before.size + 1)); let length = 0;
+        while (length < buffer.length) { signal?.throwIfAborted(); const result = await handle.read(buffer, length, buffer.length - length, length); if (!result.bytesRead) break; length += result.bytesRead; }
         if (length > limit) throw new Error(`檔案超過 ${limit} bytes，未讀取。`);
         const after = await handle.stat(); const current = await fs.lstat(file);
         if (current.isSymbolicLink() || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== current.ino || before.dev !== current.dev) throw new Error('檔案寫入中；請稍後重新整理。');
         const content = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, length));
-        return { content, fingerprint: hash(buffer.subarray(0, length)) };
+        signal?.throwIfAborted();
+        const value = { content, fingerprint: hash(buffer.subarray(0, length)) }; cache.set(file, stamp, value); return value;
       } finally { await handle.close(); }
-    } catch (error) { if (missing(error) && optional) return undefined; diagnostic('read-failed', (error as Error).message, file); return undefined; }
+    } catch (error) { if (signal?.aborted) throw error; if (missing(error) && optional) return undefined; diagnostic('read-failed', (error as Error).message, file); return undefined; }
   } };
 }
 
@@ -141,8 +188,8 @@ const FINAL_SKILLS = new Set(['bmad-prd', 'bmad-ux', 'bmad-architecture', 'bmad-
 const STORY_STATUSES = new Set(['draft', 'backlog', 'ready-for-dev', 'in-progress', 'review', 'in-review', 'done']);
 const PHASE_LABELS: Record<string, string> = { plan: '規劃與設計', '2-planning': '需求規劃', ship: '實作與交付', anytime: '隨時可用' };
 
-function artifactState(node: BmadCatalogNode, content: string): Pick<BmadArtifact, 'status' | 'reason' | 'marker' | 'canConfirm'> {
-  const fm = frontmatter(content); const raw = fm.status;
+function artifactState(node: BmadCatalogNode, content: string, fm = frontmatter(content)): Pick<BmadArtifact, 'status' | 'reason' | 'marker' | 'canConfirm'> {
+  const raw = fm.status;
   if (raw !== undefined && typeof raw !== 'string') return { status: 'error', reason: 'status 不是字串，無法判讀。', canConfirm: false };
   const status = typeof raw === 'string' ? raw.toLowerCase().trim() : undefined;
   if (node.skill === 'bmad-build' && status === 'done') return { status: 'complete', reason: 'Build 產物明確標示 done；Story 審查狀態另依正式追蹤來源顯示。', marker: 'status: done', canConfirm: false };
@@ -177,6 +224,7 @@ export function revokeBmadConfirmation(confirmations: readonly BmadConfirmation[
 }
 
 export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promise<BmadWorkflowSnapshot> {
+  options.signal?.throwIfAborted();
   const diagnostics: BmadDiagnostic[] = []; let nodes: BmadCatalogNode[] = [];
   try { nodes = parseBmadCatalog(options.bundledCatalog); } catch (error) { diagnostics.push({ code: 'bundled-catalog-invalid', message: (error as Error).message }); }
   const snapshot: BmadWorkflowSnapshot = { root: options.root ? path.resolve(options.root) : undefined, revision: '',
@@ -184,13 +232,14 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
     catalogSource: 'bundled', nodes, phases: [], edges: [], steps: [], stories: [], currentCandidates: [], recommendations: [], watchDirectories: [], diagnostics };
   if (snapshot.root) {
     try { snapshot.root = await fs.realpath(snapshot.root); } catch (error) { diagnostics.push({ code: 'root-unavailable', message: (error as Error).message, path: snapshot.root }); snapshot.installation = { state: 'error', reason: '專案根目錄無法讀取。' }; }
-    const root = snapshot.root!; const reader = makeReader(root, diagnostics, options.maxArtifactBytes ?? 1024 * 1024);
+    options.signal?.throwIfAborted();
+    const root = snapshot.root!; const reader = makeReader(root, diagnostics, options.maxArtifactBytes ?? 1024 * 1024, options.signal, options.cache);
     snapshot.watchDirectories = [root, path.join(root, '_bmad'), path.join(root, '_bmad', '_config'), path.join(root, '_bmad', 'custom')];
     const manifestFile = path.join(root, '_bmad', '_config', 'manifest.yaml');
     const manifest = await reader.read(manifestFile);
     if (manifest) {
       try {
-        const data = yaml(manifest.content); const installation = object(data.installation);
+        const data = object(reader.value(manifest)); const installation = object(data.installation);
         const version = installation.version ?? data.version;
         snapshot.version = typeof version === 'string' ? version : undefined;
         snapshot.installation = snapshot.version === '6.12.4'
@@ -249,6 +298,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
     }
   }
   snapshot.watchDirectories = [...new Set(snapshot.watchDirectories)].sort();
+  options.signal?.throwIfAborted();
   snapshot.revision = hash(JSON.stringify({ ...snapshot, revision: '' }));
   return snapshot;
 }
@@ -256,9 +306,10 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
 async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWorkflowOptions, reader: Reader): Promise<void> {
   const root = snapshot.root!; const config: Record<string, unknown> = {};
   for (const name of CONFIG_PATHS) {
+    options.signal?.throwIfAborted();
     const file = path.join(root, name); const diagnosticCount = snapshot.diagnostics.length; const value = await reader.read(file);
     if (!value && snapshot.diagnostics.length > diagnosticCount) snapshot.installation = { state: 'error', reason: 'BMAD TOML 設定無法安全讀取。' };
-    if (value) { try { merge(config, object(parseToml(value.content))); } catch (error) { reader.diagnostic('config-invalid', (error as Error).message, file); snapshot.installation = { state: 'error', reason: 'BMAD TOML 設定無法判讀。' }; } }
+    if (value) { try { merge(config, object(options.cache?.derive('toml:' + value.fingerprint, Buffer.byteLength(value.content), () => parseToml(value.content)) ?? parseToml(value.content))); } catch (error) { reader.diagnostic('config-invalid', (error as Error).message, file); snapshot.installation = { state: 'error', reason: 'BMAD TOML 設定無法判讀。' }; } }
   }
   if (snapshot.installation.state !== 'ready') return;
   const variables = new Map<string, string>([['project-root', root], ['output_folder', '_bmad-output'], ['planning_artifacts', '{output_folder}/planning-artifacts'], ['implementation_artifacts', '{output_folder}/implementation-artifacts']]);
@@ -277,19 +328,22 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
     const task = (async (): Promise<string[]> => {
       const results: string[] = [];
       const visit = async (current: string, depth: number): Promise<void> => {
+        options.signal?.throwIfAborted();
         try {
           if (++scannedDirectories > 256) { reader.diagnostic('scan-limit', '輸出掃描達 256 個目錄上限。', current); return; }
           const stat = await fs.lstat(current);
           if (stat.isSymbolicLink() || !stat.isDirectory() || !inside(root, await fs.realpath(current))) { reader.diagnostic('unsafe-directory', '略過符號連結或專案外輸出目錄。', current); return; }
           const entries = await fs.readdir(current, { withFileTypes: true });
           for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+            options.signal?.throwIfAborted();
+            if (scannedFiles % 64 === 0) await yieldToHost();
             if (scannedFiles >= MAX_FILES) { reader.diagnostic('scan-limit', `輸出掃描達 ${MAX_FILES} 個檔案上限。`, current); return; }
             const target = path.join(current, entry.name);
             if (entry.isSymbolicLink()) { reader.diagnostic('unsafe-symlink', '略過符號連結。', target); continue; }
             if (entry.isDirectory() && current !== root && depth < MAX_DEPTH && !['.git', 'node_modules', '_bmad'].includes(entry.name)) await visit(target, depth + 1);
             else if (entry.isFile()) { scannedFiles++; if (/\.(?:md|ya?ml)$/i.test(entry.name)) results.push(target); }
           }
-        } catch (error) { if (!missing(error)) reader.diagnostic('scan-failed', (error as Error).message, current); }
+        } catch (error) { if (options.signal?.aborted) throw error; if (!missing(error)) reader.diagnostic('scan-failed', (error as Error).message, current); }
       };
       await visit(directory, 0); return results;
     })(); filesCache.set(directory, task); return task;
@@ -334,10 +388,10 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
           let state: ReturnType<typeof artifactState>;
           try {
             if (node.skill === 'bmad-sprint-planning') {
-              const entries = object(yaml(data.content).development_status);
+              const entries = object(object(reader.value(data)).development_status);
               if (!Object.keys(entries).length || Object.values(entries).some(value => typeof value !== 'string' || !STORY_STATUSES.has(value) && value !== 'optional')) throw new Error('Sprint 追蹤檔缺少有效的 development_status 或含無效狀態。');
               state = { status: 'needs-confirmation', reason: '已偵測有效的 Sprint 追蹤檔；檔案存在不代表規劃驗證完成。', canConfirm: true };
-            } else state = artifactState(node, data.content);
+            } else state = artifactState(node, data.content, reader.metadata(data));
             if (state.status === 'error') reader.diagnostic('artifact-status-invalid', state.reason, file);
           }
           catch (error) { state = { status: 'error', reason: (error as Error).message, canConfirm: false }; reader.diagnostic('artifact-invalid', state.reason, file); }
@@ -370,7 +424,7 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
 async function readClassicStories(file: string, reader: Reader, stories: BmadStoryProgress[]): Promise<void> {
   const data = await reader.read(file); if (!data) return;
   try {
-    const entries = object(yaml(data.content).development_status);
+    const entries = object(object(reader.value(data)).development_status);
     if (!Object.keys(entries).length) throw new Error('Sprint 追蹤檔沒有 development_status。');
     for (const [id, status] of Object.entries(entries)) {
       if (/^epic-\d+(?:-retrospective)?$/.test(id)) continue;
@@ -382,8 +436,7 @@ async function readClassicStories(file: string, reader: Reader, stories: BmadSto
 
 interface StoryInventoryEntry { id: string; title: string; description: string }
 /** v6.12.4 stories-schema: ordered top-level list, string/prefix-free IDs, no progress field. */
-function parseStoryInventory(content: string): StoryInventoryEntry[] {
-  const value = yamlValue(content);
+function parseStoryInventory(content: string, value = yamlValue(content)): StoryInventoryEntry[] {
   if (!Array.isArray(value)) throw new Error('stories.yaml 必須是依執行順序排列的最上層 YAML list。');
   const entries: StoryInventoryEntry[] = [];
   for (const item of value) {
@@ -404,7 +457,7 @@ async function readSpecInventory(inventory: string | undefined, records: string[
   let entries: StoryInventoryEntry[] | undefined;
   if (inventory) {
     const data = await reader.read(inventory);
-    if (data) { try { entries = parseStoryInventory(data.content); } catch (error) { reader.diagnostic('story-inventory-invalid', (error as Error).message, inventory); } }
+    if (data) { try { entries = parseStoryInventory(data.content, reader.value(data)); } catch (error) { reader.diagnostic('story-inventory-invalid', (error as Error).message, inventory); } }
   }
   const parsed = new Map<string, BmadStoryProgress | undefined>();
   const record = async (file: string): Promise<BmadStoryProgress | undefined> => {
@@ -445,7 +498,7 @@ async function readSpecInventory(inventory: string | undefined, records: string[
 async function readSpecStory(file: string, reader: Reader, stories: BmadStoryProgress[]): Promise<void> {
   const data = await reader.read(file); if (!data) return;
   try {
-    const fm = frontmatter(data.content); const status = fm.status;
+    const fm = reader.metadata(data); const status = fm.status;
     const body = data.content.replace(/^\uFEFF/, '').replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
     const section = /(?:^|\n)##\s+Status\s*\r?\n\s*`?([a-z-]+)`?\s*(?:\r?\n|$)/i.exec(body)
       ?? /(?:^|\n)Status:\s*`?([a-z-]+)`?\s*(?:\r?\n|$)/i.exec(body);

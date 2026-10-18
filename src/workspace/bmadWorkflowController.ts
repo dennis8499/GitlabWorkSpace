@@ -1,5 +1,5 @@
 import type { BmadConfirmation, BmadConfirmationRequest, BmadWorkflowSnapshot } from './bmadProtocol';
-import { createBmadConfirmation, readBmadWorkflow } from './bmadWorkflow';
+import { BmadReadCache, createBmadConfirmation, readBmadWorkflow } from './bmadWorkflow';
 import * as path from 'node:path';
 
 const CONFIRMATIONS_KEY = 'gitlabWorkspace.bmad.confirmations.v1';
@@ -29,6 +29,8 @@ export class BmadWorkflowController implements Disposable {
   private pending?: { generation: number; task: Promise<void> };
   private value?: BmadWorkflowSnapshot;
   private catalog?: Promise<string>;
+  private readAbort?: AbortController;
+  private readonly readCache = new BmadReadCache();
 
   constructor(private readonly options: ControllerOptions) {}
   get snapshot(): BmadWorkflowSnapshot | undefined { return this.value; }
@@ -37,8 +39,9 @@ export class BmadWorkflowController implements Disposable {
     const changed = this.root !== root || this.contextRevision !== revision;
     if (!changed && this.visible === visible) return;
     this.generation++;
+    this.readAbort?.abort();
     this.stopWatching();
-    if (changed) this.value = undefined;
+    if (changed) { this.value = undefined; this.readCache.clear(); }
     this.root = root;
     this.contextRevision = revision;
     this.visible = visible;
@@ -48,7 +51,9 @@ export class BmadWorkflowController implements Disposable {
     if (this.disposed || !this.visible) return Promise.resolve();
     const generation = this.generation;
     if (this.pending?.generation === generation) return this.pending.task;
-    const task = this.refreshNow(generation);
+    this.readAbort?.abort();
+    const controller = new AbortController(); this.readAbort = controller;
+    const task = this.refreshNow(generation, controller.signal).catch(error => { if (!controller.signal.aborted) throw error; });
     const entry = { generation, task };
     this.pending = entry;
     void task.finally(() => { if (this.pending === entry) this.pending = undefined; }).catch(() => undefined);
@@ -63,10 +68,11 @@ export class BmadWorkflowController implements Disposable {
       typeof value.confirmedAt === 'string').slice(-2000);
   }
 
-  private async refreshNow(generation: number): Promise<void> {
+  private async refreshNow(generation: number, signal: AbortSignal): Promise<void> {
     const root = this.root;
     const catalog = await (this.catalog ??= this.options.bundledCatalog().catch(error => { this.catalog = undefined; throw error; }));
-    const snapshot = await (this.options.read ?? readBmadWorkflow)({ root, bundledCatalog: catalog, confirmations: this.confirmations() });
+    signal.throwIfAborted();
+    const snapshot = await (this.options.read ?? readBmadWorkflow)({ root, bundledCatalog: catalog, confirmations: this.confirmations(), signal, cache: this.readCache });
     if (this.disposed || !this.visible || generation !== this.generation) return;
     this.value = snapshot;
     const directories = new Set(snapshot.watchDirectories);
@@ -101,6 +107,7 @@ export class BmadWorkflowController implements Disposable {
   private scheduleRefresh(): void {
     if (this.disposed || !this.visible) return;
     this.generation++;
+    this.readAbort?.abort();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = undefined;
@@ -112,6 +119,7 @@ export class BmadWorkflowController implements Disposable {
     if (typeof revision !== 'string' || revision.length > 200) throw new Error('BMAD 流程版本無效。');
     // A new read catches a file change even before the debounced watcher fires.
     const generation = ++this.generation;
+    this.readCache.clear();
     await this.refresh();
     const snapshot = this.value;
     if (this.disposed || !this.visible || generation !== this.generation || !snapshot || snapshot.revision !== revision) throw new Error('BMAD 產物或專案已變更，請重新確認目前流程。');
@@ -144,6 +152,7 @@ export class BmadWorkflowController implements Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.readAbort?.abort(); this.readCache.clear();
     this.generation++;
     this.stopWatching();
   }

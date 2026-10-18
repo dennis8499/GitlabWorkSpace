@@ -48,6 +48,7 @@ function fixture() {
     syncSidebarState: async () => undefined,
     show: async () => { host.webviewReady = true; },
     pendingViewNotices: [],
+    workspaceSections: {}, workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(),
     requestGeneration: 0, previewGeneration: 0, issueOpenGeneration: 0, workflowKitRefreshGeneration: 0,
     cancelMergeRequestSectionReads: () => undefined, issuePanels: { close: () => undefined }
   });

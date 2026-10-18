@@ -5,9 +5,297 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
-const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
+import { webviewBundle } from './webview-bundle.mjs';
+const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
+
+test('responsiveness: internal comment drafts preserve their visibility across Issues and Webview recreation', async t => {
+  const data = snapshot();
+  const open = async (view, index, revision) => {
+    const issue = data.issues[index];
+    view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: issue.project_id, issueIid: issue.iid, revision } });
+    await view.tick();
+    view.send({ type: 'issueResponse', revision, response: { type: 'detailData', data: { ...issueDetailData(issue, data.projects[index]), canComment: true, canInternalComment: true } } });
+    await view.tick();
+  };
+  const checkbox = view => [...view.dom.window.document.querySelectorAll('.issue-embed label')].find(label => label.textContent.includes('內部留言')).querySelector('input');
+  const comment = view => view.dom.window.document.querySelector('.issue-embed textarea');
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  await open(view, 0, 1);
+  comment(view).value = 'Internal conversation draft'; comment(view).dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  checkbox(view).click();
+  assert.equal(view.savedState.issueEditorDrafts['instance-user'].conversations[101].internal, true, 'the final visibility change is saved synchronously');
+  await open(view, 1, 2);
+  assert.equal(checkbox(view).checked, false);
+  await open(view, 0, 3);
+  assert.equal(comment(view).value, 'Internal conversation draft');
+  assert.equal(checkbox(view).checked, true);
+  const saved = structuredClone(view.savedState);
+  saved.issueEditorDrafts['instance-user'].conversations[102] = { comment: 'Legacy public draft', reply: {} };
+  view.dom.window.close();
+  const restored = await mount(saved, data); t.after(() => restored.dom.window.close());
+  await open(restored, 0, 4);
+  assert.equal(comment(restored).value, 'Internal conversation draft');
+  assert.equal(checkbox(restored).checked, true);
+  await open(restored, 1, 5);
+  assert.equal(comment(restored).value, 'Legacy public draft');
+  assert.equal(checkbox(restored).checked, false, 'legacy drafts retain the public default');
+});
+
+test('responsiveness: repeated Home and ArrowUp focus requests work after pointer or Tab focus', async t => {
+  const view = await mount({ mode: 'developer' }, snapshot()); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const list = document.querySelector('.work-list');
+  Object.defineProperty(list, 'clientHeight', { configurable: true, value: 400 });
+  const rows = [...list.querySelectorAll('.work-row')];
+  rows[2].focus();
+  rows[2].dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }));
+  await view.tick();
+  assert.equal(document.activeElement, rows[0]);
+  assert.equal(list.scrollTop, 0);
+  rows[1].focus();
+  rows[1].dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+  await view.tick();
+  assert.equal(document.activeElement, rows[0], 'requesting index zero again still moves focus');
+  assert.equal(list.scrollTop, 0);
+});
+
+test('responsiveness: cancel editing discards only the current Issue form and preserves other drafts and unknown writes', async t => {
+  const data = snapshot(); data.issues[0].description = 'Server description';
+  const otherForm = { title: 'Other draft', description: 'Keep other description', assigneeId: '', labels: [], milestoneId: '', dueDate: '', startDate: '', confidential: false, discussionLocked: false };
+  const submission = { issueId: 102, projectId: 2, issueIid: 2, action: 'note', replyId: null, submission: { body: 'Verify previous write', taskTitle: '', taskDescription: '' }, form: null, creating: false, resourceKey: 'issue:2:2', scopeRevision: 'team-scope:root-team' };
+  const saved = { mode: 'developer', issueEditorDrafts: { 'instance-user': {
+    create: { 2: otherForm }, issues: { 102: otherForm }, conversations: { 101: { comment: 'Keep conversation', reply: { thread: 'Keep reply' }, internal: true } },
+    uncertain: { 'unknown-prior': { ...submission, operationId: 'unknown-prior' } }, pending: { 'pending-prior': { ...submission, operationId: 'pending-prior' } }
+  } } };
+  const view = await mount(saved, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canEdit: true, canComment: true, canInternalComment: true } } }); await view.tick();
+  const document = view.dom.window.document;
+  const edit = () => [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '編輯需求' || button.textContent === '取消編輯');
+  const title = () => document.querySelector('.issue-embed input[placeholder="簡要描述工作內容"]');
+  const description = () => document.querySelector('.issue-embed textarea[rows="12"]');
+  edit().click(); await view.tick();
+  title().value = 'Cancelled title'; title().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  description().value = 'Cancelled description'; description().dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const before = structuredClone(view.savedState.issueEditorDrafts['instance-user']);
+  assert.equal(before.issues[101].title, 'Cancelled title');
+  edit().click();
+  const after = view.savedState.issueEditorDrafts['instance-user'];
+  assert.equal(after.issues[101], undefined, 'explicit cancellation clears the current draft synchronously');
+  assert.deepEqual(after.issues[102], before.issues[102]);
+  assert.deepEqual(after.create, before.create);
+  assert.deepEqual(after.conversations, before.conversations);
+  assert.deepEqual(after.uncertain, before.uncertain);
+  assert.deepEqual(after.pending, before.pending);
+  await view.tick(); edit().click(); await view.tick();
+  assert.equal(title().value, data.issues[0].title);
+  assert.equal(description().value, 'Server description');
+});
+
+test('responsiveness: 100 refreshes acknowledge locally before Host receipts and restore their control on completion', async t => {
+  const view = await mount({ mode: 'developer' }, snapshot(), {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const refresh = () => [...view.dom.window.document.querySelectorAll('.heading-actions button')].find(button => /更新/.test(button.textContent));
+  for (let index = 0; index < 100; index++) {
+    refresh().click(); await view.tick();
+    const request = view.rawRequests.findLast(request => request.type === 'refresh');
+    assert.ok(request?.operationId);
+    assert.equal(refresh().disabled, true, 'the initiating control acknowledges a locally queued refresh without waiting for the Host');
+    assert.equal(refresh().getAttribute('aria-busy'), 'true');
+    assert.match(refresh().textContent, /正在更新/);
+    refresh().click();
+    assert.equal(view.rawRequests.filter(request => request.type === 'refresh').length, index + 1);
+    view.receipt(request, { status: 'running', effect: 'none' }); await view.tick();
+    assert.equal(refresh().disabled, true);
+    view.receipt(request, { status: 'succeeded', effect: 'none' }); await view.tick();
+    assert.equal(refresh().disabled, false);
+    assert.equal(refresh().getAttribute('aria-busy'), 'false');
+    assert.equal(refresh().textContent, '更新資料');
+  }
+});
+
+test('responsiveness: current operations and unknown writes stay visible ahead of older failed categories', async t => {
+  const view = await mount({ mode: 'developer' }, { ...snapshot(), operationScope: 'feedback-scope' }, {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const send = operation => view.send({ type: 'operationChanged', operation: { scopeRevision: 'feedback-scope', kind: 'read', effect: 'none', phase: 'Feedback', ...operation } });
+  send({ requestId: 'old-refresh', resourceKey: 'refresh', lockKey: 'refresh', action: 'refresh', label: 'Old refresh', status: 'succeeded', startedAt: 1, finishedAt: 2 });
+  for (const [label, startedAt, finishedAt] of [['Failure A', 10, 80], ['Failure B', 20, 60], ['Failure C', 30, 40]]) {
+    send({ requestId: label, resourceKey: label, lockKey: label, action: label, label, status: 'failed', startedAt, finishedAt });
+  }
+  send({ requestId: 'current-refresh', resourceKey: 'refresh', lockKey: 'refresh', action: 'refresh', label: 'Current refresh', status: 'running', startedAt: 50 });
+  await view.tick();
+  const area = () => view.dom.window.document.querySelector('.workspace-operation-area');
+  const labels = () => [...area().querySelectorAll('.operation-status strong')].map(element => element.textContent);
+  assert.deepEqual(labels(), ['Current refresh', 'Failure A', 'Failure B'], 'active feedback takes priority and terminal feedback follows actual completion time');
+  send({ requestId: 'unknown-write', resourceKey: 'unknown-write', lockKey: 'unknown-write', action: 'updateUnknown', label: 'Verify unknown write', kind: 'write', status: 'failed', effect: 'unknown', startedAt: 3, finishedAt: 4 });
+  await view.tick();
+  assert.deepEqual(labels(), ['Verify unknown write', 'Current refresh', 'Failure A']);
+  assert.match(area().textContent, /核對寫入結果/);
+  send({ requestId: 'Failure A', resourceKey: 'Failure A', lockKey: 'Failure A', action: 'Failure A', label: 'Failure A', status: 'failed', startedAt: 10, finishedAt: 80, revision: 100 });
+  send({ requestId: 'Failure B', resourceKey: 'Failure B', lockKey: 'Failure B', action: 'Failure B', label: 'Failure B', status: 'failed', startedAt: 20, finishedAt: 60, revision: 101 });
+  await view.tick();
+  assert.deepEqual(labels(), ['Verify unknown write', 'Current refresh', 'Failure B'], 'same-Host revisions preserve actual receipt update order');
+});
+
+test('responsiveness: Issue relations load once on their tab and never loop after a reply or unrelated render', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } });
+  await view.tick();
+  const detail = issueDetailData(data.issues[0], data.projects[0]);
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: detail } }); await view.tick();
+  const reads = () => view.requests.filter(request => request.type === 'loadIssueRelations');
+  assert.equal(reads().length, 0, 'Content does not load relations');
+  [...view.dom.window.document.querySelectorAll('.issue-embed [role="tab"]')].find(tab => /關聯/.test(tab.textContent)).click(); await view.tick();
+  assert.equal(reads().length, 1);
+  const request = reads()[0];
+  view.send({ ...request, type: 'issueRelations', data: detail }); await view.tick(); await view.tick();
+  assert.equal(reads().length, 1, 'a reply does not trigger another read');
+  view.sendSnapshot({ ...data }); await view.tick();
+  assert.equal(reads().length, 1, 'an unrelated root render does not trigger another read');
+});
+
+test('responsiveness: lazy activity patches render new Markdown once and reconcile edits', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: issueDetailData(data.issues[0], data.projects[0]) } }); await view.tick();
+  const patch = body => ({ type: 'issueResponse', revision: 1, response: { type: 'detailPatch', issueId: 101,
+    patch: { discussions: [{ id: 'lazy-thread', notes: [{ id: 51, body, author: { id: 7, name: 'Test' }, created_at: '2026-10-17T00:00:00Z' }] }], sections: { activity: 'ready' } } } });
+  view.send(patch('**first**')); await view.tick();
+  const previews = () => view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'preview' && request.request.target === 'note:51');
+  assert.equal(previews().length, 1);
+  view.send(patch('**first**')); await view.tick(); assert.equal(previews().length, 1);
+  view.send(patch('**edited**')); await view.tick(); assert.equal(previews().length, 2);
+  const latest = previews().at(-1).request;
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: latest.requestId, result: { html: '<strong>edited</strong>' } } }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.note .markdown strong')?.textContent, 'edited');
+});
+
+test('responsiveness: virtual MR files retain expansion and a stable scroll anchor after refresh', async t => {
+  const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', web_url: 'https://gitlab.test/team/a/-/merge_requests/4' };
+  data.mergeRequests = [request];
+  data.selectedMergeRequest = { request, diffs: Array.from({ length: 300 }, (_, index) => ({ old_path: 'file' + index, new_path: 'file' + index, diff: '+x' })), discussions: [],
+    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, warnings: [], freshness: { state: 'not_checked' } };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const list = view.dom.window.document.querySelector('.diff-list');
+  list.querySelector('details').open = true; list.querySelector('details').dispatchEvent(new view.dom.window.Event('toggle')); await view.tick();
+  const scroll = async top => { list.scrollTop = top; list.dispatchEvent(new view.dom.window.Event('scroll')); await view.tick(); };
+  await scroll(6000); await scroll(0); assert.equal(list.querySelector('details').open, true);
+  await scroll(6000);
+  view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, diffs: [...data.selectedMergeRequest.diffs, { old_path: 'new', new_path: 'new', diff: '+new' }] } }); await view.tick();
+  assert.equal(list.scrollTop, 6000, 'appending data preserves the first visible item and its offset');
+});
+
+test('responsiveness: Log preflight failures settle loading and remain explicitly retryable', async t => {
+  const view = await mount({ mode: 'admin' }, snapshot('admin'), {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  const request = view.rawRequests.findLast(request => request.type === 'queryLogs');
+  view.receipt(request, { status: 'failed', effect: 'none', error: 'Preflight rejected' }); await view.tick();
+  assert.doesNotMatch(view.dom.window.document.querySelector('.log-actions [role="status"]').textContent, /讀取中/);
+  assert.match(view.dom.window.document.querySelector('.admin-log-panel [role="alert"]').textContent, /Preflight rejected/);
+  [...view.dom.window.document.querySelectorAll('.log-actions button')].find(button => button.textContent === '重新整理 Log').click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, 2);
+});
+
+test('responsiveness: versioned workspace patches reject gaps, request one resync and preserve independent deltas', async t => {
+  const data = { ...snapshot(), operationScope: 'operation-scope' }, view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const full = (version, snapshot = data, streamId = 'stream-a') => view.send({ type: 'snapshot', streamId, scope: snapshot.operationScope, version, snapshot });
+  full(1); await view.tick();
+  view.send({ type: 'snapshotPatch', streamId: 'stream-a', scope: 'operation-scope', baseVersion: 1, version: 2,
+    changes: { issues: [{ ...data.issues[0], title: 'Patched issue' }], error: 'temporary' }, cleared: [] }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.work-row .row-title').textContent, 'Patched issue');
+  const before = view.requests.filter(request => request.type === 'resyncWorkspace').length;
+  const gap = { type: 'snapshotPatch', streamId: 'stream-a', scope: 'operation-scope', baseVersion: 4, version: 5, changes: { issues: [] }, cleared: [] };
+  view.send(gap); view.send(gap); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'resyncWorkspace').length, before + 1);
+  assert.equal(view.dom.window.document.querySelector('.work-row .row-title').textContent, 'Patched issue');
+  full(6); await view.tick();
+  view.send({ type: 'snapshotPatch', streamId: 'stream-a', scope: 'operation-scope', baseVersion: 6, version: 7, changes: { activeMode: 'clone' }, cleared: ['error'] }); await view.tick();
+  assert.ok(view.dom.window.document.querySelector('.clone-list-column'));
+  full(1, { ...data, activeMode: 'reviewer', operationScope: 'other-operation-scope', connectedScope: 'other-connected-scope' }, 'stream-b'); await view.tick();
+  view.send({ type: 'snapshot', streamId: 'stream-a', scope: 'operation-scope', version: 99, snapshot: data }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.page').dataset.mode, 'reviewer', 'a retired Host stream cannot restore an obsolete workspace');
+});
+
+test('responsiveness: large Git refs, changed files and short-line diffs keep bounded DOM and offer native Diff', async t => {
+  const branches = Array.from({ length: 600 }, (_, index) => ({ name: 'branch-' + index, kind: 'local', current: index === 0, commit: gitHead }));
+  const changes = Array.from({ length: 1000 }, (_, index) => ({ path: 'file-' + index + '.ts', section: 'unstaged', kind: '已修改' }));
+  const view = await mountGit(t, {}, gitSnapshot('repo-a', { branches, changes }));
+  const document = view.dom.window.document;
+  assert.ok(document.querySelectorAll('.git-ref-row').length < 100);
+  assert.ok(document.querySelectorAll('.git-change-row').length < 100);
+  document.querySelector('.git-change-name').click(); await view.tick();
+  const read = gitActions(view, 'readDiff').at(-1);
+  await finishGit(view, read, { revision: 2, branches, changes, diffPath: read.action.path, diffStaged: false, diffText: '+short\n context\n'.repeat(2500) });
+  assert.ok(document.querySelectorAll('.git-diff-line').length < 100);
+  document.querySelector('.git-diff-line input').dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await view.tick();
+  assert.equal(document.activeElement.closest('[data-virtual-index]').dataset.virtualIndex, '1', 'keyboard navigation can focus a context line without a checkbox');
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 3, branches, changes, diffPath: read.action.path, diffStaged: false, diffText: '+x\n'.repeat(20001) }) }); await view.tick();
+  assert.equal(document.querySelectorAll('.git-diff-line').length, 0);
+  assert.match(document.querySelector('.git-large-diff').textContent, /20,000/);
+  document.querySelector('.git-large-diff button').click();
+  assert.equal(view.requests.at(-1).type, 'gitOpenDiff');
+});
+
+test('responsiveness: progressive create options preserve the latest draft and pending previews', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'create', revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'createData', projects: data.projects, selectedProjectId: 1,
+    options: { members: [], labels: [], milestones: [], templates: [] }, canCreateIssue: false, canSetStartDate: false, optionsLoading: true } }); await view.tick();
+  const title = view.dom.window.document.querySelector('.issue-embed input[placeholder="簡要描述工作內容"]');
+  title.value = 'Last input before metadata'; title.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'projectData', projectId: 1, preserveDraft: true, optionsLoading: false,
+    options: { members: [], labels: [], milestones: [], templates: [] }, canCreateIssue: true, canSetStartDate: true } }); await view.tick();
+  assert.equal(title.value, 'Last input before metadata');
+  assert.equal([...view.dom.window.document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '建立 Issue').disabled, false);
+});
+
+test('responsiveness: lazy templates respect the latest selection and preserve edits made during loading', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'create', revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'createData', projects: data.projects, selectedProjectId: 1,
+    options: { members: [], labels: [], milestones: [], templates: [{ key: 'a.md', name: 'A', content: '', loaded: false }, { name: 'B', content: 'Inline template' }] }, canCreateIssue: true, canSetStartDate: false } }); await view.tick();
+  const document = view.dom.window.document, select = document.querySelector('.issue-embed .field-wide select');
+  select.value = 'A'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  const request = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'loadTemplate').request;
+  const description = document.querySelector('.issue-embed textarea[rows="8"]');
+  description.value = 'New manual description'; description.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: request.requestId, result: { name: 'A', content: 'Late template' } } }); await view.tick();
+  assert.equal(description.value, 'New manual description');
+  select.value = 'A'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  const second = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'loadTemplate').request;
+  select.value = 'B'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: second.requestId, result: { name: 'A', content: 'Obsolete selection' } } }); await view.tick();
+  assert.equal(description.value, 'Inline template');
+});
+
+test('responsiveness: attachment cancellation retains drafts and an uncertain upload cannot be resent', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canComment: true } } }); await view.tick();
+  const document = view.dom.window.document, comment = document.querySelector('.issue-embed textarea[rows="5"]');
+  comment.value = 'Keep this draft'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const upload = [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '上傳附件'); upload.click(); await view.tick();
+  const original = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'upload').request;
+  [...document.querySelectorAll('.upload-status button')].find(button => button.textContent === '取消上傳').click(); await view.tick();
+  const cancel = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'cancelUpload').request;
+  assert.equal(cancel.targetRequestId, original.requestId);
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: original.requestId, effect: 'unknown', error: 'Upload result unknown', notificationOnly: true } }); await view.tick();
+  assert.equal(comment.value, 'Keep this draft'); upload.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'upload').length, 1);
+});
+
+test('responsiveness: the last Issue keystroke is durable once without rebuilding workspace state again', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canComment: true } } }); await view.tick();
+  const comment = view.dom.window.document.querySelector('.issue-embed textarea[rows="5"]'), before = view.stateSaves;
+  comment.value = 'Last keystroke'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  assert.equal(view.savedState.issueEditorDrafts['instance-user'].conversations[101].comment, 'Last keystroke');
+  assert.equal(view.stateSaves, before + 1);
+  await view.tick(); assert.equal(view.stateSaves, before + 1);
+});
 
 test('account preflight terminal receipts release the form even without a domain login reply', async t => {
   const state = { ...snapshot(), connected: false, accounts: [], currentUser: undefined };
@@ -831,6 +1119,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
   const requests = [], rawRequests = [];
   for (const [key, value] of Object.entries(storage)) dom.window.localStorage.setItem(key, JSON.stringify(value));
   let state = initialState;
+  let stateSaves = 0;
   dom.window.acquireVsCodeApi = () => ({
     postMessage: (message) => {
       const { operationId, operationScope, ...payload } = message;
@@ -841,7 +1130,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
       } })));
     },
     getState: () => state,
-    setState: (value) => { state = JSON.parse(JSON.stringify(value)); }
+    setState: (value) => { stateSaves++; state = JSON.parse(JSON.stringify(value)); }
   });
   beforeMount(dom.window);
   const tick = async () => {
@@ -873,6 +1162,7 @@ async function mount(initialState, initialSnapshot, storage = {}, beforeMount = 
     },
     tick,
     get savedState() { return state; },
+    get stateSaves() { return stateSaves; },
     sendSnapshot(value) {
       dom.window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'snapshot', snapshot: value } }));
     },

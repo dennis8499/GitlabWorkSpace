@@ -3,6 +3,7 @@
 .verification/**
 .github/**
 .gitlab-workspace-validation/**
+.tmp/**
 scripts/**
 .vscode/**
 .vscode-test/**

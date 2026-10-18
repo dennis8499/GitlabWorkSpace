@@ -1,0 +1,99 @@
+{
+  "schema": "GitLabWorkspaceGraphVisualCheck/v1",
+  "checkedAt": "2026-10-17T16:26:16.358Z",
+  "browser": "155.0.8059.80",
+  "nodeCount": 2000,
+  "animation": false,
+  "workerCount": 1,
+  "workerPaths": [
+    "/assets/issueGraphLayoutWorker-Ba-Z5we2.js",
+    "/assets/issueGraphLayoutWorker-Ba-Z5we2.js",
+    "/assets/issueGraphLayoutWorker-Ba-Z5we2.js"
+  ],
+  "workerRouteStatus": 200,
+  "workerErrors": [],
+  "checks": [
+    {
+      "theme": "dark",
+      "normalContrast": 11.247073869530501,
+      "hoverContrast": 9.36227302793414,
+      "captionContrast": 11.247073869530501,
+      "caption": {
+        "paint": {
+          "text": "#1999 Issue 1999 renderer benchmark",
+          "color": "#d4d4d4",
+          "alpha": 1
+        },
+        "background": "rgb(30, 30, 30)"
+      },
+      "style": {
+        "focused": true,
+        "color": "rgb(212, 212, 212)",
+        "background": "rgb(30, 30, 30)",
+        "border": "rgb(68, 68, 68)",
+        "outlineWidth": "1px",
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 127, 212)"
+      },
+      "screenshot": "graph-large-final.png",
+      "keyboardSelection": "PASS",
+      "themeRedrawWithoutInteraction": "initial theme"
+    },
+    {
+      "theme": "light",
+      "normalContrast": 12.63465434445799,
+      "hoverContrast": 10.3117100622418,
+      "captionContrast": 12.63465434445799,
+      "caption": {
+        "paint": {
+          "text": "#1999 Issue 1999 renderer benchmark",
+          "color": "#333333",
+          "alpha": 1
+        },
+        "background": "rgb(255, 255, 255)"
+      },
+      "style": {
+        "focused": true,
+        "color": "rgb(51, 51, 51)",
+        "background": "rgb(255, 255, 255)",
+        "border": "rgb(212, 212, 212)",
+        "outlineWidth": "1px",
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(0, 95, 184)"
+      },
+      "screenshot": "graph-large-light.png",
+      "keyboardSelection": "PASS",
+      "themeRedrawWithoutInteraction": "PASS"
+    },
+    {
+      "theme": "highcontrast",
+      "normalContrast": 21,
+      "hoverContrast": 17.40432753274219,
+      "captionContrast": 21,
+      "caption": {
+        "paint": {
+          "text": "#1999 Issue 1999 renderer benchmark",
+          "color": "#ffffff",
+          "alpha": 1
+        },
+        "background": "rgb(0, 0, 0)"
+      },
+      "style": {
+        "focused": true,
+        "color": "rgb(255, 255, 255)",
+        "background": "rgb(0, 0, 0)",
+        "border": "rgb(111, 195, 223)",
+        "outlineWidth": "1px",
+        "outlineStyle": "solid",
+        "outlineColor": "rgb(243, 133, 24)"
+      },
+      "screenshot": "graph-large-highcontrast.png",
+      "keyboardSelection": "PASS",
+      "themeRedrawWithoutInteraction": "PASS"
+    }
+  ],
+  "errors": [],
+  "scriptSha256": "11abce3bb1d1f6deb89d6ade86cbc6f328c9aba5fa55414d33969a9942cdb902",
+  "cssSha256": "8ece15c77bdb233971cd8255fbcd938d2cf15a571f1350cabf1de877b3f2bc6d",
+  "measurement": "Visual and functional check only; existing performance measurements copied unchanged."
+}

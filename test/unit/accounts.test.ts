@@ -32,6 +32,20 @@ function fixture(global = new State(), workspace = new State(), secrets = new Se
   return { session, global, workspace, secrets };
 }
 
+test('authenticated login finishes before an optional capability probe', async () => {
+  const { session } = fixture();
+  let finish!: () => void;
+  let probing = false;
+  session.ensureInstanceChecked = async () => { probing = true; await new Promise<void>(resolve => { finish = resolve; }); };
+  let connected = false;
+  const login = session.connect('https://gitlab.example.test', 'one').then(() => { connected = true; });
+  for (let tick = 0; tick < 100; tick++) await Promise.resolve();
+  assert.ok(probing);
+  const completedWithoutProbe = connected;
+  finish(); await login;
+  assert.ok(completedWithoutProbe, 'optional schema probing must not block authenticated login');
+});
+
 test('stores different servers and users independently and restores each selected Group', async () => {
   const { session, secrets } = fixture();
   await session.connect('https://gitlab.example.test/', 'one');

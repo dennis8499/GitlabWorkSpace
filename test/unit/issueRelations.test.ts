@@ -70,6 +70,10 @@ test('Issue relationship actions validate permissions, Group scope, Task type, a
     assert.equal(relations.canLink, true);
     assert.equal(relations.canManageChildren, true);
     assert.equal(relations.parentWorkItemId, 'gid://gitlab/WorkItem/401');
+    Object.assign(panels, { issue: relations.issue, mode: 'detail', ready: true, lastSnapshot: { type: 'detailData', data: relations } });
+    await assert.rejects(panels.handle({ type: 'invoke', issueId: relations.issue.id, action: 'addChild', payload: { taskIid: 14 } }), /another parent/i,
+      'the detail entrypoint must use the same existing-parent validation as the graph');
+    assert.equal(assignedParents.length, 0);
 
     await panels.mutateIssueRelations(source.projectId, source.iid, { type: 'createChild', title: '  New Task  ' });
     assert.deepEqual(createdChildren, [['group/project', 'gid://gitlab/WorkItem/401', 'gid://gitlab/WorkItems::Type/5', 'New Task', 'namespacePath']]);

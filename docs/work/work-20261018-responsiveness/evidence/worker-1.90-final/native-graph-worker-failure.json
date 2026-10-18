@@ -1,0 +1,25 @@
+{
+  "error": "CDP exposes the real production Blob Worker before the panel is hidden",
+  "hostVisible": true,
+  "readyCount": 1,
+  "probe": {
+    "created": 2,
+    "terminated": 1,
+    "live": 1,
+    "starts": 2,
+    "pauses": 0,
+    "resumes": 1,
+    "responses": 117,
+    "positions": 4000,
+    "finitePositions": true,
+    "canvasFrames": 119,
+    "urls": [
+      "blob:vscode-webview://1vosutdaljauksk9sebf9gd17oue668eumqgcnrhu82o4ecvltdo/a702fcfc-7b30-48f3-94b5-3814ca8c98f7",
+      "blob:vscode-webview://1vosutdaljauksk9sebf9gd17oue668eumqgcnrhu82o4ecvltdo/276c7a78-ff2e-4867-91e8-c7fa4d488aa3"
+    ],
+    "errors": [],
+    "nodes": 2000,
+    "contextId": "1792259551801-5ktjrwilbp4",
+    "documentVisibility": "visible"
+  }
+}

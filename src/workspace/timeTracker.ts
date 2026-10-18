@@ -4,6 +4,14 @@ import type { WorkspaceTimerEntry } from './workspaceProtocol';
 
 const DATA_KEY = 'gitlabWorkspace.timeEntries.v1';
 const MANUAL_DURATION = /^(?=.{1,32}$)(?:\d+h)?(?:\d+m)?(?:\d+s)?$/;
+const MAX_ENTRIES = 250;
+
+function checkedSpentDate(value?: string): string | undefined {
+  if (!value) return undefined;
+  const parsed = /^\d{4}-\d\d-\d\d$/.test(value) ? new Date(`${value}T12:00:00Z`) : undefined;
+  if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error('日期請使用有效的 YYYY-MM-DD 格式。');
+  return value;
+}
 
 export function parseTimeEntryDuration(value: string): number {
   const input = value.trim().toLowerCase();
@@ -96,6 +104,7 @@ export class IssueTimeTracker {
   }
 
   async start(project: { id: number; path_with_namespace: string }, issue: { iid: number; title: string }, now = Date.now()): Promise<WorkspaceTimerEntry> {
+    this.requireCapacity();
     await this.tick(now);
     if (this.entries.some((entry) => entry.phase === 'running' || entry.phase === 'paused')) {
       throw new Error('請先暫停或結束目前的 Issue 計時，再開始另一筆工時。');
@@ -167,9 +176,8 @@ export class IssueTimeTracker {
     spentAt?: string
   ): Promise<WorkspaceTimerEntry> {
     const seconds = parseTimeEntryDuration(duration);
-    if (spentAt && (!/^\d{4}-\d\d-\d\d$/.test(spentAt) || Number.isNaN(Date.parse(`${spentAt}T12:00:00Z`)))) {
-      throw new Error('日期請使用 YYYY-MM-DD 格式。');
-    }
+    spentAt = checkedSpentDate(spentAt);
+    this.requireCapacity();
     const now = Date.now();
     const entry: WorkspaceTimerEntry = {
       id: randomUUID(), projectId: project.id, projectPath: project.path_with_namespace,
@@ -187,12 +195,12 @@ export class IssueTimeTracker {
     if (entry.phase !== 'ready' && entry.phase !== 'uncertain' && entry.phase !== 'needs-review') {
       throw new Error('請先停止這筆工時，再修改或送出。');
     }
-    entry.elapsedSeconds = parseTimeEntryDuration(duration);
-    entry.summary = summary.trim().slice(0, 500);
-    if (spentAt && (!/^\d{4}-\d\d-\d\d$/.test(spentAt) || Number.isNaN(Date.parse(`${spentAt}T12:00:00Z`)))) {
-      throw new Error('日期請使用 YYYY-MM-DD 格式。');
-    }
-    entry.spentAt = spentAt || undefined;
+    const elapsedSeconds = parseTimeEntryDuration(duration);
+    const date = checkedSpentDate(spentAt);
+    const text = summary.trim().slice(0, 500);
+    entry.elapsedSeconds = elapsedSeconds;
+    entry.summary = text;
+    entry.spentAt = date;
     entry.phase = 'ready';
     entry.updatedAt = Date.now();
     await this.persist();
@@ -232,7 +240,14 @@ export class IssueTimeTracker {
   }
 
   private pruneEntries(): void {
-    if (this.entries.length > 250) this.entries = this.entries.slice(0, 250);
+    let historyBudget = Math.max(0, MAX_ENTRIES - this.entries.filter(entry => entry.phase !== 'posted').length);
+    this.entries = this.entries.filter(entry => entry.phase !== 'posted' || historyBudget-- > 0);
+  }
+
+  private requireCapacity(): void {
+    if (this.entries.filter(entry => entry.phase !== 'posted').length >= MAX_ENTRIES) {
+      throw new Error('未完成工時已達 250 筆上限，請先送出或確認現有工時後再新增。');
+    }
   }
 
   private require(id: string): WorkspaceTimerEntry {

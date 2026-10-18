@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
@@ -113,6 +115,44 @@ test('a status-completed event cannot recursively run status; open, reads and st
   assert.equal(f.counts.commands.length, summaryCommands);
 });
 
+test('native Diff exposes blob read failures instead of inventing an empty file', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.service.safeRelativePath = async () => 'README.md';
+  f.service.confirmSavedEditors = async () => true;
+  f.service.readBlob = async () => { throw new Error('blob timed out'); };
+  await assert.rejects(f.service.openNativeDiff(f.id, 'README.md', true), /blob timed out/);
+});
+
+test('a missing blob is empty only after a successful tree or index existence check', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.service.runGit = async () => ({ stdout: '', stderr: '', code: 0 });
+  assert.equal((await f.service.readBlob(f.repository, 'HEAD:./added.txt')).length, 0);
+  f.service.runGit = async () => ({ stdout: '100644 blob object\texisting.txt\0', stderr: '', code: 0 });
+  await assert.rejects(f.service.readBlob(f.repository, 'HEAD:./existing.txt'), /Git processes disabled/);
+  f.service.runGit = async () => { throw new Error('existence check unavailable'); };
+  await assert.rejects(f.service.readBlob(f.repository, ':./existing.txt'), /Git processes disabled/);
+});
+
+test('native working-file Diff rejects an oversized snapshot before reading the file', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const root = await mkdtemp(path.join(os.tmpdir(), 'git-ui-large-diff-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'large.bin'); await writeFile(file, ''); await truncate(file, 129 * 1024 * 1024);
+  f.repository.rootUri.fsPath = root;
+  f.service.safeRelativePath = async () => 'large.bin'; f.service.confirmSavedEditors = async () => true;
+  f.service.readBlob = async () => Buffer.alloc(0);
+  await assert.rejects(f.service.openNativeDiff(f.id, 'large.bin', false), /128 MiB/);
+});
+
+test('local Git environment does not read account secrets', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  let reads = 0;
+  (f.session as any).getCloneCredentials = async () => { reads++; return undefined; };
+  await f.service.environmentFor(f.repository, ['diff']);
+  await f.service.environmentFor(f.repository, ['log']);
+  assert.equal(reads, 0);
+});
+
 test('annotated and lightweight tags both point graph labels and selections at their commit', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   const runGit = f.service.runGit;
@@ -170,6 +210,13 @@ test('a confirmed Git write keeps its effect and Commit receipt when status refr
     assert.ok(outcome.refreshError, 'the safe refresh error is retained separately from the confirmed effect');
     return true;
   });
+});
+
+test('a Git command deadline after entering a write preserves an unknown outcome', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.service.performAction = async () => { throw Object.assign(new Error('Git operation timed out.'), { name: 'TimeoutError' }); };
+  await assert.rejects(f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true }),
+    (error: any) => error.effect === 'unknown');
 });
 
 test('a detached HEAD named after a tag by the native API is not treated as a branch', async (t) => {

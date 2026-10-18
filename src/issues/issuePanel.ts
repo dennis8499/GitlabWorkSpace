@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
 import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
@@ -126,6 +128,10 @@ export class IssuePanels implements vscode.Disposable {
   private lastSnapshot?: IssuePanelResponse;
   private operationWarning?: string;
   private navigationVersion = 0;
+  private projectOptionsVersion = 0;
+  private templateAbort?: AbortController;
+  private operationSnapshotAbort?: AbortController;
+  private readonly uploads = new Map<string, AbortController>();
   private detailSectionLoader?: (sections: IssueDetailSection[], forceNetwork?: boolean) => Promise<void>;
   private hasNavigation = false;
   private mode: 'create' | 'detail' = 'create';
@@ -208,17 +214,7 @@ export class IssuePanels implements vscode.Disposable {
       }
       case 'addChild': {
         if (!relations.canManageChildren || !relations.parentWorkItemId) throw new Error('You cannot add child tasks to this issue.');
-        const taskIid = requiredId(action.taskIid, 'Task');
-        if (taskIid === iid) throw new Error('An issue cannot be its own child task.');
-        if (relations.tasks.some((task) => Number(task.iid) === taskIid)) throw new Error('This Task is already a child of the current issue.');
-        const capabilities = this.session.issueCapabilities;
-        const item = await client.getWorkItemTypeAndParent(relations.project.path_with_namespace, taskIid, capabilities?.graphHierarchy === true, capabilities?.graphWorkItemTypes === true, capabilities?.workItemScope);
-        if (!item) throw new Error('The selected Task was not found in this project.');
-        if (item.type?.toLocaleLowerCase() !== 'task') throw new Error('The selected work item is not a Task.');
-        if (item.parentId === relations.parentWorkItemId) throw new Error('This Task is already a child of the current issue.');
-        if (item.parentId) throw new Error('This Task already has another parent. Remove its existing parent in GitLab before adding it here.');
-        const parentWorkItemId = relations.parentWorkItemId;
-        await this.write(() => client.setChildParent(item.id, parentWorkItemId));
+        await this.addChild(client, relations.project.path_with_namespace, iid, action.taskIid, relations.parentWorkItemId, relations.tasks);
         break;
       }
       case 'link': {
@@ -254,7 +250,24 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   dispose(): void {
+    for (const controller of this.uploads.values()) controller.abort();
+    this.uploads.clear();
     this.close();
+  }
+
+  private async addChild(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number,
+    rawTaskIid: unknown, parentId: string, tasks: IssueTask[]): Promise<void> {
+    const taskIid = requiredId(rawTaskIid, 'Task');
+    if (taskIid === iid) throw new IssueValidationError('An issue cannot be its own child task.');
+    if (tasks.some(task => Number(task.iid) === taskIid)) throw new IssueValidationError('This Task is already a child of the current issue.');
+    const capabilities = this.session.issueCapabilities;
+    const item = await client.getWorkItemTypeAndParent(projectPath, taskIid, capabilities?.graphHierarchy === true,
+      capabilities?.graphWorkItemTypes === true, capabilities?.workItemScope);
+    if (!item) throw new IssueValidationError('The selected Task was not found in this project.');
+    if (item.type?.toLowerCase() !== 'task') throw new IssueValidationError('The selected work item is not a Task.');
+    if (item.parentId === parentId) throw new IssueValidationError('This Task is already a child of the current issue.');
+    if (item.parentId) throw new IssueValidationError('This Task already has another parent. Remove its existing parent in GitLab before adding it here.');
+    await this.write(() => client.setChildParent(item.id, parentId));
   }
 
   suspendReads(): void {
@@ -269,6 +282,8 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private cancelNavigationReads(): void {
+    this.operationSnapshotAbort?.abort(); this.operationSnapshotAbort = undefined;
+    this.templateAbort?.abort(); this.templateAbort = undefined;
     this.navigationReadController?.abort();
     this.navigationReadController = undefined;
     this.detailSectionLoader = undefined;
@@ -339,6 +354,10 @@ export class IssuePanels implements vscode.Disposable {
         projectId: this.issue?.project_id, issueIid: this.issue?.iid, message: message.type === 'error' ? message.message : message.error });
     }
     if (message.type === 'createData' || message.type === 'detailData') this.lastSnapshot = message;
+    else if (message.type === 'projectData' && this.lastSnapshot?.type === 'createData') this.lastSnapshot = {
+      ...this.lastSnapshot, selectedProjectId: message.projectId, options: message.options, optionsLoading: message.optionsLoading,
+      canCreateIssue: message.canCreateIssue, canSetStartDate: message.canSetStartDate ?? this.lastSnapshot.canSetStartDate
+    };
     else if (message.type === 'detailPatch' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === message.issueId) {
       const previous = this.lastSnapshot.data;
       this.lastSnapshot = { type: 'detailData', data: {
@@ -358,7 +377,7 @@ export class IssuePanels implements vscode.Disposable {
     const current = this.mode === 'detail' ? this.issue : undefined;
     if ('issueId' in request && (!current || request.issueId !== current.id)) throw new IssueValidationError('The displayed issue changed. Refresh before trying this action.');
     const creation = request.type === 'create' || request.type === 'selectProject';
-    const control = request.type === 'ready' || request.type === 'reconcileOperations' || request.type === 'confirmOperationResult';
+    const control = request.type === 'ready' || request.type === 'reconcileOperations' || request.type === 'confirmOperationResult' || request.type === 'cancelUpload';
     if (!current || creation || control) {
       const normalized = { ...request }; delete normalized.issueIid;
       return normalized;
@@ -372,8 +391,20 @@ export class IssuePanels implements vscode.Disposable {
   private async handleRequest(raw: unknown, revision?: number, alreadyTracked = false): Promise<void> {
     if (!raw || typeof raw !== 'object') return;
     const request = raw as IssuePanelRequest;
+    if (request.type === 'cancelUpload') {
+      if (typeof request.targetRequestId === 'string') this.uploads.get(request.targetRequestId)?.abort();
+      return;
+    }
     if (request.type === 'reconcileOperations') {
-      if (this.operations) this.post({ type: 'operationsSnapshot', snapshot: this.operations.snapshot(undefined, request.pendingIds) });
+      if (this.operations) {
+        this.operationSnapshotAbort?.abort(); const controller = new AbortController(); this.operationSnapshotAbort = controller;
+        const revision = this.revision, navigation = this.navigationVersion;
+        try {
+          const snapshot = await this.operations.snapshotWithStored(undefined, request.pendingIds, controller.signal);
+          if (!controller.signal.aborted && revision === this.revision && navigation === this.navigationVersion) this.post({ type: 'operationsSnapshot', snapshot });
+        } catch (error) { if (!controller.signal.aborted) throw error; }
+        finally { if (this.operationSnapshotAbort === controller) this.operationSnapshotAbort = undefined; }
+      }
       return;
     }
     if (request.type === 'confirmOperationResult') {
@@ -429,6 +460,9 @@ export class IssuePanels implements vscode.Disposable {
             message: context.refreshError ?? context.error
           })) ?? body());
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError' && !context.writeStarted) {
+          context.status = 'cancelled'; context.effect = 'none'; return;
+        }
         context.status = 'failed'; context.error = safeError(error);
         const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
           error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
@@ -512,13 +546,19 @@ export class IssuePanels implements vscode.Disposable {
     if (!group) throw new Error('Select a GitLab group first.');
     const client = (await this.session.getClient()).withReadSignal(signal);
     const capabilitiesTask = this.session.ensureInstanceChecked();
+    void capabilitiesTask.catch(() => {});
     const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork });
     const first = projects[0];
-    const options = first ? await this.formOptions(first.id, signal, forceNetwork) : undefined;
-    await capabilitiesTask;
-    const canCreateIssue = first && this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(first.path_with_namespace).catch(() => false) : false;
     if (version !== this.navigationVersion || signal.aborted) return;
-    this.post({ type: 'createData', projects, selectedProjectId: first?.id, options, metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
+    this.post({ type: 'createData', projects, selectedProjectId: first?.id, optionsLoading: !!first,
+      metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue: false });
+    if (!first) { await capabilitiesTask; return; }
+    const optionsVersion = ++this.projectOptionsVersion;
+    const [options, canCreateIssue] = await Promise.all([this.formOptions(first.id, signal, forceNetwork),
+      capabilitiesTask.then(() => this.session.issueCapabilities?.createPermission ? client.canCreateIssue(first.path_with_namespace).catch(() => false) : false)]);
+    if (version !== this.navigationVersion || signal.aborted || optionsVersion !== this.projectOptionsVersion || this.mode !== 'create') return;
+    this.post({ type: 'projectData', projectId: first.id, options, optionsLoading: false, preserveDraft: true,
+      canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
   }
 
   private async formOptions(projectId: number, signal?: AbortSignal, forceNetwork = false): Promise<IssueFormOptions> {
@@ -526,14 +566,16 @@ export class IssuePanels implements vscode.Disposable {
       this.session.cachedRead(`project/${projectId}/members`, (client) => client.listProjectMembers(projectId), { signal, force: forceNetwork }),
       this.session.cachedRead(`project/${projectId}/labels`, (client) => client.listProjectLabels(projectId), { signal, force: forceNetwork }),
       this.session.cachedRead(`project/${projectId}/milestones`, (client) => client.listProjectMilestones(projectId), { signal, force: forceNetwork }),
-      this.session.cachedRead(`project/${projectId}/templates`, (client) => client.listProjectIssueTemplates(projectId), { signal, force: forceNetwork })
+      this.session.cachedRead(`project/${projectId}/template-names`, async (client) => typeof client.listProjectIssueTemplateNames === 'function'
+        ? (await client.listProjectIssueTemplateNames(projectId)).map(template => ({ ...template, content: '', loaded: false }))
+        : client.listProjectIssueTemplates(projectId), { signal, force: forceNetwork })
     ] as const);
     const labels = ['members', 'labels', 'milestones', 'templates'];
     const warnings = results.flatMap((result, index) => result.status === 'rejected' ? [`Could not load ${labels[index]}: ${safeError(result.reason)}`] : []);
     const value = <T,>(index: number): T[] => results[index].status === 'fulfilled' ? results[index].value as T[] : [];
     return {
       members: [...value<GitLabMember>(0)], labels: [...value<GitLabLabel>(1)],
-      milestones: [...value<GitLabMilestone>(2)], templates: [...value<GitLabIssueTemplate>(3)], warnings
+      milestones: [...value<GitLabMilestone>(2)], templates: [...value<IssueFormOptions['templates'][number]>(3)], warnings
     };
   }
 
@@ -612,6 +654,7 @@ export class IssuePanels implements vscode.Disposable {
     if (this.operationWarning) { data.notices?.push(this.operationWarning); this.operationWarning = undefined; }
     this.post({ type: 'detailData', data });
     const capabilitiesTask = this.session.ensureInstanceChecked();
+    void capabilitiesTask.catch(() => {});
     const current = (): boolean => version === this.navigationVersion && !signal.aborted && this.navigationReadController?.signal === signal;
     const patch = (section: IssueDetailSection, value: Partial<IssueDetailData>, status: IssueDetailSectionStatus = value.sections?.[section] ?? 'ready', warning?: string): void => {
       if (!current()) return;
@@ -620,7 +663,11 @@ export class IssuePanels implements vscode.Disposable {
       if (warning) loadErrors[section] = warning;
       else if (status === 'ready') delete loadErrors[section];
       const next: Partial<IssueDetailData> = { ...value, sections: nextSections, loadErrors };
-      data = { ...data, ...value, sections: nextSections, loadErrors };
+      data = { ...data, ...next };
+      if (section === 'permissions' || section === 'dates') {
+        next.canSetStartDate = this.session.issueCapabilities?.startDate === true && data.startDateSupported === true && data.canEdit;
+        data = { ...data, canSetStartDate: next.canSetStartDate };
+      }
       this.post({ type: 'detailPatch', issueId: issue.id, patch: next });
     };
     const loaders: Partial<Record<IssueDetailSection, () => Promise<Partial<IssueDetailData>>>> = {};
@@ -684,7 +731,6 @@ export class IssuePanels implements vscode.Disposable {
     loaders.permissions = async () => {
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
-      if (capabilities?.startDate) await runSection('dates');
       const fields = capabilities?.issuePermissionFields ?? [];
       const workItemFields = capabilities?.workItemPermissionFields ?? [];
       const permissionSource = capabilities?.issuePermissionSource;
@@ -768,10 +814,29 @@ export class IssuePanels implements vscode.Disposable {
       }
       await Promise.all(requested.map((section) => runSection(section)));
     };
-    void this.detailSectionLoader(['activity', 'permissions']);
+    void this.detailSectionLoader(['activity', 'permissions', 'dates']);
   }
 
   private async handleRequestBody(request: IssuePanelRequest): Promise<void> {
+    if (request.type === 'loadTemplate') {
+      const requestId = requiredString(request.requestId, 'Request ID');
+      const projectId = requiredId(request.projectId, 'Project');
+      const key = requiredString(request.key, 'Template key');
+      const version = this.navigationVersion;
+      this.templateAbort?.abort(); const controller = new AbortController(); this.templateAbort = controller;
+      try {
+        const group = this.session.selectedGroup;
+        const projects = group ? await this.session.cachedRead(`group/${group.id}/projects`, client => client.listGroupProjects(group.id), { signal: controller.signal }) : [];
+        if (!projects.some(project => project.id === projectId)) throw new IssueValidationError('Project is outside the selected group.');
+        const result = await this.session.cachedRead(`project/${projectId}/template/${encodeURIComponent(key)}`,
+          client => client.getProjectIssueTemplate(projectId, key), { signal: controller.signal });
+        if (version === this.navigationVersion && !controller.signal.aborted) this.post({ type: 'reply', requestId, result });
+      } catch (error) {
+        if (controller.signal.aborted) { const action = this.actionContext.getStore(); if (action) action.status = 'cancelled'; }
+        else this.post({ type: 'reply', requestId, error: safeError(error) });
+      } finally { if (this.templateAbort === controller) this.templateAbort = undefined; }
+      return;
+    }
     if (request.type === 'refresh') return this.load(true);
     if (request.type === 'loadSection') {
       const valid = (Array.isArray(request.sections) ? request.sections : []).filter((section): section is IssueDetailSection =>
@@ -809,16 +874,20 @@ export class IssuePanels implements vscode.Disposable {
       if (!opened) throw new Error('Could not open the GitLab issue in your browser.');
       return;
     }
-    const client = await this.session.getClient();
+    const baseClient = await this.session.getClient();
+    const client = ['selectProject', 'searchProjects', 'preview', 'search', 'image'].includes(request.type) && this.navigationReadController
+      ? baseClient.withReadSignal(this.navigationReadController.signal) : baseClient;
     if (request.type === 'selectProject') {
+      this.templateAbort?.abort();
       const version = this.navigationVersion;
+      const optionsVersion = ++this.projectOptionsVersion;
       const projectId = requiredId(request.projectId, 'Project');
       const group = this.session.selectedGroup;
       const project = group ? (await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id))).find((item) => item.id === projectId) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
-      const options = await this.formOptions(projectId);
-      const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
-      if (version !== this.navigationVersion || this.mode !== 'create') return;
+      const [options, canCreateIssue] = await Promise.all([this.formOptions(projectId),
+        this.session.issueCapabilities?.createPermission ? client.canCreateIssue(project.path_with_namespace).catch(() => false) : Promise.resolve(false)]);
+      if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
       this.post({ type: 'projectData', projectId, options, canCreateIssue });
       return;
     }
@@ -878,14 +947,27 @@ export class IssuePanels implements vscode.Disposable {
           const file = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Attach to GitLab Issue' });
           if (!file?.[0] || file[0].scheme !== 'file') { result = null; const context = this.actionContext.getStore(); if (context) context.status = 'cancelled'; }
           else {
-            const bytes = await vscode.workspace.fs.readFile(file[0]);
+            const controller = new AbortController();
+            this.uploads.set(requestId, controller);
+            const info = await stat(file[0].fsPath);
+            if (!info.isFile() || info.size > 50 * 1024 * 1024) throw new IssueValidationError('附件必須是一般檔案，且不可超過 50 MB。');
+            controller.signal.throwIfAborted();
             const name = file[0].path.split('/').at(-1) ?? 'attachment';
             const type = /\.png$/i.test(name) ? 'image/png' : /\.jpe?g$/i.test(name) ? 'image/jpeg' : /\.gif$/i.test(name) ? 'image/gif' : 'application/octet-stream';
-            result = await this.write(() => client.uploadProjectFile(projectId, name, bytes, type));
+            const stream = createReadStream(file[0].fsPath, { signal: controller.signal });
+            try { result = await this.write(() => client.uploadProjectFileStream(projectId, name, stream, type, info.size, controller.signal)); }
+            finally { stream.destroy(); this.uploads.delete(requestId); }
           }
         }
         this.post({ type: 'reply', requestId, result });
       } catch (error) {
+        this.uploads.delete(requestId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          const context = this.actionContext.getStore();
+          if (context && !context.writeStarted) {
+            context.status = 'cancelled'; this.post({ type: 'reply', requestId, result: null }); return;
+          }
+        }
         this.post({ type: 'reply', requestId, error: safeError(error), notificationOnly: request.type === 'upload' });
       }
       return;
@@ -1065,10 +1147,7 @@ export class IssuePanels implements vscode.Disposable {
       case 'addChild': {
         if (!snapshot?.canManageChildren) throw new Error('GitLab does not report permission to manage child tasks.');
         if (!snapshot?.parentWorkItemId) throw new Error('This GitLab instance did not expose child tasks.');
-        const id = await client.getWorkItemId(snapshot.project.path_with_namespace, requiredId(payload.taskIid, 'Task'), this.session.issueCapabilities?.workItemScope);
-        if (!id) throw new Error('Task was not found in this project.');
-        const parentWorkItemId = snapshot.parentWorkItemId;
-        await this.write(() => client.setChildParent(id, parentWorkItemId));
+        await this.addChild(client, snapshot.project.path_with_namespace, iid, payload.taskIid, snapshot.parentWorkItemId, snapshot.tasks);
         break;
       }
       case 'removeChild': case 'setChildState': {

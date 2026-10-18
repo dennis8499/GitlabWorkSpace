@@ -10,6 +10,19 @@ import type {
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
+async function mapReads<T, R>(items: readonly T[], load: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  let next = 0, failed = false;
+  const result = new Array<R>(items.length);
+  await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
+    while (!failed && next < items.length) {
+      const index = next++;
+      try { result[index] = await load(items[index], index); }
+      catch (error) { failed = true; throw error; }
+    }
+  }));
+  return result;
+}
+
 export interface GitLabWriteContext {
   url: string;
   method: string;
@@ -19,6 +32,14 @@ export class GitLabApiError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
     this.name = 'GitLabApiError';
+  }
+}
+
+/** Transport interruption cannot establish whether GitLab applied a write. Never retry automatically. */
+export class GitLabWriteUnknownError extends Error {
+  readonly effect = 'unknown' as const;
+  constructor(message = 'GitLab 寫入結果未能確認，請重新載入並核對後再決定是否重試。', options?: ErrorOptions) {
+    super(message, options); this.name = 'GitLabWriteUnknownError';
   }
 }
 
@@ -131,18 +152,20 @@ export class GitLabClient {
     private readonly readSignal?: AbortSignal | readonly (AbortSignal | undefined)[],
     private readonly onSuccessfulWrite?: (context: GitLabWriteContext) => void,
     private readonly readGate = new GitLabReadGate(),
-    private readonly runWrite?: <T>(task: () => Promise<T>) => Promise<T>
+    private readonly runWrite?: <T>(task: () => Promise<T>) => Promise<T>,
+    private readonly writeTimeoutMs = 30_000
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
     if (!token.trim()) {
       throw new Error('A GitLab access token is required.');
     }
+    if (!Number.isSafeInteger(writeTimeoutMs) || writeTimeoutMs < 1) throw new RangeError('Write timeout must be positive.');
   }
 
   withReadSignal(signal: AbortSignal): GitLabClient {
     const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite);
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs);
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -342,10 +365,10 @@ export class GitLabClient {
 
     if (!boardFound) throw new GitLabApiError('GitLab Issue Board could not be loaded.');
 
-    const issuesById = new Map<number, { issueId: number; projectId?: number; iid?: number }>();
-    for (const list of lists) {
+    const listPages = await mapReads(lists, async list => {
+      const issuesById = new Map<number, { issueId: number; projectId?: number; iid?: number }>();
       const listType = list.listType.toLocaleLowerCase();
-      if ((hideBacklogList && listType === 'backlog') || (hideClosedList && listType === 'closed')) continue;
+      if ((hideBacklogList && listType === 'backlog') || (hideClosedList && listType === 'closed')) return [];
       if (!list.id) throw new GitLabApiError('GitLab returned an invalid Issue Board list.');
 
       const seenIssueCursors = new Set<string>();
@@ -380,8 +403,10 @@ export class GitLabClient {
         }
         if (issueAfter) seenIssueCursors.add(issueAfter);
       } while (issueAfter);
-    }
-
+      return [...issuesById.values()];
+    });
+    const issuesById = new Map<number, { issueId: number; projectId?: number; iid?: number }>();
+    for (const page of listPages) for (const issue of page) issuesById.set(issue.issueId, issue);
     return [...issuesById.values()];
   }
 
@@ -511,11 +536,17 @@ export class GitLabClient {
   }
 
   async listProjectIssueTemplates(projectId: number): Promise<GitLabIssueTemplate[]> {
-    const entries = await this.getPages<{ key: string; name: string }>(`${this.projectPath(projectId)}/templates/issues?per_page=100`);
-    return Promise.all(entries.map(async (entry) => {
-      const template = await this.getJson<{ content: string }>(`${this.projectPath(projectId)}/templates/issues/${encodeURIComponent(entry.key)}`);
-      return { name: entry.name, content: template.content };
-    }));
+    const entries = await this.listProjectIssueTemplateNames(projectId);
+    return mapReads(entries, async entry => ({ ...await this.getProjectIssueTemplate(projectId, entry.key), name: entry.name }));
+  }
+
+  listProjectIssueTemplateNames(projectId: number): Promise<Array<{ key: string; name: string }>> {
+    return this.getPages<{ key: string; name: string }>(`${this.projectPath(projectId)}/templates/issues?per_page=100`);
+  }
+
+  async getProjectIssueTemplate(projectId: number, key: string): Promise<GitLabIssueTemplate> {
+    const template = await this.getJson<{ content: string }>(`${this.projectPath(projectId)}/templates/issues/${encodeURIComponent(key)}`);
+    return { name: key, content: template.content };
   }
 
   searchProjectIssues(projectId: number, query: string): Promise<GitLabIssue[]> {
@@ -914,13 +945,66 @@ export class GitLabClient {
   }
 
   renderMarkdown(projectPath: string, markdown: string): Promise<{ html: string }> {
-    return this.postJson<{ html: string }>('markdown', { text: markdown, gfm: true, project: projectPath });
+    return this.withReadRequest(async signal => {
+      const response = await this.fetcher(new URL('markdown', this.apiRoot), { method: 'POST', signal, redirect: 'manual',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
+        body: JSON.stringify({ text: markdown, gfm: true, project: projectPath }) });
+      return this.readJson<{ html: string }>(response);
+    });
   }
 
   async uploadProjectFile(projectId: number, filename: string, bytes: Uint8Array, contentType: string): Promise<GitLabUpload> {
     const form = new FormData();
     form.append('file', new Blob([Uint8Array.from(bytes)], { type: contentType }), filename);
     return this.getJson<GitLabUpload>(`${this.projectPath(projectId)}/uploads`, { method: 'POST', body: form });
+  }
+
+  async uploadProjectFileStream(projectId: number, filename: string, stream: AsyncIterable<Uint8Array>, contentType: string,
+    size: number, signal?: AbortSignal): Promise<GitLabUpload> {
+    if (!Number.isSafeInteger(size) || size < 0 || size > 50 * 1024 * 1024) throw new GitLabApiError('The attachment is too large to upload.');
+    if (/[\r\n\0]/.test(contentType)) throw new GitLabApiError('Invalid attachment content type.');
+    const boundary = 'gitlab-workspace-' + crypto.randomUUID();
+    const safeName = filename.replace(/["\r\n\0\\]/g, '_');
+    const prefix = new TextEncoder().encode(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: ${contentType}\r\n\r\n`);
+    const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+    return this.withWriteRequest(async writeSignal => {
+      const source = stream[Symbol.asyncIterator]();
+      let sourceClosed = false;
+      const closeSource = async (): Promise<void> => {
+        if (sourceClosed) return;
+        sourceClosed = true; await source.return?.();
+      };
+      const onAbort = (): void => { void closeSource().catch(() => undefined); };
+      writeSignal.addEventListener('abort', onAbort, { once: true });
+      async function* multipart(): AsyncGenerator<Uint8Array> {
+        try {
+          yield prefix;
+          let sent = 0;
+          for (;;) {
+            writeSignal.throwIfAborted();
+            const next = await source.next(); if (next.done) break;
+            sent += next.value.byteLength;
+            if (sent > size) throw new GitLabApiError('Attachment size changed during upload.');
+            yield next.value;
+          }
+          if (sent !== size) throw new GitLabApiError('Attachment size changed during upload.');
+          yield suffix;
+        } finally { await closeSource(); }
+      }
+      const iterator = multipart();
+      const requestBody = new ReadableStream<Uint8Array>({
+        async pull(controller) { try { const next = await iterator.next(); if (next.done) controller.close(); else controller.enqueue(next.value); } catch (error) { controller.error(error); } },
+        async cancel() { await iterator.return(undefined); }
+      });
+      const url = new URL(`${this.projectPath(projectId)}/uploads`, this.apiRoot);
+      try {
+        const response = await this.fetcher(url, { method: 'POST', headers: { Accept: 'application/json', 'PRIVATE-TOKEN': this.token,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': String(prefix.length + size + suffix.length) },
+          body: requestBody, signal: writeSignal, redirect: 'manual', duplex: 'half' } as RequestInit);
+        const value = await this.readJson<GitLabUpload>(response);
+        this.onSuccessfulWrite?.({ url: url.toString(), method: 'POST' }); return value;
+      } finally { writeSignal.removeEventListener('abort', onAbort); await closeSource(); }
+    }, signal, Math.max(this.writeTimeoutMs, 300_000));
   }
 
   async downloadUpload(rawUrl: string, maxBytes = 50 * 1024 * 1024): Promise<{ bytes: Uint8Array; contentType: string }> {
@@ -935,9 +1019,25 @@ export class GitLabClient {
       const response = await this.fetcher(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' });
       if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
       if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
-      if (Number(response.headers.get('content-length') ?? 0) > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > maxBytes) throw new GitLabApiError('The attachment is too large to open in VS Code.');
+      if (Number(response.headers.get('content-length') ?? 0) > maxBytes) {
+        await response.body?.cancel(); throw new GitLabApiError('The attachment is too large to open in VS Code.');
+      }
+      const chunks: Uint8Array[] = [];
+      let length = 0;
+      const reader = response.body?.getReader();
+      if (reader) {
+        try {
+          for (;;) {
+            signal.throwIfAborted();
+            const next = await reader.read(); if (next.done) break;
+            length += next.value.byteLength;
+            if (length > maxBytes) { await reader.cancel(); throw new GitLabApiError('The attachment is too large to open in VS Code.'); }
+            chunks.push(next.value);
+          }
+        } finally { reader.releaseLock(); }
+      }
+      const bytes = new Uint8Array(length);
+      let offset = 0; for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
       return { bytes, contentType: response.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' };
     });
   }
@@ -989,7 +1089,7 @@ export class GitLabClient {
   }
 
   private async noContent(path: string, init: RequestInit): Promise<void> {
-    return this.withWriteRequest(() => this.sendNoContent(path, init));
+    return this.withWriteRequest(signal => this.sendNoContent(path, { ...init, signal }));
   }
 
   private async sendNoContent(path: string, init: RequestInit): Promise<void> {
@@ -1056,8 +1156,28 @@ export class GitLabClient {
     return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : this.withWriteRequest(request);
   }
 
-  private withWriteRequest<T>(operation: () => Promise<T>): Promise<T> {
-    return this.runWrite ? this.runWrite(operation) : operation();
+  private withWriteRequest<T>(operation: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal, timeoutMs = this.writeTimeoutMs): Promise<T> {
+    const task = async (): Promise<T> => {
+      if (signal?.aborted) throw Object.assign(new Error('Upload cancelled before sending.'), { name: 'AbortError', effect: 'none' });
+      const controller = new AbortController();
+      const unknown = (): GitLabWriteUnknownError => new GitLabWriteUnknownError();
+      const onAbort = (): void => controller.abort(unknown());
+      signal?.addEventListener('abort', onAbort, { once: true });
+      let rejectDeadline!: (error: Error) => void;
+      const interrupted = new Promise<never>((_resolve, reject) => { rejectDeadline = reject; });
+      const onInterrupted = (): void => rejectDeadline(controller.signal.reason);
+      controller.signal.addEventListener('abort', onInterrupted, { once: true });
+      const timeout = setTimeout(onAbort, timeoutMs);
+      try { return await Promise.race([operation(controller.signal), interrupted]); }
+      catch (error) {
+        if (error instanceof GitLabWriteUnknownError || error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500) throw error;
+        throw new GitLabWriteUnknownError(undefined, { cause: error });
+      } finally {
+        clearTimeout(timeout); signal?.removeEventListener('abort', onAbort);
+        controller.signal.removeEventListener('abort', onInterrupted);
+      }
+    };
+    return this.runWrite ? this.runWrite(task) : task();
   }
 
   private withReadRequest<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {

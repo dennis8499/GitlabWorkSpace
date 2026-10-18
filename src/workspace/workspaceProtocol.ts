@@ -23,7 +23,11 @@ export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'relations' | 'time';
 export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
-export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; }
+export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; updatedAt?: number; refreshing?: boolean; }
+
+/** These identities have different formats and must not be used interchangeably. */
+export type ConnectedScope = string & { readonly __connectedScope: unique symbol };
+export type LoadedWorkspaceIdentity = string & { readonly __loadedWorkspaceIdentity: unique symbol };
 
 export type IssueNavigation =
   | { mode: 'create'; revision: number }
@@ -258,6 +262,8 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'setLogVisibility'; visible: boolean }
   | { type: 'scanRepositories' }
   | { type: 'cancelRepositoryScan' }
+  | { type: 'cancelRepositoryOperation' }
+  | { type: 'resyncWorkspace' }
   | { type: 'selectGroup'; groupId?: number }
   | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
   | { type: 'loadIssueGraph'; connectedScope: string; forceNetwork?: boolean }
@@ -332,7 +338,8 @@ export type WorkspaceResponse =
   | { type: 'logsPage'; requestId: string; page: LogPage }
   | { type: 'logsChanged' }
   | GitPanelMessage
-  | { type: 'snapshot'; snapshot: WorkspaceSnapshot }
+  | { type: 'snapshot'; snapshot: WorkspaceSnapshot; streamId?: string; version?: number; scope?: string }
+  | { type: 'snapshotPatch'; streamId: string; scope: string; baseVersion: number; version: number; changes: Partial<WorkspaceSnapshot>; cleared: Array<keyof WorkspaceSnapshot> }
   | { type: 'timersChanged'; instanceUserScope: string; version: number; timers: WorkspaceTimerEntry[] }
   | { type: 'issueGraphChanged'; connectedScope: string; version: number; graph: IssueGraphSnapshot }
   | ({ type: 'issueGraphPatch'; version: number } & IssueGraphPatch)

@@ -24,6 +24,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private stateRevision = 0;
   private viewGeneration = 0;
   private readonly detailsRequests = new Map<string, string>();
+  private snapshotAbort?: AbortController;
   private readonly subscriptions: vscode.Disposable[] = [];
   private readonly notificationSubscription?: { dispose(): void };
   private readonly operationSubscription?: { dispose(): void };
@@ -113,8 +114,17 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     if (this.view) void this.view.webview.postMessage({ type: 'visibility', visible: this.view.visible } satisfies QuickActionsResponse);
   }
 
-  private sendOperationSnapshot(pendingIds?: string[]): void {
-    if (this.view && this.operations) void this.view.webview.postMessage({ type: 'operationsSnapshot', snapshot: this.operations.snapshot(undefined, pendingIds) } satisfies QuickActionsResponse);
+  private async sendOperationSnapshot(pendingIds?: string[]): Promise<void> {
+    const view = this.view, generation = this.viewGeneration, scope = this.getOperationScope(), epoch = this.session.connectionEpoch;
+    if (!view || !this.operations) return;
+    this.snapshotAbort?.abort(); const controller = new AbortController(); this.snapshotAbort = controller;
+    try {
+      const snapshot = await this.operations.snapshotWithStored(undefined, pendingIds, controller.signal);
+      if (!controller.signal.aborted && this.view === view && generation === this.viewGeneration && scope === this.getOperationScope() && epoch === this.session.connectionEpoch) {
+        void view.webview.postMessage({ type: 'operationsSnapshot', snapshot } satisfies QuickActionsResponse);
+      }
+    } catch { /* Storage failures retain missing IDs; cancelled views receive no snapshot. */ }
+    finally { if (this.snapshotAbort === controller) this.snapshotAbort = undefined; }
   }
 
   private async loadRepositoryDetails(repositoryId: string, requestId: string, metadata: ActionMetadata = {}): Promise<void> {
@@ -171,7 +181,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       operationScope: this.getOperationScope(),
       scopeEpoch: this.session.connectionEpoch,
       operationSnapshot: this.operations?.snapshot(),
-      notificationUnreadCount: this.notifications?.snapshot().unreadCount ?? 0
+      notificationUnreadCount: this.notifications?.unreadCount ?? 0
     };
     await Promise.resolve(this.getNavigationState?.()).then((navigation) => {
       if (this.view !== view || revision !== this.stateRevision) return;
@@ -185,6 +195,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   }
 
   private clearView(): void {
+    this.snapshotAbort?.abort(); this.snapshotAbort = undefined;
     this.viewGeneration++; this.stateRevision++; this.detailsRequests.clear();
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
     this.view = undefined;

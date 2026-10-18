@@ -22,6 +22,7 @@ export class NotificationCenter {
   private readonly operationOutcomes = new Map<string, string>();
   private readonly publishedStates = new Map<string, string>();
   private readonly dismissed = new Map<string, WorkspaceNotification>();
+  private readonly unknownOperations = new Set<string>();
   private readonly context = new AsyncLocalStorage<NotificationContext>();
   private sanitizer: (message: string) => string = sanitizeNotification;
 
@@ -30,7 +31,8 @@ export class NotificationCenter {
     this.listeners.add(listener);
     return { dispose: () => this.listeners.delete(listener) };
   }
-  dispose(): void { this.listeners.clear(); this.entries.clear(); this.versions.clear(); this.operationOutcomes.clear(); this.publishedStates.clear(); this.dismissed.clear(); }
+  dispose(): void { this.listeners.clear(); this.entries.clear(); this.versions.clear(); this.operationOutcomes.clear(); this.publishedStates.clear(); this.dismissed.clear(); this.unknownOperations.clear(); }
+  get unreadCount(): number { let total = 0; for (const item of this.entries.values()) if (!item.read) total++; return total; }
   snapshot(): NotificationSnapshot {
     const items = [...this.entries.values()].reverse().map(item => ({ ...item, messages: [...item.messages], origin: item.origin && { ...item.origin } }));
     return { sessionId: this.sessionId, revision: this.revision, items, unreadCount: items.filter(item => !item.read).length };
@@ -77,7 +79,8 @@ export class NotificationCenter {
     this.entries.delete(id); this.entries.set(id, next);
     this.revision++; this.versions.set(id, this.revision);
     while (this.entries.size > 500) {
-      const oldest = this.entries.keys().next().value!;
+      const oldest = [...this.entries].find(([, item]) => !item.operationId || !this.unknownOperations.has(item.operationId))?.[0];
+      if (!oldest) break;
       this.entries.delete(oldest); this.versions.delete(oldest);
     }
     this.emit();
@@ -88,13 +91,21 @@ export class NotificationCenter {
     const signature = JSON.stringify([input.level ?? 'info', this.sanitizer(input.message), input.title]);
     if (this.publishedStates.get(key) === signature) return;
     this.publishedStates.set(key, signature);
+    while (this.publishedStates.size > 2000) this.publishedStates.delete(this.publishedStates.keys().next().value!);
     this.publish(input);
   }
   recordOperation(operation: WorkspaceOperationState): void {
     if (!['succeeded', 'failed', 'cancelled'].includes(operation.status)) return;
-    const signature = JSON.stringify([operation.status, operation.effect, operation.error, operation.refreshError, operation.phase]);
+    if (operation.effect === 'unknown') this.unknownOperations.add(operation.requestId); else this.unknownOperations.delete(operation.requestId);
+    if (operation.notify === false && operation.status !== 'failed' && !operation.refreshError && operation.effect !== 'partial' && operation.effect !== 'unknown') return;
+    const signature = JSON.stringify([operation.status, operation.effect, operation.error && this.sanitizer(operation.error).slice(0, 2048),
+      operation.refreshError && this.sanitizer(operation.refreshError).slice(0, 2048), this.sanitizer(operation.phase).slice(0, 2048)]);
     if (this.operationOutcomes.get(operation.requestId) === signature) return;
     this.operationOutcomes.set(operation.requestId, signature);
+    while (this.operationOutcomes.size > 2000) {
+      const oldest = [...this.operationOutcomes.keys()].find(id => !this.unknownOperations.has(id));
+      if (!oldest) break; this.operationOutcomes.delete(oldest);
+    }
     const id = `operation:${operation.requestId}`;
     if (operation.refreshError) {
       this.publish({ operationId: operation.requestId, title: operation.label, level: 'warn',
@@ -106,7 +117,7 @@ export class NotificationCenter {
       return;
     }
     // Read failures matter even when successful reads are intentionally quiet.
-    if (operation.notify === false && operation.status !== 'failed') return;
+    if (operation.notify === false && operation.status !== 'failed' && operation.effect !== 'unknown') return;
     // Explicit result text already explains successful operations.
     if (operation.status === 'succeeded' && this.entries.has(id)) return;
     this.publish({ operationId: operation.requestId, title: operation.label,
@@ -139,5 +150,5 @@ export class NotificationCenter {
     this.dismissed.set(entry.id, entry);
     if (this.dismissed.size > 1000) this.dismissed.delete(this.dismissed.keys().next().value!);
   }
-  private emit(): void { for (const listener of this.listeners) listener(); }
+  private emit(): void { for (const listener of this.listeners) { try { listener(); } catch { /* Consumer disposal cannot fail domain operations. */ } } }
 }

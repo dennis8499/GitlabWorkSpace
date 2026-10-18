@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as vscode from 'vscode';
-import { chromium, type Frame, type Page } from 'playwright-core';
+import { chromium, type CDPSession, type Frame, type Page } from 'playwright-core';
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import type { GitLabSession } from '../../src/connection/session';
+import type { WorkspaceSnapshot } from '../../src/workspace/workspaceProtocol';
+import type { IssueGraphSnapshot } from '../../src/workspace/issueGraph';
 
 interface TestExtensionApi {
   session: GitLabSession;
@@ -23,11 +26,13 @@ interface TestGitActionTrace { phase: 'start' | 'complete' | 'error'; repository
 
 const enabled = process.env.GLW_LIVE_ENVIRONMENT === 'ce19' || process.env.GLW_LIVE_ENVIRONMENT === 'ce16';
 const localGitGuiEnabled = process.env.GLW_LOCAL_GIT_GUI === '1';
+const localGraphWorkerOnly = process.env.GLW_LOCAL_GRAPH_WORKER === '1';
+const localGraphWorkerDisabled = process.env.GLW_LOCAL_GRAPH_WORKER === '0';
 suite('Live GitLab Workspace Webview validation', function () {
   this.timeout(240_000);
 
   test('exercises the packaged Git GUI against an isolated local bare remote', async function () {
-    if (!localGitGuiEnabled) this.skip();
+    if (!localGitGuiEnabled || localGraphWorkerOnly) this.skip();
     this.timeout(600_000);
     assert.equal(vscode.version, process.env.GLW_LOCAL_VSCODE_EXPECTED_VERSION, 'the packaged Git GUI is loaded in the verified installed VS Code Extension Host');
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
@@ -263,6 +268,38 @@ suite('Live GitLab Workspace Webview validation', function () {
     }
   });
 
+  test('runs the packaged 2000-node Canvas graph in a native Webview Blob Worker', async function () {
+    if (localGraphWorkerDisabled || !localGitGuiEnabled && !localGraphWorkerOnly) this.skip();
+    this.timeout(120_000);
+    assert.equal(vscode.version, process.env.GLW_LOCAL_VSCODE_EXPECTED_VERSION);
+    const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace');
+    assert.ok(extension, 'the packaged extension is installed in the native Extension Host');
+    assert.equal(extension.packageJSON.version, process.env.GLW_LIVE_EXPECTED_VERSION);
+    const reportPath = process.env.GLW_LOCAL_GRAPH_REPORT ?? process.env.GLW_LOCAL_GIT_GUI_REPORT!;
+    const graphReportPath = localGraphWorkerOnly ? reportPath : path.join(path.dirname(reportPath), 'local-graph-worker-report.json');
+    mkdirSync(path.dirname(graphReportPath), { recursive: true });
+    let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined;
+    const report = (result: Record<string, unknown>) => writeFileSync(graphReportPath, `${JSON.stringify({
+      schema: 'GitLabWorkspaceNativeGraphWorkerEvidence/v1', generatedAt: new Date().toISOString(),
+      mode: 'local-only', vscodeVersion: vscode.version,
+      testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
+      ...result
+    }, null, 2)}\n`, 'utf8');
+    try {
+      const port = Number(process.env.GLW_LIVE_CDP_PORT);
+      browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 25_000 });
+      const page = await waitForWorkbenchPage(browser.contexts()[0].pages());
+      await page.bringToFront();
+      const graphWorker = await exercisePackagedGraphWorker(extension.extensionUri, browser, port, path.dirname(graphReportPath));
+      report({ status: 'PASS', graphWorker });
+    } catch (error) {
+      report({ status: 'FAIL', error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    } finally {
+      await browser?.close();
+    }
+  });
+
   test('authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP', async function () {
   if (!enabled) this.skip();
   assert.equal(vscode.version, process.env.GLW_LIVE_VSCODE_VERSION ?? '1.140.0', 'the real Extension Host uses the pinned local VS Code version');
@@ -311,6 +348,7 @@ suite('Live GitLab Workspace Webview validation', function () {
     });
     assert.equal(api.session.baseUrl, undefined, 'a rejected token is not persisted in the extension SecretStorage');
     const connected = await api.session.connect(baseUrl, token);
+    await api.session.ensureInstanceChecked();
     process.env.GLW_LIVE_TOKEN = '';
     assert.ok(connected.id > 0, 'GitLab validated the token against the requested localhost server');
     const expectedGitLabVersion = environment === 'ce19' ? '19.4.1' : '16.11.10';
@@ -326,6 +364,7 @@ suite('Live GitLab Workspace Webview validation', function () {
     }
 
     await api.session.connect(baseUrl, token);
+    await api.session.ensureInstanceChecked();
     token = '';
     const reconnectSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
     const cachedCapabilities = (api.session as unknown as { state: { get<T>(key: string): T } }).state.get('gitlabWorkspace.issueCapabilities.v1');
@@ -533,12 +572,192 @@ async function waitForWorkbenchPage(pages: Page[]): Promise<Page> {
   throw new Error(`No VS Code workbench page was found over CDP (${pages.map((page) => page.url()).join(', ') || 'no pages'}).`);
 }
 
+async function exercisePackagedGraphWorker(
+  extensionUri: vscode.Uri,
+  browser: Awaited<ReturnType<typeof chromium.connectOverCDP>>,
+  port: number,
+  evidenceDirectory: string
+): Promise<Record<string, unknown>> {
+  const assetRoot = vscode.Uri.joinPath(extensionUri, 'resources', 'issue-webview');
+  const panel = vscode.window.createWebviewPanel('gitlabWorkspace.nativeGraphWorkerProbe', 'Native Graph Worker Probe', vscode.ViewColumn.Active, {
+    enableScripts: true, localResourceRoots: [assetRoot]
+  });
+  const scope = `native-worker-probe-${Date.now()}`;
+  const currentUser = { id: 7, username: 'worker-probe', name: 'Worker Probe' };
+  const project = { id: 1, name: 'Worker Probe', path: 'project', path_with_namespace: 'probe/project',
+    web_url: 'https://probe.invalid/probe/project', http_url_to_repo: 'https://probe.invalid/probe/project.git' };
+  const issues = Array.from({ length: 2000 }, (_, index) => ({ id: index + 1, iid: index + 1, project_id: 1,
+    title: `Native Worker issue ${index + 1}`, state: 'opened', web_url: `${project.web_url}/-/issues/${index + 1}`, assignees: [currentUser], labels: [] }));
+  const graph: IssueGraphSnapshot = {
+    connectedScope: scope, status: 'ready', roots: issues.map(issue => `project:1:issue:${issue.iid}`),
+    nodes: issues.map(issue => ({ id: `project:1:issue:${issue.iid}`, sourceIds: [`rest:${issue.id}`], kind: 'issue',
+      namespacePath: project.path_with_namespace, projectId: 1, projectPath: project.path_with_namespace, iid: String(issue.iid),
+      title: issue.title, state: 'opened', webUrl: issue.web_url, labels: [], assignees: [currentUser], boardIds: [], assignedToMe: true, isRoot: true })),
+    edges: issues.slice(1).map((issue, index) => ({ id: `native-edge-${index}`, source: `project:1:issue:${issue.iid - 1}`, target: `project:1:issue:${issue.iid}`, type: 'relates_to' })),
+    boardIssueIds: {}, boardStatus: {}, errors: [], updatedAt: Date.now()
+  };
+  const group = { id: 1, name: 'Worker Probe', full_path: 'probe', web_url: 'https://probe.invalid/probe' };
+  const snapshot: WorkspaceSnapshot = {
+    connected: true, baseUrl: 'https://probe.invalid', currentUser, group, groups: [group], projects: [project],
+    connectedScope: scope, instanceUserScope: scope, operationScope: scope, activeMode: 'developer',
+    groupRepositories: [], groupRepositoryScanStatus: 'idle', groupMilestones: [], groupIssueBoards: [],
+    localRepositories: {}, projectLocalRepositories: {}, issues, mergeRequests: [], projectMembers: [], timers: [],
+    workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'bundled',
+    sections: { projects: { status: 'ready' }, issues: { status: 'ready' }, graph: { status: 'ready' }, boards: { status: 'ready' }, milestones: { status: 'ready' } },
+    issueGraph: graph, issueGraphVersion: 1
+  };
+  const requests: string[] = [];
+  let readyCount = 0, graphVersion = 1;
+  // This panel owns its messages: mock data never enters WorkspacePanel or an API adapter.
+  const listener = panel.webview.onDidReceiveMessage((message: { type?: string }) => {
+    if (typeof message?.type !== 'string') return;
+    requests.push(message.type);
+    if (message.type === 'ready') {
+      void panel.webview.postMessage({ type: 'snapshot', snapshot }).then(() => { readyCount++; });
+    } else if (message.type === 'loadIssueGraph') {
+      void panel.webview.postMessage({ type: 'issueGraphChanged', connectedScope: scope, version: ++graphVersion, graph });
+    }
+  });
+  let ui: WebviewCdp | undefined;
+  let lifecycleCdp: CDPSession | undefined;
+  type IframeTarget = { targetId: string; type: string; url: string; attached?: boolean };
+  const targetEvents: Array<{ method: string; params: Record<string, unknown>; observedAt: string }> = [];
+  let originalTargetId: string | undefined, hideStarted = false;
+  let targetDestroyedEvent: (typeof targetEvents)[number] | undefined;
+  const recordTargetEvent = (method: string, params: Record<string, unknown>): void => {
+    const event = { method, params, observedAt: new Date().toISOString() };
+    targetEvents.push(event);
+    if (targetEvents.length > 256) targetEvents.shift();
+    if (hideStarted && method === 'Target.targetDestroyed' && params.targetId === originalTargetId) targetDestroyedEvent = event;
+  };
+  try {
+    const nonce = randomBytes(16).toString('base64');
+    const base = panel.webview.asWebviewUri(assetRoot).toString().replace(/\/$/, '') + '/';
+    const instrumentation = `(() => {
+      const probe = window.__glwNativeGraphWorkerProbe = { created: 0, terminated: 0, live: 0, starts: 0,
+        pauses: 0, resumes: 0, responses: 0, positions: 0, finitePositions: false, canvasFrames: 0, urls: [], errors: [], nodes: 0,
+        contextId: String(Date.now()) + '-' + Math.random().toString(36).slice(2) };
+      const NativeWorker = window.Worker;
+      window.Worker = class extends NativeWorker {
+        constructor(url, options) {
+          super(url, options); this.__probeTerminated = false;
+          probe.created++; probe.live++; probe.urls.push(String(url));
+          this.addEventListener('message', event => { const positions = event.data?.positions;
+            if (positions) { probe.responses++; probe.positions = positions.length; probe.finitePositions = [...positions].every(Number.isFinite); } });
+          this.addEventListener('error', event => probe.errors.push(event.message || 'Worker error'));
+        }
+        postMessage(message, ...rest) {
+          if (message?.type === 'start') { probe.starts++; probe.nodes = message.nodes?.length; }
+          if (message?.type === 'activity') { if (message.active) probe.resumes++; else probe.pauses++; }
+          return super.postMessage(message, ...rest);
+        }
+        terminate() { if (!this.__probeTerminated) { this.__probeTerminated = true; probe.terminated++; probe.live--; } return super.terminate(); }
+      };
+      const clearRect = CanvasRenderingContext2D.prototype.clearRect;
+      CanvasRenderingContext2D.prototype.clearRect = function (...args) { if (this.canvas.classList.contains('issue-graph-canvas')) probe.canvasFrames++; return clearRect.apply(this, args); };
+      window.addEventListener('securitypolicyviolation', event => probe.errors.push('CSP: ' + event.violatedDirective + ' ' + event.blockedURI));
+    })();`;
+    let html = readFileSync(vscode.Uri.joinPath(assetRoot, 'dashboard.html').fsPath, 'utf8');
+    html = html.replace(/<script([^>]*)>/g, `<script nonce="${nonce}"$1>`);
+    html = html.replace('<head>', `<head><base href="${base}"><meta name="glw-native-graph-worker-probe" content="owned"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${panel.webview.cspSource}; worker-src ${panel.webview.cspSource} blob:; font-src ${panel.webview.cspSource};"><script nonce="${nonce}">${instrumentation}</script>`);
+    panel.webview.html = html;
+    const readyDeadline = Date.now() + 20_000;
+    while (readyCount === 0 && Date.now() < readyDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.ok(readyCount > 0, 'the packaged production dashboard requests and receives its owned mock snapshot');
+    ui = await connectWorkspaceWebview(browser, port, path.join(evidenceDirectory, 'native-graph-worker-targets.json'),
+      path.join(evidenceDirectory, 'native-graph-worker-debug.json'), fetch,
+      `Boolean(document.querySelector('meta[name="glw-native-graph-worker-probe"]') && document.querySelector('.app-shell'))`);
+    await ui.waitForVisible('.developer-view-switch', 10_000);
+    await ui.click('.developer-view-switch button', 1);
+    await ui.waitForVisible('canvas.issue-graph-canvas', 10_000);
+    const probe = 'document.defaultView.__glwNativeGraphWorkerProbe';
+    await ui.waitUntil(`${probe}.nodes === 2000 && ${probe}.live === 1 && ${probe}.responses > 0 && ${probe}.positions === 4000 && ${probe}.finitePositions && ${probe}.canvasFrames > 0`, 20_000,
+      'The real production Canvas must receive finite positions for all 2000 nodes from its native Worker.');
+    const startup = await ui.evaluate<Record<string, unknown>>(`JSON.parse(JSON.stringify(${probe}))`);
+    originalTargetId = ui.targetId;
+    startup.webviewTargetId = originalTargetId;
+    assert.deepEqual(startup.errors, [], 'the real Worker starts without a CSP or Worker error');
+    assert.ok((startup.urls as string[]).every(url => url.startsWith('blob:')), 'the packaged Worker uses VS Code-supported Blob URLs');
+    const startupUrls = new Set(startup.urls as string[]);
+    lifecycleCdp = await browser.newBrowserCDPSession();
+    lifecycleCdp.on('Target.targetCreated', params => recordTargetEvent('Target.targetCreated', params));
+    lifecycleCdp.on('Target.targetInfoChanged', params => recordTargetEvent('Target.targetInfoChanged', params));
+    lifecycleCdp.on('Target.targetDestroyed', params => recordTargetEvent('Target.targetDestroyed', params));
+    await lifecycleCdp.send('Target.setDiscoverTargets', { discover: true });
+    const getTargets = async (): Promise<IframeTarget[]> => {
+      const targets = await lifecycleCdp!.send('Target.getTargets') as { targetInfos: IframeTarget[] };
+      return targets.targetInfos;
+    };
+    // Detach the guest debugger before hiding, then independently prove that the exact
+    // app iframe still exists. A debugger disconnect alone is never cleanup evidence.
+    await ui.close();
+    ui = undefined;
+    const beforeHideTarget = (await getTargets()).find(target => target.targetId === originalTargetId);
+    assert.ok(beforeHideTarget && beforeHideTarget.type === 'iframe' && beforeHideTarget.url.startsWith('vscode-webview://'),
+      'The exact production Webview iframe remains alive after its guest debugger detaches.');
+    const readyBeforeHide = readyCount;
+    hideStarted = true;
+    await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+    let remainingOriginalTarget = (await getTargets()).find(target => target.targetId === originalTargetId);
+    const destructionDeadline = Date.now() + 10_000;
+    while (remainingOriginalTarget && !targetDestroyedEvent && Date.now() < destructionDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      remainingOriginalTarget = (await getTargets()).find(target => target.targetId === originalTargetId);
+    }
+    assert.equal(panel.visible, false, 'VS Code reports the owned panel hidden');
+    assert.ok(targetDestroyedEvent || !remainingOriginalTarget,
+      'Native hide must destroy the original Webview iframe target, independently of debugger attachment.');
+    const hidden = { destroyed: true, strategy: 'browser-iframe-target-lifecycle', originalTarget: beforeHideTarget,
+      guestDebuggerDetachedBeforeHide: true, originalTargetAbsent: !remainingOriginalTarget, targetDestroyedEvent: targetDestroyedEvent ?? null };
+    panel.reveal(vscode.ViewColumn.Active);
+    const restoredReadyDeadline = Date.now() + 20_000;
+    while (readyCount <= readyBeforeHide && Date.now() < restoredReadyDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.ok(readyCount > readyBeforeHide, 'the recreated production Dashboard requests and receives a fresh full mock snapshot');
+    ui = await connectWorkspaceWebview(browser, port, path.join(evidenceDirectory, 'native-graph-worker-restored-targets.json'),
+      path.join(evidenceDirectory, 'native-graph-worker-restored-debug.json'), fetch,
+      `Boolean(document.querySelector('meta[name="glw-native-graph-worker-probe"]') && document.querySelector('.app-shell'))`);
+    await ui.waitForVisible('.developer-view-switch', 10_000);
+    await ui.click('.developer-view-switch button', 1);
+    await ui.waitForVisible('canvas.issue-graph-canvas', 10_000);
+    await ui.waitUntil(`${probe}.nodes === 2000 && ${probe}.live === 1 && ${probe}.responses > 0 && ${probe}.positions === 4000 && ${probe}.finitePositions && ${probe}.canvasFrames > 0`, 20_000,
+      'The recreated Canvas receives all 2000 finite node positions from a new native Blob Worker.');
+    const restored = await ui.evaluate<Record<string, unknown>>(`JSON.parse(JSON.stringify(${probe}))`);
+    restored.webviewTargetId = ui.targetId;
+    assert.notEqual(ui.targetId, originalTargetId, 'VS Code creates a new iframe target after destroying the original Webview');
+    assert.notEqual(restored.contextId, startup.contextId, 'VS Code recreates the Webview JavaScript context instead of retaining it');
+    assert.deepEqual(restored.errors, [], 'the recreated Worker starts without CSP or Worker errors');
+    assert.ok((restored.urls as string[]).every(url => url.startsWith('blob:') && !startupUrls.has(url)), 'the recreated context owns new production Blob Workers');
+    assert.equal(panel.visible, true, 'VS Code reports the owned panel visible again');
+    await ui.click('.developer-view-switch button', 0);
+    await ui.waitUntil(`!document.querySelector('canvas.issue-graph-canvas') && ${probe}.live === 0 && ${probe}.terminated === ${probe}.created`, 10_000,
+      'Leaving the production graph unmounts Canvas and terminates every native Worker.');
+    const cleanup = await ui.evaluate<Record<string, unknown>>(`JSON.parse(JSON.stringify(${probe}))`);
+    assert.deepEqual(cleanup.errors, [], 'native destruction, restoration and unmount cleanup complete without Worker errors');
+    return { status: 'PASS', nodes: 2000, canvas: true, startup,
+      hidden, restored, cleanup, readyCount, targetEvents, requests, apiDispatch: false };
+  } catch (error) {
+    writeFileSync(path.join(evidenceDirectory, 'native-graph-worker-failure.json'), `${JSON.stringify({
+      error: error instanceof Error ? error.message : String(error), hostVisible: panel.visible, readyCount,
+      originalTargetId, targetEvents,
+      probe: await ui?.evaluate(`({ ...document.defaultView.__glwNativeGraphWorkerProbe, documentVisibility: document.visibilityState })`).catch(() => undefined)
+    }, null, 2)}\n`, 'utf8');
+    throw error;
+  } finally {
+    await ui?.close();
+    await lifecycleCdp?.detach().catch(() => undefined);
+    writeFileSync(path.join(evidenceDirectory, 'native-graph-worker-lifecycle-target-events.json'), `${JSON.stringify({ originalTargetId, targetEvents }, null, 2)}\n`, 'utf8');
+    listener.dispose();
+    panel.dispose();
+  }
+}
+
 async function connectWorkspaceWebview(
   browser: Awaited<ReturnType<typeof chromium.connectOverCDP>>,
   port: number,
   targetEvidencePath: string,
   debugEvidencePath: string,
-  request: typeof fetch = fetch
+  request: typeof fetch = fetch,
+  readyExpression?: string
 ): Promise<WebviewCdp> {
   const browserCdp = await browser.newBrowserCDPSession();
   let targets: { targetInfos?: Array<{ targetId: string; type: string; url: string }> } = {};
@@ -556,7 +775,7 @@ async function connectWorkspaceWebview(
   }
   writeFileSync(targetEvidencePath, `${JSON.stringify(targets, null, 2)}\n`, 'utf8');
   const devtools = await request(`http://127.0.0.1:${port}/json/version`).then((response) => response.json()) as { webSocketDebuggerUrl?: string };
-  return WebviewCdp.connect(devtools.webSocketDebuggerUrl!, webviewTargets, debugEvidencePath);
+  return WebviewCdp.connect(devtools.webSocketDebuggerUrl!, webviewTargets, debugEvidencePath, readyExpression);
 }
 
 type CdpMessage = { id?: number; result?: Record<string, unknown>; error?: { message?: string } };
@@ -603,9 +822,9 @@ class RawCdpConnection {
 }
 
 class WebviewCdp {
-  private constructor(private readonly connection: RawCdpConnection, private readonly sessionId: string) {}
+  private constructor(private readonly connection: RawCdpConnection, private readonly sessionId: string, readonly targetId: string) {}
 
-  static async connect(address: string, candidates: Array<{ targetId: string }>, diagnosticPath: string): Promise<WebviewCdp> {
+  static async connect(address: string, candidates: Array<{ targetId: string }>, diagnosticPath: string, readyExpression = `Boolean(document.querySelector('.app-shell, .git-workbench'))`): Promise<WebviewCdp> {
     if (!address || !candidates.length) throw new Error('Chromium did not expose a VS Code Webview target.');
     const connection = await RawCdpConnection.connect(address);
     const diagnostics: unknown[] = [];
@@ -614,12 +833,12 @@ class WebviewCdp {
         const attached = await connection.send('Target.attachToTarget', { targetId: candidate.targetId, flatten: true });
         const sessionId = attached.sessionId;
         if (typeof sessionId !== 'string') continue;
-        const webview = new WebviewCdp(connection, sessionId);
+        const webview = new WebviewCdp(connection, sessionId, candidate.targetId);
         await webview.send('Runtime.enable');
         const firstInspection = await webview.evaluate(`({href: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0, 350), frames: [...document.querySelectorAll('iframe')].map((item) => ({src: item.src, readyState: item.contentDocument?.readyState, title: item.contentDocument?.title, body: item.contentDocument?.body?.innerText?.slice(0, 500), bodyHtml: item.contentDocument?.body?.innerHTML?.slice(0, 350)})), clone: !!document.querySelector('.clone-list-column')})`).catch((error) => `evaluate failed: ${String(error)}`);
         diagnostics.push({ targetId: candidate.targetId, firstInspection });
         for (let attempt = 0; attempt < 100; attempt++) {
-          const ready = await webview.evaluate<boolean>(`Boolean(document.querySelector('.app-shell, .git-workbench'))`).catch(() => false);
+          const ready = await webview.evaluate<boolean>(readyExpression).catch(() => false);
           if (ready) return webview;
           await new Promise((resolve) => setTimeout(resolve, 100));
         }

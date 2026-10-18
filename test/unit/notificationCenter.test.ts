@@ -2,6 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NotificationCenter } from '../../src/notifications/notificationCenter';
 
+test('quiet read receipts do not accumulate and state transition deduplication remains bounded', () => {
+  const center = new NotificationCenter();
+  for (let index = 0; index < 2500; index++) {
+    center.recordOperation({ requestId: String(index), scopeRevision: 'scope', resourceKey: 'read', action: 'read', label: 'Read',
+      phase: 'Done', status: 'succeeded', startedAt: index, notify: false });
+    center.publishState(String(index), { message: 'Warning ' + index });
+  }
+  const data = center as unknown as { operationOutcomes: Map<string, unknown>; publishedStates: Map<string, unknown> };
+  assert.equal(data.operationOutcomes.size, 0);
+  assert.ok(data.publishedStates.size <= 2000);
+});
+
+test('a disposed notification consumer cannot turn a successful operation into a failure', () => {
+  const center = new NotificationCenter(); center.onDidChange(() => { throw new Error('consumer disposed'); });
+  assert.doesNotThrow(() => center.publish({ message: 'Completed' }));
+  assert.equal(center.snapshot().items.length, 1);
+});
+
+test('ordinary notice retention never hides an unresolved write result', () => {
+  const center = new NotificationCenter();
+  center.recordOperation({ requestId: 'unknown-write', scopeRevision: 'scope', resourceKey: 'write', action: 'write', label: 'Write',
+    status: 'failed', phase: 'Verify result', startedAt: 1, effect: 'unknown' });
+  for (let index = 0; index < 600; index++) center.publish({ message: 'Notice ' + index });
+  assert.ok(center.snapshot().items.some(item => item.operationId === 'unknown-write'));
+  assert.equal(center.unreadCount, center.snapshot().unreadCount);
+});
+
 test('replaying a removed terminal receipt does not recreate its notification', () => {
   const center = new NotificationCenter();
   const state = { requestId: 'receipt', scopeRevision: 'a', resourceKey: 'repo', action: 'write', label: 'Write', status: 'succeeded' as const, phase: 'Done', startedAt: 1 };

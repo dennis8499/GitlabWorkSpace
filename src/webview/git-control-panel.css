@@ -66,6 +66,9 @@ body.vscode-light .git-workbench[data-theme="vscode"], body.vscode-high-contrast
 .git-nav-group > summary > span { flex: 1; }
 .git-nav-group > summary > small { font-weight: 400; }
 .git-nav-items { padding-bottom: 3px; }
+.git-virtual-refs { max-height: 240px; overflow: auto; }
+.git-virtual-changes { max-height: 240px; overflow: auto; }
+.git-virtual-files { max-height: 320px; overflow: auto; }
 .git-ref-row, .git-stash-row { position: relative; display: flex; min-width: 0; align-items: center; gap: 2px; padding: 0 6px 0 18px; }
 .git-ref-row:hover, .git-stash-row:hover { background: var(--git-hover); }
 .git-ref-row.current .git-ref-name { color: var(--git-accent); }

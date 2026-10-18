@@ -1,0 +1,5272 @@
+{
+  "schema": "GitLabWorkspaceFeatureMatrix/v1",
+  "updatedAt": "2026-10-18",
+  "timezone": "Asia/Taipei",
+  "purpose": "本次行為／回應時間改善的交付驗證矩陣；由根端在最後 npm test 與實機結果後更新。",
+  "statusDefinitions": {
+    "passed": "本次有實際執行且通過的所列離線情境；不等於真實 GitLab、原生 VS Code 或整個功能已驗收。",
+    "pending": "缺少本次逐項實測、最新 source 尚待重跑，或所列情境仍未驗收。",
+    "not-applicable": "該功能層不適用此條件；不作通過宣稱。"
+  },
+  "aggregation": "offlineStatus 只有在六種情境沒有 pending 時才為 passed；liveStatus 分開列 GitLab 與原生 Git，互不替代。",
+  "constraints": [
+    "沒有可用 GitLab Token，所有適用的 liveGitLab 都維持 pending。",
+    "一般隔離 Extension Host 的 12 通過／3 opt-in 未啟用仍保留原始來源；額外的 1.90／1.142 原生 Worker、1.142 一般本機 Git 與原生確認指定流程已各自 PASS，不推定全部六情境通過。",
+    "真實寫入只允許隔離測試環境。",
+    "final-validation-7 共 28 個成功階段；latest prepare 來源為 final6-prepare，UI 140／Cucumber 39／一般 Host 保留 final3 checks，後端 497 沿用 final-unit，工具包 132 Python／34 tooling 沿用相同 SHA 的已通過檢查；package 來源為 final4-package。",
+    "產品未因觀察 fixture 修正而變更：保留 VSIX 與 final6-prepare 重建結果已逐 runtime／resource 檔案核對等價，僅允許已記錄的 deterministic VSCE README link 轉換。",
+    "最新 observed 候選 SHA256 為 31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e；相鄰 packaged UI、兩版原生 Worker、1.142 本機 Git 與原生確認均有指定流程 PASS 證據。整體仍 pending，因真實 GitLab 與未覆蓋情境尚未驗收。",
+    "最終相鄰 UI 配對 warm navigation 28.6→28.9 ms（+1.049%）、搜尋 35.0→35.2 ms（+0.571%）、retained heap p95 +1.586%，均在 10% 回歸門檻內；不是 GitLab／Git 網路耗時。",
+    "中間 fc146 搜尋 +11.111% FAIL、早期 refresh 缺回饋與 native fixture 觀察失敗均保留，不以後續通過改寫歷史。",
+    "舊 navigation 首回饋選鈕按索引漏 BMAD，該部分驗收不完整；最新 harness 以 label 選取並斷言 host.activeMode。舊 warm navigation／search 原本使用 label，觀測仍保留。"
+  ],
+  "evidenceRuns": [
+    {
+      "id": "api-git-full-158",
+      "owner": "api_git_audit",
+      "command": "node --test .gitlab-workspace-validation/api-git-out/test/unit/{cloneService,gitLabClient,gitLabIssueApi,gitLabReadCache,gitLabReadGate,session,accounts,gitRepositoryRefresh,gitStateFingerprint,gitRefreshScheduler,gitProcess,repositoryScanner,repositoryOperationLock,gitDiffSelection,gitDiffFileSystemProvider}.test.js",
+      "commandNotes": "實際工具呼叫逐一列出這 15 個檔案；此處 brace 僅為人類閱讀縮寫，PowerShell 執行時請展開成個別參數。",
+      "result": "passed",
+      "tests": 158,
+      "notes": [
+        "隔離 outDir 編譯，沒有 clean/build 共享 out。",
+        "測試僅 mock、loopback API 或暫存本機 Repo；沒有真實 GitLab 請求。"
+      ]
+    },
+    {
+      "id": "api-git-latest-47",
+      "owner": "api_git_audit",
+      "command": "node --test .gitlab-workspace-validation/api-git-out/test/unit/gitRepositoryRefresh.test.js .gitlab-workspace-validation/api-git-out/test/unit/gitLabClient.test.js .gitlab-workspace-validation/api-git-out/test/unit/gitProcess.test.js",
+      "result": "passed",
+      "tests": 47,
+      "notes": [
+        "在後續 Markdown read classification、upload cancel cleanup、程序樹清理、native size 與 Git write timeout unknown 回歸加入後重跑。",
+        "另以 --test-name-pattern 單獨執行 metadata preflight／oversized snapshot 兩項，均通過。"
+      ]
+    },
+    {
+      "id": "workflow-agent",
+      "owner": "workflow_audit",
+      "command": "node --test .tmp/workflow-out/test/unit/<test-name>.test.js",
+      "result": "passed",
+      "notes": [
+        "Issue flow/actionLifecycle/relations/responsiveness 通過；新增 names-only 模板選取回歸通過。",
+        "BMAD controller＋workflow 27 項；workspace＋time retention 14 項；Logs 10 項；notifications 16 項；operations 4／receipt store 4／actionController 24 項通過。",
+        "沒有持久化命令 log 的項目依同隊 agent 的執行結果回報標示，未造出 evidence 檔案。",
+        "Skills Python／release／extension 安裝套件與 bmadWorkspace 原生 launcher 未由該 agent 執行。"
+      ],
+      "compileCommand": "node node_modules/typescript/bin/tsc -p . --outDir .tmp/workflow-out --sourceMap false --noEmitOnError false",
+      "commandNotes": "實際工作目錄是 GitlabWorkSpace，.tmp 在專案內；每個回報測試檔以個別參數實際執行。"
+    },
+    {
+      "id": "root-integration-475",
+      "owner": "root",
+      "command": "根端直接執行隔離 integration-unit outDir 的 node --test 單元套件；完整展開參數由根端回填",
+      "result": "pending",
+      "tests": 475,
+      "passed": 469,
+      "failed": 6,
+      "evidence": ".gitlab-workspace-validation/optimization/integration-unit.log",
+      "notes": [
+        "依已讀取的實際 log，469 個情境通過；不能將整個 suite 標 passed。",
+        "早期隔離快照的失敗保留作歷史紀錄；最新準備產物的 497 單元全通過，請參考 root-final5-offline。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "graph-browser",
+      "owner": "webview_audit",
+      "result": "passed",
+      "evidence": [
+        "docs/work/work-20261018-responsiveness/evidence/graph-renderer-baseline-idle.json",
+        "docs/work/work-20261018-responsiveness/evidence/graph-renderer-revision-idle.json"
+      ],
+      "notes": [
+        "真實 Chrome renderer，200／2,000 節點各三輪；最終固定資料結果已複製到交付目錄。",
+        "僅為 renderer-only 合成測試，不是 Extension Host／GitLab 全流程延遲。",
+        "這是 Blob inline／最後主題修正之前的 renderer 效能證據；不冒充最新包的 p95 重測。"
+      ],
+      "commands": [
+        "$env:GRAPH_ROUNDS='3'; node test/behavior/graph-renderer-benchmark.mjs ../.tmp/graph-renderer-baseline-idle.json --baseline",
+        "$env:GRAPH_ROUNDS='3'; $env:GRAPH_SCREENSHOT='../.tmp/graph-large-final.png'; node test/behavior/graph-renderer-benchmark.mjs ../.tmp/graph-renderer-revision-idle.json"
+      ]
+    },
+    {
+      "id": "graph-theme-visual",
+      "owner": "webview_audit",
+      "result": "passed",
+      "evidence": [
+        "docs/work/work-20261018-responsiveness/evidence/graph-visual-check.json",
+        "docs/work/work-20261018-responsiveness/evidence/graph-large-final.png",
+        "docs/work/work-20261018-responsiveness/evidence/graph-large-light.png",
+        "docs/work/work-20261018-responsiveness/evidence/graph-large-highcontrast.png"
+      ],
+      "notes": [
+        "Canvas 主題修正後，以真實 Chromium、2,000 節點、animation=false 執行輕量視覺與鍵盤驗證，沒有重跑效能迴圈。",
+        "深色／淺色／高對比的選取標題對比分別約 11.25／12.63／21；focus、Enter 搜尋、Home/End、靜止圖切換主題重繪均通過。",
+        "Worker 一個，JS HTTP 200，page errors 為空；這份證據不可冒充 baseline／revision 效能重新量測。"
+      ]
+    },
+    {
+      "id": "native-host-1.90",
+      "owner": "root",
+      "command": "$env:VSCODE_EXECUTABLE_PATH='C:/Users/denni/OneDrive/Desktop/新增資料夾/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.90.0/Code.exe'; $env:GLW_TEST_NO_SANDBOX='1'; $env:VSCODE_TEST_VERSION='1.90.0'; node scripts/run-extension-tests.mjs --forbid-only --fail-zero",
+      "result": "pending",
+      "tests": 14,
+      "passed": 12,
+      "pending": 2,
+      "exitCode": 0,
+      "evidence": ".gitlab-workspace-validation/optimization/extension-1.90.log",
+      "notes": [
+        "已讀取實際 log：一般 Host 整合、離線管理 Webview、掃描 native Git 登錄、Skills 真實 bundled 安裝、唯讀文字／二進位 Diff 快照、MR 評論核對、BMAD 檔案 watcher 與 activation 通過。",
+        "待驗的是 opt-in 本機 Git GUI 與真實 GitLab Webview；不將兩項標通過，也不宣稱全部 Git 寫入已原生驗收。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "native-host-1.142",
+      "owner": "root",
+      "command": "$env:VSCODE_EXECUTABLE_PATH='C:/Users/denni/OneDrive/Desktop/新增資料夾/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.142.0/Code.exe'; $env:GLW_TEST_NO_SANDBOX='1'; node scripts/run-extension-tests.mjs --forbid-only --fail-zero",
+      "result": "pending",
+      "tests": 14,
+      "passed": 12,
+      "pending": 2,
+      "notes": [
+        "依根端實際工具執行結果回報為 12 通過、2 待驗；首次直接執行沒有保存獨立 log，因此不虛構檔案路徑。",
+        "兩個 opt-in 本機 Git GUI／真實 GitLab 測試仍待驗；最終正常 npm test 日誌由根端回填。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "typechecks",
+      "owner": "api_git_audit",
+      "commands": [
+        "node node_modules/typescript/bin/tsc -p . --noEmit",
+        "node node_modules/typescript/bin/tsc -p tsconfig.webview.json --noEmit",
+        "git -c safe.directory=C:/Users/denni/OneDrive/Desktop/新增資料夾/GitlabWorkSpace diff --check -- src/api src/connection src/git"
+      ],
+      "result": "passed",
+      "notes": [
+        "僅代表執行當時工作樹通過，後續整合變更需再跑。"
+      ]
+    },
+    {
+      "id": "ui-agent-134",
+      "owner": "webview_audit",
+      "command": "$env:GITLAB_WORKSPACE_UI_SOURCE='1'; node --test test/behavior/dashboard.test.mjs test/behavior/quick-actions.test.mjs test/behavior/skills-guide.test.mjs test/behavior/bmad-dashboard.test.mjs test/behavior/bmad-panel.test.mjs",
+      "result": "passed",
+      "tests": 134,
+      "durationSeconds": 63.22,
+      "notes": [
+        "五檔全部 source-mode／write:false，沒有改共享 out/resources。",
+        "11 項新增 responsiveness 回歸涵蓋 lazy 關係／Markdown、loading 終態／明確 retry、anchor／MR 展開、delta resync、Git 大資料、create 骨架、lazy templates 防覆蓋、附件取消 unknown 不重送及同步保存最後草稿。",
+        "另測跨 scope 舊 stream 重播與 Git mixed-context 鍵盤各 1/1；virtual window 獨立 outDir unit 3/3。",
+        "依同隊 agent 實際工具執行結果回報，未虛構持久化 UI log 檔。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "root-npm-test-attempt-2",
+      "owner": "root",
+      "command": "npm test",
+      "result": "pending",
+      "evidence": ".gitlab-workspace-validation/optimization/full-validation-2/timings.json",
+      "notes": [
+        "紀錄所載 status=failed，停在 extension Host 啟動步驟；不是所有測試已跑完。",
+        "後端／webview compile、dashboard/sidebar build、kit build 已完成；後續直接 Host 執行結果另列 native-host evidence，不回寫為這次 npm test 通過。",
+        "早期失敗嘗試保留作歷史紀錄；後續離線通過另列 root-final5-offline。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "workflow-latest-40",
+      "owner": "workflow_audit",
+      "command": "node --test .tmp/workflow-out/test/unit/workspaceResponsiveness.test.js .tmp/workflow-out/test/unit/workspaceLifecycle.test.js .tmp/workflow-out/test/unit/workspaceOperationLifecycle.test.js",
+      "result": "passed",
+      "tests": 40,
+      "notes": [
+        "最新兩個回歸先在舊碼失敗，再修復後連同三檔共 40 項通過。",
+        "不確定的批次 Issue 建立會立即停止批次並保留 write lock；openIssue 等待持久化選取後會重新檢查導覽，切 Group 不開舊 Issue。",
+        "依同隊 agent 實際工具執行結果回報；未保存獨立 log，不虛構檔案。真實 GitLab 寫入逾時與切群組仍待驗。"
+      ]
+    },
+    {
+      "id": "root-final5-offline",
+      "owner": "root",
+      "result": "passed",
+      "stages": 28,
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/final-validation-5/timings.json",
+        ".gitlab-workspace-validation/optimization/final-validation-5/unit.log",
+        ".gitlab-workspace-validation/optimization/final-validation-5/behavior-node.log",
+        ".gitlab-workspace-validation/optimization/final-validation-5/behavior-issues.log",
+        ".gitlab-workspace-validation/optimization/final-validation-5/behavior-connect.log",
+        ".gitlab-workspace-validation/optimization/final-validation-5/release-tooling.log",
+        ".gitlab-workspace-validation/optimization/final-validation-5/verify-package.log"
+      ],
+      "commandNotes": "精確命令逐項保存於 timings.json 的 stages[].command；這是分段結果整合，不冒稱單次從頭到尾的 npm test。",
+      "notes": [
+        "已讀取實際 log：497/497 單元、134/134 UI、Issue 29/29 情境（136 steps）、connect 10/10 情境（35 steps）均通過。",
+        "release-tooling 34/34；12 個 Python release *_test.py 共 132 測試均 exit 0。Python 輔助 frozen_installer_runner.py 不算測試檔。",
+        "28 個選定階段皆 exit 0；工具包沿用 final-validation-4 的成功 release 檢查，收集器確認 toolkit SHA256 相同：95c374e5c29d0c8f1ec73878d3928d567a88326e7d9ace9f01ee9c3eeb2d0314。",
+        "Blob Worker 改動後已重新執行 prepare／unit／behavior／一般 Extension Host／package，prepared freshness 與套件驗證通過。",
+        "一般 Host 的 opt-in 三項仍 pending；此離線結果不取代後續原生 Worker／Git GUI 探測，也不代表真實 GitLab 已驗收。",
+        "timings.seconds 是選定階段耗時加總，包含平行 Python worker，不是實際經過時間。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "graph-worker-blob-smoke",
+      "owner": "webview_audit",
+      "result": "passed",
+      "command": "node test/behavior/graph-renderer-benchmark.mjs --worker-smoke docs/work/work-20261018-responsiveness/evidence/graph-worker-smoke.json",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/graph-worker-smoke.json",
+      "notes": [
+        "實際 Chromium 嚴格 worker-src blob: 下，舊 HTTP Worker 先失敗，改 Vite inline Blob 後通過。",
+        "已驗 real layout replies、inactive／hidden pause、resume 與 unmount terminate；workerErrors／errors 皆空。",
+        "另有 webview tsc 與 source graph behavior 3/3 通過回報；本次沒有重新量測 renderer p95，且原生 VS Code 隱藏事件需另驗。"
+      ]
+    },
+    {
+      "id": "native-worker-1.90-candidate",
+      "owner": "root",
+      "result": "pending",
+      "tests": 6,
+      "passed": 3,
+      "failed": 1,
+      "pending": 2,
+      "evidence": ".gitlab-workspace-validation/optimization/native-worker-1.90.log",
+      "notes": [
+        "這是候選 SHA256 2fca9b4abca1f8336d470935ed1104343ff7bc56e12208b93828e6ef0fda3a55 的額外原生探測，實際 exit 1。",
+        "2,000 節點 Canvas／Blob Worker／4,000 個 finite coordinates 已通過；原 hide 斷言失敗，根端已判定 fixture retainContextWhenHidden:true 與產品預設 false 不一致，正改驗 hide 銷毀／reveal 重建 Worker。",
+        "本機 Git GUI 與真實 GitLab 沒有在此輪執行；不得標為 native Worker 全部通過或最終交付候選。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "native-host-1.90-final5",
+      "owner": "root",
+      "result": "pending",
+      "tests": 15,
+      "passed": 12,
+      "pending": 3,
+      "exitCode": 0,
+      "evidence": ".gitlab-workspace-validation/optimization/extension-1.90-final.log",
+      "notes": [
+        "已讀取此版一般 Extension Host 實際日誌：12 通過、3 opt-in 待驗；這不是原生 Git GUI 或 Blob Worker 額外探測結果。",
+        "12 項包含 native Git 深層掃描登錄、離線管理 Webview、bundled Skills 安裝、唯讀文字／二進位 Diff、MR head 核對、BMAD 真實檔案 watcher 與 activation。",
+        "1.90 BMAD 五種檔案事件通知延遲約 263–338 ms；沒有宣稱長時間 CPU／I/O 已驗收。"
+      ]
+    },
+    {
+      "id": "native-host-1.142-final5",
+      "owner": "root",
+      "result": "pending",
+      "tests": 15,
+      "passed": 12,
+      "pending": 3,
+      "exitCode": 0,
+      "evidence": ".gitlab-workspace-validation/optimization/final-validation-5/extension.log",
+      "notes": [
+        "已讀取 final-validation-5 的一般 Extension Host 實際日誌：12 通過、3 opt-in 待驗。",
+        "本機 Git GUI、原生 2,000 節點 Blob Worker、真實 GitLab Webview 仍須分別啟用測試，不因一般 Host exit 0 升為通過。"
+      ]
+    },
+    {
+      "id": "root-final6-offline",
+      "owner": "root",
+      "result": "passed",
+      "stages": 28,
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/final-validation-6/timings.json",
+        ".gitlab-workspace-validation/optimization/final-validation-6/unit.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/behavior-node.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/behavior-issues.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/behavior-connect.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/extension.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/release-tooling.log",
+        ".gitlab-workspace-validation/optimization/final-validation-6/verify-package.log"
+      ],
+      "commandNotes": "精確命令與來源 run 保存於 timings.json 的 stages[].command／sourceRun；這是核對 prepared freshness 與 toolkit SHA 後的分段結果整合。",
+      "notes": [
+        "28 個選定階段皆 exit 0。497 後端單元未變，沿用 final-unit；最新 final2-behavior 為 UI 136/136、Issue 29/29 情境、connect 10/10 情境通過。",
+        "UI 新增兩個先失敗再修復的回歸：refresh 立即 disabled／aria-busy／文案回饋（含連續 100 輪），OperationFeedback 依 unknown／active／terminal 優先順序顯示。",
+        "release-tooling 34 與 Python release 12 檔共 132 測試通過，工具包 SHA256 仍為 95c374e5c29d0c8f1ec73878d3928d567a88326e7d9ace9f01ee9c3eeb2d0314，沿用 final-validation-4 已成功且未變更的 release 檢查。",
+        "一般 Host 兩版各 12 通過、3 opt-in 待驗；不等於原生 Git GUI、原生 Blob Worker 額外探測或真實 GitLab 通過。",
+        "候選 fc14601c4dc90cd4a5bcf76bc9a503158eb4f34fd9ae4ede60e5d5f89935ec2d 的相鄰 A/B 正在執行，本次沒有因此將整體效能標 passed。",
+        "timings.seconds 是所選階段耗時加總，包含平行工作，不是實際經過時間。"
+      ],
+      "historical": true
+    },
+    {
+      "id": "packaged-ui-2fca-first-run",
+      "owner": "root",
+      "result": "pending",
+      "historical": true,
+      "evidence": ".gitlab-workspace-validation/optimization/ui-revision-run.log",
+      "notes": [
+        "舊候選 2fca…3a55 的一次完整 UI 測量：其他七個 first-feedback case 各 100 樣本通過；refresh 僅完成 12 樣本，第 13 次沒有可見回饋。",
+        "原失敗保留，不能以後續局部診斷覆寫為完整通過。當時 warm navigation 約 24.6→29.4 ms（約 +19.5%）尚待安靜相鄰 A/B 判讀，不宣稱效能改善。",
+        "舊 navigation 首回饋 selector 因索引漏 BMAD，該部分驗收不完整；舊 warm navigation／search 原本用 label，數字保留。"
+      ]
+    },
+    {
+      "id": "packaged-ui-2fca-refresh-diagnostic",
+      "owner": "root",
+      "result": "passed",
+      "historical": true,
+      "tests": 100,
+      "evidence": ".gitlab-workspace-validation/optimization/ui-refresh-diagnostic/revision.json",
+      "notes": [
+        "同一舊候選 SHA256 2fca9b4abca1f8336d470935ed1104343ff7bc56e12208b93828e6ef0fda3a55 的獨立 refresh 診斷 100 樣本通過。",
+        "只有 refresh case；不取代完整 8 case／10 輪比較，也不證明第 13 樣本原始失敗已定位。"
+      ]
+    },
+    {
+      "id": "root-final7-offline",
+      "owner": "root",
+      "result": "passed",
+      "stages": 28,
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/final-validation-7/timings.json",
+        ".gitlab-workspace-validation/optimization/final-validation-7/behavior-node.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/behavior-issues.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/behavior-connect.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/extension.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/unit.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/release-tooling.log",
+        ".gitlab-workspace-validation/optimization/final-validation-7/verify-package.log"
+      ],
+      "commandNotes": "精確命令／來源保留於 timings.json 的 stages[].command／sourceRun；28 個選定階段皆成功，並非重跑未變更的後端與工具包套件。",
+      "notes": [
+        "已讀取最新 log：final3 UI 140/140、Cucumber Issue 29＋connect 10 情境、一般 Host 12 通過／3 opt-in 待驗。",
+        "新增四個回歸先在舊碼失敗，再修後通過：internal 留言旗標隨討論／回覆草稿保存、取消編輯只清目前表單、Home 同索引仍將焦點移到正確首控制項、小列表自然高度與免量測。",
+        "≤200 筆使用自然高度，免 offsets 與 ResizeObserver；跨虛擬化門檻才量測／保留 anchor。新回歸另驗 500 筆 bounded DOM、scroll 與回到小列表；Repo／query 預先正規化。",
+        "後端 497 單元未變，沿用 final-unit；34 tooling／12 個 Python 檔共 132 測試沿用未變工具包成功檢查，toolkit SHA256 仍為 95c374e5c29d0c8f1ec73878d3928d567a88326e7d9ace9f01ee9c3eeb2d0314。",
+        "最新 provenance：final6-prepare；產品未變的 final3 UI／Cucumber／一般 Host 保留；final-unit 後端／final-validation-4 工具包保留；final4-package 為交付包。新重建與保留 VSIX 的 runtime／resource 一致性已由收集器核對，詳見 timings.json methodology。"
+      ]
+    },
+    {
+      "id": "packaged-ui-fc146-search-fail",
+      "owner": "root",
+      "result": "pending",
+      "historical": true,
+      "tests": 4,
+      "passed": 3,
+      "failed": 1,
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/ui-baseline-final/baseline.json",
+        ".gitlab-workspace-validation/optimization/ui-revision-final/revision.json"
+      ],
+      "notes": [
+        "這是中間候選 fc14601c4dc90cd4a5bcf76bc9a503158eb4f34fd9ae4ede60e5d5f89935ec2d 與 baseline 的已完成相鄰配對，comparison.status 實際為 FAIL。",
+        "四項指標中，warm navigation 28.3→27.6 ms 通過；Repo 搜尋 36.9→41.0 ms（+11.111%）超過 10% 門檻，FAIL；retained heap p95／max 約 +4.7% 通過。",
+        "不以機器雜訊或後續行為修正改寫這次失敗。新 369c 候選配對另在 ui-*-delivery 執行，目前待驗。",
+        "舊 navigation 首回饋 selector 因索引漏 BMAD，該部分驗收不完整；舊 warm navigation／search 原本用 label，數字保留。"
+      ]
+    },
+    {
+      "id": "packaged-ui-delivery",
+      "owner": "root",
+      "result": "passed",
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/ui-baseline-delivery/baseline.json",
+        ".gitlab-workspace-validation/optimization/ui-revision-delivery/revision.json"
+      ],
+      "notes": [
+        "真實套件 assets、實際 Chromium 155.0.8059.80、同 fixture 與同 harness 20bf402b4ec27de8de2637f2219cc9117eece1f5a23664d78171f1bc006d9000；baseline SHA 15b4475f937151a8ea9e954e2bc0ee17dc72e7117cb72ec4c81a8dc423e4c050，revision SHA 31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e。",
+        "相鄰各 10 輪、每輪 30 次 navigation／search，comparison.status=PASS。warm navigation p95 28.6→28.9 ms（+1.049%），20 Repo 搜尋 p95 35.0→35.2 ms（+0.571%）。",
+        "renderer retained heap p95 7,250,168→7,365,172 bytes（+1.586%），max +1.587%；四個比較指標都在 10% 回歸門檻內。通過代表未超門檻，不宣稱這些小幅增加是效能提升。",
+        "navigation、Issue selection、MR selection、refresh、Skills check、account submit、Git read、Git write 八種首回饋各 100 樣本，全數 PASS；revision p95 約 28.5–38.3 ms，smoke PASS，沒有 runtime errors／blocked network requests。",
+        "navigation selector 已由索引改成 label，並核對 host.activeMode，避免漏 BMAD 後選到錯誤目的地。",
+        "範圍是打包 UI 與隔離、延遲 mock Host；假登入及假寫入沒有碰 GitLab／真實 Repo，mock completion 約 231–235 ms 主要含固定延遲，不當作 API／Git 效能。"
+      ]
+    },
+    {
+      "id": "packaged-ui-navigation-selector-interrupted",
+      "owner": "root",
+      "result": "pending",
+      "historical": true,
+      "evidence": ".gitlab-workspace-validation/optimization/ui-selector-baseline-interrupted.log",
+      "notes": [
+        "舊 navigation 首回饋 selector 的索引清單漏 BMAD，已中斷該次執行並修成 label＋host.activeMode 斷言。",
+        "此中斷紀錄不作完整導航驗收；最新 ui-*-delivery 用相同修正後 harness 完成 baseline／revision，兩邊八種 case 各 100 樣本。"
+      ]
+    },
+    {
+      "id": "workspace-host-snapshot",
+      "owner": "root",
+      "result": "passed",
+      "evidence": [
+        ".gitlab-workspace-validation/optimization/workspace-updates.json",
+        "docs/work/work-20261018-responsiveness/evidence/workspace-updates.json"
+      ],
+      "notes": [
+        "直接執行 production WorkspacePanel.sendSnapshot、固定同 scope 本機 inventory 與真實 JSON 序列化；Skills context 固定，隔離工作區更新計算。",
+        "50 Repo／100 Issue，30 次 selection 更新：Host 計算 p95 25.446→0.553 ms，更新傳輸總量 1,837,311→5,854 bytes（減少 99.681%），30 個 full snapshot 改成 30 個 patch。",
+        "500 Repo／1,000 Issue，30 次更新：Host p95 2,209.663→0.304 ms，更新傳輸 18,269,991→5,854 bytes（減少 99.968%）。",
+        "2,000 Repo／10,000 Issue 僅三次 stress 更新：最大 30,520.664→0.571 ms，傳輸 14,361,552→579 bytes（減少 99.996%）；樣本數不足，不報 p95。",
+        "未測 VS Code bridge、renderer、磁碟或 GitLab 網路；這些是固定資料下 Host 產生／序列化訊息的成本，不是使用者 E2E 響應時間。"
+      ]
+    },
+    {
+      "id": "graph-renderer-final",
+      "owner": "root",
+      "result": "passed",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/graph-renderer-final.json",
+      "notes": [
+        "最新 working-tree production renderer、Chrome 155.0.8059.80，200／2,000 節點各三輪；每組 pooled 90 個 selection 與 45 個 zoom 樣本。",
+        "200 節點 pooled p95：selection 70.7 ms、zoom 50.0 ms；2,000 節點 pooled p95：selection 36.2 ms、zoom 36.2 ms。",
+        "2,000 節點每輪一個 Worker／canvas、無逐節點 DOM，worker／inactive pause／resume／search／Home-End／unmount terminate 檢查通過；本次量測含兩個 animation frame 觀察。",
+        "這是 renderer-only 合成量測，不含 GitLab、磁碟或完整原生 Extension Host；原生 Webview 載入與生命週期另有版本專屬證據。"
+      ]
+    },
+    {
+      "id": "native-worker-1.90-verified",
+      "owner": "root",
+      "result": "passed",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/worker-1.90-verified/git-gui-local.json",
+      "notes": [
+        "實際 VS Code 1.90.0、候選 SHA31dea…8100e、隔離資料。2,000 節點 Canvas／Blob Worker、4,000 個 finite coordinates 通過，沒有 GitLab API dispatch。",
+        "產品 retainContextWhenHidden:false：hide 銷毀原 Webview target，reveal 取得新 context／Worker 並產生新座標；最後 cleanup live workers=0、created=terminated。",
+        "這是 1.90 原生圖譜 Worker 的指定情境通過；不代替一般 Git GUI、其他取消／恢復情境或 1.142 Worker 驗證。"
+      ]
+    },
+    {
+      "id": "native-git-confirmation-1.142",
+      "owner": "root",
+      "result": "passed",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/git-gui-local-native.json",
+      "notes": [
+        "實際 VS Code 1.142.0、候選 SHA31dea…8100e、隔離本機 bare remote；使用真實 workbench DOM 原生確認，而非替代對話框。",
+        "已驗分支建立、逐行部分暫存／整檔暫存、Commit／Push 確認、歷史列與上游 remote SHA。",
+        "force-with-lease 在遠端競態後失敗：UI 維持 unknown／阻擋寫入但允許讀取，refresh 不自動重送，人工核對後解除 lock；push invocation 計數確認沒有額外重送。",
+        "這是指定真實 workbench 確認／unknown 流程的本機寫入驗收；一般 Git 與 scoped idle、1.142 原生 Worker 的最新結果另列獨立證據，不推定全部六情境通過。"
+      ]
+    },
+    {
+      "id": "native-git-gui-1.142-verified",
+      "owner": "root",
+      "result": "passed",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/git-gui-local.json",
+      "notes": [
+        "實際 VS Code 1.142.0、候選 SHA31dea…8100e、隔離本機 Repo／bare remote，正常本機 Git 功能測試 PASS；沒有真實 GitLab 連線。",
+        "開啟、選檔、暫存、Commit、隱藏五個階段各靜置約 60 秒，extensionDelta 的 commands／auxiliaryCommands／nativeApiCalls 全為 0；這是該擴充功能範圍的觀測，非全機 CPU 或所有 VS Code 背景工作為零。",
+        "原生 VS Code Git log 在 hidden 段有 4 筆背景增量，單獨保留，沒有冒稱所有原生背景活動為零。",
+        "已驗部分／整檔暫存、分支、Commit／Amend、Push／force-with-lease、Fetch／Pull、Stash／還原、互動式 Rebase，以及 tags／detached HEAD／empty Repo／快速切 Repo／worktree／submodule／hide-reveal 草稿恢復。",
+        "此一般流程的 Commit／Push 等決策使用 Extension Host test adapter；真實 workbench 確認與 unknown 人工核對由 native-git-confirmation-1.142 的獨立證據覆蓋，兩者不混稱同一測試。",
+        "完整功能的取消／重試／所有衝突與跨環境情境未由此單一流程覆蓋，六情境矩陣仍保守保留 pending。"
+      ]
+    },
+    {
+      "id": "native-worker-1.142-verified",
+      "owner": "root",
+      "result": "passed",
+      "evidence": "docs/work/work-20261018-responsiveness/evidence/local-graph-worker-report.json",
+      "notes": [
+        "實際 VS Code 1.142.0、候選 SHA31dea…8100e，2,000 節點 Canvas／Blob Worker 與 4,000 個 finite coordinates 通過，apiDispatch=false。",
+        "retainContextWhenHidden:false：hide 觀察原 iframe target 消失，reveal 取得新的 target／context／Blob Worker；restore 有新 finite positions，cleanup created=terminated、live workers=0。",
+        "與 1.90 原生 Worker 結果互為獨立版本證據；沒有因此替代真實 GitLab 或未覆蓋的功能／六情境驗收。"
+      ]
+    }
+  ],
+  "criticalChanges": [
+    "EOF／CRLF 部分暫存以實際 index bytes 驗證，先證明舊碼失敗再修。",
+    "原生 Diff 區分缺檔與讀取失敗，工作檔先檢查 128 MiB 限制。",
+    "一般 API 寫入有 30 秒獨立期限，串流附件五分鐘；逾時／傳輸中斷為 unknown，禁止自動重試。",
+    "clone／同步支援 signal／期限、預檢進度／四 worker、子程序樹清理與 update 取消未知結果。",
+    "本機 Git 不讀取憑證；網路 Git 共用 HTTP／SSH remote identity 索引。",
+    "fingerprint 四槽、選中 Repo 優先；Board list 四路並穩定合併；掃描進度節流。",
+    "Markdown POST 正確視為可取消讀取，避免清空全部快取。",
+    "根端與同隊進行 SWR／scope／snapshot delta／操作 ledger／graph renderer／通知和工時容量改善；最終實機數據待更新。",
+    "refresh 按鈕直接使用既有 busy 狀態呈現 disabled／aria-busy／更新中文字，讓第一次回饋就在操作位置。",
+    "OperationFeedback 先顯示 unknown，其次 active，再按同 Host revision／finishedAt／startedAt 排序終態；不再以 Map 首次插入順序截斷而遮蔽新操作。",
+    "上述兩個 UI 回歸先在舊碼失敗，修後通過；最新 UI 136 項已通過。原舊候選 refresh 第 13 樣本失敗與同候選 100 次診斷通過均保留，整體 A/B 尚待根端完成。",
+    "internal 留言／thread／reply 草稿統一保存內容與內部留言旗標；取消編輯只清目前表單，保留其他草稿與 unknown 操作。",
+    "虛擬列表在 Home／End 目標索引未改變時仍重新處理焦點，確保從目前列的其他控制項回到目標控制項。",
+    "≤200 筆列表採自然高度，移除無需的 offset／ResizeObserver 工作；跨門檻時量測與保留 anchor，搜尋將 Repo 字串與 query 預先正規化。",
+    "上述四項皆先 red 再 green，最新完整 UI 為 140/140；小列表省工不等同新候選效能已驗證，中間 fc146 搜尋 +11.1% FAIL 原始證據保留。",
+    "最終 packaged UI 相鄰配對 comparison PASS，八種首回饋各 100 樣本與 smoke PASS；僅代表所列隔離 UI fixture 在既定門檻內，原生／GitLab 與個別 pending 情境不自動提升。"
+  ],
+  "features": [
+    {
+      "id": "account-login",
+      "label": "帳號登入、Token 驗證與背景能力偵測",
+      "source": [
+        "src/connection/session.ts",
+        "src/connection/accountStore.ts",
+        "src/webview/AccountPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/accounts.test.ts",
+        "test/unit/session.test.ts",
+        "test/unit/accountLoginFlow.test.ts",
+        "test/unit/workspaceResponsiveness.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "新增不等待 capability probe 的登入回歸；登入後工作區下載亦改為背景進行。",
+        "SecretStorage 持久化失敗、驗證失敗與舊連線回應均有離線測試；真實 GitLab 登入仍待 Token。"
+      ]
+    },
+    {
+      "id": "account-switch",
+      "label": "多帳號切換、登出、移除與遷移",
+      "source": [
+        "src/connection/accountStore.ts",
+        "src/connection/session.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/accounts.test.ts",
+        "test/unit/session.test.ts",
+        "test/unit/workspaceLifecycle.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "多帳號／Group 與 connection epoch 隔離有 fixture 證據；根端已修復背景切帳初始 snapshot 殘留舊 milestones／boards／members。",
+        "最後正常 npm test 與原生 Host 啟動驗收仍待根端；沒有真實 GitLab Token。"
+      ]
+    },
+    {
+      "id": "group-projects",
+      "label": "Group 選擇、專案清單、分頁與本機路徑對應",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePaths.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitLabClient.test.ts",
+        "test/unit/projectWorkspace.test.ts",
+        "test/unit/workspace.test.ts",
+        "test/unit/workspaceResponsiveness.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-integration-475",
+            "workflow-latest-40",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "GitLab Group、子群組專案、同名 Repo 穩定命名與首次掃描 connected scope 有離線覆蓋。",
+        "跨群組取消後的重試與完整 UI 流程仍列待驗收。"
+      ]
+    },
+    {
+      "id": "api-cache-capabilities",
+      "label": "API 快取、讀取併發、取消與 CE 16.11.10 能力相容",
+      "source": [
+        "src/api/gitLabReadCache.ts",
+        "src/api/gitLabReadGate.ts",
+        "src/api/graphqlCapabilities.ts",
+        "src/connection/session.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitLabReadCache.test.ts",
+        "test/unit/gitLabReadGate.test.ts",
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/session.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "保留 60 秒／256 筆 LRU、共用六槽讀取、最後訂閱者才取消與一小時能力快取。",
+        "新增 NON_NULL/LIST 包裝 input object 解包；fixture 代表 API 合約，不能代替真實 CE 執行個體驗收。"
+      ]
+    },
+    {
+      "id": "repositories-scan",
+      "label": "遞迴 Repo 掃描、worktree/submodule 與登錄",
+      "source": [
+        "src/git/repositoryScanner.ts",
+        "src/git/gitRepositoryService.ts"
+      ],
+      "testFiles": [
+        "test/unit/repositoryScanner.test.ts",
+        "test/unit/repositoryOperationLock.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts",
+        "test/extension/workspaceFeatures.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "native-host-1.90",
+            "native-host-1.142",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "實際暫存 Git Repo 驗證巢狀掃描、重疊根目錄去重、exclude、symlink/junction 與取消保留部分結果。",
+        "進度通知節流至約 100 ms；VS Code 1.90／1.142 的 native Git 深層 Repo／worktree 登錄與工作區切換取消已在隔離 Host 通過，大量目錄實機量測仍待驗。"
+      ]
+    },
+    {
+      "id": "repositories-clone",
+      "label": "Clone 批次、全部預檢與失敗清理",
+      "source": [
+        "src/git/cloneService.ts",
+        "src/git/gitProcess.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/cloneService.test.ts",
+        "test/unit/gitProcess.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "所有測試寫入均位於隔離暫存 Repo；原始 GitLab URL 透過本機 remote fixture／mock 驗證，沒有真實 GitLab 寫入。",
+        "新增 signal、五分鐘 Git 指令期限、預檢四 worker、提前進度及保守清理擁有的 clone 目錄。",
+        "取消預檢須零寫入；update 開始後取消／逾時回傳 unknown，不能自動重送。"
+      ]
+    },
+    {
+      "id": "repositories-sync",
+      "label": "同步本機 GitLab 預設分支",
+      "source": [
+        "src/git/cloneService.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/cloneService.test.ts",
+        "test/unit/projectWorkspace.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "涵蓋 dirty/diverged/feature branch/unborn/empty remote、SSH origin 與只允許 fast-forward。",
+        "沿用預先計算的 root Repo identity，避免每個專案重複辨識；真實 VS Code＋GitLab 同步仍待驗收。"
+      ]
+    },
+    {
+      "id": "repositories-root",
+      "label": "專案根目錄、檔案別名與工作區變更",
+      "source": [
+        "src/workspace/projectRoot.ts",
+        "src/workspace/workspaceEnvironment.ts",
+        "src/workspace/workspacePaths.ts"
+      ],
+      "testFiles": [
+        "test/unit/projectWorkspace.test.ts",
+        "test/unit/workspaceEnvironment.test.ts",
+        "test/unit/workflowKitTarget.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "本機功能使用選取的 VS Code 專案根目錄；Group 與 origin 不得偷偷更改本機根目錄。",
+        "Windows 短路徑 alias、設定變更、移除 folder 與過期結果均有 fixture 覆蓋。"
+      ]
+    },
+    {
+      "id": "git-inventory",
+      "label": "Git 側欄摘要、lazy branches/stashes 與共用讀取",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/quickActionsView.ts",
+        "src/webview/quick-actions.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/unit/quickActionsView.test.ts",
+        "test/behavior/quick-actions.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "packaged-ui-delivery",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "摘要不包含 Diff/history 大資料，展開才讀詳情，共用同一個 in-flight task。",
+        "QuickActions 新版 source 整合測試需根端使用正常 resources 路徑重跑；不能把隔離 out fixture 失敗宣稱通過。",
+        "側欄搜尋的 Repo 字串按 repository 版本預先正規化，query 每次輸入只正規化一次。≤200 筆採自然高度、沒有 row／container ResizeObserver；500 筆仍維持 bounded DOM 與捲動。",
+        "小列表／門檻切換回歸 red→green 且 final7 UI 140 通過；中間 fc146 實測搜尋 +11.1% FAIL 保留，最新 31dea 配對結果另列 packaged-ui-delivery。",
+        "最新 31dea 候選的 20 Repo 套件 UI 搜尋實測 35.0→35.2 ms（+0.571%）通過回歸門檻；僅限所列 mock Host fixture。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-refresh",
+      "label": "Git 事件合併、語意 fingerprint 與快取失效",
+      "source": [
+        "src/git/gitRefreshScheduler.ts",
+        "src/git/gitStateFingerprint.ts",
+        "src/git/gitRepositoryService.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitRefreshScheduler.test.ts",
+        "test/unit/gitStateFingerprint.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "新增全域四槽 fingerprint，選取 Repo 優先；保留 250 ms debounce／一秒最長等待與 index 語意身分。",
+        "模擬 60 秒無事件閒置不會重複讀取；真實 Extension Host／Git 閒置 CPU 與指令數待根端。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-stage",
+      "label": "整個檔案暫存與取消暫存",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-confirmation-1.142",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "離線 service fixture 覆蓋 staging 後狀態更新及無 status 回圈；完整原生 Git 操作仍待實機。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-partial-stage",
+      "label": "逐行部分暫存、反向套用與 EOF／CRLF",
+      "source": [
+        "src/git/gitDiffSelection.ts",
+        "src/git/gitRepositoryService.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitDiffSelection.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-confirmation-1.142",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "重試": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "範圍切換": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "新增四個實際 index bytes 回歸：移除 EOF 換行、新增 EOF 換行、兩側無 EOF 換行及 CRLF 替換；包含反向套用。",
+        "八項第一輪回歸於舊碼全部失敗，修正後全部通過；UI reload 的選取恢復另待驗收。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-commit",
+      "label": "Commit、Amend、草稿保留與完成回執",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx",
+        "src/webview/gitUiState.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/behavior/dashboard.test.mjs",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-confirmation-1.142",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "僅真正 commit 完成才清草稿；取消與 refresh 失敗不能誤報未提交。",
+        "新增進入 Git 寫入後逾時為 unknown 的回歸；真實 commit hook／Amend 復原實機待驗。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-branches",
+      "label": "建立、切換、刪除本機分支與標籤",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/git/gitProtocol.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitProtocol.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "引用驗證、detached HEAD、annotated/lightweight tag 映射有離線覆蓋；逐項原生分支操作待根端。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-history",
+      "label": "提交歷史、分頁、合併父提交與 Git lane 圖",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/git/gitGraphLayout.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/unit/gitGraphLayout.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "支援 unborn Repo、重複選取合併、過期 queued selection 抑制及快取讀取。",
+        "大型結構輸出超出 byte budget 會明確失敗，不再把截斷資料當完整歷史。",
+        "Home／End 即使目標與目前索引相同，也會把焦點移到目標列的正確首控制項；新回歸 red→green，已納入 final7 UI 140。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-diff",
+      "label": "Git 內嵌 Diff、大量差異與 byte budget",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/git/gitProcess.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/unit/gitProcess.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "Diff 以一 MiB byte prefix 為上限，明示完整比較入口；截斷 Diff 禁止部分暫存。",
+        "新增 UTF-8 byte budget 與結構輸出超限回歸；大型 UI 行列表的最新測試結果待根端回填。"
+      ]
+    },
+    {
+      "id": "git-native-diff",
+      "label": "原生文字／二進位 Diff 快照與檔案大小保護",
+      "source": [
+        "src/git/gitDiffFileSystemProvider.ts",
+        "src/git/gitRepositoryService.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitDiffFileSystemProvider.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/nativeDiff.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "native-host-1.90",
+            "native-host-1.142",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "缺檔只有在 ls-tree／ls-files 確認不存在後才當空檔；讀取錯誤、timeout、超限不再偽造成空檔。",
+        "129 MiB sparse fixture 驗證工作檔在 readFile 前拒絕，快照以 128 MiB 為上限；tab 關閉與 dispose 釋放 bytes。",
+        "唯讀 Diff、一般本機 Git、原生確認已分別有實機通過證據；未覆蓋的逐項取消／重試仍保留 pending，不將整個功能自動升級。"
+      ]
+    },
+    {
+      "id": "git-fetch",
+      "label": "Fetch",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitProtocol.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "Protocol、策略選取與寫入結果分類有離線覆蓋；逐項真實網路 Git 操作未在本矩陣產生前驗收。",
+        "本機 Git 指令不再查 SecretStorage；僅網路命令取憑證並共用 remote identity 索引。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-pull",
+      "label": "Pull 與 configured 策略",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitProtocol.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "Protocol、策略選取與寫入結果分類有離線覆蓋；逐項真實網路 Git 操作未在本矩陣產生前驗收。",
+        "本機 Git 指令不再查 SecretStorage；僅網路命令取憑證並共用 remote identity 索引。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-push",
+      "label": "Push／force-with-lease",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitProtocol.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [
+            "native-git-confirmation-1.142"
+          ],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "Protocol、策略選取與寫入結果分類有離線覆蓋；逐項真實網路 Git 操作未在本矩陣產生前驗收。",
+        "本機 Git 指令不再查 SecretStorage；僅網路命令取憑證並共用 remote identity 索引。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-merge-rebase",
+      "label": "Merge、Rebase／互動式 todo、reword／squash",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "resources/git-rebase-editor.cjs",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRebaseEditor.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "隔離 Git sequence/message editor 回歸屬 root unit 結果；完整原生 GUI 合併／衝突／中止／繼續仍待根端。",
+        "重寫前建立 recovery ref；逾時保留 unknown。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-cherry-revert",
+      "label": "Cherry-pick、Revert 與 merge mainline",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/git/gitProtocol.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitProtocol.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "目前僅可確認原始碼與測試檔存在，未取得本次逐項已執行的 cherry-pick/revert 交易證據。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-stash-reset",
+      "label": "Stash、Reset、Discard 與復原 ref",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/extension/liveValidation.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "快取、取消、回執及 timeout 共用層已測；實際 stash pop/conflict、hard reset 備份與 discard 復原待原生 Git 驗收。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "git-conflict",
+      "label": "衝突檔案、Merge Editor、中止／繼續／略過",
+      "source": [
+        "src/git/gitRepositoryService.ts",
+        "src/webview/GitControlPanel.tsx"
+      ],
+      "testFiles": [
+        "test/extension/liveValidation.test.ts",
+        "test/extension/nativeDiff.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "失敗": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "尚未以原生 Git 逐項觸發 merge/rebase/cherry-pick/revert 衝突交易。"
+      ]
+    },
+    {
+      "id": "git-process-lifetime",
+      "label": "Git 子程序期限、明確取消與程序樹清理",
+      "source": [
+        "src/git/gitProcess.ts",
+        "src/git/cloneService.ts",
+        "src/git/gitRepositoryService.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitProcess.test.ts",
+        "test/unit/cloneService.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "新測試真正啟動 Node parent＋helper，取消 promise 返回時兩個 PID 均不存在；Windows 使用直屬 child PID 的 taskkill /T，POSIX 使用獨立 process group。",
+        "寫入 Git 指令一旦逾時不得假設未生效。"
+      ]
+    },
+    {
+      "id": "issue-create-drafts",
+      "label": "Issue 建立表單、欄位與草稿／預覽",
+      "source": [
+        "src/issues/issuePanel.ts",
+        "src/workspace/issueDrafts.ts",
+        "src/webview/issue-workflow.tsx",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issuePanelFlow.test.ts",
+        "test/unit/issueResponsiveness.test.ts",
+        "test/unit/dashboardState.test.ts",
+        "test/behavior/dashboard.test.mjs",
+        "test/unit/workspaceResponsiveness.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "workflow-latest-40",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "workflow-latest-40",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "建立表單先顯示再載入 options；草稿及 scope 隔離、未完成寫入分類與選取先後已有離線證據。",
+        "真實 Issue 寫入只能在指定隔離 GitLab 測試環境驗收。"
+      ]
+    },
+    {
+      "id": "issue-edit-delete",
+      "label": "Issue 詳細、編輯、關閉／重開、移動／複製／刪除",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-workflow.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issueActionLifecycle.test.ts",
+        "test/unit/issuePanelFlow.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "API payload、stale updated_at 拒絕、刪除無 JSON 回應與 write unknown 分類已測。",
+        "移動／複製／刪除的完整原生確認與重載逐項恢復仍 pending；GET→PUT 比對不是伺服器原子 compare-and-swap 保證。",
+        "取消編輯只清除目前表單的草稿，不清其他討論／回覆草稿或 unknown 操作；新增 red→green 回歸已包含 final7 UI 140。"
+      ]
+    },
+    {
+      "id": "issue-templates",
+      "label": "Issue 模板：先清單，選取才讀內容",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-workflow.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issueResponsiveness.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "保留 listProjectIssueTemplates 相容介面並降為四 worker，新增 names-only／單筆內容 API。",
+        "host 已測 names-only→選一個只取一個 body；最新 UI 140 項套件含模板晚到結果不可覆蓋新選取／編輯。",
+        "網路失敗的逐項重試與重載後選取恢復仍 pending，不能因套件通過而推定所有情境通過。"
+      ]
+    },
+    {
+      "id": "issue-permissions-dates",
+      "label": "Issue 權限、標籤、milestone、assignee 與日期",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/api/graphqlCapabilities.ts",
+        "src/issues/issuePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issueResponsiveness.test.ts",
+        "test/unit/issueRelations.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "權限查詢不再等待 start-date；Schema 未確認能力維持 unknown，不猜付費功能可用。"
+      ]
+    },
+    {
+      "id": "issue-discussions",
+      "label": "討論串、留言編輯／刪除、解決討論與 reaction",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-workflow.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issueActionLifecycle.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "分頁、payload、reaction 與共用寫入結果分類已測；真實伺服器權限及各類討論交易待驗。",
+        "internal 旗標與留言／thread／reply 文字使用同一份草稿模型保存，重新建構後仍保留；新回歸先失敗再修復，包含在最新 UI 140/140。"
+      ]
+    },
+    {
+      "id": "issue-markdown",
+      "label": "Markdown 顯示、lazy rendering 與內容複製",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-workflow.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabClient.test.ts",
+        "test/unit/issueResponsiveness.test.ts",
+        "test/unit/issueDescriptionCopy.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "內容複製的最新 issueDescriptionCopy 單元已包含在 final7 的 497/497 通過結果；逐項網路重試仍待驗。"
+      ]
+    },
+    {
+      "id": "issue-attachments",
+      "label": "附件上傳／下載、大小預檢與明確取消",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-workflow.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabClient.test.ts",
+        "test/unit/issueResponsiveness.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-latest-47",
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "串流 multipart、精確 Content-Length、50 MiB 限制、chunked download 提前停止、來源 iterator cleanup 與獨立取消已測。",
+        "一般 API 寫入期限 30 秒；stream upload 五分鐘，與 view read signal 分離。",
+        "最新 source UI 已測明確取消保留草稿與 unknown 不自動重送；真實大附件／網速／GitLab 上傳交易仍 pending。"
+      ]
+    },
+    {
+      "id": "issue-relations-subtasks",
+      "label": "關係、阻擋連結、父子工作與子任務",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts",
+        "src/webview/issue-relations.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/issueRelations.test.ts",
+        "test/unit/issueGraph.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "Group 範圍、Task 類型、既有 parent、權限、包裝型別與分頁游標已有 fixture 覆蓋。",
+        "新版 UI 改為展開才載入關係；GitLab CE／EE 實際可用能力仍需 Token 驗證。"
+      ]
+    },
+    {
+      "id": "issue-todos-subscriptions",
+      "label": "Todo、訂閱與 Issue 追蹤操作",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/issues/issuePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "離線 API／UI 共用測試曾執行；取消後恢復與逐項 server transaction 尚待確認。"
+      ]
+    },
+    {
+      "id": "time-timer",
+      "label": "計時開始／暫停、10 秒保存與切帳／重啟恢復",
+      "source": [
+        "src/workspace/timeTracker.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/workspace.test.ts",
+        "test/unit/timeTrackerRetention.test.ts",
+        "test/unit/dashboardState.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "同時只計一個 Issue；重啟需明確確認，不推測 Issue；切帳前暫停保存。",
+        "容量只淘汰 posted 歷史，running/ready/unknown 不得遺失。"
+      ]
+    },
+    {
+      "id": "time-manual-post",
+      "label": "手動／指定日期工時、送出、明細與結果核對",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/timeTracker.ts",
+        "src/issues/issuePanel.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/workspace.test.ts",
+        "test/unit/timeTrackerRetention.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "GraphQL 工時、REST／spend fallback 合約、明細分頁與不可丟棄待確認項已有離線覆蓋。",
+        "真實送出、指定日期快捷指令與未知結果核對待隔離 GitLab。"
+      ]
+    },
+    {
+      "id": "boards-membership",
+      "label": "Group Boards、隱藏清單、顏色與 membership 分頁",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/gitLabClient.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "api-git-latest-47",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "Board list 四路讀取，單 list 分頁維持順序，結果以原 list 順序穩定去重；含八 list peak concurrency=4 回歸。"
+      ]
+    },
+    {
+      "id": "issue-graph-data",
+      "label": "Issue 圖譜資料、lazy 關係、增量 patch 與範圍切換",
+      "source": [
+        "src/workspace/issueGraph.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/issueGraph.test.ts",
+        "test/unit/gitLabIssueApi.test.ts",
+        "test/unit/workspaceLifecycle.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "父子／關聯分頁與完整 cursor 驗證、過期請求抑制、增量 patch 已有離線測試。",
+        "大型真實 GitLab 圖譜下載與 API 數量待驗。"
+      ]
+    },
+    {
+      "id": "issue-graph-renderer",
+      "label": "圖譜 Worker／canvas、搜尋、鍵盤與非作用中停止",
+      "source": [
+        "src/webview/IssueGraph.tsx",
+        "src/webview/issueGraphLayoutWorker.ts"
+      ],
+      "testFiles": [
+        "test/behavior/graph-renderer-benchmark.mjs",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "graph-browser",
+            "ui-agent-134",
+            "graph-theme-visual",
+            "root-final5-offline",
+            "graph-worker-blob-smoke",
+            "native-worker-1.90-candidate",
+            "root-final6-offline",
+            "root-final7-offline",
+            "graph-renderer-final",
+            "native-worker-1.90-verified",
+            "native-worker-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "graph-browser",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "graph-browser",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "graph-browser",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "graph-browser",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "真實 Chrome 執行三輪 200／2,000 節點，選取／zoom、單 Worker、active=false 暫停／恢復、搜尋、Home/End、unmount terminate 均通過。",
+        "Blob inline／主題修正之前的相同 renderer fixture 三輪 pooled p95：2,000 節點選取約 717.6→33.6 ms、zoom 約 283.8→33.6 ms；200 節點選取約 80.5→74.3 ms、zoom 約 50.5→46.6 ms。",
+        "Canvas 主題修正後另測 dark／light／highcontrast；Blob inline 後嚴格 worker-src blob: 的載入、layout replies、pause／resume／terminate smoke 通過。",
+        "最新 working-tree production renderer、Chrome 155.0.8059.80，200／2,000 節點各三輪；每組 pooled 90 個 selection 與 45 個 zoom 樣本。",
+        "200 節點 pooled p95：selection 70.7 ms、zoom 50.0 ms；2,000 節點 pooled p95：selection 36.2 ms、zoom 36.2 ms。",
+        "2,000 節點每輪一個 Worker／canvas、無逐節點 DOM，worker／inactive pause／resume／search／Home-End／unmount terminate 檢查通過；本次量測含兩個 animation frame 觀察。",
+        "這是 1.90 原生圖譜 Worker 的指定情境通過；不代替一般 Git GUI、其他取消／恢復情境或 1.142 Worker 驗證。",
+        "retainContextWhenHidden:false：hide 觀察原 iframe target 消失，reveal 取得新的 target／context／Blob Worker；restore 有新 finite positions，cleanup created=terminated、live workers=0。",
+        "與 1.90 原生 Worker 結果互為獨立版本證據；沒有因此替代真實 GitLab 或未覆蓋的功能／六情境驗收。"
+      ]
+    },
+    {
+      "id": "mr-list",
+      "label": "MR 清單、分頁、SWR 快取與範圍切換",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/mergeRequests.test.ts",
+        "test/unit/workspaceLifecycle.test.ts",
+        "test/unit/workspaceResponsiveness.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "opened Group MR 不限 reviewer／assignee；空清單 refresh、切帳丟棄舊回應與 ready 資料背景更新已有離線測試。"
+      ]
+    },
+    {
+      "id": "mr-diff-discussions",
+      "label": "MR 詳細、分區 lazy Diff／討論與 fallback",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/mergeRequests.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "Diff 分頁超過 200 檔、不完整結果標示、一次相容 fallback、失敗後保留兩邊原因與取消不觸發 fallback 已測。"
+      ]
+    },
+    {
+      "id": "mr-comments",
+      "label": "MR 評論／回覆、冪等標記與未知結果核對",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/mergeRequests.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts",
+        "test/extension/groupWorkflow.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "native-host-1.90",
+            "native-host-1.142",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "marker 核對只查資料、不再 POST，未知結果保留待人工確認；真實評論交易待 Token。"
+      ]
+    },
+    {
+      "id": "mr-approve-merge",
+      "label": "MR 核准、合併與 SHA pinning",
+      "source": [
+        "src/api/gitLabClient.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/mergeRequests.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "離線測試驗證 reviewed SHA 與 payload；真正 approvals／merge、取消後恢復待隔離 GitLab。"
+      ]
+    },
+    {
+      "id": "skills-wiki",
+      "label": "Skills：Codebase LLM Wiki",
+      "source": [
+        "src/webview/codebaseWikiGuideData.ts",
+        "src/webview/SkillsGuide.tsx",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/codebaseWikiGuide.test.ts",
+        "test/unit/skillsGuide.test.ts",
+        "test/behavior/skills-guide.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "三工具之一；提示詞／scope 的 unit 與最新 source UI 套件均實際執行。",
+        "最新五檔 140 項 source-mode 套件已排除讀舊 generated 的限制。",
+        "真正 Wiki ingest／query、模型輸出與產物品質並未執行驗收。"
+      ]
+    },
+    {
+      "id": "skills-merge-reviewer",
+      "label": "Skills：MergeReviewer",
+      "source": [
+        "src/webview/skillsGuideData.ts",
+        "src/webview/SkillsGuide.tsx",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/skillsGuide.test.ts",
+        "test/unit/mergeReviewPrompt.test.ts",
+        "test/unit/mergeReviewReport.test.ts",
+        "test/overlays/merge-reviewer/test_group_review.py",
+        "test/behavior/skills-guide.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "提示詞／報告合約單元、UI 與 final7 的 Python release helper／overlay fixture 已通過；真正外部 Codex 審查、原生終端交易及真實 MR 報告產物仍未驗收。"
+      ]
+    },
+    {
+      "id": "skills-release-reviewer",
+      "label": "Skills：ReleaseReviewer",
+      "source": [
+        "src/webview/skillsGuideData.ts",
+        "src/webview/SkillsGuide.tsx",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/skillsGuide.test.ts",
+        "test/release/release_reviewer_integration_test.py",
+        "test/release/local_review_targets_test.py",
+        "test/behavior/skills-guide.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "最新 source UI 測試的提示詞／表單正常路徑。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "not-applicable",
+          "evidence": [],
+          "notes": "此功能層不適用；跨層行為另列。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "pending"
+      },
+      "notes": [
+        "欄位／提示詞 UI、最新 prepared 單元及 Python release profile／整合套件均在 final7 通過；舊 snapshot 失敗只保留為歷史紀錄。",
+        "使用者真實 Codex／審查目標與報告產物的逐項重試、scope 切換和恢復仍待驗。"
+      ]
+    },
+    {
+      "id": "skills-package-install",
+      "label": "Skills 套件下載、匯入、安裝／更新與 target 鎖",
+      "source": [
+        "src/workspace/toolPackages.ts",
+        "src/workspace/workflowKitPolicy.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/toolPackages.test.ts",
+        "test/unit/workflowKitTarget.test.ts",
+        "test/release/workflow_kit_installer_test.py",
+        "test/release/workflow_kit_transactions_test.py",
+        "test/extension/workflowKitInstall.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "native-host-1.90",
+            "native-host-1.142",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "離線 target／版本／選擇取消與 stale root guard fixture 有證據。",
+        "VS Code 1.90／1.142 隔離 Host 已安裝 bundled Skills 並驗證 shared root 變更；final7 的 Python 安裝／交易／profile 套件通過，外部 Codex helper 真實流程仍待驗。"
+      ]
+    },
+    {
+      "id": "skills-codex-launch",
+      "label": "Codex 終端啟動、cwd、prompt quoting 與版本限制",
+      "source": [
+        "src/workspace/windowsTerminal.ts",
+        "src/workspace/bmadTerminal.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/windowsTerminal.test.ts",
+        "test/unit/workflowKitTarget.test.ts",
+        "test/unit/bmadWorkspace.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "終端選項／字串參數與 stale root guard 使用 mock／fixture；未實際啟動使用者 Codex 工作階段。"
+      ]
+    },
+    {
+      "id": "bmad-progress",
+      "label": "BMAD 清單、產物進度、增量快取與 watcher",
+      "source": [
+        "src/workspace/bmadWorkflow.ts",
+        "src/workspace/bmadWorkflowController.ts",
+        "src/webview/BmadPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/bmadWorkflow.test.ts",
+        "test/unit/bmadController.test.ts",
+        "test/behavior/bmad-panel.test.mjs",
+        "test/behavior/bmad-dashboard.test.mjs",
+        "test/extension/bmadFlow.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "native-host-1.90",
+            "native-host-1.142",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "controller＋workflow 27 項與最新 source-mode BMAD UI 均實際通過；包含專案切換 abort、隱藏停止 watcher、revision 與大檔案診斷。",
+        "VS Code 1.90／1.142 的真實檔案事件已驗證 draft／final／刪除／新 root 與 dispose；1.90 log 五項通知延遲約 273–334 ms，長時間 CPU／I/O 仍待驗。"
+      ]
+    },
+    {
+      "id": "bmad-actions",
+      "label": "BMAD 開啟產物、人工完成、複製／啟動流程",
+      "source": [
+        "src/workspace/bmadWorkflowController.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/workspace/bmadTerminal.ts"
+      ],
+      "testFiles": [
+        "test/unit/bmadController.test.ts",
+        "test/unit/bmadWorkspace.test.ts",
+        "test/extension/bmadFlow.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "手動完成／產物開啟與 UI snapshot 已測；不存在的產物不加 root watcher。",
+        "最新 bmadWorkspace 已包含 final7 的 497/497 單元；外部 Codex 終端 launcher 的完整原生動作／恢復仍待驗。"
+      ]
+    },
+    {
+      "id": "notifications",
+      "label": "通知中心、quiet read、去重、清除與來源 scope",
+      "source": [
+        "src/notifications/notificationCenter.ts",
+        "src/notifications/workspaceFeedback.ts",
+        "src/webview/NotificationDrawer.tsx"
+      ],
+      "testFiles": [
+        "test/unit/notificationCenter.test.ts",
+        "test/unit/workspaceFeedback.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "保留未解決寫入結果，普通 notice 容量上限不會移除 unknown；取消不發完成／失敗通知。",
+        "清除後重播不能復活通知，畫面隱藏時停止通知傳輸。"
+      ]
+    },
+    {
+      "id": "logs-query",
+      "label": "Logs 持久化、遮密、分頁、批次 prune 與取消查詢",
+      "source": [
+        "src/logging/operationLog.ts",
+        "src/webview/AdminLogPanel.tsx"
+      ],
+      "testFiles": [
+        "test/unit/operationLog.test.ts",
+        "test/unit/operationLogPerformance.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "突發紀錄只 prune 一次，保留順序；遮密、rotation、部分 append 與失敗不破壞商業操作已有 fixture。"
+      ]
+    },
+    {
+      "id": "logs-export",
+      "label": "Logs 原子匯出、串流與取消保留目的檔",
+      "source": [
+        "src/logging/operationLog.ts",
+        "src/workspace/workspacePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/operationLog.test.ts",
+        "test/unit/operationLogPerformance.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "取消匯出保留原檔／清臨時檔的新回歸已在 final7 整體 497 單元通過；較早隔離快照的失敗只作歷史紀錄。",
+        "逐項重試與重啟恢復仍無獨立驗收證據，offline 整體保留 pending。"
+      ]
+    },
+    {
+      "id": "operations-receipts",
+      "label": "跨面板操作回執、持久化 ledger、容量與精確重播",
+      "source": [
+        "src/workspace/operations.ts",
+        "src/workspace/operationReceiptStore.ts",
+        "src/workspace/actionController.ts"
+      ],
+      "testFiles": [
+        "test/unit/operations.test.ts",
+        "test/unit/operationReceiptStore.test.ts",
+        "test/unit/actionController.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "持久化 ledger 與 active unknown lock 回歸已在 final7 的 497 單元通過；失敗與取消不會被當成成功回執。",
+        "普通 notice／歷史容量不得移除未解決 active／unknown 操作；未知結果的真實 GitLab 核對仍待驗。"
+      ]
+    },
+    {
+      "id": "operations-unknown-recovery",
+      "label": "未知寫入、host restart、人工核對與禁止自動重送",
+      "source": [
+        "src/workspace/operations.ts",
+        "src/workspace/actionController.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/issues/issuePanel.ts"
+      ],
+      "testFiles": [
+        "test/unit/actionController.test.ts",
+        "test/unit/operations.test.ts",
+        "test/unit/workspaceOperationLifecycle.test.ts",
+        "test/unit/issueActionLifecycle.test.ts"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-confirmation-1.142"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "workflow-agent",
+            "root-integration-475",
+            "workflow-latest-40",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "pending",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "失敗／取消／已套用但重載失敗／部分完成／unknown 分開呈現。",
+        "host restart 只能恢復／核對，不自動重送；MR、工時專屬結果核對仍需真實 GitLab。"
+      ]
+    },
+    {
+      "id": "view-cancel-resume",
+      "label": "畫面 hide／切頁、取消背景讀取與恢復",
+      "source": [
+        "src/workspace/workspacePanel.ts",
+        "src/workspace/actionController.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/workspaceLifecycle.test.ts",
+        "test/unit/actionController.test.ts",
+        "test/unit/gitRepositoryRefresh.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "native-git-gui-1.142-verified"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "api-git-full-158",
+            "workflow-agent",
+            "ui-agent-134",
+            "root-integration-475",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "passed",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "讀取在 hide／scope 變更取消；已授權寫入繼續完成並保留回執。",
+        "SWR ready+refreshing hide 後卡住已由根端回報修復且相關回歸通過；最終整包結果待回填。",
+        "最新 1.142 本機 Git 指定流程已 PASS；實跑範圍與對話框 test-adapter 限制參見 native-git-gui-1.142-verified，未覆蓋六情境保留 pending。"
+      ]
+    },
+    {
+      "id": "snapshot-transport",
+      "label": "完整 snapshot／增量 patch、版本、scope 與 resync",
+      "source": [
+        "src/workspace/snapshotTransport.ts",
+        "src/workspace/workspacePanel.ts",
+        "src/webview/dashboard.tsx"
+      ],
+      "testFiles": [
+        "test/unit/snapshotTransport.test.ts",
+        "test/unit/workspaceLifecycle.test.ts",
+        "test/behavior/dashboard.test.mjs"
+      ],
+      "scenarios": {
+        "正常": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline",
+            "workspace-host-snapshot"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "失敗": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "取消": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "重試": {
+          "status": "pending",
+          "evidence": [],
+          "notes": "尚無本次已執行的逐項驗收證據。"
+        },
+        "範圍切換": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        },
+        "恢復": {
+          "status": "passed",
+          "evidence": [
+            "root-integration-475",
+            "ui-agent-134",
+            "root-final5-offline",
+            "root-final6-offline",
+            "root-final7-offline"
+          ],
+          "notes": "僅限所列離線 fixture／mock／瀏覽器測試情境。"
+        }
+      },
+      "offlineStatus": "pending",
+      "liveStatus": {
+        "liveGitLab": "not-applicable",
+        "NativeGit": "not-applicable"
+      },
+      "notes": [
+        "完整 snapshot／patch 版本與 resync、scope stream 重播已有離線測試。",
+        "最新正常 prepared out/resources、unit 與 UI 已在 final7 通過；特定原生 Host 通訊的逐項重試／整包恢復仍保留待驗。",
+        "未測 VS Code bridge、renderer、磁碟或 GitLab 網路；這些是固定資料下 Host 產生／序列化訊息的成本，不是使用者 E2E 響應時間。"
+      ]
+    }
+  ],
+  "deliveryCandidate": {
+    "status": "pending",
+    "path": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+    "observedSha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e",
+    "observedAt": "2026-10-18",
+    "validations": {
+      "packagedUi": "passed",
+      "NativeGit": "pending",
+      "nativeWorker": "passed",
+      "liveGitLab": "pending",
+      "nativeWorker1.90": "passed",
+      "nativeConfirmation1.142": "passed",
+      "nativeWorker1.142": "passed",
+      "localGit1.142": "passed"
+    },
+    "notes": [
+      "已讀取 ui-revision-delivery/revision.json，實際記錄的新候選 SHA 與目前觀測一致。",
+      "最終相鄰 UI、1.90／1.142 原生 Worker、1.142 一般本機 Git、真實 workbench 確認的指定流程均有 PASS 證據；整體仍 pending，因真實 GitLab 與未覆蓋情境不可推定通過。",
+      "同一路徑先前 2fca／fc146／369c 候選已替換；歷史證據按各自記錄的雜湊辨識，不能套用為新候選結果。"
+    ]
+  },
+  "primaryEvidenceRun": "root-final7-offline"
+}

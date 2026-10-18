@@ -5,8 +5,8 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 import { describeAction } from '../../out/src/workspace/actionPolicy.js';
 import { bmadUiSnapshot, bmadWorkspaceSnapshot } from '../fixtures/bmad-ui.mjs';
 
-const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
-const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
+import { webviewBundle } from './webview-bundle.mjs';
+const { html, script } = await webviewBundle('dashboard');
 const copy = value => JSON.parse(JSON.stringify(value));
 const requestShape = ({ operationId, operationScope, hostSessionId, scopeEpoch, projectRevision, ...request }) => copy(request);
 

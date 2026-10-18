@@ -51,3 +51,19 @@ test('cancels queued and trailing work on hide, switch or disposal', async () =>
   scheduler.notify('b'); scheduler.dispose(); scheduler.notify('c');
   await clock.advance(60_000); assert.equal(reads, 1); assert.equal(clock.timers.size, 0);
 });
+
+test('bounds all Repo reads to four slots and starts the selected queued Repo next', async () => {
+  const clock = new Clock(), started: string[] = [], releases: Array<() => void> = [];
+  let active = 0, peak = 0;
+  const scheduler: GitRefreshScheduler = new (GitRefreshScheduler as any)(async (id: string) => {
+    started.push(id); active++; peak = Math.max(active, peak);
+    await new Promise<void>(resolve => releases.push(resolve)); active--;
+  }, clock, { concurrency: 4, priorityId: () => 'selected' });
+  for (const id of ['a', 'b', 'c', 'd', 'background', 'selected']) scheduler.notify(id);
+  await clock.advance(250);
+  const initial = started.length;
+  releases.shift()!(); for (let tick = 0; tick < 30; tick++) await Promise.resolve();
+  const next = started[4];
+  scheduler.dispose(); for (const release of releases) release();
+  assert.equal(initial, 4); assert.equal(peak, 4); assert.equal(next, 'selected');
+});

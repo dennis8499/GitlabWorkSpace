@@ -10,6 +10,7 @@ import { describeAction } from '../workspace/actionPolicy';
 import { operationLabels, type WorkspaceOperationState } from '../workspace/operations';
 import { useActionSelector } from './useActions';
 import { dispatchWithFeedback } from './notificationFeedback';
+import { VirtualRows } from './VirtualRows';
 import './quick-actions.css';
 
 interface VsCodeBridge {
@@ -26,6 +27,7 @@ interface RepositoryDetailsState {
 declare function acquireVsCodeApi(): VsCodeBridge;
 const vscode = acquireVsCodeApi();
 const actions = new ActionController(message => vscode.postMessage(message));
+const sidebarRepositoryKey = (repository: GitRepositorySummary) => repository.id;
 
 const pending = (operation: WorkspaceOperationState) => operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown';
 const sameRepository = (left: GitRepositorySummary, right: GitRepositorySummary) => left === right
@@ -86,6 +88,16 @@ function GitSidebar() {
 
   useEffect(() => {
     const unsubscribe = actions.subscribe(() => {
+      for (const [repositoryId, requestId] of requests.current) {
+        const operation = actions.findByCorrelation(requestId);
+        if (!operation || !['failed', 'cancelled'].includes(operation.status) || operation.effect && operation.effect !== 'none') continue;
+        requests.current.delete(repositoryId);
+        const repository = latestState.current.repositories?.find(repo => repo.id === repositoryId);
+        if (repository && visibleRef.current && expandedRef.current[repositoryId]) {
+          setDetails(current => ({ ...current, [repositoryId]: { status: 'error', revision: repository.revision,
+            error: operation.error ?? operation.phase ?? '無法載入 Repo 詳細資料，請重試。' } }));
+        }
+      }
       // Progress labels belong to ActionFeedback. Repo rows only need to
       // reconcile when an action starts, settles or needs confirmation.
       const scope = latestState.current.operationScope;
@@ -152,9 +164,11 @@ function GitSidebar() {
     return () => { window.removeEventListener('message', receive); unsubscribe(); };
   }, []);
 
-  const repositories = useMemo(() => (state.repositories ?? []).filter((repo) =>
-    (repo.name + ' ' + repo.path + ' ' + (repo.branch ?? '')).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
-  ), [state.repositories, search]);
+  const indexedRepositories = useMemo(() => (state.repositories ?? []).map(repository => ({ repository,
+    searchText: (repository.name + ' ' + repository.path + ' ' + (repository.branch ?? '')).toLocaleLowerCase()
+  })), [state.repositories]);
+  const searchQuery = search.trim().toLocaleLowerCase();
+  const repositories = useMemo(() => indexedRepositories.filter(({ searchText }) => searchText.includes(searchQuery)).map(({ repository }) => repository), [indexedRepositories, searchQuery]);
 
   function requestDetails(repository: GitRepositorySummary): void {
     const requestId = `details-${++requestSequence.current}`;
@@ -241,7 +255,7 @@ function GitSidebar() {
         ? <p class="git-availability" role="status">{state.gitMessage ?? '啟用 VS Code 內建 Git 以載入 Repo。'}</p>
         : repositories.length === 0
           ? <p class="git-availability" role="status">{search ? '找不到符合的 Repo。' : '這個工作區尚未偵測到 Git Repo。'}</p>
-          : <div class="sidebar-repositories">{repositories.map((repository) =>
+          : <VirtualRows active={visible} resetKey={search} className="sidebar-repositories" items={repositories} itemKey={sidebarRepositoryKey} estimateHeight={54} renderItem={repository =>
             <div class="sidebar-repository" key={repository.id}>
               <div class="repo-heading-row">
                 <button class="repo-disclosure" type="button" aria-expanded={!!expanded[repository.id]}
@@ -274,10 +288,10 @@ function GitSidebar() {
                 </>}
                 <button class="repo-open-link" type="button" aria-busy={busyRepository(repository.id)} onClick={() => openRepository(repository.id)}>在工作台開啟版控</button>
               </div>}
-            </div>)}</div>}
+            </div>} />}
     </section>
   ), [state.gitAvailable, state.gitMessage, state.repositories?.length, repositories, search,
-    expanded, details, selectedRepositoryId, repositoryBusySignature]);
+    expanded, details, selectedRepositoryId, repositoryBusySignature, visible]);
 
   return <main class="quick-actions" aria-label="GitLab Workspace 導覽">
     <section class="sidebar-account-menu" aria-label="GitLab 帳號">

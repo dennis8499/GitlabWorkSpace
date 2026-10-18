@@ -21,7 +21,7 @@ function fixture() {
     currentUser: { id: 1 }, projectContext: { root: 'C:/workspace', revision: 'root' },
     operationTracker: operations, notificationCenter: new NotificationCenter(),
     panel: { visible: true, webview: { postMessage: async (message: unknown) => { messages.push(message); return true; } } },
-    webviewReady: true, webviewMessagesSent: 0, webviewMessagesReceived: 0,
+    webviewReady: true, webviewMessagesSent: 0, webviewMessagesReceived: 0, viewGeneration: 0, viewReadAbort: new AbortController(),
     writesInFlight: 0, accountTransitionBusy: false, disposed: false,
     runLogged: async (_action: string, task: () => Promise<unknown>) => task(),
     sendSnapshot: () => undefined, dispatchMessage: async () => undefined,

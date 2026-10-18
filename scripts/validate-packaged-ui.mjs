@@ -318,7 +318,8 @@ async function mount(browser, files, width = 1440, highContrast = false) {
   return { context, page, dashboard, sidebar, cdp, network, errors };
 }
 async function navigate(view, mode) {
-  await view.sidebar.locator('.workspace-shortcuts button').nth(['developer', 'clone', 'sa', 'reviewer', 'git'].indexOf(mode)).click();
+  const names = { developer: '我的工作', clone: '專案', sa: '分析', reviewer: '待審查', git: '版控' };
+  await view.sidebar.locator('.workspace-shortcuts').getByRole('button', { name: names[mode], exact: true }).click();
   return view.page.evaluate(mode => window.__host.waitFor('navigation', mode), mode);
 }
 async function heap(view, checkpoint) {
@@ -393,7 +394,7 @@ async function firstFeedbackBenchmark(browser, files) {
       }, measurement.firstFeedback);
       for (let index = 0; index < measurement.firstFeedback.samplesPerAction; index++) {
         if (entry.name === 'account-submit') await view.dashboard.locator('.account-login input[name="token"]').fill('fixed-isolated-ui-fixture-token');
-        const sample = await view.page.evaluate(async ({ entry, index }) => {
+        const sample = await view.page.evaluate(async ({ entry, index, diagnostics }) => {
           const host = window.__host;
           await host.idle();
           const doc = document.getElementById(entry.surface).contentDocument;
@@ -412,7 +413,9 @@ async function firstFeedbackBenchmark(browser, files) {
           let target, destination;
           if (entry.name === 'navigation') {
             destination = ['clone', 'sa', 'reviewer', 'git', 'developer'][index % 5];
-            target = [...doc.querySelectorAll('.workspace-shortcuts button')][['developer', 'clone', 'sa', 'reviewer', 'git'].indexOf(destination)];
+            const names = { developer: '我的工作', clone: '專案', sa: '分析', reviewer: '待審查', git: '版控' };
+            target = [...doc.querySelectorAll('.workspace-shortcuts button')]
+              .find(button => button.querySelector('span:last-child')?.textContent.trim() === names[destination]);
           } else if (entry.name === 'issue-selection' || entry.name === 'mr-selection') {
             target = [...doc.querySelectorAll('.work-list .work-row')].find(row => !row.classList.contains('selected'));
           } else if (entry.name === 'refresh') target = textButton(doc.querySelector('.heading-actions'), '更新資料');
@@ -428,6 +431,12 @@ async function firstFeedbackBenchmark(browser, files) {
           if (!probe.started) throw new Error(`No click captured for ${entry.name}`);
           const progress = () => [...doc.querySelectorAll('.operation-status.queued, .operation-status.running, .action-message, .git-status-message .spinner, .account-login [role="status"]')]
             .some(element => visible(element) && (element.matches('.spinner') || !!element.textContent.trim()));
+          const observations = [];
+          const inspectFeedback = () => ({ elapsed: performance.now() - probe.started, operationId: probe.operationId, completedAt: probe.completedAt,
+            target: { disabled: target.disabled, busy: target.getAttribute('aria-busy'), connected: target.isConnected },
+            progress: [...doc.querySelectorAll('.operation-status, .action-message, .git-status-message, .account-login [role="status"]')].map(element => {
+              const rect = element.getBoundingClientRect(); return { class: element.className, text: element.textContent.slice(0, 150), visible: visible(element), rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
+            }), statusbar: doc.querySelector('.statusbar')?.textContent, operation: host.operations.get(probe.operationId) });
           const ready = () => {
             if (target.disabled || target.getAttribute('aria-busy') === 'true') return true;
             if (entry.name === 'navigation' && dashboard.querySelector('.page')?.dataset.mode === destination) return true;
@@ -436,18 +445,20 @@ async function firstFeedbackBenchmark(browser, files) {
             return progress();
           };
           while (!ready()) {
-            if (performance.now() - probe.started > 2000) throw new Error(`No visible feedback for ${entry.name}, sample ${index + 1}`);
+            if (diagnostics && observations.length < 50) observations.push(inspectFeedback());
+            if (performance.now() - probe.started > 2000) throw new Error(`No visible feedback for ${entry.name}, sample ${index + 1}${diagnostics ? '; diagnostics=' + JSON.stringify({ observations, latest: inspectFeedback(), requests: host.requests.slice(-8) }) : ''}`);
             await new Promise(resolve => requestAnimationFrame(resolve));
           }
           await new Promise(resolve => requestAnimationFrame(resolve));
           const firstFeedbackMs = performance.now() - probe.started;
           await host.idle();
           if (!probe.operationId || probe.completedAt === undefined) throw new Error(`No matching mock-host completion for ${entry.name}; requests=${JSON.stringify(host.requests.slice(-4))}; probe=${JSON.stringify(probe)}`);
+          if (entry.name === 'navigation' && host.activeMode !== destination) throw new Error(`Navigation probe selected ${host.activeMode} instead of ${destination}`);
           const mockCompletionMs = probe.completedAt - probe.started;
           host.probe = undefined;
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           return { firstFeedbackMs, mockCompletionMs };
-        }, { entry, index });
+        }, { entry, index, diagnostics: args.diagnostics === 'true' });
         samples.push({ firstFeedbackMs: round(sample.firstFeedbackMs), mockCompletionMs: round(sample.mockCompletionMs) });
       }
       assert.equal(view.errors.length, 0, view.errors.join('; '));

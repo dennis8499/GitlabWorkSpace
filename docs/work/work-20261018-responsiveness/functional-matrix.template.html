@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitLab Workspace 功能驗證矩陣</title>
+<style>
+:root{color-scheme:light dark;font-family:system-ui,"Microsoft JhengHei",sans-serif;background:#f4f6fa;color:#182438;--surface:#fff;--line:#d9e0eb;--muted:#56647b;--pass:#166344;--pass-bg:#e8f5ed;--pending:#835100;--pending-bg:#fff2d4;--na:#657086;--na-bg:#edf0f5;--link:#1d5fb9}
+*{box-sizing:border-box}body{margin:0;padding:28px;max-width:1800px;margin-inline:auto;overflow-wrap:anywhere}h1{font-size:27px;margin:0 0 12px}p{line-height:1.6;margin:8px 0;color:var(--muted)}a{color:var(--link);overflow-wrap:anywhere}a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid #588bda;outline-offset:3px}button,input,select{font:inherit}button,select,input[type=search]{padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:inherit}button{cursor:pointer}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:20px 0 12px}.control{display:flex;flex-direction:column;gap:6px;font-size:13px}.search{flex:1;min-width:210px}.status{display:inline-flex;white-space:nowrap;border-radius:5px;padding:4px 7px;font-size:12px;font-weight:650}.passed{color:var(--pass);background:var(--pass-bg)}.pending{color:var(--pending);background:var(--pending-bg)}.not-applicable{color:var(--na);background:var(--na-bg)}.legend{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px;margin:12px 0}.table-wrap{border:1px solid var(--line);border-radius:8px;overflow:auto;background:var(--surface);max-height:72vh}table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--line);padding:10px 9px;vertical-align:top;text-align:left}thead th{position:sticky;top:0;background:var(--surface);z-index:2;white-space:nowrap;font-weight:700}td:first-child{min-width:270px;width:29%;max-width:500px}td:last-child{min-width:150px}.group td{background:#e7edf7;color:#263d63;font-weight:750;padding:11px 12px}.group-count{font-weight:400;margin-left:10px;font-size:12px}tbody tr:last-child td{border-bottom:none}summary{cursor:pointer;line-height:1.6}code{font-family:ui-monospace,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}.id{display:block;color:var(--muted);margin-top:3px}.detail{padding:7px 2px 0;line-height:1.6;color:var(--muted)}.detail ul{padding-left:19px;margin:6px 0 12px}.detail strong{display:block;color:inherit}.links a{display:block;margin-bottom:6px}.small{font-size:12px;color:var(--muted)}#count{margin:10px 0;font-size:13px}#error{color:#a22636;font-weight:650;min-height:1em}.evidence-box{margin-top:22px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}.evidence-item{margin:20px 0;border-top:1px solid var(--line);padding-top:12px}.evidence-item:first-child{border-top:0}.evidence-item h3{font-size:15px;margin:0 0 7px}.command{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--na-bg);padding:9px;border-radius:5px;display:block}.empty td{padding:28px;text-align:center;color:var(--muted)}footer{font-size:12px;margin-top:18px;color:var(--muted)}
+@media(prefers-color-scheme:dark){:root{background:#101722;color:#e3e9f2;--surface:#182231;--line:#344258;--muted:#b2bfd0;--pass:#a6e5bd;--pass-bg:#203b2c;--pending:#ffdc94;--pending-bg:#493b23;--na:#bdc7d7;--na-bg:#2a3547;--link:#9bc5ff}.group td{background:#283951;color:#e0eaf9}}
+@media(max-width:700px){body{padding:16px}h1{font-size:23px}.table-wrap{max-height:75vh}.controls{gap:10px}td:first-child{min-width:245px}}
+@media print{body{padding:0;max-width:none}.controls,#error{display:none}.table-wrap{max-height:none;overflow:visible}thead th{position:static}.status{border:1px solid currentColor}a{color:inherit;text-decoration:none}.evidence-box{break-before:page}}
+</style>
+</head>
+<body>
+<h1>GitLab Workspace 功能驗證矩陣</h1>
+<p>逐項記錄正常、失敗、取消、重試、範圍切換與恢復。點開功能名稱可查看來源、測試檔及限制。</p>
+<p class="small">「通過」限已執行的離線情境；真實 GitLab 與原生 Git 分開驗收。<a href="feature-matrix.json">原始 JSON</a> 為更新依據，本頁已內嵌資料，可直接離線開啟。</p>
+<div class="controls">
+  <label class="control search">搜尋功能、來源或測試<input id="search" type="search" placeholder="例如：附件、Rebase、unknown" autocomplete="off"></label>
+  <label class="control">功能分組<select id="group"><option value="">全部分組</option></select></label>
+  <label class="control">狀態篩選<select id="filter"><option value="all">全部狀態</option><option value="pending">任一項目待驗</option><option value="offline">離線待驗</option><option value="native">原生 Git 待驗</option><option value="live">真實 GitLab 待驗</option><option value="passed">離線情境全數通過</option></select></label>
+  <button id="reload" type="button">載入更新後 JSON</button><input id="file" type="file" accept=".json,application/json" hidden>
+</div>
+<div class="legend"><span class="status passed">通過</span><span>有實測證據</span><span class="status pending">待驗</span><span>尚缺逐項驗證</span><span class="status not-applicable">不適用</span><a href="#evidence">查看測試命令與證據</a></div>
+<p id="count" role="status" aria-live="polite"></p><p id="error" role="alert"></p>
+<p id="artifact" class="small"></p>
+<details class="small"><summary>驗證範圍及待驗限制</summary><ul id="constraints"></ul></details>
+<div class="table-wrap" tabindex="0" aria-label="功能驗證表格，可水平捲動">
+<table>
+<thead><tr><th scope="col">功能</th><th scope="col">正常</th><th scope="col">失敗</th><th scope="col">取消</th><th scope="col">重試</th><th scope="col">範圍切換</th><th scope="col">恢復</th><th scope="col">離線整體</th><th scope="col">原生 Git</th><th scope="col">真實 GitLab</th><th scope="col">證據</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</div>
+<section class="evidence-box" id="evidence"><h2>測試命令與證據</h2><p class="small">完整套件尚未通過時保留待驗；個別已通過情境不代表整包、原生 Host 或真實 GitLab 已驗收。</p><div id="evidence-list"></div></section>
+<footer id="footer"></footer>
+<script id="matrix-data" type="application/json">__MATRIX_JSON__</script>
+<script>
+'use strict';
+let matrix=JSON.parse(document.getElementById('matrix-data').textContent);
+const scenarios=['正常','失敗','取消','重試','範圍切換','恢復'];
+const labels={passed:'通過',pending:'待驗','not-applicable':'不適用'};
+const groups=['帳號與連線','專案與 Repo','本機 Git','Issue','工時','Boards 與圖譜','Merge Request','Skills','BMAD','通知與 Logs','恢復與通訊'];
+const byId=id=>document.getElementById(id);
+const node=(tag,text,className)=>{const item=document.createElement(tag);if(text!==undefined)item.textContent=text;if(className)item.className=className;return item};
+const category=f=>{const id=f.id;if(id.startsWith('account-')||id==='api-cache-capabilities')return groups[0];if(id.startsWith('repositories-')||id==='group-projects')return groups[1];if(id.startsWith('git-'))return groups[2];if(id.startsWith('issue-graph-')||id.startsWith('boards-'))return groups[5];if(id.startsWith('issue-'))return groups[3];if(id.startsWith('time-'))return groups[4];if(id.startsWith('mr-'))return groups[6];if(id.startsWith('skills-'))return groups[7];if(id.startsWith('bmad-'))return groups[8];if(id==='notifications'||id.startsWith('logs-'))return groups[9];return groups[10]};
+function badge(status,tip){const safe=Object.hasOwn(labels,status)?status:'pending';const item=node('span',labels[safe],'status '+safe);item.title=tip||labels[safe];return item}
+function repoLink(path){const a=node('a',path);if(typeof path==='string'&&!/^(?:[a-z][a-z0-9+.-]*:|[/\\])/i.test(path)&&!path.includes('\0'))a.href='../../../'+path;return a}
+function linkList(parent,title,paths){if(!paths?.length)return;parent.append(node('strong',title));const list=node('ul');for(const path of paths){const li=node('li');li.append(repoLink(path));list.append(li)}parent.append(list)}
+function matches(f){const query=byId('search').value.trim().toLocaleLowerCase();if(query&&!JSON.stringify([f.label,f.id,f.source,f.testFiles,f.notes]).toLocaleLowerCase().includes(query))return false;if(byId('group').value&&category(f)!==byId('group').value)return false;const filter=byId('filter').value;if(filter==='offline')return f.offlineStatus==='pending';if(filter==='native')return f.liveStatus?.NativeGit==='pending';if(filter==='live')return f.liveStatus?.liveGitLab==='pending';if(filter==='passed')return f.offlineStatus==='passed';if(filter==='pending')return f.offlineStatus==='pending'||Object.values(f.liveStatus||{}).includes('pending')||Object.values(f.scenarios).some(s=>s.status==='pending');return true}
+function render(){
+ const fragment=document.createDocumentFragment();const visible=matrix.features.filter(matches);
+ for(const group of groups){const features=visible.filter(f=>category(f)===group);if(!features.length)continue;const heading=node('tr',undefined,'group');const cell=node('td',group);cell.colSpan=11;cell.append(node('span',features.length+' 項','group-count'));heading.append(cell);fragment.append(heading);
+  for(const f of features){const row=node('tr');const name=node('td');const detail=node('details');const summary=node('summary',f.label);summary.append(node('code',f.id,'id'));detail.append(summary);const content=node('div',undefined,'detail');if(f.notes?.length){const list=node('ul');for(const note of f.notes)list.append(node('li',note));content.append(list)}linkList(content,'來源',f.source);linkList(content,'測試檔',f.testFiles);detail.append(content);name.append(detail);row.append(name);
+   for(const name of scenarios){const s=f.scenarios[name]||{status:'pending'};const cell=node('td');cell.append(badge(s.status,s.notes));row.append(cell)}
+   for(const status of [f.offlineStatus,f.liveStatus?.NativeGit,f.liveStatus?.liveGitLab]){const cell=node('td');cell.append(badge(status));row.append(cell)}
+   const refs=[...new Set(Object.values(f.scenarios).flatMap(s=>s.evidence||[]))].sort((a,b)=>Number(b===matrix.primaryEvidenceRun)-Number(a===matrix.primaryEvidenceRun));const evidence=node('td',undefined,'links');for(const ref of refs){const a=node('a',ref);a.href='#run-'+encodeURIComponent(ref);evidence.append(a)}if(!refs.length)evidence.textContent='尚無本次實測';row.append(evidence);fragment.append(row);
+  }
+ }
+ if(!visible.length){const row=node('tr',undefined,'empty');const cell=node('td','沒有符合條件的功能。');cell.colSpan=11;row.append(cell);fragment.append(row)}byId('rows').replaceChildren(fragment);
+ const passed=matrix.features.filter(f=>f.offlineStatus==='passed').length;const pending=matrix.features.filter(f=>f.offlineStatus==='pending').length;byId('count').textContent=`顯示 ${visible.length}／${matrix.features.length} 項；離線整體 ${passed} 項通過、${pending} 項待驗。更新日期：${matrix.updatedAt}（${matrix.timezone}）`;
+}
+function renderEvidence(){const fragment=document.createDocumentFragment();for(const run of matrix.evidenceRuns||[]){const item=node('article',undefined,'evidence-item');item.id='run-'+run.id;const heading=node('h3',run.id+(run.historical?'（早期紀錄）':'')+' ');heading.append(badge(run.result));item.append(heading);if(run.tests!==undefined)item.append(node('p',`${run.tests} 項；${run.passed!==undefined?'通過 '+run.passed+' 項；':''}${run.failed!==undefined?'失敗 '+run.failed+' 項；':''}${run.pending!==undefined?'待驗 '+run.pending+' 項；':''}${run.owner?'負責：'+run.owner:''}`));for(const command of [run.compileCommand,run.command,...(run.commands||[])].filter(Boolean))item.append(node('code',command,'command'));for(const note of [run.commandNotes,...(run.notes||[])].filter(Boolean))item.append(node('p',note,'small'));linkList(item,'證據檔案',Array.isArray(run.evidence)?run.evidence:run.evidence?[run.evidence]:[]);fragment.append(item)}byId('evidence-list').replaceChildren(fragment)}
+function initialize(){const value=byId('group').value;byId('group').replaceChildren(node('option','全部分組'));byId('group').firstChild.value='';for(const group of groups){const option=node('option',group);option.value=group;byId('group').append(option)}byId('group').value=value;byId('constraints').replaceChildren(...(matrix.constraints||[]).map(value=>node('li',value)));const candidate=matrix.deliveryCandidate;byId('artifact').replaceChildren();if(candidate){byId('artifact').append(node('span','候選套件：'),badge(candidate.status),node('span',' '),repoLink(candidate.path),node('span','；當時 SHA256：'),node('code',candidate.observedSha256||'尚未記錄'))}render();renderEvidence();byId('footer').textContent='本頁由 feature-matrix.json 產生。更新 JSON 後可按「載入更新後 JSON」，或執行 python docs/work/work-20261018-responsiveness/render-functional-matrix.py 重新產生。';}
+byId('search').addEventListener('input',render);byId('group').addEventListener('change',render);byId('filter').addEventListener('change',render);byId('reload').addEventListener('click',()=>byId('file').click());byId('file').addEventListener('change',async event=>{const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!Array.isArray(data.features)||!data.features.every(f=>typeof f.id==='string'&&typeof f.label==='string'&&f.scenarios&&f.liveStatus))throw new Error('JSON 缺少功能矩陣欄位');matrix=data;byId('error').textContent='';initialize()}catch(error){byId('error').textContent='無法載入 JSON：'+(error.message||String(error))}finally{event.target.value=''}});
+initialize();
+</script>
+</body>
+</html>

@@ -29,7 +29,7 @@ body { overflow-x: hidden; overflow-y: auto; }
 .repo-search input:focus-visible { outline: none; }
 .repo-search:focus-within { outline: 1px solid var(--vscode-focusBorder); }
 .git-availability { padding: 3px 5px; color: var(--vscode-descriptionForeground); line-height: 1.45; }
-.sidebar-repositories { min-width: 0; }
+.sidebar-repositories { min-width: 0; max-height: 65vh; overflow: auto; }
 .sidebar-repository { min-width: 0; }
 .repo-heading-row { display: flex; min-width: 0; align-items: center; gap: 1px; }
 .repo-link { width: 100%; min-height: 42px; flex: 1; gap: 3px; padding: 4px 3px; }

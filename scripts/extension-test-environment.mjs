@@ -20,6 +20,14 @@ export async function inspectHostExecutable(executable, requested = 'stable') {
   const directory = path.dirname(filename);
   const candidates = [path.join(directory, 'resources/app/package.json'),
     path.join(directory, '../Resources/app/package.json')];
+  // New Windows distributions keep the active runtime under a commit-named
+  // directory. Resolve the exact directory selected by the shipped CLI rather
+  // than accidentally inspecting an older runtime left beside it.
+  try {
+    const launcher = await readFile(path.join(directory, 'bin/code.cmd'), 'utf8');
+    const runtime = /%~dp0\.\.\\([a-z0-9._-]+)\\resources\\app\\out\\cli\.(?:js|mjs)/i.exec(launcher)?.[1];
+    if (runtime && runtime !== '.' && runtime !== '..') candidates.unshift(path.join(directory, runtime, 'resources/app/package.json'));
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
   let manifest;
   for (const candidate of candidates) {
     try { manifest = JSON.parse(await readFile(candidate, 'utf8')); break; } catch (error) {

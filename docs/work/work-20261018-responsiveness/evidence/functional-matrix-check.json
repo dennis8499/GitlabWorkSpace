@@ -1,0 +1,58 @@
+{
+  "schema": "GitLabWorkspaceFunctionalMatrixCheck/v2",
+  "checkedAt": "2026-10-17T18:17:56.262Z",
+  "command": "node docs/work/work-20261018-responsiveness/verify-functional-matrix.mjs",
+  "browser": "155.0.8059.80",
+  "scope": "Offline documentation only; no product, Git, API or performance tests.",
+  "matrixSha256": "251cf186e706c5963a54a5039ed2820933140aba42b382f68c9e959d734a54b2",
+  "htmlSha256": "1b3a0a19fce08ab91493271f782216a1efa04b16607c26da7426431291c476e7",
+  "featureCount": 57,
+  "evidenceRunCount": 30,
+  "viewports": [
+    {
+      "width": 1440,
+      "filters": {
+        "offline": 38,
+        "passed": 19,
+        "native": 23,
+        "live": 27,
+        "pending": 50
+      },
+      "searchMatches": 1,
+      "documentScrollWidth": 1440,
+      "table": {
+        "width": 1382,
+        "contentWidth": 1382
+      },
+      "screenshot": "functional-matrix-1440.png"
+    },
+    {
+      "width": 390,
+      "filters": {
+        "offline": 38,
+        "passed": 19,
+        "native": 23,
+        "live": 27,
+        "pending": 50
+      },
+      "searchMatches": 1,
+      "documentScrollWidth": 390,
+      "table": {
+        "width": 356,
+        "contentWidth": 1007
+      },
+      "screenshot": "functional-matrix-390.png"
+    }
+  ],
+  "utf8Chinese": "passed",
+  "embeddedJson": "identical",
+  "groupCount": 11,
+  "invalidJson": "visible error",
+  "jsonReload": "changed data applied, then original restored",
+  "validFileLinks": 393,
+  "missingFiles": [],
+  "missingAnchors": [],
+  "pageErrors": [],
+  "externalRequests": [],
+  "status": "PASS"
+}

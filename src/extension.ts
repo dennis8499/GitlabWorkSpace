@@ -10,6 +10,7 @@ import { OperationLog } from './logging/operationLog';
 import { NotificationCenter } from './notifications/notificationCenter';
 import { randomUUID } from 'node:crypto';
 import { OperationTracker, operationLabels } from './workspace/operations';
+import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
 
 const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openWorkspace: 'gitlabWorkspace.openWorkspace',
@@ -29,11 +30,19 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openRepository: 'gitlabWorkspace.openGitMode'
 };
 let activeLog: OperationLog | undefined;
+let activeOperations: OperationTracker | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
   const notifications = new NotificationCenter();
-  const operations = new OperationTracker(operation => notifications.recordOperation(operation));
+  const operations = new OperationTracker(operation => notifications.recordOperation(operation), {
+    store: new OperationReceiptFileStore(vscode.Uri.joinPath(context.globalStorageUri, 'operation-receipts').fsPath),
+    historyLimit: 1000,
+    onStoreError: () => notifications.publish({ level: 'warn', title: '操作紀錄', message: '操作收據尚未保存，已保留於目前工作階段；請先核對結果再重試。' })
+  });
+  try { await operations.initialize(); }
+  catch { notifications.publish({ level: 'warn', title: '操作紀錄', message: '操作收據儲存空間無法使用；讀取功能仍可使用，寫入前須先核對歷史操作。' }); }
+  activeOperations = operations;
   const log = new OperationLog(vscode.Uri.joinPath(context.globalStorageUri, 'logs').fsPath, message => notifications.publish({ level: 'warn', message }));
   notifications.setSanitizer(message => log.sanitize(message));
   activeLog = log;
@@ -157,7 +166,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   };
 }
 
-export async function deactivate(): Promise<void> { await activeLog?.flush(); activeLog = undefined; }
+export async function deactivate(): Promise<void> {
+  await activeOperations?.flush(); activeOperations = undefined;
+  await activeLog?.flush(); activeLog = undefined;
+}
 
 function readableError(error: unknown): string {
   if (error instanceof GitLabApiError) return error.message;

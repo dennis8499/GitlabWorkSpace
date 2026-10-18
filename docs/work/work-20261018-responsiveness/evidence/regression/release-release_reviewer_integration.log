@@ -1,0 +1,13 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/release_reviewer_integration_test.py"]
+test_018_upgrade_and_rollback_preserve_old_release_skill_and_reports (__main__.ReleaseReviewerIntegrationTests.test_018_upgrade_and_rollback_preserve_old_release_skill_and_reports) ... ok
+test_failed_report_cleans_owned_context (__main__.ReleaseReviewerIntegrationTests.test_failed_report_cleans_owned_context) ... ok
+test_installed_cli_both_profiles_reports_checklists_and_dirty_state (__main__.ReleaseReviewerIntegrationTests.test_installed_cli_both_profiles_reports_checklists_and_dirty_state) ... ok
+test_installed_group_supporting_uses_local_default_not_feature (__main__.ReleaseReviewerIntegrationTests.test_installed_group_supporting_uses_local_default_not_feature) ... ok
+test_installed_native_payload_matches_pinned_archive (__main__.ReleaseReviewerIntegrationTests.test_installed_native_payload_matches_pinned_archive) ... ok
+test_saved_workspace_single_report_and_editable_checklist_snapshot (__main__.ReleaseReviewerIntegrationTests.test_saved_workspace_single_report_and_editable_checklist_snapshot) ... ok
+test_self_rehashed_release_skill_is_rejected (__main__.ReleaseReviewerIntegrationTests.test_self_rehashed_release_skill_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 98.466s
+
+OK

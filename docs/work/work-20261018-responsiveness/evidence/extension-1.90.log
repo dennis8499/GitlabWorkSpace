@@ -1,0 +1,45 @@
+Extension Host isolation removed inherited keys: ELECTRON_RUN_AS_NODE, VSCODE_CODE_CACHE_PATH, VSCODE_CRASH_REPORTER_PROCESS_TYPE, VSCODE_CWD, VSCODE_ESM_ENTRYPOINT, VSCODE_HANDLES_UNCAUGHT_ERRORS, VSCODE_IPC_HOOK, VSCODE_NLS_CONFIG, VSCODE_NODE_COMPILE_CACHE_KIND, VSCODE_NODE_COMPILE_CACHE_ROOT, VSCODE_PID
+
+Warning: 'cached-data' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-17T17:12:40.661Z] Error: Error mutex already exists
+    at bt.W (C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.vscode-test\vscode-win32-x64-archive-1.90.0\resources\app\out\vs\code\electron-main\main.js:110:70767)
+[main 2026-10-17T17:12:40.663Z] update#setState disabled
+[main 2026-10-17T17:12:40.664Z] update#ctor - updates are disabled by the environment
+Started local extension host with pid 1184.
+Started initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-host-tests-uFmnVQ/extensions
+Completed initializing default profile extensions in extensions installation folder. file:///c%3A/Users/denni/AppData/Local/Temp/gitlab-workspace-host-tests-uFmnVQ/extensions
+Loading development extension at c:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace
+
+  Account, preview and workspace Repo integration
+    √ late Git reads are dropped after hiding, closing or leaving the panel while accepted writes finish
+    √ only the latest preview request can update selection, without loading Issue edit options
+    √ workspace changes cancel the old scan and reject late progress and results
+    √ retired delivery requests are rejected before dispatch
+Failed to fetch chat participant registry {}
+    √ scanning registers deep Repos and worktrees with native VS Code Git and reconciles inventories (1612ms)
+    √ opens the real offline administration Webview and handles its Log page request (424ms)
+  Local workflow kit installation
+    √ the shared root setting defaults to the opened folder and supports workspace overrides (125ms)
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ installs real bundled Skills and follows shared root changes for offline Skills (22903ms)
+  Native readonly Git Diff snapshots
+Deprecated. Use ApiRepository.getRefs() instead.
+    √ preserves text and binary bytes and releases each snapshot after the last native tab closes (2704ms)
+  Live GitLab Workspace Webview validation
+    - exercises the packaged Git GUI against an isolated local bare remote
+    - runs the packaged 2000-node Canvas graph in a native Webview Blob Worker
+    - authenticates in SecretStorage and renders the real GitLab Workspace Webview through CDP
+  Version-bound MR report controller
+    √ manual comments recheck the current MR head and reconcile a lost response
+  BMAD dynamic artifact progress
+[BMAD native watcher latency ms] {"mkdir-and-draft":271,"final-write":321,"artifact-delete":338,"draft-recreate":374,"new-root-draft":278}
+    √ real filesystem events update draft/final/deleted artifacts and isolate root switches and disposal (2876ms)
+  GitLab Workspace extension activation
+    √ activates one workspace navigation view and keeps existing commands available
+  12 passing (31s)
+  3 pending
+Invalid model for label change, rebuilding
+[main 2026-10-17T17:13:14.845Z] Extension host with pid 1184 exited with code: 0, signal: unknown.
+Exit code:   0

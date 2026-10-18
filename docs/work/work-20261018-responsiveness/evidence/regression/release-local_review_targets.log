@@ -1,0 +1,9 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/local_review_targets_test.py"]
+test_installed_frozen_snapshot_survives_source_gc_and_preserves_pending_confirmations (__main__.LocalReviewTargetsTests.test_installed_frozen_snapshot_survives_source_gc_and_preserves_pending_confirmations) ... ok
+test_v3_branch_reports_preserve_index_and_saved_modifications_in_both_profiles (__main__.LocalReviewTargetsTests.test_v3_branch_reports_preserve_index_and_saved_modifications_in_both_profiles) ... ok
+test_versions_and_removed_user_options_are_rejected (__main__.LocalReviewTargetsTests.test_versions_and_removed_user_options_are_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 41.679s
+
+OK

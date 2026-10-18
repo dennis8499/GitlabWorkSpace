@@ -1,0 +1,31 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "4EB8C6C666655F42C43B367C01BF6DCE",
+      "type": "service_worker",
+      "title": "Service Worker vscode-webview://1kcn93hqnd3cl4mpsdepodk4mttp931ls1gd51no9fua5j8mi4bt/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+      "url": "vscode-webview://1kcn93hqnd3cl4mpsdepodk4mttp931ls1gd51no9fua5j8mi4bt/service-worker.js?v=4&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "9B22A8BAA4E4ED064853DAA0C754A054"
+    },
+    {
+      "targetId": "C7C9361361A06F7056CDE7E26FF5C0FB",
+      "type": "page",
+      "title": "[Extension Development Host] Native Graph Worker Probe - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.90.0/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "9B22A8BAA4E4ED064853DAA0C754A054"
+    },
+    {
+      "targetId": "1651187D10FB74CA35E05C25A0403DB8",
+      "type": "iframe",
+      "title": "vscode-webview://1kcn93hqnd3cl4mpsdepodk4mttp931ls1gd51no9fua5j8mi4bt/index.html?id=767cebc7-b6d4-4201-b941-36c69eaf44e1&origin=2f6b3094-3a2a-4e68-9ad4-9ab2ec4452bc&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "url": "vscode-webview://1kcn93hqnd3cl4mpsdepodk4mttp931ls1gd51no9fua5j8mi4bt/index.html?id=767cebc7-b6d4-4201-b941-36c69eaf44e1&origin=2f6b3094-3a2a-4e68-9ad4-9ab2ec4452bc&swVersion=4&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "9B22A8BAA4E4ED064853DAA0C754A054"
+    }
+  ]
+}

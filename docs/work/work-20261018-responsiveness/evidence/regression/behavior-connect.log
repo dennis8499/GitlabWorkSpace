@@ -1,0 +1,6 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","node_modules/@cucumber/cucumber/bin/cucumber.js","--require","test/behavior/connect.steps.cjs","--tags","@automated","test/behavior/connect.feature"]
+...................................
+
+10 scenarios (10 passed)
+35 steps (35 passed)
+0m 0.47s (0m 0.26s executing your code)

@@ -22,7 +22,7 @@ const vscode = {
     showOpenDialog: async (_options: any): Promise<any> => undefined,
     showInformationMessage: async (..._args: any[]): Promise<string | undefined> => '開始',
     showWarningMessage: async (..._args: any[]): Promise<string | undefined> => '更新預設分支',
-    withProgress: async (_options: any, run: any) => run({ report: () => undefined })
+    withProgress: async (_options: any, run: any) => run({ report: () => undefined }, { onCancellationRequested: () => ({ dispose: () => undefined }) })
   },
   commands: { executeCommand: async (_command: string, target: ReturnType<typeof uri>) => { opened.push(target.fsPath); } },
   Uri: { file: uri }, ProgressLocation: { Notification: 15 }
@@ -65,7 +65,7 @@ function controller(folders: string[], workspaceState = memory()) {
     workspaceMatch: { status: 'mismatched', repositories: [] }, workspaceRootError: '所有 Repo 都須對應所選 GitLab Group。',
     loadedScopeKey: 'https://gitlab.test|7|3', workspaceSections: { projects: { status: 'ready' } }, currentUser: { id: 7 },
     session: { baseUrl: 'https://gitlab.test', connectionEpoch: 1, selectedGroup: { id: 3, full_path: 'team' },
-      getClient: async () => ({ getProject: async () => project }), getCloneCredentials: async () => ({ baseUrl: 'https://gitlab.test', token: 'fixture' }) },
+      getClient: async () => { const client = { getProject: async () => project, withReadSignal: (_signal: AbortSignal): unknown => client }; return client; }, getCloneCredentials: async () => ({ baseUrl: 'https://gitlab.test', token: 'fixture' }) },
     context: { workspaceState }, sendSnapshot: () => undefined, post: () => undefined, refresh: async () => undefined,
     refreshWorkflowKit: async () => undefined, onWorkspaceFoldersChanged: () => undefined
   });

@@ -130,6 +130,42 @@ test('clones a repository and keeps credentials out of args and remote URL', asy
   }
 });
 
+test('cancelling an existing-repository update preserves an unknown effect and stops the batch', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-cancel-'));
+  try {
+    const workspace = path.join(temp, 'workspace'); mkdirSync(workspace);
+    const repo = project('existing'), later = project('later');
+    const { bare } = createBareRemote(temp); createExistingRepo(workspace, repo, bare);
+    const controller = new AbortController(); let cloneCalls = 0, progress = 0;
+    const result = await cloneProjects(workspace, [repo, later], 'https://gitlab.example.test', dummyToken, () => { progress++; }, {
+      signal: controller.signal,
+      updateRunner: async () => { controller.abort(); throw Object.assign(new Error('cancelled'), { name: 'AbortError' }); },
+      cloneRunner: async () => { cloneCalls++; }
+    });
+    assert.equal(result.cancelled, true); assert.equal(result.effect, 'unknown'); assert.equal(cloneCalls, 0);
+    assert.ok(existsSync(path.join(workspace, repo.path, '.git'))); assert.ok(progress > 0);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
+test('cancelled metadata preflight passes its signal and starts no repository writes', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-preflight-cancel-'));
+  try {
+    const workspace = path.join(temp, 'workspace'); mkdirSync(workspace);
+    const repo = project('existing'); const { bare } = createBareRemote(temp);
+    createExistingRepo(workspace, repo, bare);
+    const controller = new AbortController(); let writes = 0, reports = 0;
+    await assert.rejects(cloneProjects(workspace, [{ ...repo, default_branch: null }], 'https://gitlab.example.test', dummyToken,
+      () => { reports++; }, { signal: controller.signal,
+        resolveProject: async (_project, signal) => {
+          assert.equal(signal, controller.signal); assert.ok(reports > 0, 'preflight is visible before metadata returns');
+          queueMicrotask(() => controller.abort());
+          return new Promise((_resolve, reject) => signal!.addEventListener('abort', () => reject(signal!.reason), { once: true }));
+        }, updateRunner: async () => { writes++; return { state: 'updated' }; }
+      }), { name: 'AbortError' });
+    assert.equal(writes, 0); assert.ok(existsSync(path.join(workspace, repo.path, '.git')));
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
 test('shows sanitized Git diagnostics when a clone is rejected by the server', async () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-clone-auth-'));
   const workspace = path.join(temp, 'workspace');

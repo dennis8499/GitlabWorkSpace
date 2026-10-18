@@ -65,6 +65,19 @@ test('MR invalidation reloads a visible review list and leaves hidden sections l
   assert.equal(host.workspaceSections.mergeRequests.status, 'idle');
 });
 
+test('hiding a background refresh keeps data and permits revalidation after restore', async () => {
+  const { host } = fixture();
+  const rows = [{ title: 'Cached' }]; host.mergeRequests = rows;
+  host.workspaceSections.mergeRequests = { status: 'ready', updatedAt: Date.now() - 61_000, refreshing: true };
+  host.panel.visible = false; host.suspendViewReads();
+  assert.equal(host.mergeRequests, rows);
+  assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
+  assert.equal(host.workspaceSections.mergeRequests.refreshing, false);
+  host.panel.visible = true; host.webviewReady = true;
+  await host.loadWorkspaceSection('mergeRequests');
+  assert.equal(host.mergeRequests[0].title, 'Updated');
+});
+
 test('manual Workspace refresh reloads a ready empty MR list through the read cache', async () => {
   const { host } = fixture();
   const user = { id: 7, name: 'Me', username: 'me' };

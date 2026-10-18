@@ -1,0 +1,34 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "33EB74A9A3FC6900C4ED01937531800B",
+      "type": "worker",
+      "title": "editorWorkerService",
+      "url": "blob:vscode-file://vscode-app/6a578a36-1d90-47c0-9528-e545c32b3104",
+      "attached": true,
+      "canAccessOpener": false,
+      "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+      "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+    },
+    {
+      "targetId": "5028F9E4C17F71CA88D2254D561ED470",
+      "type": "page",
+      "title": "[Extension Development Host] GitLab Workspace - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/.vscode-test/vscode-win32-x64-archive-1.142.0/6d62b1d5da/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+    },
+    {
+      "targetId": "73C60C15C7D5354FDEBFE91233EFAFF0",
+      "type": "iframe",
+      "title": "vscode-webview://09c6rhq52r4ruhkgb0ektod2v70f01aigdneeq1np0u25e2mjkkj/index.html?id=569bc19c-af40-4756-9e0e-44d73c391193&parentId=1&origin=fa100807-7baf-442a-8a5d-eb3f573adb73&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=ecbff8f2-d82a-4617-9ec2-53514aa07c42",
+      "url": "vscode-webview://09c6rhq52r4ruhkgb0ektod2v70f01aigdneeq1np0u25e2mjkkj/index.html?id=569bc19c-af40-4756-9e0e-44d73c391193&parentId=1&origin=fa100807-7baf-442a-8a5d-eb3f573adb73&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=ecbff8f2-d82a-4617-9ec2-53514aa07c42",
+      "attached": true,
+      "parentId": "5028F9E4C17F71CA88D2254D561ED470",
+      "canAccessOpener": false,
+      "parentFrameId": "5028F9E4C17F71CA88D2254D561ED470",
+      "browserContextId": "0590F26E671C1F7B26DABC72CB5A6058"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-17T17:52:40.042Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.90.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+    "sha256": "31dea1c3b42db81ce42487e92611904fe2b3c21779414e308f34253a3ab8100e"
+  },
+  "status": "FAIL",
+  "error": "CDP exposes the real production Blob Worker before the panel is hidden",
+  "sourceRepository": "isolated generated Git seed"
+}

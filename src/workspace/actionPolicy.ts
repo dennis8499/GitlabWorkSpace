@@ -28,6 +28,8 @@ export const workspaceActionKinds = {
   setLogVisibility: 'control',
   setIssueGraphVisibility: 'control',
   cancelRepositoryScan: 'control',
+  cancelRepositoryOperation: 'control',
+  resyncWorkspace: 'control',
   setMode: 'local',
   closeIssue: 'local',
   openAccountManager: 'local',
@@ -139,11 +141,13 @@ export const gitActionKinds = {
   skip: 'write',
 } satisfies Record<GitAction['type'], ActionKind>;
 export const issueActionKinds = {
+  cancelUpload: 'control',
   reconcileOperations: 'control',
   confirmOperationResult: 'control',
   ready: 'control',
   refresh: 'read',
   loadSection: 'read',
+  loadTemplate: 'read',
   selectProject: 'read',
   preview: 'read',
   search: 'read',
@@ -276,7 +280,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   const nestedType = request.type === 'gitAction' ? request.action.type : request.type === 'issueRequest' ? request.request.type : undefined;
   const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && action !== 'openNotifications')
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
-    || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects'].includes(nestedType));
+    || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate'].includes(nestedType));
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
   const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by

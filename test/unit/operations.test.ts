@@ -5,6 +5,36 @@ import { OperationTracker, type WorkspaceOperationState } from '../../src/worksp
 const state = (requestId: string, resourceKey = 'skills'): WorkspaceOperationState => ({ requestId, resourceKey,
   scopeRevision: 'root-a', action: 'copySkillGuidePrompt', label: '複製提示詞', status: 'queued', phase: '驗證中', startedAt: Date.now() });
 
+test('a thrown unknown write retains its resource lock and the original effect', async () => {
+  const tracker = new OperationTracker(); let writes = 0;
+  await assert.rejects(tracker.run({ ...state('uncertain'), kind: 'write' }, async () => {
+    writes++; throw Object.assign(new Error('write timed out after dispatch'), { effect: 'unknown' });
+  }), /timed out/);
+  assert.equal(tracker.get('uncertain')?.effect, 'unknown');
+  await tracker.run({ ...state('second'), kind: 'write' }, async () => { writes++; });
+  assert.equal(writes, 1);
+});
+
+test('human result confirmation cannot release a resource while its original adapter is running', async () => {
+  for (const confirmation of ['resolve', 'recover'] as const) {
+    const tracker = new OperationTracker(); let release!: () => void, writes = 0;
+    const pending = tracker.run({ ...state('active'), kind: 'write' }, async () => {
+      writes++; await new Promise<void>(resolve => { release = resolve; }); return { status: 'failed', effect: 'unknown' };
+    });
+    try {
+      tracker.noteOutcome('active', { effect: 'unknown' });
+      if (confirmation === 'resolve') tracker.resolveUnknown('active', { effect: 'applied' });
+      else tracker.recoverConfirmed(tracker.get('active')!, { effect: 'applied' });
+      assert.equal(tracker.get('active')?.status, 'running');
+      await tracker.run({ ...state('conflict'), kind: 'write' }, async () => { writes++; });
+      assert.equal(writes, 1, 'the original running write must still own the lock');
+    } finally { release(); await pending; }
+    assert.equal(tracker.get('active')?.effect, 'unknown');
+    await tracker.run({ ...state('after'), kind: 'write' }, async () => { writes++; });
+    assert.equal(writes, 1, 'a terminal unknown result remains locked until a new explicit confirmation');
+  }
+});
+
 test('duplicate request IDs execute once and resource conflicts do not launch a second task', async () => {
   const messages: WorkspaceOperationState[] = [], tracker = new OperationTracker(value => messages.push(value));
   let release!: () => void, calls = 0;

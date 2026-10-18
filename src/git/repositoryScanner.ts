@@ -27,7 +27,13 @@ export async function scanWorkspaceRepositories(roots: readonly string[], option
   const queue: string[] = [];
   let missingGit = false;
   const isCancelled = (): boolean => options.signal?.aborted === true;
-  const notify = (): void => options.onProgress?.({ ...state, repositories: [...state.repositories], errors: [...state.errors] });
+  let lastProgress = -Infinity;
+  const notify = (force = false): void => {
+    const now = Date.now();
+    if (!force && now - lastProgress < 100) return;
+    lastProgress = now;
+    options.onProgress?.({ ...state, repositories: state.repositories.map(repository => ({ ...repository, remotes: [...repository.remotes] })), errors: [...state.errors] });
+  };
   const command = async (cwd: string, args: string[]): Promise<string> => {
     const task = async (): Promise<string> => {
       const start = Date.now();
@@ -108,6 +114,6 @@ export async function scanWorkspaceRepositories(roots: readonly string[], option
   state.repositories.sort((a, b) => a.path.localeCompare(b.path));
   state.status = isCancelled() ? 'cancelled' : missingGit || !roots.length ? 'error' : 'completed';
   if (!roots.length) state.errors.push({ path: '', message: '請先在 VS Code 開啟本機工作區資料夾。' });
-  notify();
+  notify(true);
   return state;
 }

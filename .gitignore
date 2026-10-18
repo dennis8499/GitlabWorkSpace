@@ -3,6 +3,7 @@ out/
 dist/
 .vscode-test/
 .gitlab-workspace-validation/
+.tmp/
 coverage/
 .npm-cache/
 resources/issue-webview/

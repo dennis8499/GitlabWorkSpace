@@ -4,10 +4,61 @@ import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { describeAction } from '../../out/src/workspace/actionPolicy.js';
 
-const html = await readFile(new URL('../../resources/sidebar-webview/sidebar.html', import.meta.url), 'utf8');
-const script = await readFile(new URL('../../resources/sidebar-webview/sidebar.js', import.meta.url), 'utf8');
+import { webviewBundle } from './webview-bundle.mjs';
+const { html, script } = await webviewBundle('sidebar');
 const hostValues = (value) => JSON.parse(JSON.stringify(value));
 const requestShape = ({ operationId, operationScope, hostSessionId, scopeEpoch, ...request }) => hostValues(request);
+
+test('responsiveness: small Repo searches use natural rows without measurement and large lists stay windowed', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close());
+  const observed = new Set();
+  view.dom.window.ResizeObserver = class {
+    elements = new Set();
+    observe(element) { this.elements.add(element); observed.add(element); }
+    unobserve(element) { this.elements.delete(element); observed.delete(element); }
+    disconnect() { for (const element of this.elements) observed.delete(element); this.elements.clear(); }
+  };
+  const document = view.dom.window.document;
+  const repositories = count => Array.from({ length: count }, (_, index) => ({ ...summary(1), id: 'repo-' + index, name: 'service-' + index, path: 'C:/fixture/service-' + index }));
+  view.sendState({ connected: false, gitAvailable: true, repositories: repositories(20) });
+  await waitFor(() => view.repoButtons().length === 20);
+  await new Promise(resolve => setTimeout(resolve, 80));
+  const list = () => document.querySelector('.sidebar-repositories');
+  assert.equal(list().firstElementChild.style.height, '', 'small lists have their actual content height');
+  assert.equal(observed.size, 0, 'small lists do not subscribe to row or viewport measurement');
+  list().scrollTop = 120;
+  const search = document.querySelector('[aria-label="搜尋 Repo"]');
+  search.value = '  MAIN  '; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await waitFor(() => list().scrollTop === 0);
+  assert.equal(view.repoButtons().length, 20);
+  assert.equal(observed.size, 0);
+  assert.equal(detailsRequests(view).length, 0, 'filtering remains local');
+  search.value = ''; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 40));
+  view.sendState({ connected: false, gitAvailable: true, repositories: repositories(500) });
+  await waitFor(() => view.repoButtons().length > 0 && view.repoButtons().length < 100 && list().firstElementChild.style.height !== '');
+  await waitFor(() => observed.size > 0);
+  list().scrollTop = 10000; list().dispatchEvent(new view.dom.window.Event('scroll'));
+  await waitFor(() => Number(list().querySelector('[data-virtual-index]').dataset.virtualIndex) > 100);
+  assert.ok(view.repoButtons().length < 100, 'scrolling does not mount the full large list');
+  view.sendState({ connected: false, gitAvailable: true, repositories: repositories(20) });
+  await waitFor(() => view.repoButtons().length === 20 && list().firstElementChild.style.height === '');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(observed.size, 0, 'returning to a small list disconnects measurement');
+});
+
+test('responsiveness: repository details lifecycle failures release loading and offer a fresh retry', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close()); view.sendState(stateFor(1));
+  await waitFor(() => view.repoButtons().length === 1);
+  view.dom.window.document.querySelector('.repo-disclosure').click(); await waitFor(() => detailsRequests(view).length === 1);
+  view.finish(detailsRequests(view)[0], { status: 'failed', error: 'Preflight rejected', effect: 'none' });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const detail = view.dom.window.document.querySelector('.repo-details');
+  assert.doesNotMatch(detail.textContent, /正在載入分支與 Stash/);
+  assert.match(detail.textContent, /Preflight rejected/);
+  [...detail.querySelectorAll('button')].find(button => button.textContent === '重試載入').click();
+  await waitFor(() => detailsRequests(view).length === 2);
+});
 
 async function mount() {
   const dom = new JSDOM(html, { url: 'https://sidebar.example.test/', runScripts: 'outside-only', pretendToBeVisual: true });

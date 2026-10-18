@@ -1,0 +1,16 @@
+{
+  "error": "The production graph owner context 3 was not destroyed after native hide.",
+  "hostVisible": false,
+  "readyCount": 1,
+  "watchedContext": {
+    "id": 3,
+    "origin": "vscode-webview://1kcn93hqnd3cl4mpsdepodk4mttp931ls1gd51no9fua5j8mi4bt",
+    "name": "",
+    "uniqueId": "-4858011292680897917.4009402920736935456",
+    "auxData": {
+      "isDefault": true,
+      "type": "default",
+      "frameId": "2B006F6EB7E3409B3F95EFF570BB3D79"
+    }
+  }
+}

@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createBmadConfirmation, parseBmadCatalog, readBmadWorkflow, revokeBmadConfirmation } from '../../src/workspace/bmadWorkflow';
+import { BmadReadCache, createBmadConfirmation, parseBmadCatalog, readBmadWorkflow, revokeBmadConfirmation } from '../../src/workspace/bmadWorkflow';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 const HEADER = 'module,skill,display-name,menu-code,description,action,args,phase,preceded-by,followed-by,required,output-location,outputs';
@@ -51,6 +51,27 @@ async function fixture(run: (root: string, write: (relative: string, content: st
 }
 const read = (root?: string) => readBmadWorkflow({ root, bundledCatalog: CATALOG });
 const step = (snapshot: BmadWorkflowSnapshot, skill: string) => snapshot.steps.find(item => snapshot.nodes.find(node => node.id === item.id)?.skill === skill)!;
+
+test('an aborted BMAD read stops before reading the project', async () => {
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(readBmadWorkflow({ root: '/unused', bundledCatalog: CATALOG, signal: controller.signal } as Parameters<typeof readBmadWorkflow>[0]), { name: 'AbortError' });
+});
+
+test('incremental BMAD cache reuses unchanged parsing and invalidates changed file identity', async () => {
+  await fixture(async (root, write) => {
+    const cache = new BmadReadCache();
+    await write('_bmad-output/planning-artifacts/prd.md', md('draft'));
+    const first = await readBmadWorkflow({ root, bundledCatalog: CATALOG, cache });
+    let parses = 0;
+    const firstValue = cache.derive('test-value', 10, () => { parses++; return { parsed: true }; });
+    assert.equal(cache.derive('test-value', 10, () => { parses++; return {}; }), firstValue); assert.equal(parses, 1);
+    const unchanged = await readBmadWorkflow({ root, bundledCatalog: CATALOG, cache }); assert.equal(unchanged.revision, first.revision);
+    await write('_bmad-output/planning-artifacts/prd.md', md('final'));
+    const changed = await readBmadWorkflow({ root, bundledCatalog: CATALOG, cache });
+    assert.equal(step(changed, 'bmad-prd').status, 'complete'); assert.notEqual(changed.revision, first.revision);
+    cache.clear();
+  });
+});
 
 test('catalog supports RFC quoting, action identities, soft edges and future phases', async () => {
   const nodes = parseBmadCatalog(CATALOG);

@@ -70,6 +70,12 @@ export class GitLabSession {
   private capabilitiesRetryAt = 0;
   private readonly groupProjectIds = new Map<number, Set<number>>();
   private readonly readInvalidationListeners = new Set<(change: GitLabReadInvalidation) => void>();
+  private readonly instanceCheckListeners = new Set<() => void>();
+
+  onDidChangeInstanceChecks(listener: () => void): { dispose(): void } {
+    this.instanceCheckListeners.add(listener);
+    return { dispose: () => { this.instanceCheckListeners.delete(listener); } };
+  }
 
   onDidInvalidateReads(listener: (change: GitLabReadInvalidation) => void): { dispose(): void } {
     this.readInvalidationListeners.add(listener);
@@ -111,7 +117,8 @@ export class GitLabSession {
     const fetcher = this.testFetcher ?? fetch;
     const epoch = this.connectionEpochValue;
     return new GitLabClient(url, token, this.log?.wrapFetch(fetcher) ?? fetcher,
-      connected ? this.connectionAbort.signal : undefined, connected ? context => this.invalidateAfterWrite(context) : undefined, undefined,
+      connected ? this.connectionAbort.signal : undefined,
+      connected ? context => { if (epoch === this.connectionEpochValue) this.invalidateAfterWrite(context); } : undefined, undefined,
       connected ? async task => {
         if (epoch !== this.connectionEpochValue || this.connectionTransition) throw staleConnectionError();
         this.activeWrites++;
@@ -256,7 +263,12 @@ export class GitLabSession {
       this.currentInstanceWarnings = [];
     }
     await Promise.all([this.checkMetadata(epoch), this.checkCapabilities(epoch, options.force)]);
-    if (epoch === this.connectionEpochValue) this.updateInstanceWarnings();
+    if (epoch === this.connectionEpochValue) {
+      this.updateInstanceWarnings();
+      for (const listener of this.instanceCheckListeners) {
+        try { listener(); } catch { /* A view cannot change instance detection. */ }
+      }
+    }
   }
 
   private checkMetadata(epoch: number): Promise<void> {
@@ -423,7 +435,7 @@ export class GitLabSession {
   private async activateAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {
     await this.enqueueTransition(() => this.commitAccount(normalizedUrl, token, user, attempt));
     if (attempt !== this.connectionAttempt) throw staleConnectionError();
-    await this.ensureInstanceChecked();
+    void this.ensureInstanceChecked().catch(() => undefined);
   }
 
   private async commitAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {

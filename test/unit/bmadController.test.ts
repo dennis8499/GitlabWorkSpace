@@ -110,6 +110,22 @@ test('late reads from an old project or hidden view never publish', async () => 
   f.controller.dispose();
 });
 
+test('switching project aborts the previous BMAD reader instead of only ignoring its result', async () => {
+  let oldSignal: AbortSignal | undefined;
+  const f = fixture(async (options) => {
+    if (options.root !== '/old') return snapshot(options.root);
+    oldSignal = options.signal;
+    return new Promise(resolve => options.signal?.addEventListener('abort', () => resolve(snapshot('/old')), { once: true }));
+  });
+  try {
+    f.controller.setContext('/old', 'old', true); const old = f.controller.refresh();
+    await new Promise(resolve => setImmediate(resolve));
+    f.controller.setContext('/new', 'new', true); await f.controller.refresh();
+    assert.ok(oldSignal?.aborted, 'the reader must receive a real cancellation signal');
+    await old;
+  } finally { f.controller.dispose(); }
+});
+
 test('snapshot validation rejects a filesystem event during its read instead of accepting the cached revision', async () => {
   let reads = 0;
   let finish!: (value: BmadWorkflowSnapshot) => void;

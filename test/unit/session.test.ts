@@ -251,6 +251,7 @@ test('persists a live capability probe when global state briefly lags the authen
 
   const user = await session.connect('https://gitlab.example.test', 'test-only-token');
   assert.equal(user.id, 35);
+  await session.ensureInstanceChecked();
   assert.equal(state.get<number>('gitlabWorkspace.currentUserId'), undefined, 'the test store simulates a temporarily stale Memento read');
   const snapshot = state.get<{ scope: string }>('gitlabWorkspace.issueCapabilities.v1');
   assert.equal(snapshot?.scope, JSON.stringify(['https://gitlab.example.test', 35, '19.4.1', 'revision-a', false]));
@@ -308,6 +309,7 @@ test('stores the access token in SecretStorage only after the current-user check
     assert.equal(secrets.values.get(accountTokenKey(session.activeAccountId!)), 'unit-session-token-do-not-use');
     assert.equal(session.baseUrl, running.baseUrl);
     assert.equal(state.get('gitlabWorkspace.baseUrl'), undefined);
+    await session.ensureInstanceChecked();
     assert.deepEqual(running.tokens, ['unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use', 'unit-session-token-do-not-use']);
     assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.status, 'unknown');
     assert.match(session.capabilityDiagnostics.find((item) => item.id === 'permissions')?.reason ?? '', /無法讀取 GitLab GraphQL Schema/);

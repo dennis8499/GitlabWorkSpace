@@ -40,7 +40,7 @@ function namedType(ref?: GraphQLTypeRef | null): string | undefined {
 }
 
 function namedKind(ref?: GraphQLTypeRef | null): string | undefined {
-  return ref?.kind ?? (ref?.ofType ? namedKind(ref.ofType) : undefined);
+  return ref?.ofType ? namedKind(ref.ofType) : ref?.kind ?? undefined;
 }
 
 function inputObjectNames(type: GraphQLSchemaType | undefined): string[] {

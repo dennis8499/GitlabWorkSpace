@@ -30,6 +30,11 @@ test('host preflight rejects a missing, unsupported, or wrong-version editor bef
   await writeFile(manifest, JSON.stringify({ version: '1.90.0' }));
   assert.equal((await inspectHostExecutable(executable, '1.90.0')).version, '1.90.0');
   await assert.rejects(inspectHostExecutable(executable, '1.91.0'), /Requested VS Code/);
+  await mkdir(path.join(root, 'bin'), { recursive: true });
+  await mkdir(path.join(root, '6d62b1d5da/resources/app'), { recursive: true });
+  await writeFile(path.join(root, 'bin/code.cmd'), String.raw`"%~dp0..\Code.exe" "%~dp0..\6d62b1d5da\resources\app\out\cli.js" %*`);
+  await writeFile(path.join(root, '6d62b1d5da/resources/app/package.json'), JSON.stringify({ version: '1.142.0' }));
+  assert.equal((await inspectHostExecutable(executable, '1.142.0')).version, '1.142.0', 'the shipped launcher selects the active runtime even when an older manifest exists');
 });
 
 test('the real test CLI receives a temporary workspace and leaves the tracked fixture untouched', async () => {

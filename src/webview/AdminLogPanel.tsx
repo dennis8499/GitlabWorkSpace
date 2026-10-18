@@ -1,14 +1,17 @@
 /** @jsxImportSource preact */
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useContext, useEffect, useRef, useState } from 'preact/hooks';
 import type { GitLabAccount } from '../connection/accountProtocol';
 import type { LogPage, LogQuery, OperationLogEntry } from '../logging/logProtocol';
 import type { WorkspaceRequest, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { DispatchResult } from '../workspace/actionController';
+import { ActionContext } from './useActions';
+import { useDomainActions } from './domainActions';
 
 const featureLabels: Record<string, string> = { workspace: '工作台', account: '帳號', group: 'Group', issue: 'Issue', time: '工時', projects: '專案與掃描', analysis: '分析', git: 'Git 指令／版控', api: 'GitLab API', workflow: 'MR 與交付', tools: '工具套件' };
 const resultLabels = { started: '開始', success: '成功', error: '失敗', cancelled: '取消' };
 
 export function AdminLogPanel({ accounts, post }: { accounts: GitLabAccount[]; post: (request: WorkspaceRequest) => DispatchResult | void }) {
+  const actions = useDomainActions(useContext(ActionContext), post, 'admin-log', operation => operation.action === 'queryLogs');
   const [query, setQuery] = useState<LogQuery>({ page: 0 });
   const [data, setData] = useState<LogPage>();
   const [detail, setDetail] = useState<OperationLogEntry>();
@@ -21,14 +24,21 @@ export function AdminLogPanel({ accounts, post }: { accounts: GitLabAccount[]; p
   const changed = useRef(false);
   const request = useCallback(() => {
     const requestId = 'logs-' + ++sequence.current;
+    latest.current = requestId; busy.current = true; changed.current = false; setLoading(true); setRequestError('');
     const result = post({ type: 'queryLogs', requestId, query });
     if (result?.status === 'blocked') {
       busy.current = false; setLoading(false); setRequestError(result.reason ?? '無法載入操作紀錄，請重試。');
       return;
     }
-    latest.current = result?.correlationId ?? requestId;
-    busy.current = true; changed.current = false; setLoading(true); setRequestError('');
+    if (busy.current) latest.current = result?.correlationId ?? requestId;
   }, [query, post]);
+  useEffect(() => {
+    if (!busy.current || !latest.current) return;
+    const operation = actions.findByCorrelation(latest.current);
+    if (!operation || !['failed', 'cancelled'].includes(operation.status) || operation.effect && operation.effect !== 'none') return;
+    busy.current = false; changed.current = false; setLoading(false);
+    setRequestError(operation.error ?? operation.phase ?? '無法載入操作紀錄，請重試。');
+  }, [actions.getSnapshot()]);
   useEffect(() => {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       if (event.data?.type === 'logsPage' && event.data.requestId === latest.current) {

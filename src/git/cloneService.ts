@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import { captureGitProcess } from './gitProcess';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { currentOperationLog } from '../logging/operationLog';
 import { existsSync, lstatSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
@@ -40,6 +41,8 @@ export interface CloneBatchResult {
   failed?: GitLabProject;
   failureReason?: string;
   skipped: CloneSkip[];
+  cancelled?: boolean;
+  effect?: 'unknown';
 }
 
 export interface LocalSyncProgress {
@@ -56,6 +59,25 @@ export interface LocalSyncBatchResult {
   upToDate: GitLabProject[];
   failed: CloneSkip[];
   skipped: CloneSkip[];
+  cancelled?: boolean;
+  effect?: 'unknown';
+}
+
+interface GitProcessOptions { signal?: AbortSignal; timeoutMs?: number; }
+const gitProcessOptions = new AsyncLocalStorage<GitProcessOptions>();
+
+async function mapPreflight<T, R>(items: readonly T[], read: (item: T) => Promise<R>): Promise<R[]> {
+  const result = new Array<R>(items.length);
+  let next = 0, failure: unknown;
+  await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
+    while (failure === undefined && next < items.length) {
+      const index = next++;
+      try { gitProcessOptions.getStore()?.signal?.throwIfAborted(); result[index] = await read(items[index]); }
+      catch (error) { failure ??= error; }
+    }
+  }));
+  if (failure !== undefined) throw failure;
+  return result;
 }
 
 export type CloneRunner = (plan: ClonePlan, baseUrl: string, token: string, onPercent: (percent: number) => void) => Promise<void>;
@@ -64,9 +86,9 @@ export type UpdateOutcome =
   | { state: 'skipped'; reason: string };
 export type UpdateRunner = (plan: ClonePlan, token: string, onPercent: (percent: number) => void) => Promise<UpdateOutcome>;
 export type LocalSyncRunner = UpdateRunner;
-export type ProjectResolver = (project: GitLabProject) => Promise<GitLabProject>;
+export type ProjectResolver = (project: GitLabProject, signal?: AbortSignal) => Promise<GitLabProject>;
 
-export interface CloneDependencies {
+export interface CloneDependencies extends GitProcessOptions {
   cloneRunner?: CloneRunner;
   updateRunner?: UpdateRunner;
   resolveProject?: ProjectResolver;
@@ -74,7 +96,7 @@ export interface CloneDependencies {
   groupProjects?: readonly GitLabProject[];
 }
 
-export interface LocalSyncDependencies {
+export interface LocalSyncDependencies extends GitProcessOptions {
   syncRunner?: LocalSyncRunner;
   resolveProject?: ProjectResolver;
   /** Complete Group inventory, used to resolve stable paths when syncing only local repositories. */
@@ -105,11 +127,11 @@ export function planClones(
 }
 
 async function planClonesAsync(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
-  groupProjects: readonly GitLabProject[] = projects, folders = projectFolderNames(groupProjects)): Promise<ClonePlan[]> {
+  groupProjects: readonly GitLabProject[] = projects, folders = projectFolderNames(groupProjects), knownRoot?: { id?: number }): Promise<ClonePlan[]> {
   const root = path.resolve(workspacePath);
   try { if (!(await stat(root)).isDirectory()) throw new Error('not a directory'); }
   catch { throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.'); }
-  const rootProjectId = await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
+  const rootProjectId = knownRoot ? knownRoot.id : await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
   const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, () => false, rootProjectId);
   for (let offset = 0; offset < plans.length; offset += 4) await Promise.all(plans.slice(offset, offset + 4).map(async plan => {
     plan.action = await isPathPresentAsync(plan.targetPath) ? 'update' : 'clone';
@@ -152,6 +174,13 @@ export async function cloneProjects(
   onProgress: (progress: CloneProgress) => void = () => undefined,
   dependencies: CloneDependencies = {}
 ): Promise<CloneBatchResult> {
+  return gitProcessOptions.run(dependencies, () => cloneProjectsInternal(workspacePath, projects, gitLabBaseUrl, token, onProgress, dependencies));
+}
+
+async function cloneProjectsInternal(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string, token: string,
+  onProgress: (progress: CloneProgress) => void, dependencies: CloneDependencies): Promise<CloneBatchResult> {
+  dependencies.signal?.throwIfAborted();
+  if (projects[0]) onProgress({ project: projects[0], action: 'clone', state: 'starting', message: '正在檢查本機目的地與遠端資訊…' });
   // Validate every existing destination and remote before the first clone or fetch.
   const plans = await preflightExistingPlans(
     await planClonesAsync(workspacePath, projects, gitLabBaseUrl, dependencies.groupProjects ?? projects),
@@ -165,10 +194,17 @@ export async function cloneProjects(
   const skipped: CloneSkip[] = [];
   let failed: GitLabProject | undefined;
   let failureReason: string | undefined;
+  let cancelled = false;
+  let effect: 'unknown' | undefined;
   const cloneRunner = dependencies.cloneRunner ?? runGitClone;
   const updateRunner = dependencies.updateRunner ?? runGitUpdate;
 
   for (const plan of plans) {
+    if (dependencies.signal?.aborted || cancelled) {
+      cancelled = true;
+      const reason = 'Operation cancelled before this repository started.';
+      skipped.push({ project: plan.project, reason }); onProgress({ project: plan.project, action: plan.action, state: 'skipped', message: reason }); continue;
+    }
     if (failed) {
       const reason = 'Skipped after an earlier repository operation failed.';
       skipped.push({ project: plan.project, reason });
@@ -183,8 +219,10 @@ export async function cloneProjects(
 
     onProgress({ project: plan.project, action: plan.action, state: 'starting' });
     let ownedCloneDirectory: { dev: number; ino: number; birthtimeMs: number } | undefined;
+    let updating = false;
     try {
       await withGitDirectoryLock(plan.targetPath, async () => {
+        dependencies.signal?.throwIfAborted();
         if (plan.action === 'clone') {
           // Reserve the previously absent path atomically so cleanup can never remove a
           // destination created by another process after preflight.
@@ -196,6 +234,7 @@ export async function cloneProjects(
           cloned.push(plan.project);
         } else {
           if (!await isPathPresentAsync(plan.targetPath)) throw new Error('The repository disappeared before synchronization started.');
+          updating = true;
           const outcome = await updateRunner(plan, token, (percent) =>
             onProgress({ project: plan.project, action: plan.action, state: 'progress', percent }));
           if (outcome.state === 'skipped') {
@@ -210,7 +249,17 @@ export async function cloneProjects(
       completed.push(plan.project);
       onProgress({ project: plan.project, action: plan.action, state: 'completed' });
     } catch (error) {
+      if (dependencies.signal?.aborted) {
+        cancelled = true;
+        if (updating) effect = 'unknown';
+        const reason = 'Repository operation cancelled.';
+        skipped.push({ project: plan.project, reason });
+        onProgress({ project: plan.project, action: plan.action, state: 'skipped', message: reason });
+        if (plan.action === 'clone' && ownedCloneDirectory) await removeFailedCloneDirectory(plan.targetPath, workspacePath, ownedCloneDirectory);
+        continue;
+      }
       failed = plan.project;
+      if (updating && error instanceof Error && error.name === 'TimeoutError') effect = 'unknown';
       const fallback = plan.action === 'clone'
         ? 'Git could not complete this clone.'
         : 'Git could not update this repository.';
@@ -223,7 +272,7 @@ export async function cloneProjects(
     }
   }
 
-  return { plans, completed, cloned, updated, failed, failureReason, skipped };
+  return { plans, completed, cloned, updated, failed, failureReason, skipped, ...(cancelled ? { cancelled } : {}), ...(effect ? { effect } : {}) };
 }
 
 export async function syncLocalDefaultBranches(
@@ -234,6 +283,12 @@ export async function syncLocalDefaultBranches(
   onProgress: (progress: LocalSyncProgress) => void = () => undefined,
   dependencies: LocalSyncDependencies = {}
 ): Promise<LocalSyncBatchResult> {
+  return gitProcessOptions.run(dependencies, () => syncLocalDefaultBranchesInternal(workspacePath, projects, gitLabBaseUrl, token, onProgress, dependencies));
+}
+
+async function syncLocalDefaultBranchesInternal(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string, token: string,
+  onProgress: (progress: LocalSyncProgress) => void, dependencies: LocalSyncDependencies): Promise<LocalSyncBatchResult> {
+  dependencies.signal?.throwIfAborted();
   // Validate the chosen workspace once, including when the group has no projects.
   await planClonesAsync(workspacePath, [], gitLabBaseUrl);
   const result: LocalSyncBatchResult = { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
@@ -246,6 +301,8 @@ export async function syncLocalDefaultBranches(
   const rootProjectId = await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
 
   for (const project of projects) {
+    if (dependencies.signal?.aborted) { result.cancelled = true; break; }
+    onProgress({ project, state: 'starting', message: '正在檢查本機目的地與遠端資訊…' });
     let targetPath: string;
     try {
       targetPath = groupRepositoryPath(root, project, groupProjects, folders, rootProjectId);
@@ -262,7 +319,7 @@ export async function syncLocalDefaultBranches(
 
     let plan: ClonePlan;
     try {
-      plan = (await planClonesAsync(workspacePath, [project], gitLabBaseUrl, groupProjects, folders))[0];
+      plan = (await planClonesAsync(workspacePath, [project], gitLabBaseUrl, groupProjects, folders, { id: rootProjectId }))[0];
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
       result.skipped.push({ project, reason });
@@ -309,9 +366,13 @@ export async function syncLocalDefaultBranches(
     }
 
     onProgress({ project: prepared.project, state: 'starting' });
+    let updating = false;
     try {
-      const outcome = await withGitDirectoryLock(prepared.targetPath, () => syncRunner(prepared, token, (percent) =>
-        onProgress({ project: prepared.project, state: 'progress', percent })));
+      const outcome = await withGitDirectoryLock(prepared.targetPath, () => {
+        dependencies.signal?.throwIfAborted();
+        updating = true;
+        return syncRunner(prepared, token, (percent) => onProgress({ project: prepared.project, state: 'progress', percent }));
+      });
       if (outcome.state === 'skipped') {
         result.skipped.push({ project: prepared.project, reason: outcome.reason });
         onProgress({ project: prepared.project, state: 'skipped', message: outcome.reason });
@@ -323,12 +384,20 @@ export async function syncLocalDefaultBranches(
         onProgress({ project: prepared.project, state: 'up-to-date' });
       }
     } catch (error) {
+      if (dependencies.signal?.aborted) {
+        result.cancelled = true;
+        if (updating) result.effect = 'unknown';
+        result.failed.push({ project: prepared.project, reason: 'Synchronization cancelled after starting; verify repository state before retrying.' });
+        break;
+      }
+      if (updating && error instanceof Error && error.name === 'TimeoutError') result.effect = 'unknown';
       const reason = formatGitFailure(error, 'Git could not synchronize this repository.', token);
       result.failed.push({ project: prepared.project, reason });
       onProgress({ project: prepared.project, state: 'failed', message: reason });
     }
   }
 
+  if (dependencies.signal?.aborted) result.cancelled = true;
   return result;
 }
 
@@ -340,26 +409,22 @@ async function preflightExistingPlans(
   includeBatchContext = true,
   refreshProjectDetails = false
 ): Promise<ClonePlan[]> {
-  const inspected: Array<{ plan: ClonePlan; originUrl?: string }> = [];
-  for (const plan of plans) {
-    inspected.push({
+  const inspected = await mapPreflight(plans, async plan => ({
       plan,
       originUrl: plan.action === 'update'
         ? await inspectExistingRepository(plan.targetPath, workspacePath, includeBatchContext)
         : undefined
-    });
-  }
+  }));
 
-  const resolved: ClonePlan[] = [];
-  for (const { plan, originUrl } of inspected) {
+  return mapPreflight(inspected, async ({ plan, originUrl }) => {
+    gitProcessOptions.getStore()?.signal?.throwIfAborted();
     if (plan.action !== 'update' || !originUrl) {
-      resolved.push(plan);
-      continue;
+      return plan;
     }
     const needsSshUrl = isSshCloneUrl(originUrl) && !plan.project.ssh_url_to_repo;
     let project = plan.project;
     if (refreshProjectDetails || !project.default_branch || needsSshUrl) {
-      project = { ...project, ...(await resolveProject(project)) };
+      project = { ...project, ...(await resolveProject(project, gitProcessOptions.getStore()?.signal)) };
     }
     if (!isAllowedGitRemote(gitLabBaseUrl, project.http_url_to_repo)) {
       throw new ClonePreflightError(
@@ -376,16 +441,13 @@ async function preflightExistingPlans(
 
     const defaultBranch = project.default_branch?.trim() || undefined;
     if (!defaultBranch) {
-      resolved.push({ ...plan, project, skipReason: 'GitLab has not configured a default branch for this project.' });
-      continue;
+      return { ...plan, project, skipReason: 'GitLab has not configured a default branch for this project.' };
     }
     if (!await isValidBranchName(defaultBranch, plan.targetPath)) {
-      resolved.push({ ...plan, project, skipReason: 'The GitLab default branch name could not be verified safely.' });
-      continue;
+      return { ...plan, project, skipReason: 'The GitLab default branch name could not be verified safely.' };
     }
-    resolved.push({ ...plan, project, defaultBranch });
-  }
-  return resolved;
+    return { ...plan, project, defaultBranch };
+  });
 }
 
 async function inspectExistingRepository(
@@ -419,6 +481,10 @@ async function inspectExistingRepository(
       (includeBatchContext ? ' No repositories were changed.' : '')
     );
   }
+}
+
+export function projectRemoteIdentity(url: string): string | undefined {
+  return normalizeHttpCloneUrl(url) ?? normalizeSshCloneUrl(url);
 }
 
 export function projectRemoteMatches(originUrl: string, project: GitLabProject): boolean {
@@ -489,45 +555,20 @@ interface GitCaptureResult {
   stdout: string;
 }
 
-function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = process.env): Promise<GitCaptureResult> {
-  const log = currentOperationLog();
-  const started = Date.now();
+async function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = process.env, allowTruncated = false): Promise<GitCaptureResult> {
+  const log = currentOperationLog(), started = Date.now();
   const action = args[0] === '-C' ? args[2] : args[0];
   const repositoryPath = cwd ?? (args[0] === '-C' ? args[1] : undefined);
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let stdout = '';
-    let child;
-    try {
-      child = spawn('git', args, {
-        cwd,
-        env,
-        shell: false,
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'ignore']
-      });
-    } catch {
-      log?.record({ feature: 'git', action, repositoryPath, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
-      reject(new Error('Unable to start Git.'));
-      return;
-    }
-    child.stdout?.on('data', (chunk: Buffer | string) => {
-      if (stdout.length < 65536) stdout += String(chunk);
-    });
-    child.once('error', () => {
-      if (!settled) {
-        settled = true;
-        log?.record({ feature: 'git', action, repositoryPath, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
-        reject(new Error('Unable to start Git.'));
-      }
-    });
-    child.once('close', (code) => {
-      if (settled) return;
-      settled = true;
-      log?.record({ feature: 'git', action, repositoryPath, result: code === 0 ? 'success' : 'error', exitCode: code ?? -1, durationMs: Date.now() - started });
-      resolve({ code: code ?? -1, stdout });
-    });
-  });
+  const options = gitProcessOptions.getStore();
+  try {
+    const result = await captureGitProcess('git', args, { cwd, env, signal: options?.signal,
+      timeoutMs: Math.min(options?.timeoutMs ?? 30_000, 30_000), maxStdoutBytes: 64 * 1024, allowTruncated });
+    log?.record({ feature: 'git', action, repositoryPath, result: result.code === 0 ? 'success' : 'error', exitCode: result.code, durationMs: Date.now() - started });
+    return result.truncated && allowTruncated ? { ...result, code: 0 } : result;
+  } catch (error) {
+    log?.record({ feature: 'git', action, repositoryPath, result: options?.signal?.aborted ? 'cancelled' : 'error', exitCode: -1, durationMs: Date.now() - started, message: 'Git verification did not complete.' });
+    throw error;
+  }
 }
 
 async function isPathPresentAsync(target: string): Promise<boolean> {
@@ -705,7 +746,7 @@ async function readCurrentBranch(cwd: string): Promise<string | undefined> {
 function readWorkingTreeStatus(cwd: string): Promise<GitCaptureResult> {
   return runGitCapture([
     '-C', cwd, 'status', '--porcelain=v1', '--untracked-files=normal', '--ignore-submodules=none'
-  ]);
+  ], undefined, process.env, true);
 }
 
 async function readRef(cwd: string, ref: string): Promise<string | undefined> {
@@ -733,6 +774,7 @@ class GitCommandFailure extends Error {
 }
 
 function formatGitFailure(error: unknown, fallback: string, token: string): string {
+  if (error instanceof Error && error.name === 'TimeoutError') return `${fallback} Git operation timed out; verify repository state before retrying.`;
   if (!(error instanceof GitCommandFailure)) return fallback;
   const stderr = sanitizeGitDiagnostic(error.result.stderr, [token]);
   return `${fallback} (git ${error.command}, exit ${error.result.code})${stderr ? `:\n${stderr}` : ''}`;
@@ -759,48 +801,22 @@ export function sanitizeGitDiagnostic(stderr: string, secrets: readonly string[]
   return lines.join('\n').slice(0, 1600);
 }
 
-function runGitProcess(
-  args: string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv,
-  onPercent?: (percent: number) => void,
+async function runGitProcess(
+  args: string[], cwd: string, env: NodeJS.ProcessEnv, onPercent?: (percent: number) => void,
   operation: GitCommandFailure['command'] = 'fetch'
 ): Promise<GitProcessResult> {
-  const log = currentOperationLog();
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let stderr = '';
-    const child = spawn('git', args, {
-      cwd,
-      env,
-      shell: false,
-      windowsHide: true,
-      stdio: ['ignore', 'ignore', 'pipe']
-    });
-    child.stderr?.on('data', (chunk: Buffer | string) => {
-      const text = String(chunk);
-      if (stderr.length < 65536) stderr += text.slice(0, 65536 - stderr.length);
-      if (onPercent) {
-        for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\s*(\d+)%/g)) {
-          onPercent(Number(match[1]));
-        }
-      }
-    });
-    child.once('error', () => {
-      if (!settled) {
-        settled = true;
-        log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: 'error', exitCode: -1, durationMs: Date.now() - started, message: '無法啟動 Git。' });
-        reject(new GitCommandFailure(operation, { code: -1, stderr: 'Unable to start Git.' }));
-      }
-    });
-    child.once('close', (code) => {
-      if (settled) return;
-      settled = true;
-      log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: code === 0 ? 'success' : 'error', exitCode: code ?? -1, durationMs: Date.now() - started });
-      resolve({ code: code ?? -1, stderr });
-    });
-  });
+  const log = currentOperationLog(), started = Date.now(), options = gitProcessOptions.getStore();
+  try {
+    const result = await captureGitProcess('git', args, { cwd, env, signal: options?.signal,
+      timeoutMs: options?.timeoutMs ?? 300_000, maxStdoutBytes: 64 * 1024,
+      onStderr: text => { for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\s*(\d+)%/g)) onPercent?.(Number(match[1])); } });
+    log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: result.code === 0 ? 'success' : 'error', exitCode: result.code, durationMs: Date.now() - started });
+    return result;
+  } catch (error) {
+    log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: options?.signal?.aborted ? 'cancelled' : 'error', exitCode: -1, durationMs: Date.now() - started, message: 'Git operation did not complete.' });
+    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) throw error;
+    throw new GitCommandFailure(operation, { code: -1, stderr: 'Unable to complete Git.' });
+  }
 }
 
 async function removeFailedCloneDirectory(

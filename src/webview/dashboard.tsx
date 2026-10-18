@@ -1,6 +1,6 @@
 /** @jsxImportSource preact */
 import { render } from 'preact';
-import { useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type {
@@ -43,6 +43,7 @@ interface SavedState {
   issueNavigation?: IssueNavigation | null;
   reviewerTab?: 'changes' | 'discussion' | 'report';
   mrReplyDrafts?: Record<string, string>;
+  mrExpandedFiles?: Record<string, string[]>;
   issueEditorDrafts?: Record<string, IssueEditorDraftState>;
   mode: WorkspaceMode;
   filters: Partial<Record<WorkspaceMode, string>>;
@@ -155,6 +156,7 @@ const emptyScopedState = (): ScopedSavedState => ({
 const projectItemKey = (project: GitLabProject) => project.id;
 const workItemKey = (item: { project_id: number; iid: number }) => item.project_id + ':' + item.iid;
 const diffItemKey = (change: { new_path: string }) => change.new_path;
+const operationItemKey = (item: CloneOperationState['items'][number]) => item.projectId;
 const emptyManualTime = (): ManualTimeDraft => ({ duration: '', summary: '', spentAt: '' });
 function wikiGuideScopeKey(scopeKey?: string, instanceUserScope?: string): string {
   return scopeKey ?? (instanceUserScope ? `no-group:${instanceUserScope}` : 'offline');
@@ -226,7 +228,9 @@ function WorkspaceSectionNotice({ section, label, status, onRetry }: {
   status?: WorkspaceSectionState;
   onRetry: () => void;
 }) {
-  if (!status || status.status === 'ready' || status.status === 'idle') return null;
+  if (!status || status.status === 'idle') return null;
+  if (status.status === 'ready') return status.refreshing ? <div class="section-status" role="status">正在背景更新{label}…</div>
+    : status.updatedAt ? <small class="section-updated">{label}更新於 {new Date(status.updatedAt).toLocaleTimeString()}</small> : null;
   const failed = status.status === 'error';
   const unsupported = status.status === 'unsupported';
   return <div class={`section-status ${failed ? 'error' : ''}`} role={failed ? 'alert' : 'status'}>
@@ -238,7 +242,7 @@ function WorkspaceSectionNotice({ section, label, status, onRetry }: {
 function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
   const [bmadUiByRoot, setBmadUiByRoot] = useState<Record<string, BmadPanelState>>(initial?.bmadUiByRoot ?? {});
-  const [issueEditorDrafts, setIssueEditorDrafts] = useState<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
+  const issueEditorDrafts = useRef<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -289,6 +293,7 @@ function App() {
   const [reviewFilter, setReviewFilter] = useState<'all' | 'reviewer' | 'assigned'>(initial?.reviewFilter ?? 'all');
   const [reviewerTab, setReviewerTab] = useState<'changes' | 'discussion' | 'report'>(initial?.reviewerTab ?? 'changes');
   const [mrReplyDrafts, setMrReplyDrafts] = useState<Record<string, string>>(initial?.mrReplyDrafts ?? {});
+  const [mrExpandedFiles, setMrExpandedFiles] = useState<Record<string, string[]>>(initial?.mrExpandedFiles ?? {});
   const [toolDrawer, setToolDrawer] = useState(false);
   const [settingsSection, setSettingsSection] = useState<'tools' | 'accounts'>('tools');
   const [accountIntent, setAccountIntent] = useState<AccountPanelIntent>();
@@ -323,6 +328,9 @@ function App() {
   const [skillBranches, setSkillBranches] = useState<{ repo: string; branches: string[]; error?: string }>();
   const branchRequest = useRef('');
   const snapshotRef = useRef<WorkspaceSnapshot>();
+  const snapshotStream = useRef<{ streamId: string; scope: string; version: number; snapshot: WorkspaceSnapshot }>();
+  const retiredSnapshotStreams = useRef(new Set<string>());
+  const resyncRequested = useRef(false);
   const [moreRepoActions, setMoreRepoActions] = useState(false);
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
@@ -359,12 +367,11 @@ function App() {
   const saveStatePatch = (patch: Partial<SavedState>): void => vscode.setState({ ...emptySaved(), ...vscode.getState(), ...patch });
   const updateReviewerTab = (tab: NonNullable<SavedState['reviewerTab']>): void => { saveStatePatch({ reviewerTab: tab }); setReviewerTab(tab); };
   const updateIssueDrafts = (scope: string, state: IssueEditorDraftState): void => {
-    setIssueEditorDrafts(current => {
-      if (JSON.stringify(current[scope]) === JSON.stringify(state)) return current;
-      const next = { ...current, [scope]: state };
-      saveStatePatch({ issueEditorDrafts: next });
-      return next;
-    });
+    const current = issueEditorDrafts.current;
+    if (current[scope] === state) return;
+    issueEditorDrafts.current = { ...current, [scope]: state };
+    // Keep the last input durable without re-rendering every workspace panel.
+    saveStatePatch({ issueEditorDrafts: issueEditorDrafts.current });
   };
   const updateMrReplyDraft = (key: string, value: string): void => {
     setMrReplyDrafts(current => { const next = { ...current, [key]: value }; saveStatePatch({ mrReplyDrafts: next }); return next; });
@@ -390,8 +397,30 @@ function App() {
       if (completedIds.length) setSelectedProjectIds((current) => toggleProjectSelection(current, completedIds, false));
     };
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
-      const message = event.data;
+      let message = event.data;
       if (!message) return;
+      if (message.type === 'snapshotPatch') {
+        const current = snapshotStream.current;
+        if (retiredSnapshotStreams.current.has(message.streamId)) return;
+        if (current?.streamId === message.streamId && current.scope === message.scope && message.version <= current.version) return;
+        if (!current || current.streamId !== message.streamId || current.scope !== message.scope || current.version !== message.baseVersion || message.version <= message.baseVersion) {
+          if (!resyncRequested.current) { resyncRequested.current = true; vscode.postMessage({ type: 'resyncWorkspace' }); }
+          return;
+        }
+        const next = { ...current.snapshot, ...message.changes };
+        for (const key of message.cleared) delete next[key];
+        message = { type: 'snapshot', snapshot: next, streamId: message.streamId, scope: message.scope, version: message.version };
+      }
+      if (message.type === 'snapshot') {
+        const current = snapshotStream.current;
+        if (message.streamId && retiredSnapshotStreams.current.has(message.streamId)) return;
+        if (message.streamId && message.scope && message.version !== undefined) {
+          if (current?.streamId === message.streamId && current.scope === message.scope && message.version < current.version) return;
+          if (current && current.streamId !== message.streamId) retiredSnapshotStreams.current.add(current.streamId);
+          snapshotStream.current = { streamId: message.streamId, scope: message.scope, version: message.version, snapshot: message.snapshot };
+        } else snapshotStream.current = undefined;
+        resyncRequested.current = false;
+      }
       if (message.type === 'notificationsChanged') { receiveNotifications(message.snapshot); return; }
       if (message.type === 'openNotifications') { setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); return; }
       if (message.type === 'operationChanged') {
@@ -643,7 +672,7 @@ function App() {
 
   useEffect(() => {
     const state: SavedState = {
-      ...vscode.getState(), issueNavigation, reviewerTab, mrReplyDrafts,
+      ...vscode.getState(), issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles,
       bmadUiByRoot,
       version: 3, scopeKey: scopeRef.current, scopedData: { ...savedScopesRef.current, ...(scopeRef.current ? { [scopeRef.current]: scopedState } : {}) }, appliedCloneOperationIds,
       instanceUserScope: snapshot?.instanceUserScope,
@@ -654,10 +683,10 @@ function App() {
       mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
-      selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts
+      selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts: issueEditorDrafts.current
     };
     vscode.setState(state);
-  }, [bmadUiByRoot, mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueEditorDrafts, issueNavigation, reviewerTab, mrReplyDrafts]);
+  }, [bmadUiByRoot, mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -784,9 +813,17 @@ function App() {
   }, [issueGraphSnapshot?.status, issueGraphSnapshot?.nodes, selectedGraphNodeId]);
   const visibleProjects = useMemo(() => projects.filter((project) => filterText(mode, `${project.name} ${project.path_with_namespace}`)), [projects, mode, filters[mode]]);
   const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
+  const selectedProjectIdSet = useMemo(() => new Set(selectedProjectIds), [selectedProjectIds]);
+  const localCopiesByProject = useMemo(() => {
+    const copies = new Map<number, NonNullable<WorkspaceSnapshot['localWorkspaceRepositories']>>();
+    for (const repository of snapshot?.localWorkspaceRepositories ?? []) for (const projectId of repository.projectIds ?? []) {
+      const found = copies.get(projectId) ?? []; found.push(repository); copies.set(projectId, found);
+    }
+    return copies;
+  }, [snapshot?.localWorkspaceRepositories]);
   const hiddenSelectionCount = countHiddenProjectSelection(selectedProjectIds, [...visibleProjectIds]);
-  const allVisibleProjectsSelected = visibleProjects.length > 0 && visibleProjects.every((project) => selectedProjectIds.includes(project.id));
-  const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIds.includes(project.id)), 0);
+  const allVisibleProjectsSelected = visibleProjects.length > 0 && visibleProjects.every((project) => selectedProjectIdSet.has(project.id));
+  const selectedVisibleProjectCount = visibleProjects.reduce((count, project) => count + Number(selectedProjectIdSet.has(project.id)), 0);
   const hasIssueFilter = !!filters.developer?.trim() || issueProjectFilter !== 'all' || issueLabelFilter !== 'all' || issueMilestoneFilter !== 'all';
   const completedOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate', 'skipped', 'failed'].includes(item.state)).length ?? 0;
   const successfulOperationCount = cloneOperation?.items.filter((item) => ['completed', 'updated', 'upToDate'].includes(item.state)).length ?? 0;
@@ -806,6 +843,7 @@ function App() {
     return !query || text.toLocaleLowerCase().includes(query);
   }
   function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); modeRef.current = next; setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
+  const closeIssue = useCallback(() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }, []);
   function setFilter(key: WorkspaceMode, value: string): void { setFilters((current) => ({ ...current, [key]: value })); }
   function selectedIssueAction(issue: GitLabIssue): void {
     setMobilePanel('detail');
@@ -914,18 +952,18 @@ function App() {
           {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={retryIssueGraph} />}
         </>}
         {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
-          <IssueView actions={actions} snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
+          <IssueView active={!!issueNavigation && mode === 'developer'} actions={actions} snapshot={snapshot} navigation={issueNavigation ?? undefined} relationResponses={issueRelationResponses} issueSearch={issueDetailSearch} onIssueSearchChange={setIssueDetailSearch} draftState={snapshot.instanceUserScope ? issueEditorDrafts.current[snapshot.instanceUserScope] : undefined} onDraftStateChange={state => {
             const scope = snapshot.instanceUserScope;
             if (scope) updateIssueDrafts(scope, state);
-          }} onBack={() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
+          }} onBack={closeIssue} onWorkspaceRequest={(request) => post({ type: 'issueRequest', request, revision: issueNavigationRef.current?.revision })} onWorkspaceAction={post}
             onOpenSettings={() => setToolDrawer(true)} manualTime={manualTime} onManualTimeChange={setManualTime} recoveredManualTime={recoveredManualTime} onRecoverManualTime={recoverManualTime} timeEdits={timeEdits} onTimeEdit={(id, edit) => setTimeEdits((current) => ({ ...current, [id]: edit }))} />
         </div>
         <div class="workspace-tasks" hidden={!!issueNavigation}>
         <div class="git-mode-host" hidden={mode !== 'git'}>
-          {(gitPanelVisited || mode === 'git') && <GitControlPanel actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
+          {(gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
-          <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" onClick={() => post({ type: 'refresh' })}>更新資料</button>}</div></div>}
+          <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button>}</div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => setProjectTab('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => setProjectTab('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { setProjectTab('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
         mode === 'admin' ? <AdminLogPanel accounts={snapshot.accounts ?? []} post={post} />
@@ -934,20 +972,21 @@ function App() {
           : !snapshot.group && mode !== 'sa' && mode !== 'bmad' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
               <div class="list-column clone-list-column"><div class="toolbar clone-toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 Repo" placeholder="搜尋 Repo 路徑…" value={filters.clone ?? ''} onInput={(event) => setFilter('clone', event.currentTarget.value)} /></label><span class="count">{visibleProjects.length} 個 Repo</span><label class="repo-select-all"><input type="checkbox" aria-label={allVisibleProjectsSelected ? '取消全選搜尋結果' : '全選搜尋結果'} checked={allVisibleProjectsSelected} disabled={!visibleProjects.length || blockingWork} ref={(element) => { if (element) element.indeterminate = selectedVisibleProjectCount > 0 && !allVisibleProjectsSelected; }} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, visibleProjects.map((project) => project.id), event.currentTarget.checked))} /><span>{allVisibleProjectsSelected ? '取消全選' : '全選'}</span></label></div>
-                {visibleProjects.length ? <VirtualRows className="repo-list" items={visibleProjects} itemKey={projectItemKey} estimateHeight={58} renderItem={(project) => {
+                {visibleProjects.length ? <VirtualRows resetKey={snapshot.connectedScope + ":" + (filters.clone ?? "")} className="repo-list" items={visibleProjects} itemKey={projectItemKey} estimateHeight={58} renderItem={(project) => {
                   const local = snapshot.projectLocalRepositories?.[project.id];
-                  const matches = (snapshot.localWorkspaceRepositories ?? []).filter(repository => repository.projectIds?.includes(project.id));
-                  return <div class="repo-row"><input type="checkbox" checked={selectedProjectIds.includes(project.id)} disabled={blockingWork} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
+                  const matches = localCopiesByProject.get(project.id) ?? [];
+                  return <div class="repo-row"><input type="checkbox" checked={selectedProjectIdSet.has(project.id)} disabled={blockingWork} onChange={(event) => setSelectedProjectIds((current) => toggleProjectSelection(current, [project.id], event.currentTarget.checked))} />
                     <span class="repo-details"><strong>{project.path_with_namespace}</strong><small>預設分支：{project.default_branch ?? '未設定'}　·　本機：{local?.path || '尚未 Clone'}</small></span>
                     <span class={`pill ${local?.state === 'ready' || matches.length ? 'success' : local?.state === 'unsafe' ? 'danger' : 'muted-pill'}`}>{matches.length ? `${matches.length} 個本機副本` : local?.state === 'ready' ? '已存在' : local?.state === 'unsafe' ? '需處理' : '尚未 Clone'}</span>{matches.length ? <div class="project-local-copies">{matches.map(repository => <button class="quiet small" type="button" title={repository.path} disabled={!repository.repositoryId} onClick={() => post({ type: 'gitOpenRepository', path: repository.path })}>開啟版控 · {repository.name}</button>)}</div> : local?.state === 'ready' && <button class="quiet small" type="button" onClick={() => post({ type: 'gitOpenRepository', path: local.path })}>開啟版控</button>}</div>;
                 }} /> : <div class="repo-list">{!visibleProjects.length && <p class="empty-inline">找不到符合條件的 Repo。</p>}</div>}
                 {cloneOperation && cloneOperation.scopeKey === snapshot.connectedScope && <section class="operation-results" aria-label="下載與更新結果">
                   <div class="operation-heading"><strong>{cloneOperation.label}</strong><span class="count" role="status" aria-live="polite" aria-atomic="true">{cloneOperation.phase === 'running' ? `處理中 ${completedOperationCount}/${cloneOperation.items.length}${activeOperationItem ? ` - ${activeOperationItem.projectPath}` : ''}` : cloneOperation.phase === 'cancelled' ? `已取消: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個; 未完成項目保留選取` : cloneOperation.phase === 'failed' ? `處理中斷: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個` : `處理完成: 成功 ${successfulOperationCount}, 略過 ${skippedOperationCount}, 失敗 ${failedOperationCount} 個`}</span></div>
-                  <div class="operation-item-list" aria-live="off">{cloneOperation.items.map((item) => {
+                  <VirtualRows resetKey={cloneOperation.id} className="operation-item-list" items={cloneOperation.items} itemKey={operationItemKey} estimateHeight={28} renderItem={item => {
                     const labels: Record<CloneOperationState['items'][number]['state'], string> = { waiting: cloneOperation.phase === 'cancelled' ? '已取消' : '等待中', starting: '準備中', progress: '下載中', completed: '已下載', updated: '已更新', upToDate: '已是最新', skipped: '略過', failed: '失敗' };
                     const status = item.message ?? labels[item.state];
                     return <div class="operation-result" key={`${cloneOperation.id}:${item.projectId}`}><span>{item.projectPath}</span><span class={`operation-state ${item.state}`}>{status}{item.percent !== undefined ? ` ${item.percent}%` : ''}</span></div>;
-                  })}</div>
+                  }} />
+                  {cloneOperation.phase === 'running' && <button class="quiet small" type="button" onClick={() => post({ type: 'cancelRepositoryOperation' })}>取消作業</button>}
                 </section>}
                 <div class="list-actions clone-actions">
                   <div class="clone-root-line"><strong>下載位置</strong><span title={snapshot.cloneRoot}>{snapshot.cloneRoot ?? snapshot.cloneRootError ?? '尚未選擇資料夾'}{snapshot.cloneRoot && (snapshot.cloneRootManual ? '（自訂位置）' : '（VS Code 專案資料夾）')}</span>
@@ -1023,7 +1062,7 @@ function App() {
               </div> : <div class="mode-content">
                 <div class="list-column">
                   <div class="toolbar list-count"><span>指派給我的 Issue{selectedIssueBoard ? ` · ${selectedIssueBoard.name}` : ''}</span><span class="count">{visibleIssues.length}</span></div>
-                  <VirtualRows className="work-list" items={visibleIssues} itemKey={workItemKey} estimateHeight={92} renderItem={(issue) => <button type="button" class={`work-row ${(previewSelection?.projectId ?? selectedIssue?.project_id) === issue.project_id && (previewSelection?.iid ?? selectedIssue?.iid) === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>} />
+                  <VirtualRows active={!issueNavigation} resetKey={JSON.stringify([snapshot.connectedScope, filters.developer, issueBoardId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter])} className="work-list" items={visibleIssues} itemKey={workItemKey} estimateHeight={92} renderItem={(issue) => <button type="button" class={`work-row ${(previewSelection?.projectId ?? selectedIssue?.project_id) === issue.project_id && (previewSelection?.iid ?? selectedIssue?.iid) === issue.iid ? 'selected' : ''}`} onClick={() => selectedIssueAction(issue)}><span class="row-title">{issue.title}</span><span class="row-meta">{projectById.get(issue.project_id)?.path_with_namespace} #{issue.iid}</span><span class="label-list">{(issue.labels ?? []).slice(0, 4).map((label) => <span class="label-chip">{label}</span>)}</span></button>} />
                     {!visibleIssues.length && <div class="empty-inline" role={snapshot.error || issueBoardId !== 'all' && issueBoardContentError ? 'alert' : 'status'}>
                       <strong>{snapshot.error ? 'Issue 載入失敗' : issueBoardId !== 'all' && issueBoardContentError ? 'Issue Board 載入失敗' : hasIssueFilter ? '沒有符合篩選條件的 Issue' : issueBoardContentLoading ? '正在載入 Board 內容' : issueBoardId !== 'all' && !issueBoardContentReady ? '正在準備 Issue Board' : issueBoardId === 'all' ? '目前沒有指派給你的 Issue' : '此 Board 沒有指派給你的 Issue'}</strong>
                       <p>{snapshot.error ?? (issueBoardId !== 'all' && issueBoardContentError ? `${issueBoardContentError}。按「更新資料」重試，或切回全部 Issue。` : issueBoardContentLoading ? '正在載入看板中指派給你的 Issue。' : hasIssueFilter ? '調整搜尋或篩選條件試試看。' : issueBoardId === 'all' ? '目前選定的 Group 沒有指派給你的 Issue。' : '選擇其他 Issue Board 或調整篩選條件。')}</p>
@@ -1042,7 +1081,7 @@ function App() {
             : <div class="mode-content reviewer-layout"><div class="list-column"><div class="filter-tabs"><button class={reviewFilter === 'all' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('all')}>全部</button><button class={reviewFilter === 'reviewer' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('reviewer')}>指定我為 Reviewer</button><button class={reviewFilter === 'assigned' ? 'chosen' : ''} type="button" onClick={() => setReviewFilter('assigned')}>指派給我</button></div>
                 <div class="toolbar"><label class="search"><span>⌕</span><input aria-label="搜尋 MR" placeholder="MR、Repo、分支…" value={filters.reviewer ?? ''} onInput={(event) => setFilter('reviewer', event.currentTarget.value)} /></label><span class="count">{visibleMrs.length}</span></div>
                 {snapshot.sections?.mergeRequests?.status === 'ready' && !visibleMrs.length && <p class="subtle" role="status">沒有符合目前條件的 MR</p>}
-                <VirtualRows className="work-list" items={visibleMrs} itemKey={workItemKey} estimateHeight={112} renderItem={(item) => <button type="button" class={`work-row ${(mrSelection?.projectId ?? mr?.project_id) === item.project_id && (mrSelection?.iid ?? mr?.iid) === item.iid ? 'selected' : ''}`} onClick={() => selectMergeRequest(item)}><span class="row-title">!{item.iid}　{item.title}</span><span class="row-meta">{projectById.get(item.project_id)?.path_with_namespace} · {item.author?.name ?? '未知作者'}</span><span class="branch-pair">{item.source_branch} → {item.target_branch}</span><span class="row-meta">Pipeline：{item.head_pipeline?.status ?? '未設定'}</span></button>} />
+                <VirtualRows resetKey={JSON.stringify([snapshot.connectedScope, filters.reviewer, reviewFilter])} className="work-list" items={visibleMrs} itemKey={workItemKey} estimateHeight={112} renderItem={(item) => <button type="button" class={`work-row ${(mrSelection?.projectId ?? mr?.project_id) === item.project_id && (mrSelection?.iid ?? mr?.iid) === item.iid ? 'selected' : ''}`} onClick={() => selectMergeRequest(item)}><span class="row-title">!{item.iid}　{item.title}</span><span class="row-meta">{projectById.get(item.project_id)?.path_with_namespace} · {item.author?.name ?? '未知作者'}</span><span class="branch-pair">{item.source_branch} → {item.target_branch}</span><span class="row-meta">Pipeline：{item.head_pipeline?.status ?? '未設定'}</span></button>} />
               </div><article class="detail-column reviewer-detail" aria-busy={mrPending}>{mrPending && <p role="status">正在載入選取的 MR…</p>}{selectedMr && mr ? <>
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
                 <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>重新檢查分支</button></div>
@@ -1060,7 +1099,7 @@ function App() {
                 <section class="section-card" hidden={reviewerTab !== 'changes'}><h3>變更</h3><WorkspaceSectionNotice section="mergeRequests" label="MR 差異" status={selectedMr.sections.diffs} onRetry={() => post({ type: 'loadMergeRequestSection', section: 'diffs', projectId: mr.project_id, iid: mr.iid })} />
                   {selectedMr.sections.diffs.status === 'ready' && <>
                     {!!selectedMr.warnings?.length && <div class="mr-diff-warnings" role="status">{selectedMr.warnings.map(warning => <p key={warning}>{warning}</p>)}<a href={mr.web_url} target="_blank" rel="noopener noreferrer">在 GitLab 查看完整變更</a></div>}
-                    <VirtualRows className="diff-list" items={selectedMr.diffs} itemKey={diffItemKey} estimateHeight={48} renderItem={(change) => <details><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code>{(change.too_large || change.collapsed) && <span class="diff-limit">{change.too_large ? '檔案差異超過顯示限制' : 'GitLab 已省略此檔案的差異'}</span>}</summary><pre>{change.diff || (change.too_large || change.collapsed ? '請在 GitLab 查看此檔案的完整差異。' : '此檔案沒有可顯示的 diff。')}</pre></details>} />
+                    <VirtualRows active={reviewerTab === "changes"} resetKey={snapshot.instanceUserScope + ":" + currentMrKey} className="diff-list" items={selectedMr.diffs} itemKey={diffItemKey} estimateHeight={48} renderItem={(change) => <details open={(mrExpandedFiles[snapshot.instanceUserScope + ":" + currentMrKey] ?? []).includes(change.new_path)} onToggle={event => { const open = event.currentTarget.open, key = snapshot.instanceUserScope + ":" + currentMrKey; setMrExpandedFiles(current => { const files = current[key] ?? []; if (files.includes(change.new_path) === open) return current; return { ...current, [key]: open ? [...files, change.new_path] : files.filter(path => path !== change.new_path) }; }); }}><summary><code>{change.old_path === change.new_path ? change.new_path : change.old_path + ' ' + String.fromCharCode(0x2192) + ' ' + change.new_path}</code>{(change.too_large || change.collapsed) && <span class="diff-limit">{change.too_large ? '檔案差異超過顯示限制' : 'GitLab 已省略此檔案的差異'}</span>}</summary><pre>{change.diff || (change.too_large || change.collapsed ? '請在 GitLab 查看此檔案的完整差異。' : '此檔案沒有可顯示的 diff。')}</pre></details>} />
                     {!selectedMr.diffs.length && <p class="subtle">GitLab 沒有回傳差異檔案。</p>}
                   </>}
                 </section>

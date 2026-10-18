@@ -8,6 +8,7 @@ import type { IssueGraphEdge, IssueGraphNode } from '../workspace/issueGraph';
 import type { IssueGraphSnapshot } from '../workspace/issueGraph';
 import { issueGraphBoardColor } from '../workspace/issueGraph';
 import { IssueRelationsEditor } from './issue-relations';
+import IssueGraphLayoutWorker from './issueGraphLayoutWorker.ts?worker&inline';
 
 export interface GraphPosition { x: number; y: number; }
 export interface GraphCamera { x: number; y: number; scale: number; }
@@ -55,8 +56,9 @@ const MAX_SCALE = 3.5;
 const NODE_R = 10;
 
 export function IssueGraphView(props: IssueGraphProps) {
+  const largeGraph = props.nodes.length > 500;
   const viewportRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const svgRef = useRef<SVGSVGElement | HTMLCanvasElement>(null);
   const sceneRef = useRef<SVGGElement>(null);
   const nodeElementsRef = useRef(new Map<string, SVGGElement>());
   const edgeElementsRef = useRef(new Map<string, SVGLineElement>());
@@ -69,6 +71,8 @@ export function IssueGraphView(props: IssueGraphProps) {
   const pointerRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
   const dragRef = useRef<{ pointerId: number; id: string; mode: 'node' | 'pan'; startX: number; startY: number; originX: number; originY: number }>();
   const simulationRef = useRef<ReturnType<typeof forceSimulation<SimNode>> | null>(null);
+  const layoutWorker = useRef<Worker>();
+  const layoutEpoch = useRef(0);
   const simulatedNodesRef = useRef<SimNode[]>([]);
   const linksRef = useRef<SimLink[]>([]);
   const dimensionsRef = useRef({ width: 960, height: 580 });
@@ -78,6 +82,13 @@ export function IssueGraphView(props: IssueGraphProps) {
   const [dimensions, setDimensions] = useState(dimensionsRef.current);
   const [systemReducedMotion, setSystemReducedMotion] = useState(() => prefersReducedMotion());
   const [zoom, setZoom] = useState(cameraRef.current.scale);
+  const [nodeSearch, setNodeSearch] = useState('');
+  const nodeById = useMemo(() => new Map(props.nodes.map(node => [node.id, node])), [props.nodes]);
+  const nodeByIdRef = useRef(nodeById); nodeByIdRef.current = nodeById;
+  const searchResults = useMemo(() => {
+    const query = nodeSearch.trim().toLocaleLowerCase();
+    return query ? props.nodes.filter(node => `${node.title} #${node.iid} ${node.projectPath ?? node.namespacePath}`.toLocaleLowerCase().includes(query)).slice(0, 10) : [];
+  }, [props.nodes, nodeSearch]);
   const projectById = useMemo(() => new Map(props.projects.map((project) => [project.id, project])), [props.projects]);
   const boardById = useMemo(() => new Map(props.boards.map((board) => [board.id, board])), [props.boards]);
   const effectiveAnimation = props.animationEnabled && !systemReducedMotion;
@@ -98,6 +109,8 @@ export function IssueGraphView(props: IssueGraphProps) {
     }
     return ids;
   }, [edgeKey, props.selectedId]);
+  const drawState = useRef({ selectedId: props.selectedId, adjacentIds, effectiveAnimation });
+  drawState.current = { selectedId: props.selectedId, adjacentIds, effectiveAnimation };
 
   const saveCamera = (next: GraphCamera): void => {
     cameraRef.current = next;
@@ -111,8 +124,8 @@ export function IssueGraphView(props: IssueGraphProps) {
     const next = Object.fromEntries(simulatedNodesRef.current.flatMap((node) =>
       Number.isFinite(node.x) && Number.isFinite(node.y) ? [[node.id, { x: node.x, y: node.y }]] : []
     ));
-    positionsRef.current = next;
-    onPositionsChangeRef.current(next);
+    positionsRef.current = { ...positionsRef.current, ...next };
+    onPositionsChangeRef.current(positionsRef.current);
   };
 
   const schedulePositionSave = (): void => {
@@ -129,6 +142,8 @@ export function IssueGraphView(props: IssueGraphProps) {
   }
 
   function drawNow(): void {
+    const canvas = svgRef.current;
+    if (canvas instanceof HTMLCanvasElement) { drawCanvas(canvas); return; }
     const scene = sceneRef.current;
     if (!scene) return;
     const camera = cameraRef.current;
@@ -168,6 +183,62 @@ export function IssueGraphView(props: IssueGraphProps) {
       line.setAttribute('y2', String(target.y));
     }
   }
+
+  function drawCanvas(canvas: HTMLCanvasElement): void {
+    const context = canvas.getContext('2d'); if (!context) return;
+    const foreground = getComputedStyle(canvas).color;
+    const { width, height } = dimensionsRef.current, ratio = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+      canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+    }
+    context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+    const camera = cameraRef.current, state = drawState.current;
+    context.translate(camera.x, camera.y); context.scale(camera.scale, camera.scale);
+    const positions = new Map(simulatedNodesRef.current.map(node => [node.id, node]));
+    const left = -camera.x / camera.scale - 80, right = (width - camera.x) / camera.scale + 80;
+    const top = -camera.y / camera.scale - 50, bottom = (height - camera.y) / camera.scale + 50;
+    for (const edge of linksRef.current) {
+      const source = typeof edge.source === 'string' ? positions.get(edge.source) : edge.source;
+      const target = typeof edge.target === 'string' ? positions.get(edge.target) : edge.target;
+      if (!source || !target || Math.max(source.x, target.x) < left || Math.min(source.x, target.x) > right || Math.max(source.y, target.y) < top || Math.min(source.y, target.y) > bottom) continue;
+      const highlighted = state.selectedId === source.id || state.selectedId === target.id;
+      context.globalAlpha = state.selectedId ? highlighted ? .9 : .12 : .35;
+      context.strokeStyle = edge.type === 'blocks' ? '#ed9368' : edge.type === 'parent' ? '#69a8ff' : '#8e99a6';
+      context.lineWidth = highlighted ? 2 : 1;
+      context.beginPath(); context.moveTo(source.x, source.y); context.lineTo(target.x, target.y); context.stroke();
+      if (edge.type !== 'relates_to') {
+        const angle = Math.atan2(target.y - source.y, target.x - source.x), x = target.x - Math.cos(angle) * 14, y = target.y - Math.sin(angle) * 14;
+        context.beginPath(); context.moveTo(x, y); context.lineTo(x - Math.cos(angle - .5) * 7, y - Math.sin(angle - .5) * 7); context.lineTo(x - Math.cos(angle + .5) * 7, y - Math.sin(angle + .5) * 7); context.closePath(); context.fillStyle = context.strokeStyle; context.fill();
+      }
+    }
+    const visible = simulatedNodesRef.current.filter(node => node.x >= left && node.x <= right && node.y >= top && node.y <= bottom);
+    for (const point of visible) {
+      const node = nodeByIdRef.current.get(point.id) ?? point, chosen = node.id === state.selectedId;
+      context.globalAlpha = state.selectedId && !state.adjacentIds.has(node.id) ? .3 : 1;
+      context.beginPath(); context.arc(point.x, point.y, NODE_R, 0, Math.PI * 2);
+      context.fillStyle = node.boardIds.length ? issueGraphBoardColor(node.boardIds[0]) : '#777982'; context.fill();
+      if (node.boardIds.length > 1) node.boardIds.forEach((board, index) => {
+        context.beginPath(); context.moveTo(point.x, point.y); context.arc(point.x, point.y, NODE_R, index / node.boardIds.length * Math.PI * 2, (index + 1) / node.boardIds.length * Math.PI * 2); context.closePath(); context.fillStyle = issueGraphBoardColor(board); context.fill();
+      });
+      node.labels.forEach((label, index) => { context.beginPath(); context.arc(point.x, point.y, NODE_R + 5, index / node.labels.length * Math.PI * 2, (index + 1) / node.labels.length * Math.PI * 2); context.strokeStyle = safeGitLabColor(label.color, index); context.lineWidth = 4; context.stroke(); });
+      if (chosen) { context.beginPath(); context.arc(point.x, point.y, NODE_R + 10, 0, Math.PI * 2); context.strokeStyle = '#69a8ff'; context.lineWidth = 2; context.stroke(); }
+      if (!node.assignedToMe) { context.beginPath(); context.arc(point.x, point.y, NODE_R + 9, 0, Math.PI * 2); context.setLineDash([3, 3]); context.strokeStyle = foreground; context.lineWidth = 1; context.stroke(); context.setLineDash([]); }
+      if (node.state === 'closed') { context.beginPath(); context.moveTo(point.x - 4, point.y); context.lineTo(point.x - 1, point.y + 3); context.lineTo(point.x + 5, point.y - 4); context.strokeStyle = '#fff'; context.lineWidth = 2; context.stroke(); }
+      if (chosen || camera.scale >= .9 && visible.length <= 300) {
+        context.fillStyle = foreground; context.font = '12px sans-serif'; context.textAlign = 'center';
+        context.fillText(`#${node.iid} ${chosen ? node.title : shortenedTitle(node.title)}`, point.x, point.y + 30);
+        if (!node.assignedToMe) context.fillText('關聯工作', point.x, point.y + 44);
+      }
+    }
+    context.globalAlpha = 1;
+  }
+
+  useEffect(() => {
+    if (!largeGraph || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(drawFrame);
+    for (const element of [document.documentElement, document.body]) observer.observe(element, { attributes: true, attributeFilter: ['class', 'style'] });
+    return () => observer.disconnect();
+  }, [largeGraph]);
 
   useEffect(() => {
     const host = viewportRef.current;
@@ -219,47 +290,66 @@ export function IssueGraphView(props: IssueGraphProps) {
       };
     });
     const links: SimLink[] = props.edges.map((edge) => ({ ...edge, source: edge.source, target: edge.target }));
-    const simulation = forceSimulation<SimNode>(nodes)
-      .force('charge', forceManyBody<SimNode>().strength(-205).distanceMax(520))
-      .force('link', forceLink<SimNode, SimLink>(links).id((node) => node.id).distance(112).strength(0.34))
-      .force('center', forceCenter(centerX, centerY))
-      .force('collide', forceCollide<SimNode>((node) => (node.isRoot ? NODE_R : NODE_R - 1) + 11).iterations(2));
     simulatedNodesRef.current = nodes;
     linksRef.current = links;
-    simulationRef.current = simulation;
-    simulation.on('tick', drawFrame);
-    simulation.on('end', schedulePositionSave);
-    if (!runSimulation) simulation.stop();
+    const startLocalSimulation = () => {
+      const simulation = forceSimulation<SimNode>(nodes)
+        .force('charge', forceManyBody<SimNode>().strength(-205).distanceMax(520))
+        .force('link', forceLink<SimNode, SimLink>(links).id((node) => node.id).distance(112).strength(0.34))
+        .force('center', forceCenter(centerX, centerY))
+        .force('collide', forceCollide<SimNode>((node) => (node.isRoot ? NODE_R : NODE_R - 1) + 11).iterations(2));
+      simulationRef.current = simulation;
+      simulation.on('tick', drawFrame).on('end', schedulePositionSave);
+      if (!runSimulation) simulation.stop();
+    };
+    const epoch = ++layoutEpoch.current;
+    if (largeGraph && typeof Worker !== 'undefined') {
+      try {
+        // VS Code Webviews allow Worker scripts through Blob/data URIs only.
+        const worker = new IssueGraphLayoutWorker();
+        layoutWorker.current = worker;
+        worker.onmessage = (event: MessageEvent<{ epoch: number; positions: Float32Array; settled: boolean }>) => {
+          if (layoutWorker.current !== worker || event.data.epoch !== layoutEpoch.current || event.data.positions.length !== nodes.length * 2) return;
+          nodes.forEach((node, index) => { if (dragRef.current?.id !== node.id) { node.x = event.data.positions[index * 2]; node.y = event.data.positions[index * 2 + 1]; } });
+          drawFrame(); if (event.data.settled) schedulePositionSave();
+        };
+        worker.onerror = () => { worker.terminate(); if (layoutWorker.current === worker) { layoutWorker.current = undefined; startLocalSimulation(); } };
+        worker.postMessage({ type: 'start', epoch, nodes: nodes.map(node => ({ id: node.id, x: node.x, y: node.y, isRoot: node.isRoot })),
+          links: props.edges.map(edge => ({ source: edge.source, target: edge.target })), width, height, active: runSimulation });
+      } catch { startLocalSimulation(); }
+    } else startLocalSimulation();
     drawFrame();
 
     return () => {
-      simulation.stop();
-      simulation.on('tick', null);
-      simulation.on('end', null);
+      layoutWorker.current?.terminate(); layoutWorker.current = undefined;
+      simulationRef.current?.stop(); simulationRef.current?.on('tick', null).on('end', null); simulationRef.current = null;
       if (requestRef.current !== undefined) window.cancelAnimationFrame(requestRef.current);
       requestRef.current = undefined;
-      positionsRef.current = Object.fromEntries(nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+      positionsRef.current = { ...positionsRef.current, ...Object.fromEntries(nodes.map((node) => [node.id, { x: node.x, y: node.y }])) };
     };
   }, [nodeLayoutKey, edgeKey, dimensions.width, dimensions.height]);
 
   useEffect(() => {
     const simulation = simulationRef.current;
-    if (!simulation) return;
-    if (runSimulation) simulation.alpha(Math.max(simulation.alpha(), 0.16)).alphaTarget(0).restart();
-    else simulation.stop();
+    layoutWorker.current?.postMessage({ type: 'activity', epoch: layoutEpoch.current, active: runSimulation });
+    if (simulation) {
+      if (runSimulation) simulation.alpha(Math.max(simulation.alpha(), 0.16)).alphaTarget(0).restart();
+      else simulation.stop();
+    }
     drawFrame();
   }, [runSimulation]);
 
   useEffect(() => {
     const onVisibilityChange = () => {
       const simulation = simulationRef.current;
-      if (!simulation) return;
-      if (document.visibilityState === 'hidden' || !props.active || !effectiveAnimation) simulation.stop();
-      else simulation.alpha(Math.max(simulation.alpha(), 0.16)).restart();
+      const active = document.visibilityState !== 'hidden' && props.active && effectiveAnimation;
+      layoutWorker.current?.postMessage({ type: 'activity', epoch: layoutEpoch.current, active });
+      if (simulation) { if (!active) simulation.stop(); else simulation.alpha(Math.max(simulation.alpha(), 0.16)).restart(); }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [props.active, effectiveAnimation]);
+  useEffect(() => { drawFrame(); }, [props.selectedId, props.nodes, props.edges, zoom, largeGraph]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== undefined) window.clearTimeout(saveTimerRef.current);
@@ -291,6 +381,7 @@ export function IssueGraphView(props: IssueGraphProps) {
         node.fy = y;
         node.x = x;
         node.y = y;
+        layoutWorker.current?.postMessage({ type: 'pin', epoch: layoutEpoch.current, id: node.id, x, y });
         if (!effectiveAnimation) { node.fx = null; node.fy = null; }
         schedulePositionSave();
         drawFrame();
@@ -312,6 +403,7 @@ export function IssueGraphView(props: IssueGraphProps) {
         if (node) {
           node.fx = null;
           node.fy = null;
+          layoutWorker.current?.postMessage({ type: 'pin', epoch: layoutEpoch.current, id: node.id, x: node.x, y: node.y, release: true });
         }
         if (runSimulation) simulationRef.current?.alpha(0.22).alphaTarget(0).restart();
         schedulePositionSave();
@@ -323,17 +415,17 @@ export function IssueGraphView(props: IssueGraphProps) {
       pointerRef.current.active = false;
       drawFrame();
     };
-    svg.addEventListener('pointermove', onPointerMove);
+    svg.addEventListener('pointermove', onPointerMove as EventListener);
     window.addEventListener('pointerup', onPointerEnd);
     window.addEventListener('pointercancel', onPointerEnd);
     svg.addEventListener('pointerleave', onPointerLeave);
     return () => {
-      svg.removeEventListener('pointermove', onPointerMove);
+      svg.removeEventListener('pointermove', onPointerMove as EventListener);
       window.removeEventListener('pointerup', onPointerEnd);
       window.removeEventListener('pointercancel', onPointerEnd);
       svg.removeEventListener('pointerleave', onPointerLeave);
     };
-  }, [dimensions.width, dimensions.height, effectiveAnimation, runSimulation]);
+  }, [dimensions.width, dimensions.height, effectiveAnimation, runSimulation, largeGraph]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -351,9 +443,9 @@ export function IssueGraphView(props: IssueGraphProps) {
       const graphY = (focusY - current.y) / current.scale;
       saveCamera({ scale: nextScale, x: focusX - graphX * nextScale, y: focusY - graphY * nextScale });
     };
-    svg.addEventListener('wheel', onWheel, { passive: false });
-    return () => svg.removeEventListener('wheel', onWheel);
-  }, []);
+    svg.addEventListener('wheel', onWheel as EventListener, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel as EventListener);
+  }, [largeGraph]);
 
   const fitGraph = (): void => {
     const nodes = simulatedNodesRef.current;
@@ -380,6 +472,7 @@ export function IssueGraphView(props: IssueGraphProps) {
   const resetLayout = (): void => {
     positionsRef.current = {};
     const simulation = simulationRef.current;
+    layoutWorker.current?.postMessage({ type: 'reset', epoch: layoutEpoch.current });
     if (simulation) {
       const { width, height } = dimensionsRef.current;
       simulatedNodesRef.current.forEach((node, index) => {
@@ -406,18 +499,37 @@ export function IssueGraphView(props: IssueGraphProps) {
     node.fx = node.x;
     node.fy = node.y;
     if (effectiveAnimation) simulationRef.current?.alphaTarget(0.17).restart();
+    layoutWorker.current?.postMessage({ type: 'pin', epoch: layoutEpoch.current, id, x: node.x, y: node.y });
   };
 
   const startPan = (event: PointerEvent): void => {
     if (event.button !== 0 || (event.target as Element).closest?.('.graph-node')) return;
     dragRef.current = { pointerId: event.pointerId, id: '', mode: 'pan', startX: event.clientX, startY: event.clientY, originX: cameraRef.current.x, originY: cameraRef.current.y };
   };
+  const selectCanvasNode = (id: string, center = false): void => {
+    props.onSelect(id);
+    if (center) {
+      const node = simulatedNodesRef.current.find(node => node.id === id);
+      if (node) saveCamera({ ...cameraRef.current, x: dimensions.width / 2 - node.x * cameraRef.current.scale, y: dimensions.height / 2 - node.y * cameraRef.current.scale });
+    }
+  };
+  const canvasPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) return;
+    const rect = svgRef.current?.getBoundingClientRect(); if (!rect) return;
+    const camera = cameraRef.current;
+    const x = ((event.clientX - rect.left) * dimensions.width / rect.width - camera.x) / camera.scale;
+    const y = ((event.clientY - rect.top) * dimensions.height / rect.height - camera.y) / camera.scale;
+    let closest: SimNode | undefined, distance = Math.max(16, 20 / camera.scale);
+    for (const node of simulatedNodesRef.current) { const candidate = Math.hypot(node.x - x, node.y - y); if (candidate < distance) { closest = node; distance = candidate; } }
+    if (closest) { selectCanvasNode(closest.id); startNodeDrag(event, closest.id); }
+    else startPan(event);
+  };
 
   const shortenedTitle = (title: string): string => title.length > 25 ? `${title.slice(0, 23)}…` : title;
   const boardCountLabel = `${rootCount} 張主要 Issue · ${contextCount} 張關聯項目`;
 
   return <section class="issue-graph-workspace" aria-label="Issue 關聯圖譜">
-    <div class="issue-graph-main">
+    <div class={`issue-graph-main${largeGraph ? ' large-graph' : ''}`}>
       <div class="issue-graph-toolbar" aria-label="圖譜工具">
         <span class="graph-tally">{boardCountLabel}</span>
         <span class="graph-zoom">{Math.round(zoom * 100)}%</span>
@@ -427,9 +539,21 @@ export function IssueGraphView(props: IssueGraphProps) {
         <button class="quiet small" type="button" onClick={resetLayout}>重設佈局</button>
         <label class="graph-animation-toggle"><input type="checkbox" checked={effectiveAnimation} disabled={systemReducedMotion} onChange={(event) => props.onAnimationEnabledChange(event.currentTarget.checked)} /><span>{systemReducedMotion ? '系統已減少動態效果' : '跟隨動畫'}</span></label>
       </div>
+      {largeGraph && <div class="graph-node-search"><label>尋找圖譜節點<input type="search" aria-label="尋找圖譜節點" value={nodeSearch} onInput={event => setNodeSearch(event.currentTarget.value)} /></label>
+        {searchResults.length > 0 && <div class="graph-search-results">{searchResults.map(node => <button key={node.id} type="button" onClick={() => selectCanvasNode(node.id, true)}>#{node.iid} {node.title}</button>)}</div>}
+        <span id="graph-navigation-hint" class="subtle">點選節點查看詳情；在圖譜內可用方向鍵逐項選取，Home／End 移至首尾。</span></div>}
       <div class="issue-graph-viewport" ref={viewportRef}>
         {!props.nodes.length && <div class="graph-empty" role="status"><strong>{props.nodes.length === 0 && props.edges.length === 0 ? '目前篩選條件沒有符合的 Issue' : '沒有可顯示的關聯'}</strong><p>調整篩選或更新 GitLab 資料後再試。</p></div>}
-        <svg ref={svgRef} class="issue-graph-svg" role="img" aria-label={`Issue 關聯圖譜，${rootCount} 張主要 Issue、${contextCount} 張關聯工作`} viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} onPointerDown={startPan}>
+        {largeGraph ? <canvas ref={element => { svgRef.current = element; }} class="issue-graph-svg issue-graph-canvas" role="img" tabIndex={0}
+          aria-label={`Issue 關聯圖譜，${rootCount} 張主要 Issue、${contextCount} 張關聯工作${selected ? `，目前選取 #${selected.iid} ${selected.title}` : ''}`} aria-describedby="graph-navigation-hint"
+          onPointerDown={event => canvasPointerDown(event as unknown as PointerEvent)} onKeyDown={event => {
+            const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+            if (!direction && event.key !== 'Home' && event.key !== 'End') return;
+            event.preventDefault();
+            const current = props.nodes.findIndex(node => node.id === props.selectedId);
+            const index = event.key === 'Home' ? 0 : event.key === 'End' ? props.nodes.length - 1 : Math.max(0, Math.min(props.nodes.length - 1, current + direction));
+            if (props.nodes[index]) selectCanvasNode(props.nodes[index].id, true);
+          }} /> : <svg ref={element => { svgRef.current = element; }} class="issue-graph-svg" role="img" aria-label={`Issue 關聯圖譜，${rootCount} 張主要 Issue、${contextCount} 張關聯工作`} viewBox={`0 0 ${dimensions.width} ${dimensions.height}`} onPointerDown={startPan}>
           <defs>
             <marker id="issue-graph-arrow-blocks" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="graph-marker-blocks" /></marker>
             <marker id="issue-graph-arrow-parent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" class="graph-marker-parent" /></marker>
@@ -473,7 +597,7 @@ export function IssueGraphView(props: IssueGraphProps) {
               </g>;
             })}
           </g>
-        </svg>
+        </svg>}
       </div>
       <div class="graph-board-legend" aria-label="Issue Board 顏色圖例">
         {props.boards.map((board) => <span class="graph-legend-item" key={board.id}><i style={{ backgroundColor: issueGraphBoardColor(board.id) }} />{board.name}</span>)}

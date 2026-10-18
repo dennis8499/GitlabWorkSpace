@@ -112,9 +112,8 @@ test('loads assigned Issues from every visible Group Board list with pagination 
   assert.equal(boardCalls[0].variables.groupPath, 'parent/child');
   assert.equal(boardCalls[0].variables.boardId, 'gid://gitlab/Board/25');
   const issueCalls = calls.filter((call) => call.query.includes('AssignedGroupIssueBoardListIssues'));
-  assert.deepEqual(issueCalls.map((call) => call.variables.listId), [
-    'gid://gitlab/List/12', 'gid://gitlab/List/12', 'gid://gitlab/List/13'
-  ]);
+  assert.deepEqual(issueCalls.filter(call => call.variables.listId === 'gid://gitlab/List/12').map(call => call.variables.after), [null, 'issue-cursor']);
+  assert.equal(issueCalls.filter(call => call.variables.listId === 'gid://gitlab/List/13').length, 1);
   assert.ok(issueCalls.every((call) => (call.variables.username as string[] | undefined)?.[0] === 'test-user'));
   assert.ok(issueCalls.every((call) => call.query.includes('assigneeUsername')));
 });
@@ -237,7 +236,7 @@ test('rejects pagination links outside the configured GitLab API path', async ()
   await assert.rejects(client.listGroups(), /outside the configured API/);
 });
 
-test('passes cancellation signals to read requests and never to GraphQL mutations', async () => {
+test('view cancellation is isolated from independent mutation deadlines', async () => {
   const controller = new AbortController();
   const calls: Array<{ method: string; signal?: AbortSignal }> = [];
   let successfulWrites = 0;
@@ -258,6 +257,91 @@ test('passes cancellation signals to read requests and never to GraphQL mutation
   await readClient.graphql('mutation WriteCheck { updateIssue }', {});
   await readClient.createIssue(42, { title: 'Created' });
 
-  assert.deepEqual(calls.map((call) => !!call.signal), [true, true, true, false, false]);
+  assert.ok(calls.every(call => !!call.signal));
+  assert.ok(calls.slice(3).every(call => call.signal !== controller.signal && !call.signal?.aborted));
   assert.equal(successfulWrites, 2);
+});
+
+test('a stalled write has an independent deadline, reports unknown and is never retried', async () => {
+  let calls = 0, finish!: (response: Response) => void;
+  const fetcher: FetchLike = async (_input, init) => {
+    calls++;
+    return new Promise<Response>((resolve, reject) => {
+      finish = resolve;
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    });
+  };
+  const client = Reflect.construct(GitLabClient, ['https://gitlab.example.test', token, fetcher, undefined, undefined, undefined, undefined, 15]) as GitLabClient;
+  const write = client.createIssue(42, { title: 'Once' }).then(() => undefined, error => error);
+  const error = await Promise.race([write, new Promise<undefined>(resolve => setTimeout(resolve, 100))]);
+  finish(new Response('{}')); await write;
+  assert.equal(error?.effect, 'unknown'); assert.equal(error?.name, 'GitLabWriteUnknownError'); assert.equal(calls, 1);
+});
+
+test('multipart upload streams bounded chunks with exact length and closes the source', async () => {
+  let closed = false, chunks = 0;
+  async function* source() { try { chunks++; yield new Uint8Array([0, 128]); chunks++; yield new Uint8Array([255]); } finally { closed = true; } }
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    assert.ok(init?.body instanceof ReadableStream);
+    assert.equal(chunks, 0, 'file contents are not read into memory before fetch starts');
+    const bytes = new Uint8Array(await new Response(init.body).arrayBuffer());
+    assert.equal(bytes.length, Number(new Headers(init.headers).get('content-length')));
+    assert.equal(new Headers(init.headers).get('PRIVATE-TOKEN'), token);
+    assert.ok(bytes.some((value, index) => value === 0 && bytes[index + 1] === 128 && bytes[index + 2] === 255));
+    return new Response(JSON.stringify({ url: '/uploads/file' }));
+  });
+  await client.uploadProjectFileStream(42, 'file.bin', source(), 'application/octet-stream', 3);
+  assert.equal(closed, true);
+});
+
+test('explicit upload cancellation closes its file iterator and retains an unknown write outcome', async () => {
+  const controller = new AbortController(); let returned = 0;
+  const source: AsyncIterable<Uint8Array> = { [Symbol.asyncIterator]: () => ({
+    next: async () => ({ done: false, value: new Uint8Array([1]) }),
+    return: async () => { returned++; return { done: true, value: undefined }; }
+  }) };
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    setTimeout(() => controller.abort(), 5);
+    return new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true }));
+  });
+  await assert.rejects(client.uploadProjectFileStream(42, 'file.bin', source, 'application/octet-stream', 1, controller.signal),
+    (error: any) => error.effect === 'unknown');
+  assert.equal(returned, 1);
+});
+
+test('attachment size limits stop chunked downloads before consuming the entire body', async () => {
+  let reads = 0, cancelled = false;
+  const body = new ReadableStream<Uint8Array>({ pull(controller) { reads++; controller.enqueue(new Uint8Array(4)); }, cancel() { cancelled = true; } });
+  const client = new GitLabClient('https://gitlab.example.test', token, async () => new Response(body));
+  await assert.rejects(client.downloadUpload('https://gitlab.example.test/uploads/file', 5), /too large/);
+  assert.equal(cancelled, true); assert.ok(reads <= 3);
+});
+
+test('Board lists use at most four concurrent requests and retain deterministic membership order', async () => {
+  let active = 0, peak = 0;
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    const { query, variables } = JSON.parse(String(init?.body));
+    if (query.includes('IssueBoardLists')) return new Response(JSON.stringify({ data: { group: { board: {
+      hideBacklogList: false, hideClosedList: false,
+      lists: { nodes: Array.from({ length: 8 }, (_, index) => ({ id: String(index + 1), listType: 'label' })), pageInfo: { hasNextPage: false } }
+    } } } }));
+    active++; peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, 10)); active--;
+    return new Response(JSON.stringify({ data: { boardList: { issues: { nodes: [{ id: 'gid://gitlab/Issue/' + variables.listId }], pageInfo: { hasNextPage: false } } } } }));
+  });
+  assert.deepEqual(await client.listGroupBoardIssueIds('group', 1), [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(peak, 4);
+});
+
+test('Markdown rendering is a cancellable read and never invalidates write caches', async () => {
+  let writes = 0, receivedSignal: AbortSignal | null | undefined;
+  const controller = new AbortController();
+  const client = new GitLabClient('https://gitlab.example.test', token, async (_input, init) => {
+    receivedSignal = init?.signal;
+    assert.equal(init?.method, 'POST');
+    assert.deepEqual(JSON.parse(String(init?.body)), { text: '# Preview', gfm: true, project: 'group/project' });
+    return new Response(JSON.stringify({ html: '<h1>Preview</h1>' }));
+  }, controller.signal, () => { writes++; });
+  assert.deepEqual(await client.renderMarkdown('group/project', '# Preview'), { html: '<h1>Preview</h1>' });
+  assert.ok(receivedSignal); assert.equal(writes, 0);
 });

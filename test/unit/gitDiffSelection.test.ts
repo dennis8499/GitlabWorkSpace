@@ -48,3 +48,29 @@ test('rejects partial patches whose headers point at a different file', () => {
   const added = makeDiffLines(diff).findIndex((line) => line.kind === 'add');
   assert.equal(makeSelectedPatch(diff, 'expected.txt', [added]), '');
 });
+
+for (const [name, before, after] of [
+  ['removed EOF newline', 'old\n', 'new'],
+  ['added EOF newline', 'old', 'new\n'],
+  ['no EOF newlines', 'old', 'new'],
+  ['CRLF bytes', 'old\r\nlast\r\n', 'new\r\nlast\r\n']
+]) {
+  test('partial staging preserves actual index bytes: ' + name, async t => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'git-ui-eof-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    git(root, ['init', '-q']);
+    git(root, ['config', 'core.autocrlf', 'false']);
+    await writeFile(path.join(root, 'file.txt'), before);
+    git(root, ['add', 'file.txt']);
+    git(root, ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'base']);
+    await writeFile(path.join(root, 'file.txt'), after);
+    const diff = git(root, ['diff', '--', 'file.txt']);
+    const selected = makeDiffLines(diff).flatMap((line, index) => line.kind === 'add' || line.kind === 'remove' ? [index] : []);
+    const patch = makeSelectedPatch(diff, 'file.txt', selected);
+    git(root, ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn'], patch);
+    assert.deepEqual(Buffer.from(git(root, ['show', ':file.txt'])), Buffer.from(after));
+    git(root, ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '--reverse'], patch);
+    assert.deepEqual(Buffer.from(git(root, ['show', ':file.txt'])), Buffer.from(before));
+    assert.deepEqual(await readFile(path.join(root, 'file.txt')), Buffer.from(after));
+  });
+}

@@ -6,6 +6,16 @@ import { ActionContext, useActionSelector } from './useActions';
 
 const fallback = new ActionController(() => {});
 const emptyOperations: WorkspaceOperationState[] = [];
+const feedbackPriority = (operation: WorkspaceOperationState): number => operation.effect === 'unknown' ? 2 : isActiveOperation(operation) ? 1 : 0;
+function recentFeedbackFirst(left: WorkspaceOperationState, right: WorkspaceOperationState): number {
+  const priority = feedbackPriority(right) - feedbackPriority(left);
+  if (priority) return priority;
+  // Host revisions order progress updates; completion time orders legacy receipts.
+  const revision = left.hostSessionId === right.hostSessionId && left.revision !== undefined && right.revision !== undefined
+    ? right.revision - left.revision : 0;
+  return revision || (right.finishedAt ?? right.startedAt) - (left.finishedAt ?? left.startedAt)
+    || right.requestId.localeCompare(left.requestId);
+}
 export function OperationFeedback({ resourceKey, scopeRevision, initialOperations = emptyOperations, actions: supplied }: {
   resourceKey?: string; scopeRevision?: string; initialOperations?: WorkspaceOperationState[]; actions?: ActionController;
 }) {
@@ -29,7 +39,8 @@ export function OperationFeedback({ resourceKey, scopeRevision, initialOperation
     if ((scopeRevision && operation.scopeRevision !== scopeRevision && operation.effect !== 'unknown') || (resourceKey && operation.resourceKey !== resourceKey)) continue;
     latest.set(operation.action + ':' + (operation.lockKey ?? operation.resourceKey), operation);
   }
-  const visible = [...latest.values()].filter(item => isActiveOperation(item) || item.status === 'failed' || item.refreshError).slice(-3);
+  const visible = [...latest.values()].filter(item => isActiveOperation(item) || item.effect === 'unknown' || item.status === 'failed' || item.refreshError)
+    .sort(recentFeedbackFirst).slice(0, 3);
   return <div class="operation-feedback" aria-live="polite">{visible.map(item => <div key={item.requestId}
     class={`operation-status ${item.status}`} role={item.status === 'failed' || item.refreshError ? 'alert' : 'status'}>
     {isActiveOperation(item) && <span class="spinner" />}

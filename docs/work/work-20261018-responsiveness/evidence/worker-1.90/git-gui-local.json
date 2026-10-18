@@ -1,0 +1,13 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-17T16:57:52.997Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.90.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+    "sha256": "2fca9b4abca1f8336d470935ed1104343ff7bc56e12208b93828e6ef0fda3a55"
+  },
+  "status": "FAIL",
+  "error": "Hiding the native Webview pauses the production layout Worker. (\n    GWGitLab WorkspaceGroupprobe設定訊息中心 0Worker Probe · @worker-probe　⌄https://probe.invalid＋ 新增 GitLab 帳號管理帳號與連線        Issue正在載入 Issue…重試probe我的工作查看預覽更新資料⌕清單圖譜＋ 新增議題全部 Board全部 Repoprobe/project全部 Labels全部 Milestones未設定 Milestone2000 張主要 Issue · 0 張關聯項目100%−＋適合畫面重設佈局跟隨動畫尋找圖譜節點點選節點查看詳情；在圖譜內可用方向鍵逐項選取，Home／End 移至首尾。沒有可用的 Group Issue BoardLabel 色環未指派給我Issue 摘要◇選取一個節點，查看 Issue 狀態與關聯。關聯線條父項目與 Child Items阻擋關係一般 Linked Item請在 VS Code 開啟本機專案資料夾\n  \n\n)",
+  "sourceRepository": "isolated generated Git seed"
+}

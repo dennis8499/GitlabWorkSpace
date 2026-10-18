@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import { buildFollowupTypeNames } from '../../src/api/graphqlCapabilities';
 import { GitLabClient, type FetchLike } from '../../src/api/gitLabClient';
 import type { GraphQLSchemaType } from '../../src/api/graphqlCapabilities';
 import { selectedCapabilityData } from './graphqlFixture';
@@ -696,4 +697,14 @@ test('attachment reads stay on the configured GitLab uploads path and keep authe
   assert.deepEqual(paths, ['https://gitlab.example.test/group/project/uploads/hash/image.png']);
   const nested = new GitLabClient('https://gitlab.example.test/gitlab', token, fetcher);
   await assert.rejects(nested.downloadUpload('https://gitlab.example.test/gitlab-evil/uploads/steal.png'), /outside/);
+});
+test('capability followups unwrap non-null and list input object types', () => {
+  for (const type of [
+    { name: 'WidgetInput', kind: 'INPUT_OBJECT' },
+    { kind: 'NON_NULL', ofType: { name: 'WidgetInput', kind: 'INPUT_OBJECT' } },
+    { kind: 'LIST', ofType: { kind: 'NON_NULL', ofType: { name: 'WidgetInput', kind: 'INPUT_OBJECT' } } }
+  ]) {
+    const schema = new Map([['WorkItemUpdateInput', { name: 'WorkItemUpdateInput', kind: 'INPUT_OBJECT', inputFields: [{ name: 'hierarchyWidget', type }] }]]);
+    assert.ok(buildFollowupTypeNames(schema).includes('WidgetInput'));
+  }
 });

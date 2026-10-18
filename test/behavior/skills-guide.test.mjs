@@ -3,8 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const html = await readFile(new URL('../../resources/issue-webview/dashboard.html', import.meta.url), 'utf8');
-const script = await readFile(new URL('../../resources/issue-webview/dashboard.js', import.meta.url), 'utf8');
+import { webviewBundle } from './webview-bundle.mjs';
+const { html, script } = await webviewBundle('dashboard');
 const { version } = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 
 function snapshot(profile, features) {

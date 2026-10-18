@@ -1,0 +1,494 @@
+{
+  "schema": "GitLabWorkspacePackagedUiVerification/v2",
+  "label": "revision",
+  "capturedAt": "2026-10-17T17:05:46.661Z",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.26.0-responsiveness-candidate.vsix",
+    "sha256": "2fca9b4abca1f8336d470935ed1104343ff7bc56e12208b93828e6ef0fda3a55"
+  },
+  "assets": [
+    {
+      "name": "issue-webview/dashboard.html",
+      "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+      "bytes": 443
+    },
+    {
+      "name": "issue-webview/dashboard.js",
+      "sha256": "b20a168d18eec5dd3c7af9705f53b8b3b9e4de7b71fb9f7d44a3c116836f1c10",
+      "bytes": 383758
+    },
+    {
+      "name": "issue-webview/dashboard.css",
+      "sha256": "05bf86107afc17cbd5cd2b753408fc4de776d1f8a57987e66af09a65b538970c",
+      "bytes": 93197
+    },
+    {
+      "name": "sidebar-webview/sidebar.html",
+      "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+      "bytes": 459
+    },
+    {
+      "name": "sidebar-webview/sidebar.js",
+      "sha256": "995d9ea558d4d6f599cd19cee5febff5a85ac8e7827d063f84151bc2fdece278",
+      "bytes": 51835
+    },
+    {
+      "name": "sidebar-webview/sidebar.css",
+      "sha256": "40d830a7d19d1d3710d88efb6ece8d84a2dfd6d1a48bcfb2bb2daacbc06e5fb3",
+      "bytes": 9723
+    }
+  ],
+  "harnessSha256": "bf8d71ab0629bfc6f30086d95bcfac21733fd74ee4ee8a83174abf27758c1b45",
+  "fixtureSha256": "cf8472b3bd01584d002bd380ff926189e99b2ac7bd644f1e6cbc428ef57ef8d2",
+  "browserVersion": "155.0.8059.80",
+  "platform": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v24.21.0"
+  },
+  "measurement": {
+    "rounds": 10,
+    "samplesPerRound": 30,
+    "repoCount": 20,
+    "dashboardWidth": 1440,
+    "sidebarWidth": 300,
+    "height": 900,
+    "methodVersion": "browser-capture-readiness/v2",
+    "latency": "Browser-owned readiness observer starts at UI postMessage/input capture; matching rendered DOM followed by two requestAnimationFrame callbacks; driver evaluation only awaits the existing completion promise; excludes Playwright input delivery",
+    "readiness": "Navigation matches actual page data-mode; search matches input value and visible repository identities. Five-second timeout; observers and pending animation frames are cleaned up on completion, timeout or supersession.",
+    "memory": "Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews",
+    "scope": "VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex",
+    "comparisonLimitPercent": 10,
+    "firstFeedback": {
+      "samplesPerAction": 100,
+      "limitP95Ms": 100,
+      "mockAcknowledgementDelayMs": 160,
+      "mockCompletionDelayMs": 220,
+      "timing": "DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery",
+      "completion": "Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance."
+    }
+  },
+  "firstFeedback": {
+    "status": "PASS",
+    "cases": [
+      {
+        "action": "refresh",
+        "status": "PASS",
+        "sampleCount": 100,
+        "requiredSamples": 100,
+        "firstFeedbackP95Ms": 34.4,
+        "mockCompletionP95Ms": 231.6,
+        "samples": [
+          {
+            "firstFeedbackMs": 22.7,
+            "mockCompletionMs": 224.3
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 31.1,
+            "mockCompletionMs": 225
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 230.8
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 231.1
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 220.9
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 224.6
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 32.3,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 32.5,
+            "mockCompletionMs": 226.9
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 31.8,
+            "mockCompletionMs": 227.5
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 228.6
+          },
+          {
+            "firstFeedbackMs": 38.2,
+            "mockCompletionMs": 224.8
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 223.6
+          },
+          {
+            "firstFeedbackMs": 32,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 225.8
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.5
+          },
+          {
+            "firstFeedbackMs": 31.9,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 32.1,
+            "mockCompletionMs": 228.4
+          },
+          {
+            "firstFeedbackMs": 32.4,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 233.5
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 221.3
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 221.8
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 234.7
+          },
+          {
+            "firstFeedbackMs": 33.2,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 36.5,
+            "mockCompletionMs": 222.7
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 224.5
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 227
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 228.9
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 228.1
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 230.6
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 226.5
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 232.7
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 230
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 227.9
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 227.2
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 232
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 226.7
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 32.3,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 229.4
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 221.6
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 220.6
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 223.9
+          },
+          {
+            "firstFeedbackMs": 34.5,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 230.5
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 227.1
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 229.8
+          },
+          {
+            "firstFeedbackMs": 34.3,
+            "mockCompletionMs": 232
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 228.3
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 231.4
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 228.8
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 226.4
+          },
+          {
+            "firstFeedbackMs": 34,
+            "mockCompletionMs": 228.2
+          },
+          {
+            "firstFeedbackMs": 37.2,
+            "mockCompletionMs": 226
+          },
+          {
+            "firstFeedbackMs": 34.1,
+            "mockCompletionMs": 224
+          },
+          {
+            "firstFeedbackMs": 33.5,
+            "mockCompletionMs": 224.6
+          },
+          {
+            "firstFeedbackMs": 33.3,
+            "mockCompletionMs": 222.2
+          },
+          {
+            "firstFeedbackMs": 32.6,
+            "mockCompletionMs": 226.8
+          },
+          {
+            "firstFeedbackMs": 33.6,
+            "mockCompletionMs": 227.6
+          },
+          {
+            "firstFeedbackMs": 32.2,
+            "mockCompletionMs": 227.4
+          },
+          {
+            "firstFeedbackMs": 32.7,
+            "mockCompletionMs": 226.8
+          },
+          {
+            "firstFeedbackMs": 34.2,
+            "mockCompletionMs": 231.6
+          },
+          {
+            "firstFeedbackMs": 33.9,
+            "mockCompletionMs": 229.5
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 227.8
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 225.7
+          },
+          {
+            "firstFeedbackMs": 33,
+            "mockCompletionMs": 229
+          },
+          {
+            "firstFeedbackMs": 33.7,
+            "mockCompletionMs": 230.3
+          },
+          {
+            "firstFeedbackMs": 33.1,
+            "mockCompletionMs": 228.7
+          },
+          {
+            "firstFeedbackMs": 34.4,
+            "mockCompletionMs": 221.2
+          },
+          {
+            "firstFeedbackMs": 32.3,
+            "mockCompletionMs": 229.8
+          },
+          {
+            "firstFeedbackMs": 33.8,
+            "mockCompletionMs": 229.7
+          },
+          {
+            "firstFeedbackMs": 33.4,
+            "mockCompletionMs": 231
+          },
+          {
+            "firstFeedbackMs": 32.8,
+            "mockCompletionMs": 227.4
+          }
+        ],
+        "blockedNetworkRequests": [],
+        "runtimeErrors": []
+      }
+    ],
+    "scope": "Actual packaged UI handlers, isolated delayed mock host. Writes and login use fixed fake responses and do not change repositories or contact GitLab."
+  },
+  "smoke": {
+    "status": "NOT_RUN",
+    "reason": "Diagnostic feedback-only run."
+  },
+  "performanceStatus": "MEASURED"
+}

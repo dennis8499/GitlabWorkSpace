@@ -63,8 +63,8 @@ export function resolveProjectWorkspaceRoot(
 }
 
 /** Installation profile follows the target folder, not the current Skills context. */
-export async function inspectWorkflowKitInstallRoot(root: string): Promise<WorkspaceRootResolution & { profile?: 'group' | 'repository' }> {
-  const inspected = await inspectWorkspaceFolder(root, [], () => false);
+export async function inspectWorkflowKitInstallRoot(root: string, signal?: AbortSignal): Promise<WorkspaceRootResolution & { profile?: 'group' | 'repository' }> {
+  const inspected = await inspectWorkspaceFolder(root, [], () => false, signal);
   if (inspected.kind === 'unavailable') return { root, error: inspected.error };
   if (inspected.kind === 'directory') return { root: inspected.path, profile: 'group' };
   if (!sameLocalPath(root, inspected.path)) return { root, error: `請選擇 Git 根目錄：${inspected.path}；不能安裝於 Repo 子目錄。` };
@@ -105,11 +105,13 @@ function uniquePaths(paths: readonly string[], platform: NodeJS.Platform): strin
 }
 
 /** Scan only direct Group children; Git itself validates normal repos and linked worktrees. */
-export async function scanLocalGroupRepositories(root: string, strict = false): Promise<LocalGroupRepository[]> {
+export async function scanLocalGroupRepositories(root: string, strict = false, signal?: AbortSignal): Promise<LocalGroupRepository[]> {
+  signal?.throwIfAborted();
   const rootPath = await realpath(root);
   const entries = await readdir(rootPath, { withFileTypes: true });
   const candidates: Array<{ name: string; path: string }> = [];
   for (const entry of entries) {
+    signal?.throwIfAborted();
     if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
     const repositoryPath = path.join(rootPath, entry.name);
     let marker;
@@ -128,17 +130,19 @@ export async function scanLocalGroupRepositories(root: string, strict = false): 
   let nextCandidate = 0;
   await Promise.all(Array.from({ length: Math.min(4, candidates.length) }, async () => {
     while (nextCandidate < candidates.length) {
+      signal?.throwIfAborted();
       const index = nextCandidate++;
       const candidate = candidates[index];
       try {
         const result = await logGitCommand(['rev-parse'], candidate.path, () => execFileAsync("git", ["-C", candidate.path, "rev-parse", "--show-toplevel"], {
-          windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
+          windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, signal
         }));
         const gitRoot = await realpath(result.stdout.trim());
         const actualPath = await realpath(candidate.path);
         if (sameLocalPath(gitRoot, actualPath)) repositories[index] = { name: candidate.name, path: actualPath };
         else if (strict) throw new Error('Git root differs from the repository directory.');
       } catch (error) {
+        if (signal?.aborted) throw error;
         if (error && typeof error === "object" && "code" in error) {
           const code = (error as NodeJS.ErrnoException).code;
           if (code === "ENOENT") throw new Error("Git could not be found while scanning local Repos.");
@@ -154,8 +158,10 @@ export async function scanLocalGroupRepositories(root: string, strict = false): 
 export async function inspectWorkspaceFolder(
   folderPath: string,
   projects: readonly GitLabProject[],
-  matchesRemote: (remoteUrl: string, project: GitLabProject) => boolean
+  matchesRemote: (remoteUrl: string, project: GitLabProject) => boolean,
+  signal?: AbortSignal
 ): Promise<WorkspaceFolderInspection> {
+  signal?.throwIfAborted();
   let absolutePath = await realpath(folderPath);
   const stat = await lstat(absolutePath);
   if (!stat.isDirectory()) return { kind: 'unavailable', path: absolutePath, error: 'VSCode 工作區項目不是資料夾。' };
@@ -163,10 +169,11 @@ export async function inspectWorkspaceFolder(
   let topLevel: string;
   try {
     const result = await logGitCommand(['rev-parse'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'rev-parse', '--show-toplevel'], {
-      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
+      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, signal
     }));
     topLevel = await realpath(result.stdout.trim());
   } catch (error) {
+    if (signal?.aborted) throw error;
     if (error && typeof error === 'object' && 'code' in error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') return { kind: 'unavailable', path: absolutePath, error: '找不到 Git，無法辨識 VSCode 工作區。' };
@@ -192,10 +199,11 @@ export async function inspectWorkspaceFolder(
   let remotes: string[];
   try {
     const result = await logGitCommand(['config'], absolutePath, () => execFileAsync('git', ['-C', absolutePath, 'config', '--null', '--get-all', 'remote.origin.url'], {
-      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
+      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, signal
     }));
     remotes = result.stdout.split('\0').filter(Boolean);
   } catch (error) {
+    if (signal?.aborted) throw error;
     if ((error as { code?: number }).code === 1) return { kind: 'repository', path: absolutePath, containerRoot: parent };
     return { kind: 'unavailable', path: absolutePath, error: '無法讀取 Group Repo 的 remote。' };
   }
@@ -305,8 +313,9 @@ export async function localRepositoryStateAsync(root: string, target: string, al
 
 /** Only a uniquely associated repository may use the shared root itself. */
 export async function projectRootRepositoryId(root: string, projects: readonly GitLabProject[],
-  matchesRemote: (remote: string, project: GitLabProject) => boolean): Promise<number | undefined> {
+  matchesRemote: (remote: string, project: GitLabProject) => boolean, signal?: AbortSignal): Promise<number | undefined> {
+  signal?.throwIfAborted();
   if (!projects.length) return undefined;
-  const inspected = await inspectWorkspaceFolder(root, projects, matchesRemote);
+  const inspected = await inspectWorkspaceFolder(root, projects, matchesRemote, signal);
   return inspected.kind === 'group-repository' && await sameRealLocalPathAsync(inspected.path, root) ? inspected.projectId : undefined;
 }

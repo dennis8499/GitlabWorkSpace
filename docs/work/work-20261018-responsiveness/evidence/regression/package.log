@@ -1,0 +1,42 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/package-extension.mjs","--prepared"]
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> gitlab-workspace@0.26.0 vscode:prepublish
+> node scripts/run-validation.mjs prepublish
+
+ WARNING  LICENSE, LICENSE.md, or LICENSE.txt not found
+ WARNING  This extension consists of 347 files, out of which 235 are JavaScript files. For performance reasons, you should bundle your extension: https://aka.ms/vscode-bundle-extension. You should also exclude unnecessary files by adding them to your .vscodeignore: https://aka.ms/vscode-vscodeignore.
+
+ INFO  Files included in the VSIX:
+gitlab-workspace-0.26.0.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ package.json [8.98 KB]
+   ├─ readme.md [17.27 KB]
+   ├─ docs/
+   │  ├─ group-workflow.md [4.72 KB]
+   │  ├─ releasing.md [5.4 KB]
+   │  ├─ troubleshooting.md [5.97 KB]
+   │  ├─ user-guide.md [25.39 KB]
+   │  ├─ wiki-workflows.md [2 KB]
+   │  └─ windows-acceptance.md [5.16 KB]
+   ├─ node_modules/
+   │  ├─ @iarna/ (20 files) [96.72 KB]
+   │  └─ yaml/ (233 files) [670.21 KB]
+   ├─ out/
+   │  └─ src/ (69 files) [957.49 KB]
+   └─ resources/
+      ├─ git-rebase-editor.cjs [1.1 KB]
+      ├─ gitlab-workspace.svg [0.33 KB]
+      ├─ workflow-kit-installer.py [1.1 MB]
+      ├─ bmad/ (2 files) [8.31 KB]
+      ├─ issue-webview/ (3 files) [467.33 KB]
+      ├─ offline-tools/ (4 files) [5.5 MB]
+      └─ sidebar-webview/ (3 files) [61.12 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\dist\gitlab-workspace-0.26.0.vsix (347 files, 6.4 MB)
+Optimized dist\gitlab-workspace-0.26.0.vsix with per-file STORE/DEFLATE-9 selection (6713540 bytes)
+Wrote deterministic SHA256SUMS for 2 release assets.
