@@ -13,13 +13,13 @@ function snapshot(root = '/project', revision = 'one'): BmadWorkflowSnapshot {
     steps: [{ id: 'brief', status: 'needs-confirmation', summary: '', artifacts: [{ id: 'file', path: root + '/brief.md', relativePath: 'brief.md',
       fingerprint: 'a'.repeat(64), status: 'needs-confirmation', reason: 'Unknown' }] }] };
 }
-function fixture(reader: (options: any) => Promise<BmadWorkflowSnapshot>) {
+function fixture(reader: (options: any) => Promise<BmadWorkflowSnapshot>, directoryExists: (directory: string) => Promise<boolean> = async () => true) {
   const errors: string[] = [];
   const watchers: Array<{ directory: string; changed(filename?: string): void; disposed: boolean }> = [];
   const watchOrder: string[] = [];
   let changes = 0;
   const controller = new BmadWorkflowController({
-    bundledCatalog: async () => 'catalog', read: reader,
+    bundledCatalog: async () => 'catalog', read: reader, directoryExists,
     watch: (directory, changed) => { const watcher = { directory, changed, disposed: false }; watchers.push(watcher); watchOrder.push(`add:${directory}`); return { dispose: () => { watcher.disposed = true; watchOrder.push(`remove:${directory}`); } }; },
     changed: () => changes++, error: message => errors.push(message)
   });
@@ -265,7 +265,7 @@ test('watch registration failure stays visible, preserves existing coverage and 
   let value = snapshot();
   const watched = new Map<string, boolean>();
   const controller = new BmadWorkflowController({
-    bundledCatalog: async () => 'catalog', read: async () => value,
+    bundledCatalog: async () => 'catalog', read: async () => value, directoryExists: async () => true,
     watch: directory => {
       if (fail && directory.endsWith('new-output')) throw new Error('Watcher unavailable');
       watched.set(directory, true);
@@ -286,6 +286,50 @@ test('watch registration failure stays visible, preserves existing coverage and 
     assert.equal(watched.get('/project/new-output'), true);
     assert.equal(watched.get('/project'), false);
   } finally { controller.dispose(); }
+});
+
+test('new directories bind after creation and catch a change missed during native registration without polling', async () => {
+  const root = path.resolve('/project'), skills = path.join(root, '.agents', 'skills');
+  let created = false, deleted = false, reads = 0;
+  const f = fixture(async () => {
+    reads++;
+    const value = snapshot(root, !created ? 'missing' : deleted ? 'deleted' : 'ready');
+    value.watchDirectories = [root, skills];
+    return value;
+  }, async directory => directory === root || created);
+  try {
+    f.controller.setContext(root, 'project', true);
+    await f.controller.refresh();
+    assert.deepEqual(f.watchers.map(watcher => watcher.directory), [root], 'Never bind a native watcher to a missing base');
+    created = true;
+    f.watchers[0].changed(path.join(root, '.agents'));
+    const deadline = Date.now() + 1000;
+    while (f.controller.snapshot?.revision !== 'ready' && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(f.controller.snapshot?.revision, 'ready');
+    assert.ok(f.watchers.some(watcher => watcher.directory === skills && !watcher.disposed));
+    deleted = true; // No native callback: deletion races the new registration.
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(f.controller.snapshot?.revision, 'deleted');
+    assert.equal(reads, 3);
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(reads, 3, 'The catch-up must stop after the new bindings settle');
+  } finally { f.controller.dispose(); }
+});
+
+test('a late directory probe cannot attach watchers to a project that has been replaced', async () => {
+  let finish!: (value: boolean) => void;
+  const f = fixture(async ({ root }) => snapshot(root), async directory => directory === '/old'
+    ? new Promise(resolve => { finish = resolve; }) : true);
+  try {
+    f.controller.setContext('/old', 'old', true);
+    const old = f.controller.refresh();
+    await new Promise(resolve => setImmediate(resolve));
+    f.controller.setContext('/new', 'new', true);
+    await f.controller.refresh();
+    finish(true); await old;
+    assert.equal(f.controller.snapshot?.root, '/new');
+    assert.deepEqual(f.watchers.map(watcher => watcher.directory), ['/new']);
+  } finally { f.controller.dispose(); }
 });
 
 test('read failure retains progress but publishes current installation diagnostics', async () => {

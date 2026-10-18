@@ -2,6 +2,7 @@ import type { BmadWorkflowSnapshot } from './bmadProtocol';
 import { BmadReadCache, readBmadWorkflow } from './bmadWorkflow';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { lstat } from 'node:fs/promises';
 
 interface Disposable { dispose(): void }
 interface ControllerOptions {
@@ -10,6 +11,7 @@ interface ControllerOptions {
   changed(): void;
   error(message: string): void;
   read?: typeof readBmadWorkflow;
+  directoryExists?(directory: string): Promise<boolean>;
 }
 
 /** Observe external BMAD files. This controller never writes project state. */
@@ -66,6 +68,18 @@ export class BmadWorkflowController implements Disposable {
 
   private current(generation: number): boolean { return !this.disposed && this.visible && generation === this.generation; }
 
+  private async existingDirectories(directories: string[]): Promise<string[]> {
+    const exists = this.options.directoryExists ?? (async (directory: string): Promise<boolean> => {
+      try { return (await lstat(directory)).isDirectory(); }
+      catch (error) {
+        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return false;
+        throw error;
+      }
+    });
+    const observed = await Promise.all(directories.map(async directory => ({ directory, exists: await exists(directory) })));
+    return observed.filter(entry => entry.exists).map(entry => entry.directory);
+  }
+
   private attachWatchers(directories: Iterable<string>, preserve = false): string | undefined {
     const desired = new Set(directories);
     let failure: string | undefined;
@@ -91,9 +105,15 @@ export class BmadWorkflowController implements Disposable {
       signal.throwIfAborted();
       const snapshot = await (this.options.read ?? readBmadWorkflow)({ root: this.root, bundledCatalog: catalog, signal, cache: this.readCache });
       if (!this.current(generation)) return;
+      // VS Code ignores native registrations whose base does not exist yet.
+      // Keep planned paths in the snapshot for event filtering, and bind them
+      // only after discovery confirms their directories have been created.
+      const directories = await this.existingDirectories(snapshot.watchDirectories);
+      if (!this.current(generation)) return;
+      const newBindings = this.watchers.size > 0 && directories.some(directory => !this.watchers.has(directory));
       const lastSuccessfulAt = this.value?.observation.lastSuccessfulAt;
       const readFailure = snapshot.observation.state === 'error' ? snapshot.observation.error ?? 'BMAD 文件無法完整讀取。' : undefined;
-      const watchFailure = this.attachWatchers(snapshot.watchDirectories, !!readFailure);
+      const watchFailure = this.attachWatchers(directories, !!readFailure);
       const failure = readFailure ?? watchFailure;
       if (failure && this.value) {
         // Retain the last evidence while clearly marking that it is stale.
@@ -103,6 +123,12 @@ export class BmadWorkflowController implements Disposable {
       } else this.value = { ...snapshot, observation: failure ? { state: 'error', lastSuccessfulAt, error: failure }
         : { state: this.root ? 'watching' : 'paused', lastSuccessfulAt: snapshot.observedAt ?? new Date().toISOString() } };
       this.options.changed();
+      if (newBindings && !failure) {
+        // Native registration is asynchronous. One bounded catch-up closes the
+        // first-event gap without leaving an idle polling loop behind.
+        this.readCache.clear();
+        this.scheduleRefresh(false);
+      }
     } catch (error) {
       if (signal.aborted || !this.current(generation)) return;
       const message = error instanceof Error ? error.message : String(error);
@@ -136,10 +162,9 @@ export class BmadWorkflowController implements Disposable {
       (contains(directory, filename) || contains(filename, directory)));
   }
 
-  private scheduleRefresh(): void {
+  private scheduleRefresh(invalidate = true): void {
     if (this.disposed || !this.visible) return;
-    this.generation++;
-    this.readAbort?.abort();
+    if (invalidate) { this.generation++; this.readAbort?.abort(); }
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; void this.refresh(); }, 150);
   }
