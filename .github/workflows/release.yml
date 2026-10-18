@@ -92,6 +92,16 @@ jobs:
       - name: Run full tests and package once on Windows
         if: runner.os == 'Windows'
         run: npm test
+      - name: Print captured validation diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          python -X utf8 -B - <<'PY'
+          from pathlib import Path
+          for path in sorted(Path('.gitlab-workspace-validation/ci').glob('*.log')):
+              print('\n### ' + path.name)
+              print(path.read_text(encoding='utf-8', errors='replace')[-20000:])
+          PY
       - name: Test release provenance and publication contracts
         run: python -X utf8 -B scripts/test_release_ci.py -v
       - name: Record complete cell and canonical asset provenance
