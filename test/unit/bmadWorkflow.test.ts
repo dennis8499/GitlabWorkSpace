@@ -132,9 +132,11 @@ test('directory observation covers runtime, Skill leaves and every discovered ne
   await fixture(async (root, write) => {
     await write('_bmad-output/implementation-artifacts/nested/spec-feature.md', md('draft'));
     const snapshot = await read(root);
+    const canonicalRoot = await fs.realpath(root);
+    assert.equal(snapshot.root, canonicalRoot);
     for (const relative of ['_bmad/scripts', '.agents', '.agents/skills', '.agents/skills/bmad-build',
       '_bmad-output/implementation-artifacts/nested']) {
-      assert.ok(snapshot.watchDirectories.includes(path.join(root, relative)), `Missing direct observation for ${relative}`);
+      assert.ok(snapshot.watchDirectories.includes(path.join(canonicalRoot, relative)), `Missing direct observation for ${relative}`);
     }
   });
 });
