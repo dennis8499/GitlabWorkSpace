@@ -8177,6 +8177,39 @@ def replace_managed_block(text: str, body: str) -> str:
     return f"{text[:start]}{replacement}{text[end:]}"
 
 
+def kit_gitignore(root: Path, skills: list[str], files: dict[str, str]) -> tuple[bytes, str, bytes | None]:
+    """Merge only kit-owned paths into the workspace's existing ignore rules."""
+    begin = "# BEGIN GitLab Workspace workflow kit"
+    end = "# END GitLab Workspace workflow kit"
+    paths = {"/.agents/skills/" + name + "/" for name in skills} | {
+        "/.agents/gitlab-workspace-kit/", "/.gitlab-workspace/tool-installs/",
+        "/" + MARKER, "/" + INSTALL_LOCK,
+    } | {"/" + name for name in files if name.startswith("_bmad/")}
+    body = "\n".join(sorted(paths))
+    target = assert_safe(root, ".gitignore", allow_missing=True)
+    original = read_regular(target, FILE_LIMIT) if target.exists() else None
+    try:
+        text = (original or b"").decode("utf-8")
+    except UnicodeDecodeError:
+        fail(".gitignore must use UTF-8 so the installer can preserve existing rules.")
+    starts = list(re.finditer(r"(?m)^(?:\ufeff)?(" + re.escape(begin) + r")\r?$", text))
+    ends = list(re.finditer(r"(?m)^(" + re.escape(end) + r")\r?$", text))
+    if ((starts or ends) and
+            (len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].start())):
+        fail(".gitignore contains an incomplete or duplicate GitLab Workspace block.")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    block = begin + newline + body.replace("\n", newline) + newline + end
+    if starts:
+        start = starts[0].start(1)
+        finish = ends[0].end(1)
+        merged = text[:start] + block + text[finish:]
+    else:
+        separator = "" if not text or text.endswith(("\n", "\r", "\ufeff")) else newline
+        merged = text + separator + block + newline
+    content = merged.encode("utf-8")
+    return content, digest(body.encode("utf-8")), original
+
+
 def trusted_package(raw: dict[str, Any]) -> dict[str, Any]:
     """Match provenance, profile and Skills against one frozen package version."""
     if (not isinstance(raw, dict) or not isinstance(raw.get("files"), dict)
@@ -8901,7 +8934,7 @@ def transaction_paths(installed: dict[str, Any] | None = None,
     return set(bmad_files(installed)) | set(bmad_files(previous)) | {".agents/skills/" + name for name in names} | {
         ".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json",
         "AGENTS.md", "wiki", MARKER,
-    }
+    } | ({".gitignore"} if (installed or {}).get("gitignoreBlockSha256") else set())
 
 
 def validate_pending_recovery(root: Path, stage: Path, journal: dict[str, Any]) -> None:
@@ -9162,8 +9195,10 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             if profile == "repository":
                 payload = {name[len(f"{ROOT}/repository-payload/"):]: content for name, content in entries.items() if name.startswith(f"{ROOT}/repository-payload/")}
                 manifest = {**manifest, "files": profile_metadata["files"], "payloadSha256": profile_metadata["payloadSha256"], "overlays": {}}
+            gitignore, gitignore_hash, gitignore_original = kit_gitignore(root, manifest["skills"], manifest["files"])
             if (old_manifest and old_manifest.get("profile", "group") == profile and
                     old_manifest.get("version") == expected_version and old_manifest.get("payloadSha256") == manifest["payloadSha256"] and
+                    old_manifest.get("gitignoreBlockSha256") == gitignore_hash and gitignore == gitignore_original and
                     old_manifest.get("source") == source and old_manifest.get("archiveSha256") == archive_sha256):
                 shutil.rmtree(stage)
                 return {"ok": True, "package": PACKAGE, "version": expected_version, "status": "unchanged",
@@ -9177,6 +9212,7 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
             _, native_state_sha = native_install_files(root, native_target, has_wiki)
             candidate_payload = stage / "candidate" / "payload"
             _copy_extracted_payload(payload, candidate_payload)
+            (candidate_payload / ".gitignore").write_bytes(gitignore)
             for name, data in generated_bmad_files(root).items():
                 (candidate_payload / name).write_bytes(data)
             installed_wiki_skill = candidate_payload / ".agents/skills/codebase-wiki"
@@ -9240,11 +9276,13 @@ def install(archive: Path, archive_format: str, group_root: Path, expected_versi
                 "skills": manifest["skills"],
                 "files": installed_files,
                 "agentBlockSha256": digest((native_block or "").encode("utf-8")),
+                "gitignoreBlockSha256": gitignore_hash,
                 "wikiInstallStateSha256": native_state_sha,
             }
             manifest_target = candidate_payload / "tool-manifest.json"
             _atomic_json(manifest_target, expected_installed)
-            operations = build_operations(root, stage, candidate_payload, old_manifest, expected_installed)
+            operations = build_operations(root, stage, candidate_payload, old_manifest, expected_installed,
+                                          gitignore_previous_sha256=digest(gitignore_original) if gitignore_original is not None else None)
             changed = [o["path"] for o in operations if not o["hadPrevious"] or
                        o.get("expectedPreviousSha256") != o["newSha256"]]
             if dry_run or not changed:
@@ -9359,7 +9397,7 @@ def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
 
 
 def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[str, Any] | None,
-                     installed: dict[str, Any]) -> list[dict[str, Any]]:
+                     installed: dict[str, Any], *, gitignore_previous_sha256: str | None) -> list[dict[str, Any]]:
     operations: list[dict[str, Any]] = []
     old_skill_names = set(old_manifest.get("skills", [])) if old_manifest else set()
     skill_root = payload / ".agents/skills"
@@ -9386,7 +9424,7 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
         fail("The staged GitLab Workspace block does not match the install record.")
 
     relative_paths = [(skill.relative_to(payload).as_posix(), skill.relative_to(payload).as_posix()) for skill in new_skills]
-    relative_paths += [(relative, relative) for relative in (".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json", "AGENTS.md")]
+    relative_paths += [(relative, relative) for relative in (".agents/gitlab-workspace-kit", "Codex.md", ".codex/config.toml", ".codex/hooks.json", "AGENTS.md", ".gitignore")]
     for relative in sorted(set(bmad_files(installed)) | set(bmad_files(old_manifest))):
         destination = assert_safe(root, relative, allow_missing=True)
         if destination.exists() and relative not in bmad_files(old_manifest):
@@ -9403,6 +9441,10 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
         if source_path is not None and not source_path.exists():
             continue
         destination = assert_safe(root, relative, allow_missing=True)
+        if relative == ".gitignore" and (
+                destination.exists() != (gitignore_previous_sha256 is not None) or
+                destination.exists() and _action_hash(destination) != gitignore_previous_sha256):
+            fail(".gitignore changed during preflight; preserving it. Please retry installation.")
         bundle_owned = relative.startswith((".agents/skills/", "_bmad/")) or relative == ".agents/gitlab-workspace-kit"
         if destination.exists() and bundle_owned and not old_manifest:
             fail(f"A bundle-managed path already exists; refusing to overwrite it: {relative}")
@@ -9413,7 +9455,7 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
         staged_input.parent.mkdir(parents=True, exist_ok=True)
         if source_path is not None:
             os.replace(source_path, staged_input)
-        previous_present = destination.exists()
+        previous_present = (gitignore_previous_sha256 is not None) if relative == ".gitignore" else destination.exists()
         operation: dict[str, Any] = {
             "kind": "path", "path": relative, "backup": f"backups/{ordinal:05d}",
             "incoming": incoming, "hadPrevious": previous_present,
@@ -9441,7 +9483,7 @@ def build_operations(root: Path, stage: Path, payload: Path, old_manifest: dict[
             operation["expectedPreviousSha256"] = digest(json.dumps(
                 owned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
         elif previous_present:
-            operation["expectedPreviousSha256"] = _action_hash(destination)
+            operation["expectedPreviousSha256"] = gitignore_previous_sha256 if relative == ".gitignore" else _action_hash(destination)
         operations.append(operation)
     return operations
 

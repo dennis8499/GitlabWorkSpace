@@ -197,6 +197,174 @@ class ProfileTests(unittest.TestCase):
                     self.assertEqual(config.encode("utf-8"), config_path.read_bytes())
                     self.assertEqual(original_hooks, hooks_path.read_bytes())
 
+    def test_profiles_gitignore_bundle_files_and_keep_personal_content_versionable(self):
+        preserved = {
+            "_bmad/custom/config.toml": b"# Team configuration\n",
+            "_bmad/render/personal.md": b"Personal rendering\n",
+            "_bmad/memory/personal.md": b"Personal memory\n",
+            "_bmad/_memory/personal.md": b"Personal memory\n",
+            "_bmad-output/planning-artifacts/personal.md": b"Project planning\n",
+        }
+        for relative, content in preserved.items():
+            path = self.repo / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        for profile in ("group", "repository"):
+            with self.subTest(profile=profile):
+                installed = self.installed(profile)
+                marker = json.loads((self.repo / MARKER).read_bytes())
+                ignored = sorted(set(marker["files"]) | {
+                    MARKER, installed["transaction"], ".workflow-kit-install.lock",
+                    ".gitlab-workspace/tool-installs/future/transaction.json",
+                })
+                versionable = [
+                    ".gitignore", "AGENTS.md", "Codex.md", ".codex/config.toml", ".codex/hooks.json",
+                    ".codex/preferences.toml", ".agents/skills/personal-helper/SKILL.md",
+                    "wiki/index.md", "docs/work/previous-work/workflow.md",
+                    "review-reports/previous/report.md", "_bmad/personal.md",
+                    ".gitlab-workspace/personal-settings.json",
+                    "child/.agents/skills/output-style/SKILL.md",
+                    "child/_bmad/config.toml", *preserved,
+                ]
+                result = subprocess.run(
+                    ["git", "-C", str(self.repo), "check-ignore", "--no-index", "-z", "--stdin"],
+                    input="\0".join(ignored + versionable) + "\0", capture_output=True,
+                    text=True, encoding="utf-8", check=False,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(set(ignored), set(result.stdout.rstrip("\0").split("\0")))
+                self.assert_preserved()
+                for relative, content in preserved.items():
+                    self.assertEqual(content, (self.repo / relative).read_bytes(), relative)
+
+    def test_existing_gitignore_bytes_and_rules_survive_install_and_rollback(self):
+        originals = (
+            b"\xef\xbb\xbf# Personal rules\r\n/personal-build/\r\n",
+            b"# Personal rules\n/personal-build/\n",
+            b"# Personal rules\n/personal-build/",
+            b"# Example: # BEGIN GitLab Workspace workflow kit\n/personal-build/\n# Example: # END GitLab Workspace workflow kit\n",
+        )
+        ignore = self.repo / ".gitignore"
+        for original in originals:
+            with self.subTest(original=original):
+                ignore.write_bytes(original)
+                before = self.snapshot(self.repo)
+                installed = self.installed()
+                combined = ignore.read_bytes()
+                self.assertTrue(combined.startswith(original))
+                self.assertEqual(1, combined.splitlines().count(b"# BEGIN GitLab Workspace workflow kit"))
+                self.assertEqual(1, combined.splitlines().count(b"# END GitLab Workspace workflow kit"))
+                self.assertEqual("personal-build/output.txt",
+                                 self.git("check-ignore", "--no-index", "personal-build/output.txt"))
+                after = self.snapshot(self.repo)
+                result, repeated = self.apply()
+                self.assertEqual(0, result.returncode, repeated)
+                self.assertEqual("unchanged", repeated["status"])
+                self.assertEqual([], repeated["changed_paths"])
+                self.assertEqual(after, self.snapshot(self.repo))
+                result, rolled = self.execute("rollback", self.repo, installed["transaction"])
+                self.assertEqual(0, result.returncode, rolled)
+                self.assertEqual(original, ignore.read_bytes())
+                self.assertEqual(before, self.snapshot(self.repo))
+
+    def test_gitignore_preflight_rejects_concurrent_create_edit_and_delete_before_applying(self):
+        spec = importlib.util.spec_from_file_location("kit_gitignore_preflight", harness.INSTALLER)
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        prepare = module.prepare_native_wiki
+        ignore = self.repo / ".gitignore"
+        changes = (
+            (None, b"# Created during preflight\r\n/concurrent-build/\r\n"),
+            (b"/personal-build/\n", b"/personal-build/\n/concurrent-build/\n"),
+            (b"/personal-build/\n", None),
+        )
+        for original, concurrent in changes:
+            with self.subTest(original=original, concurrent=concurrent):
+                ignore.unlink(missing_ok=True)
+                if original is not None:
+                    ignore.write_bytes(original)
+                expected = self.snapshot(self.repo)
+                if concurrent is None:
+                    expected.pop(".gitignore")
+                else:
+                    expected[".gitignore"] = concurrent
+                def edit_during_preflight(*args):
+                    prepared = prepare(*args)
+                    if concurrent is None:
+                        ignore.unlink()
+                    else:
+                        ignore.write_bytes(concurrent)
+                    return prepared
+                with mock.patch.object(module, "prepare_native_wiki", side_effect=edit_during_preflight), \
+                     mock.patch.object(module, "_apply_operations") as apply:
+                    with self.assertRaisesRegex(module.KitError, r"\.gitignore changed during preflight"):
+                        module.install(ARCHIVE, "tar.xz", self.repo, VERSION, "bundled", "workflow-kit",
+                                       hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), profile="repository")
+                    apply.assert_not_called()
+                self.assertEqual(expected, self.snapshot(self.repo))
+
+    def test_same_version_install_adds_missing_legacy_gitignore_and_then_is_unchanged(self):
+        self.installed()
+        marker_path = self.repo / MARKER
+        marker = json.loads(marker_path.read_bytes())
+        marker.pop("gitignoreBlockSha256")
+        marker_path.write_text(json.dumps(marker, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        ignore = self.repo / ".gitignore"
+        ignore.unlink()
+        before = self.snapshot(self.repo)
+        installed = self.installed()
+        self.assertTrue(installed["applied"])
+        self.assertIn(".gitignore", installed["changed_paths"])
+        self.assertEqual(1, ignore.read_bytes().count(b"# BEGIN GitLab Workspace workflow kit"))
+        after = self.snapshot(self.repo)
+        result, repeated = self.apply()
+        self.assertEqual(0, result.returncode, repeated)
+        self.assertEqual("unchanged", repeated["status"])
+        self.assertEqual(after, self.snapshot(self.repo))
+        result, rolled = self.execute("rollback", self.repo, installed["transaction"])
+        self.assertEqual(0, result.returncode, rolled)
+        self.assertFalse(ignore.exists())
+        self.assertEqual(before, self.snapshot(self.repo))
+
+    def test_rollback_preserves_later_gitignore_edits_without_changing_other_files(self):
+        ignore = self.repo / ".gitignore"
+        ignore.write_bytes(b"/personal-build/\n")
+        installed = self.installed()
+        ignore.write_bytes(ignore.read_bytes() + b"\n/later-user-rule/\n")
+        before = self.snapshot(self.repo)
+        result, _ = self.execute("rollback", self.repo, installed["transaction"])
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(before, self.snapshot(self.repo))
+
+    def test_same_version_install_refreshes_only_the_existing_gitignore_block(self):
+        ignore = self.repo / ".gitignore"
+        prefix = b"# Personal rules\r\n/personal-build/\r\n"
+        suffix = b"\r\n# Later personal rules\r\n/manual-build/\r\n"
+        ignore.write_bytes(prefix)
+        self.installed()
+        stale = ignore.read_bytes().replace(b"/.agents/skills/output-style/", b"/obsolete-kit-skill/") + suffix
+        ignore.write_bytes(stale)
+        before = self.snapshot(self.repo)
+        installed = self.installed()
+        self.assertTrue(installed["applied"])
+        self.assertIn(".gitignore", installed["changed_paths"])
+        refreshed = ignore.read_bytes()
+        self.assertTrue(refreshed.startswith(prefix))
+        self.assertTrue(refreshed.endswith(suffix))
+        self.assertNotIn(b"/obsolete-kit-skill/", refreshed)
+        self.assertEqual(1, refreshed.count(b"# BEGIN GitLab Workspace workflow kit"))
+        self.assertEqual(".agents/skills/output-style/SKILL.md",
+                         self.git("check-ignore", "--no-index", ".agents/skills/output-style/SKILL.md"))
+        self.assertEqual("manual-build/output.txt",
+                         self.git("check-ignore", "--no-index", "manual-build/output.txt"))
+        after = self.snapshot(self.repo)
+        result, repeated = self.apply()
+        self.assertEqual(0, result.returncode, repeated)
+        self.assertEqual("unchanged", repeated["status"])
+        self.assertEqual(after, self.snapshot(self.repo))
+        result, rolled = self.execute("rollback", self.repo, installed["transaction"])
+        self.assertEqual(0, result.returncode, rolled)
+        self.assertEqual(before, self.snapshot(self.repo))
+
     def test_unreviewed_old_payload_is_rejected_without_replacing_project_files(self):
         self.installed()
         marker = self.repo / MARKER
