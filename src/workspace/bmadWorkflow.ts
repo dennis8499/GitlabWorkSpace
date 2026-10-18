@@ -235,7 +235,7 @@ function stepStatus(artifacts: BmadArtifact[], node: BmadCatalogNode): { status:
 }
 
 /** Detect real Codex integration files without invoking or modifying any installed tool. */
-async function readCodexSkills(root: string, nodes: BmadCatalogNode[], reader: Reader, signal?: AbortSignal): Promise<BmadWorkflowSnapshot['codex']> {
+async function readCodexSkills(root: string, nodes: BmadCatalogNode[], reader: Reader, signal?: AbortSignal, watchDirectories?: string[]): Promise<BmadWorkflowSnapshot['codex']> {
   const directory = path.join(root, '.agents', 'skills');
   const expected = [...new Set(['bmad-help', ...nodes.map(node => node.skill)])].sort();
   const candidates = new Set(expected);
@@ -255,6 +255,8 @@ async function readCodexSkills(root: string, nodes: BmadCatalogNode[], reader: R
   const skills: string[] = [];
   for (const skill of candidates) {
     signal?.throwIfAborted();
+    const skillDirectory = path.join(directory, skill);
+    if (inside(root, skillDirectory)) watchDirectories?.push(skillDirectory);
     const before = skills.length;
     const data = await reader.read(path.join(directory, skill, 'SKILL.md'));
     if (data?.content.trim()) skills.push(skill);
@@ -288,7 +290,9 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
   if (snapshot.root && readableRoot) {
     options.signal?.throwIfAborted();
     const root = snapshot.root; const reader = makeReader(root, diagnostics, options.maxArtifactBytes ?? 1024 * 1024, options.signal, options.cache);
-    snapshot.watchDirectories = [root, path.join(root, '_bmad'), path.join(root, '_bmad', '_config'), path.join(root, '_bmad', 'custom'), path.join(root, '.agents', 'skills')];
+    snapshot.watchDirectories = [root, path.join(root, '_bmad'), path.join(root, '_bmad', '_config'), path.join(root, '_bmad', 'custom'),
+      path.join(root, '_bmad', 'scripts'), path.join(root, '.agents'), path.join(root, '.agents', 'skills'),
+      ...CONFIG_PATHS.map(name => path.dirname(path.join(root, name)))];
     const manifestFile = path.join(root, '_bmad', '_config', 'manifest.yaml');
     const manifest = await reader.read(manifestFile);
     let runtimePresent = false;
@@ -324,7 +328,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
       }
       if (snapshot.installation.state === 'ready') await readProgress(snapshot, options, reader);
     }
-    snapshot.codex = await readCodexSkills(root, snapshot.catalogSource === 'installed' ? snapshot.nodes : [], reader, options.signal);
+    snapshot.codex = await readCodexSkills(root, snapshot.catalogSource === 'installed' ? snapshot.nodes : [], reader, options.signal, snapshot.watchDirectories);
   }
   const phaseOrder = ['plan', '2-planning', 'ship', 'anytime'];
   const phaseIds = [...new Set(snapshot.nodes.map(node => node.phase))].sort((a, b) => { const ai = phaseOrder.indexOf(a), bi = phaseOrder.indexOf(b); return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi); });
@@ -411,6 +415,7 @@ async function readProgress(snapshot: BmadWorkflowSnapshot, options: ReadBmadWor
           if (++scannedDirectories > 256) { reader.diagnostic('scan-limit', '輸出掃描達 256 個目錄上限。', current); return; }
           const stat = await fs.lstat(current);
           if (stat.isSymbolicLink() || !stat.isDirectory() || !inside(root, await fs.realpath(current))) { reader.diagnostic('unsafe-directory', '略過符號連結或專案外輸出目錄。', current); return; }
+          snapshot.watchDirectories.push(current);
           const entries = await fs.readdir(current, { withFileTypes: true });
           for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
             options.signal?.throwIfAborted();

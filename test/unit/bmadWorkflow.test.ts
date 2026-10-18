@@ -128,6 +128,17 @@ test('external CLI installation is detected without Workflow Kit and validates a
   });
 });
 
+test('directory observation covers runtime, Skill leaves and every discovered nested artifact directory', async () => {
+  await fixture(async (root, write) => {
+    await write('_bmad-output/implementation-artifacts/nested/spec-feature.md', md('draft'));
+    const snapshot = await read(root);
+    for (const relative of ['_bmad/scripts', '.agents', '.agents/skills', '.agents/skills/bmad-build',
+      '_bmad-output/implementation-artifacts/nested']) {
+      assert.ok(snapshot.watchDirectories.includes(path.join(root, relative)), `Missing direct observation for ${relative}`);
+    }
+  });
+});
+
 test('missing, interrupted, malformed and restored installation states remain distinct', async () => {
   await fixture(async (root, write) => {
     await fs.unlink(path.join(root, '_bmad/_config/manifest.yaml'));

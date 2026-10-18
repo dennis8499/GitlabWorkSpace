@@ -95,7 +95,7 @@ test('BMAD loads installed progress offline from the selected root and resolves 
   assert.equal(first.root, await fs.realpath(f.root));
   assert.equal(f.host.projectContext.root, first.root);
   assert.equal(first.installation.state, 'ready');
-  assert.equal(watches.find(watch => watch.base === first.root)?.pattern, '**/*', 'The stable root watcher must cover newly created output descendants');
+  assert.equal(watches.find(watch => watch.base === first.root)?.pattern, '*', 'Root discovery must not subsume the narrower native directory registrations');
   configuredRoots.set(uri(f.root).toString(), '../second');
   const next = await f.refresh();
   assert.equal(next.root, await fs.realpath(f.second));

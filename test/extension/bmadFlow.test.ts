@@ -58,7 +58,7 @@ suite('BMAD dynamic artifact progress', () => {
         assert.deepEqual(errors, [], 'Controller must not publish filesystem refresh errors');
         await pause(25);
       }
-      assert.ok(check(), `${label}; observed=${JSON.stringify({ root: controller?.snapshot?.root, status: prdStatus(controller?.snapshot), events: rawEvents.slice(-8), errors })}`);
+      assert.ok(check(), `${label}; observed=${JSON.stringify({ root: controller?.snapshot?.root, status: prdStatus(controller?.snapshot), events: rawEvents.slice(-8), watchers: [...activeWatchers.values()], latencies, errors })}`);
     }
     async function observedTransition(label: string, mutate: () => Promise<void>, check: () => boolean): Promise<void> {
       const started = performance.now();
@@ -75,7 +75,7 @@ suite('BMAD dynamic artifact progress', () => {
       controller = new BmadWorkflowController({
         bundledCatalog: async () => catalog,
         watch: (directory, changed) => {
-          const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '**/*'));
+          const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '*'));
           createdWatchers++; activeWatchers.set(watcher, directory);
           const onEvent = (uri: vscode.Uri) => { rawEvents.push({ path: uri.fsPath, time: performance.now() }); changed(uri.fsPath); };
           const subscriptions = [watcher.onDidCreate(onEvent), watcher.onDidChange(onEvent), watcher.onDidDelete(onEvent)];

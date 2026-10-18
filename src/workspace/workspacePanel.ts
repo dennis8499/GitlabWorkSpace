@@ -2759,10 +2759,9 @@ export class WorkspacePanel implements vscode.Disposable {
       bundledCatalog: () => readFile(vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'bmad', 'bmad-help.csv').fsPath, 'utf8'),
       watch: (directory, changed) => {
         if (!vscode.workspace.createFileSystemWatcher) return { dispose: () => undefined };
-        // Keep recursive coverage at the existing root while newly created output
-        // folders acquire their own native registrations. The controller filters
-        // unrelated paths before scheduling a read.
-        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '**/*'));
+        // Observe discovered directories individually. VS Code coalesces
+        // overlapping recursive watches, which can hide newly created subtrees.
+        const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(directory), '*'));
         const onEvent = (uri: vscode.Uri) => changed(uri.fsPath);
         const subscriptions = [watcher.onDidCreate(onEvent), watcher.onDidChange(onEvent), watcher.onDidDelete(onEvent)];
         return { dispose: () => { subscriptions.forEach(subscription => subscription.dispose()); watcher.dispose(); } };

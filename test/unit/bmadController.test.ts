@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import path from 'node:path';
+import { mkdtemp, mkdir, realpath, rm, symlink, unlink } from 'node:fs/promises';
+import os from 'node:os';
 import { BmadWorkflowController } from '../../src/workspace/bmadWorkflowController';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
@@ -288,7 +290,7 @@ test('watch registration failure stays visible, preserves existing coverage and 
   } finally { controller.dispose(); }
 });
 
-test('new directories bind after creation and catch a change missed during native registration without polling', async () => {
+test('new directories catch changes during native registration and stop after settling', async () => {
   const root = path.resolve('/project'), skills = path.join(root, '.agents', 'skills');
   let created = false, deleted = false, reads = 0;
   const f = fixture(async () => {
@@ -311,8 +313,12 @@ test('new directories bind after creation and catch a change missed during nativ
     await new Promise(resolve => setTimeout(resolve, 220));
     assert.equal(f.controller.snapshot?.revision, 'deleted');
     assert.equal(reads, 3);
+    deleted = false; // A second edit can still precede native readiness.
+    await new Promise(resolve => setTimeout(resolve, 550));
+    assert.equal(f.controller.snapshot?.revision, 'ready');
+    assert.equal(reads, 4);
     await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(reads, 3, 'The catch-up must stop after the new bindings settle');
+    assert.equal(reads, 4, 'The catch-up must stop after the new bindings settle');
   } finally { f.controller.dispose(); }
 });
 
@@ -330,6 +336,32 @@ test('a late directory probe cannot attach watchers to a project that has been r
     assert.equal(f.controller.snapshot?.root, '/new');
     assert.deepEqual(f.watchers.map(watcher => watcher.directory), ['/new']);
   } finally { f.controller.dispose(); }
+});
+
+test('directory probes never bind through an ancestor link outside the selected project', async () => {
+  const temporary = await realpath(await mkdtemp(path.join(os.tmpdir(), 'bmad-watch-scope-')));
+  const root = path.join(temporary, 'project'), outside = path.join(temporary, 'outside');
+  const linked = path.join(root, 'linked');
+  const watched: string[] = [];
+  let controller: BmadWorkflowController | undefined;
+  try {
+    await mkdir(root); await mkdir(path.join(outside, 'nested'), { recursive: true });
+    await symlink(outside, linked, process.platform === 'win32' ? 'junction' : 'dir');
+    controller = new BmadWorkflowController({
+      bundledCatalog: async () => 'catalog',
+      read: async () => ({ ...snapshot(root), watchDirectories: [root, path.join(linked, 'nested')] }),
+      watch: directory => { watched.push(directory); return { dispose: () => undefined }; },
+      changed: () => undefined, error: message => assert.fail(message)
+    });
+    controller.setContext(root, 'project', true);
+    await controller.refresh();
+    assert.deepEqual(watched, [root]);
+  } finally {
+    controller?.dispose();
+    await unlink(linked).catch(() => undefined);
+    assert.ok(path.basename(temporary).startsWith('bmad-watch-scope-'));
+    await rm(temporary, { recursive: true, force: true });
+  }
 });
 
 test('read failure retains progress but publishes current installation diagnostics', async () => {

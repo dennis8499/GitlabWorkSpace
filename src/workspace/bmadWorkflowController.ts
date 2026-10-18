@@ -2,7 +2,7 @@ import type { BmadWorkflowSnapshot } from './bmadProtocol';
 import { BmadReadCache, readBmadWorkflow } from './bmadWorkflow';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import { lstat } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 
 interface Disposable { dispose(): void }
 interface ControllerOptions {
@@ -23,6 +23,7 @@ export class BmadWorkflowController implements Disposable {
   private generation = 0;
   private readonly watchers = new Map<string, Disposable>();
   private refreshTimer?: ReturnType<typeof setTimeout>;
+  private registrationTimer?: ReturnType<typeof setTimeout>;
   private pending?: { generation: number; task: Promise<void> };
   private value?: BmadWorkflowSnapshot;
   private catalog?: Promise<string>;
@@ -68,9 +69,13 @@ export class BmadWorkflowController implements Disposable {
 
   private current(generation: number): boolean { return !this.disposed && this.visible && generation === this.generation; }
 
-  private async existingDirectories(directories: string[]): Promise<string[]> {
+  private async existingDirectories(directories: string[], root?: string): Promise<string[]> {
     const exists = this.options.directoryExists ?? (async (directory: string): Promise<boolean> => {
-      try { return (await lstat(directory)).isDirectory(); }
+      try {
+        if (!root || !(await lstat(directory)).isDirectory()) return false;
+        const relative = path.relative(root, await realpath(directory));
+        return !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`);
+      }
       catch (error) {
         if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return false;
         throw error;
@@ -108,7 +113,7 @@ export class BmadWorkflowController implements Disposable {
       // VS Code ignores native registrations whose base does not exist yet.
       // Keep planned paths in the snapshot for event filtering, and bind them
       // only after discovery confirms their directories have been created.
-      const directories = await this.existingDirectories(snapshot.watchDirectories);
+      const directories = await this.existingDirectories(snapshot.watchDirectories, snapshot.root);
       if (!this.current(generation)) return;
       const newBindings = this.watchers.size > 0 && directories.some(directory => !this.watchers.has(directory));
       const lastSuccessfulAt = this.value?.observation.lastSuccessfulAt;
@@ -124,10 +129,16 @@ export class BmadWorkflowController implements Disposable {
         : { state: this.root ? 'watching' : 'paused', lastSuccessfulAt: snapshot.observedAt ?? new Date().toISOString() } };
       this.options.changed();
       if (newBindings && !failure) {
-        // Native registration is asynchronous. One bounded catch-up closes the
-        // first-event gap without leaving an idle polling loop behind.
+        // VS Code has no registration-ready event. Reconcile once immediately
+        // and once after the native registrations settle, then stop completely.
         this.readCache.clear();
         this.scheduleRefresh(false);
+        if (this.registrationTimer) clearTimeout(this.registrationTimer);
+        this.registrationTimer = setTimeout(() => {
+          this.registrationTimer = undefined;
+          this.readCache.clear();
+          this.scheduleRefresh();
+        }, 500);
       }
     } catch (error) {
       if (signal.aborted || !this.current(generation)) return;
@@ -184,6 +195,8 @@ export class BmadWorkflowController implements Disposable {
     this.watchers.clear();
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
+    if (this.registrationTimer) clearTimeout(this.registrationTimer);
+    this.registrationTimer = undefined;
   }
 
   dispose(): void {
