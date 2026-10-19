@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, legacyWikiInputs,
+import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, legacyWikiInputs, resolveReviewerRepository,
   restoreSkillGuideState, skillGuideTools, getSkillGuideFields, getSkillGuideCards } from '../../src/webview/skillsGuideData';
 
 const context = { groupRoot: 'C:\\工作區 with spaces', workflowKitVersion: '0.15.0', repositories: [
@@ -130,4 +130,44 @@ test('removed review modes migrate with explicit branch confirmation and preserv
   assert.deepEqual(restoreSkillGuideState(state), state);
   delete state.inputs['merge-repo.confirmationRequired'];
   assert.equal(canCopySkillPrompt(getSkillGuideCard('merge-reviewer'), state.inputs), true);
+});
+
+test('reviewer Repo resolution prefers paths and accepts only unique saved names', () => {
+  const repositories = [
+    { name: 'service', path: 'C:/team-a/service' },
+    { name: 'service', path: 'C:/team-b/service' },
+    { name: 'consumer', path: 'C:/team-b/consumer' }
+  ];
+  assert.equal(resolveReviewerRepository('service', repositories), undefined);
+  assert.equal(resolveReviewerRepository('C:\\TEAM-B\\service\\', repositories), repositories[1]);
+  assert.equal(resolveReviewerRepository(' consumer ', repositories), repositories[2]);
+  assert.equal(resolveReviewerRepository('C:/removed/service', repositories), undefined);
+  assert.equal(resolveReviewerRepository('', repositories), undefined);
+  assert.equal(resolveReviewerRepository('/Repo', [{ name: 'repo', path: '/repo' }]), undefined);
+});
+
+test('both reviewer profiles target the selected workspace Repo and retain the declared workspace', () => {
+  const repositories = [...context.repositories, { name: 'consumer', path: 'D:/other root/consumer', defaultBranch: 'trunk' }];
+  for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
+    for (const profile of ['group', 'repository'] as const) {
+      const card = getSkillGuideCard(tool, undefined, profile);
+      assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
+      const inputs = { [`${card.id}.repo`]: 'consumer', [`${card.id}.base`]: 'main', [`${card.id}.head`]: 'feature/manual' };
+      const reviewContext = { ...context, profile, root: context.repositories[0].path, repositories,
+        workspaceRoot: 'C:/saved workspace', workspaceFile: 'C:/saved workspace/team.code-workspace' };
+      const prompt = buildSkillGuidePrompt(card, inputs, reviewContext);
+      assert.ok(prompt.includes('專案名稱："D:/other root/consumer"'));
+      assert.ok(prompt.includes('--workspace-file "C:/saved workspace/team.code-workspace"'));
+      assert.ok(prompt.includes('"feature/manual"'));
+      if (tool === 'merge-reviewer') assert.ok(prompt.includes('--project "D:/other root/consumer"'));
+      else assert.ok(prompt.includes('"defaultBranch":"trunk"'));
+      const header = buildSkillGuideContext(card, reviewContext);
+      assert.ok(header.includes('consumer → D:/other root/consumer'));
+      assert.ok(header.includes('VSCode 工作區根目錄：C:/saved workspace'));
+    }
+  }
+  const wiki = getSkillGuideCard('codebase-wiki', 'query', 'repository');
+  const header = buildSkillGuideContext(wiki, { ...context, profile: 'repository', root: context.repositories[0].path });
+  assert.match(header, /實際單一 Repo 工作區/);
+  assert.doesNotMatch(header, /consumer/);
 });

@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir, readdir, lstat } from 'node:fs/promises';
+import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir, readdir, lstat, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { GitLabApiError, type GitLabClient } from '../api/gitLabClient';
@@ -42,8 +42,9 @@ import type { AccountOperation, AccountPanelIntent } from '../connection/account
 import { inspectProjectEnvironment, type GroupWorkspaceMatch } from './workspaceEnvironment';
 import { PROJECT_FOLDER_KEY, PROJECT_ROOT_SETTING, resolveProjectRootContext, selectedProjectFolder, type ProjectFolder, type ProjectRootContext } from './projectRoot';
 import { resolveSkillsContext } from './skillsContext';
-import { buildWikiGuideContext } from '../webview/codebaseWikiGuideData';
-import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards } from '../webview/skillsGuideData';
+import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards, resolveReviewerRepository } from '../webview/skillsGuideData';
+import { collectReviewerRepositories } from './reviewerRepositories';
+import { readReviewerBranches } from './reviewerBranches';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
@@ -79,6 +80,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private accountLoginRequestId?: string;
   private readonly accountLoginReceipts = new Map<string, Extract<WorkspaceResponse, { type: 'accountLoginResult' }>>();
   private localWorkspaceRepositories: ScannedRepository[] = [];
+  private reviewerNativeRepositories: ScannedRepository[] = [];
+  private reviewerWorkspaceFolders?: { signature: string; folders: string[] };
   private repositoryScan: RepositoryScanState = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
   private repositoryScanAbort?: AbortController;
   private repositoryOperationAbort?: AbortController;
@@ -272,6 +275,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
     this.gitRepositoryChanges = gitRepositories?.onDidChangeRepositoryList(() => {
       this.skillBranchReads.clear();
+      this.reviewerNativeRepositories = [];
       this.gitRepositoryListDirty = true;
       this.scheduleGitRepositoryListSend();
       void this.refreshInventory();
@@ -1149,7 +1153,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'loadMergeRequestSection': await this.loadMergeRequestSection(request.section, request.projectId, request.iid); break;
       case 'postMergeRequestNote': await this.postMergeRequestNote(request.projectId, request.iid, request.body); break;
       case 'openBranchReview': await this.openBranchReview(request.projectId, request.iid); break;
-      case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision); break;
+      case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision, request.requestId); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
@@ -1726,19 +1730,30 @@ export class WorkspacePanel implements vscode.Disposable {
   private getSkillsContext(): SkillsContext {
     const current = this.workspaceMatch ?? { status: 'unverified' as const, repositories: [] };
     const workspaceFile = vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined;
-    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot]);
+    const openedFolders = (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
+    const folders = this.reviewerWorkspaceFolders?.signature === JSON.stringify(openedFolders)
+      ? this.reviewerWorkspaceFolders.folders : openedFolders;
+    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot,
+      folders, this.reviewerNativeRepositories ?? []]);
     const cached = this.skillsContextCache;
     if (cached?.signature === signature && cached.context === this.projectContext && cached.match === current &&
       cached.installed === this.skillsWorkflowKitState && cached.projects === this.projects) return cached.value;
     const projectById = new Map(this.projects.map(project => [project.id, project]));
     const match = { ...current, root: this.projectContext?.root ?? current.root, repositories: current.repositories.map(repo => ({ ...repo,
       defaultBranch: repo.projectId === undefined ? undefined : projectById.get(repo.projectId)?.default_branch?.trim() || undefined })) };
+    const nativeRepositories = (this.reviewerNativeRepositories ?? []).map(repo => {
+      const associated = this.projects.filter(project => (repo.remotes ?? []).some(remote => projectRemoteMatches(remote, project)));
+      return { name: repo.name, path: repo.path,
+        defaultBranch: associated.length === 1 ? associated[0].default_branch?.trim() || undefined : undefined };
+    });
+    const reviewerRepositories = collectReviewerRepositories(nativeRepositories,
+      current.status === 'matched' ? match.repositories : [], folders);
     const installed = match.root && this.skillsWorkflowKitStateRoot && sameLocalPath(match.root, this.skillsWorkflowKitStateRoot)
       ? this.skillsWorkflowKitState : { status: 'missing' as const };
     const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision, match, installed,
-      vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined])).digest('hex');
+      vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined, reviewerRepositories])).digest('hex');
     const value = { ...resolveSkillsContext({ match, installed, expectedVersion: String(this.context.extension.packageJSON.version), revision }),
-      workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
+      reviewerRepositories, workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
         : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile };
     this.skillsContextCache = { signature, context: this.projectContext, match: current, installed: this.skillsWorkflowKitState, projects: this.projects, value };
@@ -1762,10 +1777,16 @@ export class WorkspacePanel implements vscode.Disposable {
     const previous = this.getSkillsContext();
     if (request.revision !== previous.revision) throw new Error('Skills 環境已變更，請重新確認提示詞。');
     await this.refreshWorkflowKit();
+    if (request.featureId === 'merge-repo' || request.featureId === 'release-review') await this.refreshInventory();
     const current = this.getSkillsContext();
     if (request.revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
     const card = getSkillGuideCards(current.mode === 'group' ? 'group' : 'repository').find(item => item.id === request.featureId);
     if (!card || !current.availableFeatures.includes(card.id) || !canCopySkillPrompt(card, request.inputs)) throw new Error(current.reason ?? '此功能目前無法使用。');
+    const reviewer = card.tool === 'merge-reviewer' || card.tool === 'release-reviewer';
+    const repositories = reviewer ? current.reviewerRepositories ?? [] : current.repositories;
+    const selectedRepository = reviewer ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
+    if (reviewer && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
       workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
@@ -1774,9 +1795,9 @@ export class WorkspacePanel implements vscode.Disposable {
         : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1
         && vscode.workspace.workspaceFile?.scheme !== 'file',
-      repositories: current.repositories, repositoryScanStatus: 'ready' as const };
+      repositories, repositoryScanStatus: 'ready' as const };
     this.operationPhase('copySkillGuidePrompt', '寫入剪貼簿…');
-    await vscode.env.clipboard.writeText(`${buildWikiGuideContext(context)}\n\n${buildSkillGuidePrompt(card, request.inputs, context)}`);
+    await vscode.env.clipboard.writeText(`${buildSkillGuideContext(card, context)}\n\n${buildSkillGuidePrompt(card, inputs, context)}`);
     this.post({ type: 'message', message: '已複製目前環境的 Skills 提示詞。' });
   }
 
@@ -1821,6 +1842,9 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private onWorkspaceFoldersChanged(): void {
     this.actualRepositoryScanAbort?.abort();
+    this.skillBranchReads?.clear();
+    this.reviewerNativeRepositories = [];
+    this.reviewerWorkspaceFolders = undefined;
     this.bmad?.setContext(undefined, undefined, false);
     this.projectContext = undefined;
     this.invalidateProjectRoot('正在辨識專案下載／更新位置…');
@@ -1860,16 +1884,30 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async refreshInventory(): Promise<void> {
-    if (!this.gitRepositories || this.disposed) return;
-    const generation = ++this.inventoryGeneration;
+    if (this.disposed) return;
+    const generation = this.inventoryGeneration = (this.inventoryGeneration ?? 0) + 1;
+    const openedFolders = (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
     try {
-      const registered = await this.gitRepositories.getInventory();
+      const [inventory, folders] = await Promise.all([
+        this.gitRepositories?.getInventory().then(repositories => ({ repositories }), error => ({ repositories: [] as ScannedRepository[], error }))
+          ?? Promise.resolve({ repositories: [] as ScannedRepository[] }),
+        Promise.all(openedFolders.map(folder => realpath(folder).catch(() => folder)))
+      ]);
       if (generation !== this.inventoryGeneration || this.disposed) return;
-      const inventory = new Map(this.repositoryScan.repositories.map(repository => [localPathKey(repository.path), repository]));
-      for (const repository of registered) inventory.set(localPathKey(repository.path), repository);
-      this.localWorkspaceRepositories = [...inventory.values()].sort((a, b) => a.path.localeCompare(b.path));
+      this.reviewerWorkspaceFolders = { signature: JSON.stringify(openedFolders), folders };
+      const registered = inventory.repositories;
+      this.reviewerNativeRepositories = registered;
+      const localInventory = new Map((this.repositoryScan?.repositories ?? []).map(repository => [localPathKey(repository.path), repository]));
+      for (const repository of registered) localInventory.set(localPathKey(repository.path), repository);
+      this.localWorkspaceRepositories = [...localInventory.values()].sort((a, b) => a.path.localeCompare(b.path));
+      if ('error' in inventory) this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(inventory.error) });
       this.sendSnapshot();
-    } catch (error) { this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(error) }); }
+    } catch (error) {
+      if (generation !== this.inventoryGeneration || this.disposed) return;
+      this.reviewerNativeRepositories = [];
+      this.sendSnapshot();
+      this.session.log?.record({ feature: 'projects', action: 'repositoryInventory', result: 'error', message: readableError(error) });
+    }
   }
 
   private async scanRepositories(): Promise<void> {
@@ -3417,27 +3455,24 @@ export class WorkspacePanel implements vscode.Disposable {
       notice: unique ? undefined : '此 MR 為 fork 或無法唯一對應本機 Repo。請選擇含兩個明確分支的 Repo，再準備審查。' });
   }
 
-  private async loadSkillBranches(repo: string, revision: string): Promise<void> {
+  private async loadSkillBranches(repo: string, revision: string, requestId: string): Promise<void> {
+    if (typeof requestId !== 'string' || !requestId.trim()) return;
     const skills = this.getSkillsContext();
     if (revision !== skills.revision) return;
-    const matches = skills.repositories.filter(item => item.name === repo || sameLocalPath(item.path, repo));
-    if (matches.length !== 1) { this.post({ type: 'skillBranches', revision, repo, branches: [], error: '請從本機 Repo 候選選擇唯一項目' }); return; }
-    const key = `${revision}:${matches[0].path}`;
+    const selected = resolveReviewerRepository(repo, skills.reviewerRepositories ?? []);
+    if (!selected) { this.post({ type: 'skillBranches', revision, repo, requestId, branches: [], error: '請從目前 VS Code 工作區選擇唯一的本機 Repo。' }); return; }
+    const key = `${revision}:${selected.path}`;
     let task = this.skillBranchReads.get(key);
     if (!task) {
-      task = execFileAsync(this.gitRepositories?.gitExecutable ?? 'git', ['for-each-ref', '--format=%(refname:short)', '--count=1000', 'refs/heads', 'refs/remotes'],
-        { cwd: matches[0].path, timeout: 15_000, maxBuffer: 256_000, windowsHide: true,
-          env: { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' } }).then(result => result.stdout.trim().split(/\r?\n/).filter(branch => branch && !branch.endsWith('/HEAD')));
+      task = readReviewerBranches(selected.path, this.gitRepositories?.gitExecutable ?? 'git');
       this.skillBranchReads.set(key, task);
-      void task.catch(() => this.skillBranchReads.delete(key));
-      while (this.skillBranchReads.size > 32) this.skillBranchReads.delete(this.skillBranchReads.keys().next().value!);
     }
     try {
       const branches = await task;
-      if (revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, branches });
+      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, requestId, branches });
     } catch (error) {
-      if (revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, branches: [], error: readableError(error) });
-    }
+      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, requestId, branches: [], error: readableError(error) });
+    } finally { if (this.skillBranchReads.get(key) === task) this.skillBranchReads.delete(key); }
   }
 
   private async replyMergeRequest(projectId: number, iid: number, discussionId: string, body: string): Promise<void> {

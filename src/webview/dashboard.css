@@ -99,6 +99,19 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .wiki-guide-fields { display: grid; gap: 9px; }
 .wiki-guide-field { min-width: 0; }
 .wiki-guide-field > span:first-child { color: var(--vscode-foreground); }
+.skills-branch-input { position: relative; min-width: 0; }
+.skills-branch-control { display: flex; min-width: 0; }
+.skills-branch-control input { flex: 1; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.skills-branch-control .skills-branch-toggle { flex: 0 0 34px; padding: 4px; border: 1px solid var(--vscode-input-border, var(--border)); border-left: 0; border-radius: 0 4px 4px 0; background: var(--vscode-dropdown-background, var(--surface-raised)); }
+.skills-branch-popup { position: absolute; z-index: 10; inset: calc(100% + 3px) 0 auto; border: 1px solid var(--vscode-dropdown-border, var(--border)); border-radius: 4px; background: var(--vscode-dropdown-listBackground, var(--surface-raised)); box-shadow: 0 6px 16px #0005; }
+.skills-branch-options { max-height: 220px; overflow: auto; }
+.skills-branch-options [role="option"] { padding: 7px 10px; overflow-wrap: anywhere; cursor: pointer; }
+.skills-branch-options [role="option"]:hover, .skills-branch-options [role="option"].active { color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); background: var(--vscode-list-activeSelectionBackground, var(--accent)); outline: 1px solid var(--focus); outline-offset: -1px; }
+.skills-branch-options [aria-selected="true"] { font-weight: 600; }
+.skills-branch-empty { margin: 0; padding: 9px 10px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.skills-branch-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.skills-branch-status p { flex: 1 1 240px; margin: 0; overflow-wrap: anywhere; }
+.skills-branch-refresh { flex: 0 0 auto; }
 .wiki-required { color: var(--vscode-descriptionForeground, var(--muted)); }
 .wiki-prompt-details { min-width: 0; border-top: 1px solid var(--border); padding-top: 9px; }
 .wiki-prompt-details > summary { font-size: 11px; }

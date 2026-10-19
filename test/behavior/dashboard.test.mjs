@@ -1753,9 +1753,12 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
 test('three Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
+  const data = snapshot('sa');
+  const selectedRepo = 'C:/工作區 with spaces/service';
+  data.groupRepositories = [{ name: 'service', path: selectedRepo }, { name: 'alpha', path: 'C:/workspace/team/alpha' }];
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope',
     wikiGuideInputsByScope: { 'team-scope': { 'query.question': '保留的 Wiki 問題' } },
-    wikiGuideSelectionsByScope: { 'team-scope': 'query' } }, snapshot('sa'));
+    wikiGuideSelectionsByScope: { 'team-scope': 'query' } }, data);
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   const change = async (selector, value, event = 'change') => {
@@ -1770,7 +1773,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   await change('.skills-tool-selector select', 'release-reviewer');
   assert.equal(selectedSkillFeature(document), 'release-review');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
-  await change('[id="wiki-input-release-review.repo"]', 'C:/工作區 with spaces/service', 'input');
+  await change('[id="wiki-input-release-review.repo"]', selectedRepo);
   await change('[id="wiki-input-release-review.base"]', 'origin/main', 'input');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   await change('[id="wiki-input-release-review.head"]', 'HEAD', 'input');
@@ -1789,7 +1792,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   assert.match(copy.text, /固定合併前審查/);
   assert.equal(copy.text.includes('--include-json'), false);
   assert.match(copy.text, /Checklist/);
-  assert.match(copy.text, /實際 Group 工作區/);
+  assert.match(copy.text, /VSCode 工作區根目錄：C:\/workspace\/team/);
   assert.match(copy.text, /本機實際 Git Repo/);
 
   await change('.skills-tool-selector select', 'codebase-wiki');
@@ -1803,21 +1806,25 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   groupB.connectedScope = 'another-group-scope';
   groupB.groupRoot = 'C:/workspace/another-team';
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
+  groupB.groupRepositories = [
+    { name: 'other-service', path: 'C:/workspace/another-team/other-service' },
+    { name: 'tools', path: 'C:/workspace/another-team/tools' }
+  ];
   view.sendSnapshot(groupB);
   await view.tick();
   assert.equal(selectedSkillTool(document), 'codebase-wiki');
   await change('.skills-tool-selector select', 'release-reviewer');
   assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, '');
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
-  await change('[id="wiki-input-release-review.repo"]', 'other-service', 'input');
+  await change('[id="wiki-input-release-review.repo"]', 'C:/workspace/another-team/other-service');
 
-  view.sendSnapshot(snapshot('sa'));
+  view.sendSnapshot(data);
   await view.tick();
   assert.equal(selectedSkillTool(document), 'release-reviewer');
-  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'C:/工作區 with spaces/service');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, selectedRepo);
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
-  assert.equal(view.savedState.skillsGuideByScope['another-group-scope'].inputs['release-review.repo'], 'other-service');
-  const reopened = await mount(view.savedState, snapshot('sa'));
+  assert.equal(view.savedState.skillsGuideByScope['another-group-scope'].inputs['release-review.repo'], 'C:/workspace/another-team/other-service');
+  const reopened = await mount(view.savedState, data);
   t.after(() => reopened.dom.window.close());
   assert.equal(selectedSkillTool(reopened.dom.window.document), 'release-reviewer');
   assert.equal(reopened.dom.window.document.querySelector('[id="wiki-input-release-review.head"]').value, 'feature/payment');
@@ -1834,16 +1841,185 @@ test('release guide retains multiple field inputs dispatched before the next rep
   selectSkillTool(document, 'release-reviewer');
 
   await view.tick();
-  for (const [key, value] of Object.entries({ repo: 'service', base: 'origin/main', head: 'feature/payment' })) {
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').tagName, 'SELECT');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'C:/workspace/team/alpha', 'a single candidate is selected automatically');
+  for (const [key, value] of Object.entries({ base: 'origin/main', head: 'feature/payment' })) {
     const input = document.querySelector(`[id="wiki-input-release-review.${key}"]`);
     input.value = value;
     input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   }
   await view.tick();
-  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'service');
+  assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, 'C:/workspace/team/alpha');
   assert.equal(document.querySelector('[id="wiki-input-release-review.base"]').value, 'origin/main');
   assert.equal(document.querySelector('[id="wiki-input-release-review.head"]').value, 'feature/payment');
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+});
+
+test('reviewer branch replies correlate requests across Repo switches, retries and workspace revisions', async t => {
+  for (const [tool, card] of [['merge-reviewer', 'merge-repo'], ['release-reviewer', 'release-review']]) {
+    await t.test(tool, async t => {
+      const data = snapshot('sa');
+      data.connected = false;
+      data.group = undefined;
+      setSkillsContext(data);
+      const repositories = [
+        { name: 'alpha', path: 'C:/workspace/team/alpha' },
+        { name: 'beta', path: 'C:/workspace/team/beta' }
+      ];
+      data.skillsContext.reviewerRepositories = repositories;
+      const view = await mount({ mode: 'sa' }, data); t.after(() => view.dom.window.close());
+      const document = view.dom.window.document;
+      selectSkillTool(document, tool); await view.tick();
+      const reads = () => view.requests.filter(request => request.type === 'loadSkillBranches');
+      const choose = async repo => {
+        const select = document.getElementById(`wiki-input-${card}.repo`);
+        assert.equal(select.tagName, 'SELECT');
+        select.value = repo;
+        select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+        await view.tick();
+        return reads().at(-1);
+      };
+      const reply = async (request, branches, patch = {}) => {
+        view.send({ ...request, type: 'skillBranches', branches, ...patch });
+        await view.tick();
+      };
+      const branchOptions = async () => {
+        const input = document.getElementById(`wiki-input-${card}.base`);
+        input.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+        await view.tick();
+        return [...document.querySelectorAll('[role="listbox"] [role="option"]')].map(option => option.textContent);
+      };
+      assert.equal(reads().length, 0, 'multiple Repo candidates require an explicit selection');
+      const firstA = await choose(repositories[0].path);
+      const firstB = await choose(repositories[1].path);
+      const currentA = await choose(repositories[0].path);
+      assert.equal(reads().length, 3, 'each actual Repo change starts a fresh read without GitLab connectivity');
+      for (const request of [firstA, firstB, currentA]) {
+        assert.ok(request.requestId, 'each read has a correlation ID');
+        assert.equal(request.revision, data.skillsContext.revision);
+      }
+      assert.equal(new Set([firstA.requestId, firstB.requestId, currentA.requestId]).size, 3);
+      await reply(firstA, ['stale/first-a']);
+      await reply(firstB, ['stale/first-b']);
+      assert.deepEqual(await branchOptions(), [], 'A → B → A cannot accept either earlier reply');
+      await reply(currentA, ['origin/current-a', 'feature/current-a']);
+      assert.deepEqual(await branchOptions(), ['origin/current-a', 'feature/current-a']);
+      await reply(currentA, ['stale/wrong-repo'], { repo: repositories[1].path });
+      await reply(currentA, ['stale/wrong-revision'], { revision: 'obsolete-workspace-revision' });
+      assert.deepEqual(await branchOptions(), ['origin/current-a', 'feature/current-a'], 'matching request ID also requires its Repo and workspace revision');
+
+      const base = document.getElementById(`wiki-input-${card}.base`);
+      const head = document.getElementById(`wiki-input-${card}.head`);
+      for (const [input, value] of [[base, 'origin/main'], [head, 'feature/manual']]) {
+        input.value = value;
+        input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+      }
+      await view.tick();
+      document.querySelector('.skills-branch-refresh').click(); await view.tick();
+      const retryA = reads().at(-1);
+      assert.notEqual(retryA.requestId, currentA.requestId, 'same-Repo refresh starts a distinct request');
+      assert.equal(base.value, 'origin/main');
+      assert.equal(head.value, 'feature/manual');
+      await reply(currentA, ['stale/before-refresh']);
+      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true, 'an older response cannot finish the refresh');
+      await reply(retryA, [], { error: 'Branch read failed' });
+      assert.match(document.querySelector('.skills-branch-status').textContent, /Branch read failed/);
+      assert.equal(document.querySelector('.wiki-copy-button').disabled, false, 'manual branches remain usable after a list error');
+      document.querySelector('.skills-branch-refresh').click(); await view.tick();
+      const recoveryA = reads().at(-1);
+      assert.notEqual(recoveryA.requestId, retryA.requestId);
+      await reply(recoveryA, ['origin/recovered']);
+      assert.doesNotMatch(document.querySelector('.skills-branch-status')?.textContent ?? '', /Branch read failed/);
+
+      const nextData = structuredClone(data);
+      nextData.skillsContext.revision += '-next';
+      view.sendSnapshot(nextData); await view.tick();
+      const nextRevision = reads().at(-1);
+      assert.equal(nextRevision.revision, nextData.skillsContext.revision);
+      assert.notEqual(nextRevision.requestId, recoveryA.requestId);
+      await reply(recoveryA, ['stale/old-workspace']);
+      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true, 'old-workspace replies cannot complete the new read');
+      await reply(nextRevision, ['origin/next-workspace']);
+      assert.equal(document.querySelector('.skills-branch-refresh').disabled, false);
+      assert.equal(document.getElementById(`wiki-input-${card}.base`).value, 'origin/main', 'workspace refresh retains the draft branches');
+      assert.equal(document.getElementById(`wiki-input-${card}.head`).value, 'feature/manual');
+      assert.ok(!document.querySelector('.wiki-guide-card').textContent.includes('stale/'));
+      const nextScope = { ...nextData, operationScope: 'reconnected-same-skills' };
+      view.sendSnapshot(nextScope); await view.tick();
+      const scopeRead = reads().at(-1);
+      assert.equal(scopeRead.revision, nextRevision.revision);
+      assert.notEqual(scopeRead.requestId, nextRevision.requestId, 'changing only operation scope reloads the retained Repo');
+      await reply(nextRevision, ['stale/old-operation-scope']);
+      assert.equal(document.querySelector('.skills-branch-refresh').disabled, true);
+      await reply(scopeRead, ['origin/reconnected']);
+      assert.equal(document.querySelector('.skills-branch-refresh').disabled, false);
+    });
+  }
+});
+
+test('MR branch review keeps the selected workspace Repo and carried branches in preview and copy inputs', async t => {
+  const data = snapshot('reviewer');
+  setSkillsContext(data);
+  data.skillsContext.reviewerRepositories = [
+    { name: 'alpha', path: 'C:/workspace/team/alpha' },
+    { name: 'beta', path: 'C:/workspace/team/beta' }
+  ];
+  const request = { id: 41, iid: 4, project_id: 2, title: 'Beta review', state: 'opened', source_branch: 'feature/payment', target_branch: 'main', web_url: 'https://gitlab.example.test/team/beta/-/merge_requests/4' };
+  data.mergeRequests = [request];
+  data.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [], freshness: { state: 'not_checked' },
+    sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } } };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('.reviewer-detail button')].find(button => button.textContent === '前往分支審查').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'openBranchReview'), { type: 'openBranchReview', projectId: 2, iid: 4 });
+  const inputs = { 'merge-repo.repo': 'C:/workspace/team/beta', 'merge-repo.base': 'origin/main', 'merge-repo.head': 'origin/feature/payment' };
+  view.send({ type: 'branchReviewReady', revision: 'obsolete-revision', inputs }); await view.tick();
+  assert.equal(document.querySelector('.page').dataset.mode, 'reviewer', 'an obsolete entry reply cannot change modes or inputs');
+  view.send({ type: 'branchReviewReady', revision: data.skillsContext.revision, inputs }); await view.tick();
+  assert.equal(selectedSkillTool(document), 'merge-reviewer');
+  for (const [key, value] of Object.entries(inputs)) assert.equal(document.getElementById(`wiki-input-${key}`).value, value);
+  assert.equal(view.requests.findLast(request => request.type === 'loadSkillBranches').repo, inputs['merge-repo.repo']);
+  assert.ok(document.querySelector('.wiki-prompt-preview').textContent.includes('--project "C:/workspace/team/beta"'));
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, true, 'MR branches still require the existing explicit confirmation');
+  [...document.querySelectorAll('.wiki-guide-card button')].find(button => button.textContent === '確認使用分支審查').click(); await view.tick();
+  assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
+  document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const copy = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
+  assert.equal(copy.featureId, 'merge-repo');
+  assert.equal(copy.revision, data.skillsContext.revision);
+  for (const [key, value] of Object.entries(inputs)) assert.equal(copy.inputs[key], value);
+});
+
+test('reviewer branch preflight failures settle only the current read and expose retry', async t => {
+  for (const status of ['failed', 'cancelled']) await t.test(status, async t => {
+    const data = snapshot('sa');
+    setSkillsContext(data);
+    data.skillsContext.reviewerRepositories = [{ name: 'alpha', path: 'C:/workspace/team/alpha' }];
+    const view = await mount({ mode: 'sa' }, data, {}, () => {}, { autoOperations: false });
+    t.after(() => view.dom.window.close());
+    const document = view.dom.window.document;
+    selectSkillTool(document, 'release-reviewer'); await view.tick();
+    const reads = () => view.rawRequests.filter(request => request.type === 'loadSkillBranches');
+    const first = reads().at(-1);
+    assert.ok(first?.operationId);
+    const refresh = () => document.querySelector('.skills-branch-refresh');
+    view.receipt({ ...first, operationId: 'unrelated-branch-operation' }, { status, error: 'Unrelated failure' }); await view.tick();
+    assert.equal(refresh().disabled, true, 'an unrelated terminal receipt cannot finish the active read');
+    view.receipt({ ...first, operationScope: 'obsolete-operation-scope' }, { status, correlationId: first.requestId, error: 'Old scope failure' }); await view.tick();
+    assert.equal(refresh().disabled, true, 'even matching correlation cannot settle a read from another operation scope');
+    view.receipt(first, { status, correlationId: first.requestId, error: 'Preflight rejected' }); await view.tick();
+    assert.equal(refresh().disabled, false, 'a matching failure releases the branch retry control without a domain reply');
+    assert.match(document.querySelector('.skills-branch-status').textContent, /Preflight rejected/);
+    refresh().click(); await view.tick();
+    const retry = reads().at(-1);
+    assert.notEqual(retry.operationId, first.operationId);
+    assert.notEqual(retry.requestId, first.requestId);
+    view.receipt(first, { status, correlationId: first.requestId, error: 'Delayed old failure' }); await view.tick();
+    assert.equal(refresh().disabled, true, 'an old read receipt cannot cancel its replacement');
+    view.send({ type: 'skillBranches', repo: retry.repo, requestId: retry.requestId, revision: retry.revision, branches: ['main'] }); await view.tick();
+    assert.equal(refresh().disabled, false);
+    assert.doesNotMatch(document.querySelector('.skills-branch-status').textContent, /Preflight rejected|Delayed old failure|Unrelated failure/);
+  });
 });
 
 

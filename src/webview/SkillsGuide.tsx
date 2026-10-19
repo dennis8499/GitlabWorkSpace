@@ -2,14 +2,14 @@
 import type { JSX } from 'preact';
 import { useContext, useEffect, useRef } from 'preact/hooks';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
-import { buildWikiGuideContext } from './codebaseWikiGuideData';
 import { OperationFeedback } from './OperationFeedback';
 import { ActionController } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';
 import { reportLocalFeedback } from './notificationFeedback';
+import { BranchInput, type BranchReadStatus } from './BranchInput';
 const fallbackActions = new ActionController(() => {});
-import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
-  getSkillGuideCards, getSkillGuideFields, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
+import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
+  getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
 
 const wikiGroups = [
   { title: '閱讀與探索', ids: ['query', 'functional-exploration', 'audit', 'archaeology'] },
@@ -19,7 +19,7 @@ const wikiGroups = [
 ];
 
 export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, kitInstalled, skillsContext,
-  branchCandidates = [], onLoadBranches, branchError, operationScope, ...context }: SkillGuideContext & {
+  branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
@@ -28,6 +28,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   onOpenCodex?: () => void;
   onLoadBranches?: (repo: string) => void;
   branchCandidates?: string[];
+  branchStatus?: BranchReadStatus;
+  reviewerRepositories?: SkillGuideContext['repositories'];
   branchError?: string;
   operationScope?: string;
   kitInstalled: boolean;
@@ -37,17 +39,28 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   const tool = skillGuideTools.some(item => item.id === state.tool) ? state.tool : 'codebase-wiki';
   const card = getSkillGuideCard(tool, state.selections[tool], profile);
   const available = skillsContext ? skillsContext.availableFeatures.includes(card.id) : !!context.groupRoot && kitInstalled;
-  const repo = profile === 'repository' ? context.root ?? '' : state.inputs[`${card.id}.repo`] ?? '';
+  const reviewer = tool === 'merge-reviewer' || tool === 'release-reviewer';
+  const repositories = reviewerRepositories ?? context.repositories;
+  const repoInput = state.inputs[`${card.id}.repo`] ?? '';
+  const selectedRepo = reviewer ? resolveReviewerRepository(repoInput, repositories) : undefined;
+  const repo = selectedRepo?.path;
   const actions = useContext(ActionContext) ?? fallbackActions;
   const copyPending = useActionSelector(actions, operations => operations.some(operation =>
     (operation.lockKey === 'global:clipboard' || operation.action?.startsWith('copy'))
     && (!operationScope || operation.scopeRevision === operationScope)
     && (operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown')));
   useEffect(() => {
-    if (available && (tool === 'merge-reviewer' || tool === 'release-reviewer') && repo.trim()) onLoadBranches?.(repo);
-  }, [tool, repo, skillsContext?.revision, available]);
+    if (!reviewer) return;
+    const candidate = selectedRepo ?? (!repoInput && repositories.length === 1 ? repositories[0] : undefined);
+    if (candidate && repoInput !== candidate.path) onChange(current => ({ ...current,
+      inputs: { ...current.inputs, [`${card.id}.repo`]: candidate.path } }));
+  }, [reviewer, card.id, repoInput, repo, repositories]);
+  useEffect(() => {
+    if (reviewer && repo) onLoadBranches?.(repo);
+  }, [tool, repo, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
-  try { prompt = `${buildWikiGuideContext(context)}\n\n${buildSkillGuidePrompt(card, state.inputs, context)}`; }
+  const promptContext = reviewer ? { ...context, repositories } : context;
+  try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
   const reportedPromptError = useRef('');
   useEffect(() => {
@@ -63,7 +76,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
     reportLocalFeedback(notice => actions.dispatch(notice), fixedErrors.includes(promptError) ? promptError : '無法產生 Skills 提示詞，請檢查工作區與欄位後重試。',
       { title: 'Skills 提示詞', context: { operationScope } });
   }, [actions, operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
-  const ready = available && context.repositoryScanStatus === 'ready' && !promptError && canCopySkillPrompt(card, state.inputs);
+  const ready = available && context.repositoryScanStatus === 'ready' && (!reviewer || !!selectedRepo) && !promptError && canCopySkillPrompt(card, state.inputs);
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
     : !kitInstalled ? '請先安裝或更新工作流程包。'
     : !available ? '目前安裝版本未提供此功能，請更新 Skills。' : context.repositoryScanStatus !== 'ready' ? '正在辨識本機 Repo…' : '');
@@ -100,15 +113,33 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
           const key = `${card.id}.${item.id}`, value = state.inputs[key] ?? item.defaultValue ?? '';
           const onInput = (value: string) => onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: value } }));
           let control: JSX.Element;
-          if (item.kind === 'select') control = <select id={`wiki-input-${key}`} value={value} onChange={event => onInput(event.currentTarget.value)}>{item.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>;
+          if (reviewer && item.id === 'repo') control = <select id={`wiki-input-${key}`} value={repo ?? value} required={item.required}
+            onChange={event => {
+              const nextRepo = event.currentTarget.value;
+              onChange(current => ({ ...current, inputs: { ...current.inputs, [key]: nextRepo,
+                [`${card.id}.base`]: '', [`${card.id}.head`]: '' } }));
+            }}>
+            <option value="">{repositories.length ? '請選擇 VSCode 工作區中的 Repo' : '目前 VSCode 工作區尚未找到 Repo'}</option>
+            {value && !selectedRepo && <option value={value} disabled>已保存的 Repo 不在目前工作區：{value}</option>}
+            {repositories.map(item => <option key={item.path} value={item.path}>{item.name} — {item.path}</option>)}
+          </select>;
+          else if (reviewer && ['base', 'head'].includes(item.id)) control = <BranchInput key={`${key}:${repo ?? ''}`}
+            id={`wiki-input-${key}`} label={item.label} value={value} onInput={onInput} branches={repo ? branchCandidates : []}
+            status={branchStatus} error={branchError} disabled={!repo} required={item.required} placeholder={item.placeholder} />;
+          else if (item.kind === 'select') control = <select id={`wiki-input-${key}`} value={value} onChange={event => onInput(event.currentTarget.value)}>{item.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>;
           else if (item.kind === 'textarea') control = <textarea id={`wiki-input-${key}`} rows={item.rows ?? 2} value={value} placeholder={item.placeholder} required={item.required} onInput={event => onInput(event.currentTarget.value)} />;
-          else control = <input id={`wiki-input-${key}`} type="text" value={value} placeholder={item.placeholder} required={item.required}
-            list={item.id === 'repo' ? 'skills-repositories' : ['base', 'head'].includes(item.id) ? 'skills-branches' : undefined} onInput={event => onInput(event.currentTarget.value)} />;
+          else control = <input id={`wiki-input-${key}`} type="text" value={value} placeholder={item.placeholder} required={item.required} onInput={event => onInput(event.currentTarget.value)} />;
           return <label class="field wiki-guide-field" key={key} for={`wiki-input-${key}`}><span>{item.label}{item.required && <span class="wiki-required">（必填）</span>}</span>{control}</label>;
         })}</div>
-        <datalist id="skills-repositories">{context.repositories.map(repo => <option key={repo.path} value={repo.path} label={repo.name} />)}</datalist>
-        <datalist id="skills-branches">{branchCandidates.map(branch => <option key={branch} value={branch} />)}</datalist>
-        {branchError && <p class="subtle" role="status">{branchError}；也可以輸入明確分支名稱。</p>}
+        {reviewer && <div class="skills-branch-status">
+          <p class="subtle" role="status">{!repo ? '請先選擇目前 VSCode 工作區中的 Repo。'
+            : branchStatus === 'loading' ? '正在讀取所選 Repo 的分支…'
+            : branchStatus === 'error' ? `${branchError ?? '分支讀取失敗'}；仍可輸入明確分支名稱。`
+            : branchStatus === 'ready' && !branchCandidates.length ? '此 Repo 尚無本機或遠端追蹤分支；仍可輸入明確分支名稱。'
+            : '候選來自本機分支與遠端追蹤分支；也可以直接輸入明確分支名稱。'}</p>
+          <button class="secondary skills-branch-refresh" type="button" disabled={!repo || branchStatus === 'loading'}
+            onClick={() => repo && onLoadBranches?.(repo)}>{branchStatus === 'error' ? '重試讀取分支' : '重新讀取分支'}</button>
+        </div>}
         {promptError && <p class="warning" role="alert">{promptError}</p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
           <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" disabled={!ready || copyPending} aria-label={`複製${card.title}提示詞`}

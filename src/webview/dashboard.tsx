@@ -15,7 +15,7 @@ import { VirtualRows } from './VirtualRows';
 import { IssueView, type IssueEditorDraftState } from './main';
 import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import type { WikiGuideInputValues } from './codebaseWikiGuideData';
-import { legacyWikiInputs, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
+import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
 import { BmadPanel } from './BmadPanel';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
@@ -24,7 +24,7 @@ import { NotificationDrawer } from './NotificationDrawer';
 import { NotificationSnackbar } from './NotificationSnackbar';
 import { dispatchWithFeedback } from './notificationFeedback';
 import type { NotificationSnapshot } from '../notifications/notificationProtocol';
-import { isActiveOperation } from '../workspace/operations';
+import { isActiveOperation, type WorkspaceOperationState } from '../workspace/operations';
 import { ActionController, type DispatchResult } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
@@ -325,8 +325,9 @@ function App() {
   const previewSelectionRef = useRef(previewSelection); previewSelectionRef.current = previewSelection;
   const mrSelectionRef = useRef(mrSelection); mrSelectionRef.current = mrSelection;
   const blockingWrite = useActionSelector(actions, () => ['repositories', 'skills', 'connection'].some(resource => actions.hasPendingWrite(resource)));
-  const [skillBranches, setSkillBranches] = useState<{ repo: string; branches: string[]; error?: string }>();
-  const branchRequest = useRef('');
+  const [skillBranches, setSkillBranches] = useState<{ repo: string; revision: string; requestId: string; branches: string[]; status: 'loading' | 'ready' | 'error'; error?: string }>();
+  const branchRequest = useRef<{ repo: string; revision: string; requestId: string; operationId?: string }>();
+  const branchRequestSequence = useRef(0);
   const snapshotRef = useRef<WorkspaceSnapshot>();
   const snapshotStream = useRef<{ streamId: string; scope: string; version: number; snapshot: WorkspaceSnapshot }>();
   const retiredSnapshotStreams = useRef(new Set<string>());
@@ -388,6 +389,16 @@ function App() {
   const projectsRef = useRef<GitLabProject[]>([]);
 
   useEffect(() => {
+    const settleBranchFailure = (operation: WorkspaceOperationState): void => {
+      const pending = branchRequest.current;
+      if (!pending || operation.action !== 'loadSkillBranches' || operation.scopeRevision !== operationScope
+        || pending.revision !== snapshotRef.current?.skillsContext?.revision
+        || operation.correlationId !== pending.requestId && operation.requestId !== pending.operationId
+        || operation.status !== 'failed' && operation.status !== 'cancelled') return;
+      branchRequest.current = undefined;
+      setSkillBranches(current => current?.status === 'loading' && current.repo === pending.repo && current.revision === pending.revision
+        ? { ...current, status: 'error', error: operation.error ?? '分支讀取已中止，請重試。' } : current);
+    };
     const applyCompletedSelection = (operation: CloneOperationState): void => {
       if (operation.phase !== 'completed' && operation.phase !== 'failed') return;
       if (appliedCloneOperationIdsRef.current.has(operation.id)) return;
@@ -425,11 +436,20 @@ function App() {
       if (message.type === 'openNotifications') { setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); return; }
       if (message.type === 'operationChanged') {
         actions.receive(message.operation);
+        settleBranchFailure(message.operation);
         return;
       }
-      if (message.type === 'operationsSnapshot') { actions.reconcile(message.snapshot); return; }
+      if (message.type === 'operationsSnapshot') {
+        actions.reconcile(message.snapshot);
+        message.snapshot.operations.forEach(settleBranchFailure);
+        return;
+      }
       if (message.type === 'skillBranches') {
-        if (message.revision === snapshotRef.current?.skillsContext?.revision && message.repo === branchRequest.current) setSkillBranches(message);
+        const pending = branchRequest.current;
+        if (pending && message.revision === snapshotRef.current?.skillsContext?.revision && message.revision === pending.revision
+          && message.repo === pending.repo && message.requestId === pending.requestId) {
+          setSkillBranches({ ...message, status: message.error ? 'error' : 'ready' });
+        }
         return;
       }
       if (message.type === 'branchReviewReady') {
@@ -446,9 +466,13 @@ function App() {
       }
       if (message.type === 'snapshot') {
         if (message.snapshot.notifications) receiveNotifications(message.snapshot.notifications);
+        const previousSkillsRevision = snapshotRef.current?.skillsContext?.revision;
         snapshotRef.current = message.snapshot;
         const nextOperationScope = message.snapshot.operationScope ?? `${message.snapshot.connectedScope ?? 'offline'}:${message.snapshot.projectContext?.revision ?? message.snapshot.groupRoot ?? 'none'}`;
-        if (operationScope !== nextOperationScope) { setSkillBranches(undefined); branchRequest.current = ''; setPreviewSelection(undefined); setMrSelection(undefined); }
+        if (operationScope !== nextOperationScope || previousSkillsRevision !== message.snapshot.skillsContext?.revision) {
+          setSkillBranches(undefined); branchRequest.current = undefined;
+        }
+        if (operationScope !== nextOperationScope) { setPreviewSelection(undefined); setMrSelection(undefined); }
         operationScope = nextOperationScope;
         actions.setContext({ scopeRevision: operationScope, accountKey: message.snapshot.activeAccountId ?? message.snapshot.instanceUserScope,
           rootKey: message.snapshot.projectContext?.root ?? message.snapshot.skillsContext?.root ?? message.snapshot.groupRoot,
@@ -918,6 +942,11 @@ function App() {
     post({ type: 'openBranchReview', projectId: mr.project_id, iid: mr.iid });
   }
   if (!snapshot) return <main class="loading"><span class="spinner" />正在載入 GitLab Workspace…</main>;
+  const reviewerRepositories = snapshot.skillsContext?.reviewerRepositories ?? snapshot.skillsContext?.repositories
+    ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : []);
+  const reviewerCardId = skillsGuide.tool === 'release-reviewer' ? 'release-review' : 'merge-repo';
+  const reviewerRepo = resolveReviewerRepository(skillsGuide.inputs[`${reviewerCardId}.repo`] ?? '', reviewerRepositories);
+  const currentSkillBranches = reviewerRepo?.path === skillBranches?.repo && snapshot.skillsContext?.revision === skillBranches?.revision ? skillBranches : undefined;
   const blockingWork = blockingWrite || (!snapshot.operationSnapshot && !!snapshot.busy);
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
   const workspaceStatus = mode === 'developer' && selectedIssueProject && selectedIssue
@@ -1007,8 +1036,26 @@ function App() {
               onOpenDocumentation={url => post({ type: 'openExternal', url })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
               />
-            : mode === 'sa' ? <SkillsGuide operationScope={snapshot.operationScope ?? operationScope} branchCandidates={skillBranches?.branches} branchError={skillBranches?.error}
-              onLoadBranches={repo => { branchRequest.current = repo; setSkillBranches(undefined); if (snapshot.skillsContext) post({ type: 'loadSkillBranches', repo, revision: snapshot.skillsContext.revision }); }}
+            : mode === 'sa' ? <SkillsGuide operationScope={snapshot.operationScope ?? operationScope}
+              branchCandidates={currentSkillBranches?.branches}
+              branchStatus={currentSkillBranches?.status ?? 'idle'} branchError={currentSkillBranches?.error}
+              reviewerRepositories={reviewerRepositories}
+              onLoadBranches={repo => {
+                if (!snapshot.skillsContext) return;
+                const request = { repo, revision: snapshot.skillsContext.revision, requestId: `skill-branches-${Date.now()}-${++branchRequestSequence.current}` };
+                branchRequest.current = request;
+                setSkillBranches({ ...request, branches: [], status: 'loading' });
+                const result = post({ type: 'loadSkillBranches', ...request });
+                if (result.status !== 'blocked') {
+                  const requestId = result.correlationId ?? request.requestId;
+                  branchRequest.current = { ...request, requestId, operationId: result.operationId };
+                  if (requestId !== request.requestId) setSkillBranches({ ...request, requestId, branches: [], status: 'loading' });
+                }
+                if (result.status === 'blocked') {
+                  branchRequest.current = undefined;
+                  setSkillBranches({ ...request, branches: [], status: 'error', error: result.reason ?? '無法讀取分支，請重試。' });
+                }
+              }}
               workspaceRoot={snapshot.skillsContext?.workspaceRoot} workspaceFile={snapshot.skillsContext?.workspaceFile} workspaceRootAmbiguous={snapshot.skillsContext?.workspaceRootAmbiguous}
               skillsContext={snapshot.skillsContext} profile={snapshot.skillsContext?.mode === 'group' ? 'group' : snapshot.skillsContext ? 'repository' : undefined}
               root={snapshot.skillsContext?.root} groupRoot={snapshot.skillsContext?.mode === 'group' ? snapshot.skillsContext.root : snapshot.skillsContext ? undefined : snapshot.groupRoot}

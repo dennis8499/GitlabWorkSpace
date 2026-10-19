@@ -1,6 +1,6 @@
 import { withOutputStyle } from '../workspace/outputStyle';
 import {
-  buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
+  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
 } from './codebaseWikiGuideData';
 
@@ -25,7 +25,7 @@ export const skillGuideTools: ReadonlyArray<{ id: SkillGuideToolId; title: strin
 ];
 
 const field = (id: string, label: string, options: Partial<SkillGuideField> = {}): SkillGuideField => ({ id, label, ...options });
-const repoField = () => field('repo', 'Repo 名稱或路徑', { required: true, placeholder: '例如 OrderService 或 C:\\projects\\OrderService' });
+const repoField = () => field('repo', 'Repo', { required: true });
 const releaseFields = (): SkillGuideField[] => [repoField(),
   field('base', '基礎分支', { required: true, placeholder: '例如 main 或 origin/main' }),
   field('head', '比較分支', { required: true, placeholder: '例如 feature/payment 或 origin/feature/payment' })
@@ -52,7 +52,7 @@ export const skillGuideCards: readonly SkillGuideCard[] = [
 export function getSkillGuideCards(profile: 'group' | 'repository' = 'group'): readonly SkillGuideCard[] {
   if (profile === 'group') return skillGuideCards;
   return skillGuideCards.map(card => {
-    return { ...card, fields: card.fields.filter(item => item.id !== 'repo') };
+    return card.tool === 'codebase-wiki' ? { ...card, fields: card.fields.filter(item => item.id !== 'repo') } : card;
   });
 }
 
@@ -90,6 +90,31 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
 export function legacyWikiInputs(inputs: SkillGuideInputValues): WikiGuideInputValues {
   const ids = new Set(wikiGuideCards.map(card => card.id));
   return Object.fromEntries(Object.entries(inputs).filter(([key]) => ids.has(key.split('.')[0])));
+}
+
+/** Saved names are accepted only when they identify one current workspace Repo. */
+export function resolveReviewerRepository<T extends { name: string; path: string }>(input: string, repositories: readonly T[]): T | undefined {
+  const key = (value: string): string => {
+    const normalized = value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    return /^(?:[a-z]:\/|\/\/)/i.test(normalized) ? normalized.toLowerCase() : normalized;
+  };
+  const requested = input.trim();
+  if (!requested) return undefined;
+  const paths = repositories.filter(repo => key(repo.path) === key(requested));
+  if (paths.length) return paths.length === 1 ? paths[0] : undefined;
+  const names = repositories.filter(repo => repo.name === requested);
+  return names.length === 1 ? names[0] : undefined;
+}
+
+export function buildSkillGuideContext(card: SkillGuideCard, context: SkillGuideContext): string {
+  if (card.tool === 'codebase-wiki') return buildWikiGuideContext(context);
+  return [
+    `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
+    `Skills 專案根目錄：${context.root ?? context.groupRoot ?? '尚未選擇'}`,
+    `VSCode 工作區根目錄：${context.workspaceRoot ?? context.groupRoot ?? context.root ?? '尚未辨識'}`,
+    '本機實際 Git Repo：',
+    ...(context.repositories.length ? context.repositories.map(repo => `- ${repo.name} → ${repo.path}`) : ['（目前工作區尚未找到 Git Repo）'])
+  ].join('\n');
 }
 
 function value(card: SkillGuideCard, id: string, inputs: SkillGuideInputValues): string {
@@ -132,17 +157,19 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   }
   const input = (id: string) => value(card, id, inputs).trim();
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
+  const selectedRepo = resolveReviewerRepository(input('repo'), context.repositories);
+  const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
   if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
   const lines = [
     `$${card.tool} 請依下列明確輸入執行${card.tool === 'release-reviewer' ? '上板檢查' : '分支合併審查'}。`,
-    `專案名稱：${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')}`,
+    `專案名稱：${project}`,
     `基礎分支：${quoted('base')}`, `比較分支：${quoted('head')}`,
     'Repo 有多個候選時先釐清；不猜測基礎或比較版本。短分支名稱代表本機分支；origin/main 等明確遠端分支須取得最新指定版本，失敗時停止，不使用過期資料。',
     `使用目前工作區安裝的原生 Skill 與 helpers；命令工作目錄使用入口 Repo，內部 --workspace 為 ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? `，另傳 --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''}。保留本機未提交修改，工作區邊界由這份資料固定。`
   ];
   if (card.tool === 'merge-reviewer') lines.push(
     '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、quick、暫存、未提交、直接比較、MR 任務或 JSON 選項。',
-    `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${context.profile === 'repository' ? JSON.stringify(context.root) : quoted('repo')} --base ${quoted('base')} --head ${quoted('head')} --summary。`,
+    `原生 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${project} --base ${quoted('base')} --head ${quoted('head')} --summary。`,
     '使用 Codex 原生 Code Review 及 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3。只以所選 Repo 為審查起點；宣告的工作區內有至少兩個不同 Git 根目錄時，依固定證據追查必要契約與消費端，其他 Repo 使用各自擷取時的 HEAD。',
     '摘要提供 context_dir 與 manifest_path，完整固定證據仍在 manifest；已知且互不相依的讀取與搜尋使用 review_workspace.py batch-read／batch-search，依技能指引追查後續線索並完成全部覆蓋。',
     '開始語意審查前完成自足快照：固定 base／head、合併預覽、相關 Repo 與適用指示，後續讀取、搜尋及驗證只使用 owned context。擷取後雲端或本機分支移動不使本次快照失效、不自動重審；報告明列擷取時間，結論僅適用本次固定 SHA。',
