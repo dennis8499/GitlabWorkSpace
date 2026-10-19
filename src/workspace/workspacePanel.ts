@@ -2871,7 +2871,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (process.platform === 'win32') {
       const options = windowsCodexTerminalOptions();
       if (!options) {
-        throw new Error('找不到 Windows Codex CLI。請安裝 codex.exe 或 codex.cmd，將所在資料夾加入 PATH，然後重新啟動 VS Code。');
+        throw new Error('找不到 Windows PowerShell 或 Codex CLI。請確認 Windows PowerShell 可用，並安裝 codex.exe 或 codex.cmd，將所在資料夾加入 PATH，然後重新啟動 VS Code。');
       }
       const windowsTerminal = vscode.window.createTerminal({ name: 'Codex CLI', cwd: root, ...options });
       windowsTerminal.show();

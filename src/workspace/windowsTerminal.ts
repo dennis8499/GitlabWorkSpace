@@ -28,7 +28,7 @@ export function windowsCodexTerminalOptions(
   if (!launcher) return undefined;
 
   const systemRoot = environment.SystemRoot || 'C:\\Windows';
-  const shellPath = path.win32.join(systemRoot, 'System32', 'cmd.exe');
+  const shellPath = path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   if (!lookup(shellPath)) return undefined;
   const previousExtensions = environment.PATHEXT ?? '.COM;.EXE;.BAT;.CMD';
   const extensions = previousExtensions.split(';').filter((extension) => extension && extension.toLocaleUpperCase('en-US') !== '.PS1');
@@ -36,7 +36,7 @@ export function windowsCodexTerminalOptions(
   if (!extensions.some((extension) => extension.toLocaleUpperCase('en-US') === '.CMD')) extensions.push('.CMD');
   return {
     shellPath,
-    shellArgs: ['/d', '/q', '/k', launcher.command],
+    shellArgs: ['-NoLogo', '-NoProfile', '-NoExit', '-Command', `& '${path.win32.join(launcher.directory, launcher.command).replace(/'/g, "''")}'`],
     env: {
       ...environment,
       [pathKey]: [launcher.directory, ...directories].join(';'),
