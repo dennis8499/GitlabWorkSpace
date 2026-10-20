@@ -272,7 +272,18 @@ export function describeAction(value: { type: string }, context: ActionContext =
   if (action === 'refreshRepositories') kind = 'read';
   let resourceKey = action;
   let slot = action;
-  if (request.type === 'gitAction') {
+  if (request.type === 'retryWorkspaceSection') {
+    resourceKey = 'workspace-section:' + request.section;
+    slot = resourceKey + ':' + (request.mode ?? 'refresh');
+    if (request.mode === 'cancel') kind = 'control';
+  } else if (request.type === 'selectIssueBoard') {
+    resourceKey = 'issue-board';
+    if (request.mode === 'cancel') kind = 'control';
+  } else if (request.type === 'loadIssueGraph') {
+    resourceKey = 'issue-graph';
+    slot = request.loadBoards ? 'boards' : request.moreRoots ? 'roots' : request.nodeIds ? 'nodes:' + request.nodeIds.slice(0, 20).sort().join(',') : 'refresh';
+    if (request.cancel) kind = 'control';
+  } else if (request.type === 'gitAction') {
     const nested = request.action as GitAction;
     kind = gitActionKinds[nested.type];
     if (nested.type === 'rebasePreview' && nested.pullSource) kind = 'write';

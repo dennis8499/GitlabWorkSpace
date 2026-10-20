@@ -4,6 +4,29 @@ import { GitLabApiError, GitLabClient, type FetchLike } from '../../src/api/gitL
 
 const token = 'unit-test-token-do-not-use';
 
+test('page APIs return one page and an opaque continuation; assigned Issues start with open work', async () => {
+  const urls: URL[] = [];
+  const client = new GitLabClient('https://gitlab.example.test', token, async input => {
+    const url = new URL(String(input)); urls.push(url);
+    return new Response(JSON.stringify([{ id: urls.length }]), { headers: urls.length === 1 ? { 'x-next-page': '2' } : {} });
+  });
+  const first = await client.listAssignedGroupIssuesPage(42);
+  assert.equal(urls.length, 1); assert.equal(urls[0].searchParams.get('state'), 'opened'); assert.equal(urls[0].searchParams.get('per_page'), '100');
+  assert.equal(first.complete, false); assert.ok(first.nextCursor); assert.equal(first.items.length, 1);
+  const second = await client.listAssignedGroupIssuesPage(42, first.nextCursor);
+  assert.equal(urls.length, 2); assert.equal(urls[1].searchParams.get('page'), '2'); assert.equal(second.complete, true);
+});
+
+test('Board pagination has a total request budget and never returns an incomplete membership list as complete', async () => {
+  const client = new GitLabClient('https://gitlab.example.test', token, async () => { throw new Error('Network is disabled in this fixture.'); });
+  let pages = 0;
+  client.graphql = async <T>() => ({ group: { board: { hideBacklogList: false, hideClosedList: false,
+    lists: { nodes: [], pageInfo: { hasNextPage: true, endCursor: `cursor-${++pages}` } }
+  } } } as T);
+  await assert.rejects(client.listGroupBoardIssueMemberships('team', 1), /incomplete.*budget/);
+  assert.equal(pages, 100);
+});
+
 test('paginates groups using GitLab Link headers and keeps authorization on the configured API', async () => {
   const calls: Array<{ url: string; tokenHeader: string | null; redirect: RequestRedirect | undefined }> = [];
   const fetcher: FetchLike = async (input, init) => {
@@ -141,7 +164,7 @@ test('loads complete Issue Board membership so related unassigned Issues can inh
   assert.equal(issueQueries.length, 2);
   assert.ok(issueQueries.every((call) => !call.query.includes('assigneeUsername')));
   assert.ok(issueQueries.every((call) => !Object.hasOwn(call.variables, 'username')));
-  assert.deepEqual(issueQueries.map((call) => call.variables.listId), ['gid://gitlab/List/4', 'gid://gitlab/List/5']);
+  assert.deepEqual(issueQueries.map((call) => call.variables.listId).sort(), ['gid://gitlab/List/4', 'gid://gitlab/List/5'], 'parallel request start order is independent of deterministic result order');
   assert.deepEqual(await client.listGroupBoardIssueMemberships('parent/child', 25), [
     { issueId: 101, projectId: 100, iid: 1 }, { issueId: 202, projectId: 200, iid: 1 }
   ]);
@@ -271,7 +294,9 @@ test('a stalled write has an independent deadline, reports unknown and is never 
       init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
     });
   };
-  const client = Reflect.construct(GitLabClient, ['https://gitlab.example.test', token, fetcher, undefined, undefined, undefined, undefined, 15]) as GitLabClient;
+  // Isolate the transport deadline from filesystem admission timing; queue cancellation has its own tests.
+  const directGate = { fetch: (request: FetchLike, input: URL, init: RequestInit, _safe?: boolean, _limit?: number, onStart?: () => void) => { onStart?.(); return request(input, init); } };
+  const client = Reflect.construct(GitLabClient, ['https://gitlab.example.test', token, fetcher, undefined, undefined, undefined, undefined, 15, directGate]) as GitLabClient;
   const write = client.createIssue(42, { title: 'Once' }).then(() => undefined, error => error);
   const error = await Promise.race([write, new Promise<undefined>(resolve => setTimeout(resolve, 100))]);
   finish(new Response('{}')); await write;
@@ -330,7 +355,7 @@ test('Board lists use at most four concurrent requests and retain deterministic 
     return new Response(JSON.stringify({ data: { boardList: { issues: { nodes: [{ id: 'gid://gitlab/Issue/' + variables.listId }], pageInfo: { hasNextPage: false } } } } }));
   });
   assert.deepEqual(await client.listGroupBoardIssueIds('group', 1), [1, 2, 3, 4, 5, 6, 7, 8]);
-  assert.equal(peak, 4);
+  assert.ok(peak > 0 && peak <= 4, 'Board workers also obey the shared host network quota');
 });
 
 test('Markdown rendering is a cancellable read and never invalidates write caches', async () => {

@@ -7,9 +7,11 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import type { GitLabProject } from '../api/types';
 import type { GitLabSession } from '../connection/session';
-import { projectRemoteMatches, projectRemoteIdentity, createScopedGitEnvironment } from './cloneService';
+import { createScopedGitEnvironment } from './cloneService';
 import { captureGitProcess } from './gitProcess';
-import { isAllowedGitRemote } from '../api/urlPolicy';
+import { gitFetchArguments, gitNetworkRemoteUrl, isTrustedGitLabRemote } from './gitRemotePolicy';
+import { createGitAskpassBridge, shouldUseGitAskpass, type GitAskpassBridge } from './gitAskpass';
+import { createGitCredentialPrompt } from './gitAskpassUi';
 import { gitDirectoryForRepository, withGitDirectoryLock } from './repositoryOperationLock';
 import { makeSelectedPatch } from './gitDiffSelection';
 import { isGitWriteAction } from './gitProtocol';
@@ -146,22 +148,25 @@ export class GitRepositoryService implements vscode.Disposable {
     });
   }
 
-  async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[]): Promise<RepositoryScanState> {
-    const task = () => this.scanWorkspaceInternal(signal, onProgress, roots);
+  private previousScan?: RepositoryScanState;
+  async scanWorkspace(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[], resume = false): Promise<RepositoryScanState> {
+    const task = () => this.scanWorkspaceInternal(signal, onProgress, roots, resume);
     return this.gitlabSession.log?.run('projects', 'scanWorkspace', {}, task) ?? task();
   }
 
-  private async scanWorkspaceInternal(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[]): Promise<RepositoryScanState> {
+  private async scanWorkspaceInternal(signal: AbortSignal, onProgress: (state: RepositoryScanState) => void, roots?: readonly string[], resume = false): Promise<RepositoryScanState> {
     await this.initialization;
     const folders = vscode.workspace.workspaceFolders ?? [];
     const state = await scanWorkspaceRepositories(roots ?? folders.filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath), {
       signal, onProgress: progress => onProgress({ ...progress, status: progress.status === 'completed' ? 'scanning' : progress.status }), gitPath: this.api?.git.path,
       excludes: vscode.workspace.getConfiguration('gitlabWorkspace').get<string[]>('repositoryScan.excludeDirectories', DEFAULT_SCAN_EXCLUDES),
-      log: this.gitlabSession.log
+      log: this.gitlabSession.log, resume: resume ? this.previousScan : undefined
     });
+    this.previousScan = state;
     for (const folder of roots ? [] : folders.filter(folder => folder.uri.scheme !== 'file')) state.errors.push({ path: folder.uri.toString(), message: '此工作區不是本機檔案資料夾，無法掃描。' });
     let lastRegistrationProgress = -Infinity;
     for (const repository of state.repositories) {
+      if (repository.repositoryId) continue;
       if (signal.aborted) { state.status = 'cancelled'; break; }
       const started = Date.now();
       try {
@@ -198,6 +203,8 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly repositoryListEmitter = new vscode.EventEmitter<void>();
   private readonly panelEmitter = new vscode.EventEmitter<GitPanelMessage>();
   private disposed = false;
+  private readonly processLifetime = new AbortController();
+  private readProcessLifetime = new AbortController();
   private activePanelGeneration = 0;
   private readonly managedRefreshes = new Map<string, number>();
   private readonly dataEpochs = new Map<string, number>();
@@ -224,8 +231,6 @@ export class GitRepositoryService implements vscode.Disposable {
   private readonly dirtySummaryIds = new Set<string>();
   private warningPromptHandler?: GitWarningPromptHandler;
   private actionTraceHandler?: GitActionTraceHandler;
-  private projectSource: () => readonly GitLabProject[] = () => [];
-  private remoteIndex?: { projects: readonly GitLabProject[]; keys: Set<string> };
   private readonly gitlabSession: GitLabSession;
   private activePanelRepositoryId?: string;
   private initialization: Promise<void>;
@@ -247,7 +252,8 @@ export class GitRepositoryService implements vscode.Disposable {
     this.initialization = this.initialize();
   }
 
-  setGitLabProjects(source: () => readonly GitLabProject[]): void { this.projectSource = source; this.remoteIndex = undefined; }
+  /** Kept for callers compiled against the existing integration API. */
+  setGitLabProjects(_source: () => readonly GitLabProject[]): void { /* Credentials follow the selected remote, independently of paged inventories. */ }
 
   setWarningPromptHandlerForTesting(handler: GitWarningPromptHandler): void { this.warningPromptHandler = handler; }
   setActionTraceHandlerForTesting(handler: GitActionTraceHandler): void { this.actionTraceHandler = handler; }
@@ -274,7 +280,7 @@ export class GitRepositoryService implements vscode.Disposable {
   /** Selection owns cancellation only; explicit open/refresh requests own reads. */
   setActivePanelRepository(repositoryId?: string, _refresh = true): void {
     const changed = this.activePanelRepositoryId !== repositoryId;
-    if (changed) this.activePanelGeneration++;
+    if (changed) { this.activePanelGeneration++; this.readProcessLifetime.abort(); this.readProcessLifetime = new AbortController(); }
     this.activePanelRepositoryId = repositoryId;
   }
 
@@ -604,7 +610,7 @@ export class GitRepositoryService implements vscode.Disposable {
       await this.requireRepository(repositoryId);
       if (action.pullSource) {
         const source = { remote: this.checkedRemoteName(repository, action.pullSource.remote), branch: checkedGitRef(action.pullSource.branch) };
-        await repository.fetch({ remote: source.remote, ref: 'refs/heads/' + source.branch });
+        await this.fetchRemote(repository, source.remote, source.branch);
         await repository.status();
         this.invalidateRepository(repositoryId);
       }
@@ -659,6 +665,7 @@ export class GitRepositoryService implements vscode.Disposable {
           effect: 'applied' as const, refreshError: readableGitError(error), commitCompleted
         });
         if (actionCancelled) throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true, commitCompleted });
+        if (error && typeof error === 'object' && 'effect' in error && error.effect === 'none') throw error;
         if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') {
           throw Object.assign(new Error('Git 操作逾時，結果未能確認；請先檢查 Repo 狀態再決定是否重試。', { cause: error }), { effect: 'unknown' as const });
         }
@@ -675,6 +682,8 @@ export class GitRepositoryService implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
+    this.processLifetime.abort();
+    this.readProcessLifetime.abort();
     this.activePanelRepositoryId = undefined;
     this.activePanelGeneration++;
     this.diffProvider?.dispose();
@@ -1195,7 +1204,7 @@ export class GitRepositoryService implements vscode.Disposable {
         return;
       }
       case 'fetch': {
-        await repository.fetch({ remote: this.checkedRemoteName(repository, action.remote), prune: false });
+        await this.fetchRemote(repository, this.checkedRemoteName(repository, action.remote));
         return;
       }
       case 'pull': {
@@ -1204,7 +1213,7 @@ export class GitRepositoryService implements vscode.Disposable {
         const target = 'refs/remotes/' + remote + '/' + branch;
         const config = action.strategy === 'configured' ? await this.configuredPullStrategy(repository) : action.strategy;
         if (config === 'interactive') throw new Error('Repo 設定為 pull.rebase=interactive。請使用版控工作台的 Rebase 預覽、編輯提交 todo，再選擇 upstream 分支。');
-        await repository.fetch({ remote, ref: 'refs/heads/' + branch });
+        await this.fetchRemote(repository, remote, branch);
         await repository.status();
         const pullTarget = (await this.runGit(repository, ['rev-parse', '--verify', target])).stdout.trim();
         const plan = describePull(repository.rootUri.fsPath, remote, branch, config, pullTarget);
@@ -1285,7 +1294,7 @@ export class GitRepositoryService implements vscode.Disposable {
         if (!yes) return false;
         if (action.pullSource) {
           const source = { remote: this.checkedRemoteName(repository, action.pullSource.remote), branch: checkedGitRef(action.pullSource.branch) };
-          await repository.fetch({ remote: source.remote, ref: 'refs/heads/' + source.branch });
+          await this.fetchRemote(repository, source.remote, source.branch);
           await repository.status();
           const updatedPlan = await this.readRebasePlan(repository, action.ref);
           if (plan && !sameRebasePlan(plan, updatedPlan)) throw new Error('遠端分支在預覽後已更新；Fetch 已完成但尚未開始 Rebase，請重新檢視提交清單。');
@@ -1561,6 +1570,13 @@ export class GitRepositoryService implements vscode.Disposable {
     return result.code === 0 ? result.stdout.trim() : undefined;
   }
 
+  private async fetchRemote(repository: GitRepository, remote: string, branch?: string): Promise<void> {
+    // A manual Fetch keeps auto-follow tags, FETCH_HEAD, remote refspecs and
+    // configured prune/submodule behavior. Do not expand it to `--tags`.
+    const prune = branch === undefined && vscode.workspace.getConfiguration('git', repository.rootUri).get<boolean>('pruneOnFetch', false);
+    await this.runGit(repository, gitFetchArguments(remote, branch, prune));
+  }
+
   private async runGit(
     repository: GitRepository, arguments_: string[], input?: string,
     environmentOverrides: NodeJS.ProcessEnv = {}, acceptedExitCodes: number[] = []
@@ -1581,10 +1597,22 @@ export class GitRepositoryService implements vscode.Disposable {
     this.executedGitCommandCount++;
     const logStarted = Date.now();
     const diff = arguments_[0] === 'diff' || arguments_[0] === 'show' && arguments_.includes('--format=');
+    let askpass: GitAskpassBridge | undefined;
     try {
+      const credentialsCancelled = new AbortController();
+      const signal = AbortSignal.any([credentialsCancelled.signal, this.processLifetime.signal, ...(this.activeOperations.has(this.repositoryId(repository.rootUri.fsPath)) ? [] : [this.readProcessLifetime.signal])]);
+      const environment = { ...await this.environmentFor(repository, arguments_), ...environmentOverrides };
+      const remoteUrl = gitNetworkRemoteUrl(arguments_, repository.state.remotes);
+      // Honor explicit custom helpers and integrated-AskPass opt-out. Workspace
+      // token headers are already noninteractive and cannot be replaced by a
+      // second HTTP password without removing their Authorization header.
+      if (remoteUrl && shouldUseGitAskpass(remoteUrl, environment, vscode.workspace.getConfiguration('git', repository.rootUri).get<boolean>('useIntegratedAskPass', true))) {
+        askpass = await createGitAskpassBridge({ remoteUrl, environment, signal, prompt: createGitCredentialPrompt(), onCancel: () => credentialsCancelled.abort() });
+      }
       const result = await captureGitProcess(gitPath, ['-c', 'core.quotepath=false', ...arguments_], {
-        cwd: repository.rootUri.fsPath, env: { ...await this.environmentFor(repository, arguments_), ...environmentOverrides },
-        input, timeoutMs: 120_000, maxStdoutBytes: diff ? MAX_DIFF_BYTES : 8 * 1024 * 1024, allowTruncated: diff
+        cwd: repository.rootUri.fsPath, env: { ...environment, ...askpass?.environment },
+        input, timeoutMs: 120_000, maxStdoutBytes: diff ? MAX_DIFF_BYTES : 8 * 1024 * 1024, allowTruncated: diff,
+        signal
       });
       const success = result.code === 0 || acceptedExitCodes.includes(result.code) || result.truncated && diff;
       this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', repositoryPath: repository.rootUri.fsPath,
@@ -1594,25 +1622,20 @@ export class GitRepositoryService implements vscode.Disposable {
     } catch (error) {
       this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', repositoryPath: repository.rootUri.fsPath,
         result: 'error', durationMs: Date.now() - logStarted, message: 'Git command did not complete.' });
+      if (askpass?.blockedDestination) throw Object.assign(new Error('Git 認證目的地無法確認，已停止這次操作。請先檢查 Repo 狀態，針對該遠端獨立登入或設定 Git credential helper 後再重試。', { cause: error }), { effect: 'unknown' as const });
       throw error;
-    }
+    } finally { await askpass?.dispose(); }
   }
 
   private async environmentFor(repository: GitRepository, args: readonly string[] = []): Promise<NodeJS.ProcessEnv> {
     const environment: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
-    if (!['fetch', 'push', 'ls-remote', 'pull', 'clone'].includes(args[0])) return environment;
-    const projects = this.projectSource();
-    if (!this.remoteIndex || this.remoteIndex.projects !== projects) {
-      this.remoteIndex = { projects, keys: new Set(projects.flatMap(project => [project.http_url_to_repo, project.ssh_url_to_repo]
-        .flatMap(url => { const key = url && projectRemoteIdentity(url); return key ? [key] : []; }))) };
-    }
-    const url = repository.state.remotes.flatMap((remote) => [remote.fetchUrl, remote.pushUrl]).find((remote): remote is string =>
-      !!remote && !!projectRemoteIdentity(remote) && this.remoteIndex!.keys.has(projectRemoteIdentity(remote)!));
-    if (!url) return environment;
+    const url = gitNetworkRemoteUrl(args, repository.state.remotes);
+    if (!url || !isTrustedGitLabRemote(this.gitlabSession.baseUrl, url) || this.gitlabSession.isTransitioning) return environment;
+    const epoch = this.gitlabSession.connectionEpoch;
     const credentials = await this.gitlabSession.getCloneCredentials().catch(() => undefined);
-    if (!credentials) return environment;
-    if (url && url.startsWith('https://') && isAllowedGitRemote(credentials.baseUrl, url)) {
-      return createScopedGitEnvironment(url, credentials.token);
+    if (credentials && epoch === this.gitlabSession.connectionEpoch && !this.gitlabSession.isTransitioning &&
+      isTrustedGitLabRemote(credentials.baseUrl, url)) {
+      return { ...createScopedGitEnvironment(url, credentials.token, { preserveCredentialHelpers: true }), GITLAB_WORKSPACE_SCOPED_AUTH: '1' };
     }
     return environment;
   }
@@ -1622,7 +1645,8 @@ export class GitRepositoryService implements vscode.Disposable {
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
     this.auxiliaryGitCommandCount++;
     const result = await logGitCommand(['show'], repository.rootUri.fsPath, () => execFileAsync(gitPath, ['-C', repository.rootUri.fsPath, 'show', objectPath], {
-      encoding: 'buffer', windowsHide: true, timeout: 10_000, maxBuffer: 128 * 1024 * 1024
+      encoding: 'buffer', windowsHide: true, timeout: 10_000, maxBuffer: 128 * 1024 * 1024,
+      signal: this.processLifetime.signal, env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: '', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }
     }), this.gitlabSession.log).catch(async error => {
       // A missing side is normal for added/deleted files. A failed blob read is not.
       const separator = objectPath.indexOf(':./');
@@ -1698,7 +1722,8 @@ export class GitRepositoryService implements vscode.Disposable {
     if (!head) {
       this.auxiliaryGitCommandCount++;
       await logGitCommand(['cat-file'], repository.rootUri.fsPath, () => execFileAsync(this.api!.git.path, ['-C', repository.rootUri.fsPath, 'cat-file', '-e', value + '^{commit}'], {
-        windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024
+        windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024,
+        signal: this.processLifetime.signal, env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_ALLOW_PROTOCOL: '', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }
       }), this.gitlabSession.log).catch(() => { throw new Error('找不到這筆 Repo Commit，請重新載入歷史。'); });
     }
   }

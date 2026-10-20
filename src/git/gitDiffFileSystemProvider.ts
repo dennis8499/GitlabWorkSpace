@@ -18,8 +18,10 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
   private readonly changes: vscode.EventEmitter<vscode.FileChangeEvent[]>;
   readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]>;
   private readonly registrations: vscode.Disposable[];
+  private retainedBytes = 0;
 
-  constructor(private readonly host: typeof vscode) {
+  constructor(private readonly host: typeof vscode, private readonly maxBytes = 256 * 1024 * 1024) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new RangeError('Diff snapshot byte budget must be positive.');
     this.changes = new host.EventEmitter<vscode.FileChangeEvent[]>();
     this.onDidChangeFile = this.changes.event;
     this.registrations = [
@@ -31,6 +33,11 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
   createDiff(filename: string, beforeBytes: Uint8Array, afterBytes: Uint8Array): {
     before: vscode.Uri; after: vscode.Uri; opened(): void; dispose(): void;
   } {
+    this.releaseUnused();
+    const bytes = beforeBytes.byteLength + afterBytes.byteLength;
+    if (bytes > this.maxBytes - this.retainedBytes) {
+      throw new Error('原生 Diff 快照總量超過 256 MiB 上限。請關閉其他 Diff 分頁後重試，或使用外部比較工具。');
+    }
     const id = randomUUID();
     const name = path.posix.basename(filename.replaceAll('\\', '/')) || 'file';
     const before = this.host.Uri.from({ scheme: GIT_DIFF_SCHEME, path: '/' + id + '/before/' + name });
@@ -38,6 +45,7 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
     const created = Date.now();
     this.files.set(before.toString(), { bytes: Uint8Array.from(beforeBytes), created });
     this.files.set(after.toString(), { bytes: Uint8Array.from(afterBytes), created });
+    this.retainedBytes += bytes;
     const comparison = { before, after, opening: true, observed: false };
     this.comparisons.set(id, comparison);
     return { before, after,
@@ -64,7 +72,7 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
 
   dispose(): void {
     for (const registration of this.registrations) registration.dispose();
-    this.files.clear(); this.comparisons.clear(); this.changes.dispose();
+    this.files.clear(); this.retainedBytes = 0; this.comparisons.clear(); this.changes.dispose();
   }
 
   private requireFile(uri: vscode.Uri): { bytes: Uint8Array; created: number } {
@@ -95,6 +103,8 @@ export class GitDiffFileSystemProvider implements vscode.FileSystemProvider, vsc
   private release(id: string): void {
     const comparison = this.comparisons.get(id);
     if (!comparison) return;
+    this.retainedBytes -= (this.files.get(comparison.before.toString())?.bytes.byteLength ?? 0) +
+      (this.files.get(comparison.after.toString())?.bytes.byteLength ?? 0);
     this.files.delete(comparison.before.toString()); this.files.delete(comparison.after.toString());
     this.comparisons.delete(id);
   }

@@ -19,6 +19,7 @@ async function fixture(t) {
     else await put(name, '{}');
   }
   await put('package.json', JSON.stringify({ version: '1.2.3' }));
+  await put('test/network-test-environment.cjs', await readFile(new URL('../test/network-test-environment.cjs', import.meta.url), 'utf8'));
   for (const name of ['run-validation.mjs', 'validation-runtime.mjs']) {
     await put(`scripts/${name}`, await readFile(new URL(name, import.meta.url), 'utf8'));
   }

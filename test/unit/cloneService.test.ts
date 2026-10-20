@@ -11,6 +11,7 @@ import {
   cloneProjects,
   ClonePreflightError,
   createCloneEnvironmentForTest,
+  createScopedGitEnvironment,
   planClones,
   projectRemoteMatches,
   sanitizeGitDiagnostic,
@@ -20,6 +21,18 @@ import { groupRepositoryPath, sameRealLocalPath } from '../../src/workspace/work
 
 const dummyToken = 'clone-unit-test-token-do-not-use';
 let remoteCounter = 0;
+
+test('GUI scoped credentials preserve helpers while default clone credentials remain noninteractive', () => {
+  const remote = 'https://gitlab.example.test/group/repo.git';
+  const first = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '0', 10) || 0;
+  const gui = createScopedGitEnvironment(remote, dummyToken, { preserveCredentialHelpers: true });
+  assert.equal(Number(gui.GIT_CONFIG_COUNT), first + 1);
+  assert.equal(gui.GCM_INTERACTIVE, process.env.GCM_INTERACTIVE);
+  assert.equal(gui['GIT_CONFIG_KEY_' + first], 'http.' + remote + '/.extraheader');
+  const clone = createCloneEnvironmentForTest(remote, dummyToken);
+  assert.equal(Number(clone.GIT_CONFIG_COUNT), first + 2); assert.equal(clone.GCM_INTERACTIVE, 'Never');
+  assert.equal(clone['GIT_CONFIG_KEY_' + (first + 1)], 'credential.helper'); assert.equal(clone['GIT_CONFIG_VALUE_' + (first + 1)], '');
+});
 
 function project(name: string, localPath = name, branch = 'main'): GitLabProject {
   return {

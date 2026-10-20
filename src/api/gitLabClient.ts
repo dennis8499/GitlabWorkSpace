@@ -1,14 +1,18 @@
 import { gitLabApiRoot, normalizeGitLabBaseUrl } from './urlPolicy';
 import { GitLabReadGate } from './gitLabReadGate';
+import { GitLabNetworkGate, parseRetryAfter } from './gitLabNetworkGate';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { GitLabRequestBudget, type GitLabRequestBudgetOptions } from './gitLabRequestBudget';
 import { buildCapabilityQuery, buildFollowupTypeNames, buildInitialTypeNames, detectIssueCapabilities, mergeCapabilityTypes, parseCapabilityTypes, type GraphQLSchemaType } from './graphqlCapabilities';
 import type {
   GitLabEmojiReaction, GitLabGroup, GitLabIssue, GitLabIssueDiscussion, GitLabIssueNote,
   GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata, GitLabMilestone,
-  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser, GitLabIssueBoard,
+  GitLabProject, GitLabTimeStats, GitLabTodo, GitLabUpload, GitLabUser, GitLabIssueBoard, GitLabPage,
   GitLabCommitSummary, GitLabCompareResult, GitLabGraphWorkItem, GitLabMergeRequest, GitLabMergeRequestDiff, GitLabMergeRequestDiffResult
 } from './types';
 
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+const writeRequestState = new AsyncLocalStorage<{ sent: boolean }>();
 
 async function mapReads<T, R>(items: readonly T[], load: (item: T, index: number) => Promise<R>): Promise<R[]> {
   let next = 0, failed = false;
@@ -43,73 +47,8 @@ export class GitLabWriteUnknownError extends Error {
   }
 }
 
-export interface IssueCreateInput {
-  title: string;
-  description?: string;
-  assigneeId?: number;
-  labels?: string[];
-  milestoneId?: number;
-  dueDate?: string;
-  startDate?: string;
-  confidential?: boolean;
-}
-
-export interface IssueUpdateInput {
-  title?: string;
-  description?: string;
-  assigneeId?: number | null;
-  labels?: string[];
-  milestoneId?: number | null;
-  dueDate?: string | null;
-  startDate?: string | null;
-  confidential?: boolean;
-  discussionLocked?: boolean;
-  stateEvent?: 'close' | 'reopen';
-}
-
-export interface GitLabIssueCapabilities {
-  /** Issue hierarchy endpoints vary between Namespace and Project on older and newer GitLab releases. */
-  workItemScope?: 'namespace' | 'project';
-  /** The input field used to create a child Work Item on this instance. */
-  workItemCreatePathField?: 'projectPath' | 'namespacePath';
-  issuePermissionFields?: string[];
-  workItemPermissionFields?: string[];
-  issuePermissionSource?: 'issue' | 'workItem';
-  workItemFields?: string[];
-  workItemGraphFields?: string[];
-  workItemTypeList?: boolean;
-  hierarchy: boolean;
-  childMutations: boolean;
-  graphWorkItems: boolean;
-  graphHierarchy: boolean;
-  graphLinkedItems: boolean;
-  graphLabels: boolean;
-  graphAssignees: boolean;
-  graphWorkItemTypes: boolean;
-  discussionResolve: boolean;
-  startDate: boolean;
-  timelogReport: boolean;
-  timelogSource?: 'workItem' | 'issue';
-  timelogSummary?: boolean;
-  timelogUserFields?: string[];
-  timelogCreate: boolean;
-  timelogCreateDated?: boolean;
-  timelogCreateSummary?: boolean;
-  timelogAdminPermission?: boolean;
-  timelogDelete: boolean;
-  createPermission: boolean;
-}
-
-export type GitLabWorkItemScope = 'namespace' | 'project';
-
-export interface GitLabMergeRequestCreateInput {
-  title: string;
-  description?: string;
-  sourceBranch: string;
-  targetBranch: string;
-  reviewerIds?: number[];
-  assigneeId?: number;
-}
+import type { IssueCreateInput, IssueUpdateInput, GitLabIssueCapabilities, GitLabWorkItemScope, GitLabMergeRequestCreateInput } from './requestTypes';
+export type { IssueCreateInput, IssueUpdateInput, GitLabIssueCapabilities, GitLabWorkItemScope, GitLabMergeRequestCreateInput } from './requestTypes';
 
 export class GitLabConflictError extends Error {
   constructor() {
@@ -153,7 +92,9 @@ export class GitLabClient {
     private readonly onSuccessfulWrite?: (context: GitLabWriteContext) => void,
     private readonly readGate = new GitLabReadGate(),
     private readonly runWrite?: <T>(task: () => Promise<T>) => Promise<T>,
-    private readonly writeTimeoutMs = 30_000
+    private readonly writeTimeoutMs = 30_000,
+    private readonly networkGate = new GitLabNetworkGate(),
+    private readonly requestBudgets: readonly GitLabRequestBudget[] = []
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
@@ -165,7 +106,13 @@ export class GitLabClient {
 
   withReadSignal(signal: AbortSignal): GitLabClient {
     const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs);
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, this.requestBudgets);
+  }
+
+  withRequestBudget(options: GitLabRequestBudgetOptions | GitLabRequestBudget = {}): GitLabClient {
+    const budget = options instanceof GitLabRequestBudget ? options : new GitLabRequestBudget(options);
+    const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, budget.signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, [...this.requestBudgets, budget]);
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -278,6 +225,22 @@ export class GitLabClient {
     return this.getPages<GitLabGroup>('groups?all_available=false&per_page=100');
   }
 
+  listGroupsPage(cursor?: string): Promise<GitLabPage<GitLabGroup>> {
+    return this.getPage<GitLabGroup>('groups?all_available=false&per_page=100', cursor);
+  }
+
+  listGroupProjectsPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabProject>> {
+    return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&per_page=100`, cursor);
+  }
+
+  listAssignedGroupIssuesPage(groupId: number, cursor?: string, state: 'opened' | 'all' = 'opened'): Promise<GitLabPage<GitLabIssue>> {
+    return this.getPage<GitLabIssue>(`groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=${state}&per_page=100`, cursor);
+  }
+
+  listGroupIssueBoardsPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabIssueBoard>> {
+    return this.getPage<GitLabIssueBoard>(`groups/${encodeURIComponent(String(groupId))}/boards?per_page=100`, cursor);
+  }
+
   listGroupProjects(groupId: number): Promise<GitLabProject[]> {
     return this.getPages<GitLabProject>(
       `groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&per_page=100`
@@ -301,6 +264,79 @@ export class GitLabClient {
 
   listGroupBoardIssueMemberships(groupPath: string, boardId: number): Promise<Array<{ issueId: number; projectId?: number; iid?: number }>> {
     return this.fetchGroupBoardIssueMemberships(groupPath, boardId);
+  }
+
+  /** Exactly one GraphQL page. A failed request leaves the caller's checkpoint unchanged. */
+  async listGroupBoardIssueMembershipsPage(groupPath: string, boardId: number,
+    cursor?: import('./types').GitLabBoardMembershipCursor, username?: string): Promise<import('./types').GitLabBoardMembershipPage> {
+    if (!groupPath || !Number.isSafeInteger(boardId) || boardId <= 0) throw new GitLabApiError('Invalid Issue Board scope.');
+    if (cursor && (cursor.schema !== 'GitLabBoardMembershipCursor/v1' || cursor.groupPath !== groupPath || cursor.boardId !== boardId
+      || cursor.username !== username || !['lists', 'issues'].includes(cursor.phase) || !Array.isArray(cursor.lists)
+      || !Array.isArray(cursor.seenListCursors) || !Array.isArray(cursor.seenIssueCursors) || !Number.isSafeInteger(cursor.listIndex)
+      || cursor.listIndex < 0 || cursor.listIndex > cursor.lists.length)) throw new GitLabApiError('Issue Board checkpoint belongs to a different or invalid scope.');
+    const state: import('./types').GitLabBoardMembershipCursor = cursor ? structuredClone(cursor) : {
+      schema: 'GitLabBoardMembershipCursor/v1', groupPath, boardId, username, phase: 'lists', lists: [], listAfter: null, listIndex: 0,
+      issueAfter: null, seenListCursors: [], seenIssueCursors: [], hideBacklogList: false, hideClosedList: false
+    };
+    const skipHidden = (): void => {
+      while (state.listIndex < state.lists.length) {
+        const kind = state.lists[state.listIndex].listType.toLowerCase();
+        if (!(state.hideBacklogList && kind === 'backlog') && !(state.hideClosedList && kind === 'closed')) break;
+        state.listIndex++; state.issueAfter = null; state.seenIssueCursors = [];
+      }
+    };
+    const finish = (items: import('./types').GitLabBoardIssueMembership[]): import('./types').GitLabBoardMembershipPage => {
+      if (state.phase === 'issues') skipHidden();
+      const complete = state.phase === 'issues' && state.listIndex >= state.lists.length;
+      return { items, complete, ...(complete ? {} : { nextCursor: state }), updatedAt: new Date().toISOString() };
+    };
+    if (state.phase === 'lists') {
+      type Page = { group?: { board?: { hideBacklogList: boolean; hideClosedList: boolean; lists?: {
+        nodes?: Array<{ id: string; listType: string }>; pageInfo?: { hasNextPage?: boolean; endCursor?: string | null }
+      } } } };
+      const page = await this.graphql<Page>(
+        'query AssignedGroupIssueBoardLists($groupPath: ID!, $boardId: BoardID!, $after: String) { group(fullPath: $groupPath) { board(id: $boardId) { hideBacklogList hideClosedList lists(first: 100, after: $after) { nodes { id listType } pageInfo { hasNextPage endCursor } } } } }',
+        { groupPath, boardId: `gid://gitlab/Board/${boardId}`, after: state.listAfter });
+      const board = page.group?.board;
+      if (!board?.lists || !Array.isArray(board.lists.nodes)) throw new GitLabApiError('Issue Board lists could not be loaded.');
+      state.hideBacklogList = board.hideBacklogList === true; state.hideClosedList = board.hideClosedList === true;
+      const known = new Set(state.lists.map(list => list.id));
+      for (const list of board.lists.nodes) {
+        if (!/^gid:\/\/gitlab\/List\/\d+$/.test(list.id) || typeof list.listType !== 'string') throw new GitLabApiError('Invalid Issue Board list.');
+        if (!known.has(list.id)) { state.lists.push(list); known.add(list.id); }
+      }
+      const info = board.lists.pageInfo;
+      if (info?.hasNextPage) {
+        if (!info.endCursor || state.seenListCursors.includes(info.endCursor)) throw new GitLabApiError('Repeated or incomplete Board list cursor.');
+        state.seenListCursors.push(info.endCursor); state.listAfter = info.endCursor;
+      } else { state.phase = 'issues'; state.listAfter = null; }
+      return finish([]);
+    }
+    skipHidden();
+    if (state.listIndex >= state.lists.length) return finish([]);
+    const list = state.lists[state.listIndex];
+    if (!/^gid:\/\/gitlab\/List\/\d+$/.test(list.id)) throw new GitLabApiError('Invalid Issue Board checkpoint list.');
+    type Page = { boardList?: { issues?: { nodes?: Array<{ id: string; projectId?: number | string; iid?: number | string }>;
+      pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } } };
+    const variables: Record<string, unknown> = { listId: list.id, after: state.issueAfter };
+    if (username !== undefined) variables.username = [username];
+    const page = await this.graphql<Page>(
+      `query ${username === undefined ? 'Group' : 'AssignedGroup'}IssueBoardListIssues($listId: ListID!${username === undefined ? '' : ', $username: [String!]'}, $after: String) { boardList(id: $listId) { issues(first: 100, after: $after${username === undefined ? '' : ', filters: { assigneeUsername: $username }'}) { nodes { id iid projectId } pageInfo { hasNextPage endCursor } } } }`, variables);
+    const issues = page.boardList?.issues;
+    if (!issues || !Array.isArray(issues.nodes)) throw new GitLabApiError('Issue Board membership page could not be loaded.');
+    const items = new Map<number, import('./types').GitLabBoardIssueMembership>();
+    for (const issue of issues.nodes) {
+      const match = /^gid:\/\/gitlab\/Issue\/(\d+)$/.exec(issue.id), issueId = match ? Number(match[1]) : NaN;
+      if (!Number.isSafeInteger(issueId) || issueId < 1) continue;
+      const projectId = Number(issue.projectId), iid = Number(issue.iid);
+      items.set(issueId, { issueId, ...(Number.isSafeInteger(projectId) && projectId > 0 ? { projectId } : {}), ...(Number.isSafeInteger(iid) && iid > 0 ? { iid } : {}) });
+    }
+    const info = issues.pageInfo;
+    if (info?.hasNextPage) {
+      if (!info.endCursor || state.seenIssueCursors.includes(info.endCursor)) throw new GitLabApiError('Repeated or incomplete Board membership cursor.');
+      state.seenIssueCursors.push(info.endCursor); state.issueAfter = info.endCursor;
+    } else { state.listIndex++; state.issueAfter = null; state.seenIssueCursors = []; }
+    return finish([...items.values()]);
   }
 
   async listAssignedGroupBoardIssueIds(groupPath: string, boardId: number, username: string): Promise<number[]> {
@@ -337,6 +373,16 @@ export class GitLabClient {
       } | null;
     };
 
+    const started = Date.now(); let requests = 0, bytes = 0;
+    const readBoardPage = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
+      if (requests >= 100 || Date.now() - started >= 120_000) throw new GitLabApiError('Issue Board membership is incomplete: the request/time budget was reached. Narrow the Board or retry explicitly.');
+      requests++;
+      const value = await this.graphql<T>(query, variables);
+      bytes += new TextEncoder().encode(JSON.stringify(value)).byteLength;
+      if (bytes > 32 * 1024 * 1024) throw new GitLabApiError('Issue Board membership is incomplete: the response byte budget was reached.');
+      return value;
+    };
+
     const lists: Array<{ id: string; listType: string }> = [];
     const seenListCursors = new Set<string>();
     let after: string | null = null;
@@ -345,7 +391,7 @@ export class GitLabClient {
     let hideClosedList = false;
 
     do {
-      const page: BoardListPage = await this.graphql<BoardListPage>(
+      const page: BoardListPage = await readBoardPage<BoardListPage>(
         'query AssignedGroupIssueBoardLists($groupPath: ID!, $boardId: BoardID!, $after: String) { group(fullPath: $groupPath) { board(id: $boardId) { hideBacklogList hideClosedList lists(first: 100, after: $after) { nodes { id listType } pageInfo { hasNextPage endCursor } } } } }',
         { groupPath, boardId: `gid://gitlab/Board/${boardId}`, after }
       );
@@ -377,7 +423,7 @@ export class GitLabClient {
         const filter = username === undefined ? '' : ', filters: { assigneeUsername: $username }';
         const variables: Record<string, unknown> = { listId: list.id, after: issueAfter };
         if (username !== undefined) variables.username = [username];
-        const page: BoardIssuePage = await this.graphql<BoardIssuePage>(
+        const page: BoardIssuePage = await readBoardPage<BoardIssuePage>(
           `query ${username === undefined ? 'Group' : 'AssignedGroup'}IssueBoardListIssues($listId: ListID!${username === undefined ? '' : ', $username: [String!]'}, $after: String) { boardList(id: $listId) { issues(first: 100, after: $after${filter}) { nodes { id iid projectId } pageInfo { hasNextPage endCursor } } } }`,
           variables
         );
@@ -414,6 +460,15 @@ export class GitLabClient {
     return this.getPages<GitLabMilestone>(
       `groups/${encodeURIComponent(String(groupId))}/milestones?include_descendants=true&per_page=100`
     );
+  }
+
+  listGroupMilestonesPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabMilestone>> {
+    return this.getPage<GitLabMilestone>(`groups/${encodeURIComponent(String(groupId))}/milestones?include_descendants=true&per_page=100`, cursor);
+  }
+
+  async listGroupMergeRequestsPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabMergeRequest>> {
+    const page = await this.getPage<GitLabMergeRequest>(`groups/${encodeURIComponent(String(groupId))}/merge_requests?scope=all&state=opened&per_page=100`, cursor);
+    return { ...page, items: page.items.filter(request => request.state === 'opened' && Number.isSafeInteger(request.project_id) && Number.isSafeInteger(request.iid)) };
   }
 
   async listGroupMergeRequests(groupId: number): Promise<GitLabMergeRequest[]> {
@@ -600,14 +655,49 @@ export class GitLabClient {
   }
 
   async loadIssueGraphRelations(
+    projectPath: string, issueIid: number,
+    capabilities: Pick<GitLabIssueCapabilities, 'graphWorkItems' | 'graphHierarchy' | 'graphLinkedItems' | 'graphLabels' | 'graphAssignees' | 'graphWorkItemTypes'> & Partial<Pick<GitLabIssueCapabilities, 'workItemScope' | 'workItemGraphFields'>>
+  ): Promise<import('./types').GitLabIssueGraphRelations> {
+    const parents = new Map<string, GitLabGraphWorkItem>(), children = new Map<string, GitLabGraphWorkItem>();
+    const links = new Map<string, { type: string; item: GitLabGraphWorkItem }>();
+    const budget = new GitLabRequestBudget({ requests: 100, bytes: 32 * 1024 * 1024, timeoutMs: 120_000 });
+    const bounded = this.withRequestBudget(budget);
+    try {
+    let cursor: import('./types').GitLabIssueGraphCursor | undefined;
+    for (let index = 0; index < 100; index++) {
+      const page = await bounded.loadIssueGraphRelationsPage(projectPath, issueIid, capabilities, cursor);
+      for (const item of page.parents) parents.set(item.id, item);
+      for (const item of page.children) children.set(item.id, item);
+      for (const item of page.links) links.set(`${item.type}:${item.item.id}`, item);
+      if (page.complete) return { root: page.root, parents: [...parents.values()], children: [...children.values()], links: [...links.values()] };
+      cursor = page.nextCursor;
+    }
+    throw new GitLabApiError('GitLab returned too many Issue graph pages to load safely.');
+    } finally { budget.dispose(); }
+  }
+
+  async loadIssueGraphRelationsPage(
     projectPath: string,
     issueIid: number,
-    capabilities: Pick<GitLabIssueCapabilities, 'graphWorkItems' | 'graphHierarchy' | 'graphLinkedItems' | 'graphLabels' | 'graphAssignees' | 'graphWorkItemTypes'> & Partial<Pick<GitLabIssueCapabilities, 'workItemScope' | 'workItemGraphFields'>>
-  ): Promise<{ root?: GitLabGraphWorkItem; parents: GitLabGraphWorkItem[]; children: GitLabGraphWorkItem[]; links: Array<{ type: string; item: GitLabGraphWorkItem }> }> {
+    capabilities: Pick<GitLabIssueCapabilities, 'graphWorkItems' | 'graphHierarchy' | 'graphLinkedItems' | 'graphLabels' | 'graphAssignees' | 'graphWorkItemTypes'> & Partial<Pick<GitLabIssueCapabilities, 'workItemScope' | 'workItemGraphFields'>>,
+    cursor?: import('./types').GitLabIssueGraphCursor
+  ): Promise<import('./types').GitLabIssueGraphPage> {
     if (!projectPath.trim() || projectPath.length > 255 || !Number.isSafeInteger(issueIid) || issueIid <= 0) {
       throw new GitLabApiError('A valid project path and Issue IID are required.');
     }
-    if (!capabilities.graphWorkItems) return { parents: [], children: [], links: [] };
+    if (!capabilities.graphWorkItems) return { parents: [], children: [], links: [], complete: true, updatedAt: new Date().toISOString() };
+    const capabilityKey = JSON.stringify([capabilities.graphHierarchy, capabilities.graphLinkedItems, capabilities.graphLabels,
+      capabilities.graphAssignees, capabilities.graphWorkItemTypes, capabilities.workItemScope ?? 'namespace', capabilities.workItemGraphFields ?? null]);
+    if (cursor && (cursor.schema !== 'GitLabIssueGraphCursor/v1' || cursor.projectPath !== projectPath || cursor.issueIid !== issueIid
+      || cursor.capabilityKey !== capabilityKey || !Array.isArray(cursor.seenChildren) || !Array.isArray(cursor.seenLinks)
+      || typeof cursor.childrenActive !== 'boolean' || typeof cursor.linksActive !== 'boolean'
+      || cursor.childrenAfter !== null && typeof cursor.childrenAfter !== 'string' || cursor.linksAfter !== null && typeof cursor.linksAfter !== 'string')) {
+      throw new GitLabApiError('Issue graph checkpoint belongs to a different or invalid scope.');
+    }
+    const state: import('./types').GitLabIssueGraphCursor = cursor ? structuredClone(cursor) : {
+      schema: 'GitLabIssueGraphCursor/v1', projectPath, issueIid, capabilityKey, childrenAfter: null, linksAfter: null,
+      childrenActive: capabilities.graphHierarchy, linksActive: capabilities.graphLinkedItems, seenChildren: [], seenLinks: []
+    };
 
     const hierarchy = capabilities.graphHierarchy
       ? '... on WorkItemWidgetHierarchy { parent { ...IssueGraphItem } children(first: 100, after: $childrenAfter) @include(if: $includeChildren) { nodes { ...IssueGraphItem } pageInfo { hasNextPage endCursor } } }'
@@ -651,55 +741,37 @@ export class GitLabClient {
         ${rootWidgetsSelection}
       } }
     } ${itemFragment}`;
-    const parents = new Map<string, GitLabGraphWorkItem>();
-    const children = new Map<string, GitLabGraphWorkItem>();
+    const variables: Record<string, unknown> = { path: projectPath, iid: String(issueIid) };
+    if (capabilities.graphHierarchy) { variables.childrenAfter = state.childrenAfter; variables.includeChildren = state.childrenActive; }
+    if (capabilities.graphLinkedItems) { variables.linksAfter = state.linksAfter; variables.includeLinks = state.linksActive; }
+    const data = await this.graphql<{ namespace?: { workItem?: GitLabGraphWorkItem | null } | null; project?: { workItem?: GitLabGraphWorkItem | null } | null }>(query, variables);
+    const root = scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem;
+    if (!root) throw new GitLabApiError('GitLab could not find the Issue hierarchy item.');
+    const parents = new Map<string, GitLabGraphWorkItem>(), children = new Map<string, GitLabGraphWorkItem>();
     const links = new Map<string, { type: string; item: GitLabGraphWorkItem }>();
-    let graphRoot: GitLabGraphWorkItem | undefined;
-    const cursors = { children: new Set<string>(), links: new Set<string>() };
-    let after = { children: null as string | null, links: null as string | null };
-    let childrenActive = capabilities.graphHierarchy;
-    let linksActive = capabilities.graphLinkedItems;
-
-    for (let pageIndex = 0; pageIndex < 100; pageIndex++) {
-      const variables: Record<string, unknown> = { path: projectPath, iid: String(issueIid) };
-      if (capabilities.graphHierarchy) { variables.childrenAfter = after.children; variables.includeChildren = childrenActive; }
-      if (capabilities.graphLinkedItems) { variables.linksAfter = after.links; variables.includeLinks = linksActive; }
-      const data = await this.graphql<{ namespace?: { workItem?: GitLabGraphWorkItem | null } | null; project?: { workItem?: GitLabGraphWorkItem | null } | null }>(query, variables);
-      const root = scope === 'namespace' ? data.namespace?.workItem : data.project?.workItem;
-      if (!root) throw new GitLabApiError('GitLab could not find the Issue hierarchy item.');
-      graphRoot = root;
-      let childInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
-      let linkInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
-      for (const widget of root.widgets ?? []) {
-        if (widget.parent?.id) parents.set(widget.parent.id, widget.parent);
-        for (const item of widget.children?.nodes ?? []) if (item.id) children.set(item.id, item);
-        for (const item of widget.linkedItems?.nodes ?? []) {
-          if (item.workItem?.id) links.set(`${item.linkType}:${item.workItem.id}`, { type: item.linkType, item: item.workItem });
-        }
-        childInfo ??= widget.children?.pageInfo;
-        linkInfo ??= widget.linkedItems?.pageInfo;
-      }
-      const advance = (
-        hasNext: boolean | undefined,
-        cursor: string | null | undefined,
-        seen: Set<string>,
-        label: string
-      ): string | null => {
-        if (!hasNext) return null;
-        if (!cursor || seen.has(cursor)) throw new GitLabApiError(`GitLab returned an incomplete or repeated Issue graph ${label} cursor.`);
-        seen.add(cursor);
-        return cursor;
-      };
-      const next = {
-        children: childrenActive ? advance(childInfo?.hasNextPage, childInfo?.endCursor, cursors.children, 'child') : null,
-        links: linksActive ? advance(linkInfo?.hasNextPage, linkInfo?.endCursor, cursors.links, 'linked-item') : null
-      };
-      childrenActive = next.children !== null;
-      linksActive = next.links !== null;
-      if (!next.children && !next.links) return { root: graphRoot, parents: [...parents.values()], children: [...children.values()], links: [...links.values()] };
-      after = next;
+    let childInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
+    let linkInfo: { hasNextPage?: boolean; endCursor?: string | null } | undefined;
+    for (const widget of root.widgets ?? []) {
+      if (widget.parent?.id) parents.set(widget.parent.id, widget.parent);
+      for (const item of widget.children?.nodes ?? []) if (item.id) children.set(item.id, item);
+      for (const item of widget.linkedItems?.nodes ?? []) if (item.workItem?.id) links.set(`${item.linkType}:${item.workItem.id}`, { type: item.linkType, item: item.workItem });
+      childInfo ??= widget.children?.pageInfo; linkInfo ??= widget.linkedItems?.pageInfo;
     }
-    throw new GitLabApiError('GitLab returned too many Issue graph pages to load safely.');
+    const advance = (active: boolean, info: typeof childInfo, seen: string[], label: string): string | null => {
+      if (!active || !info?.hasNextPage) return null;
+      if (!info.endCursor || seen.includes(info.endCursor)) throw new GitLabApiError(`GitLab returned an incomplete or repeated Issue graph ${label} cursor.`);
+      seen.push(info.endCursor); return info.endCursor;
+    };
+    state.childrenAfter = advance(state.childrenActive, childInfo, state.seenChildren, 'child');
+    state.linksAfter = advance(state.linksActive, linkInfo, state.seenLinks, 'linked-item');
+    state.childrenActive = state.childrenAfter !== null; state.linksActive = state.linksAfter !== null;
+    const complete = !state.childrenActive && !state.linksActive;
+    return { root, parents: [...parents.values()], children: [...children.values()], links: [...links.values()], complete,
+      ...(complete ? {} : { nextCursor: state }), updatedAt: new Date().toISOString() };
+  }
+
+  listIssueLinksPage(projectId: number, issueIid: number, cursor?: string): Promise<GitLabPage<GitLabIssue>> {
+    return this.getPage<GitLabIssue>(`${this.issuePath(projectId, issueIid)}/links?per_page=100`, cursor);
   }
 
   listIssueLinks(projectId: number, issueIid: number): Promise<GitLabIssue[]> {
@@ -946,7 +1018,7 @@ export class GitLabClient {
 
   renderMarkdown(projectPath: string, markdown: string): Promise<{ html: string }> {
     return this.withReadRequest(async signal => {
-      const response = await this.fetcher(new URL('markdown', this.apiRoot), { method: 'POST', signal, redirect: 'manual',
+      const response = await this.send(new URL('markdown', this.apiRoot), { method: 'POST', signal, redirect: 'manual',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
         body: JSON.stringify({ text: markdown, gfm: true, project: projectPath }) });
       return this.readJson<{ html: string }>(response);
@@ -998,7 +1070,7 @@ export class GitLabClient {
       });
       const url = new URL(`${this.projectPath(projectId)}/uploads`, this.apiRoot);
       try {
-        const response = await this.fetcher(url, { method: 'POST', headers: { Accept: 'application/json', 'PRIVATE-TOKEN': this.token,
+        const response = await this.send(url, { method: 'POST', headers: { Accept: 'application/json', 'PRIVATE-TOKEN': this.token,
           'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': String(prefix.length + size + suffix.length) },
           body: requestBody, signal: writeSignal, redirect: 'manual', duplex: 'half' } as RequestInit);
         const value = await this.readJson<GitLabUpload>(response);
@@ -1016,7 +1088,7 @@ export class GitLabClient {
       throw new GitLabApiError('The attachment URL is outside this GitLab server.');
     }
     return this.withReadRequest(async (signal) => {
-      const response = await this.fetcher(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' });
+      const response = await this.send(url, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token }, signal, redirect: 'manual' }, true, maxBytes);
       if (response.status >= 300 && response.status < 400) throw new GitLabApiError('GitLab redirected the attachment request.', response.status);
       if (!response.ok) throw new GitLabApiError(`GitLab attachment request failed (HTTP ${response.status}).`, response.status);
       if (Number(response.headers.get('content-length') ?? 0) > maxBytes) {
@@ -1049,13 +1121,13 @@ export class GitLabClient {
     }
     const readOnly = /^\s*(?:query(?:\s|\(|\{)|\{)/i.test(query);
     const request = async (signal?: AbortSignal) => {
-      const response = await this.fetcher(url, {
+      const response = await this.send(url, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
         body: JSON.stringify({ query, variables }),
         ...(signal ? { signal } : {}),
         redirect: 'manual'
-      });
+      }, readOnly);
       return { response, result: await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response) };
     };
     const { response, result } = readOnly ? await this.withReadRequest((signal) => request(signal)) : await this.withWriteRequest(request);
@@ -1095,7 +1167,7 @@ export class GitLabClient {
   private async sendNoContent(path: string, init: RequestInit): Promise<void> {
     const url = new URL(path.replace(/^\/+/, ''), this.apiRoot);
     if (!this.isSafeApiUrl(url)) throw new GitLabApiError('The request is outside the configured GitLab API.');
-    const response = await this.fetcher(url, {
+    const response = await this.send(url, {
       ...init, headers: { Accept: 'application/json', 'PRIVATE-TOKEN': this.token }, redirect: 'manual'
     });
     if (response.status >= 300 && response.status < 400 && response.status !== 304) throw new GitLabApiError('GitLab redirected the API request.', response.status);
@@ -1108,12 +1180,37 @@ export class GitLabClient {
     return this.fetchJson<T>(url, init);
   }
 
+  /** One bounded page; the continuation remains scoped to the original endpoint and filters. */
+  private async getPage<T>(path: string, cursor?: string): Promise<import('./types').GitLabPage<T>> {
+    const initial = new URL(path.replace(/^\/+/, ''), this.apiRoot);
+    const current = cursor ? new URL(cursor) : initial;
+    if (!this.isSafeApiUrl(current) || current.pathname !== initial.pathname) throw new GitLabApiError('GitLab page cursor is outside the requested resource.');
+    for (const [key, value] of initial.searchParams) {
+      if (key === 'page') continue;
+      if (current.searchParams.has(key) && current.searchParams.get(key) !== value) throw new GitLabApiError('GitLab page cursor changed the requested filters.');
+      current.searchParams.set(key, value);
+    }
+    const { items, response } = await this.withReadRequest(async signal => {
+      const response = await this.send(current, { method: 'GET', headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json' }, signal, redirect: 'manual' });
+      return { items: await this.readJson<T[]>(response), response };
+    });
+    if (!Array.isArray(items)) throw new GitLabApiError('GitLab returned an unexpected list response.', response.status);
+    const next = this.getNextPage(response, current);
+    if (next && (!this.isSafeApiUrl(next) || next.pathname !== initial.pathname || next.href === current.href)) throw new GitLabApiError('GitLab returned an unsafe or repeated page cursor.');
+    return { items, nextCursor: next?.href, complete: !next, updatedAt: new Date().toISOString() };
+  }
+
   private async getPages<T>(path: string): Promise<T[]> {
     let next: URL | undefined = new URL(path.replace(/^\/+/, ''), this.apiRoot);
     const values: T[] = [];
     const seen = new Set<string>();
+    const deadline = Date.now() + 120_000;
+    let bytes = 0;
 
     while (next) {
+      if (seen.size >= 100 || bytes >= 32 * 1024 * 1024 || Date.now() >= deadline) {
+        throw Object.assign(new GitLabApiError('GitLab list exceeded its page, byte or time budget; it was not treated as complete. Use paged loading to continue.'), { nextCursor: next.href, loadedCount: values.length, complete: false });
+      }
       if (!this.isSafeApiUrl(next)) {
         throw new GitLabApiError('GitLab returned a pagination link outside the configured API.');
       }
@@ -1122,14 +1219,16 @@ export class GitLabClient {
       }
       seen.add(next.href);
       const { page, response } = await this.withReadRequest(async (signal) => {
-        const response = await this.fetcher(next!, {
+        const response = await this.send(next!, {
           method: 'GET', headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json' }, signal, redirect: 'manual'
         });
         return { response, page: await this.readJson<T[]>(response) };
-      });
+      }, AbortSignal.timeout(Math.max(1, deadline - Date.now())));
       if (!Array.isArray(page)) {
         throw new GitLabApiError('GitLab returned an unexpected list response.', response.status);
       }
+      bytes += Buffer.byteLength(JSON.stringify(page), 'utf8');
+      if (bytes > 32 * 1024 * 1024) throw Object.assign(new GitLabApiError('GitLab list exceeded its 32 MiB budget; it was not treated as complete.'), { nextCursor: next.href, loadedCount: values.length, complete: false });
       values.push(...page);
       next = this.getNextPage(response, next);
     }
@@ -1143,7 +1242,7 @@ export class GitLabClient {
     }
     const method = (init.method ?? 'GET').toUpperCase();
     const request = async (signal?: AbortSignal): Promise<T> => {
-      const response = await this.fetcher(url, {
+      const response = await this.send(url, {
         ...init,
         headers: { Accept: 'application/json', ...init.headers, 'PRIVATE-TOKEN': this.token },
         ...(signal ? { signal } : {}),
@@ -1156,11 +1255,21 @@ export class GitLabClient {
     return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : this.withWriteRequest(request);
   }
 
+  private send(input: string | URL | Request, init: RequestInit = {}, safeRead?: boolean, responseLimit?: number): Promise<Response> {
+    const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
+    if (this.requestBudgets.length) init = { ...init, signal: AbortSignal.any([...(init.signal ? [init.signal] : []), ...this.requestBudgets.map(budget => budget.signal)]) };
+    return this.networkGate.fetch(this.fetcher, url, init, safeRead, responseLimit, () => {
+      for (const budget of this.requestBudgets) budget.reserve();
+      const state = writeRequestState.getStore(); if (state) state.sent = true;
+    }, bytes => { for (const budget of this.requestBudgets) budget.consume(bytes); });
+  }
+
   private withWriteRequest<T>(operation: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal, timeoutMs = this.writeTimeoutMs): Promise<T> {
+    const state = { sent: false };
     const task = async (): Promise<T> => {
       if (signal?.aborted) throw Object.assign(new Error('Upload cancelled before sending.'), { name: 'AbortError', effect: 'none' });
       const controller = new AbortController();
-      const unknown = (): GitLabWriteUnknownError => new GitLabWriteUnknownError();
+      const unknown = (): Error => state.sent ? new GitLabWriteUnknownError() : Object.assign(new Error('GitLab operation cancelled before sending; no request was sent.'), { name: 'AbortError', effect: 'none' });
       const onAbort = (): void => controller.abort(unknown());
       signal?.addEventListener('abort', onAbort, { once: true });
       let rejectDeadline!: (error: Error) => void;
@@ -1168,9 +1277,9 @@ export class GitLabClient {
       const onInterrupted = (): void => rejectDeadline(controller.signal.reason);
       controller.signal.addEventListener('abort', onInterrupted, { once: true });
       const timeout = setTimeout(onAbort, timeoutMs);
-      try { return await Promise.race([operation(controller.signal), interrupted]); }
+      try { return await Promise.race([writeRequestState.run(state, () => operation(controller.signal)), interrupted]); }
       catch (error) {
-        if (error instanceof GitLabWriteUnknownError || error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500) throw error;
+        if (error instanceof GitLabWriteUnknownError || error instanceof Error && 'effect' in error && error.effect === 'none' || error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500) throw error;
         throw new GitLabWriteUnknownError(undefined, { cause: error });
       } finally {
         clearTimeout(timeout); signal?.removeEventListener('abort', onAbort);
@@ -1180,8 +1289,8 @@ export class GitLabClient {
     return this.runWrite ? this.runWrite(task) : task();
   }
 
-  private withReadRequest<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
-    return this.readGate.run(this.readSignal, operation);
+  private withReadRequest<T>(operation: (signal: AbortSignal) => Promise<T>, extraSignal?: AbortSignal): Promise<T> {
+    return this.readGate.run(extraSignal ? [...(Array.isArray(this.readSignal) ? this.readSignal : [this.readSignal]), extraSignal] : this.readSignal, operation);
   }
 
   private async readJson<T>(response: Response): Promise<T> {
@@ -1191,6 +1300,7 @@ export class GitLabClient {
     if (!response.ok) {
       const message = response.status === 401 || response.status === 403
         ? 'GitLab rejected the access token or its permissions.'
+        : response.status === 429 ? 'GitLab 暫停請求（HTTP 429），請於 ' + new Date(parseRetryAfter(response.headers.get('retry-after')) ?? Date.now() + 30_000).toISOString() + ' 後繼續。'
         : `GitLab API request failed (HTTP ${response.status}).`;
       throw new GitLabApiError(message, response.status);
     }

@@ -1,0 +1,81 @@
+{
+  "status": "PASS",
+  "stage": "manual-result-confirmed",
+  "pushCounts": {
+    "beforeRace": 1,
+    "afterUnknown": 2,
+    "afterRefresh": 2,
+    "afterManualConfirmation": 2
+  },
+  "localBefore": "b18438335423d1619a83e7cf11ce3cd6849d48c4",
+  "remoteBefore": "b18438335423d1619a83e7cf11ce3cd6849d48c4",
+  "raceCommit": "24a737a119191e7fe44a2ddfc13ffb1c73ba2304",
+  "remoteAtConfirmation": "24a737a119191e7fe44a2ddfc13ffb1c73ba2304",
+  "forcePushConfirmation": "workbench-dom",
+  "forceConfirmation": "Force Push\nCancel\nForce Push b18438335423 至 origin:validation/native-gui/mvgyjuta（遠端目前 b18438335423）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792517346840-1460\\demo\\service\n將傳送的提交：\n沒有新提交。\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+  "rejectedLocalSha": "b18438335423d1619a83e7cf11ce3cd6849d48c4",
+  "rejectedRemoteSha": "24a737a119191e7fe44a2ddfc13ffb1c73ba2304",
+  "unknownState": {
+    "progress": "結果待確認，請先核對 Repo…",
+    "writeBlocked": true,
+    "readAllowed": true,
+    "failedOperations": [
+      "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+    ]
+  },
+  "refreshCommand": {
+    "sid": "20261020T172933.364444Z-Hf9ec2bb5-P00000d3c",
+    "argv": [
+      "git.exe",
+      "status",
+      "-z",
+      "-uall"
+    ]
+  },
+  "refreshedState": {
+    "progress": "結果待確認，請先核對 Repo…",
+    "writeBlocked": true,
+    "readAllowed": true,
+    "failedOperations": [
+      "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+    ]
+  },
+  "manualConfirmation": "workbench-dom",
+  "resultConfirmation": "已確認完成\n已確認未執行\nCancel\n請先在 GitLab 或本機 Repo 核對「執行版控操作」（git:022ad4b7278dc0647db38e0928d49c81）的結果。只有確認結果後，才選擇下列項目解除待確認狀態；系統不會重新執行或重送操作。",
+  "confirmedOutcome": "none",
+  "confirmedLocalSha": "b18438335423d1619a83e7cf11ce3cd6849d48c4",
+  "confirmedRemoteSha": "24a737a119191e7fe44a2ddfc13ffb1c73ba2304",
+  "resolvedState": {
+    "progress": "",
+    "writeBlocked": false,
+    "readAllowed": true,
+    "failedOperations": []
+  },
+  "noAutomaticResend": true,
+  "pushInvocations": [
+    {
+      "sid": "20261020T172928.089504Z-Hf9ec2bb5-P00002bac",
+      "argv": [
+        "git.exe",
+        "-c",
+        "core.quotepath=false",
+        "push",
+        "--set-upstream",
+        "origin",
+        "HEAD:refs/heads/validation/native-gui/mvgyjuta"
+      ]
+    },
+    {
+      "sid": "20261020T172931.985687Z-Hf9ec2bb5-P0000382c",
+      "argv": [
+        "git.exe",
+        "-c",
+        "core.quotepath=false",
+        "push",
+        "--force-with-lease=refs/heads/validation/native-gui/mvgyjuta:b18438335423d1619a83e7cf11ce3cd6849d48c4",
+        "origin",
+        "HEAD:refs/heads/validation/native-gui/mvgyjuta"
+      ]
+    }
+  ]
+}

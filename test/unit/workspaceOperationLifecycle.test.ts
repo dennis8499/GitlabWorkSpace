@@ -164,7 +164,7 @@ test('MR fallback renders the recovered files and records a truthful warning; fa
   const failed = f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'failed-retry');
   assert.equal(failed.level, 'error'); assert.equal(failed.messages.length, 1);
   assert.equal(summaries[1].result, 'error'); assert.match(summaries[1].message, /HTTP 503/);
-  assert.equal(endpoints.length, 4);
+  assert.equal(endpoints.length, 6, 'the failed safe-read fallback has at most two transport retries');
 });
 
 test('quiet read failures keep their captured source and applied refresh warnings retain actual details', async () => {
@@ -189,6 +189,7 @@ test('Issue Board read failures settle as failed and stale local feedback is rej
   const f = fixture();
   f.host.dispatchMessage = (WorkspacePanel.prototype as any).dispatchMessage;
   f.host.session.selectedGroup = { id: 1, full_path: 'group' };
+  f.host.currentUser = { id: 1, username: 'tester' };
   f.host.connectedScopeKey = () => 'connected'; f.host.groupIssueBoards = [{ id: 3 }]; f.host.issueBoardGeneration = 0;
   f.host.session.cachedRead = async () => { throw new Error('Board unavailable'); };
   await f.host.handleMessage({ type: 'selectIssueBoard', operationId: 'board', boardId: 3, connectedScope: 'connected' });
@@ -247,7 +248,7 @@ test('MR result reconciliation queries markers and releases an uncertain receipt
   await f.operations.run(uncertain, async () => ({ status: 'failed', effect: 'unknown' }));
   const pending = [{ key: 'pending', marker: '<!-- marker -->', projectId: 1, iid: 2, groupId: 1, userId: 1 }];
   f.host.pendingMrWrites = () => pending;
-  f.host.requireGroupProject = () => ({ id: 1 });
+  f.host.resolveGroupProject = async () => ({ id: 1 });
   f.host.savePendingMrWrite = async () => { pending.splice(0); };
   f.host.loadMergeRequest = async () => { refreshed++; };
   f.host.session.getClient = async () => ({ listMergeRequestDiscussions: async () => [{ notes: [{ body: '<!-- marker -->' }] }], createMergeRequestNote: async () => { published++; } });

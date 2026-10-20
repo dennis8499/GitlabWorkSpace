@@ -1,6 +1,7 @@
 interface CachedValue {
   expiresAt: number;
   value: unknown;
+  bytes: number;
 }
 
 interface PendingRead<T> {
@@ -26,14 +27,17 @@ export function isAbortedRead(error: unknown, signal?: AbortSignal): boolean {
 export class GitLabReadCache {
   private readonly values = new Map<string, CachedValue>();
   private readonly inFlight = new Map<string, PendingRead<unknown>>();
+  private cachedBytes = 0;
 
   constructor(
     private readonly lifetimeMs = 60_000,
     private readonly capacity = 256,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly maxBytes = 32 * 1024 * 1024
   ) {
     if (!Number.isSafeInteger(lifetimeMs) || lifetimeMs <= 0) throw new RangeError('Cache lifetime must be positive.');
     if (!Number.isSafeInteger(capacity) || capacity <= 0) throw new RangeError('Cache capacity must be positive.');
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new RangeError('Cache byte capacity must be positive.');
   }
 
   get<T>(
@@ -64,8 +68,8 @@ export class GitLabReadCache {
   }
 
   invalidate(key?: string): void {
-    if (key !== undefined) this.values.delete(key);
-    else this.values.clear();
+    if (key !== undefined) this.deleteValue(key);
+    else { this.values.clear(); this.cachedBytes = 0; }
     for (const [pendingKey, pending] of this.inFlight) {
       if (key === undefined || pendingKey === key) pending.invalidated = true;
     }
@@ -74,7 +78,7 @@ export class GitLabReadCache {
   invalidateWhere(matches: (key: string) => boolean): number {
     let invalidated = 0;
     for (const key of this.values.keys()) {
-      if (matches(key)) { this.values.delete(key); invalidated++; }
+      if (matches(key)) { this.deleteValue(key); invalidated++; }
     }
     for (const [key, pending] of this.inFlight) {
       if (matches(key)) { pending.invalidated = true; invalidated++; }
@@ -84,6 +88,7 @@ export class GitLabReadCache {
 
   clear(): void {
     this.values.clear();
+    this.cachedBytes = 0;
     for (const pending of this.inFlight.values()) pending.controller.abort();
     this.inFlight.clear();
   }
@@ -95,9 +100,15 @@ export class GitLabReadCache {
     };
     pending.promise = Promise.resolve().then(() => load(pending.controller.signal)).then((value) => {
       if (!pending.controller.signal.aborted && !pending.invalidated && this.inFlight.get(key) === pending) {
-        this.values.delete(key);
-        this.values.set(key, { value, expiresAt: this.now() + this.lifetimeMs });
-        while (this.values.size > this.capacity) this.values.delete(this.values.keys().next().value!);
+        this.deleteValue(key);
+        const bytes = estimateCacheBytes(value, this.maxBytes) + key.length * 2;
+        // Oversized values still reach their subscribers, but cannot evict the entire
+        // cache or turn a bounded entry count into unbounded retained memory.
+        if (bytes <= this.maxBytes) {
+          this.values.set(key, { value, bytes, expiresAt: this.now() + this.lifetimeMs });
+          this.cachedBytes += bytes;
+          while (this.values.size > this.capacity || this.cachedBytes > this.maxBytes) this.deleteValue(this.values.keys().next().value!);
+        }
       }
       return value;
     }).finally(() => {
@@ -130,6 +141,34 @@ export class GitLabReadCache {
 
   private expire(): void {
     const now = this.now();
-    for (const [key, entry] of this.values) if (entry.expiresAt <= now) this.values.delete(key);
+    for (const [key, entry] of this.values) if (entry.expiresAt <= now) this.deleteValue(key);
   }
+
+  private deleteValue(key: string): void {
+    const entry = this.values.get(key);
+    if (entry) { this.cachedBytes -= entry.bytes; this.values.delete(key); }
+  }
+}
+
+/** Conservative retained-size estimate without materializing a second JSON copy. */
+function estimateCacheBytes(value: unknown, limit: number): number {
+  const seen = new WeakSet<object>();
+  let bytes = 0;
+  const visit = (item: unknown, depth: number): void => {
+    if (bytes > limit) return;
+    if (typeof item === 'string') { bytes += item.length * 2 + 16; return; }
+    if (!item || typeof item !== 'object') { bytes += 8; return; }
+    if (seen.has(item)) return;
+    if (depth > 64) { bytes = Infinity; return; }
+    seen.add(item); bytes += 64;
+    if (ArrayBuffer.isView(item)) { bytes += item.byteLength; return; }
+    for (const key in item) {
+      if (bytes > limit) break;
+      if (!Object.hasOwn(item, key)) continue;
+      bytes += key.length * 2 + 8;
+      visit((item as Record<string, unknown>)[key], depth + 1);
+    }
+  };
+  try { visit(value, 0); } catch { return Infinity; }
+  return bytes;
 }

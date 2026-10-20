@@ -54,7 +54,11 @@ def local_entries(tool: str) -> tuple[str, dict[str, bytes]]:
         if not path.is_file() or '__pycache__' in path.parts or path.suffix in ('.pyc', '.pyo'):
             continue
         name = path.relative_to(directory).as_posix()
-        entries[name] = path.read_bytes()
+        data = path.read_bytes()
+        # Match release source text across Windows and Linux checkouts; archive hashes remain exact.
+        if path.suffix.lower() in ('.md', '.py', '.yaml', '.yml', '.json', '.txt', '.toml') or name == 'VERSION':
+            data = data.replace(b'\r\n', b'\n')
+        entries[name] = data
     version_path = repo / f'skills/{tool}/VERSION'
     version = version_path.read_text(encoding='utf-8').strip()
     return version, entries
@@ -117,7 +121,8 @@ def freeze() -> dict:
     for tool, repo_name in REPOS.items():
         version, entries = local_entries(tool)
         pin = pins[tool]
-        filename = pin['filename'] if pin['version'] == version else f'{tool}-{version}.zip'
+        filename = pin['filename'] if pin['version'] == version else (
+            f'codebase-llm-wiki-codex-{version}.zip' if tool == 'codebase-wiki' else f'{tool}-{version}.zip')
         prefix = f'codebase-llm-wiki-codex-{version}' if tool == 'codebase-wiki' else tool
         archive = ROOT / 'resources/offline-tools/sources' / filename
         # Keep an existing archive byte-for-byte when its reviewed contents match.
@@ -135,7 +140,8 @@ def freeze() -> dict:
                          'sourceKind': 'local-snapshot', **git_info(ROOT.parent / repo_name),
                          'archiveSha256': digest(archive.read_bytes()),
                          'treeSha256': digest(json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()), 'files': hashes}
-        pin.update(version=version, filename=filename, sha256=records[tool]['archiveSha256'])
+        pin.update(version=version, filename=filename, sha256=records[tool]['archiveSha256'],
+                   asset='codebase-llm-wiki-codex.zip' if tool == 'codebase-wiki' else filename)
         if tool == 'codebase-wiki':
             pin['root'] = prefix
     builder_path = ROOT / 'scripts/build-workflow-kit.py'

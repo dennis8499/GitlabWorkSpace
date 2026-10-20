@@ -3,7 +3,7 @@ import test from 'node:test';
 import type * as vscode from 'vscode';
 import { GIT_DIFF_SCHEME, GitDiffFileSystemProvider } from '../../src/git/gitDiffFileSystemProvider';
 
-function fixture() {
+function fixture(maxBytes?: number) {
   const listeners = new Set<(event: { closed: Array<{ input: unknown }> }) => void>();
   const tabGroups: { all: Array<{ tabs: Array<{ input: unknown }> }>; onDidChangeTabs(listener: (event: { closed: Array<{ input: unknown }> }) => void): { dispose(): void } } = {
     all: [], onDidChangeTabs: listener => { listeners.add(listener); return { dispose: () => { listeners.delete(listener); } }; }
@@ -24,7 +24,7 @@ function fixture() {
     } },
     window: { tabGroups }
   } as unknown as typeof vscode;
-  const provider = new GitDiffFileSystemProvider(host);
+  const provider = new GitDiffFileSystemProvider(host, maxBytes);
   return { provider, tabGroups, changed: (closed: Array<{ input: unknown }> = []) => { for (const listener of listeners) listener({ closed }); },
     registration: () => registration, disposed: () => disposed, listenerCount: () => listeners.size };
 }
@@ -48,6 +48,19 @@ test('native Diff snapshots preserve binary bytes, original extensions and read-
     for (const method of ['writeFile', 'delete', 'rename', 'createDirectory'] as const) {
       assert.throws(() => f.provider[method](comparison.before), /NoPermissions/);
     }
+  } finally { f.provider.dispose(); }
+});
+
+test('the shared byte budget preserves open comparisons and releases capacity when their final tab closes', () => {
+  const f = fixture(20);
+  try {
+    const first = f.provider.createDiff('first.txt', Buffer.alloc(6), Buffer.alloc(6));
+    f.tabGroups.all = [{ tabs: [{ input: { original: first.before, modified: first.after } }] }]; first.opened();
+    assert.throws(() => f.provider.createDiff('second.txt', Buffer.alloc(6), Buffer.alloc(6)), /關閉其他 Diff/);
+    assert.equal(f.provider.stat(first.before).size, 6, 'a budget failure cannot evict an editor that is still open');
+    f.tabGroups.all = []; f.changed([{ input: { original: first.before, modified: first.after } }]);
+    const next = f.provider.createDiff('next.txt', Buffer.alloc(6), Buffer.alloc(6));
+    assert.equal(f.provider.stat(next.before).size, 6); next.dispose();
   } finally { f.provider.dispose(); }
 });
 

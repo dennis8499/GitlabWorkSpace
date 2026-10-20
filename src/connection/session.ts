@@ -1,7 +1,7 @@
 import type { Memento, SecretStorage } from 'vscode';
 import { GitLabClient, type FetchLike, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
 import { GitLabReadCache } from '../api/gitLabReadCache';
-import { groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
+import { groupBoardReadPrefix, groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
 import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
@@ -214,9 +214,10 @@ export class GitLabSession {
     return this.readCache.get(cacheKey, async (signal) => {
       const client = await this.getClient();
       const value = await load(client.withReadSignal(signal), signal);
-      const match = /^group\/(\d+)\/projects$/.exec(key);
-      if (match && Array.isArray(value)) {
-        const ids = new Set(value.flatMap((item) => item && typeof item === 'object' && 'id' in item && Number.isSafeInteger(item.id) ? [item.id as number] : []));
+      const match = /^group\/(\d+)\/projects(?:\/pages\/.*)?$/.exec(key);
+      const items = Array.isArray(value) ? value : value && typeof value === 'object' && 'items' in value && Array.isArray(value.items) ? value.items : undefined;
+      if (match && items) {
+        const ids = new Set([...(this.groupProjectIds.get(Number(match[1])) ?? []), ...items.flatMap((item) => item && typeof item === 'object' && 'id' in item && Number.isSafeInteger(item.id) ? [item.id as number] : [])]);
         this.groupProjectIds.set(Number(match[1]), ids);
       }
       return value;
@@ -246,8 +247,8 @@ export class GitLabSession {
         const scoped = key.split('\0').at(-1) ?? key;
         if (scoped.startsWith(`project/${projectId}/`)) return true;
         if (issueWrite && [...groups].some((id) => scoped === `group/${id}/assigned-issues` || scoped.startsWith(`group/${id}/assigned-issues/`) || scoped.startsWith(`group/${id}/graph`))) return true;
-        if (issueWrite && this.selectedGroup && scoped.startsWith(`group-board/${this.selectedGroup.full_path}/`)) return true;
-        if (mergeRequestWrite && [...groups].some((id) => scoped === groupWorkspaceReadKey(id, 'mergeRequests'))) return true;
+        if (issueWrite && [...groups].some(id => scoped.startsWith(groupBoardReadPrefix(id)))) return true;
+        if (mergeRequestWrite && [...groups].some((id) => scoped === groupWorkspaceReadKey(id, 'mergeRequests') || scoped.startsWith(`${groupWorkspaceReadKey(id, 'mergeRequests')}/`))) return true;
         return false;
       });
       this.publishReadInvalidation({ groupIds: [...groups], projectId, resource: issueWrite ? 'issues' : mergeRequestWrite ? 'mergeRequests' : 'group' });

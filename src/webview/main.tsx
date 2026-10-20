@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
-import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
+import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
 import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';

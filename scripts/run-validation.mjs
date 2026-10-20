@@ -92,13 +92,13 @@ try {
     }
     if (mode === 'all' || mode === 'unit') {
       const files = (await readdir(path.join(root, 'out/test/unit'))).filter(name => name.endsWith('.test.js')).sort();
-      await required(node('unit', '--test', ...files.map(name => `out/test/unit/${name}`)));
+      await required(node('unit', '--require', './test/network-test-environment.cjs', '--test', `--test-concurrency=${workers}`, ...files.map(name => `out/test/unit/${name}`)));
     }
     if (mode === 'all' || mode === 'behavior') {
       const files = (await readdir(path.join(root, 'test/behavior'))).filter(name => name.endsWith('.test.mjs')).sort();
-      await required(node('behavior-node', '--test', ...files.map(name => `test/behavior/${name}`)));
+      await required(node('behavior-node', '--require', './test/network-test-environment.cjs', '--test', ...files.map(name => `test/behavior/${name}`)));
       for (const [id, steps, feature] of [['issues', 'steps.cjs', 'issues.feature'], ['connect', 'connect.steps.cjs', 'connect.feature']]) {
-        await required(node(`behavior-${id}`, 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', `test/behavior/${steps}`, '--tags', '@automated', `test/behavior/${feature}`));
+        await required(node(`behavior-${id}`, '--require', './test/network-test-environment.cjs', 'node_modules/@cucumber/cucumber/bin/cucumber.js', '--require', `test/behavior/${steps}`, '--tags', '@automated', `test/behavior/${feature}`));
       }
     }
     if (mode === 'all' || mode === 'release') {

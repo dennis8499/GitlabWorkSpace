@@ -60,6 +60,9 @@ to progress, answers, and new or updated human-readable artifacts on both hosts:
 - **Coverage:** Full Ingest, functional exploration and audit use their own complete
   inventories and ledgers. Retain unread paths, exclusions and source drift as gaps.
   Codebase audit stays static; findings distinguish `BUG-*`, `RISK-*` and `BIZ-*`.
+- **Runtime bounds:** Before local Git evidence, large-source discovery or durable
+  Wiki writes, read [resource-safety.md](references/resource-safety.md) for bounded
+  offline commands, operation-local snapshots and the single-writer Wiki transaction.
 
 ## Complete the selected branch
 

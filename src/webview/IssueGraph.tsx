@@ -569,7 +569,7 @@ export function IssueGraphView(props: IssueGraphProps) {
               const boardColors = node.boardIds.map((id) => issueGraphBoardColor(id));
               const matchingRoot = node.isRoot && props.matchingRoots.has(node.id);
               const selectedNode = node.id === props.selectedId;
-              const hasBoardLoading = Object.values(props.boardStatuses).some((item) => item.status === 'loading');
+              const hasBoardLoading = Object.values(props.boardStatuses).some((item) => item.status === 'loading' || item.status === 'idle' || item.status === 'partial');
               const hasBoardFailure = !!props.boardLoadError || Object.values(props.boardStatuses).some((item) => item.status === 'error');
               return <g
                 key={node.id}
@@ -607,7 +607,7 @@ export function IssueGraphView(props: IssueGraphProps) {
           ? <span class="graph-board-fetch" key={`fetch:${board.id}`} role="status">{board.name}：載入歸屬中</span>
           : props.boardStatuses[board.id]?.status === 'error'
             ? <span class="graph-board-fetch error" key={`fetch:${board.id}`} role="status" title={props.boardStatuses[board.id].error}>{board.name}：讀取失敗</span>
-            : null)}
+            : props.boardStatuses[board.id]?.status === 'partial' ? <span class="graph-board-fetch" key={`fetch:${board.id}`} role="status">{board.name}：已載入部分歸屬，可繼續</span> : props.boardStatuses[board.id]?.status === 'idle' ? <span class="graph-board-fetch" key={`fetch:${board.id}`} role="status">{board.name}：歸屬尚未載入</span> : null)}
         <span class="graph-legend-rule"><i class="graph-label-legend" />Label 色環</span>
         <span class="graph-legend-rule"><i class="graph-context-legend" />未指派給我</span>
       </div>
@@ -622,7 +622,7 @@ export function IssueGraphView(props: IssueGraphProps) {
         <div class="graph-detail-state"><span class={`state ${selected.state === 'closed' ? 'closed' : 'opened'}`}>{selected.state === 'closed' ? '已結案' : '未結案'}</span><span class="subtle">{kindName(selected.kind)}</span></div>
         <div class="graph-detail-section"><strong>Issue Board</strong>{selected.boardIds.length
           ? selected.boardIds.map((boardId) => <span class="graph-board-chip" key={boardId}><i style={{ backgroundColor: issueGraphBoardColor(boardId) }} />{boardById.get(boardId)?.name ?? `Board #${boardId}`}</span>)
-          : <span class="subtle">{props.boardLoadError || selected.isRoot && Object.values(props.boardStatuses).some((item) => item.status === 'error') ? 'Board 歸屬讀取失敗' : selected.isRoot && Object.values(props.boardStatuses).some((item) => item.status === 'loading') ? '正在載入 Board 歸屬' : '無 Group Board 歸屬'}</span>}</div>
+          : <span class="subtle">{props.boardLoadError || Object.values(props.boardStatuses).some((item) => item.status === 'error') ? 'Board 歸屬讀取失敗' : Object.values(props.boardStatuses).some((item) => item.status === 'idle' || item.status === 'partial') ? 'Board 歸屬尚未完整載入' : Object.values(props.boardStatuses).some((item) => item.status === 'loading') ? '正在載入 Board 歸屬' : '無 Group Board 歸屬'}</span>}</div>
         <div class="graph-detail-section"><strong>Labels</strong>{selected.labels.length
           ? <div class="graph-detail-labels">{selected.labels.map((label, index) => <span class="graph-label-chip" style={{ borderColor: safeGitLabColor(label.color, index), color: safeGitLabColor(label.textColor, index) }} key={`${selected.id}:label:${label.name}`}>{label.name}</span>)}</div>
           : <span class="subtle">沒有 Labels</span>}</div>
@@ -634,6 +634,8 @@ export function IssueGraphView(props: IssueGraphProps) {
           return related ? <button class="graph-related-link" key={edge.id} type="button" onClick={() => props.onSelect(related.id)}><span>{edge.type === 'parent' ? edge.source === selected.id ? '子項' : '父項' : edge.type === 'blocks' ? edge.source === selected.id ? '阻擋' : '阻擋此 Issue' : '關聯'}</span><span>{`#${related.iid} ${related.title}`}</span></button> : null;
         })}{!props.edges.some((edge) => edge.source === selected.id || edge.target === selected.id) && <span class="subtle">沒有已載入的直接關聯</span>}</div>
         {selected.relationsStatus === 'loading' && <span class="subtle" role="status">正在載入關聯…</span>}
+        {selected.relationsStatus === 'idle' && <span class="subtle" role="status">直接關聯尚未載入。</span>}
+        {selected.relationsStatus === 'partial' && <span class="subtle" role="status">已保留部分關聯；可繼續展開此 Issue。</span>}
         {selected.relationsStatus === 'error' && <span class="warning" role="status">部分關聯無法載入；可重試「更新資料」。</span>}
         {selected.kind === 'issue' && selected.projectId !== undefined && props.onRelationAction && props.onLoadRelations && props.onOpenLink && <IssueRelationsEditor
           key={selected.id} issue={{ id: selected.id, project_id: selected.projectId, iid: Number(selected.iid), title: selected.title }}

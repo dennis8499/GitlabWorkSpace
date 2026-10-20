@@ -586,20 +586,22 @@ function isPathPresent(target: string, exists: (target: string) => boolean): boo
   }
 }
 
-function buildGitEnvironment(remoteUrl: string, token: string): NodeJS.ProcessEnv {
+function buildGitEnvironment(remoteUrl: string, token: string, preserveCredentialHelpers = false): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   const count = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10);
   const first = Number.isFinite(count) && count >= 0 ? count : 0;
   const remote = new URL(remoteUrl);
   const scopedKey = 'http.' + remote.origin + remote.pathname + '/.extraheader';
-  env.GIT_CONFIG_COUNT = String(first + 2);
+  env.GIT_CONFIG_COUNT = String(first + (preserveCredentialHelpers ? 1 : 2));
   env['GIT_CONFIG_KEY_' + first] = scopedKey;
   env['GIT_CONFIG_VALUE_' + first] = 'AUTHORIZATION: Basic ' +
     Buffer.from('oauth2:' + token, 'utf8').toString('base64');
-  env['GIT_CONFIG_KEY_' + (first + 1)] = 'credential.helper';
-  env['GIT_CONFIG_VALUE_' + (first + 1)] = '';
+  if (!preserveCredentialHelpers) {
+    env['GIT_CONFIG_KEY_' + (first + 1)] = 'credential.helper';
+    env['GIT_CONFIG_VALUE_' + (first + 1)] = '';
+    env.GCM_INTERACTIVE = 'Never';
+  }
   env.GIT_TERMINAL_PROMPT = '0';
-  env.GCM_INTERACTIVE = 'Never';
   return env;
 }
 
@@ -609,7 +611,7 @@ function runGitClone(plan: ClonePlan, baseUrl: string, token: string, onPercent:
   }
   const env = buildGitEnvironment(plan.project.http_url_to_repo, token);
   return runGitProcess(
-    ['clone', '--progress', '--', plan.project.http_url_to_repo, plan.targetPath],
+    ['clone', '--no-recurse-submodules', '--progress', '--', plan.project.http_url_to_repo, plan.targetPath],
     path.dirname(plan.targetPath),
     env,
     onPercent,
@@ -648,7 +650,7 @@ async function runGitUpdate(
   const refspec = '+refs/heads/' + branch + ':' + remoteRef;
   const env = buildGitEnvironment(plan.project.http_url_to_repo, token);
   const fetchCode = await runGitProcess(
-    ['fetch', '--no-tags', '--no-recurse-submodules', '--progress', plan.project.http_url_to_repo, refspec],
+    ['fetch', '--atomic', '--no-tags', '--no-prune', '--no-recurse-submodules', '--no-auto-maintenance', '--no-write-fetch-head', '--jobs=1', '--progress', plan.project.http_url_to_repo, refspec],
     plan.targetPath,
     env,
     onPercent,
@@ -844,6 +846,6 @@ export function createCloneEnvironmentForTest(remoteUrl: string, token: string):
   return buildGitEnvironment(remoteUrl, token);
 }
 
-export function createScopedGitEnvironment(remoteUrl: string, token: string): NodeJS.ProcessEnv {
-  return buildGitEnvironment(remoteUrl, token);
+export function createScopedGitEnvironment(remoteUrl: string, token: string, options: { preserveCredentialHelpers?: boolean } = {}): NodeJS.ProcessEnv {
+  return buildGitEnvironment(remoteUrl, token, options.preserveCredentialHelpers);
 }

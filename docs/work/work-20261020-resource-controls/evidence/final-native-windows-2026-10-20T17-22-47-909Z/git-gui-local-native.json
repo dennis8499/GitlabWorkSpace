@@ -1,0 +1,21 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-20T17:23:42.741Z",
+  "mode": "local-only-native-confirmation",
+  "dialogStyle": "custom",
+  "vscodeVersion": "1.142.0",
+  "status": "BLOCKED",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.29.0.vsix",
+    "sha256": "933843acc6ef9f97cb55965739eaf3ed5164906ee15981fa8120d7a893a415bf"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792516974422-23700\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "gitTrace": {
+    "file": "native-vscode-git-trace2.jsonl",
+    "scope": "spawned-vscode-only"
+  },
+  "error": "Push confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics={\"title\":\"GitLab Workspace - service - Visual Studio Code\",\"visibleLayers\":[],\"bodyTextEnd\":\"File\\nEdit\\nSelection\\nView\\nGo\\nRun\\nTerminal\\nHelp\\nservice\\nTry Agents Window\\nSign In\\nExplorer\\nservice\\nREADME.md\\nservice.ts\\nOutline\\nTimeline\\nGitLab Workspace\\nChat\\nBuild with Agent\\n\\nAI responses may be inaccurate\\n\\nGenerate Agent Instructions to onboard AI onto your codebase.\\n\\nAgent\\nModels\\nLocal\\nDefault permissions\\n validation/native-gui/mvgyc285\\n 0 \\n 0\"}",
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.29.0.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.29.0",
+  "processOutput": "\r\n\r\nDevTools listening on ws://127.0.0.1:9393/devtools/browser/e1e323bd-6c69-41ef-befc-8a964a7ae208\r\nWarning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.\nWarning: 'disable-hardware-acceleration' is not in the list of known options, but still passed to Electron/Chromium.\n[main 2026-10-20T17:22:58.157Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\6d62b1d5da\\resources\\app\\node-compile-cache\\main, active: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\6d62b1d5da\\resources\\app\\node-compile-cache\\main\\v24.21.0-x64-c3a7e8f2)\n[main 2026-10-20T17:22:58.254Z] StorageMainService: creating application shared storage\n[main 2026-10-20T17:22:58.551Z] [shared storage] Creating shared storage database at 'c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-23700-1792516975339\\system-profile\\.vscode-shared\\sharedStorage\\state.vscdb' (wasCreated: true)\n[main 2026-10-20T17:22:58.552Z] [shared storage] Initializing fallback application storage (path: c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-23700-1792516975339\\User\\globalStorage\\state.vscdb)\n[main 2026-10-20T17:22:58.603Z] [shared storage] Fallback application storage initialized with 3 items\n[main 2026-10-20T17:23:00.808Z] update#disable - updates are disabled by user preference\n[main 2026-10-20T17:23:00.808Z] update#setState disabled\n[main 2026-10-20T17:23:00.870Z] AgentHostProcessManager: agent host started\n[25120:1021/012301.059:ERROR:electron\\shell\\browser\\api\\electron_api_app.cc:1397] Failed to begin Jump List transaction.\r\n[main 2026-10-20T17:23:01.063Z] updateWindowsJumpList#setJumpList unexpected result: error\n[main 2026-10-20T17:23:02.515Z] [AgentHost:stderr] (node:17308) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.\n(Use `Code --trace-deprecation ...` to show where the warning was created)\n\nUnknown channel: agentHostClientByokLm\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\n"
+}

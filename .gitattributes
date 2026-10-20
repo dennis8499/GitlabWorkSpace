@@ -6,6 +6,10 @@ package.json text eol=lf
 resources/workflow-kit/*.md text eol=lf
 resources/workflow-kit/*.json text eol=lf
 resources/workflow-kit-installer.py text eol=lf
+resources/windows-git-supervisor.ps1 text eol=lf
+resources/git-askpass.js text eol=lf
+resources/git-askpass.sh text eol=lf
+resources/git-ssh-askpass.sh text eol=lf
 resources/offline-tools/sources/*.zip binary !eol
 scripts/build-workflow-kit.py text eol=lf
 scripts/workflow-kit-sources.py text eol=lf

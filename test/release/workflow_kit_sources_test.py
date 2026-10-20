@@ -82,6 +82,23 @@ class SourcePackageTests(unittest.TestCase):
                 finally:
                     path.write_bytes(original)
 
+    def test_windows_text_line_endings_match_without_changing_archive_identity(self):
+        before = self.snapshot.read_bytes()
+        directory = self.reviewer / 'skills/merge-reviewer'
+        for path in directory.rglob('*'):
+            if path.is_file() and (path.suffix.lower() in ('.md', '.py', '.yaml', '.yml', '.json', '.txt', '.toml') or path.name == 'VERSION'):
+                path.write_bytes(path.read_bytes().replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+        self.assertTrue(sources.check(compare_local=True)['ok'])
+        self.assertEqual(before, self.snapshot.read_bytes())
+
+    def test_binary_source_bytes_are_not_normalized(self):
+        target = self.reviewer / 'skills/merge-reviewer/payload.bin'
+        target.write_bytes(b'a\r\nb')
+        _, entries = sources.local_entries('merge-reviewer')
+        self.assertEqual(b'a\r\nb', entries['payload.bin'])
+        with self.assertRaisesRegex(ValueError, 'local source drift'):
+            sources.check(compare_local=True)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

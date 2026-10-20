@@ -1,3 +1,36 @@
+export interface GitLabPage<T> {
+  items: T[];
+  nextCursor?: string;
+  complete: boolean;
+  updatedAt: string;
+}
+
+export interface GitLabBoardIssueMembership { issueId: number; projectId?: number; iid?: number; }
+export interface GitLabBoardMembershipCursor {
+  schema: 'GitLabBoardMembershipCursor/v1'; groupPath: string; boardId: number; username?: string;
+  phase: 'lists' | 'issues'; lists: Array<{ id: string; listType: string }>;
+  listAfter: string | null; listIndex: number; issueAfter: string | null;
+  seenListCursors: string[]; seenIssueCursors: string[];
+  hideBacklogList: boolean; hideClosedList: boolean;
+}
+export interface GitLabBoardMembershipPage {
+  items: GitLabBoardIssueMembership[]; nextCursor?: GitLabBoardMembershipCursor; complete: boolean; updatedAt: string;
+}
+
+export interface GitLabIssueGraphCursor {
+  schema: 'GitLabIssueGraphCursor/v1'; projectPath: string; issueIid: number; capabilityKey: string;
+  childrenAfter: string | null; linksAfter: string | null;
+  childrenActive: boolean; linksActive: boolean;
+  seenChildren: string[]; seenLinks: string[];
+}
+export interface GitLabIssueGraphRelations {
+  root?: GitLabGraphWorkItem; parents: GitLabGraphWorkItem[]; children: GitLabGraphWorkItem[];
+  links: Array<{ type: string; item: GitLabGraphWorkItem }>;
+}
+export interface GitLabIssueGraphPage extends GitLabIssueGraphRelations {
+  nextCursor?: GitLabIssueGraphCursor; complete: boolean; updatedAt: string;
+}
+
 export interface GitLabUser {
   id: number;
   username: string;

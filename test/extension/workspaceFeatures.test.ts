@@ -41,17 +41,19 @@ suite('Account, preview and workspace Repo integration', () => {
   });
 
   test('only the latest preview request can update selection, without loading Issue edit options', async () => {
-    let release!: () => void;
+    let release!: () => void, started!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
+    const firstStarted = new Promise<void>(resolve => { started = resolve; });
     const keys: string[] = [], saved: unknown[] = [];
-    const client = { getIssue: async (_id: number, iid: number) => { if (iid === 1) await gate; return issue(iid); } };
+    const client = { getIssue: async (_id: number, iid: number) => { if (iid === 1) { started(); await gate; } return issue(iid); } };
     const view: Harness = Object.assign(Object.create(WorkspacePanel.prototype), {
       session: { cachedRead: async (key: string, load: (client: unknown) => Promise<unknown>) => { keys.push(key); return load(client); } },
       context: { globalState: { update: async (_key: string, value: unknown) => { saved.push(value); } } },
       issues: [issue(1), issue(2)], previewGeneration: 0, issueOpenGeneration: 0,
-      requireGroupProject: () => project, connectedScopeKey: () => 'account:group', selectedIssueKey: () => 'selection', sendSnapshot: () => undefined
+      resolveGroupProject: async () => project, connectedScopeKey: () => 'account:group', selectedIssueKey: () => 'selection', sendSnapshot: () => undefined
     });
     const first = view.selectIssue(1, 1);
+    await firstStarted;
     await view.selectIssue(1, 2);
     release(); await first;
     assert.equal(view.selectedIssue.issue.iid, 2);

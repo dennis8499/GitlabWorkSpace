@@ -1,4 +1,4 @@
-import type { IssueCreateInput, IssueUpdateInput } from '../api/gitLabClient';
+import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { OperationSnapshot } from '../workspace/operations';
 import type {
   GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate,

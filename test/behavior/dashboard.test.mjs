@@ -54,6 +54,32 @@ test('graph entry reports visibility and leaves initial graph loading to the Hos
   assert.equal(view.requests.filter(request => request.type === 'loadIssueGraph').length, 0);
 });
 
+test('partial lists disclose their search coverage, offer continuation and send cancellation outside the running read lifecycle', async t => {
+  const data = { ...snapshot(), sections: {
+    projects: { status: 'ready', complete: false, loadedCount: 2, updatedAt: Date.now() },
+    issues: { status: 'ready', complete: false, loadedCount: 2, includeClosed: false, updatedAt: Date.now() }
+  } };
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const notice = () => [...document.querySelectorAll('.section-status')].find(element => element.textContent.includes('指派 Issue'));
+  assert.match(notice().textContent, /尚未完整.*已載入資料/s);
+  [...notice().querySelectorAll('button')].find(button => button.textContent === '載入更多').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'retryWorkspaceSection'), { type: 'retryWorkspaceSection', section: 'issues', connectedScope: 'team-scope', mode: 'next' });
+  view.sendSnapshot({ ...data, sections: { ...data.sections, issues: { ...data.sections.issues, refreshing: true } } }); await view.tick();
+  [...notice().querySelectorAll('button')].find(button => button.textContent === '取消載入').click(); await view.tick();
+  const cancel = view.rawRequests.findLast(request => request.type === 'retryWorkspaceSection');
+  assert.equal(cancel.mode, 'cancel'); assert.equal(cancel.operationId, undefined);
+});
+
+test('local discovery offers a continuation without discarding already discovered repositories', async t => {
+  const data = { ...snapshot('clone'), repositoryScan: { status: 'partial', checkedDirectories: 10_000, repositories: [], errors: [], excludes: ['.git'], canResume: true, remainingDirectories: 125, pausedReason: '本批已達掃描預算。' } };
+  const view = await mount({ mode: 'clone', projectSource: 'local' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.local-repositories-panel').textContent, /待掃描 125 個資料夾/);
+  [...document.querySelectorAll('.local-repositories-panel button')].find(button => button.textContent === '繼續掃描').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'scanRepositories').resume, true);
+});
+
 test('Git reentry rereads the selected Repo once without replaying writes or losing its draft', async t => {
   const view = await mountGit(t);
   const document = view.dom.window.document;
@@ -2285,6 +2311,26 @@ test('filters by the selected Issue Board, saves its ID, and hides previous Boar
   await view.tick();
   assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map((item) => item.textContent), ['Beta milestone issue']);
   assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 32);
+});
+
+test('partial Issue Board membership shows only known Issues, incomplete coverage, and scoped continue/cancel controls', async t => {
+  const data = snapshot(); data.issueBoardContent = { boardId: 31, connectedScope: 'team-scope', issueIds: [101], loadedCount: 1, complete: false, status: 'partial', pausedReason: '本批已達請求數上限。' };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, notice = () => document.querySelector('[aria-label="Issue Board 載入狀態"]');
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map(item => item.textContent), ['Alpha milestone issue']);
+  assert.match(notice().textContent, /已確認 1.*尚未完整載入/); assert.match(notice().textContent, /搜尋與篩選僅涵蓋/);
+  [...notice().querySelectorAll('button')].find(button => button.textContent === '繼續載入看板').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectIssueBoard'), { type: 'selectIssueBoard', boardId: 31, connectedScope: 'team-scope', mode: 'continue' });
+  view.sendSnapshot({ ...data, issueBoardContent: { ...data.issueBoardContent, status: 'loading' } }); await view.tick();
+  [...notice().querySelectorAll('button')].find(button => button.textContent === '取消看板載入').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectIssueBoard'), { type: 'selectIssueBoard', boardId: 31, connectedScope: 'team-scope', mode: 'cancel' });
+  view.sendSnapshot({ ...data, issueBoardContent: { ...data.issueBoardContent, issueIds: [], loadedCount: 0 } }); await view.tick();
+  assert.match(document.querySelector('.empty-inline').textContent, /尚未完整載入/); assert.doesNotMatch(document.querySelector('.empty-inline').textContent, /此 Board 沒有指派給你的 Issue/);
+  view.sendSnapshot({ ...data, issues: [], sections: { issues: { status: 'ready', complete: false } }, issueBoardContent: { ...data.issueBoardContent, complete: true, status: 'ready' } }); await view.tick();
+  assert.match(document.querySelector('.empty-inline').textContent, /Issue 清單尚未完整載入/); assert.doesNotMatch(document.querySelector('.empty-inline').textContent, /此 Board 沒有指派給你的 Issue/);
+  view.sendSnapshot(data); await view.tick();
+  const filter = document.querySelector('select[aria-label="Issue Board"]'); filter.value = 'all'; filter.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelectorAll('.work-row').length, 3); assert.equal(notice(), null);
 });
 
 test('windows a long Issue list and moves keyboard focus across virtualized rows', async (t) => {

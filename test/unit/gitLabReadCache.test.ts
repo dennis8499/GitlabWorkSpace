@@ -95,3 +95,16 @@ test('successful writes invalidate cached reads without interrupting existing su
   assert.equal(await pending, 'before-write');
   assert.equal(await cache.get('list', async () => `after-write:${++loads}`), 'after-write:1');
 });
+
+test('retained bytes evict LRU values and oversized responses remain uncached without discarding useful entries', async () => {
+  const cache = new GitLabReadCache(60_000, 256, Date.now, 500);
+  const loads = new Map<string, number>();
+  const read = (key: string, length = 100) => cache.get(key, async () => { loads.set(key, (loads.get(key) ?? 0) + 1); return 'x'.repeat(length); });
+  await read('a'); await read('b'); await read('c');
+  await read('b'); assert.equal(loads.get('b'), 1);
+  await read('large', 1000); await read('large', 1000);
+  assert.equal(loads.get('large'), 2, 'an oversized read reaches subscribers but is not retained');
+  await read('b'); assert.equal(loads.get('b'), 1, 'oversized reads do not flush unrelated cached data');
+  await read('a'); assert.equal(loads.get('a'), 2, 'byte capacity evicted the oldest entry before entry capacity');
+  cache.invalidateWhere(key => key === 'b'); await read('b'); assert.equal(loads.get('b'), 2);
+});

@@ -3,6 +3,8 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { issueGraphNodeKey } from '../../src/workspace/issueGraph';
+import { GitLabRequestBudget } from '../../src/api/gitLabRequestBudget';
 
 const executedCommands: string[] = [];
 const vscode = {
@@ -83,6 +85,218 @@ function fixture(mode: string, connected = true) {
   });
   return { host, client, remote, cacheReads, local, messages, context, groups };
 }
+
+test('workspace pages retain completed pages, bound full-load batches and continue from their next cursor', async () => {
+  const { host, client } = fixture('clone');
+  const requested: Array<string | undefined> = [];
+  client.listGroupProjectsPage = async (_groupId: number, cursor?: string) => {
+    requested.push(cursor); const page = Number(cursor ?? '1');
+    return { items: [{ id: page, path: `repo-${page}`, path_with_namespace: `team/repo-${page}` }], nextCursor: page < 24 ? String(page + 1) : undefined, complete: page === 24, updatedAt: new Date().toISOString() };
+  };
+  await host.loadWorkspaceSection('projects');
+  assert.deepEqual(requested, [undefined]); assert.equal(host.projects.length, 1); assert.equal(host.workspaceSections.projects.complete, false);
+  await host.loadWorkspaceSection('projects', false, 'all');
+  assert.equal(requested.length, 21, 'one explicit full-load batch performs at most twenty page requests');
+  assert.equal(host.projects.length, 21); assert.equal(host.workspaceSections.projects.complete, false); assert.match(host.workspaceSections.projects.pausedReason, /預算/);
+  await host.loadWorkspaceSection('projects', false, 'all');
+  assert.equal(host.projects.length, 24); assert.equal(host.workspaceSections.projects.complete, true);
+  assert.equal(new Set(requested).size, 24, 'continuation never re-reads a completed page');
+  await host.loadWorkspaceSection('projects', false, 'next'); assert.equal(requested.length, 24);
+});
+
+test('cancelling a page keeps its completed prefix and resumes the unfinished cursor', async () => {
+  const { host, client } = fixture('clone'); const requested: Array<string | undefined> = [];
+  let finish!: (value: unknown) => void;
+  client.listGroupProjectsPage = async (_id: number, cursor?: string) => {
+    requested.push(cursor);
+    if (!cursor) return { items: [{ id: 1 }], nextCursor: 'second', complete: false, updatedAt: new Date().toISOString() };
+    return new Promise(resolve => { finish = resolve; });
+  };
+  await host.loadWorkspaceSection('projects');
+  const pending = host.loadWorkspaceSection('projects', false, 'next');
+  await new Promise(resolve => setImmediate(resolve)); host.workspaceSectionAborts.get('projects').abort();
+  finish({ items: [{ id: 2 }], complete: true, updatedAt: new Date().toISOString() }); await pending;
+  assert.deepEqual(host.projects.map((project: any) => project.id), [1]); assert.equal(host.workspaceSections.projects.refreshing, false);
+  const resumed = host.loadWorkspaceSection('projects', false, 'next'); await new Promise(resolve => setImmediate(resolve));
+  finish({ items: [{ id: 2 }], complete: true, updatedAt: new Date().toISOString() }); await resumed;
+  assert.deepEqual(requested, [undefined, 'second', 'second']); assert.equal(host.workspaceSections.projects.complete, true);
+});
+
+test('closed assigned Issues load only on an explicit history request and the current-work view can be restored', async () => {
+  const { host, client } = fixture('developer'); const states: string[] = [];
+  host.projects = [{ id: 101 }]; host.loadedScopeKey = 'https://gitlab.test|7|42';
+  host.workspaceSections.projects = { status: 'ready', complete: true };
+  client.listAssignedGroupIssuesPage = async (_id: number, _cursor: string | undefined, state: string) => {
+    states.push(state); return { items: [{ id: 1, project_id: 101, iid: 1, state: 'opened' }, ...(state === 'all' ? [{ id: 2, project_id: 101, iid: 2, state: 'closed' }] : [])], complete: true, updatedAt: new Date().toISOString() };
+  };
+  await host.loadWorkspaceSection('issues'); assert.equal(host.issues.length, 1);
+  await host.loadWorkspaceSection('issues', false, 'history'); assert.equal(host.issues.length, 2); assert.equal(host.workspaceSections.issues.includeClosed, true);
+  await host.loadWorkspaceSection('issues', false, 'current'); assert.equal(host.issues.length, 1);
+  assert.deepEqual(states, ['opened', 'all', 'opened']);
+});
+
+test('an explicit Issue selection resolves an unloaded Group project without downloading the full project inventory', async () => {
+  const { host, client, remote } = fixture('developer');
+  host.projects = [{ id: 101 }]; host.workspaceSections.projects = { status: 'ready', complete: false };
+  const issue = { id: 2, project_id: 999, iid: 2, title: 'From the next project page', state: 'opened', labels: [] };
+  host.issues = [issue]; let metadataReads = 0;
+  client.getProject = async () => { metadataReads++; return { id: 999, path: 'other', path_with_namespace: 'team-42/other', name: 'Other', http_url_to_repo: '', web_url: '' }; };
+  client.getIssue = async () => issue;
+  await host.selectIssue(999, 2);
+  assert.equal(host.selectedIssue.project.id, 999); assert.equal(host.issuePreview.status, 'ready');
+  assert.equal(metadataReads, 1); assert.equal(remote.length, 0, 'selection does not download the remaining inventory');
+  host.issues.push({ ...issue, project_id: 888 });
+  client.getProject = async () => ({ id: 888, path_with_namespace: 'other-group/repo' });
+  await assert.rejects(host.resolveGroupProject(888), /不屬於/);
+  assert.equal(host.projects.some((project: any) => project.id === 888), false);
+});
+
+test('ten thousand Issues and one hundred Boards show one hundred roots without network fan-out; expansion preserves closed context and colors', async () => {
+  const { host, client } = fixture('developer');
+  host.projects = [{ id: 101, name: 'Repo', path: 'repo', path_with_namespace: 'team-42/repo', http_url_to_repo: 'https://gitlab.test/team-42/repo.git', web_url: '' }];
+  host.issues = Array.from({ length: 10_000 }, (_, index) => ({ id: index + 1, project_id: 101, iid: index + 1, title: `Issue ${index + 1}`, state: 'opened', labels: [], web_url: '' }));
+  host.groupIssueBoards = Array.from({ length: 100 }, (_, index) => ({ id: index + 9, name: `Board ${index + 9}` })); host.issueGraphVersion = 0;
+  host.session.getClient = async () => client;
+  host.session.issueCapabilities = { graphWorkItems: true, graphLinkedItems: true };
+  let relations = 0, boards = 0, labels = 0;
+  client.listProjectLabels = async () => { labels++; return []; };
+  client.loadIssueGraphRelations = async () => {
+    relations++; return { parents: [], children: [], links: [{ type: 'relates_to', item: { id: 'gid://gitlab/WorkItem/999', iid: '999', title: 'Closed related Issue', state: 'closed', project: { id: 'gid://gitlab/Project/101', fullPath: 'team-42/repo' }, workItemType: { name: 'Issue' } } }] };
+  };
+  client.listGroupBoardIssueMemberships = async (_path: string, boardId: number) => { boards++; return boardId === 9 ? [{ issueId: 999, projectId: 101, iid: 999 }, { issueId: 1, projectId: 101, iid: 1 }] : []; };
+  const scope = host.connectedScopeKey();
+  await host.loadIssueGraph(scope);
+  assert.equal(host.issueGraph.roots.length, 100); assert.equal(relations, 0); assert.equal(boards, 0); assert.equal(labels, 0);
+  assert.equal(host.issueGraph.boardStatus[9].status, 'idle');
+  const first = host.issueGraph.roots[0]; await host.loadIssueGraph(scope, false, [first]);
+  assert.equal(relations, 1); assert.equal(boards, 0);
+  const relatedId = issueGraphNodeKey(101, 'team-42/repo', 999);
+  assert.equal(host.issueGraph.nodes.find((node: any) => node.id === relatedId).state, 'closed');
+  await host.loadIssueGraph(scope, false, undefined, true);
+  assert.equal(boards, 20, 'Board membership is loaded only by explicit request, at most twenty Boards per batch'); assert.deepEqual(host.issueGraph.nodes.find((node: any) => node.id === relatedId).boardIds, [9]);
+  await host.loadIssueGraph(scope, false, [first]); assert.equal(relations, 1, 'an already-expanded root is not read again');
+  assert.deepEqual(host.issueGraph.nodes.find((node: any) => node.id === relatedId).boardIds, [9]);
+  await host.loadIssueGraph(scope, false, host.issueGraph.roots);
+  assert.equal(relations, 21, 'a batch expands at most twenty additional roots');
+  let finish!: (value: unknown) => void, cancellingReads = 0;
+  client.loadIssueGraphRelations = async () => { cancellingReads++; return new Promise(resolve => { finish = resolve; }); };
+  const pending = host.loadIssueGraph(scope, false, [host.issueGraph.roots[30]]);
+  await new Promise(resolve => setImmediate(resolve));
+  const queued = host.loadIssueGraph(scope, false, [host.issueGraph.roots[31]]);
+  await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: scope, cancel: true });
+  finish({ parents: [], children: [], links: [] }); await Promise.all([pending, queued]);
+  assert.equal(cancellingReads, 1, 'cancellation also drops graph work queued behind the active batch');
+  assert.equal(host.issueGraph.status, 'partial'); assert.ok(host.issueGraph.nodes.length >= 100);
+});
+
+test('Board colors resume a partially read Board before another Board without rereading completed pages', async () => {
+  const { host, client } = fixture('developer');
+  host.projects = [{ id: 101, path_with_namespace: 'team-42/repo', http_url_to_repo: 'local' }];
+  host.issues = [{ id: 1, project_id: 101, iid: 1, title: 'Root', state: 'opened', labels: [] }];
+  host.groupIssueBoards = [{ id: 9, name: 'Large Board' }, { id: 10, name: 'Next Board' }];
+  host.issueGraphVersion = 0; host.session.getClient = async () => client;
+  const batches: GitLabRequestBudget[] = [], completed: string[] = [];
+  let budget!: GitLabRequestBudget;
+  client.withRequestBudget = (next: GitLabRequestBudget) => { budget = next; batches.push(next); return client; };
+  client.listGroupBoardIssueMembershipsPage = async (_path: string, id: number, cursor?: { page: number }) => {
+    budget.reserve(); const page = cursor?.page ?? 0; completed.push(`${id}:${page}`);
+    return { items: [{ issueId: page + 1, projectId: 101, iid: page + 1 }], complete: id === 10 || page === 25, nextCursor: id === 9 && page < 25 ? { page: page + 1 } : undefined };
+  };
+  const scope = host.connectedScopeKey(); await host.loadIssueGraph(scope);
+  await host.loadIssueGraph(scope, false, undefined, true);
+  assert.equal(completed.length, 20); assert.equal(host.issueGraph.boardStatus[9].status, 'partial');
+  assert.ok(!completed.some(value => value.startsWith('10:')));
+  await host.loadIssueGraph(scope, false, undefined, true);
+  assert.deepEqual(completed, [...Array.from({ length: 26 }, (_, index) => `9:${index}`), '10:0']);
+  assert.equal(host.issueGraph.boardStatus[9].status, 'ready'); assert.equal(host.issueGraph.boardStatus[10].status, 'ready');
+  assert.deepEqual(host.issueGraph.nodes[0].boardIds, [9, 10]);
+  assert.ok(batches.every(batch => batch.usedRequests <= 20));
+});
+
+test('multi-page WorkItem and REST relations retain each completed checkpoint across actual request budgets', async t => {
+  for (const mode of ['work-items', 'rest-links']) await t.test(mode, async () => {
+    const { host, client } = fixture('developer');
+    host.projects = [{ id: 101, path_with_namespace: 'team-42/repo', http_url_to_repo: 'local' }];
+    host.issues = [{ id: 1, project_id: 101, iid: 1, title: 'Root', state: 'opened', labels: [] }];
+    host.issueGraphVersion = 0; host.session.getClient = async () => client;
+    host.session.issueCapabilities = { graphWorkItems: mode === 'work-items', graphLinkedItems: mode === 'work-items' };
+    let budget!: GitLabRequestBudget; const batches: GitLabRequestBudget[] = [], completed: number[] = [];
+    client.withRequestBudget = (next: GitLabRequestBudget) => { budget = next; batches.push(next); return client; };
+    client.listProjectLabels = async () => { budget.reserve(); return []; };
+    client.loadIssueGraphRelationsPage = async (_path: string, _iid: number, _caps: unknown, cursor?: { page: number }) => {
+      budget.reserve(); const page = cursor?.page ?? 0; completed.push(page);
+      return { parents: [], links: [], children: [{ id: `gid://gitlab/WorkItem/${page + 2}`, iid: String(page + 2), title: 'Child', project: { id: 'gid://gitlab/Project/101', fullPath: 'team-42/repo' }, workItemType: { name: 'Issue' } }], complete: page === 26, nextCursor: page < 26 ? { page: page + 1 } : undefined };
+    };
+    client.listIssueLinksPage = async (_project: number, _iid: number, cursor?: string) => {
+      budget.reserve(); const page = Number(cursor ?? 0); completed.push(page);
+      return { items: [{ id: page + 2, project_id: 101, iid: page + 2, title: 'Related', state: 'closed', labels: [] }], complete: page === 26, nextCursor: page < 26 ? String(page + 1) : undefined };
+    };
+    const scope = host.connectedScopeKey(); await host.loadIssueGraph(scope); const root = host.issueGraph.roots[0];
+    await host.loadIssueGraph(scope, false, [root]);
+    assert.equal(completed.length, 19, 'Label lookup and relation pages share the actual twenty-request budget');
+    assert.equal(host.issueGraph.nodes.find((node: any) => node.id === root).relationsStatus, 'partial');
+    await host.loadIssueGraph(scope, false, [root]);
+    assert.deepEqual(completed, Array.from({ length: 27 }, (_, index) => index), 'successful relation pages are not requested again');
+    assert.equal(host.issueGraph.nodes.find((node: any) => node.id === root).relationsStatus, 'ready');
+    assert.equal(host.issueGraph.edges.length, 27); assert.ok(batches.every(batch => batch.usedRequests <= 20));
+  });
+});
+
+test('Issue-list Board selection shares twenty actual requests, resumes twenty-six pages, and preserves the complete cache contract', async () => {
+  const { host, client, cacheReads } = fixture('developer'); host.groupIssueBoards = [{ id: 9, name: 'Large Board' }];
+  let olderCompleteCache: number[] | undefined;
+  host.session.cachedRead = async (key: string, load: (value: unknown) => Promise<number[]>, options: { force?: boolean } = {}) => {
+    cacheReads.push({ key, force: options.force });
+    if (!options.force && olderCompleteCache) return olderCompleteCache;
+    const result = await load(client); olderCompleteCache = result; return result;
+  };
+  const completed: number[] = [], batches: GitLabRequestBudget[] = []; let budget!: GitLabRequestBudget;
+  client.withRequestBudget = (value: GitLabRequestBudget) => { budget = value; batches.push(value); return client; };
+  client.listAssignedGroupBoardIssueIds = async () => { throw new Error('Production selection must not call the complete legacy API.'); };
+  client.listGroupBoardIssueMembershipsPage = async (groupPath: string, boardId: number, cursor: { page: number } | undefined, username: string) => {
+    assert.equal(groupPath, 'team-42'); assert.equal(boardId, 9); assert.equal(username, 'me'); budget.reserve();
+    const page = cursor?.page ?? 0; completed.push(page);
+    return { items: [{ issueId: page + 1 }], complete: page === 25, nextCursor: page < 25 ? { page: page + 1 } : undefined };
+  };
+  const scope = host.connectedScopeKey(); await host.selectIssueBoard(9, scope);
+  assert.equal(completed.length, 20); assert.equal(host.issueBoardContent.status, 'partial'); assert.equal(host.issueBoardContent.complete, false);
+  assert.equal(host.issueBoardContent.loadedCount, 20); assert.equal(host.issueBoardLoad.cursor.page, 20);
+  olderCompleteCache = [999]; // SWR may retain a complete value from before a paused refresh.
+  await host.selectIssueBoard(9, scope, 'continue');
+  assert.deepEqual(completed, Array.from({ length: 26 }, (_, index) => index));
+  assert.equal(host.issueBoardContent.status, 'ready'); assert.equal(host.issueBoardContent.complete, true); assert.equal(host.issueBoardContent.loadedCount, 26);
+  assert.equal(cacheReads[1].force, true, 'continuation bypasses an older complete cache value');
+  assert.ok(batches.every(value => value.usedRequests <= 20));
+  assert.ok(cacheReads.every(read => read.key === 'group-board/42/9/assigned/me'), 'partial batches retain the existing complete-only cache namespace');
+  host.invalidateWorkspaceReads({ groupIds: [999], resource: 'issues' }); assert.ok(host.issueBoardLoad);
+  host.invalidateWorkspaceReads({ groupIds: [42], resource: 'issues' }); assert.equal(host.issueBoardLoad, undefined); assert.equal(host.issueBoardContent.status, 'partial'); assert.deepEqual(host.issueBoardContent.issueIds, []);
+});
+
+test('Issue-list Board cancellation is scoped and keeps the unfinished cursor; late other-Board and account results cannot replace it', async () => {
+  const { host, client } = fixture('developer'); host.groupIssueBoards = [{ id: 9, name: 'A' }, { id: 10, name: 'B' }];
+  let finish!: (value: unknown) => void; let pause = true; const completed: string[] = [];
+  client.listGroupBoardIssueMembershipsPage = async (_group: string, id: number, cursor?: { page: number }) => {
+    completed.push(`${id}:${cursor?.page ?? 0}`);
+    if (id === 9 && cursor?.page === 1 && pause) return new Promise(resolve => { finish = resolve; });
+    return { items: [{ issueId: id === 9 ? (cursor ? 2 : 1) : 999 }], complete: id === 10 || !!cursor, nextCursor: id === 9 && !cursor ? { page: 1 } : undefined };
+  };
+  const scope = host.connectedScopeKey(); const first = host.selectIssueBoard(9, scope); await new Promise(resolve => setImmediate(resolve));
+  await host.selectIssueBoard(10, scope, 'cancel'); await host.selectIssueBoard(9, 'stale-scope', 'cancel');
+  assert.equal(host.issueBoardAbort.signal.aborted, false, 'a different Board or scope cannot cancel the active selection');
+  await host.selectIssueBoard(9, scope, 'cancel'); assert.equal(host.issueBoardContent.status, 'partial');
+  finish({ items: [{ issueId: 2 }], complete: true }); await first;
+  assert.deepEqual(host.issueBoardContent.issueIds, [1]); assert.equal(host.issueBoardLoad.cursor.page, 1);
+  pause = false; await host.selectIssueBoard(9, scope, 'continue');
+  assert.deepEqual(completed, ['9:0', '9:1', '9:1']); assert.deepEqual(host.issueBoardContent.issueIds, [1, 2]);
+  host.issueBoardLoad = undefined; pause = true;
+  const stale = host.selectIssueBoard(9, scope); await new Promise(resolve => setImmediate(resolve));
+  await host.selectIssueBoard(10, scope); finish({ items: [{ issueId: 777 }], complete: true }); await stale;
+  assert.equal(host.issueBoardContent.boardId, 10); assert.deepEqual(host.issueBoardContent.issueIds, [999]);
+  host.issueBoardLoad = undefined; const oldAccount = host.selectIssueBoard(9, scope); await new Promise(resolve => setImmediate(resolve));
+  host.session.connectionEpoch++;
+  finish({ items: [{ issueId: 888 }], complete: true }); await oldAccount;
+  assert.notDeepEqual(host.issueBoardContent?.issueIds, [888]);
+});
 
 test('local page entries call only the relevant local adapters with or without a GitLab Group', async t => {
   const cases = [

@@ -182,13 +182,18 @@ def main() -> int:
                 "extension/resources/issue-webview/dashboard.css", "extension/resources/sidebar-webview/sidebar.html",
                 "extension/resources/sidebar-webview/sidebar.js", "extension/resources/sidebar-webview/sidebar.css",
                 "extension/resources/git-rebase-editor.cjs",
+                "extension/resources/windows-git-supervisor.ps1",
+                "extension/resources/git-askpass.js", "extension/resources/git-askpass.sh", "extension/resources/git-ssh-askpass.sh",
                 "extension/resources/workflow-kit-installer.py",
                 "extension/node_modules/yaml/package.json", "extension/node_modules/yaml/dist/index.js",
                 "extension/node_modules/@iarna/toml/package.json", "extension/node_modules/@iarna/toml/toml.js"
             ):
                 if asset not in members or not archive.read(asset):
                     raise ValueError(f"VSIX is missing required asset: {asset}")
-            for relative in ("out/src/workspace/workspacePanel.js", "out/src/workspace/workflowKitResult.js"):
+            for relative in ("out/src/workspace/workspacePanel.js", "out/src/workspace/workflowKitResult.js",
+                             "out/src/git/gitRepositoryService.js", "out/src/git/gitAskpass.js",
+                             "out/src/git/gitAskpassUi.js", "out/src/git/gitRemotePolicy.js",
+                             "resources/git-askpass.js", "resources/git-askpass.sh", "resources/git-ssh-askpass.sh"):
                 if "extension/" + relative not in members or archive.read("extension/" + relative) != (ROOT / relative).read_bytes():
                     raise ValueError(f"VSIX contains outdated compiled workspace code: {relative}")
             if any(name.startswith(("extension/.github/", "extension/scripts/", "extension/.npm-cache/")) for name in members):

@@ -89,7 +89,7 @@ test('falls back once to changes for unavailable or failed diff endpoints', asyn
       return url.pathname.endsWith('/diffs') ? jsonResponse({}, status) : jsonResponse({ changes: [changedFile], overflow: false });
     });
     const result = await client.listMergeRequestDiffs(4, 8);
-    assert.deepEqual(requested.map(url => url.pathname), ['/gitlab/api/v4/projects/4/merge_requests/8/diffs', '/gitlab/api/v4/projects/4/merge_requests/8/changes']);
+    assert.deepEqual(requested.map(url => url.pathname), [...Array(status === 503 ? 3 : 1).fill('/gitlab/api/v4/projects/4/merge_requests/8/diffs'), '/gitlab/api/v4/projects/4/merge_requests/8/changes']);
     assert.equal(requested[0].searchParams.get('per_page'), '100');
     assert.deepEqual(result.diffs, [changedFile]);
     assert.equal(result.source, 'changes'); assert.equal(result.truncated, false);
@@ -113,9 +113,11 @@ test('discards primary pages when a later diff page fails', async () => {
 test('does not fall back for permission errors, rate limits, other HTTP failures, or malformed primary data', async (t) => {
   for (const status of [400, 401, 403, 408, 409, 422, 429, 505]) await t.test(`HTTP ${status}`, async () => {
     let calls = 0;
-    const client = new GitLabClient('https://gitlab.example', 'token', async () => { calls++; return jsonResponse({}, status); });
+    const requested: string[] = [];
+    const client = new GitLabClient(`https://gitlab-error-${status}.example`, 'token', async input => { calls++; requested.push(String(input)); return jsonResponse({}, status); });
     await assert.rejects(client.listMergeRequestDiffs(4, 8), (error: unknown) => error instanceof GitLabApiError && error.status === status);
-    assert.equal(calls, 1);
+    assert.equal(calls, 1, 'a missing Retry-After on 429 pauses rather than immediately replaying requests');
+    assert.ok(requested.every(url => url.includes('/diffs')), 'rate limits never switch to a fallback endpoint');
   });
   for (const value of [{ changes: [] }, [null], [{ ...changedFile, diff: 1 }], [{ ...changedFile, new_path: '' }], [{ ...changedFile, collapsed: 'true' }], [{ old_path: 'file', new_path: 'file' }]]) {
     let calls = 0;
@@ -140,7 +142,7 @@ test('preserves cancellation without requesting fallback or replacing its error'
   });
 });
 
-test('reports primary and fallback errors without repeated requests', async (t) => {
+test('reports primary and fallback errors after bounded safe-read transport retries', async (t) => {
   const badFallbacks = [jsonResponse({}, 503), jsonResponse({ changes: null }), jsonResponse({ changes: [null] }), jsonResponse({ changes: [], overflow: 'false' })];
   for (const response of badFallbacks) await t.test(`fallback ${response.status}`, async () => {
     let calls = 0;
@@ -150,7 +152,7 @@ test('reports primary and fallback errors without repeated requests', async (t) 
       assert.ok(error.cause instanceof AggregateError); assert.equal(error.cause.errors.length, 2);
       return true;
     });
-    assert.equal(calls, 2);
+    assert.equal(calls, response.status === 503 ? 4 : 2);
   });
 });
 

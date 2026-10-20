@@ -1,0 +1,16 @@
+{
+  "archiveSha256": "8cd18fe063a41f0ed1a748051a9f137e77c8305fd9d060d5b4c1f84b1a0cb6c7",
+  "profiles": [
+    "group",
+    "repository"
+  ],
+  "sourceSha": "523bb4949caa1d54f891e48a142170b24631ab4e",
+  "version": "0.28.0",
+  "verification": {
+    "sourceKind": "local-tag-and-artifacts",
+    "tag": "v0.28.0",
+    "installerMatchesCommittedTag": true,
+    "allProfileBytesVerified": true,
+    "officialDownloadVerified": false
+  }
+}

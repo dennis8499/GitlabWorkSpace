@@ -1,0 +1,81 @@
+{
+  "status": "PASS",
+  "stage": "manual-result-confirmed",
+  "pushCounts": {
+    "beforeRace": 1,
+    "afterUnknown": 2,
+    "afterRefresh": 2,
+    "afterManualConfirmation": 2
+  },
+  "localBefore": "fa9c18484e6d19094f0cc771dd80df48d428f3c5",
+  "remoteBefore": "fa9c18484e6d19094f0cc771dd80df48d428f3c5",
+  "raceCommit": "5e01cd246dccff7b830510a8c7b11416de28ca18",
+  "remoteAtConfirmation": "5e01cd246dccff7b830510a8c7b11416de28ca18",
+  "forcePushConfirmation": "workbench-dom",
+  "forceConfirmation": "Force Push\nCancel\nForce Push fa9c18484e6d 至 origin:validation/native-gui/mvh4o8xb（遠端目前 fa9c18484e6d）\nRepo：c:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1792527619707-28440\\demo\\service\n將傳送的提交：\n沒有新提交。\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+  "rejectedLocalSha": "fa9c18484e6d19094f0cc771dd80df48d428f3c5",
+  "rejectedRemoteSha": "5e01cd246dccff7b830510a8c7b11416de28ca18",
+  "unknownState": {
+    "progress": "結果待確認，請先核對 Repo…",
+    "writeBlocked": true,
+    "readAllowed": true,
+    "failedOperations": [
+      "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+    ]
+  },
+  "refreshCommand": {
+    "sid": "20261020T202113.590723Z-Hf9ec2bb5-P00003834",
+    "argv": [
+      "git.exe",
+      "status",
+      "-z",
+      "-uall"
+    ]
+  },
+  "refreshedState": {
+    "progress": "結果待確認，請先核對 Repo…",
+    "writeBlocked": true,
+    "readAllowed": true,
+    "failedOperations": [
+      "執行版控操作Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。核對寫入結果"
+    ]
+  },
+  "manualConfirmation": "workbench-dom",
+  "resultConfirmation": "已確認完成\n已確認未執行\nCancel\n請先在 GitLab 或本機 Repo 核對「執行版控操作」（git:89ca8a538bc539dd9dcf87ff75e137ae）的結果。只有確認結果後，才選擇下列項目解除待確認狀態；系統不會重新執行或重送操作。",
+  "confirmedOutcome": "none",
+  "confirmedLocalSha": "fa9c18484e6d19094f0cc771dd80df48d428f3c5",
+  "confirmedRemoteSha": "5e01cd246dccff7b830510a8c7b11416de28ca18",
+  "resolvedState": {
+    "progress": "",
+    "writeBlocked": false,
+    "readAllowed": true,
+    "failedOperations": []
+  },
+  "noAutomaticResend": true,
+  "pushInvocations": [
+    {
+      "sid": "20261020T202101.947464Z-Hf9ec2bb5-P0000582c",
+      "argv": [
+        "git.exe",
+        "-c",
+        "core.quotepath=false",
+        "push",
+        "--set-upstream",
+        "origin",
+        "HEAD:refs/heads/validation/native-gui/mvh4o8xb"
+      ]
+    },
+    {
+      "sid": "20261020T202110.708231Z-Hf9ec2bb5-P00004d14",
+      "argv": [
+        "git.exe",
+        "-c",
+        "core.quotepath=false",
+        "push",
+        "--force-with-lease=refs/heads/validation/native-gui/mvh4o8xb:fa9c18484e6d19094f0cc771dd80df48d428f3c5",
+        "origin",
+        "HEAD:refs/heads/validation/native-gui/mvh4o8xb"
+      ]
+    }
+  ]
+}

@@ -31,7 +31,8 @@ export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'relations' | 'time';
 export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
-export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; updatedAt?: number; refreshing?: boolean; }
+export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; updatedAt?: number; refreshing?: boolean;
+  complete?: boolean; loadedCount?: number; pausedReason?: string; includeClosed?: boolean; }
 
 /** These identities have different formats and must not be used interchangeably. */
 export type ConnectedScope = string & { readonly __connectedScope: unique symbol };
@@ -193,7 +194,10 @@ export interface WorkspaceSnapshot {
     boardId: number;
     connectedScope: string;
     issueIds: number[];
-    status: 'loading' | 'ready' | 'error';
+    status: 'loading' | 'partial' | 'ready' | 'error';
+    complete?: boolean;
+    loadedCount?: number;
+    pausedReason?: string;
     error?: string;
   };
   issueGraph?: IssueGraphSnapshot;
@@ -267,15 +271,15 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'switchAccount'; accountId: string }
   | { type: 'removeAccount'; accountId: string }
   | { type: 'openLogs' }
-  | { type: 'scanRepositories' }
+  | { type: 'scanRepositories'; resume?: boolean }
   | { type: 'cancelRepositoryScan' }
   | { type: 'cancelRepositoryOperation' }
   | { type: 'resyncWorkspace' }
   | { type: 'selectGroup'; groupId?: number }
-  | { type: 'selectIssueBoard'; boardId: number; connectedScope: string }
-  | { type: 'loadIssueGraph'; connectedScope: string; forceNetwork?: boolean }
+  | { type: 'selectIssueBoard'; boardId: number; connectedScope: string; mode?: 'continue' | 'cancel' }
+  | { type: 'loadIssueGraph'; connectedScope: string; forceNetwork?: boolean; nodeIds?: string[]; loadBoards?: boolean; moreRoots?: boolean; cancel?: boolean }
   | { type: 'setIssueGraphVisibility'; visible: boolean; connectedScope: string }
-  | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string }
+  | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string; mode?: 'next' | 'all' | 'history' | 'current' | 'cancel' }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }

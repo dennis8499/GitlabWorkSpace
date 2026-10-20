@@ -431,6 +431,23 @@ test('a successful MR write expires its Group review list and leaves unrelated c
   subscription.dispose();
 });
 
+test('Issue writes invalidate ID-scoped Board pages and memberships independently of the Group full path', async () => {
+  const state = new MemoryStore();
+  await state.update('gitlabWorkspace.baseUrl', 'https://gitlab.example.test');
+  await state.update('gitlabWorkspace.selectedGroupId', 42);
+  await state.update('gitlabWorkspace.selectedGroupLabel', 'parent/nested-group');
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, state);
+  (session as any).getClient = async () => ({ withReadSignal() { return this; } });
+  let memberships = 0, assigned = 0, unrelated = 0;
+  const readMemberships = () => session.cachedRead('group-board/42/9/memberships', async () => ++memberships);
+  const readAssigned = () => session.cachedRead('group-board/42/9/assigned/me', async () => ++assigned);
+  const readUnrelated = () => session.cachedRead('group-board/99/9/memberships', async () => ++unrelated);
+  await readMemberships(); await readAssigned(); await readUnrelated();
+  (session as any).invalidateAfterWrite({ url: 'https://gitlab.example.test/api/v4/projects/101/issues/2', method: 'PUT' });
+  await readMemberships(); await readAssigned(); await readUnrelated();
+  assert.deepEqual({ memberships, assigned, unrelated }, { memberships: 2, assigned: 2, unrelated: 1 });
+});
+
 
 test('passive startup preserves an unverified legacy account without contacting GitLab', async () => {
   const state = new MemoryStore(), secrets = new MemorySecrets();

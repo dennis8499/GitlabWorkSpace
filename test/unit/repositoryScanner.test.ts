@@ -74,3 +74,19 @@ test('reports unavailable roots and missing Git, supports cancellation and retai
   assert.equal((await scanWorkspaceRepositories([root], { gitPath: path.join(root, 'missing-git') })).status, 'error');
   assert.equal((await scanWorkspaceRepositories([])).status, 'error');
 });
+
+test('directory budgets pause discovery and resume without rescanning completed directories or losing repositories', async t => {
+  const root = await directory(t);
+  await repository(root); await repository(path.join(root, 'deep', 'nested'));
+  let state = await scanWorkspaceRepositories([root], { maxDirectories: 1 });
+  assert.equal(state.status, 'partial'); assert.equal(state.canResume, true); assert.equal(state.checkedDirectories, 1);
+  let batches = 1;
+  while (state.canResume && batches++ < 20) {
+    const checked: number = state.checkedDirectories;
+    state = await scanWorkspaceRepositories([root], { maxDirectories: 1, resume: state });
+    assert.equal(state.checkedDirectories, checked + 1);
+  }
+  assert.equal(state.status, 'completed'); assert.equal(state.canResume, false);
+  assert.equal(state.repositories.length, 2); assert.equal(state.checkedDirectories, 3);
+  assert.equal(new Set(state.repositories.map(repo => repo.path)).size, 2);
+});

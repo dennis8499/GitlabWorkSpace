@@ -32,14 +32,18 @@ function fixture(global = new State(), workspace = new State(), secrets = new Se
   return { session, global, workspace, secrets };
 }
 
-test('authenticated login finishes before an optional capability probe', async () => {
+test('authenticated login finishes before an optional capability probe', { timeout: 10_000 }, async () => {
   const { session } = fixture();
   let finish!: () => void;
   let probing = false;
-  session.ensureInstanceChecked = async () => { probing = true; await new Promise<void>(resolve => { finish = resolve; }); };
+  let started!: () => void;
+  const probeStarted = new Promise<void>(resolve => { started = resolve; });
+  session.ensureInstanceChecked = async () => { probing = true; await new Promise<void>(resolve => { finish = resolve; started(); }); };
   let connected = false;
   const login = session.connect('https://gitlab.example.test', 'one').then(() => { connected = true; });
-  for (let tick = 0; tick < 100; tick++) await Promise.resolve();
+  await probeStarted;
+  // Admission performs real async filesystem I/O; microtask counts are not an I/O barrier.
+  await new Promise<void>(resolve => setImmediate(resolve));
   assert.ok(probing);
   const completedWithoutProbe = connected;
   finish(); await login;

@@ -219,7 +219,7 @@ test('recovers from the GitLab 16.11 authenticated complexity limit without exce
   assert.ok(requests.some((query) => (query.match(/__type\(name: "/g)?.length ?? 0) <= 3));
   const oversizedRetries = requests.slice(1).map((query) => query.match(/__type\(name: "/g)?.length ?? 0).filter((count) => count > 3);
   assert.deepEqual(oversizedRetries, [], `recovery queries contained too many types: ${oversizedRetries.join(', ')}`);
-  assert.ok(maxActive > 1 && maxActive <= 6, 'parallel recovery stays within the session read limit');
+  assert.ok(maxActive > 0 && maxActive <= 6, 'recovery obeys both the session limit and the shared host network quota');
   assert.equal(capabilities.workItemScope, 'project');
   assert.equal(capabilities.hierarchy, true);
   assert.equal(capabilities.childMutations, true);
@@ -421,6 +421,30 @@ test('detects read-only Issue graph fields without requiring WorkItem edit permi
   assert.equal(capabilities.graphWorkItemTypes, true);
   assert.equal(capabilities.hierarchy, true, 'hierarchy reads do not depend on WorkItem mutation permissions');
   assert.equal(capabilities.childMutations, false);
+});
+
+test('a WorkItem page checkpoint preserves independent connections and cannot be reused across scopes or changed after failure', async () => {
+  const client = new GitLabClient('https://gitlab.example.test', token, async () => { throw new Error('Real network disabled.'); });
+  const capabilities = { graphWorkItems: true, graphHierarchy: true, graphLinkedItems: true, graphLabels: false, graphAssignees: false, graphWorkItemTypes: false };
+  const calls: Record<string, unknown>[] = []; let fail = false;
+  client.graphql = async <T>(_query: string, variables: Record<string, unknown>) => {
+    calls.push(variables); if (fail) throw new Error('Fixture interruption.');
+    return { namespace: { workItem: { id: 'root', iid: '7', widgets: [
+      ...(variables.includeChildren ? [{ children: { nodes: [{ id: 'child', iid: '8' }], pageInfo: { hasNextPage: false } } }] : []),
+      { linkedItems: { nodes: [{ linkType: 'RELATED', workItem: { id: `link-${calls.length}`, iid: '9' } }], pageInfo: { hasNextPage: calls.length === 1, endCursor: 'next-link' } } }
+    ] } } } as T;
+  };
+  const first = await client.loadIssueGraphRelationsPage('team/repo', 7, capabilities);
+  assert.equal(calls.length, 1); assert.equal(first.complete, false); assert.equal(first.children.length, 1);
+  const saved = structuredClone(first.nextCursor);
+  await assert.rejects(client.loadIssueGraphRelationsPage('other/repo', 7, capabilities, first.nextCursor), /different or invalid scope/);
+  await assert.rejects(client.loadIssueGraphRelationsPage('team/repo', 8, capabilities, first.nextCursor), /different or invalid scope/);
+  await assert.rejects(client.loadIssueGraphRelationsPage('team/repo', 7, { ...capabilities, graphLabels: true }, first.nextCursor), /different or invalid scope/);
+  fail = true; await assert.rejects(client.loadIssueGraphRelationsPage('team/repo', 7, capabilities, first.nextCursor), /interruption/);
+  assert.deepEqual(first.nextCursor, saved, 'a failed request cannot advance the original checkpoint');
+  fail = false; const last = await client.loadIssueGraphRelationsPage('team/repo', 7, capabilities, first.nextCursor);
+  assert.equal(calls.at(-1)?.includeChildren, false); assert.equal(calls.at(-1)?.linksAfter, 'next-link');
+  assert.equal(last.complete, true); assert.equal(last.children.length, 0);
 });
 
 test('paginates WorkItem parents, child items, linked items, and reads label metadata using read-only capabilities', async () => {

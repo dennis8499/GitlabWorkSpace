@@ -71,6 +71,9 @@ When('I connect with a token', async function () {
 
   try {
     await this.session.connect(this.baseUrl, TOKEN);
+    // Login publishes immediately; wait for the separately scheduled optional
+    // probes before asserting the origin of every metadata/schema request.
+    await this.session.ensureInstanceChecked();
   } catch (error) {
     this.error = error;
   } finally {

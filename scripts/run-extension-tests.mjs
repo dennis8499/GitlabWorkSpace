@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -32,6 +32,9 @@ const tempParent = await realpath(os.tmpdir());
 const prefix = 'gitlab-workspace-host-tests-';
 const temporaryRoot = await mkdtemp(path.join(tempParent, prefix));
 try {
+  const networkRuntime = path.join(temporaryRoot, 'network-runtime');
+  await mkdir(networkRuntime);
+  await writeFile(path.join(networkRuntime, 'network-policy.json'), JSON.stringify({ schema: 'GitLabWorkspaceNetworkPolicy/v1', api: { startsPerSecond: 10000, concurrency: 128 } }));
   // updateWorkspaceFolders and workspace settings persist to the workspace file.
   // Give VS Code its own copy so a failed/interrupted suite cannot edit a tracked fixture.
   const workspaceFile = path.join(temporaryRoot, 'host.code-workspace');
@@ -39,7 +42,7 @@ try {
   process.exitCode = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...argumentsToCli], {
       stdio: 'inherit', windowsHide: true,
-      env: { ...env, GITLAB_WORKSPACE_TEST_TMP: temporaryRoot, GITLAB_WORKSPACE_TEST_WORKSPACE: workspaceFile }
+      env: { ...env, GITLAB_WORKSPACE_TEST_TMP: temporaryRoot, GITLAB_WORKSPACE_TEST_WORKSPACE: workspaceFile, GITLAB_WORKSPACE_RUNTIME_DIR: networkRuntime }
     });
     child.once('error', reject);
     child.once('close', code => resolve(code ?? 1));

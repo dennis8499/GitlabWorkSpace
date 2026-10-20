@@ -21,6 +21,30 @@ test('all transport and nested action policies are explicit and control traffic 
   assert.equal(describeAction({ type: 'gitAction', action: { type: 'rebasePreview', pullSource: { remote: 'origin', branch: 'main' } } } as any).kind, 'write');
 });
 
+test('pagination cancellation bypasses pending reads and distinct sections and graph expansions never join each other', () => {
+  const { actions, sent } = setup();
+  actions.dispatch({ type: 'retryWorkspaceSection', section: 'projects', mode: 'all', connectedScope: 'scope' });
+  actions.dispatch({ type: 'retryWorkspaceSection', section: 'issues', mode: 'all', connectedScope: 'scope' });
+  actions.dispatch({ type: 'retryWorkspaceSection', section: 'projects', mode: 'all', connectedScope: 'scope' });
+  assert.equal(sent.length, 2, 'only identical section reads join');
+  actions.dispatch({ type: 'retryWorkspaceSection', section: 'projects', mode: 'cancel', connectedScope: 'scope' });
+  assert.equal(sent.length, 3); assert.equal(actions.getSnapshot().length, 2, 'cancellation is immediate control traffic');
+  actions.dispatch({ type: 'loadIssueGraph', connectedScope: 'scope', nodeIds: ['a'] });
+  actions.dispatch({ type: 'loadIssueGraph', connectedScope: 'scope', nodeIds: ['b'] });
+  actions.dispatch({ type: 'loadIssueGraph', connectedScope: 'scope', cancel: true });
+  assert.equal(sent.length, 6);
+});
+
+test('Issue Board cancel is immediate control traffic and selections retain latest-wins ordering', () => {
+  const { actions, sent } = setup();
+  actions.dispatch({ type: 'selectIssueBoard', boardId: 9, connectedScope: 'scope' });
+  actions.dispatch({ type: 'selectIssueBoard', boardId: 9, connectedScope: 'scope', mode: 'cancel' });
+  assert.equal(sent.length, 2); assert.equal(actions.getSnapshot().length, 1);
+  assert.equal(describeAction({ type: 'selectIssueBoard', boardId: 9, mode: 'cancel' } as any).kind, 'control');
+  actions.dispatch({ type: 'selectIssueBoard', boardId: 10, connectedScope: 'scope' });
+  assert.equal(actions.getSnapshot().filter(value => value.status === 'queued').length, 1);
+});
+
 test('dispatch sets pending synchronously, joins identical reads and separates MR sections', () => {
   const { actions, sent } = setup();
   const read = { type: 'loadMergeRequestSection', projectId: 1, iid: 2, section: 'diffs' };

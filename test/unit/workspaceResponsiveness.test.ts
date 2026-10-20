@@ -78,7 +78,7 @@ test('returning to an expired project list revalidates projects without download
   const calls: string[] = [];
   host.session.cachedRead = async (key: string) => { calls.push(key); return [{ id: 2, path: 'current', path_with_namespace: 'team/current' }]; };
   await host.loadWorkspaceSection('projects');
-  assert.deepEqual(calls, ['group/42/projects']);
+  assert.deepEqual(calls, ['group/42/projects/pages/opened/first']);
   assert.equal(host.projects[0].id, 2);
   assert.equal(host.workspaceSections.projects.status, 'ready');
 });

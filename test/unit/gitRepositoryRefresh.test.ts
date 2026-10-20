@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import net from 'node:net';
+import type { captureGitProcess } from '../../src/git/gitProcess';
 import type { RefreshClock } from '../../src/git/gitRefreshScheduler';
 import { withGitDirectoryLock } from '../../src/git/repositoryOperationLock';
 
@@ -39,11 +41,13 @@ async function fixture() {
   const changes = new Emitter();
   const opened = new Emitter(), closed = new Emitter(), clock = new Clock();
   const counts = { status: 0, branches: 0, config: 0, diff: 0, commands: [] as string[][] };
+  let capture: typeof captureGitProcess | undefined;
+  const configuration: Record<string, unknown> = {};
   const root = process.cwd();
   const change = { uri: { fsPath: path.join(root, 'README.md') }, status: 5 };
   const repository = {
     rootUri: { fsPath: root },
-    state: { HEAD: { name: 'main', commit: head }, refs: [], remotes: [], indexChanges: [] as typeof change[], workingTreeChanges: [change], mergeChanges: [], onDidChange: changes.event },
+    state: { HEAD: { name: 'main', commit: head }, refs: [], remotes: [] as Array<{ name: string; fetchUrl?: string; pushUrl?: string }>, indexChanges: [] as typeof change[], workingTreeChanges: [change], mergeChanges: [], onDidChange: changes.event },
     status: async () => { counts.status++; changes.fire(); },
     getBranches: async () => { counts.branches++; return [{ name: 'main', commit: head, type: 0 }]; },
     getConfig: async () => { counts.config++; return ''; },
@@ -55,11 +59,13 @@ async function fixture() {
   const nativeRequire = createRequire(modulePath);
   const moduleExports: Record<string, any> = {};
   vm.runInNewContext(readFileSync(modulePath, 'utf8'), {
-    exports: moduleExports, Buffer, process,
+    exports: moduleExports, Buffer, process, AbortController, AbortSignal,
     setTimeout: (callback: () => void, delay: number) => clock.set(callback, delay), clearTimeout: (id: unknown) => clock.clear(id),
     require: (name: string) => {
-      if (name === 'vscode') return { EventEmitter: Emitter, workspace: { textDocuments: [] }, extensions: { getExtension: () => ({ isActive: true, exports: { enabled: true, getAPI: () => api, onDidChangeEnablement: new Emitter().event } }) } };
-      if (name === './cloneService') return {};
+      if (name === 'vscode') return { EventEmitter: Emitter, workspace: { textDocuments: [], getConfiguration: (section: string) => ({ get: (key: string, fallback?: unknown) => configuration[section + '.' + key] ?? fallback }) }, extensions: { getExtension: () => ({ isActive: true, exports: { enabled: true, getAPI: () => api, onDidChangeEnablement: new Emitter().event } }) } };
+      if (name === './cloneService') return { createScopedGitEnvironment: nativeRequire(name).createScopedGitEnvironment };
+      if (name === './gitAskpassUi') return { createGitCredentialPrompt: () => async () => undefined };
+      if (name === './gitProcess') return { ...nativeRequire(name), captureGitProcess: (...args: Parameters<typeof captureGitProcess>) => capture ? capture(...args) : nativeRequire(name).captureGitProcess(...args) };
       if (name === 'node:child_process') return { execFile: () => { throw new Error('Git processes disabled in fixture'); }, spawn: () => { throw new Error('Git processes disabled in fixture'); } };
       return nativeRequire(name);
     }
@@ -83,7 +89,7 @@ async function fixture() {
     return { stdout: args[0] === 'symbolic-ref' ? 'main\n' : args[0] === 'log' || args[0] === 'show' ? history : args[0] === 'diff-tree' ? 'README.md\0' : '', stderr: '', code: 0 };
   };
   service.setActivePanelRepository(id, false);
-  return { service, repository, api, session, id, counts, clock, emit: () => changes.fire(),
+  return { service, repository, api, session, id, counts, clock, configuration, setCapture: (callback: typeof captureGitProcess) => { capture = callback; }, emit: () => changes.fire(),
     open: () => opened.fire(repository), close: () => closed.fire(repository) };
 }
 
@@ -170,6 +176,77 @@ test('local Git environment does not read account secrets', async t => {
   await f.service.environmentFor(f.repository, ['diff']);
   await f.service.environmentFor(f.repository, ['log']);
   assert.equal(reads, 0);
+});
+
+test('manual Fetch preserves reachable tags, FETCH_HEAD and Repo settings while internal branch fetches stay narrow', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.fetchRemote(f.repository, 'origin');
+  const manual = f.counts.commands.at(-1)!;
+  assert.ok(manual.includes('--atomic') && manual.includes('--jobs=1'));
+  for (const flag of ['--no-tags', '--tags', '--no-write-fetch-head', '--no-prune', '--no-recurse-submodules', '--prune']) assert.equal(manual.includes(flag), false, flag);
+  f.configuration['git.pruneOnFetch'] = true;
+  await f.service.fetchRemote(f.repository, 'origin'); assert.ok(f.counts.commands.at(-1)!.includes('--prune'));
+  await f.service.fetchRemote(f.repository, 'origin', 'feature/topic');
+  const internal = f.counts.commands.at(-1)!;
+  for (const flag of ['--no-tags', '--no-write-fetch-head', '--no-prune', '--no-recurse-submodules']) assert.ok(internal.includes(flag), flag);
+  assert.equal(internal.includes('--prune'), false); assert.equal(internal.at(-1), '+refs/heads/feature/topic:refs/remotes/origin/feature/topic');
+});
+
+test('selected GitLab remotes authenticate without loading project inventory and cannot borrow another remote token', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  Object.assign(f.session, { baseUrl: 'https://gitlab.test/gitlab', connectionEpoch: 1 });
+  let reads = 0;
+  (f.session as any).getCloneCredentials = async () => { reads++; return { baseUrl: 'https://gitlab.test/gitlab', token: 'offline-fixture-token' }; };
+  f.service.setGitLabProjects(() => Array.from({ length: 100 }, (_, index) => ({ id: index, http_url_to_repo: `https://gitlab.test/gitlab/team/repo-${index}.git` })));
+  f.repository.state.remotes = [
+    { name: 'origin', fetchUrl: 'https://other.test/team/repo.git' },
+    { name: 'selected', fetchUrl: 'https://gitlab.test/gitlab/team/repo-501.git', pushUrl: 'https://gitlab.test/sibling/repo-501.git' }
+  ];
+  const authenticated = await f.service.environmentFor(f.repository, ['fetch', '--atomic', 'selected']);
+  const first = Number.parseInt(process.env.GIT_CONFIG_COUNT ?? '0', 10) || 0;
+  assert.equal(authenticated['GIT_CONFIG_KEY_' + first], 'http.https://gitlab.test/gitlab/team/repo-501.git/.extraheader');
+  assert.equal(authenticated['GIT_CONFIG_VALUE_' + first], 'AUTHORIZATION: Basic ' + Buffer.from('oauth2:offline-fixture-token').toString('base64'));
+  assert.equal(Number(authenticated.GIT_CONFIG_COUNT), first + 1, 'GUI authentication must retain configured credential helpers for recursive submodule fetches');
+  await f.service.environmentFor(f.repository, ['fetch', 'origin']);
+  await f.service.environmentFor(f.repository, ['push', 'selected', 'HEAD:refs/heads/main']);
+  assert.equal(reads, 1, 'untrusted selected hosts and sibling applications never read the Workspace token');
+  (f.session as any).getCloneCredentials = async () => { (f.session as any).connectionEpoch++; return { baseUrl: 'https://gitlab.test/gitlab', token: 'late-token' }; };
+  const stale = await f.service.environmentFor(f.repository, ['ls-remote', '--heads', 'selected']);
+  assert.notEqual(stale['GIT_CONFIG_VALUE_' + first], 'AUTHORIZATION: Basic ' + Buffer.from('oauth2:late-token').toString('base64'));
+});
+
+test('network commands receive only their operation AskPass binding and respect integrated prompt opt-out', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.repository.state.remotes = [{ name: 'external', fetchUrl: 'https://other.test/team/repo.git' }];
+  let calls = 0;
+  f.setCapture(async (_executable, args, options) => {
+    calls++;
+    assert.deepEqual(Array.from(args), ['-c', 'core.quotepath=false', 'fetch', 'external']);
+    if (calls === 1) {
+      assert.match(options!.env!.GIT_ASKPASS!, /askpass\.sh$/);
+      assert.equal(options!.env!.GIT_CONFIG_KEY_0, 'credential.https://other.test/team/repo.git.useHttpPath');
+      assert.ok(options!.signal);
+    } else assert.equal(options!.env!.GITLAB_WORKSPACE_ASKPASS_NONCE, undefined);
+    return { stdout: '', stderr: '', code: 0, truncated: false };
+  });
+  await f.service.runGitCommand(f.repository, ['fetch', 'external'], undefined, { GIT_CONFIG_COUNT: '0', GIT_ASKPASS: '' });
+  f.configuration['git.useIntegratedAskPass'] = false;
+  await f.service.runGitCommand(f.repository, ['fetch', 'external'], undefined, { GIT_CONFIG_COUNT: '0', GIT_ASKPASS: '' });
+  assert.equal(calls, 2);
+});
+
+test('an unknown recursive AskPass destination aborts its Git command and explains independent sign-in', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.repository.state.remotes = [{ name: 'external', fetchUrl: 'https://other.test/team/repo.git' }];
+  f.setCapture(async (_executable, _args, options) => {
+    const signal = options!.signal!;
+    const stopped = new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('cancelled'), { name: 'AbortError' })), { once: true }));
+    const socket = net.createConnection(options!.env!.GITLAB_WORKSPACE_ASKPASS_PIPE!);
+    socket.on('error', () => undefined);
+    socket.once('connect', () => socket.write(JSON.stringify({ schema: 'GitLabWorkspaceAskpass/v1', nonce: options!.env!.GITLAB_WORKSPACE_ASKPASS_NONCE, mode: 'http', prompt: "Password for 'https://other.test/unknown/child.git': " }) + '\n'));
+    return stopped;
+  });
+  await assert.rejects(f.service.runGitCommand(f.repository, ['fetch', 'external'], undefined, { GIT_CONFIG_COUNT: '0', GIT_ASKPASS: '' }), (error: any) => error.effect === 'unknown' && /認證目的地無法確認.*獨立登入/.test(error.message));
 });
 
 test('annotated and lightweight tags both point graph labels and selections at their commit', async (t) => {

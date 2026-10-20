@@ -19,7 +19,7 @@ export interface IssueGraphNode {
   boardIds: number[];
   assignedToMe: boolean;
   isRoot: boolean;
-  relationsStatus?: 'loading' | 'ready' | 'error';
+  relationsStatus?: 'idle' | 'loading' | 'partial' | 'ready' | 'error';
 }
 
 export interface IssueGraphEdge {
@@ -36,7 +36,7 @@ export interface IssueGraphSnapshot {
   nodes: IssueGraphNode[];
   edges: IssueGraphEdge[];
   boardIssueIds: Record<number, number[]>;
-  boardStatus: Record<number, { status: 'loading' | 'ready' | 'error'; error?: string }>;
+  boardStatus: Record<number, { status: 'idle' | 'loading' | 'partial' | 'ready' | 'error'; error?: string }>;
   errors: string[];
   updatedAt: number;
 }
