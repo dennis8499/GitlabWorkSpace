@@ -22,7 +22,7 @@ BMAD 由使用者另行透過官方 CLI 安裝。工作台的 BMAD 頁面提供 
 從擴充功能原始碼目錄可執行以下指令；先以實際封裝 SHA-256 取代 `<archive-sha256>`：
 
 ```text
-python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.27.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
+python -X utf8 -B resources/workflow-kit-installer.py install resources/offline-tools/workflow-kit.tar.xz <Group> 0.28.0 bundled --format tar.xz --entry-root workflow-kit --archive-sha256 <archive-sha256> --profile group --dry-run
 ```
 
 預覽在系統暫存區完成來源、可信前版、Wiki 與操作檢查，回傳 `changed_paths`，不寫入 Group。移除 `--dry-run` 即套用；完全相同的重跑回傳 `status: unchanged`，不新增交易。相同版本但不同 payload 會顯示可更新；只接受固定摘要核對過的前版及已審查的 Aspire local update，拒絕未知前版、來源變造與安裝檔案漂移。

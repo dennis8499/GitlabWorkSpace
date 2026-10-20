@@ -35,6 +35,12 @@
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
+## 0.28.0 更新
+
+整合 MergeReviewer 0.15.0 與 ReleaseReviewer 0.5.0：以單一 Repo、基礎分支及比較分支執行審查，先封存來源與適用指示，後續證據操作維持固定版本。兩種報告統一五節結構並放在受審 Repo 的 `review-reports/`；上版檢查保留人工 Checklist。
+
+分析頁載入工作區實際分支候選，各頁進入時載入自身資料；Windows 的 Codex CLI 使用 PowerShell 啟動。發版流程修正正式附件下載及離線安裝驗證，並保留既有來源與安裝狀態核對。
+
 ## 0.27.0 更新
 
 BMAD 改為使用者自行透過官方 CLI 安裝，工作流程包保留 Wiki、MergeReviewer、ReleaseReviewer 與 Output Style 四個 Skills。BMAD 頁面分為「開始使用」「我想做什麼」「目前進度」，提供環境核對、官方指令、能力用途及原生文件狀態。小改動可直接使用 Build，大型工作再依需要加入規格、架構與 Story 規劃。
@@ -116,7 +122,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.27.0 的 VSIX 與組合包共用版本；本機候選包整合 Wiki 0.6.2、MergeReviewer 0.15.0、ReleaseReviewer 0.5.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選版本不代表上游已正式發布。
+GitLab Workspace v0.27.0 的 VSIX 與組合包共用版本；整合 Wiki 0.6.2、MergeReviewer 0.15.0、ReleaseReviewer 0.5.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；發版流程核對上游正式附件、來源提交與內容摘要。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 

@@ -637,6 +637,7 @@ class Runner:
         if cloned.returncode:
             raise ReleaseError('Isolated clone failed: ' + cloned.stderr.decode('utf-8', 'replace')[-1800:])
         git(target, 'config', 'core.longpaths', 'true')
+        git(target, 'config', 'core.autocrlf', 'false')
         git(target, 'remote', 'set-url', 'origin', row['remote'])
         git(target, 'checkout', '--quiet', '--detach', row['candidate'])
         for key in ('user.name', 'user.email'):
@@ -881,6 +882,10 @@ class Runner:
             stage = Path(name)
             (stage / 'installer.py').write_bytes(installer)
             (stage / 'workflow-kit.tar.xz').write_bytes(bundle)
+            module = load_module(stage / 'installer.py', '_release_offline_installer')
+            installed_wiki_version = manifest['wikiInstalledVersionSha256']
+            if installed_wiki_version != module.WIKI_INSTALLED_VERSION_SHA256:
+                raise ReleaseError('Manifest and official installer disagree on installed Wiki VERSION')
             for profile in ('group', 'repository'):
                 target = stage / profile
                 target.mkdir()
@@ -896,11 +901,24 @@ class Runner:
                 receipt = json.loads(result.stdout)
                 fields = manifest['profiles'][profile]
                 for relative, expected in fields['files'].items():
+                    # Native group installation rewrites VERSION; the public
+                    # manifest and the identical installer pin its final bytes.
+                    if profile == 'group' and relative == '.agents/skills/codebase-wiki/VERSION':
+                        expected = installed_wiki_version
                     path = target / relative
                     if not path.is_file() or digest(path.read_bytes()) != expected:
                         raise ReleaseError(f'Installed {profile} payload differs: {relative}')
-                receipts.append({'profile': profile, 'version': receipt['version'], 'files': len(fields['files'])})
-        return {'profilesIdenticalBetweenVsixAndZip': True, 'offlineInstalls': receipts}
+                installed = json.loads((target / module.MARKER).read_text(encoding='utf-8'))
+                if (not isinstance(installed, dict) or not isinstance(receipt, dict)
+                        or installed.get('version') != version or installed.get('profile') != profile
+                        or installed.get('archiveSha256') != index['archiveSha256']
+                        or receipt.get('version') != version):
+                    raise ReleaseError('Installed receipt identity differs from the published archive')
+                module.verify_installed(target, installed)
+                receipts.append({'profile': profile, 'version': receipt['version'], 'files': len(fields['files']),
+                                 'installedStateFilesVerified': len(installed['files']), 'nativeStateVerified': True})
+        return {'profilesIdenticalBetweenVsixAndZip': True, 'offlineInstalls': receipts,
+                'installedWikiVersionContractVerified': True}
 
     def release_repo(self, name, resume):
         self.check_stop()

@@ -10,7 +10,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
+import textwrap
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -289,6 +292,136 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual('two', namespace['PINNED_SOURCES'][0]['id'])
 
 
+class WorkspaceDeliveryTests(unittest.TestCase):
+    WIKI_VERSION = '.agents/skills/codebase-wiki/VERSION'
+    PROFILE = '.agents/gitlab-workspace-kit/profile.md'
+    RAW_VERSION = b'upstream version\n'
+    INSTALLED_VERSION = b'native installed version\n'
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='release-delivery-')
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        directory = self.root / 'evidence'
+        directory.mkdir()
+        journal = SimpleNamespace(directory=directory, plan={
+            'id': 'fixture', 'workspace': str(self.root),
+            'repositories': {'GitlabWorkSpace': {'targetVersion': '1.2.3'}}})
+        self.runner = release.Runner(journal, None)
+
+    def public_files(self, overrides=None, installed_hash=None):
+        # A small published installer exercises staged imports and real offline
+        # subprocess installs without depending on a prebuilt Workspace package.
+        installer = (f'CONFIG = {overrides or {}!r}\n'
+                     f'WIKI = {self.WIKI_VERSION!r}\nPROFILE = {self.PROFILE!r}\n'
+                     f'RAW_VERSION = {self.RAW_VERSION!r}\n'
+                     f'INSTALLED_VERSION = {self.INSTALLED_VERSION!r}\n'
+                     f'WIKI_INSTALLED_VERSION_SHA256 = {release.digest(self.INSTALLED_VERSION)!r}\n'
+                     + textwrap.dedent(r'''
+            import hashlib
+            import json
+            from pathlib import Path
+            import sys
+
+            MARKER = '.gitlab-workspace/tool-manifests/workflow-kit.json'
+
+            def verify_installed(root, installed):
+                if installed.get('nativeState') != 'authenticated':
+                    raise RuntimeError('Native Wiki state differs')
+                for relative, expected in installed['files'].items():
+                    if hashlib.sha256((root / relative).read_bytes()).hexdigest() != expected:
+                        raise RuntimeError('Native managed file differs')
+
+            if __name__ == '__main__':
+                target = Path(sys.argv[3])
+                version = sys.argv[4]
+                profile = sys.argv[sys.argv.index('--profile') + 1]
+                options = CONFIG.get(profile, {})
+                wiki = INSTALLED_VERSION if profile == 'group' else RAW_VERSION
+                payload = {WIKI: options.get('wikiVersion', wiki),
+                           PROFILE: options.get('profileData', b'profile contents\n')}
+                for relative, content in payload.items():
+                    destination = target / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(content)
+                installed = {'version': version, 'profile': profile,
+                             'archiveSha256': sys.argv[sys.argv.index('--archive-sha256') + 1],
+                             'files': {p: hashlib.sha256(data).hexdigest() for p, data in payload.items()},
+                             'nativeState': 'authenticated'}
+                installed.update(options.get('marker', {}))
+                marker = target / MARKER
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text(json.dumps(installed), encoding='utf-8')
+                print(json.dumps({'version': options.get('receiptVersion', version)}))
+            ''')).encode('utf-8')
+        tree = self.runner.tree('GitlabWorkSpace')
+        source = tree / 'resources/offline-tools/source-snapshots.json'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(release.encoded({'sources': {}}))
+        (tree / 'resources/workflow-kit-installer.py').write_bytes(installer)
+        fields = {'files': {self.WIKI_VERSION: release.digest(self.RAW_VERSION),
+                            self.PROFILE: release.digest(b'profile contents\n')}}
+        manifest = {'version': '1.2.3', 'sourceSnapshots': {},
+                    'wikiInstalledVersionSha256': installed_hash or release.digest(self.INSTALLED_VERSION),
+                    'profiles': {'group': fields, 'repository': fields}}
+        entries = {'workflow-kit/manifest.json': release.encoded(manifest)}
+        kit = zip_bytes(entries)
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:xz') as archive:
+            for path, data in entries.items():
+                member = tarfile.TarInfo(path)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+        bundle = buffer.getvalue()
+        index = {'archiveSha256': release.digest(bundle), 'releaseZipSha256': release.digest(kit)}
+        vsix = zip_bytes({'extension/resources/offline-tools/manifest.json': release.encoded(index),
+                          'extension/resources/offline-tools/workflow-kit.tar.xz': bundle,
+                          'extension/resources/workflow-kit-installer.py': installer})
+        return {'gitlab-workspace-1.2.3.vsix': vsix, 'gitlab-workspace-kit-1.2.3.zip': kit}
+
+    def test_official_installer_authenticates_both_profiles_with_group_version_rewrite(self):
+        result = self.runner.verify_workspace(self.public_files())
+        self.assertTrue(result['profilesIdenticalBetweenVsixAndZip'])
+        self.assertTrue(result['installedWikiVersionContractVerified'])
+        self.assertEqual(['group', 'repository'], [row['profile'] for row in result['offlineInstalls']])
+        self.assertTrue(all(row['nativeStateVerified'] and row['installedStateFilesVerified'] == 2
+                            for row in result['offlineInstalls']))
+
+    def test_manifest_and_official_installer_version_contract_must_agree(self):
+        with self.assertRaisesRegex(release.ReleaseError, 'disagree on installed Wiki VERSION'):
+            self.runner.verify_workspace(self.public_files(installed_hash='0' * 64))
+
+    def test_group_version_tampering_and_repository_version_rewrite_are_rejected(self):
+        for profile, version in (('group', self.RAW_VERSION), ('group', b'tampered\n'),
+                                 ('repository', self.INSTALLED_VERSION)):
+            with self.subTest(profile=profile, version=version), self.assertRaisesRegex(release.ReleaseError, 'payload differs'):
+                self.runner.verify_workspace(self.public_files({profile: {'wikiVersion': version}}))
+
+    def test_other_managed_files_keep_original_payload_hashes(self):
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile), self.assertRaisesRegex(release.ReleaseError, 'payload differs'):
+                self.runner.verify_workspace(self.public_files({profile: {'profileData': b'tampered\n'}}))
+
+    def test_installed_marker_identity_and_cli_receipt_must_match_public_archive(self):
+        for profile in ('group', 'repository'):
+            for field in ('version', 'profile', 'archiveSha256'):
+                with self.subTest(profile=profile, field=field), self.assertRaisesRegex(release.ReleaseError, 'receipt identity'):
+                    self.runner.verify_workspace(self.public_files({profile: {'marker': {field: 'wrong'}}}))
+            with self.subTest(profile=profile, field='receiptVersion'), self.assertRaisesRegex(release.ReleaseError, 'receipt identity'):
+                self.runner.verify_workspace(self.public_files({profile: {'receiptVersion': 'wrong'}}))
+
+    def test_native_installed_state_cannot_be_bypassed_by_matching_payload_hashes(self):
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile), self.assertRaisesRegex(RuntimeError, 'Native Wiki state differs'):
+                self.runner.verify_workspace(self.public_files({profile: {'marker': {'nativeState': 'tampered'}}}))
+
+    def test_public_installer_must_equal_committed_source_before_execution(self):
+        files = self.public_files()
+        (self.runner.tree('GitlabWorkSpace') / 'resources/workflow-kit-installer.py').write_bytes(b'changed')
+        with self.assertRaisesRegex(release.ReleaseError, 'installer differs from committed source'):
+            self.runner.verify_workspace(files)
+
+
 class ResumeTests(GitFixture):
     def test_old_workspace_megin_dependency_requires_a_new_plan_before_api_calls(self):
         plan, api = self.plan(changed=('Megin', 'MergeReviewer'),
@@ -411,6 +544,10 @@ class ResumeTests(GitFixture):
         runner = release.Runner(journal, api)
         runner.checkout('MergeReviewer')
         self.assertTrue(runner.tree('MergeReviewer').is_relative_to(self.workspace / '.release-worktrees'))
+        self.assertEqual('false', release.git(runner.tree('MergeReviewer'), 'config', '--get', 'core.autocrlf'))
+        self.assertEqual(release.git(self.workspace / 'MergeReviewer', 'show',
+                                    'HEAD:skills/merge-reviewer/VERSION', raw=True),
+                         (runner.tree('MergeReviewer') / 'skills/merge-reviewer/VERSION').read_bytes())
         result = runner.prepare('MergeReviewer')
         self.assertNotEqual(self.heads['MergeReviewer'], result['sha'])
         self.assertEqual(self.heads['MergeReviewer'], release.git(self.workspace / 'MergeReviewer', 'rev-parse', 'HEAD'))
