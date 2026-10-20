@@ -28,7 +28,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = '0.28.0'
+VERSION = '0.28.1'
 KIT_EXTENSION_FILES = {}
 WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                        'hooks = true\n'
