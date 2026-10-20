@@ -1,4 +1,4 @@
-import { describeAction, writeResourceLock, type ActionContext } from './actionPolicy';
+import { describeAction, effectiveOperationScope, writeResourceLock, type ActionContext } from './actionPolicy';
 import { isActiveOperation, operationConcurrencyKey, type OperationOutcome, type OperationSnapshot, type WorkspaceOperationState } from './operations';
 
 export interface DispatchResult { status: 'started' | 'joined' | 'blocked'; operationId?: string; correlationId?: string; reason?: string; }
@@ -51,29 +51,33 @@ export class ActionController {
   restorePending(input: RestorableOperation): WorkspaceOperationState {
     const existing = this.get(input.requestId) ?? (input.correlationId ? this.findByCorrelation(input.correlationId) : undefined);
     if (existing) return existing;
-    const state: WorkspaceOperationState = { ...input, scopeRevision: input.scopeRevision ?? this.context.scopeRevision ?? 'offline:none',
+    const state: WorkspaceOperationState = { ...input, scopeRevision: input.scopeRevision ?? effectiveOperationScope(input.action, this.context) ?? 'offline:none',
       lockKey: input.lockKey ?? writeResourceLock(input.resourceKey, this.context), kind: 'write', concurrency: 'exclusive',
       retryable: false, notify: true, status: 'queued', phase: '正在核對先前操作…', startedAt: Date.now() };
     this.states.set(state.requestId, state); this.statesDirty = true;
     this.owners.set(operationConcurrencyKey(state), state.requestId); this.emit();
     return state;
   }
-  isCurrentContext(operation: WorkspaceOperationState): boolean { return operation.scopeRevision === this.context.scopeRevision && (!operation.hostSessionId || operation.hostSessionId === this.sessionId); }
+  private isCurrentScope(scopeRevision: string): boolean {
+    return scopeRevision === this.context.scopeRevision || scopeRevision === this.context.localOperationScope;
+  }
+  isCurrentContext(operation: WorkspaceOperationState): boolean { return this.isCurrentScope(operation.scopeRevision) && (!operation.hostSessionId || operation.hostSessionId === this.sessionId); }
   isResourceOperation(operation: WorkspaceOperationState, resourceKey: string): boolean {
-    return operation.resourceKey === resourceKey && (operation.lockKey ? operation.lockKey === writeResourceLock(resourceKey, this.context) : operation.scopeRevision === this.context.scopeRevision);
+    return operation.resourceKey === resourceKey && (operation.lockKey ? operation.lockKey === writeResourceLock(resourceKey, this.context) : this.isCurrentScope(operation.scopeRevision));
   }
   hasPendingWrite(resourceKey: string): boolean { return this.snapshot.some(state => state.kind === 'write' && this.isResourceOperation(state, resourceKey) && pending(state)); }
   findByCorrelation(requestId: string): WorkspaceOperationState | undefined {
     return [...this.states.values()].reverse().find(state => state.correlationId === requestId || state.requestId === requestId);
   }
   isPending(resourceKey?: string): boolean {
-    return this.snapshot.some(state => state.scopeRevision === this.context.scopeRevision && (!resourceKey || state.resourceKey === resourceKey) && pending(state));
+    return this.snapshot.some(state => this.isCurrentScope(state.scopeRevision) && (!resourceKey || state.resourceKey === resourceKey) && pending(state));
   }
   setContext(context: ActionContext): void {
-    const changed = context.scopeRevision !== this.context.scopeRevision;
-    this.context = { ...this.context, ...context };
+    const next = { ...this.context, ...context };
+    const changed = next.scopeRevision !== this.context.scopeRevision || next.localOperationScope !== this.context.localOperationScope;
+    this.context = next;
     if (changed) {
-      for (const state of this.states.values()) if (state.kind !== 'write' && isActiveOperation(state) && state.scopeRevision !== context.scopeRevision) {
+      for (const state of this.states.values()) if (state.kind !== 'write' && isActiveOperation(state) && !this.isCurrentScope(state.scopeRevision)) {
         this.superseded.add(state.requestId);
         this.finish(state, { status: 'cancelled', phase: '已切換操作範圍' });
       }
@@ -102,8 +106,10 @@ export class ActionController {
     }
     const operationId = request.operationId ?? `ui-${Date.now()}-${++sequence}-${Math.random().toString(36).slice(2, 8)}`;
     const nested = request.type === 'issueRequest' ? request.request : undefined;
+    const confirmationTarget = request.type === 'confirmOperationResult' && typeof request.targetOperationId === 'string'
+      ? this.states.get(request.targetOperationId) : undefined;
     const state: WorkspaceOperationState = {
-      ...policy, requestId: operationId, scopeRevision: this.context.scopeRevision ?? 'offline:none',
+      ...policy, requestId: operationId, scopeRevision: effectiveOperationScope(confirmationTarget?.action ?? request, this.context) ?? 'offline:none',
       correlationId: nested?.requestId ?? request.requestId,
       phase: '正在準備…', status: 'queued', startedAt: Date.now()
     };
@@ -136,7 +142,7 @@ export class ActionController {
   }
   retry(operationId: string): DispatchResult {
     const state = this.states.get(operationId);
-    if (!state?.retryable || pending(state) || state.scopeRevision !== this.context.scopeRevision) return { status: 'blocked', reason: '請先確認目前操作範圍與結果。' };
+    if (!state?.retryable || pending(state) || !this.isCurrentScope(state.scopeRevision)) return { status: 'blocked', reason: '請先確認目前操作範圍與結果。' };
     return this.retries.get(operationId)?.() ?? { status: 'blocked', reason: '請從原操作位置重新載入。' };
   }
   setRetryHandler(operationId: string, handler: () => DispatchResult): void {

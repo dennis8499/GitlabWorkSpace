@@ -858,6 +858,7 @@ async function exerciseNativeGitGui(frame, page, repositoryPath, runId, screensh
   const serviceFile = path.join(repositoryPath, 'service.ts');
   const original = readFileSync(serviceFile, 'utf8');
   writeFileSync(serviceFile, `${original.trimEnd()}\n// native GUI partial-stage ${runId}\n// native GUI whole-file stage ${runId}\n`, 'utf8');
+  await frame.locator('.git-refresh').click();
   await frame.locator('.git-change-name').filter({ hasText: 'service.ts' }).first().waitFor({ state: 'visible', timeout: 15_000 });
   await frame.locator('.git-change-name').filter({ hasText: 'service.ts' }).first().click();
   const addedLines = frame.locator('.git-diff-line.add input[type="checkbox"]');

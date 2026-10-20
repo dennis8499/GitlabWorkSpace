@@ -16,6 +16,7 @@ function hostFixture(): any {
     issueBoardGeneration: 0, actualRepositoryScanGeneration: 0, localRepositoryScanGeneration: 0,
     workspaceSections: {}, workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(),
     loadedScopeKey: 'https://gitlab.test|7|42', currentUser: user, projects: [project], issues: [], mergeRequests: [],
+    groups: [group], projectSource: 'gitlab', developerView: 'list',
     groupIssueBoards: [], groupMilestones: [], context: { globalState: { get: () => undefined } },
     panel: { visible: true }, timer: { setScope: async () => undefined },
     session: { baseUrl: 'https://gitlab.test', selectedGroup: group, connectionEpoch: 1,
@@ -29,12 +30,14 @@ function hostFixture(): any {
   return host;
 }
 
-test('first workspace refresh passes the connected scope to repository state readers', async () => {
+test('MR entry reads remote data without scanning local repository state', async () => {
   const host = hostFixture();
-  let scanScope: string | undefined;
-  host.refreshLocalRepositoryStates = async (_root: string, _projects: unknown[], scope: string) => { scanScope = scope; };
+  let scans = 0, localRoots = 0;
+  host.refreshLocalRepositoryStates = async () => { scans++; };
+  host.refreshProjectRoot = async () => { localRoots++; };
   await host.refreshWorkspace(1, new AbortController().signal, {});
-  assert.equal(scanScope, host.connectedScopeKey(), 'the public connection hash must not be replaced with the internal loaded identity');
+  assert.equal(scans, 0); assert.equal(localRoots, 0);
+  assert.equal(host.workspaceSections.projects.status, 'ready');
 });
 
 test('expired ready sections remain available while exactly one background read refreshes them', async () => {

@@ -49,7 +49,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   const session = new GitLabSession(context.secrets, context.globalState, testMode, context.workspaceState, log);
   log.setContextSource(() => ({ accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }));
   context.subscriptions.push(log, notifications, operations);
-  try { await session.initialize(); } catch { notifications.publish({ level: 'warn', message: '既有 GitLab 帳號尚未完成遷移；設定與 Token 已保留，連線時會重試。' }); }
+  try { await session.initialize({ allowNetwork: false }); } catch { notifications.publish({ level: 'warn', message: '既有 GitLab 帳號尚未完成遷移；設定與 Token 已保留，連線時會重試。' }); }
   log.record({ feature: 'workspace', action: 'activate', result: 'success' });
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
   const issuePanels = new IssuePanels(context, session, () => refreshWorkspaceAfterIssueChange(), operations);
@@ -62,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       { ...metadata, action, repositoryId, workspaceActionMetadata: true }
     ),
     async () => {
-      const state = await gitRepositories.getSummaryState();
+      const state = gitRepositories.getCachedSummaryState();
       return {
         ...workspacePanel?.getAccountUiState(),
         activeMode: workspacePanel?.getActiveMode() ?? 'developer',
@@ -74,13 +74,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     },
     repositoryId => gitRepositories.getRepositoryDetails(repositoryId), notifications, operations,
     () => workspacePanel?.getOperationScope() ?? `offline:none:${session.connectionEpoch}`,
-    () => workspacePanel?.getNotificationOrigin() ?? { accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }
+    () => workspacePanel?.getNotificationOrigin() ?? { accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id },
+    () => gitRepositories.refresh(),
+    () => workspacePanel?.getLocalOperationScope() ?? `local:none:${session.connectionEpoch}`
   );
   workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories, notifications, operations);
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
   context.subscriptions.push(gitRepositories.onDidChangeRepositories(() => quickActions.refresh()));
   refreshWorkspaceAfterIssueChange = () => {
-    const refresh = workspacePanel?.refreshFromSidebar();
+    const refresh = workspacePanel?.refreshAfterIssueChange();
     if (refresh) void refresh.catch((error: unknown) => notifications.publish({ level: 'error', title: '更新 Issue', message: readableError(error), origin: workspacePanel?.getNotificationOrigin() }));
   };
 

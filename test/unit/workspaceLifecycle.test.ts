@@ -21,6 +21,7 @@ function fixture() {
     issueGraphGeneration: 0, localRepositoryScanGeneration: 0, actualRepositoryScanGeneration: 0,
     workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(), mergeRequestSectionAborts: {},
     mergeRequestSectionGenerations: { diffs: 0, discussions: 0 }, workspaceSections: {}, gitWriteReceipts: new Map(), pendingViewNotices: [],
+    groups: [], projects: [], issues: [], mergeRequests: [], groupIssueBoards: [], groupMilestones: [], projectSource: 'gitlab', developerView: 'list',
     webviewMessagesSent: 0, webviewMessagesReceived: 0, logsVisible: true,
     refreshAbort: controller(), repositoryScanAbort: controller(), previewAbort: controller(), issueOpenAbort: controller(),
     issueBoardAbort: controller(), mergeRequestAbort: controller(), issueGraphAbort: controller(),
@@ -52,17 +53,21 @@ test('hidden panels abort reads, stop notifications and retain MR data and timer
   assert.equal(host.notifications.snapshot().items[0].messages[0], 'Write completed');
 });
 
-test('MR invalidation reloads a visible review list and leaves hidden sections lazy', async () => {
+test('MR invalidation marks visible and hidden lists stale without sending requests', async () => {
   const { host } = fixture();
+  let requests = 0;
+  host.session.cachedRead = async () => { requests++; throw new Error('Invalidation must not load data'); };
+  const rows = [{ title: 'Cached' }]; host.mergeRequests = rows;
   host.workspaceSections = { mergeRequests: { status: 'ready' }, boards: { status: 'ready' } };
   host.connectedScopeKey = () => 'scope';
   host.invalidateWorkspaceReads({ groupIds: [42], projectId: 101, resource: 'mergeRequests' });
   for (let i = 0; i < 10; i++) await Promise.resolve();
-  assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
-  assert.equal(host.mergeRequests[0].title, 'Updated'); assert.equal(host.workspaceSections.boards.status, 'ready');
+  assert.equal(host.workspaceSections.mergeRequests.status, 'idle');
+  assert.equal(host.mergeRequests, rows); assert.equal(host.workspaceSections.boards.status, 'ready');
   host.panel.visible = false;
   host.invalidateWorkspaceReads({ groupIds: [42], projectId: 101, resource: 'mergeRequests' });
   assert.equal(host.workspaceSections.mergeRequests.status, 'idle');
+  assert.equal(requests, 0);
 });
 
 test('hiding a background refresh keeps data and permits revalidation after restore', async () => {
@@ -125,10 +130,10 @@ test('manual Workspace refresh reloads a ready empty MR list through the read ca
     web_url: 'https://gitlab.test/team/project/-/merge_requests/1', source_branch: 'feature', target_branch: 'main' }];
   await host.refresh();
   await Promise.all(sectionTasks.splice(0));
-  assert.equal(mrReads, 1, 'ordinary refresh reuses the ready list');
+  assert.equal(mrReads, 2, 'a new page entry fetches the current list');
   await host.dispatchMessage({ type: 'refresh' });
   await Promise.all(sectionTasks.splice(0));
-  assert.equal(mrReads, 2, 'manual refresh sends another MR request despite the cached empty result');
+  assert.equal(mrReads, 3, 'manual refresh sends another MR request despite the cached result');
   assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
   assert.deepEqual(host.mergeRequests, remoteRows);
 });
@@ -161,10 +166,12 @@ test('a restored view keeps notification history and delivers protocol receipts 
   host.workspaceSections = { projects: { status: 'ready' }, issues: { status: 'ready' } };
   host.post({ type: 'message', message: 'Completed while hidden' });
   host.pendingViewNotices.push({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: 'copy-one', result: true } });
-  host.refresh = () => { throw new Error('Unexpected refresh'); };
+  let entryRefreshes = 0;
+  host.refresh = async () => { entryRefreshes++; };
   host.refreshInventory = () => { throw new Error('Unexpected inventory scan'); };
   host.loadActiveModeSections = () => undefined;
   await host.dispatchMessage({ type: 'ready' });
+  assert.equal(entryRefreshes, 1, 'restoring the page performs one current-page refresh');
   assert.equal(host.snapshots, 1); assert.equal(host.pendingViewNotices.length, 0);
   assert.equal(messages.some(message => message.type === 'message'), false);
   assert.equal(host.notifications.snapshot().items.length, 1);

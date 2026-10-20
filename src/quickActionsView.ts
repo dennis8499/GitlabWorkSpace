@@ -25,6 +25,8 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private viewGeneration = 0;
   private readonly detailsRequests = new Map<string, string>();
   private snapshotAbort?: AbortController;
+  private viewReady = false;
+  private repositoryRefresh?: { generation: number; scopeRevision: string; promise: Promise<void> };
   private readonly subscriptions: vscode.Disposable[] = [];
   private readonly notificationSubscription?: { dispose(): void };
   private readonly operationSubscription?: { dispose(): void };
@@ -39,7 +41,9 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     private readonly operations?: OperationTracker,
     private readonly getOperationScope: () => string = () => `offline:none:${session.connectionEpoch ?? 0}`,
     private readonly getNotificationOrigin: () => NotificationOrigin = () => ({ accountId: session.activeAccountId,
-      baseUrl: session.baseUrl, groupId: session.selectedGroup?.id })
+      baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }),
+    private readonly refreshRepositoryState?: () => Promise<unknown>,
+    private readonly getLocalOperationScope: () => string = getOperationScope
   ) {
     this.notificationSubscription = notifications?.onDidChange(() => { if (this.view?.visible) void this.sendState(); });
     this.operationSubscription = operations?.subscribe(operation => {
@@ -55,12 +59,18 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     this.subscriptions.push(
       view.webview.onDidReceiveMessage((message: unknown) => {
         if (!isQuickActionsRequest(message)) return;
-        if (message.type === 'ready') { this.sendVisibility(); this.sendOperationSnapshot(); void this.sendState(); }
+        if (message.type === 'ready') {
+          if (this.viewReady) return;
+          this.viewReady = true; this.sendVisibility(); this.sendOperationSnapshot();
+          if (view.visible) void this.refreshRepositories();
+          else void this.sendState();
+        }
+        else if (message.type === 'refreshRepositories') void this.refreshRepositories(message);
         else if (message.type === 'reconcileOperations') this.sendOperationSnapshot(message.pendingIds);
         else if (message.type === 'repositoryDetails') void this.loadRepositoryDetails(message.repositoryId, message.requestId, message);
         else if (message.type === 'cancelRepositoryDetails') this.detailsRequests.delete(message.repositoryId);
         else if (message.type === 'publishNotification') {
-          if (message.operationScope !== undefined && message.operationScope !== this.getOperationScope() ||
+          if (message.operationScope !== undefined && message.operationScope !== this.getOperationScope() && message.operationScope !== this.getLocalOperationScope() ||
             message.scopeEpoch !== undefined && message.scopeEpoch !== this.session.connectionEpoch ||
             message.hostSessionId !== undefined && message.hostSessionId !== this.operations?.sessionId) return;
           this.notifications?.publish({ level: message.level, message: message.message, title: message.title,
@@ -70,7 +80,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       }),
       view.onDidChangeVisibility(() => {
         this.viewGeneration++; this.detailsRequests.clear(); this.sendVisibility();
-        if (view.visible) void this.sendState();
+        if (view.visible && this.viewReady) void this.refreshRepositories();
       }),
       view.onDidDispose(() => { if (this.view === view) this.clearView(); })
     );
@@ -91,6 +101,40 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   }
 
   dispose(): void { this.clearView(); this.notificationSubscription?.dispose(); this.operationSubscription?.dispose(); }
+
+  private async refreshRepositories(metadata: ActionMetadata = {}): Promise<void> {
+    const view = this.view, generation = this.viewGeneration, scopeRevision = this.getLocalOperationScope();
+    if (!view?.visible) return;
+    const current = () => this.view === view && view.visible && generation === this.viewGeneration && scopeRevision === this.getLocalOperationScope();
+    const read = async () => {
+      if (!current() || metadata.hostSessionId && metadata.hostSessionId !== this.operations?.sessionId ||
+        metadata.operationScope && metadata.operationScope !== scopeRevision ||
+        metadata.scopeEpoch !== undefined && metadata.scopeEpoch !== this.session.connectionEpoch) {
+        return { status: 'cancelled' as const, effect: 'none' as const };
+      }
+      if (this.repositoryRefresh?.generation === generation && this.repositoryRefresh.scopeRevision === scopeRevision) await this.repositoryRefresh.promise;
+      else {
+        const promise = Promise.resolve().then(() => current() ? this.refreshRepositoryState?.() : undefined).then(() => undefined);
+        const refresh = { generation, scopeRevision, promise }; this.repositoryRefresh = refresh;
+        try { await promise; } finally { if (this.repositoryRefresh === refresh) this.repositoryRefresh = undefined; }
+      }
+      if (!current()) return { status: 'cancelled' as const, effect: 'none' as const };
+      await this.sendState();
+    };
+    try {
+      if (metadata.operationId && this.operations) {
+        const policy = describeAction({ type: 'refreshRepositories' }, { scopeRevision });
+        await this.operations.run({ ...policy, requestId: metadata.operationId, scopeRevision,
+          status: 'queued', phase: '正在更新本機 Repo', startedAt: Date.now() }, read);
+      } else await read();
+    } catch (error) {
+      if (current()) {
+        await this.sendState();
+        if (!metadata.operationId || !this.operations) this.notifications?.publish({ level: 'error', title: '更新本機 Repo',
+          message: error instanceof Error ? error.message : '無法更新本機 Repo。', origin: this.getNotificationOrigin() });
+      }
+    }
+  }
 
   private async perform(action: QuickAction, repositoryId?: string, metadata: ActionMetadata = {}): Promise<void> {
     if (action === 'openNotifications') {
@@ -130,11 +174,11 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private async loadRepositoryDetails(repositoryId: string, requestId: string, metadata: ActionMetadata = {}): Promise<void> {
     const view = this.view, generation = this.viewGeneration;
     if (!view?.visible) return;
-    const scopeRevision = this.getOperationScope(), scopeEpoch = this.session.connectionEpoch;
+    const scopeRevision = this.getLocalOperationScope(), scopeEpoch = this.session.connectionEpoch;
     const origin = this.getNotificationOrigin();
     this.detailsRequests.set(repositoryId, requestId);
     const current = () => this.view === view && view.visible && generation === this.viewGeneration &&
-      scopeRevision === this.getOperationScope() && scopeEpoch === this.session.connectionEpoch && this.detailsRequests.get(repositoryId) === requestId;
+      scopeRevision === this.getLocalOperationScope() && scopeEpoch === this.session.connectionEpoch && this.detailsRequests.get(repositoryId) === requestId;
     const read = async () => { try {
       // A collapse/hide in the same turn can cancel a read before it starts.
       await Promise.resolve();
@@ -160,7 +204,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
     const tracked = () => this.operations!.run({ requestId: metadata.operationId!, scopeRevision: metadata.operationScope ?? scopeRevision,
       action: policy.action, resourceKey: policy.resourceKey, lockKey: policy.lockKey, kind: policy.kind, concurrency: policy.concurrency,
       label: policy.label, phase: '正在讀取 Repo 詳細資料…', status: 'queued', startedAt: Date.now(), notify: false }, async () => {
-      if (metadata.hostSessionId && metadata.hostSessionId !== this.operations!.sessionId || metadata.operationScope && metadata.operationScope !== this.getOperationScope() ||
+      if (metadata.hostSessionId && metadata.hostSessionId !== this.operations!.sessionId || metadata.operationScope && metadata.operationScope !== this.getLocalOperationScope() ||
         metadata.scopeEpoch !== undefined && metadata.scopeEpoch !== this.session.connectionEpoch) return { status: 'failed', effect: 'none', error: '工作區或帳號已變更，請重試。' };
       return read();
     });
@@ -179,6 +223,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
       groupLabel: this.session.selectedGroup?.full_path,
       busyAction: this.busyAction,
       operationScope: this.getOperationScope(),
+      localOperationScope: this.getLocalOperationScope(),
       scopeEpoch: this.session.connectionEpoch,
       operationSnapshot: this.operations?.snapshot(),
       notificationUnreadCount: this.notifications?.unreadCount ?? 0
@@ -197,6 +242,7 @@ export class QuickActionsViewProvider implements vscode.WebviewViewProvider, vsc
   private clearView(): void {
     this.snapshotAbort?.abort(); this.snapshotAbort = undefined;
     this.viewGeneration++; this.stateRevision++; this.detailsRequests.clear();
+    this.viewReady = false; this.repositoryRefresh = undefined;
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
     this.view = undefined;
   }

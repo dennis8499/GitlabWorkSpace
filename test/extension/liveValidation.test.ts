@@ -23,6 +23,7 @@ interface TestExtensionApi {
 interface ApiMetric { path: string; method: string; status: number; bytes: number | null; elapsedMs: number; }
 interface TestWarningPrompt { message: string; modal: boolean; items: string[]; result?: string; }
 interface TestGitActionTrace { phase: 'start' | 'complete' | 'error'; repositoryId: string; action: string; error?: string; }
+type ExternalGitChangeCheck = (phase: string, mutate: () => void) => Promise<void>;
 
 const enabled = process.env.GLW_LIVE_ENVIRONMENT === 'ce19' || process.env.GLW_LIVE_ENVIRONMENT === 'ce16';
 const localGitGuiEnabled = process.env.GLW_LOCAL_GIT_GUI === '1';
@@ -70,6 +71,7 @@ suite('Live GitLab Workspace Webview validation', function () {
     let workbenchPage: Page | undefined;
     let ui: WebviewCdp | undefined;
     const idleChecks: Array<Record<string, unknown>> = [];
+    const externalChangeChecks: Array<Record<string, unknown>> = [];
     try {
       mkdirSync(path.join(path.dirname(reportPath), 'screenshots'), { recursive: true });
       browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 25_000 });
@@ -144,13 +146,27 @@ suite('Live GitLab Workspace Webview validation', function () {
         console.info(`Git GUI idle ${phase}: ${JSON.stringify(delta)}; VS Code background commands: ${nativeAfter - nativeBefore}`);
         assert.deepEqual(delta, { commands: 0, auxiliaryCommands: 0, nativeApiCalls: 0 }, `${phase}: idle Git GUI must not launch additional extension Git commands or native API requests`);
       };
-      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, checkIdle);
+      const checkExternalChange: ExternalGitChangeCheck = async (phase, mutate) => {
+        await ui!.waitUntil(`document.querySelector('.git-refresh')?.disabled === false && !document.querySelector('.git-status-message .spinner')`,
+          15_000, `${phase}: the previous Git action must finish before the external fixture changes.`);
+        const before = api.getGitActivityForTesting();
+        const started = Date.now();
+        mutate();
+        await new Promise(resolve => setTimeout(resolve, 1250));
+        const after = api.getGitActivityForTesting();
+        const delta = { commands: after.commands - before.commands, auxiliaryCommands: after.auxiliaryCommands - before.auxiliaryCommands,
+          nativeApiCalls: after.nativeApiCalls - before.nativeApiCalls };
+        externalChangeChecks.push({ phase, idleMs: Date.now() - started, before, after, extensionDelta: delta });
+        assert.deepEqual(delta, { commands: 0, auxiliaryCommands: 0, nativeApiCalls: 0 },
+          `${phase}: external file/ref changes must wait for page entry or manual refresh before extension Git reads`);
+      };
+      const gitGui = await exerciseGitGui(ui, page, workspaceRoot, runId, warningPrompts, false, checkIdle, checkExternalChange);
       const compatibility: Record<string, unknown> = {};
       const taggedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
       const tagNames = ['validation/annotated', 'validation/lightweight'];
       execFileSync('git', ['tag', '-a', tagNames[0], '-m', 'Annotated graph tag'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
       execFileSync('git', ['tag', tagNames[1]], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
-      await ui.click('.git-refresh');
+      await refreshGitGui(ui);
       for (const tagName of tagNames) {
         await ui.waitUntil(`([...document.querySelectorAll('.git-commit-row')].some((row) => row.title?.endsWith('\\n' + ${JSON.stringify(taggedHead)}) && row.querySelector('.git-commit-refs')?.textContent?.includes(${JSON.stringify(tagName)})))`, 15_000, 'Tag labels attach to the tagged commit rather than the annotated tag object.');
         await ui.evaluate(`(() => { const button = [...document.querySelectorAll('.git-ref-name')].find((item) => item.textContent?.includes(${JSON.stringify(tagName)})); if (!button) throw new Error('Tag ref missing'); button.closest('details').open = true; button.click(); })()`);
@@ -158,7 +174,10 @@ suite('Live GitLab Workspace Webview validation', function () {
       }
       compatibility.tags = 'PASS';
       const currentBranch = execFileSync('git', ['branch', '--show-current'], { cwd: workspaceRoot, encoding: 'utf8', windowsHide: true }).trim();
-      execFileSync('git', ['checkout', '--detach', 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      await checkExternalChange('external-detached-head', () => {
+        execFileSync('git', ['checkout', '--detach', 'HEAD'], { cwd: workspaceRoot, stdio: 'ignore', windowsHide: true });
+      });
+      await refreshGitGui(ui);
       await ui.waitUntil(`document.querySelector('.git-branch-picker select')?.value === '' && document.querySelector('.git-branch-picker select')?.textContent?.includes('Detached HEAD')`, 15_000, 'Detached HEAD is shown without inventing a local branch.');
       await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
       assert.ok(await ui.count('.git-wip-row .git-commit-graph path'), 'working changes connect to the detached HEAD commit');
@@ -229,7 +248,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         interactiveConfirmationUI: status !== 'PASS' ? 'NOT_COMPLETE' :
           gitGui.commitConfirmation === 'workbench-dom' && gitGui.pushConfirmation === 'workbench-dom' ? 'PASS: both native VS Code modal confirmations were presented and clicked through the Workbench DOM.' :
           'BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.',
-        warningPrompts, actionTrace, idleChecks, compatibility, gitGui
+        warningPrompts, actionTrace, idleChecks, externalChangeChecks, compatibility, gitGui
       }, null, 2)}\n`, 'utf8');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Local Git GUI validation failed.';
@@ -259,7 +278,7 @@ suite('Live GitLab Workspace Webview validation', function () {
         })),
         windowFocused: vscode.window.state.focused, nativeGitActivity: api.getGitActivityForTesting(),
         nativeWorkingChanges: (vscode.extensions.getExtension('vscode.git')?.exports as { getAPI(version: number): { repositories: Array<{ rootUri: vscode.Uri; state: { workingTreeChanges: Array<{ uri: vscode.Uri }> } }> } } | undefined)?.getAPI(1).repositories.map(repository => ({ path: repository.rootUri.fsPath, changes: repository.state.workingTreeChanges.map(change => change.uri.fsPath) })),
-        actionTrace, idleChecks, gitDetailsStaleRetries, uiDiagnostics, failureScreenshot
+        actionTrace, idleChecks, externalChangeChecks, gitDetailsStaleRetries, uiDiagnostics, failureScreenshot
       }, null, 2)}\n`, 'utf8');
       throw error;
     } finally {
@@ -978,7 +997,8 @@ function percentile(values: number[], fraction: number): number {
   return sorted.length ? Number(sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)].toFixed(2)) : 0;
 }
 
-async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true, checkIdle?: (phase: string) => Promise<void>): Promise<Record<string, unknown>> {
+async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string, runId: string, warningPrompts: TestWarningPrompt[] = [], openWorkspace = true,
+  checkIdle?: (phase: string) => Promise<void>, checkExternalChange?: ExternalGitChangeCheck): Promise<Record<string, unknown>> {
   const confirmationDialogs: string[] = [];
   page.on('dialog', async (dialog) => {
     const message = dialog.message();
@@ -1020,8 +1040,14 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   const original = await import('node:fs/promises').then(({ readFile }) => readFile(trackedFile, 'utf8'));
   const markerA = `// live GUI partial-stage ${runId}`;
   const markerB = `// live GUI whole-file stage ${runId}`;
-  writeFileSync(trackedFile, `${original.trimEnd()}\n${markerA}\n${markerB}\n`, 'utf8');
-  await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 15_000, 'The Git GUI did not refresh after the working tree changed.');
+  const changeWorktree = () => writeFileSync(trackedFile, `${original.trimEnd()}\n${markerA}\n${markerB}\n`, 'utf8');
+  if (checkExternalChange) {
+    await checkExternalChange('external-worktree', changeWorktree);
+    assert.equal(await ui.evaluate(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`), false,
+      'An external working-tree edit leaves the displayed snapshot unchanged until the user refreshes.');
+  } else changeWorktree();
+  await refreshGitGui(ui);
+  await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 15_000, 'Manual refresh did not load the externally changed working tree.');
   await ui.click('.git-change-name');
   await ui.waitForVisible('.git-diff-line.add input[type="checkbox"]');
   assert.equal(await ui.count('.git-diff-line.add input[type="checkbox"]'), 2, 'the real Git diff exposes both added lines for line-level staging');
@@ -1111,7 +1137,7 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
   await ui.waitForVisible('.git-commit-list');
   await ui.waitUntil(`document.querySelector('.git-commit-list')?.textContent?.includes(${JSON.stringify(`GUI validation ${runId}`)})`, 10_000, 'The Git GUI history did not show the new commit.');
   const commits = await ui.count('.git-commit-row');
-  const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, playwrightWebview) : undefined;
+  const advancedActions = localGitGuiEnabled ? await exerciseAdvancedGitGui(ui, repoPath, runId, playwrightWebview, checkExternalChange) : undefined;
   return { branch, previousBranch: currentBranch, stagedPartialLines: 1, stagedWholeFileLines: 2,
     indexAfterPartial: indexAfterPartial.trim(), indexAfterWholeFile: indexAfterWholeFile.trim(),
     commitMessage: commitSubject.trim(), committed: true, commitConfirmation: commitDomConfirmed ? 'workbench-dom' : commitBrowserDialog ? 'browser-dialog' : 'test-adapter',
@@ -1119,8 +1145,13 @@ async function exerciseGitGui(ui: WebviewCdp, page: Page, workspaceRoot: string,
     warningPrompts, confirmationDialogs, ...(advancedActions ? { advancedActions } : {}) };
 }
 
-async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: string, playwrightWebview: Frame): Promise<Record<string, unknown>> {
+async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: string, playwrightWebview: Frame,
+  checkExternalChange?: ExternalGitChangeCheck): Promise<Record<string, unknown>> {
   const runGit = (args: string[], cwd = repoPath) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const prepareExternalChange = async (phase: string, mutate: () => void): Promise<void> => {
+    if (checkExternalChange) await checkExternalChange(phase, mutate); else mutate();
+    await refreshGitGui(ui);
+  };
   const openMenuAction = async (index: number): Promise<void> => {
     const direct = [".git-fetch", ".git-pull", ".git-push", "", "", ".git-stash"][index];
     if (direct) await ui.click(direct);
@@ -1139,9 +1170,9 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
     const trackedFile = path.join(repoPath, 'service.ts');
     const { readFile } = await import('node:fs/promises');
     const original = await readFile(trackedFile, 'utf8');
-    writeFileSync(trackedFile, `${original.trimEnd()}\n// ${marker}\n`, 'utf8');
+    await prepareExternalChange('external-stash-worktree', () => writeFileSync(trackedFile, `${original.trimEnd()}\n// ${marker}\n`, 'utf8'));
     await ui.waitUntil(`Boolean(document.querySelector('.git-change-name')?.textContent?.includes('service.ts'))`, 10_000,
-      'The Git GUI did not refresh after preparing the isolated Repo change.');
+      'Manual refresh did not load the isolated Repo change.');
   };
 
   await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
@@ -1208,14 +1239,16 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
 
   const rebaseBranch = runGit(['branch', '--show-current']);
   const rebaseBase = `validation/rebase-base-${runId.replace(/[^a-z0-9-]/gi, '-')}`;
-  runGit(['branch', rebaseBase]);
   const rebaseSubjects = Array.from({ length: 6 }, (_, index) => `GUI rebase ${index + 1} ${runId}`);
-  for (let index = 0; index < rebaseSubjects.length; index++) {
-    const filename = `gui-rebase-${index + 1}-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
-    writeFileSync(path.join(repoPath, filename), `${rebaseSubjects[index]}\n`, 'utf8');
-    runGit(['add', '--', filename]);
-    runGit(['commit', '-m', rebaseSubjects[index]]);
-  }
+  await prepareExternalChange('external-rebase-history', () => {
+    runGit(['branch', rebaseBase]);
+    for (let index = 0; index < rebaseSubjects.length; index++) {
+      const filename = `gui-rebase-${index + 1}-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
+      writeFileSync(path.join(repoPath, filename), `${rebaseSubjects[index]}\n`, 'utf8');
+      runGit(['add', '--', filename]);
+      runGit(['commit', '-m', rebaseSubjects[index]]);
+    }
+  });
 
   await openMenuAction(4);
   await playwrightWebview.locator('.git-dialog select[name="ref"]').selectOption(rebaseBase);
@@ -1273,9 +1306,9 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   const amendMessage = `GUI amend ${runId}`;
   const headBeforeAmend = runGit(['rev-parse', 'HEAD']);
   const parentBeforeAmend = runGit(['rev-parse', 'HEAD^']);
-  writeFileSync(path.join(repoPath, amendFile), `${amendMessage}\n`, 'utf8');
+  await prepareExternalChange('external-amend-worktree', () => writeFileSync(path.join(repoPath, amendFile), `${amendMessage}\n`, 'utf8'));
   await ui.waitUntil(`Boolean([...document.querySelectorAll('.git-change-name')].some((item) => item.textContent?.includes(${JSON.stringify(amendFile)})))`, 10_000,
-    'The Git GUI refreshes the working-tree list for the Amend fixture.');
+    'Manual refresh loads the working-tree list for the Amend fixture.');
   const changeRows = await ui.evaluate<string[]>(`[...document.querySelectorAll('.git-change-section .git-change-row')].map((row) => row.querySelector('.git-change-name')?.textContent ?? '')`);
   const amendRow = changeRows.findIndex((name) => name.includes(amendFile));
   assert.ok(amendRow >= 0, 'The Amend fixture is visible as a real Git change row.');
@@ -1302,17 +1335,20 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
   const mergeBranch = `validation/merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}`;
   const mergeFile = `gui-merge-source-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
   const localMergeFile = `gui-merge-local-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
-  runGit(['branch', mergeBranch]);
-  runGit(['checkout', mergeBranch]);
-  writeFileSync(path.join(repoPath, mergeFile), `Created on ${mergeBranch}\n`, 'utf8');
-  runGit(['add', '--', mergeFile]);
-  runGit(['commit', '-m', `GUI merge source ${runId}`]);
-  const mergeSourceHead = runGit(['rev-parse', 'HEAD']);
-  runGit(['checkout', rebaseBranch]);
-  writeFileSync(path.join(repoPath, localMergeFile), `Created on ${rebaseBranch}\n`, 'utf8');
-  runGit(['add', '--', localMergeFile]);
-  runGit(['commit', '-m', `GUI merge local ${runId}`]);
-  const localMergeHead = runGit(['rev-parse', 'HEAD']);
+  let mergeSourceHead = '', localMergeHead = '';
+  await prepareExternalChange('external-merge-history', () => {
+    runGit(['branch', mergeBranch]);
+    runGit(['checkout', mergeBranch]);
+    writeFileSync(path.join(repoPath, mergeFile), `Created on ${mergeBranch}\n`, 'utf8');
+    runGit(['add', '--', mergeFile]);
+    runGit(['commit', '-m', `GUI merge source ${runId}`]);
+    mergeSourceHead = runGit(['rev-parse', 'HEAD']);
+    runGit(['checkout', rebaseBranch]);
+    writeFileSync(path.join(repoPath, localMergeFile), `Created on ${rebaseBranch}\n`, 'utf8');
+    runGit(['add', '--', localMergeFile]);
+    runGit(['commit', '-m', `GUI merge local ${runId}`]);
+    localMergeHead = runGit(['rev-parse', 'HEAD']);
+  });
 
   await openMenuAction(3);
   await playwrightWebview.locator('.git-dialog select[name="ref"]').selectOption(mergeBranch);
@@ -1357,9 +1393,11 @@ async function exerciseAdvancedGitGui(ui: WebviewCdp, repoPath: string, runId: s
 
   const pickFile = `gui-pick-${runId.replace(/[^a-z0-9-]/gi, '-')}.txt`;
   const pickMessage = `GUI pick target ${runId}`;
-  writeFileSync(path.join(repoPath, pickFile), `${pickMessage}\n`, 'utf8');
-  runGit(['add', '--', pickFile]);
-  runGit(['commit', '-m', pickMessage]);
+  await prepareExternalChange('external-pick-history', () => {
+    writeFileSync(path.join(repoPath, pickFile), `${pickMessage}\n`, 'utf8');
+    runGit(['add', '--', pickFile]);
+    runGit(['commit', '-m', pickMessage]);
+  });
   const pickSourceHead = runGit(['rev-parse', 'HEAD']);
   await ui.evaluate(`document.querySelector('.git-worktree-link')?.click()`);
   await ui.evaluate(`document.querySelector('.git-back-graph')?.click()`);
@@ -1497,6 +1535,14 @@ async function waitForGitState(repoPath: string, args: string[], matches: (outpu
 async function waitForGitUiAction(ui: WebviewCdp): Promise<void> {
   await ui.waitForVisible('.git-progress', 10_000);
   await ui.waitForHidden('.git-progress', 30_000);
+}
+
+async function refreshGitGui(ui: WebviewCdp): Promise<void> {
+  await ui.waitForProperty('.git-refresh', 'disabled', false, 15_000);
+  await ui.click('.git-refresh');
+  await ui.waitForVisible('.git-status-message .spinner', 10_000);
+  await ui.waitForHidden('.git-status-message .spinner', 30_000);
+  await ui.waitForProperty('.git-refresh', 'disabled', false, 15_000);
 }
 
 async function confirmWorkbenchDialog(page: Page, ui: WebviewCdp, label: string): Promise<boolean> {

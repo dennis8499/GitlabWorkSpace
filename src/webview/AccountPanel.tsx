@@ -124,9 +124,10 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
         <button class="quiet small danger" type="button" disabled={busy} aria-label={`移除 ${account.name || account.username} 帳號`} onClick={() => post({ type: 'removeAccount', accountId: account.id })}>移除</button></div>
     </article>)}</div>
     {!snapshot.accounts?.length && step === 'manage' && <div class="account-empty"><strong>尚未新增 GitLab 帳號</strong><p>登入後即可選擇 Group，載入專案、Issue 與 MR。</p><button class="primary" type="button" disabled={busy} onClick={() => startLogin()}>登入 GitLab</button></div>}
-    <section class="account-workspace"><h4>目前工作環境</h4><dl><dt>GitLab 帳號</dt><dd>{snapshot.connected ? `${snapshot.currentUser?.name ?? '已登入'}${snapshot.currentUser?.username ? `（@${snapshot.currentUser.username}）` : ''}` : '尚未登入'}</dd><dt>Group</dt><dd>{snapshot.connected ? snapshot.group?.full_path ?? '尚未選擇' : '登入後選擇'}</dd><dt>本機工作區</dt><dd>{snapshot.groupRoot ?? snapshot.workspaceRootError ?? '尚未辨識 Group 工作區'}</dd></dl>
+    <section class="account-workspace"><h4>GitLab 專案來源</h4><dl><dt>GitLab 帳號</dt><dd>{snapshot.connected ? `${snapshot.currentUser?.name ?? '已登入'}${snapshot.currentUser?.username ? `（@${snapshot.currentUser.username}）` : ''}` : '尚未登入'}</dd><dt>Group</dt><dd>{snapshot.connected ? snapshot.group?.full_path ?? '尚未選擇' : '登入後選擇'}</dd></dl>
       <div class="button-row"><button type="button" disabled={!snapshot.connected || busy} onClick={() => post({ type: 'selectGroup' })}>{snapshot.group ? '切換 Group' : '選擇 Group'}</button>
-        {snapshot.connected && snapshot.group && !snapshot.groupRoot && <button type="button" disabled={busy} onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟 Group 資料夾</button>}</div></section>
+        </div></section>
+    <section class="account-workspace"><h4>本機工作區</h4><p>{snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot ?? '請在 VS Code 開啟本機專案資料夾'}</p><p class="subtle">本機 Repo、版控、Skills 與 BMAD 可獨立使用。</p><button type="button" disabled={busy} onClick={() => post({ type: 'openWorkspaceFolder' })}>開啟本機資料夾</button></section>
     <p class="subtle account-storage-note">登出會清除 Token 並保留帳號。移除會刪除帳號與 Token；工作草稿及工時仍會保留。</p>
   </section>;
 }

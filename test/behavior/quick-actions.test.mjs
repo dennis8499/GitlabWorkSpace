@@ -227,12 +227,17 @@ test('loads expanded Repo details only, with retry and correlated stale-response
   view.send({ ...second, details: detailsFor(1) });
   await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-1'));
   view.sendState(stateFor(2));
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(detailsRequests(view).length, 2, 'a background revision change does not read Git details');
+  assert.match(view.dom.window.document.querySelector('.ref-link').textContent, /branch-1/, 'cached details remain available until another expansion');
+  view.dom.window.document.querySelector('.repo-disclosure').click();
+  view.dom.window.document.querySelector('.repo-disclosure').click();
   await waitFor(() => detailsRequests(view).length === 3);
   view.send({ ...detailsRequests(view).at(-1), details: detailsFor(2) });
   await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-2'));
 });
 
-test('collapse, hidden views and removed Repos discard late details and reload on return', async t => {
+test('collapse, hidden views and removed Repos discard late details and wait for another user expansion', async t => {
   const view = await mount(); t.after(() => view.dom.window.close());
   view.sendState(stateFor(1)); await waitFor(() => view.repoButtons().length);
   const disclosure = () => view.dom.window.document.querySelector('.repo-disclosure');
@@ -251,15 +256,43 @@ test('collapse, hidden views and removed Repos discard late details and reload o
   assert.equal(view.dom.window.document.querySelector('.ref-link'), null);
   assert.equal(detailsRequests(view).length, 2);
   view.send({ type: 'visibility', visible: true });
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(detailsRequests(view).length, 2, 'restoring the sidebar does not reload expanded details');
+  disclosure().click(); disclosure().click();
   await waitFor(() => detailsRequests(view).length === 3);
   const removed = detailsRequests(view).at(-1);
   view.sendState({ connected: false, gitAvailable: true, repositories: [] });
   await waitFor(() => !view.repoButtons().length);
   view.send({ ...removed, details: detailsFor(1) });
   view.sendState(stateFor(2));
+  await waitFor(() => view.repoButtons().length);
+  await new Promise(resolve => setTimeout(resolve, 60));
+  assert.equal(detailsRequests(view).length, 3, 'readding a Repo does not initiate a Git read');
+  disclosure().click(); disclosure().click();
   await waitFor(() => detailsRequests(view).length === 4);
   view.send({ ...detailsRequests(view).at(-1), details: detailsFor(2) });
   await waitFor(() => view.dom.window.document.querySelector('.ref-link')?.textContent.includes('branch-2'));
+});
+
+test('manual repository refresh updates summaries without reloading expanded details', async t => {
+  const view = await mount(); t.after(() => view.dom.window.close());
+  view.sendState({ ...stateFor(1), localOperationScope: 'local-workspace' });
+  await waitFor(() => view.repoButtons().length === 1);
+  view.dom.window.document.querySelector('.repo-disclosure').click();
+  await waitFor(() => detailsRequests(view).length === 1);
+  const request = detailsRequests(view)[0];
+  assert.equal(request.operationScope, 'local-workspace');
+  view.send({ ...request, details: detailsFor(1) });
+  await waitFor(() => view.dom.window.document.querySelector('.ref-link'));
+  const refresh = view.dom.window.document.querySelector('[aria-label="更新本機 Repo"]');
+  refresh.click();
+  const update = view.requests.findLast(request => request.type === 'refreshRepositories');
+  assert.equal(update.operationScope, 'local-workspace');
+  await waitFor(() => refresh.disabled);
+  view.finish(update);
+  view.sendState({ ...stateFor(2), operationScope: 'another-group', localOperationScope: 'local-workspace' });
+  await waitFor(() => !refresh.disabled);
+  assert.equal(detailsRequests(view).length, 1);
 });
 
 test('shows saved account summaries and dispatches supported account management actions', async t => {

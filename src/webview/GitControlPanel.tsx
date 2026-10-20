@@ -311,14 +311,15 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   }, [active, ui.view, selectedId]);
 
   useEffect(() => {
-    if (!active || selectedId === openedRepository.current) return;
+    if (!active) { openedRepository.current = ''; return; }
+    if (selectedId === openedRepository.current) return;
     openedRepository.current = selectedId;
     setDialog(undefined); setLeftOpen(false); setRightOpen(false);
     if (!restoring.current) setHistoryFilter('');
     setHistoryViewport((current) => ({ ...current, top: 0 }));
     if (historyListRef.current) historyListRef.current.scrollTop = 0;
     if (selectedId) {
-      send({ type: 'open', repoId: selectedId, ...(restoring.current ? { refresh: false } : {}) });
+      send({ type: 'open', repoId: selectedId });
       restoring.current = false;
     }
   }, [selectedId, active]);

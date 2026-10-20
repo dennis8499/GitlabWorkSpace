@@ -430,3 +430,24 @@ test('a successful MR write expires its Group review list and leaves unrelated c
   assert.deepEqual(changes, [{ groupIds: [42], projectId: 101, resource: 'mergeRequests' }]);
   subscription.dispose();
 });
+
+
+test('passive startup preserves an unverified legacy account without contacting GitLab', async () => {
+  const state = new MemoryStore(), secrets = new MemorySecrets();
+  await state.update('gitlabWorkspace.baseUrl', 'https://gitlab.test');
+  await secrets.store('gitlabWorkspace.accessToken', 'legacy-unit-token');
+  const session = new GitLabSession(secrets as unknown as SecretStorage, state, true);
+  let requests = 0;
+  session.setFetchForTesting(async () => {
+    requests++;
+    return new Response(JSON.stringify({ id: 7, name: 'User', username: 'user' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  await Promise.all([session.initialize({ allowNetwork: false }), session.initialize({ allowNetwork: false })]);
+  assert.equal(requests, 0);
+  assert.equal(state.get('gitlabWorkspace.baseUrl'), 'https://gitlab.test');
+  assert.equal(await secrets.get('gitlabWorkspace.accessToken'), 'legacy-unit-token');
+  await session.initialize();
+  assert.equal(requests, 1, 'explicit remote initialization verifies the retained identity once');
+  assert.ok(session.activeAccountId);
+  assert.equal(await secrets.get('gitlabWorkspace.accessToken'), undefined);
+});

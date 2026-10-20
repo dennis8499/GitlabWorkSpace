@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
-import { GitRefreshScheduler, type RefreshClock } from '../../src/git/gitRefreshScheduler';
+import type { RefreshClock } from '../../src/git/gitRefreshScheduler';
 import { withGitDirectoryLock } from '../../src/git/repositoryOperationLock';
 
 const head = 'a'.repeat(40);
@@ -37,6 +37,7 @@ async function fixture() {
     dispose() { this.listeners.clear(); }
   }
   const changes = new Emitter();
+  const opened = new Emitter(), closed = new Emitter(), clock = new Clock();
   const counts = { status: 0, branches: 0, config: 0, diff: 0, commands: [] as string[][] };
   const root = process.cwd();
   const change = { uri: { fsPath: path.join(root, 'README.md') }, status: 5 };
@@ -49,12 +50,13 @@ async function fixture() {
     diffWithHEAD: async () => { counts.diff++; return 'diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old\n+new\n'; },
     diffIndexWithHEAD: async () => { counts.diff++; return ''; }
   };
-  const api = { state: 'initialized', repositories: [repository], git: { path: 'disabled-git' }, onDidChangeState: new Emitter().event, onDidOpenRepository: new Emitter().event, onDidCloseRepository: new Emitter().event };
+  const api = { state: 'initialized', repositories: [repository], git: { path: 'disabled-git' }, onDidChangeState: new Emitter().event, onDidOpenRepository: opened.event, onDidCloseRepository: closed.event };
   const modulePath = path.resolve(__dirname, '../../src/git/gitRepositoryService.js');
   const nativeRequire = createRequire(modulePath);
   const moduleExports: Record<string, any> = {};
   vm.runInNewContext(readFileSync(modulePath, 'utf8'), {
-    exports: moduleExports, Buffer, process, setTimeout, clearTimeout,
+    exports: moduleExports, Buffer, process,
+    setTimeout: (callback: () => void, delay: number) => clock.set(callback, delay), clearTimeout: (id: unknown) => clock.clear(id),
     require: (name: string) => {
       if (name === 'vscode') return { EventEmitter: Emitter, workspace: { textDocuments: [] }, extensions: { getExtension: () => ({ isActive: true, exports: { enabled: true, getAPI: () => api, onDidChangeEnablement: new Emitter().event } }) } };
       if (name === './cloneService') return {};
@@ -68,7 +70,6 @@ async function fixture() {
   const id = service.repositoryId(root);
   service.requireRepository = async () => repository;
   service.operationFor = async () => undefined;
-  service.repositoryFingerprint = async (repo: typeof repository) => JSON.stringify({ head: repo.state.HEAD, index: repo.state.indexChanges, work: repo.state.workingTreeChanges });
   service.assertObjectId = async () => undefined;
   service.assertRef = async () => undefined;
   service.runGit = async (_repo: unknown, args: string[]) => {
@@ -81,16 +82,12 @@ async function fixture() {
     const history = [head, 'b'.repeat(40), 'Tester', '2026-10-08T00:00:00Z', 'Test commit'].join('\0') + '\n';
     return { stdout: args[0] === 'symbolic-ref' ? 'main\n' : args[0] === 'log' || args[0] === 'show' ? history : args[0] === 'diff-tree' ? 'README.md\0' : '', stderr: '', code: 0 };
   };
-  const clock = new Clock();
-  service.refreshScheduler.dispose();
-  service.refreshScheduler = new GitRefreshScheduler((repositoryId) => service.sendRepositoryUpdate(repositoryId), clock);
-  service.fingerprintScheduler.dispose();
-  service.fingerprintScheduler = new GitRefreshScheduler((repositoryId) => service.checkRepositoryFingerprint(repositoryId), clock);
   service.setActivePanelRepository(id, false);
-  return { service, repository, api, session, id, counts, clock, emit: () => changes.fire() };
+  return { service, repository, api, session, id, counts, clock, emit: () => changes.fire(),
+    open: () => opened.fire(repository), close: () => closed.fire(repository) };
 }
 
-test('a status-completed event cannot recursively run status; open, reads and staging settle for 60 seconds', async (t) => {
+test('native status events never start reads; explicit open, reads and staging settle for 60 seconds', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
   assert.equal(f.counts.status, 1);
@@ -99,7 +96,8 @@ test('a status-completed event cannot recursively run status; open, reads and st
   await f.clock.advance(250); assert.equal(f.counts.status, 1);
   assert.equal(JSON.stringify(f.counts), before, 'unchanged status-completed notifications do not read Git again');
   Object.assign(f.repository.state.HEAD, { commit: 'd'.repeat(40) });
-  f.emit(); await f.clock.advance(500); assert.equal(f.counts.status, 1);
+  f.emit(); await f.clock.advance(500);
+  assert.equal(JSON.stringify(f.counts), before, 'changed native state also waits for a user read');
   before = JSON.stringify(f.counts); await f.clock.advance(60_000); assert.equal(JSON.stringify(f.counts), before);
   const logsBefore = f.counts.commands.filter((args) => args[0] === 'log').length;
   await f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
@@ -108,11 +106,32 @@ test('a status-completed event cannot recursively run status; open, reads and st
   await f.service.handleAction(f.id, { type: 'readCommit', hash: head });
   assert.equal(f.counts.diff, 1); assert.equal(f.counts.status, 1);
   assert.deepEqual(Array.from(f.counts.commands.find((args) => args[0] === 'diff')!), ['diff', '--no-ext-diff', '--', 'README.md'], 'unstaged Diff compares the index with the working tree');
-  assert.equal(f.counts.commands.filter((args) => args[0] === 'log').length, logsBefore);
+  assert.equal(f.counts.commands.filter((args) => args[0] === 'log').length, logsBefore + 1,
+    'the first explicit read after native invalidation reloads history once');
   await f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true });
   before = JSON.stringify(f.counts); await f.clock.advance(60_000); assert.equal(JSON.stringify(f.counts), before);
   const summaryCommands = f.counts.commands.length; await f.service.getSummaryState();
   assert.equal(f.counts.commands.length, summaryCommands);
+});
+
+test('each explicit page open or refresh reads once and a write refreshes only its affected Repo once', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  f.service.setActivePanelRepository(undefined);
+  f.service.setActivePanelRepository(f.id);
+  assert.equal(f.counts.status, 1, 're-entering waits for its explicit open request');
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  await f.service.handleAction(f.id, { type: 'refresh' });
+  assert.equal(f.counts.status, 3);
+  const readSnapshot = f.service.readSnapshot.bind(f.service);
+  let snapshots = 0;
+  f.service.readSnapshot = async (...args: unknown[]) => { snapshots++; return readSnapshot(...args); };
+  await f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true });
+  assert.equal(snapshots, 1, 'the authorized write returns one reconciled snapshot');
+  assert.equal(f.counts.status, 5, 'the write retains its preflight and post-write status checks');
+  const reads = JSON.stringify(f.counts);
+  await f.clock.advance(120_000);
+  assert.equal(JSON.stringify(f.counts), reads);
 });
 
 test('native Diff exposes blob read failures instead of inventing an empty file', async t => {
@@ -252,16 +271,26 @@ test('identical selections share reads, obsolete queued selections are skipped, 
   assert.equal(f.counts.commands.filter((args) => args[0] === 'show').length, 1);
 });
 
-test('switching away, disposal and failed background reads never leave retry loops', async (t) => {
+test('selection, native repository registration and disposal never start automatic Git reads', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
+  assert.equal(JSON.stringify(f.counts), JSON.stringify({ status: 0, branches: 0, config: 0, diff: 0, commands: [] }), 'initialization registers repositories without reading Git');
+  const messages: unknown[] = [];
+  f.service.onDidMessage((message: unknown) => messages.push(message));
+  f.open(); await flush();
+  f.service.setActivePanelRepository(undefined);
+  f.service.setActivePanelRepository(f.id);
+  await f.clock.advance(120_000);
+  assert.equal(f.counts.status, 0, 'native repository-open and active selection do not run status');
+  assert.equal(f.counts.commands.length, 0);
   f.emit(); f.service.setActivePanelRepository(undefined); await f.clock.advance(60_000);
   assert.equal(f.counts.commands.length, 0);
   f.service.setActivePanelRepository(f.id, false);
-  f.service.getSnapshot = async () => { throw new Error('Repo disappeared'); };
+  f.service.getSnapshot = async () => { throw new Error('unexpected automatic snapshot'); };
   Object.assign(f.repository.state.HEAD, { commit: 'd'.repeat(40) });
   f.emit(); await f.clock.advance(500); assert.equal(f.clock.timers.size, 0);
   f.emit(); f.service.dispose(); await f.clock.advance(60_000);
   assert.equal(f.clock.timers.size, 0);
+  assert.equal(messages.length, 0);
 });
 
 test('hiding the panel cancels queued reads while an authorized write still finishes', async (t) => {
@@ -349,19 +378,30 @@ test('sidebar summaries exclude snapshots and their size is independent of Diff 
   assert.ok(JSON.stringify(state).length < 2000);
 });
 
-test('an obsolete asynchronous fingerprint cannot invalidate a newer repository generation', async (t) => {
+test('cache-only summaries retain presented revisions until an explicit read and never start Git', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
+  const before = JSON.stringify(f.counts);
+  const initial = f.service.getCachedSummaryState();
+  assert.equal(initial.repositories.length, 1, 'native registration supplies local navigation without reading Git');
+  f.emit();
+  assert.equal(f.service.getCachedSummaryState().repositories[0].revision, initial.repositories[0].revision);
+  assert.equal(JSON.stringify(f.counts), before);
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
-  const baseline = f.service.stateFingerprints.get(f.id);
-  const revision = f.service.revisionByRepository.get(f.id) ?? 0;
-  let resolve!: (value: string) => void;
-  f.service.repositoryFingerprint = () => new Promise<string>(done => { resolve = done; });
-  const pending = f.service.checkRepositoryFingerprint(f.id);
+  const loaded = f.service.getCachedSummaryState().repositories[0];
+  const reads = JSON.stringify(f.counts);
   f.repository.state.HEAD.commit = 'f'.repeat(40);
   f.emit();
-  resolve('obsolete'); await pending;
-  assert.equal(f.service.stateFingerprints.get(f.id), baseline);
-  assert.equal(f.service.revisionByRepository.get(f.id) ?? 0, revision);
+  for (let index = 0; index < 100; index++) {
+    const state = f.service.getCachedSummaryState();
+    assert.equal(state.repositories[0].revision, loaded.revision);
+    assert.equal(state.repositories[0].headCommit, loaded.headCommit);
+  }
+  await f.clock.advance(120_000);
+  assert.equal(JSON.stringify(f.counts), reads);
+  const refreshed = await f.service.getSummaryState();
+  assert.equal(refreshed.repositories[0].headCommit, 'f'.repeat(40));
+  assert.ok(refreshed.repositories[0].revision > loaded.revision);
+  assert.equal(f.service.getCachedSummaryState().repositories[0].revision, refreshed.repositories[0].revision);
 });
 
 test('restoring a cached Repo does not issue another native status call', async (t) => {
@@ -385,11 +425,11 @@ test('a delayed read retains its captured revision and cannot replace a newer su
   assert.equal(f.service.cachedSummaries[0].branch, 'newer-branch');
 });
 
-test('native Git repository wrappers may be recreated without suppressing updates or causing status loops', async (t) => {
+test('recreated native repository wrappers invalidate caches without automatically updating the view', async (t) => {
   const f = await fixture(); t.after(() => f.service.dispose());
   Object.defineProperty(f.service.api, 'repositories', { get: () => [{ ...f.repository, state: { ...f.repository.state } }] });
   await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
-  assert.ok(f.service.stateFingerprints.has(f.id), 'a baseline is stored without relying on native wrapper identity');
+  assert.equal(f.service.getCachedSummaryState().repositories[0].headCommit, head);
   const before = JSON.stringify(f.counts);
   for (let i = 0; i < 100; i++) f.emit();
   await f.clock.advance(1000);
@@ -397,10 +437,12 @@ test('native Git repository wrappers may be recreated without suppressing update
   f.repository.state.HEAD.commit = 'f'.repeat(40);
   f.repository.state.workingTreeChanges = [];
   f.emit(); await f.clock.advance(1000);
+  assert.equal(JSON.stringify(f.counts), before, 'changed native events do not read Git either');
+  assert.equal(f.service.getCachedSummaryState().repositories[0].headCommit, head);
   const summary = await f.service.getSummaryState();
   assert.equal(summary.repositories[0].headCommit, 'f'.repeat(40));
   assert.equal(summary.repositories[0].unstagedCount, 0);
-  assert.equal(f.counts.status, 1, 'a native change updates the view without requesting native status');
+  assert.equal(f.counts.status, 1, 'an explicit summary read consumes native state without requesting status');
 });
 
 test('collapsed repository lists omit details and concurrent expansion shares cached native reads', async (t) => {
@@ -446,6 +488,37 @@ test('detail invalidation reloads only the changed repository and advances its s
   await f.service.getRepositoryDetails(f.id);
   assert.equal(f.counts.branches, branches + 1);
   assert.equal(f.counts.commands.length, commands + 4);
+});
+
+test('explicit expansion after passive invalidation publishes a matching summary without another Git read', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  f.service.getCachedSummaryState();
+  const first = await f.service.getRepositoryDetails(f.id);
+  const initial = f.service.getCachedSummaryState().repositories[0];
+  assert.equal(initial.revision, first.revision);
+  assert.equal(initial.branch, 'main', 'an explicit read replaces the initial native projection even at the same revision');
+  const before = JSON.stringify(f.counts);
+  f.repository.state.HEAD.commit = 'f'.repeat(40);
+  f.repository.state.workingTreeChanges = [];
+  f.emit();
+  const stale = f.service.getCachedSummaryState().repositories[0];
+  assert.equal(stale.revision, initial.revision, 'passive invalidation does not expose an unread revision');
+  assert.equal(stale.headCommit, initial.headCommit);
+  assert.equal(JSON.stringify(f.counts), before);
+
+  const details = await f.service.getRepositoryDetails(f.id);
+  const afterExpansion = JSON.stringify(f.counts);
+  const summary = f.service.getCachedSummaryState().repositories[0];
+  assert.equal(summary.revision, details.revision, 'the sidebar can accept the detail response using its cache-only state update');
+  assert.ok(summary.revision > initial.revision);
+  assert.equal(summary.headCommit, 'f'.repeat(40));
+  assert.equal(summary.unstagedCount, 0);
+  assert.equal(JSON.stringify(f.counts), afterExpansion, 'publishing the refreshed summary issues no further read');
+  f.emit();
+  const invalidatedAgain = f.service.getCachedSummaryState().repositories[0];
+  assert.equal(invalidatedAgain.revision, summary.revision, 'later invalidation retains the last presented explicit result');
+  assert.equal(invalidatedAgain.headCommit, summary.headCommit);
+  assert.equal(JSON.stringify(f.counts), afterExpansion);
 });
 
 test('stale and closed repository detail requests cannot populate the cache or start queued reads', async (t) => {

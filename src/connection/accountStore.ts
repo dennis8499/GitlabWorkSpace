@@ -32,7 +32,7 @@ export class AccountStore {
       typeof account.group.fullPath === 'string' && account.group.fullPath ? { ...account.group } : undefined }));
   }
 
-  async initialize(resolveUser: (url: string, token: string) => Promise<GitLabUser>): Promise<void> {
+  async initialize(resolveUser: (url: string, token: string) => Promise<GitLabUser>, options: { allowNetwork?: boolean } = {}): Promise<void> {
     if (this.initialized) return;
     const previousActive = this.workspace.get<string | null>(ACTIVE_ACCOUNT_KEY);
     const legacyUrl = this.state.get<string>('gitlabWorkspace.baseUrl');
@@ -40,6 +40,7 @@ export class AccountStore {
     let migratedId = this.state.get<string>(MIGRATION_KEY);
     if (legacyUrl && legacyToken) {
       const knownId = this.state.get<number>('gitlabWorkspace.currentUserId');
+      if ((!knownId || !Number.isSafeInteger(knownId) || knownId <= 0) && options.allowNetwork === false) return;
       // Leave all legacy values intact when identity cannot be verified (including offline startup).
       const user = knownId && Number.isSafeInteger(knownId) && knownId > 0
         ? { id: knownId, username: '', name: 'GitLab 帳號 #' + knownId } as GitLabUser

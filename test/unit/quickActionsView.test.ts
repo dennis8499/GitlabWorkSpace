@@ -16,7 +16,7 @@ async function fixture(tracked = false) {
   const exports: Record<string, any> = {};
   const root = path.resolve(__dirname, '../../..');
   const uri = (fsPath: string) => ({ fsPath, toString: () => fsPath.replaceAll('\\', '/') });
-  vm.runInNewContext(readFileSync(modulePath, 'utf8'), { exports, Buffer, process, Error,
+  vm.runInNewContext(readFileSync(modulePath, 'utf8'), { exports, Buffer, process, Error, AbortController,
     require: (name: string) => name === 'vscode' ? { Uri: { joinPath: (base: { fsPath: string }, ...parts: string[]) => uri(path.join(base.fsPath, ...parts)) } } : nativeRequire(name)
   });
   let receive!: (value: unknown) => void;
@@ -25,6 +25,7 @@ async function fixture(tracked = false) {
   const messages: any[] = [];
   const pending: Array<{ resolve: (value: unknown) => void; reject: (error: Error) => void }> = [];
   let reads = 0;
+  let refreshes = 0;
   let scope = 'scope-one';
   const session = { accounts: [], activeAccountId: 'one', baseUrl: 'https://gitlab.test', selectedGroup: { id: 1 }, connectionEpoch: 1 };
   const notifications = new NotificationCenter();
@@ -41,12 +42,37 @@ async function fixture(tracked = false) {
   };
   const provider = new exports.QuickActionsViewProvider(uri(root), session, () => {}, async () => ({ repositories: [{ id, revision: 1 }] }), () => {
     reads++; return new Promise((resolve, reject) => pending.push({ resolve, reject }));
-  }, tracked ? notifications : undefined, tracked ? operations : undefined, () => scope, origin);
+  }, tracked ? notifications : undefined, tracked ? operations : undefined, () => scope, origin, async () => { refreshes++; });
   await provider.resolveWebviewView(view);
   return { provider, view, messages, pending, notifications, operations, session, changeScope: () => { scope = 'scope-two'; session.activeAccountId = 'two'; session.connectionEpoch++; session.selectedGroup = { id: 2 }; },
     receive: (value: unknown) => receive(value),
-    visibility: (visible: boolean) => { view.visible = visible; visibility(); }, disposeView: () => disposed(), reads: () => reads };
+    visibility: (visible: boolean) => { view.visible = visible; visibility(); }, disposeView: () => disposed(), reads: () => reads, refreshes: () => refreshes };
 }
+
+test('sidebar refreshes summaries on entry and explicit refresh while background pushes use cached navigation', async t => {
+  const f = await fixture(true); t.after(() => { f.provider.dispose(); f.operations.dispose(); f.notifications.dispose(); });
+  f.receive({ type: 'ready' }); await flush();
+  assert.equal(f.refreshes(), 1);
+  f.receive({ type: 'ready' }); f.provider.refresh();
+  f.notifications.publish({ level: 'info', message: 'Cached state changed' });
+  await flush(); assert.equal(f.refreshes(), 1);
+  assert.equal(f.reads(), 0);
+  f.visibility(false); f.visibility(true); await flush();
+  assert.equal(f.refreshes(), 2);
+  f.receive({ type: 'refreshRepositories', operationId: 'refresh-repos', operationScope: 'scope-one', scopeEpoch: 1,
+    hostSessionId: f.operations.sessionId }); await flush();
+  assert.equal(f.refreshes(), 3);
+  assert.equal(f.operations.get('refresh-repos')?.status, 'succeeded');
+  assert.equal(f.reads(), 0, 'summary refresh never expands repository details');
+});
+
+test('hiding the sidebar in the same turn cancels its queued entry refresh', async t => {
+  const f = await fixture(); t.after(() => f.provider.dispose());
+  f.receive({ type: 'ready' }); f.visibility(false); await flush();
+  assert.equal(f.refreshes(), 0);
+  f.visibility(true); await flush();
+  assert.equal(f.refreshes(), 1);
+});
 
 test('sidebar host correlates details and cancels work before dispatch or after collapse/hide/dispose', async t => {
   const f = await fixture(); t.after(() => f.provider.dispose());

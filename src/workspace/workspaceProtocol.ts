@@ -156,6 +156,7 @@ export interface WorkspaceSnapshot {
   notifications?: NotificationSnapshot;
   projectOperationBusy?: boolean;
   operationScope?: string;
+  localOperationScope?: string;
   operations?: WorkspaceOperationState[];
   operationSnapshot?: OperationSnapshot;
   projectContext?: ProjectRootContext;
@@ -241,13 +242,14 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | GitPanelRequest
-  | { type: 'ready' }
+  | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph' }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'confirmOperationResult'; targetOperationId: string; recovery?: OperationRecoveryMetadata }
   | GitPanelRequest
-  | { type: 'refresh' }
+  | { type: 'refresh'; mode?: WorkspaceMode; projectSource?: 'gitlab' | 'local' }
   | { type: 'retryInstanceCheck' }
-  | { type: 'setMode'; mode: WorkspaceMode }
+  | { type: 'setMode'; mode: WorkspaceMode; projectSource?: 'gitlab' | 'local' }
+  | { type: 'setProjectSource'; source: 'gitlab' | 'local' }
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }
   | { type: 'connect' }

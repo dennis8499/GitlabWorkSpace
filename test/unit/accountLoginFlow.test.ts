@@ -41,7 +41,7 @@ function fixture() {
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
     session, disposed: false, viewGeneration: 0, accountTransitionBusy: false, accountLoginReceipts: new Map(),
     webviewMessagesReceived: 0, webviewMessagesSent: 0, writesInFlight: 0, repositoryOperationInProgress: false,
-    mrWritesInFlight: new Set(), issueRelationWritesInFlight: new Set(), timer: { list: () => [] }, activeMode: 'developer',
+    mrWritesInFlight: new Set(), issueRelationWritesInFlight: new Set(), timer: { list: () => [], setScope: async () => undefined }, activeMode: 'developer',
     context: { globalState, workspaceState }, post: (message: unknown) => messages.push(message),
     sendSnapshot: () => snapshots.push({ accountOperation: host.accountOperation, accounts: session.accounts }),
     connectedUserChanged: async (user: unknown) => { host.currentUser = user; },
@@ -158,7 +158,7 @@ test('login succeeds independently of Group selection and reports a workspace lo
   host.refresh = async () => { throw new Error('Workspace unavailable'); };
   await host.handleMessage(login('first'));
   assert.ok(session.activeAccountId);
-  assert.equal(host.groupRoot, undefined);
+  assert.equal(host.groupRoot, 'old-group', 'login must retain the independent local workspace');
   assert.equal(session.selectedGroup, undefined);
   assert.equal(accountResult(messages, 'first').name, 'User 1');
   const receipt = [...messages].reverse().find(message => message.type === 'operationChanged' && message.operation.correlationId === 'first' && message.operation.finishedAt !== undefined).operation;

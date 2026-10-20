@@ -37,12 +37,12 @@ test('host publishes one terminal receipt for preflight rejection and permits a 
   const f = fixture(); let calls = 0;
   f.host.dispatchMessage = async () => { calls++; };
   f.host.accountTransitionBusy = true;
-  await assert.rejects(f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'blocked', operationScope: f.host.getOperationScope() }), /帳號正在切換/);
+  await assert.rejects(f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'blocked', operationScope: f.host.getLocalOperationScope() }), /帳號正在切換/);
   assert.equal(calls, 0); assert.equal(terminal(f.events, 'blocked').length, 1);
   assert.equal(f.operations.get('blocked')?.status, 'failed');
   assert.equal(f.operations.get('blocked')?.effect, 'none');
   f.host.accountTransitionBusy = false;
-  await f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'retry', operationScope: f.host.getOperationScope() });
+  await f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'retry', operationScope: f.host.getLocalOperationScope() });
   assert.equal(calls, 1); assert.equal(f.operations.get('retry')?.status, 'succeeded');
 });
 
@@ -93,6 +93,29 @@ test('local UI actions bypass async operation tracking and still expose failures
   assert.equal(f.events.length, 0); assert.equal(f.messages.at(-1).type, 'error');
   assert.match(f.messages.at(-1).message, /Cannot open local file/);
   assert.equal(f.host.notifications.snapshot().items.length, 1);
+});
+
+test('a local read survives a Group change while remote reads and changed local roots become obsolete', async t => {
+  for (const transition of ['group-local', 'group-remote', 'root-local']) await t.test(transition, async () => {
+    const f = fixture(); let release!: () => void, entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let calls = 0;
+    f.host.dispatchMessage = async () => { calls++; entered(); await gate; };
+    const remote = transition === 'group-remote';
+    const request = remote ? { type: 'refreshMergeRequest', projectId: 1, iid: 2 }
+      : { type: 'loadSkillBranches', repo: 'C:/workspace', revision: 'environment', requestId: 'branches' };
+    const scope = remote ? f.host.getOperationScope() : f.host.getLocalOperationScope();
+    const pending = f.host.handleMessage({ ...request, operationId: 'read', operationScope: scope });
+    await started;
+    if (transition === 'root-local') f.host.projectContext = { root: 'C:/other', revision: 'other-root' };
+    else f.host.session.selectedGroup = { id: 9 };
+    release(); await pending;
+    assert.equal(calls, 1, 'the transition never replays the read');
+    assert.equal(terminal(f.events, 'read').length, 1);
+    assert.equal(f.operations.get('read')?.status, transition === 'group-local' ? 'succeeded' : 'cancelled');
+    assert.equal(f.operations.get('read')?.scopeRevision, scope);
+  });
 });
 
 test('handled read failures and scanning errors remain failed operations', async () => {
@@ -234,17 +257,25 @@ test('MR result reconciliation queries markers and releases an uncertain receipt
 });
 
 test('a slower Repo navigation cannot replace the newer selected Repo', async () => {
-  const f = fixture(); let release!: () => void, reads = 0;
+  const f = fixture(); let release!: () => void, entered!: () => void, reads = 0;
   const gate = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const refreshed: string[] = [];
   f.host.issuePanels = { close: () => undefined };
-  f.host.context = { globalState: { update: async () => undefined } };
-  f.host.gitRepositories = { getSummaryState: async () => { if (++reads === 1) await gate; return { repositories: [{ id: 'a' }, { id: 'b' }] }; },
+  f.host.context = { globalState: { update: async (key: string, value: unknown) => {
+    if (key === 'gitlabWorkspace.selectedGitRepositoryId' && value === 'a') { entered(); await gate; }
+  } } };
+  f.host.gitRepositories = { getCachedSummaryState: () => { reads++; return { repositories: [{ id: 'a' }, { id: 'b' }] }; },
     setActivePanelRepository: () => undefined };
-  f.host.show = async () => undefined; f.host.scheduleGitRepositoryListSend = () => undefined; f.host.loadActiveModeSections = () => undefined;
+  f.host.show = async () => undefined; f.host.cancelPageReads = () => undefined;
+  f.host.refresh = async () => { refreshed.push(f.host.selectedGitRepositoryId); };
   const first = f.host.runCommandAction('openRepository', () => f.host.navigateTo('git', 'a'), { operationId: 'first', repositoryId: 'a' });
+  await started;
   await f.host.runCommandAction('openRepository', () => f.host.navigateTo('git', 'b'), { operationId: 'second', repositoryId: 'b' });
   release(); await first;
   assert.equal(f.host.selectedGitRepositoryId, 'b');
+  assert.equal(reads, 2, 'both navigations validate cached local inventory without issuing Git reads');
+  assert.deepEqual(refreshed, ['b'], 'the delayed obsolete navigation never starts a page load');
   assert.equal(f.operations.get('first')?.status, 'cancelled'); assert.equal(f.operations.get('second')?.status, 'succeeded');
 });
 
@@ -265,10 +296,11 @@ test('Git cancellation and applied writes with refresh errors produce distinct t
 test('manual result confirmation preserves correlation and refuses stale scopes or unconfirmed choices', async () => {
   const f = fixture();
   const state: WorkspaceOperationState = { requestId: 'unknown-git', correlationId: 'git-request', action: 'gitAction', resourceKey: 'git:repo', label: 'Push',
-    scopeRevision: f.host.getOperationScope(), lockKey: 'git:repo', concurrency: 'exclusive', kind: 'write', phase: 'Push', status: 'queued', startedAt: Date.now() };
+    scopeRevision: f.host.getLocalOperationScope(), lockKey: 'git:repo', concurrency: 'exclusive', kind: 'write', phase: 'Push', status: 'queued', startedAt: Date.now() };
   await f.operations.run(state, async () => ({ status: 'failed', effect: 'unknown' }));
   vscode.window.showWarningMessage = async () => undefined;
   await f.host.confirmOperationResult('unknown-git'); assert.equal(f.operations.get('unknown-git')?.effect, 'unknown');
+  f.host.session.selectedGroup = { id: 9 };
   f.host.session.connectionEpoch++;
   await assert.rejects(f.host.confirmOperationResult('unknown-git'), /其他帳號或工作區/);
   f.host.session.connectionEpoch--;
@@ -291,7 +323,7 @@ test('a previous host receipt can be recovered only after explicit human confirm
   finally { vscode.window.showWarningMessage = async () => undefined; }
   const receipt = f.operations.get('previous-host');
   assert.equal(receipt?.status, 'succeeded'); assert.equal(receipt?.effect, 'none');
-  assert.equal(receipt?.scopeRevision, f.host.getOperationScope()); assert.equal(receipt?.hostSessionId, f.operations.sessionId);
+  assert.equal(receipt?.scopeRevision, f.host.getLocalOperationScope()); assert.equal(receipt?.hostSessionId, f.operations.sessionId);
   assert.equal(receipt?.correlationId, 'old-git-request'); assert.equal(calls, 0);
   assert.doesNotMatch(JSON.stringify(receipt), /must-never-be-imported|token/);
   await assert.rejects(f.host.confirmOperationResult('other-id', recovery), /恢復資料無效/);

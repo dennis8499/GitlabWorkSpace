@@ -19,10 +19,11 @@
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
 - 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
 - VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。後臺管理入口位於工作台設定。
+- 各頁進入或重新進入時載入自身資料一次，也可手動更新；停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後只更新受影響的資料。
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
 - 後臺管理可篩選、查看及匯出本機操作 Log；預設保留 30 天、最多 50 MB。
 - 操作結果集中於訊息中心，支援未讀、詳情及清除；本次工作階段最多保留 500 筆，重開面板保留，Extension Host 重啟後清空。
-- Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset，並合併背景更新、共用讀取快取，避免 Git 狀態通知造成指令迴圈。
+- Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
@@ -101,7 +102,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**，再選 **連線 GitLab**。
 2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
-4. 登入成功後按 **選擇 Group**，並確認帳號面板中的 Group 與本機工作區狀態。專案下載與更新允許混合不同 Group 的 Repo；位置不唯一時按 **選擇下載資料夾**，選擇依工作區、連線與 Group 保存，可恢復自動辨識。閱讀與討論 Issue 可先使用；Skills 依所選本機專案根目錄操作，可免登入使用。
+4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與後臺 Log 不需選擇 Group，亦可免登入使用。
 5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。安裝「GitLab Workspace 工作流程包」：VSIX 內附版本可離線安裝，也可匯入 Release 的整包 ZIP。安裝前會檢查版本、內容摘要及舊工具安裝歸屬。
 6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製到相同根目錄的 Codex CLI 執行。也可選擇 Wiki 知識維護或分支審查功能。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
@@ -170,8 +171,8 @@ npm run package
 - The minimum supported server version is GitLab Community Edition 16.11.10. Version metadata and GraphQL capabilities are probed independently. If version metadata is unavailable, confirmed APIs remain available and the UI says that the minimum version could not be verified.
 - Capability discovery requests only the GraphQL types used by the extension and supports both the legacy Project/projectPath and newer Namespace/namespacePath shapes. Missing optional schema fields or permissions disable only the affected operation and explain why.
 - CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list loads all accessible opened Merge Requests in the selected Group and its subgroups with the 16.11-compatible scope=all&state=opened query. The All, Reviewer and Assigned tabs filter this complete list locally; manually refreshing the review page reloads it from GitLab. All changed files load through paginated /diffs.
-- The initial workspace waits only for projects, assigned Issues, and the current user. Merge Requests, Boards, milestones, Issue relations, time data, discussions, and the graph load when their mode or tab is opened.
-- Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared.
+- Each page loads its own data once on entry or re-entry and on manual refresh; Issue relations, time data, discussions, and the graph load when their page or tab is opened. GitLab projects, assigned Issues, Boards, and Merge Requests share the selected Group; local Git, Skills, BMAD, and logs work without one.
+- Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared. Page entry and manual refresh request fresh page data; cache expiry and native Git events do not start background reads. The sidebar Repo list refreshes on entry or its Update button.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
 - Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
 

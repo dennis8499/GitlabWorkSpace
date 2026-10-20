@@ -1,6 +1,6 @@
 # 使用指南
 
-GitLab Workspace 將專案、Skills 功能指引、Issue 討論與 MR 審查集中在同一個工作台。單 Repo Skills 可直接開啟本機 Git Repo 使用，不需要登入 GitLab 或選擇 Group；每次操作一個所選 Repo。使用 GitLab Issue、MR 或 Group 協作時，再連線 GitLab 並選擇群組。閱讀或討論 Issue 不需要設定本機工作目錄。
+GitLab Workspace 將專案、Skills 功能指引、Issue 討論與 MR 審查集中在同一個工作台。本機 Repo、Git 版控、Skills、BMAD 與後臺 Log 不需要登入 GitLab 或選擇 Group。GitLab 專案下載、指派 Issue、Issue Board 與 MR 審查共用目前帳號選擇的 Group。閱讀或討論 Issue 不需要設定本機工作目錄。
 
 操作結果統一顯示於右上角訊息中心；側欄或「GitLab Workspace: 開啟訊息中心」指令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。
 
@@ -29,7 +29,7 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 
 ## 工作台導覽
 
-VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊 Repo 會開啟同一個版控工作台；切換 Repo 時，各 Repo 的提交草稿、提交與檔案選取分別保留，已暫存與未暫存的同名檔案也會分開記錄。工作台頂部保留 Group、帳號與設定，不再顯示重複的導覽列。側欄包含：
+VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊 Repo 會開啟同一個版控工作台；切換 Repo 時，各 Repo 的提交草稿、提交與檔案選取分別保留，已暫存與未暫存的同名檔案也會分開記錄。工作台在 GitLab 專案、我的工作與待審查頁顯示共用 Group 選擇器；本機功能依所選專案根目錄操作。側欄包含：
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看遠端專案與本機狀態。下載、更新、Skills、Codex 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
@@ -40,11 +40,13 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 
 **後臺管理**入口位於右上方 **設定 → 開啟後臺管理**；登出後仍可查看本機各帳號的操作紀錄，篩選、查看詳情與匯出 JSONL。
 
+側欄本機 Repo 清單在進入側欄或按 **版控 Repo → 更新** 時讀取；展開 Repo 才讀取分支與 Stash。外部 Git 變更不會自動觸發重新讀取，可手動更新清單，或重新進入版控查看最新狀態。
+
 狹窄面板會一次顯示清單、圖譜或詳情。圖譜支援縮放、適合畫面、重設佈局和直接開啟節點 Issue；關係資料部分載入失敗時會保留已取得項目，可展開 **查看失敗原因**，並按 **重試** 重新向 GitLab 讀取資料。Issue Board 載入失敗時，可按 **更新資料** 重試。搜尋、篩選及顯示方式會依 GitLab 執行個體、帳號和群組保留。
 
 ## Issue 詳情與建立
 
-工作台會先顯示目前帳號與 Group 已載入的內容；資料超過 60 秒後，再次進入頁面會在背景更新。更新期間可繼續閱讀，區段會顯示更新狀態；失敗時保留內容並提供重試。手動重新整理會直接讀取最新資料。
+每次進入或重新進入功能頁面，工作台會讀取該頁的最新資料一次；停留期間不會因快取到期、Git 狀態通知或檔案變更自動重抓 GitLab API 或執行 Git。按 **更新資料** 可手動重讀目前頁面。更新期間保留已載入內容，失敗時提供重試；使用者寫入後只核對受影響的 Issue、MR 或 Repo。
 
 附件上限為 50 MiB；超限檔案會在讀取前拒絕。上傳採串流傳輸並提供取消；若檔案已送出，取消後可能需要先核對 GitLab 的實際結果，系統不會自動重送。下載與同步 Repo 也可取消，已完成的項目會保留；結果不明的更新須先核對後再操作。
 
@@ -100,7 +102,7 @@ ReleaseReviewer 同樣只接受三項分支輸入，以入口變更追查宣告�
 
 在 **設定 → 工作區與 Skills** 管理一個套件：「GitLab Workspace 工作流程包」。預設來源是 **VSIX 內附離線包**；也可切到 GitLab Workspace 的 Gitea 或 GitHub Release，下載單一組合包 ZIP 後按 **匯入 ZIP**。擴充功能會檢查 ZIP 路徑、連結、檔案數量、解壓容量、套件版本與逐檔摘要，再保存檔案摘要。擴充功能不會查詢 Release API，也不會自動下載附件。套件版本與目前擴充功能版本必須相同。
 
-在 **設定 → 工作區與 Skills** 選定共用專案根目錄；同視窗多個資料夾時，先選本次操作的專案資料夾。分析頁顯示相同根目錄，不另提供 Skills Repo 選擇器或 Group／Repo 模式開關。設定、工作區或 remote 改變會重新核對當前情境與安裝狀態。
+在 **設定 → 工作區與 Skills** 選定共用專案根目錄；同視窗多個資料夾時，先選本次操作的專案資料夾。分析頁顯示相同根目錄，不另提供 Skills Repo 選擇器或 Group／Repo 模式開關。工作區或 remote 改變後，重新進入分析頁或手動更新以核對情境與安裝狀態。
 
 開啟的專案根目錄本身為 Git Repo 時，自動使用單專案 Skills；一般資料夾則使用整個工作區的流程。未登入 GitLab、切換遠端 Group、不同來源或沒有 origin 的 Repo 均不改變本機根目錄，使用者不需設定 Group／Repo 模式。
 
@@ -138,7 +140,7 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 常用命令面板項目為 **GitLab Workspace: 開啟版控** 與 **GitLab Workspace: 開啟 Repo 版控**。版控操作透過 GUI 完成；Git 指令只在擴充功能內作為執行層使用。
 
-背景事件先以本機檔案、Ref 與暫存內容判斷是否真正變更，略過內容不變的 status 完成通知；需要更新時再合併事件，並共用 Repo 摘要、歷史與 Stash 快取。選取檔案或提交只讀取必要內容。首次開啟、手動更新及寫入流程才明確更新 Git status。離開版控、隱藏或關閉工作台會取消背景排程與尚未開始的畫面讀取；已開始的寫入會完成，重新顯示時合併更新一次。
+Git 狀態通知與外部檔案變更只標記快取失效，不會自動讀取快照、分支、歷史或 Stash。每次進入版控、切換 Repo 或按 **更新 Repo 狀態** 才讀取最新狀態；選取檔案或提交時讀取必要內容。寫入保留操作前檢查與完成後的一次 Repo 核對。離開版控、隱藏或關閉工作台會取消尚未開始的畫面讀取，已開始的寫入會完成。
 
 ## 命令面板
 
@@ -166,8 +168,8 @@ The minimum supported server version is **GitLab Community Edition 16.11.10**. V
 
 Community Edition does not provide blocking Issue links. Premium/Ultimate tier support is not inferred from Enterprise Edition metadata; blocking links stay disabled until that support can be confirmed, while ordinary related-Issue links remain available. GitLab Free supports the basic Merge Request approval API for users with permission; protected approval rules may still depend on the server tier. Individual time reports use the Work Item time-tracking widget or `Issue.timelogs`, with schema-selected fields and complete pagination. Both legacy Project/projectPath and newer Namespace/namespacePath shapes are supported. Older instances record date-specific time through the native `/spend` quick action, which leaves an Issue note. Merge Request review uses the 16.11 scope=all&reviewer_id filter and paginated /diffs.
 
-The workspace initially loads projects, assigned Issues, and the current user. The review list loads in reviewer mode; Issue edit options load when editing starts; relations and time data load when their tabs open; related Merge Requests load with Issue content; the graph refreshes only while visible. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
+Each page loads its own fresh data once on entry or re-entry and on manual refresh. Issue edit options load when editing starts; relations and time data load when their tabs open; related Merge Requests load with Issue content; the graph loads when opened or manually refreshed. GitLab projects, assigned Issues, Boards, and Merge Requests share the selected Group. Local Repo, Git, Skills, BMAD, and log features do not require one. Repo, Issue, Merge Request, and diff lists use virtual rows above 200 items while retaining the full data set for search and selection.
 
-GitLab reads are limited to six concurrent requests per connection, each with a 30-second timeout. The cache holds up to 256 entries for 60 seconds and shares identical in-flight reads. Successful writes invalidate affected data. Sidebar Repo summaries update from Git state changes; repeated reads without a change use the cached summary.
+GitLab reads are limited to six concurrent requests per connection, each with a 30-second timeout. The cache holds up to 256 entries for 60 seconds and shares identical in-flight reads. Expiry and native Git events do not trigger reads; entry and manual refresh request fresh page data. Successful writes reconcile the affected resource. Sidebar Repo summaries refresh on entry or the Update button; notifications use cached summaries.
 
 The automated performance benchmark measures production helper paths with synthetic datasets on the recorded machine; it does not measure live GitLab response bytes, actual Repo scans, or Webview memory. See the [benchmark record](work/work-20261002-workspace-performance/evidence/performance.md) for workload sizes, same-machine comparisons, and measurements that still require a real GitLab CE 16.11.10 instance.

@@ -9,6 +9,80 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('page entry describes its source and local refresh keeps Group controls and remote reads out of local projects', async t => {
+  const data = { ...snapshot('clone'), localOperationScope: 'local-root' };
+  const view = await mount({ mode: 'clone', projectSource: 'local', developerView: 'graph' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.deepEqual(view.requests[0], { type: 'ready', projectSource: 'local', developerView: 'graph' });
+  assert.equal(document.querySelector('[aria-label="目前 Group"]'), null);
+  assert.equal(document.querySelector('.eyebrow').textContent, '本機工作區');
+  assert.equal(view.requests.some(request => request.type === 'selectIssueBoard' || request.type === 'loadIssueGraph'), false);
+  [...document.querySelectorAll('.heading-actions button')].find(button => button.textContent === '更新資料').click();
+  const refresh = view.rawRequests.findLast(request => request.type === 'refresh');
+  assert.equal(refresh.mode, 'clone'); assert.equal(refresh.projectSource, 'local');
+  assert.equal(refresh.operationScope, 'local-root');
+  [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === 'GitLab 專案').click();
+  await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'setProjectSource'), { type: 'setProjectSource', source: 'gitlab' });
+  assert.ok(document.querySelector('[aria-label="目前 Group"]'));
+  [...document.querySelectorAll('.project-tabs button')].find(button => button.textContent === '本機 Repo').click();
+  await view.tick();
+  view.sendSnapshot({ ...data, connectedScope: 'another-group', group: data.groups[1] }); await view.tick();
+  assert.equal(view.savedState.projectSource, 'local');
+  assert.equal(document.querySelector('[aria-label="目前 Group"]'), null);
+});
+
+test('local tools remain independent of Group and do not lazily read hidden remote content', async t => {
+  for (const mode of ['sa', 'bmad', 'git', 'admin']) {
+    const data = { ...snapshot(mode), localOperationScope: 'local-root' };
+    const request = { project_id: 1, iid: 9 };
+    data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
+    const view = await mount({ mode, developerView: 'graph', issueBoardId: 31 }, data);
+    t.after(() => view.dom.window.close());
+    assert.equal(view.dom.window.document.querySelector('[aria-label="目前 Group"]'), null, mode);
+    assert.equal(view.requests.some(request => ['selectIssueBoard', 'loadIssueGraph', 'loadMergeRequestSection', 'loadIssueRelations'].includes(request.type)), false, mode);
+  }
+});
+
+test('graph entry reports visibility and leaves initial graph loading to the Host', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph' }, data);
+  t.after(() => view.dom.window.close());
+  assert.equal(view.requests[0].developerView, 'graph');
+  assert.equal(view.requests.filter(request => request.type === 'setIssueGraphVisibility' && request.visible).length, 1);
+  assert.equal(view.requests.filter(request => request.type === 'loadIssueGraph').length, 0);
+});
+
+test('Git reentry rereads the selected Repo once without replaying writes or losing its draft', async t => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  const draft = document.querySelector('.git-commit-composer textarea');
+  draft.value = 'Keep this commit draft'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  await view.tick();
+  view.sendSnapshot(snapshot('sa')); await view.tick();
+  view.sendSnapshot(snapshot('git')); await view.tick();
+  assert.equal(gitActions(view, 'open').length, 2);
+  assert.equal(gitActions(view, 'open').at(-1).action.refresh, undefined, 'page entry performs a fresh local read');
+  assert.equal(gitActions(view, 'commit').length, 0);
+  assert.equal(document.querySelector('.git-commit-composer textarea').value, 'Keep this commit draft');
+  view.sendSnapshot(snapshot('git')); await view.tick();
+  assert.equal(gitActions(view, 'open').length, 2, 'ordinary snapshots do not trigger another read');
+});
+
+test('local action refresh errors retry only the currently visible local page', async t => {
+  const data = { ...snapshot('clone'), operationScope: 'remote-group', localOperationScope: 'local-root' };
+  const view = await mount({ mode: 'clone', projectSource: 'local' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'operationChanged', operation: { requestId: 'local-refresh-error', scopeRevision: 'local-root',
+    resourceKey: 'repositories', action: 'scanRepositories', label: '掃描 Repo', kind: 'write', status: 'succeeded',
+    effect: 'applied', refreshError: 'Cannot reload inventory', phase: '已完成', startedAt: 1, finishedAt: 2 } });
+  await view.tick();
+  [...view.dom.window.document.querySelectorAll('.workspace-operation-area button')].find(button => button.textContent === '重新載入').click();
+  const refresh = view.rawRequests.findLast(request => request.type === 'refresh');
+  assert.equal(refresh.operationScope, 'local-root');
+  assert.equal(refresh.mode, 'clone'); assert.equal(refresh.projectSource, 'local');
+});
+
 test('responsiveness: internal comment drafts preserve their visibility across Issues and Webview recreation', async t => {
   const data = snapshot();
   const open = async (view, index, revision) => {
@@ -374,12 +448,34 @@ test('MR section failure remains stable until explicit retry and snapshot receip
 test('Skills recheck shows waiting inside settings immediately and preserves unrelated controls', async t => {
   const view = await mount({}, snapshot(), {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
-  const recheck = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '重新檢查安裝');
-  recheck.click(); await view.tick();
+  const recheck = document.querySelector('.tool-drawer .drawer-footer button');
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 1, 'entering tools loads its local environment once');
   assert.equal(recheck.getAttribute('aria-busy'), 'true'); assert.equal(recheck.disabled, true);
   assert.equal(document.querySelector('.notifications-trigger').disabled, false);
   view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
   assert.equal(recheck.disabled, false);
+  recheck.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 2);
+  view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
+  assert.equal(recheck.disabled, false);
+});
+
+test('settings load local tools once per entry and account settings do not read Skills', async t => {
+  const data = { ...snapshot(), localOperationScope: 'local-settings' };
+  const view = await mount({}, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'openAccountManager', intent: { id: 'accounts-only', startLogin: false } }); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 0);
+  document.querySelector('#settings-tab-tools').click(); await view.tick();
+  const initial = view.rawRequests.filter(request => request.type === 'refreshWorkflowKit');
+  assert.equal(initial.length, 1); assert.equal(initial[0].operationScope, 'local-settings');
+  view.sendSnapshot({ ...data, connectedScope: 'another-group' }); await view.tick();
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 1, 'background snapshots do not repeat the tools read');
+  document.querySelector('#settings-tab-accounts').click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 1);
+  document.querySelector('#settings-tab-tools').click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 2);
 });
 
 test('Skills recheck completes 35 full running snapshot and terminal receipt cycles without retaining busy state', async t => {
@@ -388,6 +484,7 @@ test('Skills recheck completes 35 full running snapshot and terminal receipt cyc
   const view = await mount({}, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
   document.querySelector('.settings-trigger').click(); await view.tick();
+  view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
   const button = () => document.querySelector('.tool-drawer .drawer-footer button');
   const recentTerminals = new Map();
   let revision = 0;
@@ -395,7 +492,7 @@ test('Skills recheck completes 35 full running snapshot and terminal receipt cyc
     assert.equal(button().disabled, false, `cycle ${index + 1} starts enabled`);
     button().click(); await view.tick();
     const request = view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').at(-1);
-    assert.equal(view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').length, index + 1);
+    assert.equal(view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').length, index + 2);
     const operation = { ...describeAction(request, { scopeRevision: data.operationScope, accountKey: data.instanceUserScope, rootKey: data.projectContext.root }),
       requestId: request.operationId, scopeRevision: request.operationScope, hostSessionId: sessionId,
       status: 'running', phase: '正在檢查安裝', startedAt: index + 1, revision: ++revision };
@@ -1575,9 +1672,9 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
 
   await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, query.value);
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], query.value);
-  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['audit.scope'], 'src/payments');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/team:local'], 'query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['query.question'], query.value);
+  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['audit.scope'], 'src/payments');
 
   const reopened = await mount(view.savedState, selectedGroup);
   t.after(() => reopened.dom.window.close());
@@ -1701,7 +1798,7 @@ test('an installed custom folder does not enable the Group guide when the Group 
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
 });
 
-test('keeps Wiki guide selection and inputs separate for each selected Group', async (t) => {
+test('keeps Wiki inputs when Group changes and separates drafts by local project root', async (t) => {
   const view = await mount({ mode: 'sa', scopeKey: 'team-scope' }, snapshot('sa'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
@@ -1719,21 +1816,25 @@ test('keeps Wiki guide selection and inputs separate for each selected Group', a
   view.sendSnapshot(groupB);
   await view.tick();
   assert.equal(selectedSkillFeature(document), 'query');
+  assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A query', 'Group changes preserve the current local draft');
+  groupB.projectContext = { ...groupB.projectContext, root: 'C:/workspace/another-team', revision: 'another-root' };
+  view.sendSnapshot(groupB); await view.tick();
   selectSkillFeature(document, 'query');
 
   await view.tick();
-  query.value = 'Team B query';
-  query.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  const secondQuery = document.querySelector('[id="wiki-input-query.question"]');
+  secondQuery.value = 'Team B query';
+  secondQuery.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   await view.tick();
 
   view.sendSnapshot(snapshot('sa'));
   await view.tick();
   assert.equal(selectedSkillFeature(document), 'query');
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'Team A query');
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['team-scope'], 'query');
-  assert.equal(view.savedState.wikiGuideSelectionsByScope['another-group-scope'], 'query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['team-scope']['query.question'], 'Team A query');
-  assert.equal(view.savedState.wikiGuideInputsByScope['another-group-scope']['query.question'], 'Team B query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/team:local'], 'query');
+  assert.equal(view.savedState.wikiGuideSelectionsByScope['project:C:/workspace/another-team:local'], 'query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/team:local']['query.question'], 'Team A query');
+  assert.equal(view.savedState.wikiGuideInputsByScope['project:C:/workspace/another-team:local']['query.question'], 'Team B query');
 });
 
 test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready', async (t) => {
@@ -1752,7 +1853,7 @@ test('blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, a
   assert.ok(document.querySelector('.skills-feature-navigation'));
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
 });
-test('three Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening', async (t) => {
+test('three Skills tools preserve legacy Wiki drafts and isolate release inputs across roots and reopening', async (t) => {
   const data = snapshot('sa');
   const selectedRepo = 'C:/工作區 with spaces/service';
   data.groupRepositories = [{ name: 'service', path: selectedRepo }, { name: 'alpha', path: 'C:/workspace/team/alpha' }];
@@ -1805,6 +1906,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   const groupB = snapshot('sa');
   groupB.connectedScope = 'another-group-scope';
   groupB.groupRoot = 'C:/workspace/another-team';
+  groupB.projectContext = { ...groupB.projectContext, root: groupB.groupRoot, revision: 'another-root' };
   groupB.group = { ...groupB.group, id: 9, full_path: 'another-team' };
   groupB.groupRepositories = [
     { name: 'other-service', path: 'C:/workspace/another-team/other-service' },
@@ -1823,7 +1925,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   assert.equal(selectedSkillTool(document), 'release-reviewer');
   assert.equal(document.querySelector('[id="wiki-input-release-review.repo"]').value, selectedRepo);
   assert.equal(document.querySelector('[id="wiki-input-release-review.mode"]'), null);
-  assert.equal(view.savedState.skillsGuideByScope['another-group-scope'].inputs['release-review.repo'], 'C:/workspace/another-team/other-service');
+  assert.equal(view.savedState.skillsGuideByScope['project:C:/workspace/another-team:local'].inputs['release-review.repo'], 'C:/workspace/another-team/other-service');
   const reopened = await mount(view.savedState, data);
   t.after(() => reopened.dom.window.close());
   assert.equal(selectedSkillTool(reopened.dom.window.document), 'release-reviewer');
@@ -2251,9 +2353,10 @@ test('opens the Issue graph on demand, applies shared filters with one-hop conte
   document.querySelector('.developer-view-switch button[aria-pressed="false"]:last-child')?.click();
   await view.tick();
   assert.equal(document.querySelector('.developer-view-switch button.active')?.textContent, '圖譜');
-  const graphRequest = view.requests.filter((request) => request.type === 'loadIssueGraph').at(-1);
-  assert.equal(graphRequest?.type, 'loadIssueGraph');
+  const graphRequest = view.requests.filter((request) => request.type === 'setIssueGraphVisibility' && request.visible).at(-1);
+  assert.equal(graphRequest?.type, 'setIssueGraphVisibility');
   assert.equal(graphRequest?.connectedScope, 'team-scope');
+  assert.equal(view.requests.some(request => request.type === 'loadIssueGraph'), false, 'the Host owns page-entry graph loading');
   assert.match(document.querySelector('.graph-loading-placeholder').textContent, /正在準備/);
 
   const graphSnapshot = snapshot();
@@ -2707,7 +2810,7 @@ test('Webview reconstruction restores Git drafts and selections and acknowledges
   restored.send({ type: 'gitRepositories', available: true, revision: 2, repositories: [gitSnapshot()] });
   await restored.tick();
   const open = gitActions(restored, 'open').at(-1); assert.ok(open);
-  assert.equal(open.action.refresh, false);
+  assert.equal(open.action.refresh, undefined, 'reconstructing the visible Git page performs a fresh local read');
   restored.send({ type: 'gitSnapshot', requestId: open.requestId, snapshot: gitSnapshot('repo-a', { revision: 3, diffPath: 'service.ts', diffStaged: false, diffText: '+Restored diff' }) });
   restored.send({ type: 'gitActionResult', requestId: open.requestId });
   restored.send({ type: 'gitActionResult', requestId: commit.requestId, commitCompleted: true });

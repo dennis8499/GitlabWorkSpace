@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionController } from '../../src/workspace/actionController';
-import { describeAction, gitActionKinds, issueActionKinds, issueInvokeKinds, workspaceActionKinds } from '../../src/workspace/actionPolicy';
+import { describeAction, effectiveOperationScope, gitActionKinds, isLocalWorkspaceAction, issueActionKinds, issueInvokeKinds, workspaceActionKinds } from '../../src/workspace/actionPolicy';
 import { OperationTracker, type WorkspaceOperationState } from '../../src/workspace/operations';
 
 function setup() {
@@ -51,6 +51,98 @@ test('writes on the same canonical Repo stay exclusive across account scope chan
   assert.equal(actions.dispatch({ ...write, requestId: 'git-2', action: { type: 'checkout', name: 'main' } }).status, 'blocked');
   assert.equal(sent.length, 1);
   assert.equal(JSON.stringify(actions.getSnapshot()).includes('draft'), false);
+});
+
+test('local actions use the project scope while Clone, MR and Issues retain the selected Group', () => {
+  const context = { scopeRevision: 'group:42:epoch:1', localOperationScope: 'project:root:epoch:1' };
+  for (const action of ['gitAction', 'scanRepositories', 'loadSkillBranches', 'refreshWorkflowKit', 'installWorkflowKit',
+    'copySkillGuidePrompt', 'refreshBmad', 'copyBmadCommand', 'queryLogs', 'exportLogs', 'clearLogs', 'selectProjectRoot', 'refreshRepositories']) {
+    assert.equal(isLocalWorkspaceAction(action), true, action);
+    assert.equal(effectiveOperationScope(action, context), context.localOperationScope, action);
+  }
+  for (const action of ['clone', 'syncRepos', 'selectIssue', 'loadIssueGraph', 'selectMergeRequest', 'issueRequest', 'selectGroup']) {
+    assert.equal(isLocalWorkspaceAction(action), false, action);
+    assert.equal(effectiveOperationScope(action, context), context.scopeRevision, action);
+  }
+  assert.equal(isLocalWorkspaceAction({ type: 'perform', action: 'openAnalysis' }), true);
+  assert.equal(isLocalWorkspaceAction({ type: 'perform', action: 'openProjects' }), false);
+  for (const mode of ['sa', 'bmad', 'git', 'admin']) {
+    assert.equal(effectiveOperationScope({ type: 'refresh', mode }, context), context.localOperationScope);
+  }
+  assert.equal(effectiveOperationScope({ type: 'refresh', mode: 'clone', projectSource: 'local' }, context), context.localOperationScope);
+  assert.equal(effectiveOperationScope({ type: 'refresh', mode: 'clone', projectSource: 'gitlab' }, context), context.scopeRevision);
+  assert.equal(effectiveOperationScope({ type: 'refresh', mode: 'developer' }, context), context.scopeRevision);
+  assert.equal(effectiveOperationScope('refreshWorkflowKit', { scopeRevision: 'legacy' }), 'legacy');
+});
+
+test('switching Group keeps local reads and retries current while cancelling remote reads', () => {
+  const { actions, sent } = setup();
+  actions.setContext({ scopeRevision: 'group:a', localOperationScope: 'local:root:epoch:1' });
+  const local = actions.dispatch({ type: 'loadSkillBranches', repo: 'C:/repo', revision: 'local-revision', requestId: 'branches' }).operationId!;
+  const remoteRead = actions.dispatch({ type: 'selectMergeRequest', projectId: 1, iid: 2 }).operationId!;
+  const refresh = actions.dispatch({ type: 'refresh', mode: 'git' }).operationId!;
+  assert.equal(sent[0].operationScope, 'local:root:epoch:1');
+  assert.equal(sent[1].operationScope, 'group:a');
+  assert.equal(sent[2].operationScope, 'local:root:epoch:1');
+  actions.setContext({ scopeRevision: 'group:b', localOperationScope: 'local:root:epoch:1' });
+  assert.equal(actions.get(local)?.status, 'queued');
+  assert.equal(actions.get(refresh)?.status, 'queued', 'a refresh retains its dispatched local scope without storing its mode in receipts');
+  assert.equal(actions.get(remoteRead)?.status, 'cancelled');
+  assert.equal(actions.isCurrentContext(actions.get(local)!), true);
+  assert.equal(actions.isCurrentContext(actions.get(remoteRead)!), false);
+  assert.equal(actions.isPending('loadSkillBranches'), true);
+  actions.complete(local, { status: 'failed', effect: 'none' });
+  assert.equal(actions.retry(local).status, 'started');
+  assert.equal(sent.at(-1).operationScope, 'local:root:epoch:1');
+  assert.equal(actions.retry(remoteRead).status, 'blocked');
+  actions.dispose();
+});
+
+test('local root and account epoch changes still cancel local reads and preserve canonical write locks', () => {
+  const { actions } = setup();
+  actions.setContext({ scopeRevision: 'group:a:epoch:1', localOperationScope: 'local:root:epoch:1' });
+  const read = actions.dispatch({ type: 'gitAction', repoId: 'canonical', requestId: 'read', action: { type: 'history' } }).operationId!;
+  const write = actions.dispatch({ type: 'gitAction', repoId: 'canonical', requestId: 'write', action: { type: 'commit', message: 'retained draft' } }).operationId!;
+  actions.setContext({ scopeRevision: 'group:a:epoch:2', localOperationScope: 'local:root:epoch:2' });
+  assert.equal(actions.get(read)?.status, 'cancelled');
+  assert.equal(actions.get(write)?.status, 'queued');
+  assert.equal(actions.isCurrentContext(actions.get(write)!), false);
+  assert.equal(actions.dispatch({ type: 'gitAction', repoId: 'canonical', requestId: 'second-write', action: { type: 'checkout', name: 'main' } }).status, 'blocked');
+  const nextRead = actions.dispatch({ type: 'refreshWorkflowKit' }).operationId!;
+  actions.setContext({ localOperationScope: 'local:different-root:epoch:2', rootKey: 'C:/different-root' });
+  assert.equal(actions.get(nextRead)?.status, 'cancelled');
+  assert.equal(actions.retry(nextRead).status, 'blocked');
+  actions.dispose();
+});
+
+test('local receipt restoration and snapshot reconciliation survive a Group switch without replay', () => {
+  const { actions, sent } = setup();
+  actions.setContext({ scopeRevision: 'group:a', localOperationScope: 'local:root:epoch:1' });
+  const restored = actions.restorePending({ requestId: 'old-local-write', resourceKey: 'git:repo', action: 'gitAction', label: 'Commit' });
+  assert.equal(restored.scopeRevision, 'local:root:epoch:1');
+  actions.reconcile({ sessionId: 'host', revision: 1, operations: [remote(restored, 1, { status: 'running' })] });
+  actions.setContext({ scopeRevision: 'group:b' });
+  assert.equal(actions.isCurrentContext(actions.get(restored.requestId)!), true);
+  actions.reconcile({ sessionId: 'host', revision: 2, operations: [remote(restored, 2, { status: 'succeeded', effect: 'applied' })] });
+  assert.equal(actions.get(restored.requestId)?.status, 'succeeded');
+  assert.equal(actions.hasPendingWrite('git:repo'), false);
+  assert.equal(sent.length, 0);
+  const result = actions.dispatch({ type: 'confirmOperationResult', targetOperationId: 'previous-skill-copy',
+    recovery: { action: 'copySkillGuidePrompt', resourceKey: 'skill:review' } });
+  assert.equal(result.status, 'started'); assert.equal(sent[0].operationScope, 'local:root:epoch:1');
+  actions.dispose();
+});
+
+test('confirmation without recovery metadata uses a known local target after a Group switch', () => {
+  const { actions, sent } = setup();
+  actions.setContext({ scopeRevision: 'group:a', localOperationScope: 'local:root:epoch:1' });
+  const target = actions.dispatch({ type: 'gitAction', repoId: 'repo', requestId: 'git-write', action: { type: 'commit', message: 'draft' } }).operationId!;
+  actions.complete(target, { status: 'failed', effect: 'unknown' });
+  actions.setContext({ scopeRevision: 'group:b' });
+  actions.dispatch({ type: 'confirmOperationResult', targetOperationId: target });
+  assert.equal(sent.at(-1).operationScope, 'local:root:epoch:1');
+  assert.equal(actions.get(target)?.effect, 'unknown', 'confirmation does not clear the lock before a host receipt');
+  actions.dispose();
 });
 
 test('snapshot recovers missed terminal receipts and preserves newer streamed state', () => {

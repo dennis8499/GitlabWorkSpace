@@ -104,10 +104,18 @@ export class GitLabSession {
   get hasActiveWrites(): boolean { return this.activeWrites > 0; }
   get isTransitioning(): boolean { return this.connectionTransition; }
   setBeforeTransition(handler: () => Promise<void>): void { this.beforeTransition = handler; }
-  initialize(): Promise<void> {
+  initialize(options: { allowNetwork?: boolean } = {}): Promise<void> {
     if (this.accountStore.ready) return Promise.resolve();
-    if (this.initialization) return this.initialization;
-    const task = this.accountStore.initialize((url, token) => this.makeClient(url, token).getCurrentUser());
+    if (this.initialization) {
+      const pending = this.initialization;
+      return pending.then(() => {
+        if (options.allowNetwork !== false && !this.accountStore.ready) {
+          if (this.initialization === pending) this.initialization = undefined;
+          return this.initialize(options);
+        }
+      });
+    }
+    const task = this.accountStore.initialize((url, token) => this.makeClient(url, token).getCurrentUser(), options);
     this.initialization = task;
     return task.finally(() => { if (this.initialization === task) this.initialization = undefined; });
   }

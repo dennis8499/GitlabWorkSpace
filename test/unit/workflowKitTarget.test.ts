@@ -63,7 +63,13 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
   const calls: string[][] = [];
   const bundle = { id: 'bundled', archivePath: 'offline.tar.xz', version: '0.17.0', source: 'bundled', format: 'tar.xz', entryRoot: 'workflow-kit', sha256: 'a'.repeat(64) };
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
-    disposed: false, workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0,
+    disposed: false, activeMode: 'sa', projectSource: 'local', developerView: 'list',
+    requestGeneration: 0, viewGeneration: 0, inventoryGeneration: 0, cloneRootGeneration: 0,
+    previewGeneration: 0, issueOpenGeneration: 0, issueBoardGeneration: 0, issueGraphGeneration: 0, mergeRequestGeneration: 0,
+    workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(),
+    mergeRequestSectionAborts: {}, mergeRequestSectionGenerations: { diffs: 0, discussions: 0 },
+    issuePanels: { suspendReads: () => undefined },
+    workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0,
     projectRepositoryScanGeneration: 0, localRepositoryScanGeneration: 0,
     workspaceMatch: { status: 'checking', repositories: [] }, projects: connected ? [project(1, 'service'), project(2, 'docs')] : [],
     workspaceSections: { projects: { status: connected ? 'ready' : 'idle' } },
@@ -74,7 +80,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     currentUser: connected ? { id: 1 } : undefined,
     session: { connectionEpoch: 1, baseUrl: connected ? 'https://gitlab.test' : undefined, selectedGroup: connected ? { id: 1 } : undefined,
       getClient: () => { throw new Error('Local Skills must not request GitLab credentials'); } },
-    context: { workspaceState, extension: { packageJSON: { version: bundle.version } } },
+    context: { workspaceState, globalState: memory(), extension: { packageJSON: { version: bundle.version } } },
     packages: { listPackages: async () => [bundle], getPackage: async () => bundle },
     sendSnapshot: () => undefined, post: () => undefined,
     runWorkflowKitHelper: async (args: string[], _timeout?: number, beforeLaunch?: () => Promise<void>) => {
@@ -93,7 +99,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
 }
 
 async function selectFolder(host: any, root: string): Promise<void> {
-  await host.selectProjectFolder(uri(root).toString()); await host.refreshWorkflowKit();
+  await host.selectProjectFolder(uri(root).toString());
 }
 
 async function directories(t: test.TestContext) {
@@ -312,7 +318,7 @@ test('MR branch handoff uses the actual mapped Repo and does not copy or launch 
   assert.equal(result.inputs['merge-repo.repo'], ''); assert.match(result.notice, /fork/);
 });
 
-test('concurrent Skills and Repo checks run once and warm Analysis navigation adds no full scans', async t => {
+test('concurrent checks coalesce and each Skills page entry rechecks locally without a full Repo scan', async t => {
   const [group] = await directories(t); const { host } = fixture([group], true);
   let reads = 0, packages = 0, resolutions = 0, scans = 0;
   const original = host.runWorkflowKitHelper, listPackages = host.packages.listPackages, resolve = host.resolveProjectContext;
@@ -327,10 +333,11 @@ test('concurrent Skills and Repo checks run once and warm Analysis navigation ad
   host.actualRepositoriesRoot = group; host.actualRepositoryScanStatus = 'ready';
   host.context.globalState = memory(); host.hideIssueGraph = () => undefined;
   for (let count = 0; count < 3; count++) {
-    await host.dispatchMessage({ type: 'setMode', mode: 'clone' });
+    await host.dispatchMessage({ type: 'setMode', mode: 'clone', projectSource: 'local' });
     await host.dispatchMessage({ type: 'setMode', mode: 'sa' });
   }
-  assert.equal(scans, 1); assert.equal(reads, 1); assert.equal(packages, 1); assert.equal(resolutions, 1);
+  assert.equal(scans, 1); assert.equal(reads, 4); assert.equal(packages, 4);
+  assert.equal(resolutions, 7, 'each local Repo and Skills entry resolves its current project once');
 });
 
 test('Repo refresh retains the current list until replacement and preserves it on failure', async t => {
@@ -432,7 +439,7 @@ test('Git action feedback preserves handled failure reasons and tracks readonly 
   host.panel = { visible: true, webview: { postMessage: (message: unknown) => { messages.push(message); return Promise.resolve(true); } } };
   host.webviewReady = true; host.post = (WorkspacePanel.prototype as any).post;
   host.dispatchMessage = async (request: any) => { host.post({ type: 'gitActionResult', requestId: request.requestId, error: 'branch is protected' }); };
-  const scope = host.operationScope();
+  const scope = host.getLocalOperationScope();
   await host.handleMessage({ type: 'gitAction', requestId: 'git-write', operationId: 'write', operationScope: scope, repoId: 'repo', action: { type: 'push', remote: 'origin', branch: 'main' } });
   const receipt = messages.filter(message => message.type === 'operationChanged').at(-1).operation;
   assert.equal(receipt.status, 'failed'); assert.equal(receipt.phase, '處理失敗'); assert.equal(receipt.error, 'branch is protected');

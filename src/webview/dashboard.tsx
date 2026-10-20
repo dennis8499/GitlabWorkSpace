@@ -26,6 +26,7 @@ import { dispatchWithFeedback } from './notificationFeedback';
 import type { NotificationSnapshot } from '../notifications/notificationProtocol';
 import { isActiveOperation, type WorkspaceOperationState } from '../workspace/operations';
 import { ActionController, type DispatchResult } from '../workspace/actionController';
+import { effectiveOperationScope } from '../workspace/actionPolicy';
 import { ActionContext, useActionSelector } from './useActions';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
 import { AdminLogPanel } from './AdminLogPanel';
@@ -46,6 +47,7 @@ interface SavedState {
   mrExpandedFiles?: Record<string, string[]>;
   issueEditorDrafts?: Record<string, IssueEditorDraftState>;
   mode: WorkspaceMode;
+  projectSource?: 'gitlab' | 'local';
   filters: Partial<Record<WorkspaceMode, string>>;
   selectedIds: Partial<Record<WorkspaceMode, number>>;
   selectedProjectIds: number[];
@@ -164,11 +166,15 @@ function wikiGuideScopeKey(scopeKey?: string, instanceUserScope?: string): strin
 
 let projectRevision: string | undefined;
 let operationScope = 'offline:none';
+let localOperationScope = 'local:none';
+let requestMode: WorkspaceMode = initial?.mode ?? 'developer';
+let requestProjectSource: 'gitlab' | 'local' = initial?.projectSource ?? 'gitlab';
 const projectRequests = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'clone', 'syncRepos', 'openLocalWorkspace', 'installWorkflowKit']);
 const actions = new ActionController(message => vscode.postMessage({ ...message,
   ...(projectRequests.has(message.type) && projectRevision ? { projectRevision } : {}) }));
 function post(message: WorkspaceRequest): DispatchResult {
-  return dispatchWithFeedback(actions, message, { publish: request => vscode.postMessage(request) });
+  const request = message.type === 'refresh' ? { ...message, mode: requestMode, projectSource: requestProjectSource } : message;
+  return dispatchWithFeedback(actions, request, { publish: notice => vscode.postMessage(notice) });
 }
 
 function issueKey(projectId: number, iid: number): string { return `${projectId}#${iid}`; }
@@ -246,10 +252,12 @@ function App() {
   const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  requestMode = mode;
   const [gitPanelVisited, setGitPanelVisited] = useState(initial?.mode === 'git');
   useEffect(() => { if (mode === 'git') setGitPanelVisited(true); }, [mode]);
   const [mobilePanel, setMobilePanel] = useState<'list' | 'detail'>('list');
-  const [projectTab, setProjectTab] = useState<'gitlab' | 'local'>('gitlab');
+  const [projectTab, setProjectTab] = useState<'gitlab' | 'local'>(initial?.projectSource ?? 'gitlab');
+  requestProjectSource = snapshot && (!snapshot.connected || !snapshot.group) ? 'local' : projectTab;
   const [issueNavigation, setIssueNavigation] = useState<IssueNavigation | null>(initial?.issueNavigation ?? null);
   const [issueRelationResponses, setIssueRelationResponses] = useState<Record<string, Extract<WorkspaceResponse, { type: 'issueRelations' }>>>({});
   const [graphRelations, setGraphRelations] = useState<{ requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; busy: boolean; error?: string; mutationApplied?: boolean }>();
@@ -318,7 +326,7 @@ function App() {
     return next;
   });
   const notify = (message: string, level: 'info' | 'warn' | 'error' = 'info') => post({ type: 'publishNotification', level, message });
-  const busy = useActionSelector(actions, states => states.some(item => item.scopeRevision === operationScope && item.action === 'refresh' && isActiveOperation(item)));
+  const busy = useActionSelector(actions, states => states.some(item => item.scopeRevision === effectiveOperationScope({ type: 'refresh', mode: requestMode, projectSource: requestProjectSource }, { scopeRevision: operationScope, localOperationScope }) && item.action === 'refresh' && isActiveOperation(item)));
   const busyLabel = '正在更新目前頁面…';
   const [previewSelection, setPreviewSelection] = useState<{ projectId: number; iid: number }>();
   const [mrSelection, setMrSelection] = useState<{ projectId: number; iid: number }>();
@@ -336,7 +344,6 @@ function App() {
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
   const issueBoardSelectionRef = useRef<string>();
-  const issueGraphRequestedScopesRef = useRef(new Set<string>());
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
   const timerVersionRef = useRef(0);
@@ -391,7 +398,7 @@ function App() {
   useEffect(() => {
     const settleBranchFailure = (operation: WorkspaceOperationState): void => {
       const pending = branchRequest.current;
-      if (!pending || operation.action !== 'loadSkillBranches' || operation.scopeRevision !== operationScope
+      if (!pending || operation.action !== 'loadSkillBranches' || operation.scopeRevision !== localOperationScope
         || pending.revision !== snapshotRef.current?.skillsContext?.revision
         || operation.correlationId !== pending.requestId && operation.requestId !== pending.operationId
         || operation.status !== 'failed' && operation.status !== 'cancelled') return;
@@ -469,29 +476,33 @@ function App() {
         const previousSkillsRevision = snapshotRef.current?.skillsContext?.revision;
         snapshotRef.current = message.snapshot;
         const nextOperationScope = message.snapshot.operationScope ?? `${message.snapshot.connectedScope ?? 'offline'}:${message.snapshot.projectContext?.revision ?? message.snapshot.groupRoot ?? 'none'}`;
-        if (operationScope !== nextOperationScope || previousSkillsRevision !== message.snapshot.skillsContext?.revision) {
+        const nextLocalOperationScope = message.snapshot.localOperationScope ?? nextOperationScope;
+        if (localOperationScope !== nextLocalOperationScope || previousSkillsRevision !== message.snapshot.skillsContext?.revision) {
           setSkillBranches(undefined); branchRequest.current = undefined;
         }
         if (operationScope !== nextOperationScope) { setPreviewSelection(undefined); setMrSelection(undefined); }
         operationScope = nextOperationScope;
-        actions.setContext({ scopeRevision: operationScope, accountKey: message.snapshot.activeAccountId ?? message.snapshot.instanceUserScope,
+        localOperationScope = nextLocalOperationScope;
+        actions.setContext({ scopeRevision: operationScope, localOperationScope, accountKey: message.snapshot.activeAccountId ?? message.snapshot.instanceUserScope,
           rootKey: message.snapshot.projectContext?.root ?? message.snapshot.skillsContext?.root ?? message.snapshot.groupRoot,
           scopeEpoch: message.snapshot.scopeEpoch });
         if (message.snapshot.operationSnapshot) actions.reconcile(message.snapshot.operationSnapshot);
         else for (const operation of message.snapshot.operations ?? []) actions.receive(operation);
         projectRevision = message.snapshot.projectContext?.revision;
-        const nextGuideScope = message.snapshot.skillsContext?.root
-          ? 'project:' + message.snapshot.skillsContext.root + ':' + message.snapshot.skillsContext.mode
-          : message.snapshot.skillsContext?.mode === 'unavailable' ? wikiGuideScopeRef.current
-          : wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
+        const guideRoot = message.snapshot.skillsContext?.root ?? message.snapshot.projectContext?.root ?? message.snapshot.groupRoot;
+        const nextGuideScope = message.snapshot.skillsContext?.mode === 'unavailable' ? wikiGuideScopeRef.current
+          : guideRoot ? 'project:' + guideRoot + ':' + (message.snapshot.skillsContext?.mode ?? 'local')
+          : wikiGuideScopeRef.current;
         if (nextGuideScope !== wikiGuideScopeRef.current) {
           savedSkillsGuideRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current;
           savedWikiGuideInputsRef.current[wikiGuideScopeRef.current] = legacyWikiInputs(skillsGuideRef.current.inputs);
           savedWikiGuideSelectionsRef.current[wikiGuideScopeRef.current] = skillsGuideRef.current.selections['codebase-wiki']!;
-          if (!savedSkillsGuideRef.current[nextGuideScope] && message.snapshot.skillsContext?.root) {
-            const legacyKey = message.snapshot.skillsContext.mode === 'repository' ? 'repository:' + message.snapshot.skillsContext.root
-              : wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope);
-            if (savedSkillsGuideRef.current[legacyKey] || savedWikiGuideInputsRef.current[legacyKey]) {
+          if (!savedSkillsGuideRef.current[nextGuideScope] && guideRoot) {
+            const legacyKey = [
+              ...(message.snapshot.skillsContext?.mode === 'repository' ? ['repository:' + guideRoot] : []),
+              'project:' + guideRoot + ':local', wikiGuideScopeKey(message.snapshot.connectedScope, message.snapshot.instanceUserScope)
+            ].find(key => key !== nextGuideScope && (savedSkillsGuideRef.current[key] || savedWikiGuideInputsRef.current[key]));
+            if (legacyKey) {
               savedSkillsGuideRef.current[nextGuideScope] = restoreSkillGuideState(savedSkillsGuideRef.current[legacyKey],
                 savedWikiGuideInputsRef.current[legacyKey], savedWikiGuideSelectionsRef.current[legacyKey]);
               delete savedSkillsGuideRef.current[legacyKey]; delete savedWikiGuideInputsRef.current[legacyKey]; delete savedWikiGuideSelectionsRef.current[legacyKey];
@@ -514,7 +525,6 @@ function App() {
           scopeRef.current = nextScope;
           timerVersionRef.current = message.snapshot.timerVersion ?? 0;
           issueGraphVersionRef.current = message.snapshot.issueGraphVersion ?? 0;
-          issueGraphRequestedScopesRef.current.delete(nextScope);
           const availableIds = message.snapshot.projects.map((project) => project.id);
           const preferredBoardId = value.issueBoardId ?? 'all';
           const boardId = message.snapshot.groupIssueBoardsError || preferredBoardId === 'all'
@@ -645,14 +655,14 @@ function App() {
     };
     window.addEventListener('message', receive);
     window.addEventListener('workspaceIssueRequest', forwardIssueRequest);
-    post({ type: 'ready' });
+    post({ type: 'ready', projectSource: projectTab, developerView });
     return () => { window.removeEventListener('message', receive); window.removeEventListener('workspaceIssueRequest', forwardIssueRequest); };
   }, []);
 
   const groupIssueBoardIdsKey = (snapshot?.groupIssueBoards ?? []).map((board) => board.id).join(',');
   useEffect(() => {
     const connectedScope = snapshot?.connectedScope;
-    if (!connectedScope) {
+    if (!connectedScope || mode !== 'developer' || developerView !== 'list' || issueNavigation) {
       issueBoardSelectionRef.current = undefined;
       return;
     }
@@ -675,19 +685,14 @@ function App() {
     if (issueBoardSelectionRef.current === selectionKey) return;
     issueBoardSelectionRef.current = selectionKey;
     post({ type: 'selectIssueBoard', boardId: availableSelection, connectedScope });
-  }, [snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, issueBoardId]);
+  }, [mode, developerView, !!issueNavigation, snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, issueBoardId]);
 
   useEffect(() => {
     const connectedScope = snapshot?.connectedScope;
     if (!connectedScope) return;
-    const visible = mode === 'developer' && developerView === 'graph';
+    const visible = mode === 'developer' && !issueNavigation && developerView === 'graph';
     post({ type: 'setIssueGraphVisibility', connectedScope, visible });
-    if (!visible) return;
-    if (snapshot?.issueGraph?.connectedScope === connectedScope && snapshot.sections?.graph?.status !== 'idle') return;
-    if (issueGraphRequestedScopesRef.current.has(connectedScope)) return;
-    issueGraphRequestedScopesRef.current.add(connectedScope);
-    post({ type: 'loadIssueGraph', connectedScope });
-  }, [mode, developerView, snapshot?.connectedScope, snapshot?.issueGraph?.connectedScope, snapshot?.sections?.graph?.status]);
+  }, [mode, developerView, !!issueNavigation, snapshot?.connectedScope]);
 
   useEffect(() => {
     if (graphBoardId === 'all' || !issueBoards.length || issueBoards.some((board) => board.id === graphBoardId)) return;
@@ -704,13 +709,17 @@ function App() {
       skillsGuideByScope: { ...savedSkillsGuideRef.current, [wikiGuideScopeRef.current]: skillsGuide },
       wikiGuideInputsByScope: { ...savedWikiGuideInputsRef.current, [wikiGuideScopeRef.current]: legacyWikiInputs(skillsGuide.inputs) },
       wikiGuideSelectionsByScope: { ...savedWikiGuideSelectionsRef.current, [wikiGuideScopeRef.current]: skillsGuide.selections['codebase-wiki']! },
-      mode, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
+      mode, projectSource: projectTab, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
       selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts: issueEditorDrafts.current
     };
     vscode.setState(state);
-  }, [bmadUiByRoot, mode, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles]);
+  }, [bmadUiByRoot, mode, projectTab, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles]);
+
+  useEffect(() => {
+    if (toolDrawer && settingsSection === 'tools') post({ type: 'refreshWorkflowKit' });
+  }, [toolDrawer, settingsSection]);
 
   const projects = snapshot?.projects ?? [];
   projectsRef.current = projects;
@@ -752,11 +761,11 @@ function App() {
     && (isActiveOperation(item) || item.effect === 'unknown')));
   const mr = selectedMr?.request;
   useEffect(() => {
-    if (!selectedMr || !mr || reviewerTab === 'report') return;
+    if (mode !== 'reviewer' || issueNavigation || !selectedMr || !mr || reviewerTab === 'report') return;
     const section = reviewerTab === 'changes' ? 'diffs' : 'discussions';
     const status = selectedMr.sections?.[section]?.status;
     if (status === 'idle') post({ type: 'loadMergeRequestSection', section, projectId: mr.project_id, iid: mr.iid });
-  }, [reviewerTab, mr?.project_id, mr?.iid, selectedMr?.sections?.diffs?.status, selectedMr?.sections?.discussions?.status]);
+  }, [mode, !!issueNavigation, reviewerTab, mr?.project_id, mr?.iid, selectedMr?.sections?.diffs?.status, selectedMr?.sections?.discussions?.status]);
   const currentSha = selectedMr?.sourceSha ?? mr?.diff_refs?.head_sha ?? mr?.sha ?? '';
   const currentMrKey = mr ? mrKey(mr.project_id, mr.iid) : '';
   const currentReport = reports[currentMrKey] ?? { text: '', sha: '' };
@@ -823,13 +832,13 @@ function App() {
   }
 
   useEffect(() => {
-    if (developerView !== 'graph' || !selectedGraphNode || selectedGraphNode.kind !== 'issue' || selectedGraphNode.projectId === undefined) {
+    if (mode !== 'developer' || issueNavigation || developerView !== 'graph' || !selectedGraphNode || selectedGraphNode.kind !== 'issue' || selectedGraphNode.projectId === undefined) {
       graphRelationRequest.current = undefined;
       setGraphRelations(undefined);
       return;
     }
     sendGraphRelationRequest();
-  }, [developerView, snapshot?.connectedScope, selectedGraphNode?.id, selectedGraphNode?.kind, issueGraphSnapshot?.status]);
+  }, [mode, !!issueNavigation, developerView, snapshot?.connectedScope, selectedGraphNode?.id, selectedGraphNode?.kind, issueGraphSnapshot?.status]);
 
   useEffect(() => {
     if (!issueGraphSnapshot || !['ready', 'partial', 'error'].includes(issueGraphSnapshot.status)) return;
@@ -866,7 +875,11 @@ function App() {
     const query = (filters[key] ?? '').trim().toLocaleLowerCase();
     return !query || text.toLocaleLowerCase().includes(query);
   }
-  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); modeRef.current = next; setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next }); }
+  function modeChange(next: WorkspaceMode): void { if (issueNavigationRef.current) post({ type: 'closeIssue' }); setIssueNavigation(null); modeRef.current = next; requestMode = next; setMode(next); setMobilePanel('list'); post({ type: 'setMode', mode: next, projectSource: requestProjectSource }); }
+  function changeProjectSource(source: 'gitlab' | 'local'): void {
+    if (source === projectTab && source === requestProjectSource) return;
+    requestProjectSource = source; setProjectTab(source); post({ type: 'setProjectSource', source });
+  }
   const closeIssue = useCallback(() => { post({ type: 'closeIssue' }); setIssueNavigation(null); setMobilePanel('list'); }, []);
   function setFilter(key: WorkspaceMode, value: string): void { setFilters((current) => ({ ...current, [key]: value })); }
   function selectedIssueAction(issue: GitLabIssue): void {
@@ -894,7 +907,6 @@ function App() {
   function retryIssueGraph(): void {
     const connectedScope = snapshot?.connectedScope;
     if (!connectedScope) return;
-    issueGraphRequestedScopesRef.current.add(connectedScope);
     post({ type: 'loadIssueGraph', connectedScope, forceNetwork: true });
   }
   function addDraftFromMarkdown(): void {
@@ -948,6 +960,7 @@ function App() {
   const reviewerRepo = resolveReviewerRepository(skillsGuide.inputs[`${reviewerCardId}.repo`] ?? '', reviewerRepositories);
   const currentSkillBranches = reviewerRepo?.path === skillBranches?.repo && snapshot.skillsContext?.revision === skillBranches?.revision ? skillBranches : undefined;
   const blockingWork = blockingWrite || (!snapshot.operationSnapshot && !!snapshot.busy);
+  const remotePage = mode === 'developer' || mode === 'reviewer' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
   const workspaceStatus = mode === 'developer' && selectedIssueProject && selectedIssue
     ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}`
@@ -959,7 +972,7 @@ function App() {
       <div class="brand"><span class="brand-mark">GW</span><strong>GitLab Workspace</strong></div>
       <div class="top-controls">
         <ProjectFolderSelect snapshot={snapshot} disabled={!!(snapshot.projectOperationBusy ?? blockingWork) || !!snapshot.workflowKitOperationBusy} post={post} />
-        {snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={blockingWork} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={blockingWork} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>}
+        {remotePage && (snapshot.group ? <label class="control-inline"><span>Group</span><select aria-label="目前 Group" disabled={blockingWork} value={snapshot.group.id} onChange={(event) => post({ type: 'selectGroup', groupId: Number(event.currentTarget.value) })}>{snapshot.groups.map((group) => <option value={group.id}>{group.full_path}</option>)}</select></label> : snapshot.connected && <button class="quiet" type="button" disabled={blockingWork} onClick={() => post({ type: 'selectGroup' })}>選擇 Group</button>)}
         <button class="quiet settings-trigger" type="button" onClick={event => { drawerReturnFocus.current = event.currentTarget; setAccountIntent(undefined); setSettingsSection('tools'); setToolDrawer(true); }}>設定</button>
         <button class="quiet notifications-trigger" type="button" aria-label={`訊息中心，${notifications?.unreadCount ?? 0} 筆未讀`} onClick={event => { notificationReturnFocus.current = event.currentTarget; setNotificationTarget(undefined); setToolDrawer(false); setNotificationsOpen(true); }}>訊息中心 <span class="notification-count">{notifications?.unreadCount ?? 0}</span></button>
         <details class="account-menu"><summary class={`connection ${snapshot.connected ? 'connected' : ''}`}><i />{snapshot.connected ? `${snapshot.currentUser?.name ?? 'GitLab 已連線'}${snapshot.currentUser?.username ? ` · @${snapshot.currentUser.username}` : ''}` : '尚未登入 GitLab'}　⌄</summary>
@@ -973,7 +986,7 @@ function App() {
 
     <div class="workbench" data-mobile-panel={mobilePanel}>
       <section class="page" data-mode={mode} role="tabpanel">
-        {snapshot.connectedScope && mode === 'clone' && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
+        {snapshot.connectedScope && mode === 'clone' && remotePage && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
         {snapshot.connectedScope && mode === 'developer' && <>
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
           {developerView === 'list' && <WorkspaceSectionNotice section="boards" label="Issue Board" status={snapshot.sections?.boards} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'boards', connectedScope: snapshot.connectedScope! })} />}
@@ -991,9 +1004,9 @@ function App() {
         <div class="git-mode-host" hidden={mode !== 'git'}>
           {(gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
-        {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{snapshot.group?.full_path ?? '工作台'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
+        {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
           <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button>}</div></div>}
-        {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => setProjectTab('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => setProjectTab('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { setProjectTab('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
+        {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { changeProjectSource('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
         mode === 'admin' ? <AdminLogPanel accounts={snapshot.accounts ?? []} post={post} />
           : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
@@ -1036,7 +1049,7 @@ function App() {
               onOpenDocumentation={url => post({ type: 'openExternal', url })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
               />
-            : mode === 'sa' ? <SkillsGuide operationScope={snapshot.operationScope ?? operationScope}
+            : mode === 'sa' ? <SkillsGuide operationScope={snapshot.localOperationScope ?? localOperationScope}
               branchCandidates={currentSkillBranches?.branches}
               branchStatus={currentSkillBranches?.status ?? 'idle'} branchError={currentSkillBranches?.error}
               reviewerRepositories={reviewerRepositories}
@@ -1167,7 +1180,7 @@ function App() {
       </section>
     </div>
 
-    <div class="workspace-operation-area"><OperationFeedback initialOperations={snapshot.operations} scopeRevision={snapshot.operationScope ?? operationScope} /></div>
+    <div class="workspace-operation-area"><OperationFeedback initialOperations={snapshot.operations} scopeRevision={effectiveOperationScope({ type: 'refresh', mode, projectSource: requestProjectSource }, { scopeRevision: snapshot.operationScope ?? operationScope, localOperationScope: snapshot.localOperationScope ?? localOperationScope })} onRefresh={() => post({ type: 'refresh' })} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
     <NotificationSnackbar snapshot={notifications} onView={id => {
       notificationReturnFocus.current = document.querySelector<HTMLButtonElement>('.notifications-trigger') ?? undefined;

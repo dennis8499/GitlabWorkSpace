@@ -4,6 +4,7 @@ import { isQuickActionsRequest } from '../../src/workspace/quickActionsProtocol'
 
 test('accepts only the navigation initialization and supported destinations', () => {
   assert.equal(isQuickActionsRequest({ type: 'ready' }), true);
+  assert.equal(isQuickActionsRequest({ type: 'refreshRepositories' }), true);
   for (const action of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openAdmin', 'openNotifications', 'addAccount', 'switchAccount', 'logoutAccount', 'removeAccount', 'manageAccounts']) {
     assert.equal(isQuickActionsRequest({ type: 'perform', action }), true, `${action} is supported`);
   }
@@ -36,7 +37,7 @@ test('bounds details requests to a repository identity and a correlated request'
 test('accepts bounded operation context on sidebar actions and lifecycle controls', () => {
   const context = { operationId: 'operation-1', operationScope: 'account-7|root-1', hostSessionId: 'host-1', scopeEpoch: 3 };
   for (const request of [
-    { type: 'ready' }, { type: 'reconcileOperations' },
+    { type: 'ready' }, { type: 'refreshRepositories' }, { type: 'reconcileOperations' },
     { type: 'perform', action: 'openMyWork' },
     { type: 'perform', action: 'openBmad' },
     { type: 'perform', action: 'openRepository', repositoryId: 'a'.repeat(32) },
@@ -68,6 +69,7 @@ test('reconciles bounded pending operation identities without changing ready val
     assert.equal(isQuickActionsRequest({ type: 'reconcileOperations', pendingIds }), false);
   }
   assert.equal(isQuickActionsRequest({ type: 'ready', pendingIds: [] }), false, 'ready retains its strict control shape');
+  assert.equal(isQuickActionsRequest({ type: 'refreshRepositories', repositoryId: 'a'.repeat(32) }), false, 'refresh only accepts lifecycle metadata');
   assert.equal(isQuickActionsRequest({ type: 'perform', action: 'openMyWork', pendingIds: [] }), false);
 });
 

@@ -5,7 +5,7 @@ import type { QuickAction } from './quickActionsProtocol';
 
 export type ActionKind = 'local' | 'read' | 'write' | 'control';
 export type ActionConcurrency = 'latest' | 'join' | 'exclusive' | 'parallel';
-export interface ActionContext { scopeRevision?: string; accountKey?: string; rootKey?: string; hostSessionId?: string; scopeEpoch?: number; }
+export interface ActionContext { scopeRevision?: string; localOperationScope?: string; accountKey?: string; rootKey?: string; hostSessionId?: string; scopeEpoch?: number; }
 export interface ActionPolicy {
   action: string; kind: ActionKind; concurrency: ActionConcurrency;
   resourceKey: string; lockKey: string; label: string;
@@ -31,6 +31,7 @@ export const workspaceActionKinds = {
   cancelRepositoryOperation: 'control',
   resyncWorkspace: 'control',
   setMode: 'local',
+  setProjectSource: 'local',
   closeIssue: 'local',
   openAccountManager: 'local',
   addAccount: 'local',
@@ -227,6 +228,34 @@ const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProje
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'openBmadTerminal']);
+const localWorkspaceActions = new Set([
+  'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
+  'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
+  'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
+  'installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource',
+  'openWorkflowKitDownload', 'openCodexTerminal', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
+  'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
+  'queryLogs', 'exportLogs', 'clearLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
+  'openAnalysis', 'openBmad', 'openGit', 'openAdmin', 'openRepository'
+]);
+
+/** Local project operations keep their identity when only the selected GitLab Group changes. */
+export function isLocalWorkspaceAction(value: string | { type: string; [key: string]: unknown }): boolean {
+  if (typeof value === 'string') return localWorkspaceActions.has(value);
+  const action = value.type === 'perform' ? String(value.action) : value.type;
+  if (action === 'refresh') return ['sa', 'bmad', 'git', 'admin'].includes(String(value.mode)) ||
+    value.mode === 'clone' && value.projectSource === 'local';
+  if (action === 'confirmOperationResult' && value.recovery && typeof value.recovery === 'object') {
+    const original = (value.recovery as { action?: unknown }).action;
+    return typeof original === 'string' && localWorkspaceActions.has(original);
+  }
+  return localWorkspaceActions.has(action);
+}
+
+export function effectiveOperationScope(value: string | { type: string; [key: string]: unknown }, context: ActionContext): string | undefined {
+  return isLocalWorkspaceAction(value) ? context.localOperationScope ?? context.scopeRevision : context.scopeRevision;
+}
+
 const canonicalRoot = (value?: string): string => (value ?? 'workspace').replace(/\\/g, '/').replace(/\/$/, '').toLocaleLowerCase('en-US');
 export function writeResourceLock(resourceKey: string, context: ActionContext = {}): string {
   const global = resourceKey === 'clipboard' || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:');
@@ -243,6 +272,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   const action = request.type === 'perform' ? String(request.action) : request.type;
   let kind: ActionKind = request.type === 'perform' ? quickActionKinds[action as QuickAction] ?? 'control'
     : (workspaceActionKinds as Record<string, ActionKind>)[action] ?? 'control';
+  if (action === 'refreshRepositories') kind = 'read';
   let resourceKey = action;
   let slot = action;
   if (request.type === 'gitAction') {
@@ -271,7 +301,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
   else if (connectionActions.has(action)) resourceKey = 'connection';
-  else if (rootActions.has(action)) resourceKey = 'repositories';
+  else if (rootActions.has(action) || action === 'refreshRepositories') resourceKey = 'repositories';
   else if (skillsActions.has(action)) resourceKey = 'skills';
   else if (request.id && /Timer|TimeEntry/.test(action)) resourceKey = 'time:' + request.id;
   const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyBmadCommand' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');

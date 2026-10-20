@@ -16,8 +16,8 @@ function recentFeedbackFirst(left: WorkspaceOperationState, right: WorkspaceOper
   return revision || (right.finishedAt ?? right.startedAt) - (left.finishedAt ?? left.startedAt)
     || right.requestId.localeCompare(left.requestId);
 }
-export function OperationFeedback({ resourceKey, scopeRevision, initialOperations = emptyOperations, actions: supplied }: {
-  resourceKey?: string; scopeRevision?: string; initialOperations?: WorkspaceOperationState[]; actions?: ActionController;
+export function OperationFeedback({ resourceKey, scopeRevision, initialOperations = emptyOperations, actions: supplied, onRefresh }: {
+  resourceKey?: string; scopeRevision?: string; initialOperations?: WorkspaceOperationState[]; actions?: ActionController; onRefresh?: () => unknown;
 }) {
   const context = useContext(ActionContext);
   const shared = supplied ?? context;
@@ -57,7 +57,7 @@ export function OperationFeedback({ resourceKey, scopeRevision, initialOperation
         if (result.status === 'blocked') actions.dispatch({ type: 'publishNotification', level: 'warn',
           message: result.reason ?? '無法重試，請回到原操作畫面重新載入。' });
       }}>重試</button>}
-      {item.refreshError && <button class="quiet small" type="button" onClick={() => actions.dispatch({ type: 'refresh' })}>重新載入</button>}
+      {item.refreshError && <button class="quiet small" type="button" onClick={() => onRefresh ? onRefresh() : actions.dispatch({ type: 'refresh' })}>重新載入</button>}
       {!isActiveOperation(item) && <button class="quiet small" type="button" onClick={() => actions.dismiss(item.requestId)}>關閉</button>}
     </>}
   </div>)}</div>;

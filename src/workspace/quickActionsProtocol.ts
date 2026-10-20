@@ -17,6 +17,7 @@ export interface QuickActionsOperationContext {
 
 export type QuickActionsRequest = (
   | { type: 'ready' }
+  | { type: 'refreshRepositories' }
   | Extract<NotificationRequest, { type: 'publishNotification' }>
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'repositoryDetails'; repositoryId: string; requestId: string }
@@ -41,6 +42,7 @@ export interface QuickActionsState {
   gitMessage?: string;
   operationSnapshot?: OperationSnapshot;
   operationScope?: string;
+  localOperationScope?: string;
   scopeEpoch?: number;
 }
 
@@ -60,7 +62,7 @@ export function isQuickActionsRequest(value: unknown): value is QuickActionsRequ
   if (message.hostSessionId !== undefined && (typeof message.hostSessionId !== 'string' || !/^[a-z0-9-]{1,100}$/i.test(message.hostSessionId))) return false;
   if (message.scopeEpoch !== undefined && (!Number.isSafeInteger(message.scopeEpoch) || (message.scopeEpoch as number) < 0)) return false;
   const keys = Object.keys(message).filter(key => !metadata.includes(key));
-  if (message.type === 'ready') return keys.length === 1 && keys[0] === 'type';
+  if (message.type === 'ready' || message.type === 'refreshRepositories') return keys.length === 1 && keys[0] === 'type';
   if (message.type === 'publishNotification') return keys.every(key => ['type', 'level', 'message', 'title'].includes(key)) &&
     typeof message.level === 'string' && ['info', 'warn', 'error'].includes(message.level) && typeof message.message === 'string' &&
     !!message.message.trim() && message.message.length <= 4096 &&

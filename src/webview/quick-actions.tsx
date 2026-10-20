@@ -48,12 +48,12 @@ const destinations: Array<{
   { id: 'openGit', mode: 'git', label: '版控', icon: '⑂' }
 ];
 
-function ActionFeedback({ scopeRevision, retryRequests, dispatchNotice, onRetry, legacyAction }: {
-  scopeRevision?: string; retryRequests: Map<string, QuickActionsRequest>; dispatchNotice: string;
+function ActionFeedback({ scopeRevision, localOperationScope, retryRequests, dispatchNotice, onRetry, legacyAction }: {
+  scopeRevision?: string; localOperationScope?: string; retryRequests: Map<string, QuickActionsRequest>; dispatchNotice: string;
   onRetry: (request: QuickActionsRequest) => void; legacyAction?: QuickAction;
 }) {
   const feedback = useActionSelector(actions, states => {
-    const operations = states.filter(operation => !scopeRevision || operation.scopeRevision === scopeRevision);
+    const operations = states.filter(operation => !scopeRevision || operation.scopeRevision === scopeRevision || operation.scopeRevision === localOperationScope);
     const activeOperation = operations.filter(pending).at(-1);
     const latestOperation = operations.at(-1);
     return activeOperation ?? (latestOperation?.status === 'failed' ? latestOperation : undefined);
@@ -102,7 +102,7 @@ function GitSidebar() {
       // reconcile when an action starts, settles or needs confirmation.
       const scope = latestState.current.operationScope;
       const signature = [...new Set(actions.getSnapshot()
-        .filter(operation => pending(operation) && (!scope || operation.scopeRevision === scope))
+        .filter(operation => pending(operation) && (!scope || operation.scopeRevision === scope || operation.scopeRevision === latestState.current.localOperationScope))
         .map(operation => `${operation.action}:${operation.resourceKey}`))].sort().join('|');
       if (signature !== operationSignature.current) {
         operationSignature.current = signature;
@@ -114,7 +114,7 @@ function GitSidebar() {
       if (response?.type === 'state' && response.state && typeof response.state.connected === 'boolean') {
         if (response.state.operationScope !== latestState.current.operationScope) setDispatchNotice('');
         if (response.state.operationScope) actions.setContext({
-          scopeRevision: response.state.operationScope, accountKey: response.state.activeAccountId,
+          scopeRevision: response.state.operationScope, localOperationScope: response.state.localOperationScope, accountKey: response.state.activeAccountId,
           hostSessionId: response.state.operationSnapshot?.sessionId, scopeEpoch: response.state.scopeEpoch
         });
         if (response.state.operationSnapshot) actions.reconcile(response.state.operationSnapshot);
@@ -193,19 +193,26 @@ function GitSidebar() {
   }
 
   useEffect(() => {
-    const shown = new Set(visible ? repositories.filter(repo => expanded[repo.id]).map(repo => repo.id) : []);
+    // A disclosure dispatch can run before an older passive effect flushes.
+    // Read current user intent so that effect cannot cancel the new expansion.
+    const currentRepositories = latestState.current.repositories ?? [];
+    const shown = new Set(visibleRef.current ? currentRepositories.filter(repo => expandedRef.current[repo.id]).map(repo => repo.id) : []);
     for (const id of requests.current.keys()) if (!shown.has(id)) {
       cancelDetails(id);
     }
-    const ids = new Set((state.repositories ?? []).map(repo => repo.id));
+    const ids = new Set(currentRepositories.map(repo => repo.id));
     if (Object.keys(detailsRef.current).some(id => !ids.has(id) || detailsRef.current[id].status === 'loading' && !requests.current.has(id))) {
       setDetails(current => Object.fromEntries(Object.entries(current).filter(([id, entry]) => ids.has(id) && (entry.status !== 'loading' || requests.current.has(id)))));
     }
-    for (const repository of repositories) {
-      const entry = detailsRef.current[repository.id];
-      if (shown.has(repository.id) && !requests.current.has(repository.id) && (!entry || entry.revision !== repository.revision)) requestDetails(repository);
-    }
   }, [repositories, expanded, visible, details]);
+
+  function toggleRepository(repository: GitRepositorySummary): void {
+    const opening = !expandedRef.current[repository.id];
+    expandedRef.current = { ...expandedRef.current, [repository.id]: opening };
+    setExpanded(expandedRef.current);
+    if (opening && visibleRef.current) requestDetails(repository);
+    else cancelDetails(repository.id);
+  }
 
   function navigate(action: Exclude<QuickAction, 'openRepository'>): void {
     dispatchAction({ type: 'perform', action });
@@ -232,7 +239,7 @@ function GitSidebar() {
 
   const activeAccount = state.connected ? state.accounts?.find(account => account.id === state.activeAccountId) : undefined;
   const operations = actions.getSnapshot();
-  const currentOperations = state.operationScope ? operations.filter(operation => operation.scopeRevision === state.operationScope) : operations;
+  const currentOperations = state.operationScope ? operations.filter(operation => operation.scopeRevision === state.operationScope || operation.scopeRevision === state.localOperationScope) : operations;
   const activeOperations = currentOperations.filter(pending);
   const busy = (action: QuickAction) => activeOperations.some(operation => operation.action === action);
   const busyRepository = (repositoryId: string) => activeOperations.some(operation => operation.action === 'openRepository' && operation.resourceKey === `git:${repositoryId}`);
@@ -246,7 +253,7 @@ function GitSidebar() {
   // The callbacks below use stable state setters and request refs.
   const repositorySection = useMemo(() => (
     <section class="repo-section" aria-label="版控 Repo">
-      <div class="repo-section-heading"><strong>版控 Repo</strong><span class="count">{state.repositories?.length ?? 0}</span></div>
+      <div class="repo-section-heading"><strong>版控 Repo</strong><span class="count">{state.repositories?.length ?? 0}</span><button type="button" aria-label="更新本機 Repo" aria-busy={activeOperations.some(operation => operation.action === 'refreshRepositories')} disabled={activeOperations.some(operation => operation.action === 'refreshRepositories')} onClick={() => dispatchAction({ type: 'refreshRepositories' })}>更新</button></div>
       <label class="repo-search"><span aria-hidden="true">⌕</span>
         <input aria-label="搜尋 Repo" type="search" placeholder="搜尋工作區 Repo…" value={search}
           onInput={(event) => setSearch(event.currentTarget.value)} />
@@ -260,7 +267,7 @@ function GitSidebar() {
               <div class="repo-heading-row">
                 <button class="repo-disclosure" type="button" aria-expanded={!!expanded[repository.id]}
                   aria-label={(expanded[repository.id] ? '收合' : '展開') + ' ' + repository.name + ' 的分支與 Stash'}
-                  onClick={() => setExpanded((current) => ({ ...current, [repository.id]: !current[repository.id] }))}>{expanded[repository.id] ? '▾' : '▸'}</button>
+                  onClick={() => toggleRepository(repository)}>{expanded[repository.id] ? '▾' : '▸'}</button>
                 <button class={'repo-link' + (expanded[repository.id] ? ' expanded' : '') + (selectedRepositoryId === repository.id ? ' selected-repository' : '')}
                   type="button" title={repository.path} aria-busy={busyRepository(repository.id)} onClick={() => openRepository(repository.id)}>
                   <span class="repo-symbol" aria-hidden="true">⑂</span>
@@ -291,7 +298,7 @@ function GitSidebar() {
             </div>} />}
     </section>
   ), [state.gitAvailable, state.gitMessage, state.repositories?.length, repositories, search,
-    expanded, details, selectedRepositoryId, repositoryBusySignature, visible]);
+    expanded, details, selectedRepositoryId, repositoryBusySignature, visible, activeOperations.some(operation => operation.action === 'refreshRepositories')]);
 
   return <main class="quick-actions" aria-label="GitLab Workspace 導覽">
     <section class="sidebar-account-menu" aria-label="GitLab 帳號">
@@ -322,7 +329,7 @@ function GitSidebar() {
       ><span class="nav-icon" aria-hidden="true">{destination.icon}</span><span>{destination.label}</span></button>)}
     </nav>
     {repositorySection}
-    <ActionFeedback scopeRevision={state.operationScope} retryRequests={retries.current} dispatchNotice={dispatchNotice}
+    <ActionFeedback scopeRevision={state.operationScope} localOperationScope={state.localOperationScope} retryRequests={retries.current} dispatchNotice={dispatchNotice}
       onRetry={dispatchAction} legacyAction={legacyBusy ? state.busyAction : undefined} />
   </main>;
 }

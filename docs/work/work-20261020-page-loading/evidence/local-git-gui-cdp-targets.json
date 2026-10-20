@@ -1,0 +1,43 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "F32D9BA9969F78F1D8AF53C0AA106A09",
+      "type": "service_worker",
+      "title": "Service Worker vscode-webview://1q8q190j84c82l8gbrgf2b53u9oej0mjj3krjtgop7bkc34u5ugj/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "url": "vscode-webview://1q8q190j84c82l8gbrgf2b53u9oej0mjj3krjtgop7bkc34u5ugj/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "776E24F4F114D78015C762CCE01644B1"
+    },
+    {
+      "targetId": "D36C9A55C1F1A578AF6FB6E6BFDBF181",
+      "type": "worker",
+      "title": "editorWorkerService",
+      "url": "blob:vscode-file://vscode-app/e7113053-2bb8-416a-842d-402307086410",
+      "attached": true,
+      "canAccessOpener": false,
+      "parentFrameId": "F4ADF006EE45E1AA288F65BC9231DC6D",
+      "browserContextId": "776E24F4F114D78015C762CCE01644B1"
+    },
+    {
+      "targetId": "F4ADF006EE45E1AA288F65BC9231DC6D",
+      "type": "page",
+      "title": "[Extension Development Host] GitLab Workspace - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/6d62b1d5da/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "776E24F4F114D78015C762CCE01644B1"
+    },
+    {
+      "targetId": "40D17F6A402928AAAF39D303B3678EA1",
+      "type": "iframe",
+      "title": "vscode-webview://1q8q190j84c82l8gbrgf2b53u9oej0mjj3krjtgop7bkc34u5ugj/index.html?id=25e4aa43-a5fe-47e9-bb4c-95eb3a0fd72b&parentId=1&origin=21792cc9-3141-4a34-9d4a-4dc99009ac0a&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=1d0e218c-31b9-4f18-ad57-c0a20119a2a2",
+      "url": "vscode-webview://1q8q190j84c82l8gbrgf2b53u9oej0mjj3krjtgop7bkc34u5ugj/index.html?id=25e4aa43-a5fe-47e9-bb4c-95eb3a0fd72b&parentId=1&origin=21792cc9-3141-4a34-9d4a-4dc99009ac0a&swVersion=6&extensionId=local-dev.gitlab-workspace&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=1d0e218c-31b9-4f18-ad57-c0a20119a2a2",
+      "attached": true,
+      "parentId": "F4ADF006EE45E1AA288F65BC9231DC6D",
+      "canAccessOpener": false,
+      "parentFrameId": "F4ADF006EE45E1AA288F65BC9231DC6D",
+      "browserContextId": "776E24F4F114D78015C762CCE01644B1"
+    }
+  ]
+}
