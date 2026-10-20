@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -100,7 +100,7 @@ test('local page entries call only the relevant local adapters with or without a
 });
 
 test('Skills identifies a local multi-Repo folder and becomes ready without an account or Group', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'gitlab-workspace-local-scope-'));
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'gitlab-workspace-local-scope-')));
   try {
     const { host, remote, context } = fixture('sa', false);
     Object.assign(context, { root, folders: [] });

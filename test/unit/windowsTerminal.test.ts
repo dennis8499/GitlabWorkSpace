@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -34,7 +34,7 @@ test('PowerShell launches codex.cmd from a quoted path in the selected working d
   const installed = path.join(root, "Codex's tools");
   const workspace = path.join(root, 'Group workspace');
   mkdirSync(installed); mkdirSync(workspace);
-  writeFileSync(path.join(installed, 'codex.cmd'), '@echo off\r\necho CODEX_CMD_LAUNCHED\r\necho %CD%\r\n');
+  writeFileSync(path.join(installed, 'codex.cmd'), '@echo off\r\necho CODEX_CMD_LAUNCHED\r\necho CODEX_WORKSPACE=%CD%\r\n');
   writeFileSync(path.join(installed, 'codex.ps1'), "throw 'codex.ps1 must not run'");
   const options = windowsCodexTerminalOptions({ ...process.env, Path: installed, PATH: installed });
   assert.ok(options);
@@ -42,5 +42,7 @@ test('PowerShell launches codex.cmd from a quoted path in the selected working d
     cwd: workspace, env: options.env, input: 'exit\r\n', encoding: 'utf8', timeout: 15_000, windowsHide: true
   });
   assert.ok(output.includes('CODEX_CMD_LAUNCHED'));
-  assert.ok(output.includes(workspace));
+  const actualWorkspace = output.split(/\r?\n/).find(line => line.startsWith('CODEX_WORKSPACE='))?.slice('CODEX_WORKSPACE='.length);
+  assert.ok(actualWorkspace, output);
+  assert.equal(realpathSync.native(actualWorkspace).toLowerCase(), realpathSync.native(workspace).toLowerCase());
 });
