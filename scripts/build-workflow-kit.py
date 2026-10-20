@@ -35,16 +35,16 @@ PINNED_SOURCES = ({'id': 'codebase-wiki',
   'root': 'codebase-llm-wiki-codex-0.6.2'},
  {'id': 'merge-reviewer',
   'repository': 'MergeReviewer',
-  'asset': 'merge-reviewer-0.14.0.zip',
-  'filename': 'merge-reviewer-0.14.0.zip',
-  'version': '0.14.0',
-  'sha256': '5eefd22d684666ef83061d13bd3540e0416a785ddaba0d8722c0f9ceceec860f'},
+  'asset': 'merge-reviewer-0.15.0.zip',
+  'filename': 'merge-reviewer-0.15.0.zip',
+  'version': '0.15.0',
+  'sha256': 'a21c53ddb1294531c9e91eb618938f666404fc1097ecc0ead6d51531b6c911fa'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
-  'asset': 'release-reviewer-0.4.1.zip',
-  'filename': 'release-reviewer-0.4.1.zip',
-  'version': '0.4.1',
-  'sha256': '30bf13b5102794bb22e5b8f58356deb2525050b12c861da99764d1bc8b69e53e'})
+  'asset': 'release-reviewer-0.5.0.zip',
+  'filename': 'release-reviewer-0.5.0.zip',
+  'version': '0.5.0',
+  'sha256': '1d333db9e26ce1762e8f84b15b6dcac3846e0b536af972f127a4f541cf33997f'})
 
 
 def digest(data: bytes) -> str:
@@ -55,8 +55,8 @@ def source_summary(upstream: dict[str, dict[str, str]]) -> list[str]:
     """Keep human-readable source notes bound to the same pins as the payload."""
     return [
         f"Native Codebase LLM Wiki {upstream['codebase-wiki']['version']} is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-        f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches, uses Codex-native review and v3 fixed evidence, and publishes one Markdown Merge Report with 8-character commit IDs in the filename and a captured comparison summary. Findings use six fields and cite minimal fixed line ranges with complete refs; the technical appendix is omitted while full validation is retained. No Workspace overlay or MR-specific report adapter is applied.",
-        f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts only an explicit Repo and base/head branches, traces affected Group functionality using pinned local default branches, and writes one concise v3 blocker/resource report with an editable manual checklist at the VSCode workspace root without an overlay.",
+        f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches. Its Skill agent applies Code Review defect criteria to the diff and evidence-linked consumers after the first helper freezes base/head and all peer Repos' current local HEADs. It writes one five-section Traditional Chinese report titled 合併審查 under the selected Repo's review-reports/ with 8-character commit IDs in the filename and full evidence validation. No Workspace overlay or MR-specific report adapter is applied.",
+        f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts one Repo and explicit base/head branches. Its Skill agent reviews diff-linked blockers and deployment dependencies using base/head and all peer Repos' current local HEADs frozen by the first helper. It writes one five-section Traditional Chinese report titled 上版檢查 with an editable manual checklist under the selected Repo's review-reports/ without an overlay.",
     ]
 
 
@@ -371,7 +371,7 @@ def build() -> dict[str, object]:
             "specialRules": {
                 "sourceReferences": "Repo/path",
                 "mergeRequestReview": "branch-review-handoff-manual-comment",
-                "releaseReview": "entry-branches-group-chain-local-defaults-v3-single-workspace-report",
+                "releaseReview": "entry-branches-diff-linked-local-heads-v3-single-repo-report",
             },
             "files": {name: digest(files[f"payload/.agents/gitlab-workspace-kit/{name}"]) for name in ("profile.md", "group-instructions.md", "legacy-cleanup.md")}
         },

@@ -57,11 +57,14 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   assert.match(prompt, /固定合併前審查/);
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   assert.match(prompt, /base_sha 的整個 Repo/);
-  assert.match(prompt, /VSCode 工作區根目錄/);
+  assert.match(prompt, /在所選 Repo\/review-reports\//);
   assert.ok(prompt.includes(`--workspace 為 ${JSON.stringify(context.groupRoot)}`));
-  assert.equal(prompt.includes('Repo/review-reports'), false);
+  assert.match(prompt, /# 上版檢查: \{Repo\}/);
   assert.match(prompt, /檔名前綴 release-review/);
-  assert.match(prompt, /失敗時停止，不使用過期資料/);
+  assert.match(prompt, /本機分支與其他 Repo 的 HEAD 擷取均為零網路操作/);
+  assert.match(prompt, /遠端 base／head 依 Repo／remote 合併為一次批次精確 fetch/);
+  assert.match(prompt, /失敗停止，不退回舊 ref/);
+  assert.match(prompt, /完成凍結後，讀取、搜尋、修稿與驗證只使用 owned context，均不連線/);
   assert.match(prompt, /只輸出 Markdown/);
   assert.equal(prompt.includes('--include-json'), false);
   assert.match(prompt, /環境設定、DB 建立或套用狀態標為未查證/);
@@ -89,7 +92,7 @@ test('release prompt binds actual folder and saved multi-root workspace without 
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { repositories: [] }), /工作區根目錄/);
 });
 
-test('native branch review uses only three inputs and actual saved workspace boundaries', () => {
+test('Skill agent branch review uses only three inputs and actual saved workspace boundaries', () => {
   const card = getSkillGuideCard('merge-reviewer');
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   const inputs = { 'merge-repo.repo': 'service', 'merge-repo.base': 'main', 'merge-repo.head': 'feature/payment' };
@@ -104,9 +107,15 @@ test('native branch review uses only three inputs and actual saved workspace bou
   assert.match(prompt, /只輸出 Markdown/);
   assert.match(prompt, /<base-commit前8碼>-<head-commit前8碼>\.md/);
   assert.match(prompt, /比較資訊：Repo／路徑、輸入分支與實際 ref/);
+  assert.match(prompt, /# 合併審查: \{Repo\}/);
   assert.match(prompt, /--summary/);
   assert.match(prompt, /batch-read／batch-search/);
-  assert.match(prompt, /問題描述、重現原因、預期結果、實際結果、證據、建議改善方式/);
+  assert.match(prompt, /問題名稱、影響說明、操作情境、建議處理/);
+  assert.match(prompt, /技術觸發方式、證據說明、影響範圍、工程修正建議及固定證據/);
+  assert.match(prompt, /report_layout=engineering-review\/v1/);
+  assert.match(prompt, /operation_scenario、technical_trigger、technical_explanation、impact_scope、engineering_fix/);
+  assert.match(prompt, /技術審查紀錄包含比較資訊/);
+  assert.doesNotMatch(prompt, /結論後列出比較資訊|每項問題依序呈現問題描述/);
   assert.match(prompt, /line_start／line_end/);
   assert.match(prompt, /行號、來源及完整 ref/);
   assert.doesNotMatch(prompt, /技術附錄/);
@@ -160,7 +169,23 @@ test('both reviewer profiles target the selected workspace Repo and retain the d
       assert.ok(prompt.includes('--workspace-file "C:/saved workspace/team.code-workspace"'));
       assert.ok(prompt.includes('"feature/manual"'));
       if (tool === 'merge-reviewer') assert.ok(prompt.includes('--project "D:/other root/consumer"'));
-      else assert.ok(prompt.includes('"defaultBranch":"trunk"'));
+      else {
+        assert.ok(prompt.includes('"defaultBranch":"trunk"'));
+        assert.match(prompt, /defaultBranch 只作工作區資料，不改變快照選擇/);
+      }
+      assert.match(prompt, /第一個 helper 呼叫立即凍結/);
+      assert.match(prompt, /宣告工作區其他 Repo 的本機當前 HEAD/);
+      assert.match(prompt, /同一個 Skill agent 完成核心 Code Review/);
+      assert.match(prompt, /以 Code Diff 為起點，只延伸追查可連回變更/);
+      assert.match(prompt, /report_layout=engineering-review\/v1/);
+      assert.match(prompt, /--retain-on-validation-error/);
+      assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
+      if (tool === 'release-reviewer') {
+        assert.match(prompt, /scenario 與 technical_details\.explanation、technical_details\.impact_scope、technical_details\.engineering_fix/);
+        assert.match(prompt, /新增部署依賴及 Checklist 放在範圍與限制/);
+      }
+      assert.match(prompt, /審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）/);
+      assert.doesNotMatch(prompt, /Codex 原生 Code Review|GPT.?6|Luna|model_reasoning_effort/);
       const header = buildSkillGuideContext(card, reviewContext);
       assert.ok(header.includes('consumer → D:/other root/consumer'));
       assert.ok(header.includes('VSCode 工作區根目錄：C:/saved workspace'));

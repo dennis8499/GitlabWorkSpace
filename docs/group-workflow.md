@@ -57,16 +57,19 @@ Issue 詳情保留內容與討論、關聯與子工作、工時三個分頁；�
 Git 的 Commit、Push 等操作使用版控。待審查頁保留報告匯入、一般留言、回覆、核准
 與依 SHA 合併，不以舊開發交接紀錄為依據。
 
-MergeReviewer 接受 Repo、基礎分支、比較分支，使用原生 v3 證據及 Codex Code Review。
-開始前凍結分支、合併預覽與相關 Repo；後續讀取使用 owned context，報告僅適用固定
-SHA。相關 Repo 依宣告的 VSCode 工作區探索並使用擷取時 HEAD。產生一份所選 Repo
-下的 Markdown Merge Report，必要人工確認與未完成覆蓋保持可見。MR 可帶入可確認的
-分支候選；由使用者把有效報告作一般留言發布。
+兩種 Reviewer 每次只接受一個 Repo、基礎分支、比較分支，由同一 Skill agent 依 Code
+Review 判準審查本次 Diff，延伸限可連回變更的契約、消費端與部署依賴。完整輸入交給
+Skill 後，第一個 helper 固定入口 base／head 及宣告工作區其他 Repo 的當前本機 HEAD，
+再建立合併預覽與自足證據。本機分支與關聯 HEAD 擷取零網路；明確遠端 base／head
+依 Repo／remote 批次精確 fetch 一次，失敗停止。後續讀取、搜尋與驗證只用 owned
+context，不再連線；分支移動不改變適用 SHA。預覽與複製提示詞不會開始擷取。
 
-ReleaseReviewer 同樣接受三項分支輸入，追查明確工作區內相關功能鏈；關聯 Repo
-使用已提交的本機預設分支，不 fetch。工作區根目錄產生一份含人工 Checklist 的精簡
-Release Report，分開直接阻擋、證據缺口與新增部署依賴。人工核對保留負責人、日期
-與套用後證據；原生 helpers 的證據、草稿修正及清理契約照常適用。
+每次在所選 Repo 的 `review-reports/` 寫一份 Markdown，標題為「合併審查: {Repo}」或
+「上版檢查: {Repo}」，依序包含「審查結論、問題總攬、問題詳情（工程師參考）、範圍
+與限制、技術審查紀錄（工程師參考）」。問題保留操作情境、技術觸發、證據說明、影響
+範圍與工程修正。ReleaseReviewer 將新增部署依賴及人工 Checklist 放在範圍與限制，與
+直接阻擋及證據缺口分開；人工核對保留負責人、日期與套用後證據。MR 可帶入分支候選，
+由使用者把有效合併審查報告作一般留言發布。helpers 的草稿修正及清理契約照常適用。
 
 ## 套件建置與獨立發版
 

@@ -102,6 +102,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         index_before = (self.repo / ".git/index").read_bytes()
         for profile in ("group", "repository"):
             with self.subTest(profile=profile):
+                existing_reports = set((self.repo / "review-reports").glob("release-review-*.md"))
                 if profile == "repository":
                     installed, data = self.execute("install", harness.ARCHIVE, self.repo, harness.VERSION, "bundled", "--format", "tar.xz",
                                                    "--entry-root", "workflow-kit", "--archive-sha256", hashlib.sha256(harness.ARCHIVE.read_bytes()).hexdigest(), "--profile", profile)
@@ -141,15 +142,17 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stderr)
                 output = json.loads(result.stdout)
                 report = Path(output["markdown_report"])
-                self.assertEqual(self.group if profile == "group" else self.repo, report.parent)
+                self.assertEqual(self.repo / "review-reports", report.parent)
                 self.assertEqual({"markdown_report"}, set(output))
                 self.assertTrue(report.name.startswith("release-review"))
                 body = report.read_text(encoding="utf-8")
-                for heading in ("## 已確認阻擋項", "## 新增項目與 Checklist", "## 證據與版本紀錄"):
-                    self.assertIn(heading, body)
+                self.assertEqual(f"# 上版檢查: {self.repo.name}", body.splitlines()[0])
+                self.assertEqual(["## 審查結論", "## 問題總攬", "## 問題詳情（工程師參考）",
+                                  "## 範圍與限制", "## 技術審查紀錄（工程師參考）"],
+                                 [line for line in body.splitlines() if line.startswith("## ")])
                 self.assertNotIn("uncommitted local edit", body)
                 self.assertIn(self.head_sha, body)
-                self.assertEqual([report], list(report.parent.glob("release-review-*.md")))
+                self.assertEqual(existing_reports | {report}, set(report.parent.glob("release-review-*.md")))
                 metadata = json.loads(base64.b64decode(re.search(r"release-review-report:([A-Za-z0-9+/=]+)", body).group(1)))
                 self.assertEqual("ReleaseReviewReport/v3", metadata["schema"])
                 self.assertTrue(metadata["review_complete"])
@@ -195,7 +198,9 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         data["config_changes"] = [{"id": "C-001", "kind": "environment-variable", "name": "BILLING_URL",
             "description": "新增必要環境變數。", "baseline_reason": "整個 base 沒有此變數的既有使用。",
             "baseline_searches": [json.loads(search.stdout)["search_id"]], "recommendation": "確認部署注入。",
-            "evidence": [final_proof], "definition_status": "external", "definition_evidence": []}]
+            "evidence": [final_proof], "definition_status": "external", "definition_evidence": [],
+            "diff_roots": [root["id"] for root in manifest["diff_roots"] if root["path"] == "config_use.py"],
+            "diff_reason": "本次新增 config_use.py 對 BILLING_URL 的正式讀取，因此需要部署注入。"}]
         draft = context / "draft.json"
         draft.write_text(json.dumps(data), encoding="utf-8")
         published = self.helper("release_report.py", "--context-dir", context, "--result", draft)
@@ -203,8 +208,9 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         output = json.loads(published.stdout)
         self.assertEqual({"markdown_report"}, set(output))
         report = Path(output["markdown_report"])
-        self.assertEqual(saved, report.parent)
-        self.assertEqual([report], list(saved.glob("*.md")))
+        self.assertEqual(self.repo / "review-reports", report.parent)
+        self.assertEqual([report], list((self.repo / "review-reports").glob("*.md")))
+        self.assertEqual([], list(saved.glob("*.md")))
         text = report.read_text(encoding="utf-8")
         body = text.split("\n<!-- release-review-report:")[0]
         metadata = json.loads(base64.b64decode(re.search(r"release-review-report:([A-Za-z0-9+/=]+)", text).group(1)))
@@ -227,6 +233,7 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertFalse(context.exists())
         self.assertEqual([], list(self.group.glob("release-review-*.md")))
+        self.assertEqual([], list((self.repo / "review-reports").glob("release-review-*.md")))
 
     def test_018_upgrade_and_rollback_preserve_old_release_skill_and_reports(self):
         fixture = harness.ROOT / "test/fixtures/workflow-kit-0.18.0"
@@ -253,16 +260,17 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 self.assertEqual(old_skill, (target / ".agents/skills/release-reviewer/SKILL.md").read_bytes())
                 self.assertEqual("0.18.0", json.loads((target / harness.MARKER).read_text(encoding="utf-8"))["version"])
 
-    def test_installed_group_supporting_uses_local_default_not_feature(self):
+    def test_installed_group_supporting_freezes_current_head_instead_of_default_branch(self):
         peer = self.group / "consumer"
         subprocess.run(["git", "clone", "--no-hardlinks", str(self.repo), str(peer)], check=True, capture_output=True, env=self.environment)
         subprocess.run(["git", "-C", str(peer), "branch", "main", "origin/main"], check=True, capture_output=True, env=self.environment)
         context, manifest = self.capture(hints={"repositories": [{"path": str(peer), "defaultBranch": "main"}]})
         supporting = next(r for r in manifest["repositories"] if r["role"] == "supporting")
-        self.assertEqual(self.base_sha, supporting["ref"])
+        self.assertEqual(self.head_sha, supporting["ref"])
+        subprocess.run(["git", "-C", str(peer), "switch", "--detach", "main"], check=True, capture_output=True, env=self.environment)
         read = self.helper("evidence.py", "read", "--context-dir", context, "--source", "supporting", "--repo", supporting["id"], "--path", "service.txt")
         self.assertEqual(0, read.returncode, read.stderr)
-        self.assertEqual("old behavior", json.loads(read.stdout)["lines"][0]["text"])
+        self.assertEqual("new behavior", json.loads(read.stdout)["lines"][0]["text"])
 
     def test_self_rehashed_release_skill_is_rejected(self):
         path = self.scripts / "release_report.py"

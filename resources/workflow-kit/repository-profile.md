@@ -34,24 +34,39 @@ complete result. Wiki work does not publish Issues or remote Git operations.
 ## Branch review
 
 Use `$merge-reviewer` with exactly one Repo and explicit base/head branches.
-Use Codex-native review and native v3 evidence. The declared VSCode workspace,
-including a saved `.code-workspace`, controls related Repo discovery; supporting
-Repos use their captured HEAD. Short branches are local refs; explicit remote
-refs must be refreshed successfully. Freeze evidence before semantic review.
-Publish one Markdown Merge Report under the selected Repo's `review-reports/`.
+The Skill agent applies Codex Code Review defect criteria to the Code Diff and
+follows only evidence-linked contracts and consumers. The declared VSCode workspace,
+including a saved `.code-workspace`, controls related Repo discovery. After complete
+inputs, the first helper captures base/head and every peer Repo's current local HEAD
+before semantic review. Local branches and peer HEADs require zero network calls.
+For explicitly remote base/head, batch one precise fetch per Repo/remote; stop on
+failure without using stale refs. Frozen reads, searches and validation never connect.
+Preview and copying do not capture.
+Write one Markdown report titled `合併審查: {Repo}` under the selected Repo's `review-reports/`.
 MR handoff supplies editable branch candidates; the user may post a valid report
 as a general comment. Keep pending confirmations and incomplete coverage visible.
 Use owned system temporary evidence and clean the session on completion or interruption.
 
 ## Release review
 
-Use `$release-reviewer` with Repo, base and head branches. Follow related API,
-event, DB, cache and configuration chains within the declared VSCode workspace.
-Related Repos use their committed local default branches without fetching.
+Use `$release-reviewer` with exactly one Repo and explicit base/head branches.
+The first helper freezes base/head and every peer Repo's current local HEAD before
+semantic review. Local branches and peer HEADs require no network; explicitly remote
+base/head batch one precise fetch per Repo/remote, then frozen evidence stays offline. The Skill
+agent applies Codex Code Review defect criteria, then follows API, event, DB, cache and
+configuration chains linked to the Code Diff within the declared VSCode workspace.
 Separate direct P0/P1 blockers, evidence gaps and new deployment dependencies.
-Write one Traditional Chinese Release Report at the VSCode workspace root with
-an editable manual Checklist. Preserve fixed report content and use the native
-v3 helpers, batch evidence, retained-draft correction and cleanup contracts.
+Write one Traditional Chinese report titled `上版檢查: {Repo}` in the selected Repo's
+`review-reports/`, with an editable manual Checklist. Preserve fixed report content
+and the v3 helper, batch evidence, retained-draft correction and cleanup contracts.
+
+Both reviewer reports use exactly these five H2 headings, in order: `審查結論`,
+`問題總攬`, `問題詳情（工程師參考）`, `範圍與限制`, `技術審查紀錄（工程師參考）`.
+Problem details show name, impact, operation scenario and suggested action, then trigger,
+technical explanation, impact scope, engineering fix and fixed evidence. New drafts use
+`report_layout=engineering-review/v1` and complete the Skill's engineering fields.
+Comparison and coverage records belong in the technical section; Release dependencies
+and the editable Checklist belong in scope and limitations.
 
 ## Installation and recovery
 

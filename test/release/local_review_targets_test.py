@@ -107,15 +107,18 @@ class LocalReviewTargetsTests(unittest.TestCase):
                 report=Path(published); self.assertEqual(repo/'review-reports',report.parent)
                 self.assertRegex(report.name,rf'^merge-review-\d{{8}}T\d{{12}}Z-{base_sha[:8]}-{head_sha[:8]}\.md$')
                 text=report.read_text(encoding='utf-8')
-                self.assertIn('Merge Report: service',text)
-                comparison=text.split('## 比較資訊\n',1)[1].split('\n## ',1)[0]
-                self.assertIn(f'| 基礎分支 | `main` | `refs/heads/main` | `{base_sha[:8]}` |',comparison)
-                self.assertIn(f'| 比較分支 | `feature/change` | `refs/heads/feature/change` | `{head_sha[:8]}` |',comparison)
-                self.assertIn('- 合併方向：`feature/change` → `main`',comparison)
-                self.assertIn(f'- 主要差異範圍（共同祖先 → 比較分支）：`{base_sha[:8]}` → `{head_sha[:8]}`',comparison)
+                self.assertEqual('# 合併審查: service',text.splitlines()[0])
+                self.assertEqual(['## 審查結論','## 問題總攬','## 問題詳情（工程師參考）',
+                                  '## 範圍與限制','## 技術審查紀錄（工程師參考）'],
+                    [line for line in text.splitlines() if line.startswith('## ')])
+                self.assertIn(f'| 基礎分支 | `main` | `refs/heads/main` | `{base_sha[:8]}` |',text)
+                self.assertIn(f'| 比較分支 | `feature/change` | `refs/heads/feature/change` | `{head_sha[:8]}` |',text)
+                self.assertIn('- 合併方向：`feature/change` → `main`',text)
+                self.assertIn(f'- 主要差異範圍（共同祖先 → 比較分支）：`{base_sha[:8]}` → `{head_sha[:8]}`',text)
                 self.assertNotIn('技術附錄',text)
-                self.assertEqual(['問題描述','重現原因','預期結果','實際結果','證據','建議改善方式'],
+                self.assertEqual(['問題名稱','影響說明','操作情境','建議處理','觸發條件','證據說明','影響範圍','工程修正建議','證據'],
                     re.findall(r'^\*\*([^*]+)\*\*$',text,flags=re.MULTILINE))
+                self.assertIn('#### 技術證據', text)
                 self.assertIn(f'`service/app.py:1–1`（來源：`head`；固定版本：`{head_sha}`）',text)
                 self.assertIn('\n```\nvalue = 2\n```\n',text)
                 self.assertIn('依程式推導，未實際重現',text)

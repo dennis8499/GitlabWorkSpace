@@ -71,9 +71,11 @@ Issue 詳情分成三個任務分頁：
 
 先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、執行方式、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
 
-Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。MergeReviewer 只接受 Repo、基礎分支、比較分支，產出一份本機 v3 Markdown Merge Report。
+Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。兩種 Reviewer 每次只接受一個 Repo、基礎分支、比較分支，由同一 Skill agent 依 Code Review 判準審查本次 Diff，僅延伸追查可連回變更的行為、契約與消費端。
 
-ReleaseReviewer 同樣只接受三項分支輸入，以入口變更追查宣告工作區內相關功能鏈；關聯 Repo 使用各自本機預設分支。在 VSCode 工作區根目錄產生一份含人工 Checklist 的精簡 Release Report，已儲存工作區使用 `.code-workspace` 所在目錄。阻擋、證據缺口與環境待核對條件分開呈現；人工確認需核對人、日期與開通／套用後證據，工單申請不算完成。
+Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支及工作區其他 Repo 的當前本機 HEAD，再開始語意審查；提示詞預覽與複製不會開始擷取。本機分支與關聯 Repo HEAD 擷取不連線；明確遠端 base／head 每個 Repo／remote 批次精確 fetch 一次，失敗停止。之後讀取、搜尋及驗證只用固定證據，不再連線。
+
+每次在所選 Repo 的 `review-reports/` 產生一份繁體中文 Markdown，標題為「合併審查: {Repo}」或「上版檢查: {Repo}」。報告固定依序為「審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）」；問題先說明影響、操作情境與建議，再列觸發條件、技術原因、影響範圍、工程修正與固定證據。ReleaseReviewer 的新增部署依賴及人工 Checklist 放在範圍與限制，與直接上版阻擋、證據缺口分開。人工確認需核對人、日期與開通／套用後證據，工單申請不算完成。已儲存工作區的 `.code-workspace` 只界定相關 Repo 範圍，不改變報告位置。
 
 按 **複製提示詞** 後再按 **開啟 Codex CLI**，貼上執行並查看產出。複製前仍會驗證目前環境與套件；畫面顯示等待、檢查、複製、成功或失敗，可在失敗後重試。AI 分析進度由 Codex 呈現。表單依根目錄與工具保存；根目錄或帳號切換後，舊回應不套用至新環境。
 
