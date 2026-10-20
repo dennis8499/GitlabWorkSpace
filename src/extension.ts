@@ -29,7 +29,6 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   removeAccount: 'gitlabWorkspace.removeAccount',
   openRepository: 'gitlabWorkspace.openGitMode'
 };
-let activeLog: OperationLog | undefined;
 let activeOperations: OperationTracker | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
@@ -43,12 +42,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   try { await operations.initialize(); }
   catch { notifications.publish({ level: 'warn', title: '操作紀錄', message: '操作收據儲存空間無法使用；讀取功能仍可使用，寫入前須先核對歷史操作。' }); }
   activeOperations = operations;
-  const log = new OperationLog(vscode.Uri.joinPath(context.globalStorageUri, 'logs').fsPath, message => notifications.publish({ level: 'warn', message }));
+  const logChannel = vscode.window.createOutputChannel('GitLab Workspace', { log: true });
+  const log = new OperationLog(logChannel);
   notifications.setSanitizer(message => log.sanitize(message));
-  activeLog = log;
   const session = new GitLabSession(context.secrets, context.globalState, testMode, context.workspaceState, log);
   log.setContextSource(() => ({ accountId: session.activeAccountId, baseUrl: session.baseUrl, groupId: session.selectedGroup?.id }));
-  context.subscriptions.push(log, notifications, operations);
+  context.subscriptions.push({ dispose: () => { log.dispose(); logChannel.dispose(); } }, notifications, operations);
   try { await session.initialize({ allowNetwork: false }); } catch { notifications.publish({ level: 'warn', message: '既有 GitLab 帳號尚未完成遷移；設定與 Token 已保留，連線時會重試。' }); }
   log.record({ feature: 'workspace', action: 'activate', result: 'success' });
   let refreshWorkspaceAfterIssueChange = (): void => undefined;
@@ -128,7 +127,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.manageAccounts', () => getWorkspace().openAccountManager()),
     registerLoggedCommand('gitlabWorkspace.switchAccount', (id?: string) => getWorkspace().accountFromSidebar('switchAccount', id)),
     registerLoggedCommand('gitlabWorkspace.removeAccount', (id?: string) => getWorkspace().accountFromSidebar('removeAccount', id)),
-    registerLoggedCommand('gitlabWorkspace.openAdmin', () => getWorkspace().navigateTo('admin')),
+    vscode.commands.registerCommand('gitlabWorkspace.showLogs', () => logChannel.show(false)),
+    vscode.commands.registerCommand('gitlabWorkspace.openAdmin', () => logChannel.show(false)),
     registerLoggedCommand('gitlabWorkspace.scanRepositories', () => getWorkspace().scanFromSidebar()),
     registerLoggedCommand('gitlabWorkspace.cloneRepositories', () => getWorkspace().cloneFromSidebar('pick')),
     registerLoggedCommand('gitlabWorkspace.cloneAllRepositories', () => getWorkspace().cloneFromSidebar('all')),
@@ -156,8 +156,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     getRepositoryInventoryForTesting: () => gitRepositories.getInventory(),
     scanWorkspaceForTesting: (signal: AbortSignal, onProgress: (state: import('./git/repositoryScanProtocol').RepositoryScanState) => void) =>
       gitRepositories.scanWorkspace(signal, onProgress),
-    queryLogsForTesting: (query?: import('./logging/logProtocol').LogQuery) => log.query(query),
-    getLogQueryCountForTesting: () => getWorkspace().getLogQueryCountForTesting(),
+    getLogFileUriForTesting: () => vscode.Uri.joinPath(context.logUri, 'GitLab Workspace.log'),
+    getLogOutputForTesting: () => logChannel,
     getGitCommandCountForTesting: () => gitRepositories.getCommandCountForTesting(),
     getGitActivityForTesting: () => gitRepositories.getActivityForTesting(),
     getWebviewMessageCountsForTesting: () => getWorkspace().getWebviewMessageCountsForTesting(),
@@ -170,7 +170,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
 
 export async function deactivate(): Promise<void> {
   await activeOperations?.flush(); activeOperations = undefined;
-  await activeLog?.flush(); activeLog = undefined;
 }
 
 function readableError(error: unknown): string {

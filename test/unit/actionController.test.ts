@@ -30,6 +30,16 @@ test('dispatch sets pending synchronously, joins identical reads and separates M
   assert.equal(actions.dispatch({ ...read, section: 'discussions' }).status, 'started'); assert.equal(sent.length, 2);
 });
 
+test('opening Output is a local action without pending operations or notifications', () => {
+  const { actions, sent } = setup();
+  assert.equal(describeAction({ type: 'openLogs' }).kind, 'local');
+  const legacyAction = { type: 'perform', action: 'openAdmin' };
+  assert.equal(describeAction(legacyAction).kind, 'local');
+  assert.equal(actions.dispatch({ type: 'openLogs' }).status, 'started');
+  assert.deepEqual(sent, [{ type: 'openLogs' }]);
+  assert.deepEqual(actions.getSnapshot(), []);
+});
+
 test('latest selection wins and old receipts cannot release the newer owner', () => {
   const { actions } = setup();
   const first = actions.dispatch({ type: 'selectIssue', projectId: 1, issueIid: 1 }).operationId!;
@@ -56,7 +66,7 @@ test('writes on the same canonical Repo stay exclusive across account scope chan
 test('local actions use the project scope while Clone, MR and Issues retain the selected Group', () => {
   const context = { scopeRevision: 'group:42:epoch:1', localOperationScope: 'project:root:epoch:1' };
   for (const action of ['gitAction', 'scanRepositories', 'loadSkillBranches', 'refreshWorkflowKit', 'installWorkflowKit',
-    'copySkillGuidePrompt', 'refreshBmad', 'copyBmadCommand', 'queryLogs', 'exportLogs', 'clearLogs', 'selectProjectRoot', 'refreshRepositories']) {
+    'copySkillGuidePrompt', 'refreshBmad', 'copyBmadCommand', 'openLogs', 'selectProjectRoot', 'refreshRepositories']) {
     assert.equal(isLocalWorkspaceAction(action), true, action);
     assert.equal(effectiveOperationScope(action, context), context.localOperationScope, action);
   }
@@ -66,7 +76,7 @@ test('local actions use the project scope while Clone, MR and Issues retain the 
   }
   assert.equal(isLocalWorkspaceAction({ type: 'perform', action: 'openAnalysis' }), true);
   assert.equal(isLocalWorkspaceAction({ type: 'perform', action: 'openProjects' }), false);
-  for (const mode of ['sa', 'bmad', 'git', 'admin']) {
+  for (const mode of ['sa', 'bmad', 'git']) {
     assert.equal(effectiveOperationScope({ type: 'refresh', mode }, context), context.localOperationScope);
   }
   assert.equal(effectiveOperationScope({ type: 'refresh', mode: 'clone', projectSource: 'local' }, context), context.localOperationScope);

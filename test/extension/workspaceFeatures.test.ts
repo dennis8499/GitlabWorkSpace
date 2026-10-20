@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
 import type { RepositoryScanState, ScannedRepository } from '../../src/git/repositoryScanProtocol';
+import type { OperationLog } from '../../src/logging/operationLog';
 
 type Harness = Record<string, any>;
 const project = { id: 1, name: 'One', path: 'one', path_with_namespace: 'group/one' };
@@ -149,19 +151,57 @@ suite('Account, preview and workspace Repo integration', () => {
     }
   });
 
-  test('opens the real offline administration Webview and handles its Log page request', async function () {
+  test('writes native Output logs in the background and opens the same channel through new and legacy commands', async function () {
     this.timeout(30000);
     const extension = vscode.extensions.getExtension('local-dev.gitlab-workspace')!;
     const api = await extension.activate() as {
-      getLogQueryCountForTesting(): number;
-      queryLogsForTesting(query: { search: string }): Promise<{ total: number }>;
+      session: { log: OperationLog };
+      getLogFileUriForTesting(): vscode.Uri;
+      getLogOutputForTesting(): vscode.LogOutputChannel;
     };
-    const before = api.getLogQueryCountForTesting();
-    await vscode.commands.executeCommand('gitlabWorkspace.openAdmin');
-    const deadline = Date.now() + 15000;
-    while (api.getLogQueryCountForTesting() <= before && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-    assert.ok(api.getLogQueryCountForTesting() > before, 'the real Webview loaded and requested a Log page');
-    assert.ok((await api.queryLogsForTesting({ search: 'openAdmin' })).total > 0);
-    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    const channel = api.getLogOutputForTesting();
+    assert.equal(channel.name, 'GitLab Workspace');
+    const logFile = api.getLogFileUriForTesting();
+    assert.equal(path.basename(logFile.fsPath), 'GitLab Workspace.log');
+    const webviewTabs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs)
+      .filter(tab => tab.input instanceof vscode.TabInputWebview);
+    const beforeTabs = webviewTabs();
+    const showCalls: unknown[][] = [];
+    const originalShow = channel.show;
+    // Observe the actual native reveal API while still exercising its implementation.
+    channel.show = ((...args: unknown[]) => {
+      showCalls.push(args);
+      return Reflect.apply(originalShow, channel, args);
+    }) as typeof channel.show;
+    try {
+      const sentinel = 'native-output-' + randomUUID();
+      api.session.log.record({ feature: 'workspace', action: sentinel, result: 'success' });
+      api.session.log.record({ feature: 'workspace', action: sentinel + '-error', result: 'error' });
+      const deadline = Date.now() + 15000;
+      let text = '';
+      while (Date.now() < deadline) {
+        try { text = Buffer.from(await vscode.workspace.fs.readFile(logFile)).toString('utf8'); }
+        catch (error) { if (!(error instanceof vscode.FileSystemError) || error.code !== 'FileNotFound') throw error; }
+        if (text.includes(sentinel) && text.includes(sentinel + '-error')) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      assert.ok(text.split(/\r?\n/).some(line => /\[info\]/i.test(line) && line.includes(sentinel) && !line.includes(sentinel + '-error')),
+        'the native log file receives background info records');
+      assert.ok(text.split(/\r?\n/).some(line => /\[error\]/i.test(line) && line.includes(sentinel + '-error')),
+        'the native log file receives background error records');
+      assert.equal(showCalls.length, 0, 'background logging, including errors, never reveals Output');
+      assert.deepEqual(webviewTabs(), beforeTabs, 'background logging does not open a Webview');
+
+      for (const command of ['gitlabWorkspace.showLogs', 'gitlabWorkspace.openAdmin']) {
+        const callsBefore: number = showCalls.length;
+        await vscode.commands.executeCommand(command);
+        assert.equal(showCalls.length, callsBefore + 1, `${command} reveals the native channel`);
+        assert.notEqual(showCalls.at(-1)?.[0], true, `${command} focuses Output`);
+        assert.deepEqual(webviewTabs(), beforeTabs, `${command} does not open an administration Webview`);
+      }
+    } finally {
+      channel.show = originalShow;
+      await vscode.commands.executeCommand('workbench.action.closePanel');
+    }
   });
 });

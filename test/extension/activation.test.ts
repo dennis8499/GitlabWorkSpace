@@ -37,12 +37,17 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.openGitMode',
       'gitlabWorkspace.openRepository',
       'gitlabWorkspace.addAccount', 'gitlabWorkspace.switchAccount', 'gitlabWorkspace.removeAccount',
-      'gitlabWorkspace.openAdmin', 'gitlabWorkspace.scanRepositories'
+      'gitlabWorkspace.openAdmin', 'gitlabWorkspace.showLogs', 'gitlabWorkspace.scanRepositories'
     ]) {
       assert.ok(commands.includes(command), `${command} is registered`);
     }
     const wikiGuideCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSaMode');
     assert.equal(wikiGuideCommand?.title, 'GitLab Workspace: Skills 功能指引');
+    const showLogsCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.showLogs');
+    assert.equal(showLogsCommand?.title, 'GitLab Workspace: 開啟 Log');
+    assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.showLogs'));
+    assert.ok(extension.packageJSON.contributes.menus.commandPalette.some((item: { command: string; when?: string }) =>
+      item.command === 'gitlabWorkspace.openAdmin' && item.when === 'false'));
   });
 
 });

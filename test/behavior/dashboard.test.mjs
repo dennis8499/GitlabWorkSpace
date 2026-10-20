@@ -34,7 +34,7 @@ test('page entry describes its source and local refresh keeps Group controls and
 });
 
 test('local tools remain independent of Group and do not lazily read hidden remote content', async t => {
-  for (const mode of ['sa', 'bmad', 'git', 'admin']) {
+  for (const mode of ['sa', 'bmad', 'git']) {
     const data = { ...snapshot(mode), localOperationScope: 'local-root' };
     const request = { project_id: 1, iid: 9 };
     data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
@@ -260,16 +260,6 @@ test('responsiveness: virtual MR files retain expansion and a stable scroll anch
   await scroll(6000);
   view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, diffs: [...data.selectedMergeRequest.diffs, { old_path: 'new', new_path: 'new', diff: '+new' }] } }); await view.tick();
   assert.equal(list.scrollTop, 6000, 'appending data preserves the first visible item and its offset');
-});
-
-test('responsiveness: Log preflight failures settle loading and remain explicitly retryable', async t => {
-  const view = await mount({ mode: 'admin' }, snapshot('admin'), {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
-  const request = view.rawRequests.findLast(request => request.type === 'queryLogs');
-  view.receipt(request, { status: 'failed', effect: 'none', error: 'Preflight rejected' }); await view.tick();
-  assert.doesNotMatch(view.dom.window.document.querySelector('.log-actions [role="status"]').textContent, /讀取中/);
-  assert.match(view.dom.window.document.querySelector('.admin-log-panel [role="alert"]').textContent, /Preflight rejected/);
-  [...view.dom.window.document.querySelectorAll('.log-actions button')].find(button => button.textContent === '重新整理 Log').click(); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, 2);
 });
 
 test('responsiveness: versioned workspace patches reject gaps, request one resync and preserve independent deltas', async t => {
@@ -1317,27 +1307,27 @@ test('Git preserves saved themes and restores a manual choice after reopening', 
   }
 });
 
-test('settings opens the local admin screen with or without a GitLab connection', async (t) => {
+test('settings opens native Output with or without a connection or an active project operation', async (t) => {
   for (const connected of [true, false]) {
-    const data = { ...snapshot(), connected, ...(connected ? {} : { currentUser: undefined, group: undefined, connectedScope: undefined }) };
-    const view = await mount({ mode: 'developer' }, data);
+    const data = { ...snapshot(), connected, localOperationScope: 'local-root', projectOperationBusy: true,
+      ...(connected ? {} : { currentUser: undefined, group: undefined, connectedScope: undefined }) };
+    const view = await mount({ mode: 'developer' }, data, {}, () => {}, { autoOperations: false });
     t.after(() => view.dom.window.close());
     const document = view.dom.window.document;
     document.querySelector('.settings-trigger').click();
     await view.tick();
-    const open = [...document.querySelectorAll('.tool-drawer button')].find((button) => button.textContent === '開啟後臺管理');
+    const open = [...document.querySelectorAll('.tool-drawer button')].find((button) => button.textContent === '開啟 Log');
     assert.ok(open);
     assert.equal(open.disabled, false);
     open.click();
     await view.tick();
     assert.equal(document.querySelector('.tool-drawer'), null);
-    assert.equal(document.querySelector('.page-heading h1').textContent, '後臺管理');
-    assert.ok(document.querySelector('.admin-log-panel'));
-    assert.ok(view.requests.some((request) => request.type === 'setMode' && request.mode === 'admin'));
-    assert.ok(view.requests.some((request) => request.type === 'queryLogs'));
-    assert.equal(document.activeElement, document.querySelector('.page-heading h1'));
-    [...document.querySelectorAll('.log-actions button')].find((button) => button.textContent === '匯出篩選結果').click();
-    assert.equal(view.requests.at(-1).type, 'exportLogs');
+    assert.equal(document.querySelector('.page-heading h1').textContent, '我的工作');
+    assert.equal(document.querySelector('.admin-log-panel'), null);
+    assert.equal(view.savedState.mode, 'developer');
+    assert.deepEqual(view.requests.findLast(request => request.type === 'openLogs'), { type: 'openLogs' });
+    assert.equal(view.requests.some(request => ['setMode', 'queryLogs', 'setLogVisibility'].includes(request.type)), false);
+    assert.equal(view.rawRequests.findLast(request => request.type === 'openLogs').operationId, undefined, 'opening Output does not create a tracked read or write');
   }
 });
 
@@ -1408,54 +1398,40 @@ test('account menu supports selecting saved identities, logging in, adding and r
   assert.equal(view.requests.at(-1).type, 'disconnect');
 });
 
-test('offline Log administration filters and pages results, ignores stale replies, and exports the active query', async (t) => {
-  const data = { ...snapshot('admin'), connected: false, baseUrl: undefined, group: undefined };
-  const view = await mount({ mode: 'admin' }, data);
+test('legacy admin mode restores My Work while retaining saved selections and drafts', async (t) => {
+  const saved = { mode: 'admin', scopeKey: 'team-scope', selectedProjectIds: [2], selectedIds: { clone: 2 },
+    requirement: 'Preserve this analysis draft', reports: { '1:4': { text: 'Preserve this MR report', sha: '' } } };
+  const view = await mount(saved, snapshot('admin'));
   t.after(() => view.dom.window.close());
   const document = view.dom.window.document;
-  const first = view.requests.filter(request => request.type === 'queryLogs').at(-1);
-  assert.ok(first);
-  const search = document.querySelector('input[aria-label="搜尋 Log"]');
-  search.value = 'scan'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
-  await view.tick();
-  const filtered = view.requests.filter(request => request.type === 'queryLogs').at(-1);
-  assert.equal(filtered.query.search, 'scan');
-  const entry = { id: 'entry', timestamp: '2026-10-07T01:00:00.000Z', operationId: 'operation', feature: 'projects', action: 'scanRepositories', result: 'success', level: 'info', durationMs: 42 };
-  view.send({ type: 'logsPage', requestId: first.requestId, page: { entries: [{ ...entry, action: 'stale' }], total: 1, page: 0, pageSize: 100 } });
-  await view.tick();
-  assert.equal(document.querySelector('.log-table').textContent.includes('stale'), false);
-  view.send({ type: 'logsPage', requestId: filtered.requestId, page: { entries: [entry], total: 101, page: 0, pageSize: 100 } });
-  await view.tick();
-  document.querySelector('.log-table .status-link').click();
-  await view.tick();
-  assert.match(document.querySelector('.log-detail').textContent, /operation/);
-  [...document.querySelectorAll('.log-pagination button')].find(button => button.textContent === '下一頁').click();
-  await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'queryLogs').at(-1).query.page, 1);
-  [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '匯出篩選結果').click();
-  assert.equal(view.requests.at(-1).type, 'exportLogs');
-  assert.equal(view.requests.at(-1).query.search, 'scan');
-  [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '清除全部 Log').click();
-  assert.equal(view.requests.at(-1).type, 'clearLogs');
-  const before = view.requests.filter(request => request.type === 'queryLogs').length;
-  document.querySelector('.log-actions input[type="checkbox"]').click();
-  await view.tick();
-  view.send({ type: 'logsChanged' });
-  await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, before + 1, 'disabling live refresh makes one query and ignores notifications');
+  assert.equal(document.querySelector('.page-heading h1').textContent, '我的工作');
+  assert.equal(document.querySelector('.page').dataset.mode, 'developer');
+  assert.equal(view.savedState.mode, 'developer');
+  assert.deepEqual(view.savedState.selectedProjectIds, saved.selectedProjectIds);
+  assert.deepEqual(view.savedState.selectedIds, saved.selectedIds);
+  assert.equal(view.savedState.requirement, saved.requirement);
+  assert.deepEqual(view.savedState.reports, saved.reports);
+  assert.equal(view.requests.some(request => ['openLogs', 'queryLogs', 'setLogVisibility'].includes(request.type)), false, 'restoring the old page does not reveal Output automatically');
 });
 
-test('identical pending Log refreshes keep the shared request correlation and finish loading', async t => {
-  const view = await mount({ mode: 'admin' }, { ...snapshot('admin'), connected: false, baseUrl: undefined, group: undefined }, {}, () => {}, { autoOperations: false });
-  t.after(() => view.dom.window.close());
+test('opening Output keeps the active Repo, selected file and commit draft', async t => {
+  const view = await mountGit(t);
   const document = view.dom.window.document;
-  const first = view.requests.findLast(request => request.type === 'queryLogs');
-  const refresh = [...document.querySelectorAll('.log-actions button')].find(button => button.textContent === '重新整理 Log');
-  refresh.click(); refresh.click(); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'queryLogs').length, 1, 'same pending query joins its existing read');
-  view.send({ type: 'logsPage', requestId: first.requestId, page: { entries: [], total: 7, page: 0, pageSize: 100 } });
+  const draft = document.querySelector('.git-commit-composer textarea');
+  draft.value = 'Keep this commit draft'; draft.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
+  document.querySelector('.git-change-name').click(); await view.tick();
+  const before = structuredClone(view.savedState.gitUi);
+  const requestCount = view.requests.length;
+  document.querySelector('.settings-trigger').click(); await view.tick();
+  [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '開啟 Log').click();
   await view.tick();
-  assert.equal(document.querySelector('.log-actions [role="status"]').textContent, '7 筆紀錄');
+  assert.equal(document.querySelector('.tool-drawer'), null);
+  assert.equal(document.querySelector('.page').dataset.mode, 'git');
+  assert.equal(document.querySelector('.git-commit-composer textarea').value, 'Keep this commit draft');
+  assert.deepEqual(view.savedState.gitUi, before);
+  const requests = view.requests.slice(requestCount);
+  assert.equal(requests.filter(request => request.type === 'openLogs').length, 1);
+  assert.equal(requests.some(request => ['setMode', 'closeIssue', 'refresh', 'gitAction', 'queryLogs'].includes(request.type)), false);
 });
 
 test('offline local Repo inventory exposes every copy, scan progress, cancellation and registration errors', async (t) => {

@@ -22,7 +22,7 @@ function fixture() {
     workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(), mergeRequestSectionAborts: {},
     mergeRequestSectionGenerations: { diffs: 0, discussions: 0 }, workspaceSections: {}, gitWriteReceipts: new Map(), pendingViewNotices: [],
     groups: [], projects: [], issues: [], mergeRequests: [], groupIssueBoards: [], groupMilestones: [], projectSource: 'gitlab', developerView: 'list',
-    webviewMessagesSent: 0, webviewMessagesReceived: 0, logsVisible: true,
+    webviewMessagesSent: 0, webviewMessagesReceived: 0,
     refreshAbort: controller(), repositoryScanAbort: controller(), previewAbort: controller(), issueOpenAbort: controller(),
     issueBoardAbort: controller(), mergeRequestAbort: controller(), issueGraphAbort: controller(),
     session: { baseUrl: 'https://gitlab.test', selectedGroup: { id: 42 }, cachedRead: async (_key: string, load: any) => load({ listGroupMergeRequests: async () => [{ title: 'Updated' }] }) },
@@ -43,7 +43,7 @@ test('hidden panels abort reads, stop notifications and retain MR data and timer
   const controllers = [section, host.refreshAbort, host.repositoryScanAbort, host.issueOpenAbort, host.issueGraphAbort];
   host.panel.visible = false; host.suspendViewReads();
   for (const controller of controllers) assert.equal(controller.signal.aborted, true);
-  assert.equal(host.webviewReady, false); assert.equal(host.gitPanelReady, false); assert.equal(host.logsVisible, false);
+  assert.equal(host.webviewReady, false); assert.equal(host.gitPanelReady, false);
   assert.equal(host.workspaceSections.mergeRequests.status, 'idle');
   assert.equal(host.selectedMergeRequest.sections.diffs.status, 'idle');
   assert.deepEqual(host.selectedMergeRequest.diffs, ['cached']);

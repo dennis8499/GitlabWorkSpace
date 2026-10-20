@@ -243,7 +243,7 @@ function installHost(data) {
     if (message.type === 'reconcileOperations') { send(surface, { type: 'operationsSnapshot', snapshot: operationSnapshot(message.pendingIds) }); return; }
     if (message.type === 'gitReady') { send('dashboard', { type: 'gitRepositories', available: true, revision: 1, repositories: fixture.repositories }); return; }
     if (message.type === 'issueRequest' && message.request?.type === 'ready') return;
-    if (['gitAcknowledgeResult', 'setLogVisibility', 'setIssueGraphVisibility', 'cancelRepositoryDetails', 'markNotificationsRead', 'markAllNotificationsRead'].includes(message.type)) return;
+    if (['gitAcknowledgeResult', 'openLogs', 'setIssueGraphVisibility', 'cancelRepositoryDetails', 'markNotificationsRead', 'markAllNotificationsRead'].includes(message.type)) return;
     if (message.type === 'setMode') { perform(surface, message, receivedAt); return; }
     const action = message.type === 'perform' ? message.action : message.type;
     const write = message.type === 'submitAccountLogin' || message.type === 'gitAction' && !['open', 'refresh', 'readCommit', 'readDiff', 'history'].includes(message.action.type);

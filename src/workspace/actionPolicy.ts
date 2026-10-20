@@ -25,7 +25,6 @@ export const workspaceActionKinds = {
   removeNotification: 'control',
   clearNotifications: 'control',
   cloneSelection: 'control',
-  setLogVisibility: 'control',
   setIssueGraphVisibility: 'control',
   cancelRepositoryScan: 'control',
   cancelRepositoryOperation: 'control',
@@ -34,6 +33,7 @@ export const workspaceActionKinds = {
   setProjectSource: 'local',
   closeIssue: 'local',
   openAccountManager: 'local',
+  openLogs: 'local',
   addAccount: 'local',
   openLocalWorkspace: 'local',
   openExternal: 'local',
@@ -44,8 +44,6 @@ export const workspaceActionKinds = {
   gitOpenDiff: 'local',
   refresh: 'read',
   retryInstanceCheck: 'read',
-  queryLogs: 'read',
-  exportLogs: 'read',
   scanRepositories: 'read',
   selectIssueBoard: 'read',
   loadIssueGraph: 'read',
@@ -75,7 +73,6 @@ export const workspaceActionKinds = {
   disconnect: 'write',
   switchAccount: 'write',
   removeAccount: 'write',
-  clearLogs: 'write',
   selectGroup: 'write',
   mutateIssueRelations: 'write',
   selectProjectFolder: 'write',
@@ -201,7 +198,7 @@ export const quickActionKinds = {
   openBmad: 'read',
   openReviewer: 'read',
   openGit: 'read',
-  openAdmin: 'read',
+  openAdmin: 'local',
   openRepository: 'read',
   openNotifications: 'read',
   addAccount: 'read',
@@ -215,16 +212,16 @@ export const operationLabels: Record<string, string> = {
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
-  openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟後台管理', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
+  openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟 Log', openLogs: '開啟 Log', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
   refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', submitAccountLogin: '驗證帳號', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
   selectGroup: '切換 Group', selectProjectFolder: '辨識專案資料夾', selectProjectRoot: '選擇專案目錄', resetProjectRoot: '重新辨識專案目錄', scanRepositories: '掃描本機 Repo', clone: '下載／更新 Repo', syncRepos: '更新預設分支',
   refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', importWorkflowKitPackage: '匯入工作流程包', copySkillGuidePrompt: '複製提示詞', copy: '複製內容', openCodexTerminal: '開啟 Codex CLI',
   selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
   postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', submitTimeEntry: '送出工時',
-  queryLogs: '讀取操作紀錄', loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
+  loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
 };
 
-const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'queryLogs', 'gitOpenRepository']);
+const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'openBmadTerminal']);
@@ -235,7 +232,7 @@ const localWorkspaceActions = new Set([
   'installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource',
   'openWorkflowKitDownload', 'openCodexTerminal', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
-  'queryLogs', 'exportLogs', 'clearLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
+  'openLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
   'openAnalysis', 'openBmad', 'openGit', 'openAdmin', 'openRepository'
 ]);
 
@@ -243,7 +240,7 @@ const localWorkspaceActions = new Set([
 export function isLocalWorkspaceAction(value: string | { type: string; [key: string]: unknown }): boolean {
   if (typeof value === 'string') return localWorkspaceActions.has(value);
   const action = value.type === 'perform' ? String(value.action) : value.type;
-  if (action === 'refresh') return ['sa', 'bmad', 'git', 'admin'].includes(String(value.mode)) ||
+  if (action === 'refresh') return ['sa', 'bmad', 'git'].includes(String(value.mode)) ||
     value.mode === 'clone' && value.projectSource === 'local';
   if (action === 'confirmOperationResult' && value.recovery && typeof value.recovery === 'object') {
     const original = (value.recovery as { action?: unknown }).action;

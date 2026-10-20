@@ -36,6 +36,7 @@ import type {
   CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
 import type { WorkflowKitPackage } from './toolPackages';
+import { normalizeWorkspaceMode } from './workspaceProtocol';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote, normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import type { AccountOperation, AccountPanelIntent } from '../connection/accountProtocol';
@@ -50,7 +51,7 @@ import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
 import { isGitPanelRequest, isGitWriteAction } from '../git/gitProtocol';
 import type { GitPanelMessage } from '../git/gitProtocol';
-import type { LogContext, LogQuery } from '../logging/logProtocol';
+import type { LogContext } from '../logging/logProtocol';
 import type { LogOutcome } from '../logging/operationLog';
 import { logGitCommand } from '../git/gitCommandLog';
 import { localPathKey, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from '../git/repositoryScanner';
@@ -60,7 +61,7 @@ const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'admin']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
 
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 type ActionMetadata = Pick<WorkspaceRequest, 'operationId' | 'operationScope' | 'hostSessionId' | 'scopeEpoch'>;
@@ -86,9 +87,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private repositoryScanAbort?: AbortController;
   private repositoryOperationAbort?: AbortController;
   private inventoryGeneration = 0;
-  private logsVisible = false;
-  private logNotificationTimer?: ReturnType<typeof setTimeout>;
-  private logQueryAbort?: AbortController;
   private panel?: vscode.WebviewPanel;
   private readonly timer: IssueTimeTracker;
   private readonly packages: WorkflowKitPackageManager;
@@ -250,13 +248,6 @@ export class WorkspacePanel implements vscode.Disposable {
       else await pause();
       this.previewAbort?.abort(); this.previewGeneration++;
     });
-    if (session.log) context.subscriptions.push(session.log.onDidChange(() => {
-      if (!this.logsVisible || this.logNotificationTimer) return;
-      this.logNotificationTimer = setTimeout(() => {
-        this.logNotificationTimer = undefined;
-        if (this.logsVisible) this.post({ type: 'logsChanged' });
-      }, 500);
-    }));
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
       if (!event.affectsConfiguration(`gitlabWorkspace.${PROJECT_ROOT_SETTING}`)) return;
@@ -274,7 +265,7 @@ export class WorkspacePanel implements vscode.Disposable {
       vscode.Uri.joinPath(offlineRoot, 'manifest.json').fsPath,
       String(context.extension.packageJSON.version)
     );
-    this.activeMode = context.globalState.get<WorkspaceMode>(SELECTED_MODE_KEY, 'developer');
+    this.activeMode = normalizeWorkspaceMode(context.globalState.get<unknown>(SELECTED_MODE_KEY));
     this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
     this.gitRepositoryChanges = gitRepositories?.onDidChangeRepositoryList(() => {
@@ -307,7 +298,6 @@ export class WorkspacePanel implements vscode.Disposable {
     this.gitRepositories?.setActivePanelRepository(undefined);
     this.repositoryScanAbort?.abort(); this.previewAbort?.abort();
     this.repositoryOperationAbort?.abort();
-    if (this.logNotificationTimer) clearTimeout(this.logNotificationTimer);
     this.issueGraphGeneration++;
     this.issueGraphAbort?.abort();
     this.issueBoardAbort?.abort();
@@ -357,8 +347,7 @@ export class WorkspacePanel implements vscode.Disposable {
           this.gitRepositories?.setActivePanelRepository(undefined);
           if (this.gitRepositoryListTimer) { clearTimeout(this.gitRepositoryListTimer); this.gitRepositoryListTimer = undefined; }
           this.suspendViewReads();
-          this.panel = undefined; this.webviewReady = false; this.logsVisible = false;
-          if (this.logNotificationTimer) { clearTimeout(this.logNotificationTimer); this.logNotificationTimer = undefined; }
+          this.panel = undefined; this.webviewReady = false;
         }
       });
       panel.onDidChangeViewState(() => {
@@ -434,8 +423,6 @@ export class WorkspacePanel implements vscode.Disposable {
   getWebviewMessageCountsForTesting(): { sent: number; received: number } {
     return { sent: this.webviewMessagesSent, received: this.webviewMessagesReceived };
   }
-  private logQueryCount = 0;
-  getLogQueryCountForTesting(): number { return this.logQueryCount; }
 
   getNotificationOrigin(): NotificationOrigin {
     return { accountId: this.session.activeAccountId, baseUrl: this.session.baseUrl,
@@ -1047,31 +1034,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'removeAccount': await this.removeAccount(request.accountId); break;
       case 'scanRepositories': await this.scanRepositories(); break;
       case 'cancelRepositoryScan': this.repositoryScanAbort?.abort(); break;
-      case 'setLogVisibility': this.logsVisible = request.visible === true; if (!this.logsVisible) this.logQueryAbort?.abort(); break;
-      case 'queryLogs': {
-        if (typeof request.requestId !== 'string' || request.requestId.length > 128) return;
-        const generation = this.viewGeneration;
-        this.logQueryCount++;
-        this.logQueryAbort?.abort();
-        const controller = new AbortController(); this.logQueryAbort = controller;
-        const cancel = () => controller.abort();
-        this.viewReadAbort.signal.addEventListener('abort', cancel, { once: true });
-        try {
-          const page = await this.session.log?.query(validateLogQuery(request.query), controller.signal);
-          if (page && !controller.signal.aborted && generation === this.viewGeneration) this.post({ type: 'logsPage', requestId: request.requestId, page });
-        } finally { this.viewReadAbort.signal.removeEventListener('abort', cancel); if (this.logQueryAbort === controller) this.logQueryAbort = undefined; }
-        break;
-      }
-      case 'exportLogs': {
-        const destination = await vscode.window.showSaveDialog({ title: '匯出 GitLab Workspace Log', filters: { JSONL: ['jsonl'] }, defaultUri: vscode.Uri.file(path.join(os.homedir(), 'gitlab-workspace-logs.jsonl')) });
-        if (destination && this.session.log) { await this.session.log.exportTo(destination.fsPath, validateLogQuery(request.query), this.viewReadAbort.signal); this.post({ type: 'message', message: 'Log 已匯出。' }); }
-        break;
-      }
-      case 'clearLogs': {
-        const choice = await vscode.window.showWarningMessage('清除本機所有帳號的 GitLab Workspace Log？', { modal: true }, '清除全部 Log');
-        if (choice === '清除全部 Log') { await this.session.log?.clear(); this.post({ type: 'logsChanged' }); }
-        break;
-      }
+      case 'openLogs': await vscode.commands.executeCommand('gitlabWorkspace.showLogs'); break;
       case 'selectGroup': await this.selectGroup(request.groupId); break;
       case 'selectIssueBoard': await this.selectIssueBoard(request.boardId, request.connectedScope); break;
       case 'loadIssueGraph': await this.loadIssueGraph(request.connectedScope, request.forceNetwork === true); break;
@@ -1268,16 +1231,12 @@ export class WorkspacePanel implements vscode.Disposable {
     this.viewGeneration++;
     this.snapshotTransport?.reset();
     this.viewReadAbort.abort();
-    this.logQueryAbort?.abort();
     this.actualRepositoryScanAbort?.abort();
     this.webviewReady = false;
     this.gitPanelReady = false;
-    this.logsVisible = false;
     this.gitRepositories?.setActivePanelRepository(undefined);
     if (this.gitRepositoryListTimer) clearTimeout(this.gitRepositoryListTimer);
     this.gitRepositoryListTimer = undefined;
-    if (this.logNotificationTimer) clearTimeout(this.logNotificationTimer);
-    this.logNotificationTimer = undefined;
     this.refreshAbort?.abort();
     this.requestGeneration++;
     this.busy = false;
@@ -1444,7 +1403,6 @@ export class WorkspacePanel implements vscode.Disposable {
           this.workspaceRootError = context.error; this.cloneRootError = context.error;
           await this.refreshInventory();
         }
-        // Admin reads its local log query when the panel becomes active.
         return;
       }
       if (!this.session.baseUrl) {
@@ -3967,18 +3925,6 @@ async function git(cwd: string, args: string[], options: { maxBuffer?: number; e
 function checkedText(value: string, label: string, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\0\r]/.test(value)) throw new Error(`${label} 請填寫 1 到 ${max} 個字元。`);
   return value.trim();
-}
-
-export function validateLogQuery(value: unknown): LogQuery {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const input = value as Record<string, unknown>;
-  const query: LogQuery = {};
-  if (typeof input.page === 'number' && Number.isSafeInteger(input.page) && input.page >= 0) query.page = Math.min(input.page, 1000000);
-  for (const key of ['feature', 'accountId', 'search'] as const) if (typeof input[key] === 'string') query[key] = input[key].slice(0, 256);
-  if (input.level === 'info' || input.level === 'warn' || input.level === 'error') query.level = input.level;
-  if (['started', 'success', 'error', 'cancelled'].includes(String(input.result))) query.result = input.result as LogQuery['result'];
-  for (const key of ['from', 'to'] as const) if (typeof input[key] === 'string' && Number.isFinite(Date.parse(input[key]))) query[key] = new Date(input[key]).toISOString();
-  return query;
 }
 
 function readableError(error: unknown): string {

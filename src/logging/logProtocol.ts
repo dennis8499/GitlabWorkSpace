@@ -12,7 +12,6 @@ export interface LogContext {
 
 export interface OperationLogEntry extends LogContext {
   id: string;
-  timestamp: string;
   operationId: string;
   level: LogLevel;
   feature: string;
@@ -24,24 +23,4 @@ export interface OperationLogEntry extends LogContext {
   endpoint?: string;
   statusCode?: number;
   exitCode?: number;
-}
-
-export interface LogQuery {
-  page?: number;
-  feature?: string;
-  accountId?: string;
-  level?: LogLevel;
-  result?: LogResult;
-  search?: string;
-  from?: string;
-  to?: string;
-}
-
-export interface LogPage {
-  entries: OperationLogEntry[];
-  page: number;
-  total: number;
-  pageSize: number;
-  error?: string;
-  accounts?: Array<{ id: string; baseUrl?: string }>;
 }

@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-const vscode = { workspace: { workspaceFolders: [] as unknown[], isTrusted: false } };
+const executedCommands: string[] = [];
+const vscode = {
+  workspace: { workspaceFolders: [] as unknown[], isTrusted: false },
+  commands: { executeCommand: async (command: string) => { executedCommands.push(command); } }
+};
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = moduleLoader._load;
 moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : originalLoad(name, parent, main);
@@ -85,7 +89,6 @@ test('local page entries call only the relevant local adapters with or without a
     { mode: 'sa', expected: ['skills', 'inventory'] },
     { mode: 'bmad', expected: ['bmad'] },
     { mode: 'git', expected: ['git-refresh', 'git-list'] },
-    { mode: 'admin', expected: [] },
     { mode: 'clone', expected: ['inventory'] }
   ];
   for (const connected of [true, false]) for (const { mode, expected } of cases) await t.test(`${mode}, connected=${connected}`, async () => {
@@ -116,6 +119,22 @@ test('Skills identifies a local multi-Repo folder and becomes ready without an a
     assert.equal(host.workflowKitInstallTarget.root, root);
     assert.deepEqual(remote, []);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('opening Output preserves the active page and selection without refreshing adapters', async () => {
+  const { host, local, remote, messages } = fixture('reviewer', false);
+  const selectedMergeRequest = { request: { projectId: 101, iid: 4 }, draft: 'keep this reply' };
+  host.selectedMergeRequest = selectedMergeRequest;
+  const signal = host.viewReadAbort.signal;
+  const before = executedCommands.length;
+  await host.dispatchMessage({ type: 'openLogs' });
+  assert.deepEqual(executedCommands.slice(before), ['gitlabWorkspace.showLogs']);
+  assert.equal(host.activeMode, 'reviewer');
+  assert.equal(host.selectedMergeRequest, selectedMergeRequest);
+  assert.equal(signal.aborted, false);
+  assert.deepEqual(local, []);
+  assert.deepEqual(remote, []);
+  assert.deepEqual(messages, []);
 });
 
 test('remote page entries share the selected Group and load only their own data', async t => {

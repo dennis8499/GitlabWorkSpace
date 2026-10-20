@@ -18,6 +18,7 @@
     "onCommand:gitlabWorkspace.switchAccount",
     "onCommand:gitlabWorkspace.removeAccount",
     "onCommand:gitlabWorkspace.openAdmin",
+    "onCommand:gitlabWorkspace.showLogs",
     "onCommand:gitlabWorkspace.scanRepositories"
   ],
   "categories": [
@@ -130,13 +131,25 @@
       },
       {
         "command": "gitlabWorkspace.openAdmin",
-        "title": "GitLab Workspace: 後臺管理"
+        "title": "GitLab Workspace: 開啟 Log（相容命令）"
+      },
+      {
+        "command": "gitlabWorkspace.showLogs",
+        "title": "GitLab Workspace: 開啟 Log"
       },
       {
         "command": "gitlabWorkspace.scanRepositories",
         "title": "GitLab Workspace: 一鍵掃描工作區 Repo"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gitlabWorkspace.openAdmin",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "properties": {
         "gitlabWorkspace.projectRoot": {

@@ -8,14 +8,21 @@ import type { GitLabAccount, AccountOperation, AccountPanelIntent } from '../con
 import type { WorkflowKitPolicy } from './workflowKitPolicy';
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { ProjectRootContext } from './projectRootProtocol';
-import type { LogPage, LogQuery } from '../logging/logProtocol';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 
-export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git' | 'admin';
+export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
+
+/** Older versions persisted modes that no longer have a workspace page. */
+export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
+  switch (value) {
+    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': return value;
+    default: return 'developer';
+  }
+}
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
 export type ToolSource = 'gitea' | 'github' | 'bundled';
@@ -259,10 +266,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'addAccount'; accountId?: string }
   | { type: 'switchAccount'; accountId: string }
   | { type: 'removeAccount'; accountId: string }
-  | { type: 'queryLogs'; requestId: string; query: LogQuery }
-  | { type: 'exportLogs'; query: LogQuery }
-  | { type: 'clearLogs' }
-  | { type: 'setLogVisibility'; visible: boolean }
+  | { type: 'openLogs' }
   | { type: 'scanRepositories' }
   | { type: 'cancelRepositoryScan' }
   | { type: 'cancelRepositoryOperation' }
@@ -336,8 +340,6 @@ export type WorkspaceResponse =
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
   | { type: 'openAccountManager'; intent: AccountPanelIntent }
   | { type: 'accountLoginResult'; requestId: string; error?: string; name?: string }
-  | { type: 'logsPage'; requestId: string; page: LogPage }
-  | { type: 'logsChanged' }
   | GitPanelMessage
   | { type: 'snapshot'; snapshot: WorkspaceSnapshot; streamId?: string; version?: number; scope?: string }
   | { type: 'snapshotPatch'; streamId: string; scope: string; baseVersion: number; version: number; changes: Partial<WorkspaceSnapshot>; cleared: Array<keyof WorkspaceSnapshot> }

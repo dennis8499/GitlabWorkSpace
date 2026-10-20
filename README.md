@@ -18,10 +18,10 @@
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
 - 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
-- VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。後臺管理入口位於工作台設定。
+- VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。工作台設定提供「開啟 Log」入口。
 - 各頁進入或重新進入時載入自身資料一次，也可手動更新；停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後只更新受影響的資料。
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
-- 後臺管理可篩選、查看及匯出本機操作 Log；預設保留 30 天、最多 50 MB。
+- 操作 Log 使用 VS Code 原生 Output 面板的「GitLab Workspace」通道，提供原生時間、等級與 Log 等級設定；僅手動開啟，保存與輪替由 VS Code 管理。
 - 操作結果集中於訊息中心，支援未讀、詳情及清除；本次工作階段最多保留 500 筆，重開面板保留，Extension Host 重啟後清空。
 - Git GUI 採 GitKraken 風格三欄布局：左側分支導覽、中央彩色提交圖／Diff、右側變更與 Commit／Amend 表單。保留部分行暫存、Fetch／Pull／Push、Merge、互動式 Rebase、Cherry-pick、Revert、Stash 與 Reset；Git 狀態通知只標記快取失效，外部變更可重新進入版控或手動更新後查看。
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
@@ -108,11 +108,13 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**，再選 **連線 GitLab**。
 2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
-4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與後臺 Log 不需選擇 Group，亦可免登入使用。
+4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。
 5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。安裝「GitLab Workspace 工作流程包」：VSIX 內附版本可離線安裝，也可匯入 Release 的整包 ZIP。安裝前會檢查版本、內容摘要及舊工具安裝歸屬。
 6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製到相同根目錄的 Codex CLI 執行。也可選擇 Wiki 知識維護或分支審查功能。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
 8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。
+
+查看操作紀錄時，從工作台 **設定 → 開啟 Log**，或執行命令 **GitLab Workspace: 開啟 Log**，即可開啟並聚焦原生 Output 的「GitLab Workspace」通道。背景記錄與錯誤不會自動展開 Output，也不會切換工作台頁面。原生 Log 的保存與輪替交由 VS Code 管理；舊版自行保存的 JSONL 檔案不再讀取、不遷移，也不自動刪除。
 
 工作台的 **開啟 Codex CLI** 會在目前 Skills 情境所選的 Group 或 Repo 根目錄開啟整合式終端並執行 `codex`；Windows 固定使用 PowerShell，優先執行 `codex.exe`，其次為 `codex.cmd`。匯入與安裝工具需要 Python 3.11+。ZIP 匯入後會保存到 VS Code 持久儲存區，以 SHA-256 去重；即使刪除原始下載檔或重新啟動 VS Code，仍可再次安裝。
 

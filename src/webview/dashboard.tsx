@@ -7,6 +7,7 @@ import type {
   AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
+import { normalizeWorkspaceMode } from '../workspace/workspaceProtocol';
 import type { TimeEdit } from './issue-workflow';
 import { IssueGraphView } from './IssueGraph';
 import type { GraphCamera, GraphPosition } from './IssueGraph';
@@ -29,7 +30,6 @@ import { ActionController, type DispatchResult } from '../workspace/actionContro
 import { effectiveOperationScope } from '../workspace/actionPolicy';
 import { ActionContext, useActionSelector } from './useActions';
 import { GitControlPanel, type GitPanelUiState } from './GitControlPanel';
-import { AdminLogPanel } from './AdminLogPanel';
 import { LocalRepositoriesPanel } from './LocalRepositoriesPanel';
 import { AccountPanel } from './AccountPanel';
 import { accountStatus, type AccountPanelIntent } from '../connection/accountProtocol';
@@ -141,8 +141,7 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
   { id: 'sa', name: 'Skills 功能指引', short: '分析', icon: '⌕' },
   { id: 'bmad', name: 'BMAD 開發流程', short: 'BMAD 開發', icon: '◇' },
   { id: 'reviewer', name: '待審查', short: '待審查', icon: '⑂' },
-  { id: 'git', name: '版控', short: '版控', icon: '⑂' },
-  { id: 'admin', name: '後臺管理', short: '後臺管理', icon: '≡' }
+  { id: 'git', name: '版控', short: '版控', icon: '⑂' }
 ];
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
@@ -167,7 +166,7 @@ function wikiGuideScopeKey(scopeKey?: string, instanceUserScope?: string): strin
 let projectRevision: string | undefined;
 let operationScope = 'offline:none';
 let localOperationScope = 'local:none';
-let requestMode: WorkspaceMode = initial?.mode ?? 'developer';
+let requestMode: WorkspaceMode = normalizeWorkspaceMode(initial?.mode);
 let requestProjectSource: 'gitlab' | 'local' = initial?.projectSource ?? 'gitlab';
 const projectRequests = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'clone', 'syncRepos', 'openLocalWorkspace', 'installWorkflowKit']);
 const actions = new ActionController(message => vscode.postMessage({ ...message,
@@ -249,7 +248,7 @@ function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>();
   const [bmadUiByRoot, setBmadUiByRoot] = useState<Record<string, BmadPanelState>>(initial?.bmadUiByRoot ?? {});
   const issueEditorDrafts = useRef<Record<string, IssueEditorDraftState>>(initial?.issueEditorDrafts ?? {});
-  const [mode, setMode] = useState<WorkspaceMode>(initial?.mode ?? 'developer');
+  const [mode, setMode] = useState<WorkspaceMode>(normalizeWorkspaceMode(initial?.mode));
   const modeRef = useRef(mode);
   modeRef.current = mode;
   requestMode = mode;
@@ -587,9 +586,10 @@ function App() {
         const operation = message.snapshot.connectedScope && message.snapshot.cloneOperation?.scopeKey === message.snapshot.connectedScope && (!message.snapshot.cloneOperation.projectRevision || message.snapshot.cloneOperation.projectRevision === message.snapshot.projectContext?.revision) ? message.snapshot.cloneOperation : undefined;
         setCloneOperation(operation as Extract<WorkspaceResponse, { type: 'cloneOperation' }> | undefined);
         if (operation) applyCompletedSelection(operation);
-        if (modeRef.current !== message.snapshot.activeMode) setMobilePanel('list');
-        modeRef.current = message.snapshot.activeMode;
-        setMode(message.snapshot.activeMode);
+        const nextMode = normalizeWorkspaceMode(message.snapshot.activeMode);
+        if (modeRef.current !== nextMode) setMobilePanel('list');
+        modeRef.current = nextMode;
+        setMode(nextMode);
         setWorkflowKitSource(message.snapshot.workflowKitSource);
       } else if (message.type === 'issueNavigation') {
         setIssueNavigation(message.navigation);
@@ -1005,11 +1005,10 @@ function App() {
           {(gitPanelVisited || mode === 'git') && <GitControlPanel active={mode === 'git' && !issueNavigation} actions={actions} post={post} initialState={initial?.gitUi} onStateChange={gitUi => vscode.setState({ ...emptySaved(), ...vscode.getState(), gitUi })} />}
         </div>
         {mode !== 'git' && mode !== 'bmad' && <div class="page-heading"><div><div class="eyebrow">{remotePage ? snapshot.group?.full_path ?? 'GitLab 工作台' : '本機工作區'}</div><h1 tabIndex={-1}>{modes.find((item) => item.id === mode)?.name}</h1></div>
-          <div class="heading-actions">{mode !== 'admin' && mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}{mode !== 'admin' && <button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button>}</div></div>}
+          <div class="heading-actions">{mode !== 'clone' && <button class="quiet mobile-switch" type="button" onClick={() => setMobilePanel((current) => current === 'list' ? 'detail' : 'list')}>{mobilePanel === 'list' ? mode === 'developer' ? '查看預覽' : '查看詳情' : '返回清單'}</button>}<button class="quiet" type="button" disabled={busy} aria-busy={busy} onClick={() => post({ type: 'refresh' })}>{busy ? busyLabel : '更新資料'}</button></div></div>}
         {mode === 'clone' && <div class="toolbar project-tabs" role="group" aria-label="專案來源"><button type="button" class={(snapshot.connected && snapshot.group && projectTab === 'gitlab') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('gitlab')} disabled={!snapshot.connected || !snapshot.group}>GitLab 專案</button><button type="button" class={(!snapshot.connected || !snapshot.group || projectTab === 'local') ? 'primary' : 'quiet'} onClick={() => changeProjectSource('local')}>本機 Repo</button><button type="button" disabled={snapshot.repositoryScan?.status === 'scanning'} onClick={() => { changeProjectSource('local'); post({ type: 'scanRepositories' }); }}>一鍵掃描 Repo</button></div>}
         {mode !== 'git' && (
-        mode === 'admin' ? <AdminLogPanel accounts={snapshot.accounts ?? []} post={post} />
-          : mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
+        mode === 'clone' && (!snapshot.connected || !snapshot.group || projectTab === 'local') ? <LocalRepositoriesPanel repositories={snapshot.localWorkspaceRepositories ?? []} scan={snapshot.repositoryScan} projects={snapshot.projects} post={post} />
           : !snapshot.connected && mode !== 'sa' && mode !== 'bmad' ? <Empty title="先連線 GitLab" detail="完成連線後，再選擇工作群組以載入專案和指派給你的工作。" action="連線 GitLab" onAction={() => post({ type: 'connect' })} />
           : !snapshot.group && mode !== 'sa' && mode !== 'bmad' ? <Empty title="選擇 GitLab Group" detail="選定 Group 後，工作台會載入 Repo、Issues 與指派給你的 MR。" action="選擇 Group" onAction={() => post({ type: 'selectGroup' })} />
             : mode === 'clone' ? <div class="mode-content clone-mode-content">
@@ -1203,7 +1202,7 @@ function App() {
       onResetProjectRoot={() => post({ type: 'resetProjectRoot' })}
       onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
-      onOpenAdmin={() => { setToolDrawer(false); modeChange('admin'); requestAnimationFrame(() => document.querySelector<HTMLHeadingElement>('.page-heading h1')?.focus()); }}
+      onOpenLogs={() => { setToolDrawer(false); post({ type: 'openLogs' }); }}
       onClose={() => { setToolDrawer(false); setAccountIntent(undefined); requestAnimationFrame(() => {
         if (drawerReturnFocus.current?.isConnected) drawerReturnFocus.current.focus();
         else document.querySelector<HTMLButtonElement>('.settings-trigger')?.focus();
@@ -1244,14 +1243,14 @@ function Discussion({ disabled, discussion, reply, onReplyChange, onReply }: { d
   }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectProjectRoot, onResetProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenAdmin, onClose, section, onSection, accountIntent, post }: {
+function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectProjectRoot, onResetProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post }: {
   actions: ActionController; section: 'tools' | 'accounts'; onSection: (section: 'tools' | 'accounts') => void; accountIntent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
   snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
   onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
   onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
   onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void; onRetryInstance: () => void;
   onSelectProjectRoot: () => void; onResetProjectRoot: () => void;
-  onSelectGroup: () => void; onConnect: () => void; onOpenAdmin: () => void; onClose: () => void;
+  onSelectGroup: () => void; onConnect: () => void; onOpenLogs: () => void; onClose: () => void;
 }) {
   const status: Record<string, string> = { installed: '已安裝', missing: '尚未安裝', 'update-available': '可更新', 'needs-cleanup': '需先清理舊版', checking: '檢查中', installing: '安裝中', error: '檢查失敗' };
   const drawerRef = useRef<HTMLElement>(null);
@@ -1293,7 +1292,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
       </div>
     </section>
     <section class="workspace-settings"><h3>GitLab 專案來源</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>遠端群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 GitLab 群組</button></div></> : <><p>連線後可瀏覽 GitLab 專案、Issue 與 MR。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
-    <section class="workspace-settings"><h3>後臺管理</h3><p>查看、篩選與匯出本機操作紀錄。</p><button type="button" disabled={operationBusy} onClick={onOpenAdmin}>開啟後臺管理</button></section>
+    <section class="workspace-settings"><h3>操作紀錄</h3><p>在 VS Code 原生 Output 面板查看 GitLab Workspace Log。</p><button type="button" onClick={onOpenLogs}>開啟 Log</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>
       {snapshot.instance?.warnings.map((warning) => <p class="warning" role="status">{warning}</p>)}

@@ -1,6 +1,6 @@
 import { currentOperationLog, type OperationLog } from '../logging/operationLog';
 
-/** Keep command arguments, environments and command output out of the durable log. */
+/** Keep command arguments, environments and command output out of the native log channel. */
 export async function logGitCommand<T>(args: readonly string[], repositoryPath: string | undefined,
   task: () => Promise<T>, log: OperationLog | undefined = currentOperationLog()): Promise<T> {
   if (!log) return task();
