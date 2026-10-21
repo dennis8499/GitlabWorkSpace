@@ -130,7 +130,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '508e70cc5b9a47b4313aef2324a5
                      '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
                      '.agents/gitlab-workspace-kit/profile.md': '97e555f6d23d41fd03fc5d1ac4ea60b472c35b5afad36044124a6c1113b566e1',
                      '.agents/skills/codebase-wiki/SKILL.md': '80be38684e6f27d969dc548aa6bad997105f842bbf054d3af44ae2a439fbdf99',
-                     '.agents/skills/codebase-wiki/VERSION': 'c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c',
+                     '.agents/skills/codebase-wiki/VERSION': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e',
                      '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
                      '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
                      '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
@@ -275,7 +275,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '508e70cc5b9a47b4313aef2324a5
            'overlays': {'codebase-wiki': {'added': {},
                                           'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '80be38684e6f27d969dc548aa6bad997105f842bbf054d3af44ae2a439fbdf99',
                                                                                                  'upstream_sha256': 'bc1ae5a640047f825e0d7d1fc0f907de7df85c6b174cd0d6d13f314ca0811c1a'}}}},
-           'payloadSha256': 'a76302a5c489da9da0a1b43242bc81a32c6c257547b2bd1a30c1056eb9f1f82c',
+           'payloadSha256': '8fec3f188a63e20312b6253401d737cc8bb1c87eca53cf2ff1141949af7dddc3',
            'profileHashes': {'group-instructions.md': 'a0ebfc46c673b7419077be14c66439740bf7972dde9774cc25148274f0202d3c',
                              'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
                              'profile.md': '97e555f6d23d41fd03fc5d1ac4ea60b472c35b5afad36044124a6c1113b566e1'},
@@ -299,7 +299,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '508e70cc5b9a47b4313aef2324a5
                           '.agents/gitlab-workspace-kit/legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
                           '.agents/gitlab-workspace-kit/profile.md': '7c8e116d06615268df834fe363b7970f030b6d963aaa9bfb29686ea0810184bf',
                           '.agents/skills/codebase-wiki/SKILL.md': 'bc1ae5a640047f825e0d7d1fc0f907de7df85c6b174cd0d6d13f314ca0811c1a',
-                          '.agents/skills/codebase-wiki/VERSION': 'c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c',
+                          '.agents/skills/codebase-wiki/VERSION': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e',
                           '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
                           '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
                           '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
@@ -442,7 +442,7 @@ PROFILE_MANIFESTS = {'group': {'agentBlockSha256': '508e70cc5b9a47b4313aef2324a5
                           '.agents/skills/release-reviewer/scripts/review_session.py': '6cd4a5bbd0351fb1e65326c2823d19201cceb80be40e8565f47d8bd958053025',
                           '.agents/skills/release-reviewer/scripts/review_worklist.py': 'c978dad0dfa23d732092c34f52d49986ff74d841950a815d29e0e4501e2c41f9'},
                 'overlays': {},
-                'payloadSha256': 'c1214a2fa89cb05debab9303432555c92d58098dc47019ba13c9b458d1e4c646',
+                'payloadSha256': '0b3477d6117931dd4c96edcb8329aff10385017ac504f3728ca526ced4db8be0',
                 'profileHashes': {'group-instructions.md': '7eb0a4555bc0d9f3b65b85840bedaa10c88f602b9e741281f306d01cb8af3e5b',
                                   'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
                                   'profile.md': '7c8e116d06615268df834fe363b7970f030b6d963aaa9bfb29686ea0810184bf'},
@@ -462,23 +462,23 @@ WIKI_END = "<!-- codebase-wiki:managed:end -->"
 LEGACY_MARKERS = ('.gitlab-workspace/tool-manifests/codebase-wiki.json', '.gitlab-workspace/tool-manifests/merge-reviewer.json')
 UPSTREAM = {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
                    'repository': 'code-base-llm-wiki',
-                   'root': 'codebase-llm-wiki-codex-0.6.3',
-                   'sha256': '497aa0650d1ef4e5e044121f922712e217a0cc0eeaf1843702c39f990407d1c5',
-                   'version': '0.6.3'},
+                   'root': 'codebase-llm-wiki-codex-0.6.4',
+                   'sha256': '6e953a391962ae2ba3e70072b22a9df1cc2cf7c6a2dd756ac8fab24ddbd8bd6f',
+                   'version': '0.6.4'},
  'merge-reviewer': {'asset': 'merge-reviewer-0.16.0.zip',
                     'repository': 'MergeReviewer',
                     'root': '',
-                    'sha256': 'fe812f8c3b8b6141d0da90827dffd14fec8233b95a2838920668482678ac389b',
+                    'sha256': '2f6ef73de0d6b3b30d6e628c567fd03f65525305e8072b6b7a82215574ec5b19',
                     'version': '0.16.0'},
  'release-reviewer': {'asset': 'release-reviewer-0.6.0.zip',
                       'repository': 'ReleaseReviewer',
                       'root': '',
-                      'sha256': '1d8b1e750809d83125ba462678f6a0dfe02e77e9d4dc176dbbdb89cbe2ae3c7c',
+                      'sha256': '64451fda56a93d558667db721c2d281b02ee9e5a3ae04ef0a7d4a0cc9426b5a5',
                       'version': '0.6.0'}}
 PROFILE_HASHES = {'group-instructions.md': 'a0ebfc46c673b7419077be14c66439740bf7972dde9774cc25148274f0202d3c',
  'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
  'profile.md': '97e555f6d23d41fd03fc5d1ac4ea60b472c35b5afad36044124a6c1113b566e1'}
-SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.3 is single-codebase; GitlabWorkSpace overlay restores Group-relative '
+SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.4 is single-codebase; GitlabWorkSpace overlay restores Group-relative '
  'specifications and shared-Wiki rules.',
  'Native MergeReviewer 0.16.0 accepts one Repo and explicit base/head branches. Its Skill agent applies Code '
  'Review defect criteria to the diff and evidence-linked consumers after the first helper freezes base/head '
@@ -491,7 +491,7 @@ SOURCE_SUMMARY = ['Native Codebase LLM Wiki 0.6.3 is single-codebase; GitlabWork
  "editable manual checklist under the selected Repo's review-reports/ without an overlay."]
 AGENT_BLOCK_SHA256 = '508e70cc5b9a47b4313aef2324a5d35dcd2057303aab9535a98ca42b15b5959a'
 OVERLAY_HASHES = {'codebase-wiki': 'd506c19f42fd54b31d77f2e9175b46a00c62ad04166d03d734e8a25708bf0c27'}
-CURRENT_PAYLOAD_SHA256 = 'a76302a5c489da9da0a1b43242bc81a32c6c257547b2bd1a30c1056eb9f1f82c'
+CURRENT_PAYLOAD_SHA256 = '8fec3f188a63e20312b6253401d737cc8bb1c87eca53cf2ff1141949af7dddc3'
 CURRENT_SKILL_FILES = {'.agents/skills/merge-reviewer/SKILL.md': 'c3c55d1811f182080e74e1b736fa1372fc830c3ceb4f5553873acedc7567c644',
  '.agents/skills/merge-reviewer/VERSION': 'aa037454b5e8320521a32b278a3f4aff05fc79009ab5503f5d4a1b9a33b38c47',
  '.agents/skills/merge-reviewer/agents/openai.yaml': 'b5ed995d59e34d9d8f555a00f1dd30fc6593dda071f16e0eb8e58e4c5f3495f5',
@@ -9516,7 +9516,7 @@ def bmad_files(raw: dict[str, Any] | None) -> dict[str, str]:
 
 
 
-WIKI_INSTALLED_VERSION_SHA256 = 'c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c'
+WIKI_INSTALLED_VERSION_SHA256 = '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e'
 
 
 def external_bmad_path(value: str) -> bool:

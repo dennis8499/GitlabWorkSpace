@@ -142,14 +142,6 @@
         "title": "GitLab Workspace: 一鍵掃描工作區 Repo"
       }
     ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "gitlabWorkspace.openAdmin",
-          "when": "false"
-        }
-      ]
-    },
     "configuration": {
       "properties": {
         "gitlabWorkspace.projectRoot": {
@@ -177,6 +169,14 @@
         }
       },
       "title": "GitLab Workspace"
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gitlabWorkspace.openAdmin",
+          "when": "false"
+        }
+      ]
     },
     "views": {
       "gitlabWorkspace": [

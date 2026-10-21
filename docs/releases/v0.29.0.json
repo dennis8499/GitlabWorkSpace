@@ -1,0 +1,11 @@
+{
+  "candidate": "862a3026dfd9cf32733363671a9823e683fc41fc",
+  "dependencies": {
+    "code-base-llm-wiki": "3e06b7179fa583c2fdf699de9dad8404b6d3f8ed"
+  },
+  "previousTag": "v0.28.1",
+  "repository": "GitlabWorkSpace",
+  "runId": "20261021T004936Z-70582a53",
+  "schema": "workspace-release/v1",
+  "targetVersion": "0.29.0"
+}

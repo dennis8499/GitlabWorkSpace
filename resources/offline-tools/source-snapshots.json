@@ -36,14 +36,14 @@
   "schema": "GitLabWorkspaceSourceSnapshots/v1",
   "sources": {
     "codebase-wiki": {
-      "archiveSha256": "497aa0650d1ef4e5e044121f922712e217a0cc0eeaf1843702c39f990407d1c5",
-      "commit": "facc909f0f6c5fda38c4cd05c28187ed2ea063d0",
-      "dirty": true,
-      "entryRoot": "codebase-llm-wiki-codex-0.6.3",
-      "filename": "codebase-llm-wiki-codex-0.6.3.zip",
+      "archiveSha256": "6e953a391962ae2ba3e70072b22a9df1cc2cf7c6a2dd756ac8fab24ddbd8bd6f",
+      "commit": "3e06b7179fa583c2fdf699de9dad8404b6d3f8ed",
+      "dirty": false,
+      "entryRoot": "codebase-llm-wiki-codex-0.6.4",
+      "filename": "codebase-llm-wiki-codex-0.6.4.zip",
       "files": {
         ".agents/skills/codebase-wiki/SKILL.md": "bc1ae5a640047f825e0d7d1fc0f907de7df85c6b174cd0d6d13f314ca0811c1a",
-        ".agents/skills/codebase-wiki/VERSION": "c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c",
+        ".agents/skills/codebase-wiki/VERSION": "20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e",
         ".agents/skills/codebase-wiki/agents/openai.yaml": "9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f",
         ".agents/skills/codebase-wiki/assets/adr-template.md": "997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76",
         ".agents/skills/codebase-wiki/assets/architecture-template.md": "c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9",
@@ -147,18 +147,18 @@
         "AGENTS.md": "114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206",
         "Codex.md": "4ea168a0f4bd01148c76a16f0bde392d8295cabb15eed534f0f30f8523a2bcc2",
         "LICENSE": "7be3f03eb9f3cfb406d92a04a472b43f033d6be38b818ecc4a3723f9aef0e14c",
-        "README.md": "92bd09cb8454b6f38df643b54dc63e518effe025358a0f3062e6cf9683c18cc3",
-        "VERSION": "c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c"
+        "README.md": "794e82369138b3036326f0cbff8acadcb5b391f175f4b1d3ee9f8110088289bb",
+        "VERSION": "20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e"
       },
       "repository": "code-base-llm-wiki",
-      "sourceKind": "local-snapshot",
-      "treeSha256": "5a86cae87de15cad53bae3e738cbed9b4a2a9bcc9e3f7c3aa1f68e311e07f15f",
-      "version": "0.6.3"
+      "sourceKind": "official-release",
+      "treeSha256": "f4b314055b02df60e9cd40637e41255807dcbe7e1f33c4d901b9c56156c4c292",
+      "version": "0.6.4"
     },
     "merge-reviewer": {
-      "archiveSha256": "fe812f8c3b8b6141d0da90827dffd14fec8233b95a2838920668482678ac389b",
-      "commit": "5ece8f8a7529b2729fa9e3131b786a5e2b5e601b",
-      "dirty": true,
+      "archiveSha256": "2f6ef73de0d6b3b30d6e628c567fd03f65525305e8072b6b7a82215574ec5b19",
+      "commit": "2de5aee8b0d208266ebf497b5054d1da08df6fe0",
+      "dirty": false,
       "entryRoot": "merge-reviewer",
       "filename": "merge-reviewer-0.16.0.zip",
       "files": {
@@ -181,14 +181,14 @@
         "scripts/workspace_report.py": "f647dbd8297ad595dd126d4ec4f38595acb22b8f0aef98eec23622c451096fd0"
       },
       "repository": "MergeReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "2a7de58e0315b668a566618240f0d2f53d96fa9db98924b2db997635250fa89f",
       "version": "0.16.0"
     },
     "release-reviewer": {
-      "archiveSha256": "1d8b1e750809d83125ba462678f6a0dfe02e77e9d4dc176dbbdb89cbe2ae3c7c",
-      "commit": "a927d71188c3576bd32ace1d5fb77988b1299d92",
-      "dirty": true,
+      "archiveSha256": "64451fda56a93d558667db721c2d281b02ee9e5a3ae04ef0a7d4a0cc9426b5a5",
+      "commit": "b28175736faa0530add427dc4b3401442bf16a4c",
+      "dirty": false,
       "entryRoot": "release-reviewer",
       "filename": "release-reviewer-0.6.0.zip",
       "files": {
@@ -217,7 +217,7 @@
         "scripts/review_worklist.py": "c978dad0dfa23d732092c34f52d49986ff74d841950a815d29e0e4501e2c41f9"
       },
       "repository": "ReleaseReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "24a8f61dc97c873917cef728f36b1523d90a1de02b90ad22b4d4dea89dc42dc8",
       "version": "0.6.0"
     }

@@ -29,22 +29,22 @@ KIT_SKILLS = ("output-style",)
 PINNED_SOURCES = ({'id': 'codebase-wiki',
   'repository': 'code-base-llm-wiki',
   'asset': 'codebase-llm-wiki-codex.zip',
-  'filename': 'codebase-llm-wiki-codex-0.6.3.zip',
-  'version': '0.6.3',
-  'sha256': '497aa0650d1ef4e5e044121f922712e217a0cc0eeaf1843702c39f990407d1c5',
-  'root': 'codebase-llm-wiki-codex-0.6.3'},
+  'filename': 'codebase-llm-wiki-codex-0.6.4.zip',
+  'version': '0.6.4',
+  'sha256': '6e953a391962ae2ba3e70072b22a9df1cc2cf7c6a2dd756ac8fab24ddbd8bd6f',
+  'root': 'codebase-llm-wiki-codex-0.6.4'},
  {'id': 'merge-reviewer',
   'repository': 'MergeReviewer',
   'asset': 'merge-reviewer-0.16.0.zip',
   'filename': 'merge-reviewer-0.16.0.zip',
   'version': '0.16.0',
-  'sha256': 'fe812f8c3b8b6141d0da90827dffd14fec8233b95a2838920668482678ac389b'},
+  'sha256': '2f6ef73de0d6b3b30d6e628c567fd03f65525305e8072b6b7a82215574ec5b19'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
   'asset': 'release-reviewer-0.6.0.zip',
   'filename': 'release-reviewer-0.6.0.zip',
   'version': '0.6.0',
-  'sha256': '1d8b1e750809d83125ba462678f6a0dfe02e77e9d4dc176dbbdb89cbe2ae3c7c'})
+  'sha256': '64451fda56a93d558667db721c2d281b02ee9e5a3ae04ef0a7d4a0cc9426b5a5'})
 
 
 def digest(data: bytes) -> str:
