@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -73,6 +73,30 @@ test('a Repo and linked worktree use their own roots without promoting to the pa
     const linked = path.join(f.root, 'linked'); execFileSync('git', ['-C', repo, 'worktree', 'add', '--quiet', '--detach', linked, 'HEAD']);
     match = await f.inspect([linked]); assert.equal(match.root, canonical(linked)); assert.equal(match.profile, 'repository');
     assert.equal((await f.inspect([repo, linked])).status, 'ambiguous');
+  } finally { f.cleanup(); }
+});
+
+test('directory aliases select their actual Group or Repo while Repo subdirectories remain rejected', async () => {
+  const f = fixture(); try {
+    const repo = f.repo('service', projects[0].http_url_to_repo);
+    const groupAlias = path.join(f.base, 'Group alias');
+    const repoAlias = path.join(f.base, 'Repo alias');
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    symlinkSync(f.root, groupAlias, linkType);
+    symlinkSync(repo, repoAlias, linkType);
+    const group = await f.inspect([groupAlias]);
+    assert.equal(group.status, 'matched', group.reason ?? 'Group alias discovery succeeds');
+    assert.equal(group.profile, 'group'); assert.equal(group.root, groupAlias);
+    assert.deepEqual(group.repositories.map(item => item.path), [repo]);
+    const repository = await f.inspect([repoAlias]);
+    assert.equal(repository.status, 'matched', repository.reason ?? 'Repo alias discovery succeeds');
+    assert.equal(repository.profile, 'repository'); assert.equal(repository.root, repoAlias);
+    assert.equal(repository.repositories[0].projectId, 1);
+    mkdirSync(path.join(repo, 'src'));
+    const subdirectory = await f.inspect([path.join(repoAlias, 'src')]);
+    assert.equal(subdirectory.status, 'error');
+    assert.equal(subdirectory.root, path.join(repoAlias, 'src'));
+    assert.ok(subdirectory.reason?.includes(repo));
   } finally { f.cleanup(); }
 });
 

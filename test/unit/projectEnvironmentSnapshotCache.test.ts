@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -47,6 +47,26 @@ test('reuses verified local discovery and protects its retained value from UI mu
     f.cache.invalidate(f.root);
     await f.inspect(); assert.equal(f.discoveries(), 2);
     await f.cache.inspect(f.root, projects, matches, { scopeKey: 'account/group', forceRefresh: true });
+    assert.equal(f.discoveries(), 3);
+  } finally { f.cleanup(); }
+});
+
+test('a directory alias retains its selected root and validates cached remote changes', async () => {
+  const f = fixture(); try {
+    const repo = f.repo('first');
+    const alias = path.join(f.base, 'Group alias');
+    symlinkSync(f.root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const first = await f.inspect(alias);
+    assert.equal(first.status, 'matched', first.reason ?? 'Alias discovery succeeds');
+    assert.equal(first.root, alias); assert.equal(first.cloneRoot, alias);
+    assert.equal(first.repositories[0].projectId, 1);
+    assert.equal((await f.inspect(alias)).root, alias);
+    assert.equal(f.discoveries(), 1);
+    f.cache.invalidate(alias);
+    await f.inspect(alias); assert.equal(f.discoveries(), 2);
+    git(repo, 'remote', 'set-url', 'origin', projects[1].http_url_to_repo);
+    const changed = await f.inspect(alias);
+    assert.equal(changed.root, alias); assert.equal(changed.repositories[0].projectId, 2);
     assert.equal(f.discoveries(), 3);
   } finally { f.cleanup(); }
 });

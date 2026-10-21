@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { lstat, readdir } from 'node:fs/promises';
 import type { GitLabProject } from '../api/types';
-import { inspectWorkspaceFolder, sameLocalPath, type WorkspaceFolderInspection } from './workspacePaths';
+import { inspectWorkspaceFolder, sameLocalPath, sameRealLocalPathAsync, type WorkspaceFolderInspection } from './workspacePaths';
 import type { GroupWorkspaceMatch, WorkspaceRepositoryMatch } from './workspaceEnvironmentProtocol';
 export type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 
@@ -13,7 +13,7 @@ export async function inspectProjectEnvironment(root: string, projects: readonly
   try {
     const inspected = await inspectWorkspaceFolder(root, projects, matchesRemote, signal);
     if (inspected.kind === 'unavailable') return { status: 'error', root, reason: inspected.error, repositories };
-    if (!sameLocalPath(inspected.path, root)) return { status: 'error', root,
+    if (!await sameRealLocalPathAsync(inspected.path, root)) return { status: 'error', root,
       reason: '此資料夾位於 Git Repo 內；請開啟或設定 Git 根目錄：' + inspected.path, repositories };
     const profile = inspected.kind === 'directory' ? 'group' : 'repository';
     const add = (item: WorkspaceFolderInspection): void => {
