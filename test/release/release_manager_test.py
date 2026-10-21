@@ -183,6 +183,14 @@ class PlanningTests(GitFixture):
         self.assertIn('1.0.1 支援固定摘要驗證過的 0.9.0、1.0.0 升級與交易回復；保留內容。', text)
         self.assertIn('## 1.0.0 更新\nWiki 0.6.1', text)
 
+    def test_workspace_current_release_highlights_follow_pins_without_rewriting_older_history(self):
+        root = self.workspace / 'GitlabWorkSpace'
+        (root / 'README.md').write_text('# Workspace\n\n## 1.0.0 更新\nWiki 0.6.3\n\n## 0.9.0 更新\nWiki 0.6.3\n', encoding='utf-8')
+        release.refresh_workspace_readme(root, [('Wiki', '0.6.3', '0.6.4')], [])
+        text = (root / 'README.md').read_text(encoding='utf-8')
+        self.assertIn('## 1.0.0 更新\nWiki 0.6.4', text)
+        self.assertIn('## 0.9.0 更新\nWiki 0.6.3', text)
+
 
 class JournalTests(unittest.TestCase):
     def setUp(self):

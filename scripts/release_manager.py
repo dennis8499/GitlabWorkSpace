@@ -386,9 +386,11 @@ def refresh_workspace_readme(root, changes, predecessor_versions):
     if not path.is_file():
         return
     sections = re.split(r'(?m)(?=^## )', path.read_text(encoding='utf-8'))
+    current_version = json.loads((root / 'package.json').read_text(encoding='utf-8'))['version']
     supported = '、'.join(sorted(set(predecessor_versions), key=version_tuple))
     for index, section in enumerate(sections):
-        if re.match(r'^##\s+v?\d+\.\d+\.\d+\b', section):
+        heading = re.match(r'^##\s+v?(\d+\.\d+\.\d+)\b', section)
+        if heading and heading[1] != current_version:
             continue
         for alias, previous, version in changes:
             section = section.replace(alias + ' ' + previous, alias + ' ' + version)
