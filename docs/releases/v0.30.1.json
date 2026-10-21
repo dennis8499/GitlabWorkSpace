@@ -1,0 +1,9 @@
+{
+  "candidate": "cf10bfcc0e6f94b855f1c2a5c989784599a4fced",
+  "dependencies": {},
+  "previousTag": "v0.30.0",
+  "repository": "GitlabWorkSpace",
+  "runId": "20261021T151115Z-8ebed086",
+  "schema": "workspace-release/v1",
+  "targetVersion": "0.30.1"
+}
