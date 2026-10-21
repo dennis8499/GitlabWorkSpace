@@ -146,10 +146,19 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
                 self.assertEqual({"markdown_report"}, set(output))
                 self.assertTrue(report.name.startswith("release-review"))
                 body = report.read_text(encoding="utf-8")
-                self.assertEqual(f"# 上版檢查: {self.repo.name}", body.splitlines()[0])
-                self.assertEqual(["## 審查結論", "## 問題總攬", "## 問題詳情（工程師參考）",
-                                  "## 範圍與限制", "## 技術審查紀錄（工程師參考）"],
+                self.assertEqual("**已檢查範圍未發現阻擋**｜靜態檢查完成。Installed native helper integration fixture.",
+                                 body.splitlines()[0])
+                self.assertEqual(["## 比較資訊", "## 問題", "## 範圍與限制", "## 下一步", "## 技術審查紀錄"],
                                  [line for line in body.splitlines() if line.startswith("## ")])
+                self.assertIn(f"- Repo：`{self.repo.name}`", body)
+                self.assertIn(f"| 基礎分支 | `main` | `refs/heads/main` | `{self.base_sha[:8]}` |", body)
+                self.assertIn(f"| 比較分支 | `feature` | `refs/heads/feature` | `{self.head_sha[:8]}` |", body)
+                self.assertIn("問題數量：P0 0／P1 0", body)
+                self.assertIn("阻擋 0 項｜合併衝突 0 項｜待確認 0 項｜檢查缺口 0 項。", body)
+                self.assertIn("- 合併方向：`feature` → `main`", body)
+                self.assertIn(f"- 最終受審版本：`merge-preview`；`{manifest['merge_preview']['tree_sha']}`", body)
+                self.assertEqual(1, body.count("<details>"))
+                self.assertIn("### 靜態覆蓋", body.split("<details>", 1)[1])
                 self.assertNotIn("uncommitted local edit", body)
                 self.assertIn(self.head_sha, body)
                 self.assertEqual(existing_reports | {report}, set(report.parent.glob("release-review-*.md")))
@@ -216,6 +225,14 @@ class ReleaseReviewerIntegrationTests(unittest.TestCase):
         metadata = json.loads(base64.b64decode(re.search(r"release-review-report:([A-Za-z0-9+/=]+)", text).group(1)))
         self.assertEqual("pending-confirmation", metadata["release_assessment"])
         self.assertEqual(1, metadata["pending_count"])
+        self.assertEqual("**待核對上版條件**｜靜態檢查完成。Installed native helper integration fixture.",
+                         body.splitlines()[0])
+        scope = body.split("## 範圍與限制\n", 1)[1].split("\n## 下一步", 1)[0]
+        self.assertIn("### 新增部署依賴與人工核對", scope)
+        self.assertIn("#### C-001｜BILLING_URL", scope)
+        self.assertIn("<!-- release-checklist:start -->", scope)
+        self.assertIn("<!-- release-checklist:end -->", scope)
+        self.assertIn("### 人工核對紀錄", scope)
         edited = body.replace("| 待確認 | | | | |", "| 已確認 | SRE | 2026-10-14 | 已驗證部署注入 | |", 1)
         self.assertNotEqual(body, edited)
         fixed = edited.split("<!-- release-checklist:start -->")[0] + edited.split("<!-- release-checklist:end -->")[1]
