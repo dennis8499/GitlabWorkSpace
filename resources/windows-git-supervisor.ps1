@@ -201,6 +201,31 @@ public static class GitLabWorkspaceWindowsGitSupervisor {
         try { return ([BitConverter]::ToString($hash.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
         finally { $hash.Dispose() }
     }
+    function New-OwnedCacheDirectory([string]$target) {
+        if (-not [IO.Directory]::Exists($target)) {
+            Assert-OwnedLocalPath ([IO.Path]::GetDirectoryName($target)) $true
+            $security = [Security.AccessControl.DirectorySecurity]::new()
+            $security.SetOwner($currentSid)
+            $security.SetAccessRuleProtection($true, $false)
+            $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+                $currentSid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+            [IO.Directory]::CreateDirectory($target, $security) | Out-Null
+        }
+        # Never repair or take ownership of a pre-existing cache entry.
+        Assert-OwnedLocalPath $target $true
+    }
+    function Set-NewCompilerOutputOwner([string]$target) {
+        # Called only for outputs just created in our new private staging dir.
+        # Elevated Windows tokens can otherwise default to Administrators.
+        $attributes = [IO.File]::GetAttributes($target)
+        if (($attributes -band ([IO.FileAttributes]::ReparsePoint -bor [IO.FileAttributes]::Directory)) -ne 0) { throw 'Unsafe compiler output.' }
+        $security = [IO.File]::GetAccessControl($target)
+        if ($security.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $currentSid.Value) {
+            $security.SetOwner($currentSid)
+            [IO.File]::SetAccessControl($target, $security)
+        }
+        Assert-OwnedLocalPath $target $false
+    }
     $runtimeRoot = [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($request.receiptPath)))
     $cacheSafe = $true
     try { Assert-OwnedLocalPath $runtimeRoot $true } catch { $cacheSafe = $false }
@@ -210,21 +235,23 @@ public static class GitLabWorkspaceWindowsGitSupervisor {
         Add-Type -TypeDefinition $supervisorSource | Out-Null
     } else {
     $cacheRoot = Join-Path $runtimeRoot 'windows-git-supervisor-cache-v1'
-    [IO.Directory]::CreateDirectory($cacheRoot) | Out-Null
-    Assert-OwnedLocalPath $cacheRoot $true
+    New-OwnedCacheDirectory $cacheRoot
     $sourceSha = Bytes-Sha256 ([Text.Encoding]::UTF8.GetBytes($supervisorSource))
     $cacheEntry = Join-Path $cacheRoot $sourceSha
     if (-not [IO.Directory]::Exists($cacheEntry)) {
         if ([IO.File]::Exists($cacheEntry)) { throw 'Unsafe compiler cache entry.' }
         $staging = Join-Path $cacheRoot ('.build-' + [Guid]::NewGuid().ToString('N'))
-        [IO.Directory]::CreateDirectory($staging) | Out-Null
+        New-OwnedCacheDirectory $staging
         try {
             Assert-OwnedLocalPath $staging $true
             $builtAssembly = Join-Path $staging 'supervisor.dll'
             Add-Type -TypeDefinition $supervisorSource -OutputAssembly $builtAssembly | Out-Null
+            Set-NewCompilerOutputOwner $builtAssembly
             [byte[]]$builtBytes = [IO.File]::ReadAllBytes($builtAssembly)
             $manifest = @{ schema = 'GitLabWorkspaceWindowsGitCache/v1'; sourceSha256 = $sourceSha; binarySha256 = (Bytes-Sha256 $builtBytes) } | ConvertTo-Json -Compress
-            [IO.File]::WriteAllText((Join-Path $staging 'manifest.json'), $manifest, (New-Object Text.UTF8Encoding($false)))
+            $builtManifest = Join-Path $staging 'manifest.json'
+            [IO.File]::WriteAllText($builtManifest, $manifest, (New-Object Text.UTF8Encoding($false)))
+            Set-NewCompilerOutputOwner $builtManifest
             [IO.Directory]::Move($staging, $cacheEntry)
         } finally {
             # An interrupted staging directory contains no published executable.

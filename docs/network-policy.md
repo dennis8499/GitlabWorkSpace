@@ -39,6 +39,8 @@ Host key 忽略 scheme、port 及安裝子路徑，保守合併同 hostname；�
 
 POSIX 的 Git 主程序可能先於 transport helper 完成退出。工作台最多觀察 500 ms，期間仍持有槽位並接受取消／deadline；只有程序群確實消失才保留原始退出碼。helper 持續存在時終止程序群並回報未完成，無法確認終止時繼續保留鎖。
 
+Windows compiler cache 的新目錄及新編譯檔案明確由目前使用者持有，避免提升權限程序的 Administrators 預設擁有者造成差異。既有 cache 不會被接管或修權限；DLL 摘要、ACL、reparse point 及完整程序樹檢查維持必要條件。
+
 故障時先依 owner 的 PID、childPid、開始時間確認舊操作與所有子程序均已結束，再由操作人員處理該鎖目錄。不要在程序仍執行、PID 身分不明或缺少子程序資料時直接刪鎖。API 控制鎖異常同樣需要先檢查；已完成或取消的正常請求會自行清除預約。
 
 ## 站台容量界線
