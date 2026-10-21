@@ -107,7 +107,7 @@ class LocalReviewTargetsTests(unittest.TestCase):
                 report=Path(published); self.assertEqual(repo/'review-reports',report.parent)
                 self.assertRegex(report.name,rf'^merge-review-\d{{8}}T\d{{12}}Z-{base_sha[:8]}-{head_sha[:8]}\.md$')
                 text=report.read_text(encoding='utf-8')
-                self.assertEqual('**修正後再合併**｜發現具體問題。Static evidence formatting fixture.',text.splitlines()[0])
+                self.assertEqual('**可以合併**｜發現具體問題。Static evidence formatting fixture.',text.splitlines()[0])
                 self.assertEqual(['## 比較資訊','## 問題','## 範圍與限制','## 下一步','## 技術審查紀錄'],
                     [line for line in text.splitlines() if line.startswith('## ')])
                 self.assertIn('- Repo：`service`',text)

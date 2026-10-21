@@ -136,7 +136,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.29.0 的 VSIX 與組合包共用版本；整合 Wiki 0.6.4、MergeReviewer 0.16.0、ReleaseReviewer 0.7.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
+GitLab Workspace v0.29.0 的 VSIX 與組合包共用版本；整合 Wiki 0.6.4、MergeReviewer 0.17.0、ReleaseReviewer 0.7.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
