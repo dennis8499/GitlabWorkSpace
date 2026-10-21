@@ -209,3 +209,12 @@ candidate-v3 的來源與 [21 次定向試跑規格](../../../../.tmp/reviewer-q
 | RR-Q003 | 流程修正，定向通過 | 新版大型三次均取得十二個 Repo、追出四條鏈及 P1。例外限定實際診斷的確切 Repo 與當次 helper 程序，沒有全域設定或重用前次同步；無法取得的必要 HEAD 仍保持缺口。未知 ownership 的舊 context 未人工刪除。 |
 | QA-WIN001 | 已記錄支援限制 | 任意過深的自訂 Windows runtime 尚未驗證支援；缺失終止收據會保持封鎖。已驗證預設本機目錄及短的私有暫存路徑，未自動解除原 quarantine。 |
 | QA-RPT001 | 已記錄呈現限制 | 入口表格 fallback、部分正文省略搜尋 ID、既有 Topic schema 的預設類型標籤仍可精進；不影響本次固定來源、實際缺陷／缺口及部署核對判斷，不宣稱已消除。 |
+
+## 2026-10-21 正式發版追蹤
+
+上述本機候選紀錄保留原版號、來源身分及測量。正式發布流程另保存在工作區 `.release-evidence/`，不將歷史本機結果改寫為 CI 證明。
+
+- MergeReviewer 0.16.0 與 ReleaseReviewer 0.6.0 已通過各自四格 CI 並發布。Wiki 0.6.3 的 tag 發布因 Actions artifact 舊下載標頭回傳 HTTP 415，原 tag 保留；修正標頭、版本及七項來源的 Wiki 證據後，0.6.4 的完整 main 矩陣及 tag 發布均成功。
+- 發版工具支援已提交目標版本且完整 readiness 通過的 Wiki，不建立空提交；新計畫可核對並沿用前一輪已發布上游的正式 ZIP。當前版本 README 的來源版號同步，舊版本歷史保留。
+- Workspace 第一輪正式 CI 發現測試依賴 sibling Repo、Windows 測試的 PowerShell ACL 模組路徑，以及 Linux 新 Git 的 transport helper 退出時序。跨語言測試改從 Repo 內固定 SHA 的正式 Reviewer ZIP 取得原始 module；ACL fixture 改用 .NET API；POSIX 仍持有鎖並接受取消，確認程序群消失後才釋放，不以 500 ms 當作完成證據。
+- 修正後 Windows 定向 42 項中 39 通過、3 個 POSIX 案例略過；真正單獨 Workspace 的禁網 Linux 快照完整 651 項中 642 通過、9 個 OS 案例略過。Linux 映像與來源逐檔 SHA、原始 log、結果保存在 `.release-evidence/20261021T004936Z-70582a53/workspace-ci-fix/`；該容器沒有 sibling Reviewer。全新正式四格 CI 仍為 Workspace 發布的必要門檻。

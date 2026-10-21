@@ -84,15 +84,20 @@ export async function captureGitProcess(executable: string, args: readonly strin
     });
     child.once('close', code => {
       if (settled) return;
-      settled = true; cleanup();
-      if (!termination && !supervised) {
-        if (process.platform === 'win32' || !child.pid) processTreeConfirmed = true;
-        else {
-          try { process.kill(-child.pid, 0); stop(new Error('Git exited while a helper was still running; the result is incomplete.')); }
-          catch (error) { processTreeConfirmed = (error as NodeJS.ErrnoException).code === 'ESRCH'; }
+      settled = true;
+      void (async () => {
+        if (!termination && !supervised) {
+          if (process.platform === 'win32' || !child.pid) processTreeConfirmed = true;
+          else {
+            // Git can exit just before its local transport helper is reaped.
+            // Keep admission, cancellation and the deadline active while the
+            // whole group settles; elapsed time never confirms completion.
+            const groupExited = await waitForProcessGroupExit(child.pid, () => !!termination);
+            if (groupExited) processTreeConfirmed = true;
+            if (!groupExited && !termination) stop(new Error('Git exited while a helper was still running; the result is incomplete.'));
+          }
         }
-      }
-      void Promise.all([recording, termination ?? Promise.resolve()]).then(async () => {
+        await Promise.all([recording, termination ?? Promise.resolve()]);
         if (supervised && !termination) {
           try {
             const info = await lstat(receiptPath!);
@@ -104,9 +109,9 @@ export async function captureGitProcess(executable: string, args: readonly strin
             throw Object.assign(new Error('Git process-tree completion could not be confirmed; its network lease is quarantined.'), { cause: error });
           }
         }
-        if (interrupted) reject(interrupted);
-        else resolve({ code: code ?? -1, stdout: new TextDecoder().decode(Buffer.concat(output), { stream: truncated }), stderr: Buffer.concat(errors).toString('utf8'), truncated });
-      }).catch(reject);
+        if (interrupted) throw interrupted;
+        return { code: code ?? -1, stdout: new TextDecoder().decode(Buffer.concat(output), { stream: truncated }), stderr: Buffer.concat(errors).toString('utf8'), truncated };
+      })().then(resolve, reject).finally(cleanup);
     });
     if (supervised || options.input !== undefined) {
       child.stdin?.on('error', () => undefined);
@@ -123,6 +128,17 @@ export async function captureGitProcess(executable: string, args: readonly strin
       await lease.release();
     }
   }
+}
+
+async function waitForProcessGroupExit(pid: number, stopping: () => boolean): Promise<boolean> {
+  const deadline = performance.now() + 500;
+  while (!stopping()) {
+    try { process.kill(-pid, 0); }
+    catch (error) { return (error as NodeJS.ErrnoException).code === 'ESRCH'; }
+    if (performance.now() >= deadline) return false;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  return false;
 }
 
 export function isGitNetworkCommand(args: readonly string[]): boolean {

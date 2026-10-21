@@ -37,6 +37,8 @@ Host key 忽略 scheme、port 及安裝子路徑，保守合併同 hostname；�
 
 `git-network.lock` 必須等實際 Git 程序樹結束才釋放。owner 意外中止、缺少 metadata 或程序樹狀態不明時保留鎖並阻擋後續操作；不依檔案年齡或心跳逾時自動刪鎖。Windows 的短暫 sharing violation 僅有限重試，不放寬所有權檢查。
 
+POSIX 的 Git 主程序可能先於 transport helper 完成退出。工作台最多觀察 500 ms，期間仍持有槽位並接受取消／deadline；只有程序群確實消失才保留原始退出碼。helper 持續存在時終止程序群並回報未完成，無法確認終止時繼續保留鎖。
+
 故障時先依 owner 的 PID、childPid、開始時間確認舊操作與所有子程序均已結束，再由操作人員處理該鎖目錄。不要在程序仍執行、PID 身分不明或缺少子程序資料時直接刪鎖。API 控制鎖異常同樣需要先檢查；已完成或取消的正常請求會自行清除預約。
 
 ## 站台容量界線

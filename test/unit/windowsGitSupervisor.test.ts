@@ -81,7 +81,7 @@ test('verified Windows supervisor cache is reused on warm starts and a modified 
   // Temporary directories in the sandbox inherit a writable sandbox group.
   // Establish the same private per-user boundary as LocalAppData before caching.
   const secured = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-    '$p=[Console]::In.ReadToEnd(); $acl=Get-Acl -LiteralPath $p; $acl.SetAccessRuleProtection($true,$false); $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,"FullControl","ContainerInherit,ObjectInherit","None","Allow"); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $p -AclObject $acl'], { input: runtime, windowsHide: true });
+    '$directory=[IO.DirectoryInfo]::new([Console]::In.ReadToEnd()); $acl=$directory.GetAccessControl(); $acl.SetAccessRuleProtection($true,$false); $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $rule=[Security.AccessControl.FileSystemAccessRule]::new($sid,"FullControl","ContainerInherit,ObjectInherit","None","Allow"); $acl.AddAccessRule($rule); $directory.SetAccessControl($acl)'], { input: runtime, windowsHide: true });
   assert.equal(secured.status, 0, secured.stderr.toString());
   const started = performance.now();
   const cold = await start(t, 'git', ['--version'], 10_000, Buffer.alloc(0), runtime); await cold.done; assert.equal((await cold.receipt()).exitCode, 0);
