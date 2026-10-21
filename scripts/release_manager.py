@@ -678,13 +678,35 @@ class Runner:
                     and any(isinstance(target, ast.Name) and target.id == 'PINNED_SOURCES' for target in item.targets))
         pins = [dict(item) for item in pins]
         readme_changes = []
-        for name in self.spec('GitlabWorkSpace')['dependencies']:
+        for name in sorted(WORKSPACE_UPSTREAMS):
             row = self.spec(name)
-            sha = self.journal.state['repositories'][name]['releaseSha']
-            version = row['targetVersion']
-            data = (self.directory / 'downloads' / name / asset_name(name, version)).read_bytes()
-            entries = verify_source_archive(self.tree(name), name, version, data)
             tool = SPECS[name]['tool']
+            if not row['selected'] and snapshot['sources'][tool]['sourceKind'] == 'official-release':
+                continue
+            if row['selected']:
+                sha = self.journal.state['repositories'][name]['releaseSha']
+                version = row['targetVersion']
+                source = self.tree(name)
+                data = (self.directory / 'downloads' / name / asset_name(name, version)).read_bytes()
+            else:
+                # A previous run may have published an upstream before another
+                # dependency failed. Promote its exact formal bytes in the new
+                # plan without republishing or retaining local-snapshot pins.
+                version = row['baselineTag'][1:] if row['baselineTag'] else None
+                if version != snapshot['sources'][tool]['version']:
+                    raise ReleaseError('Local source snapshot has no matching formal release: ' + name)
+                sha, source = row['baseline'], self.workspace / name
+                if (git(source, 'rev-parse', 'HEAD') != row['candidate']
+                        or git(source, 'status', '--porcelain', '--untracked-files=all')):
+                    raise ReleaseError('Unchanged upstream source changed: ' + name)
+                # Verify canonical committed bytes, independent of the user's
+                # checkout line-ending settings (the isolated clone uses LF).
+                self.checkout(name)
+                source = self.tree(name)
+                files, record = self.downloads(name, version, sha, self.directory / 'downloads' / name)
+                data = files[asset_name(name, version)]
+                atomic_write(self.directory / 'verification' / (name + '-reused.json'), encoded(record))
+            entries = verify_source_archive(source, name, version, data)
             pin = next(item for item in pins if item['id'] == tool)
             readme_changes.append(('Wiki' if name == 'code-base-llm-wiki' else name, pin['version'], version))
             filename = ('codebase-llm-wiki-codex-' if name == 'code-base-llm-wiki' else tool + '-') + version + '.zip'
@@ -729,10 +751,23 @@ class Runner:
             sha = git(root, 'rev-parse', 'HEAD')
             self.journal.repo(name, releaseSha=sha)
             return {'sha': sha}
+        if name == 'code-base-llm-wiki':
+            previous = git(root, 'show', expected_parent + ':VERSION').strip()
+            if version_tuple(previous) > version_tuple(row['targetVersion']):
+                raise ReleaseError('Wiki target version cannot downgrade the candidate')
         bump_version(root, name, row['targetVersion'])
         if name == 'code-base-llm-wiki':
-            self.command(name, 'refresh-release-metadata', [sys.executable, '-X', 'utf8', '-B',
-                'tools/prepare_release.py', '--baseline', row['candidate'], '--version', row['targetVersion'], '--format', 'json'])
+            if previous == row['targetVersion']:
+                if git(root, 'status', '--porcelain', '--untracked-files=all'):
+                    raise ReleaseError('Already-versioned Wiki candidate changed during preparation')
+                checked = self.command(name, 'validate-existing-wiki', [sys.executable, '-X', 'utf8', '-B',
+                    '.agents/skills/codebase-wiki/scripts/export-notebooklm.py', '--root', str(root), '--preflight', '--format', 'json'])
+                report = json.loads(Path(checked['log']).read_text(encoding='utf-8').split('\n', 1)[1])
+                if report.get('ready_to_export') is not True:
+                    raise ReleaseError('Already-versioned Wiki must pass complete readiness before release')
+            else:
+                self.command(name, 'refresh-release-metadata', [sys.executable, '-X', 'utf8', '-B',
+                    'tools/prepare_release.py', '--baseline', row['candidate'], '--version', row['targetVersion'], '--format', 'json'])
         if name == 'GitlabWorkSpace':
             self.sync_workspace()
             self.command(name, 'assemble-kit', [sys.executable, '-X', 'utf8', '-B', 'scripts/build-workflow-kit.py'])
@@ -749,7 +784,8 @@ class Runner:
         atomic_write(notes_path, encoded(notes))
         git(root, 'diff', '--check')
         git(root, 'add', '--all')
-        git(root, 'commit', '-m', f'chore(release): prepare {name} v{row["targetVersion"]} [{self.plan["id"]}]')
+        if git(root, 'diff', '--cached', '--name-only'):
+            git(root, 'commit', '-m', f'chore(release): prepare {name} v{row["targetVersion"]} [{self.plan["id"]}]')
         sha = git(root, 'rev-parse', 'HEAD')
         self.journal.repo(name, releaseSha=sha)
         return {'sha': sha}

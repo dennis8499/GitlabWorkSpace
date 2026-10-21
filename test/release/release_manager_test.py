@@ -571,6 +571,104 @@ class ResumeTests(GitFixture):
         self.assertFalse((runner.tree('code-base-llm-wiki') / 'docs/releases').exists())
         self.assertTrue((journal.directory / 'notes/code-base-llm-wiki.json').is_file())
 
+    def versioned_wiki(self, ready=True):
+        root = self.workspace / 'code-base-llm-wiki'
+        (root / 'VERSION').write_text('1.0.1\n', encoding='utf-8')
+        release.git(root, 'add', 'VERSION')
+        release.git(root, 'commit', '-q', '-m', 'prepare version and analyzed Wiki')
+        plan, api = self.plan(changed=('code-base-llm-wiki',))
+        journal = release.Journal(self.root / 'evidence', plan=plan)
+        runner = release.Runner(journal, api)
+        runner.checkout('code-base-llm-wiki')
+        log = journal.directory / 'readiness.log'
+        log.write_text('[]\n' + json.dumps({'ready_to_export': ready}), encoding='utf-8')
+        runner.command = lambda name, label, command: {'log': str(log), 'exitCode': 0}
+        return runner, release.git(root, 'rev-parse', 'HEAD')
+
+    def test_already_versioned_wiki_reuses_exact_analyzed_commit_without_empty_commit(self):
+        runner, candidate = self.versioned_wiki()
+        with patch.object(runner, 'command', wraps=runner.command) as command:
+            result = runner.prepare('code-base-llm-wiki')
+        self.assertEqual({'sha': candidate}, result)
+        self.assertIn('export-notebooklm.py', ' '.join(command.call_args.args[2]))
+        self.assertEqual('', release.git(runner.tree('code-base-llm-wiki'), 'status', '--porcelain'))
+        self.assertEqual(result, runner.prepare('code-base-llm-wiki'))
+
+    def test_already_versioned_wiki_requires_ready_not_merely_zero_exit(self):
+        runner, _ = self.versioned_wiki(ready=False)
+        with self.assertRaisesRegex(release.ReleaseError, 'complete readiness'):
+            runner.prepare('code-base-llm-wiki')
+        self.assertNotIn('code-base-llm-wiki', runner.journal.state['repositories'])
+
+    def test_already_versioned_wiki_rejects_changed_source_and_downgrade(self):
+        runner, _ = self.versioned_wiki()
+        (runner.tree('code-base-llm-wiki') / 'unreviewed.txt').write_text('extra')
+        with self.assertRaisesRegex(release.ReleaseError, 'candidate changed'):
+            runner.prepare('code-base-llm-wiki')
+        runner.spec('code-base-llm-wiki')['targetVersion'] = '1.0.0'
+        with self.assertRaisesRegex(release.ReleaseError, 'downgrade'):
+            runner.prepare('code-base-llm-wiki')
+
+    def published_upstream_promotion(self, snapshot_version='1.0.0', archive_version=b'1.0.0\n'):
+        plan, api = self.plan(changed=('GitlabWorkSpace',))
+        journal = release.Journal(self.root / 'evidence', plan=plan)
+        runner = release.Runner(journal, api)
+        runner.checkout('GitlabWorkSpace')
+        root = runner.tree('GitlabWorkSpace')
+        snapshot = {'sources': {release.SPECS[name]['tool']: {
+            'sourceKind': 'local-snapshot' if name == 'MergeReviewer' else 'official-release',
+            'version': snapshot_version if name == 'MergeReviewer' else '1.0.0'}
+            for name in release.WORKSPACE_UPSTREAMS}, 'workspaceFiles': {}}
+        release.atomic_write(root / 'resources/offline-tools/source-snapshots.json', release.encoded(snapshot))
+        release.atomic_write(root / 'scripts/build-workflow-kit.py',
+            b"PINNED_SOURCES = ({'id': 'merge-reviewer', 'version': '1.0.0'},)\n")
+        release.atomic_write(root / 'resources/workflow-kit/trusted-predecessors.json', b'{"packages": []}')
+        data = zip_bytes({'merge-reviewer/VERSION': archive_version})
+        calls = []
+
+        def downloads(name, version, sha, destination):
+            calls.append((name, version, sha))
+            if name == 'MergeReviewer':
+                return {'merge-reviewer-1.0.0.zip': data}, {'sourceSha': sha}
+            self.assertEqual('GitlabWorkSpace', name)
+            return {'gitlab-workspace-1.0.0.vsix': zip_bytes({
+                'extension/resources/workflow-kit-installer.py': b'installer'})}, {}
+
+        runner.downloads = downloads
+        runner.command = lambda *args: {'exitCode': 0}
+        return runner, data, calls
+
+    def test_new_plan_promotes_already_published_upstream_using_verified_formal_bytes(self):
+        runner, data, calls = self.published_upstream_promotion()
+        with patch.object(release, 'freeze_predecessor'):
+            runner.sync_workspace()
+        snapshot = json.loads((runner.tree('GitlabWorkSpace') /
+            'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']['merge-reviewer']
+        self.assertEqual('official-release', snapshot['sourceKind'])
+        self.assertFalse(snapshot['dirty'])
+        self.assertEqual(self.heads['MergeReviewer'], snapshot['commit'])
+        self.assertEqual(release.digest(data), snapshot['archiveSha256'])
+        self.assertEqual(data, (runner.tree('GitlabWorkSpace') /
+            'resources/offline-tools/sources/merge-reviewer-1.0.0.zip').read_bytes())
+        self.assertEqual(['MergeReviewer', 'GitlabWorkSpace'], [row[0] for row in calls])
+        self.assertTrue((runner.directory / 'verification/MergeReviewer-reused.json').is_file())
+
+    def test_reused_upstream_rejects_nonmatching_version_before_download(self):
+        runner, _, calls = self.published_upstream_promotion(snapshot_version='1.0.1')
+        with self.assertRaisesRegex(release.ReleaseError, 'no matching formal release'):
+            runner.sync_workspace()
+        self.assertEqual([], calls)
+
+    def test_reused_upstream_rejects_changed_checkout_or_mismatched_archive(self):
+        runner, _, calls = self.published_upstream_promotion(archive_version=b'tampered\n')
+        with self.assertRaisesRegex(release.ReleaseError, 'differs from committed source'):
+            runner.sync_workspace()
+        calls.clear()
+        (self.workspace / 'MergeReviewer' / 'personal.txt').write_text('changed')
+        with self.assertRaisesRegex(release.ReleaseError, 'upstream source changed'):
+            runner.sync_workspace()
+        self.assertEqual([], calls)
+
     def test_tag_conflict_and_main_advance_prevent_remote_mutation(self):
         plan, api = self.plan()
         journal = release.Journal(self.root / 'evidence', plan=plan)

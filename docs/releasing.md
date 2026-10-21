@@ -21,6 +21,8 @@ python -X utf8 -B GitlabWorkSpace/scripts/release.py resume <run-id>
 
 `run` 會推送發版提交並建立正式 tag，請在已決定發版時執行。它使用 `.release-worktrees/<run-id>/<Repo>` 的獨立 clone 保留原工作樹，避免自訂深層證據目錄拉長 Windows 路徑；只允許 main 快進，不重設或強制推送。完成後可正常 fetch／快進本機 main，取得工具產生的版本與釘選提交。
 
+Wiki 候選若已提交目標版本，工具直接重驗完整 readiness，保留原 SHA，不要求再次升版或建立空提交。若先前部分發版已公開上游，而新計畫中的工作台仍保留同版本本機快照，工具會下載正式附件、核對固定來源內容後更新釘選；不重發既有上游，也不沿用未驗證的本機 ZIP。
+
 ## 執行順序
 
 1. 取得 workspace lock，核對固定輸入，在每次發版的獨立目錄準備版本與來源提交。
