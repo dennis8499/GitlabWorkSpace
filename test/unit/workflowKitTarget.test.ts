@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeFile } fr
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { OperationLog } from '../../src/logging/operationLog';
 
 const storageKey = 'gitlabWorkspace.workflowKit.installRoot';
 const skillsStorageKey = 'gitlabWorkspace.skills.repositoryRoot';
@@ -273,6 +274,162 @@ test('remote drift while choosing a package prevents installation', async t => {
   };
   await assert.rejects(host.installWorkflowKit('bundled'), /remote/);
   assert.equal(calls.filter(args => args[0] === 'install').length, 0);
+});
+
+test('a container install does not depend on child repository remotes', async t => {
+  const [group, repo] = await directories(t); const { host, calls } = fixture([group]);
+  const getPackage = host.packages.getPackage;
+  host.packages.getPackage = async () => {
+    execFileSync('git', ['-C', repo, 'remote', 'set-url', 'origin', 'https://different.test/team/service.git']);
+    return getPackage();
+  };
+  await host.installWorkflowKit('bundled');
+  assert.equal(calls.filter(args => args[0] === 'install').length, 1);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+});
+
+test('a target profile changed while choosing a package prevents installation', async t => {
+  const [group] = await directories(t); const { host, calls } = fixture([group]);
+  const getPackage = host.packages.getPackage;
+  host.packages.getPackage = async () => { execFileSync('git', ['init', '--quiet', group]); return getPackage(); };
+  await assert.rejects(host.installWorkflowKit('bundled'), /類型已變更/);
+  assert.equal(calls.filter(args => args[0] === 'install').length, 0);
+});
+
+test('the 18-repository settings and install replay performs only bounded root probes', async t => {
+  const [group] = await directories(t);
+  for (let index = 2; index < 18; index++) {
+    const root = path.join(group, `repo-${index}`); await mkdir(root);
+    execFileSync('git', ['init', '--quiet', root]);
+    execFileSync('git', ['-C', root, 'remote', 'add', 'origin', project(index + 1, `repo-${index}`).http_url_to_repo]);
+  }
+  const { host, calls } = fixture([group], true);
+  const inspect = host.inspectEnvironmentSnapshot.bind(host);
+  host.inspectEnvironmentSnapshot = async () => { throw new Error('Settings/install must not discover child repositories'); };
+  host.projectEnvironmentSnapshots = { clear: () => { throw new Error('Settings must not clear environment snapshots'); },
+    invalidate: () => { throw new Error('Install must not invalidate remote discovery'); } };
+  const lines: string[] = [];
+  const log = new OperationLog({ info: line => lines.push(line), warn: line => lines.push(line), error: line => lines.push(line) });
+  t.after(() => log.dispose());
+  const checkBudget = (rootBudget: number) => {
+    assert.equal(lines.filter(line => line.startsWith('[api]')).length, 0);
+    assert.equal(lines.filter(line => line.includes('"network":true')).length, 0);
+    assert.equal(lines.filter(line => /^\[git\] var started /.test(line)).length, 0);
+    const commands = lines.filter(line => /^\[git\] \S+ started /.test(line));
+    assert.ok(commands.length <= rootBudget, `expected at most ${rootBudget} root commands, received ${commands.length}`);
+    for (const line of commands) {
+      const metadata = JSON.parse(line.slice(line.indexOf('{')));
+      assert.equal(metadata.repositoryPath, group, 'no child repository commands are needed');
+      assert.match(line, /^\[git\] rev-parse started /);
+    }
+  };
+  await log.run('tools', 'settingsReplay', {}, () => host.dispatchMessage({ type: 'refreshWorkflowKit' }));
+  checkBudget(1);
+  assert.equal(host.workflowKitInstallTarget.profile, 'group');
+  assert.equal(host.workspaceMatch.status, 'unverified', 'target classification is not full Skills discovery');
+  lines.length = 0;
+  await log.run('tools', 'installReplay', {}, () => host.installWorkflowKit('bundled'));
+  checkBudget(3);
+  assert.equal(calls.filter(args => args[0] === 'install').length, 1);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.getSkillsContext().mode, 'unavailable');
+  delete host.projectEnvironmentSnapshots; host.inspectEnvironmentSnapshot = inspect;
+  await host.refreshWorkflowKit();
+  assert.equal(host.getSkillsContext().mode, 'group');
+  assert.equal(host.getSkillsContext().repositories.length, 18, 'Skills entry still performs complete discovery');
+  assert.ok(host.getSkillsContext().availableFeatures.includes('query'));
+});
+
+test('concurrent target checks coalesce without cancelling full Skills discovery', async t => {
+  const [group] = await directories(t); const { host } = fixture([group]);
+  let statusReads = 0;
+  const helper = host.runWorkflowKitHelper, inspect = host.inspectEnvironmentSnapshot.bind(host);
+  host.runWorkflowKitHelper = async (...args: any[]) => {
+    statusReads++; await new Promise(resolve => setTimeout(resolve, 20)); return helper(...args);
+  };
+  await Promise.all(Array.from({ length: 5 }, () => host.refreshWorkflowKitInstallState()));
+  assert.equal(statusReads, 1);
+  let release!: () => void, enter!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  host.inspectEnvironmentSnapshot = async (...args: any[]) => { enter(); await gate; return inspect(...args); };
+  const full = host.refreshWorkflowKit(); await entered;
+  const generation = host.skillsEnvironmentGeneration;
+  await host.refreshWorkflowKitInstallState();
+  assert.equal(host.skillsEnvironmentGeneration, generation, 'target checks do not supersede full discovery');
+  release(); await full;
+  assert.equal(host.workspaceMatch.status, 'matched');
+  assert.equal(host.getSkillsContext().repositories.length, 2);
+});
+
+test('settings status survives an aborted Skills-owned status refresh', async t => {
+  const [group] = await directories(t); const { host, installed } = fixture([group]);
+  installed.set(group, 'group');
+  const owner = new AbortController(), helper = host.runWorkflowKitHelper;
+  let release!: () => void, enter!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  let first = true;
+  host.runWorkflowKitHelper = async (...args: any[]) => {
+    if (first) { first = false; enter(); await gate; }
+    return helper(...args);
+  };
+  t.after(() => { owner.abort(); release(); });
+  const full = host.refreshWorkflowKit(true, owner.signal); await entered;
+  const settings = host.refreshWorkflowKitInstallState();
+  owner.abort(); release(); await Promise.all([full, settings]);
+  assert.equal(host.workflowKitInstallTarget.root, group);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workflowKitInstallTarget.state.profile, 'group');
+});
+
+test('an aborted view cannot supersede an already pending settings status', async t => {
+  const [group] = await directories(t); const { host, installed } = fixture([group]);
+  installed.set(group, 'group');
+  const owner = new AbortController(), helper = host.runWorkflowKitHelper;
+  let release!: () => void, enter!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  host.runWorkflowKitHelper = async (...args: any[]) => { enter(); await gate; return helper(...args); };
+  t.after(() => { owner.abort(); release(); });
+  const settings = host.refreshWorkflowKitInstallState(); await entered;
+  const view = host.refreshWorkflowKitInstallState(true, owner.signal);
+  owner.abort(); release(); await Promise.all([settings, view]);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+});
+
+test('a target-only root or profile change cannot retain another Skills mapping', async t => {
+  const [group, repo, other] = await directories(t); const { host, installed } = fixture([repo]);
+  await host.refreshWorkflowKit();
+  assert.equal(host.getSkillsContext().repositories[0].path, repo);
+  installed.set(other, 'repository'); configuredRoots.set(uri(repo).toString(), other);
+  await host.refreshWorkflowKitInstallState();
+  assert.equal(host.workflowKitInstallTarget.root, other);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workspaceMatch.status, 'unverified');
+  assert.deepEqual(host.getSkillsContext().repositories, []);
+  assert.deepEqual(host.getSkillsContext().availableFeatures, []);
+  configuredRoots.set(uri(repo).toString(), group); await host.refreshWorkflowKit();
+  assert.equal(host.getSkillsContext().mode, 'group');
+  execFileSync('git', ['init', '--quiet', group]);
+  await host.refreshWorkflowKitInstallState();
+  assert.equal(host.workflowKitInstallTarget.profile, 'repository');
+  assert.equal(host.workspaceMatch.status, 'unverified');
+  assert.deepEqual(host.getSkillsContext().repositories, []);
+});
+
+test('late target-only status cannot overwrite a newly selected root', async t => {
+  const [group, repo, other] = await directories(t); const { host } = fixture([repo]);
+  configuredRoots.set(uri(repo).toString(), group);
+  let finish!: (value: unknown) => void, enter!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; });
+  host.runWorkflowKitHelper = async (args: string[]) => args[1] === group
+    ? new Promise(resolve => { finish = resolve; enter(); }) : { ok: true, status: 'missing' };
+  const old = host.refreshWorkflowKitInstallState(); await entered;
+  configuredRoots.set(uri(repo).toString(), other); await host.refreshWorkflowKitInstallState();
+  finish({ ok: true, status: 'installed', version: 'old', profile: 'group' }); await old;
+  assert.equal(host.workflowKitInstallTarget.root, other);
+  assert.equal(host.workflowKitInstallTarget.state.status, 'missing');
 });
 
 test('replacing an inspected directory with an alias cannot redirect installation', async t => {

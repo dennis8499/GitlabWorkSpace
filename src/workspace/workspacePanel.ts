@@ -195,6 +195,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitHelperQueue?: Promise<void>;
   private workflowKitRefreshGeneration = 0;
   private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installation: WorkflowKitInstallTarget | undefined; signal?: AbortSignal; task: Promise<void> };
+  private workflowKitInstallRefreshGeneration = 0;
+  private workflowKitInstallRefreshTask?: { signature: string; installation: WorkflowKitInstallTarget | undefined; signal?: AbortSignal; task: Promise<void> };
+  private workflowKitInstallIdentity?: { revision: string; root?: string; profile?: 'group' | 'repository'; remoteFingerprint?: string };
   private operationTracker?: OperationTracker;
   private get operations(): OperationTracker { return this.operationTracker ??= new OperationTracker(operation => {
     this.notifications.recordOperation(operation);
@@ -1202,7 +1205,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
       case 'importWorkflowKitPackage': await this.importWorkflowKitPackage(request.source); break;
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
-      case 'refreshWorkflowKit': this.projectEnvironmentSnapshots?.clear(); await this.refreshWorkflowKit(); break;
+      case 'refreshWorkflowKit': await this.refreshWorkflowKitInstallState(); break;
       case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
       case 'selectWorkflowKitInstallRoot': await this.selectWorkflowKitInstallRoot(); break;
       case 'resetWorkflowKitInstallRoot': await this.resetWorkflowKitInstallRoot(); break;
@@ -1563,7 +1566,7 @@ export class WorkspacePanel implements vscode.Disposable {
         if (!current()) return;
         this.groups = groups;
       }
-      void this.session.ensureInstanceChecked().then(() => { if (current()) this.sendSnapshot(); }).catch(() => undefined);
+      void this.session.ensureMetadataChecked().then(() => { if (current()) this.sendSnapshot(); }).catch(() => undefined);
       const group = this.session.selectedGroup;
       if (!group) { this.clearRemoteGroupData(); return; }
       if (!this.groups.some(item => item.id === group.id)) {
@@ -1896,6 +1899,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.skillsEnvironmentGeneration++;
     this.workspaceMatch = { status: 'checking', repositories: [] };
     this.workflowKitRefreshGeneration++;
+    this.workflowKitInstallRefreshGeneration = (this.workflowKitInstallRefreshGeneration ?? 0) + 1;
     this.repositoryScanAbort?.abort();
     this.repositoryScanAbort = undefined;
     this.repositoryScan = { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: DEFAULT_SCAN_EXCLUDES };
@@ -3210,15 +3214,47 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!checked.root || !sameLocalPath(checked.root, root) || epoch !== this.session.connectionEpoch || group.id !== this.session.selectedGroup?.id ||
         workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group 或更新工作區已變更。');
       const client = (await this.session.getClient()).withReadSignal(repositoryAbort.signal);
+      const hasCompleteSyncMetadata = (project: GitLabProject): boolean => Number.isSafeInteger(project.id) && project.id > 0 &&
+        [project.path, project.path_with_namespace, project.http_url_to_repo].every(value => typeof value === 'string' && value.trim().length > 0) &&
+        (project.ssh_url_to_repo === null || typeof project.ssh_url_to_repo === 'string' && project.ssh_url_to_repo.trim().length > 0) &&
+        Object.prototype.hasOwnProperty.call(project, 'default_branch') && (project.default_branch === null || typeof project.default_branch === 'string') &&
+        typeof project.empty_repo === 'boolean';
+      let freshProjectsById: Map<number, GitLabProject> | undefined;
+      let syncProjects = existingProjects;
+      const removedProjects: Array<{ project: GitLabProject; reason: string }> = [];
+      // Servers that already omit required metadata keep the per-project path,
+      // avoiding a full collection read followed by the same detail requests.
+      if (existingProjects.every(hasCompleteSyncMetadata)) {
+        const freshProjects = await this.session.cachedRead(`group/${group.id}/projects`, readClient => readClient.listGroupProjects(group.id),
+          { force: true, reason: 'sync-repos', signal: repositoryAbort.signal });
+        repositoryAbort.signal.throwIfAborted();
+        const refreshed = await this.resolveProjectRoot();
+        if (!refreshed.root || !sameLocalPath(refreshed.root, root) || epoch !== this.session.connectionEpoch || group.id !== this.session.selectedGroup?.id ||
+          workspaceGeneration !== this.workspaceFoldersGeneration) throw new Error('Group 或更新工作區已變更。');
+        checkProject();
+        freshProjectsById = new Map(freshProjects.map(project => [project.id, project]));
+        syncProjects = existingProjects.filter(project => {
+          if (freshProjectsById!.has(project.id)) return true;
+          removedProjects.push({ project, reason: 'Repo 已不在目前 Group 的可存取清單，略過同步。' });
+          return false;
+        });
+      }
       const credentials = await this.session.getCloneCredentials();
+      repositoryAbort.signal.throwIfAborted();
       checkProject();
-      const results = await syncLocalDefaultBranches(root!, existingProjects, credentials.baseUrl, credentials.token, (event) => {
+      const results: Awaited<ReturnType<typeof syncLocalDefaultBranches>> = syncProjects.length ? await syncLocalDefaultBranches(root!, syncProjects, credentials.baseUrl, credentials.token, (event) => {
         const state = event.state === 'up-to-date' ? 'upToDate' : event.state;
         activeOperation.items = activeOperation.items.map((item) => item.projectId === event.project.id
           ? { ...item, state, percent: event.percent, message: event.message }
           : item);
         publishOperation(event.state !== 'progress');
-      }, { groupProjects, resolveProject: (project) => client.getProject(project.id), signal: repositoryAbort.signal });
+      }, { groupProjects, resolveProject: async (project) => {
+        if (!freshProjectsById) return client.getProject(project.id);
+        const fresh = freshProjectsById.get(project.id);
+        if (!fresh) throw new Error('Repo 已不在目前 Group 的可存取清單，略過同步。');
+        return hasCompleteSyncMetadata(fresh) ? fresh : client.getProject(project.id);
+      }, signal: repositoryAbort.signal }) : { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
+      results.skipped.push(...removedProjects);
       const touched = new Set([...results.updated, ...results.upToDate, ...results.skipped.map((item) => item.project), ...results.failed.map((item) => item.project)].map((project) => project.id));
       activeOperation.items = activeOperation.items.map((item) => touched.has(item.projectId) ? item : { ...item, state: 'skipped', message: '同步前本機 Repo 已不存在，略過更新' });
       for (const project of results.updated) activeOperation.items = activeOperation.items.map((item) => item.projectId === project.id ? { ...item, state: 'updated', percent: undefined, message: '預設分支已更新' } : item);
@@ -3871,7 +3907,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private async setWorkflowKitSource(source: ToolSource): Promise<void> {
     if (!['gitea', 'github', 'bundled'].includes(source)) throw new Error('Invalid workflow kit source.');
     await this.context.globalState.update(TOOL_SOURCE_KEY, source);
-    await this.refreshWorkflowKit();
+    await this.refreshWorkflowKitInstallState();
   }
 
   private workflowKitHelper(): string {
@@ -3879,7 +3915,8 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private getWorkflowKitPolicy(): WorkflowKitPolicy {
-    return workflowKitPolicy({ profile: this.workspaceMatch?.profile,
+    return workflowKitPolicy({ profile: this.workflowKitInstallTarget?.root && this.workflowKitInstallTarget.root === this.projectContext?.root
+      ? this.workflowKitInstallTarget.profile : this.workspaceMatch?.profile,
       workspaceChanging: this.pendingWorkspaceRefresh,
       hasWorkspace: !!vscode.workspace.workspaceFolders?.length });
   }
@@ -3969,7 +4006,6 @@ export class WorkspacePanel implements vscode.Disposable {
     const generation = ++this.workflowKitRefreshGeneration;
     const environmentGeneration = ++this.skillsEnvironmentGeneration;
     const signature = this.projectContextSignature();
-    const projects = this.projects;
     const installation = this.workflowKitInstallation;
     const current = () => !signal?.aborted && !this.disposed && generation === this.workflowKitRefreshGeneration && environmentGeneration === this.skillsEnvironmentGeneration &&
       signature === this.projectContextSignature() && installation === this.workflowKitInstallation;
@@ -3977,18 +4013,65 @@ export class WorkspacePanel implements vscode.Disposable {
     const match = context.root ? await this.inspectEnvironmentSnapshot(context.root, [], signal)
       : { status: 'unverified' as const, reason: context.error, repositories: [] };
     if (!current()) return;
-    if (context.folders.length === 1 && this.context.workspaceState.get<string>(PROJECT_FOLDER_KEY) !== context.selectedFolderUri) {
-      await this.context.workspaceState.update(PROJECT_FOLDER_KEY, context.selectedFolderUri);
-      if (!current()) return;
-    }
     this.projectContext = context; this.workspaceMatch = match;
     this.groupRoot = context.root; this.workspaceRootError = context.error ?? match.reason;
     this.cloneRoot = context.root; this.cloneRootError = context.error; this.cloneRootManual = context.manual;
     this.cloneRootScope = this.connectedScopeKey();
     void this.watchRepositoryRemotes(signal);
+    await this.refreshWorkflowKitInstallState(publish, signal, { context, checked: context.root ? {
+      root: context.root, profile: match.profile, error: context.error ?? (match.status === 'error' ? match.reason : undefined),
+      remoteFingerprint: match.repositories.find(repo => sameLocalPath(repo.path, context.root!))?.remoteFingerprint
+    } : undefined });
+    if (!current()) return;
+    if (this.activeMode === 'bmad' && this.panel?.visible !== false && this.webviewReady) {
+      void this.refreshBmadWorkflow().catch(error => this.post({ type: 'error', message: readableError(error) }));
+    }
+  }
+
+  /** Settings and installation need only the selected target, never its child repositories. */
+  private refreshWorkflowKitInstallState(publish = true, signal?: AbortSignal,
+    prepared?: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined }): Promise<void> {
+    const signature = this.projectContextSignature(), installation = this.workflowKitInstallation;
+    const pending = this.workflowKitInstallRefreshTask;
+    // Unowned settings/install reads can serve a view; a view-owned abort cannot own them.
+    if (pending && pending.signature === signature && pending.installation === installation &&
+        (!pending.signal || pending.signal === signal) && !pending.signal?.aborted) return pending.task;
+    const task = this.refreshWorkflowKitInstallStateNow(publish, signal, prepared);
+    const entry = { signature, installation, signal, task };
+    this.workflowKitInstallRefreshTask = entry;
+    void task.finally(() => { if (this.workflowKitInstallRefreshTask === entry) this.workflowKitInstallRefreshTask = undefined; }).catch(() => undefined);
+    return task;
+  }
+
+  private async refreshWorkflowKitInstallStateNow(publish = true, signal?: AbortSignal,
+    prepared?: { context: ProjectRootContext; checked: Awaited<ReturnType<typeof inspectWorkflowKitInstallRoot>> | undefined }): Promise<void> {
+    const generation = this.workflowKitInstallRefreshGeneration = (this.workflowKitInstallRefreshGeneration ?? 0) + 1;
+    const signature = this.projectContextSignature(), installation = this.workflowKitInstallation;
+    const current = () => !signal?.aborted && !this.disposed && generation === this.workflowKitInstallRefreshGeneration &&
+      signature === this.projectContextSignature() && installation === this.workflowKitInstallation;
+    const context = prepared?.context ?? await this.resolveProjectContext();
+    const checked = prepared ? prepared.checked
+      : context.root && !context.error ? await inspectWorkflowKitInstallRoot(context.root, signal) : undefined;
+    if (!current()) return;
+    if (context.folders.length === 1 && this.context.workspaceState.get<string>(PROJECT_FOLDER_KEY) !== context.selectedFolderUri) {
+      await this.context.workspaceState.update(PROJECT_FOLDER_KEY, context.selectedFolderUri);
+      if (!current()) return;
+    }
+    // Never combine a previous project's repository mapping with a newly selected root/profile.
+    if (this.projectContext?.revision !== context.revision ||
+        this.workspaceMatch?.root && (!context.root || !sameLocalPath(this.workspaceMatch.root, context.root)) ||
+        this.workspaceMatch?.profile && this.workspaceMatch.profile !== checked?.profile) {
+      this.workspaceMatch = { status: 'unverified', root: context.root, repositories: [], reason: context.error ?? checked?.error };
+    }
+    this.projectContext = context;
+    this.groupRoot = context.root; this.workspaceRootError = context.error ?? checked?.error;
+    this.cloneRoot = context.root; this.cloneRootError = context.error; this.cloneRootManual = context.manual;
+    this.cloneRootScope = this.connectedScopeKey();
     const target: WorkflowKitInstallTarget = installation ?? { root: context.root, manual: context.manual,
-      profile: match.profile, error: context.error ?? (match.status === 'error' ? match.reason : undefined),
+      profile: checked?.profile, error: context.error ?? checked?.error,
       state: { status: context.root ? 'checking' : 'missing' } };
+    this.workflowKitInstallIdentity = { revision: context.revision, root: context.root,
+      profile: checked?.profile, remoteFingerprint: checked?.remoteFingerprint };
     const sameRoot = this.skillsWorkflowKitStateRoot === context.root;
     this.workflowKitInstallTarget = target;
     this.workflowKitStateRoot = context.root; this.skillsWorkflowKitStateRoot = context.root;
@@ -4005,9 +4088,6 @@ export class WorkspacePanel implements vscode.Disposable {
     else if (state.status === 'error' && operation?.effect === 'applied') this.noteOutcome({ refreshError: state.message ?? 'Skills 已更新，但狀態檢查失敗。' });
     this.workflowKitInstallTarget = { ...target, state };
     if (!current()) return;
-    if (this.activeMode === 'bmad' && this.panel?.visible !== false && this.webviewReady) {
-      void this.refreshBmadWorkflow().catch(error => this.post({ type: 'error', message: readableError(error) }));
-    }
     if (publish) this.sendSnapshot();
   }
 
@@ -4050,7 +4130,7 @@ export class WorkspacePanel implements vscode.Disposable {
         verifiedSha256: inspected.sha256.toLowerCase()
       }, checkAccess);
       this.noteOutcome({ effect: 'applied' });
-      await this.reconcileAfterWrite(() => this.refreshWorkflowKit());
+      await this.reconcileAfterWrite(() => this.refreshWorkflowKitInstallState());
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} saved for offline installation.` });
     } finally { this.workflowKitImporting = false; this.sendSnapshot(); }
   }
@@ -4059,7 +4139,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (typeof packageId !== 'string' || !packageId) throw new Error('Select a workflow kit version first.');
     if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting) throw new Error('目前有技能包操作正在進行，請等候完成。');
     this.operationPhase('installWorkflowKit', '正在核對安裝位置與 Skills…');
-    await this.refreshWorkflowKit();
+    await this.refreshWorkflowKitInstallState();
     const checkAccess = this.captureWorkflowKitAccess();
     if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting) throw new Error('目前有技能包操作正在進行，請等候完成。');
     const target = this.workflowKitInstallTarget;
@@ -4069,8 +4149,10 @@ export class WorkspacePanel implements vscode.Disposable {
     }
     const root = target.root;
     const profile = target.profile ?? 'repository';
+    const identity = this.workflowKitInstallIdentity;
     this.workflowKitInstallation = { ...target, state: { ...target.state, status: 'installing' } };
     this.workflowKitRefreshGeneration++;
+    this.workflowKitInstallRefreshGeneration = (this.workflowKitInstallRefreshGeneration ?? 0) + 1;
     this.workflowKitInstallTarget = this.workflowKitInstallation;
     if (this.groupRoot && sameLocalPath(root, this.groupRoot)) this.workflowKitState = { status: 'installing' };
     this.sendSnapshot();
@@ -4084,15 +4166,21 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!validation.root || !sameLocalPath(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
       const selected = await this.packages.getPackage(packageId);
       checkAccess();
-      const environment = JSON.stringify(this.workspaceMatch);
       const beforeLaunch = async () => {
         checkAccess();
-        const match = await this.inspectEnvironment();
-        if (JSON.stringify(match) !== environment) throw new Error('Repo remote 或工作區已變更，請重新確認安裝。');
+        const context = await this.resolveProjectContext();
+        if (context.error || context.revision !== identity?.revision || !context.root || !sameLocalPath(context.root, root)) {
+          throw new Error(context.error ?? '工作區或安裝位置已變更，請重新確認安裝。');
+        }
         const location = await resolveWorkflowKitInstallRoot(root, undefined, []);
         if (location.error || !location.root || !sameLocalPath(location.root, root)) throw new Error(location.error ?? '安裝位置已變更，請重新選擇資料夾。');
         const checked = await inspectWorkflowKitInstallRoot(root);
-        if (checked.error || checked.profile !== profile) throw new Error(checked.error ?? '安裝資料夾類型已變更，請重新檢查安裝。');
+        if (checked.error || !checked.root || !sameLocalPath(checked.root, root) || checked.profile !== profile) {
+          throw new Error(checked.error ?? '安裝資料夾位置或類型已變更，請重新檢查安裝。');
+        }
+        if (profile === 'repository' && checked.remoteFingerprint !== identity?.remoteFingerprint) {
+          throw new Error('Repo remote 已變更，請重新確認安裝。');
+        }
         checkAccess();
       };
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
@@ -4108,8 +4196,7 @@ export class WorkspacePanel implements vscode.Disposable {
       throw error;
     } finally {
       this.workflowKitInstallation = undefined;
-      this.projectEnvironmentSnapshots?.invalidate(root);
-      await this.reconcileAfterWrite(() => this.refreshWorkflowKit());
+      await this.reconcileAfterWrite(() => this.refreshWorkflowKitInstallState());
     }
   }
 

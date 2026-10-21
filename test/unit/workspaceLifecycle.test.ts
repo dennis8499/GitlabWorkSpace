@@ -111,7 +111,7 @@ test('manual Workspace refresh reloads a ready empty MR list through the read ca
     repositoryStateKey: () => undefined,
     session: {
       baseUrl: 'https://gitlab.test', selectedGroup: group,
-      ensureInstanceChecked: async () => undefined, updateCurrentUser: async () => undefined,
+      ensureMetadataChecked: async () => undefined, updateCurrentUser: async () => undefined,
       cachedRead: (key: string, load: (readClient: GitLabClient) => Promise<unknown>, options: { force?: boolean; signal?: AbortSignal }) =>
         cache.get(key, signal => load(client.withReadSignal(signal)), options)
     }

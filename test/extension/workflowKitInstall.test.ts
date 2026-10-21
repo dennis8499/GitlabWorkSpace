@@ -92,7 +92,7 @@ suite('Local workflow kit installation', () => {
         watchRepositoryRemotes: async () => undefined,
         sendSnapshot: () => undefined, post: () => undefined
       });
-      await host.refreshWorkflowKit(false);
+      await host.refreshWorkflowKitInstallState(false);
       assert.equal(host.workflowKitInstallTarget.state.status, 'missing');
       await host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled' });
       assert.equal(host.workflowKitInstallTarget.root, root);
@@ -103,6 +103,8 @@ suite('Local workflow kit installation', () => {
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
       assert.equal((await readdir(root)).includes('_bmad'), false, 'The workflow kit cannot initialize BMAD');
+      assert.equal(host.getSkillsContext().mode, 'unavailable', 'settings classification does not fabricate full Skills discovery');
+      await host.refreshWorkflowKit(false);
       const skills = host.getSkillsContext();
       assert.equal(skills.root, root); assert.equal(skills.installed.status, 'installed');
       for (const profile of ['group', 'repository']) {

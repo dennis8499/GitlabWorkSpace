@@ -868,9 +868,12 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       else if (message.type === 'deleted') { busyRef.current = false; setMode('deleted'); setBusy(false); }
     };
     window.addEventListener('workspaceIssueResponse', handler as EventListener);
-    post({ type: 'ready' });
     return () => window.removeEventListener('workspaceIssueResponse', handler as EventListener);
   }, []);
+
+  useEffect(() => {
+    if (active && (!embedded || navigation)) post({ type: 'ready' });
+  }, [active, embedded, navigation?.revision]);
 
   const issue = detail?.issue;
   useEffect(() => {

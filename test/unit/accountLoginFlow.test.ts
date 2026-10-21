@@ -26,7 +26,7 @@ function fixture() {
       logMetadata.push({ feature, action, context }); return task();
     } };
   const session = new GitLabSession(secrets as any, globalState as any, true, workspaceState as any, log);
-  session.ensureInstanceChecked = async () => undefined;
+  session.ensureMetadataChecked = async () => undefined;
   let probes = 0;
   session.setFetchForTesting(async (_url, init) => {
     probes++;

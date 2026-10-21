@@ -63,12 +63,12 @@ export function resolveProjectWorkspaceRoot(
 }
 
 /** Installation profile follows the target folder, not the current Skills context. */
-export async function inspectWorkflowKitInstallRoot(root: string, signal?: AbortSignal): Promise<WorkspaceRootResolution & { profile?: 'group' | 'repository' }> {
+export async function inspectWorkflowKitInstallRoot(root: string, signal?: AbortSignal): Promise<WorkspaceRootResolution & { profile?: 'group' | 'repository'; remoteFingerprint?: string }> {
   const inspected = await inspectWorkspaceFolder(root, [], () => false, signal);
   if (inspected.kind === 'unavailable') return { root, error: inspected.error };
   if (inspected.kind === 'directory') return { root: inspected.path, profile: 'group' };
   if (!sameLocalPath(root, inspected.path)) return { root, error: `請選擇 Git 根目錄：${inspected.path}；不能安裝於 Repo 子目錄。` };
-  return { root: inspected.path, profile: 'repository' };
+  return { root: inspected.path, profile: 'repository', remoteFingerprint: inspected.remoteFingerprint };
 }
 
 /** Pick one Group root from VS Code's already-resolved workspace folders. */

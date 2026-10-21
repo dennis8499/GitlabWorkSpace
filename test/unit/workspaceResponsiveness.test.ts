@@ -20,7 +20,7 @@ function hostFixture(): any {
     groupIssueBoards: [], groupMilestones: [], context: { globalState: { get: () => undefined } },
     panel: { visible: true }, timer: { setScope: async () => undefined },
     session: { baseUrl: 'https://gitlab.test', selectedGroup: group, connectionEpoch: 1,
-      updateCurrentUser: async () => undefined, ensureInstanceChecked: async () => undefined,
+      updateCurrentUser: async () => undefined, ensureMetadataChecked: async () => undefined,
       cachedRead: async (key: string) => key === 'groups' ? [group] : key === 'current-user' ? user : key.endsWith('/projects') ? [project] : [] },
     sendSnapshot: () => undefined, setBusyOwner: () => undefined, syncTimerPolling: () => undefined,
     schedulePendingWorkspaceRefresh: () => undefined, refreshWorkflowKit: async () => undefined,

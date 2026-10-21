@@ -6,6 +6,9 @@ import test from 'node:test';
 import { issueGraphNodeKey } from '../../src/workspace/issueGraph';
 import { GitLabRequestBudget } from '../../src/api/gitLabRequestBudget';
 import { GitLabReadCache } from '../../src/api/gitLabReadCache';
+import type { Memento, SecretStorage } from 'vscode';
+import { GitLabSession } from '../../src/connection/session';
+import { ACCOUNTS_KEY, ACTIVE_ACCOUNT_KEY, accountId, accountTokenKey } from '../../src/connection/accountStore';
 
 const executedCommands: string[] = [];
 const vscode = {
@@ -66,7 +69,8 @@ function fixture(mode: string, connected = true) {
       },
       setSelectedGroup: async (group: unknown) => { host.session.selectedGroup = group; },
       updateCurrentUser: async () => undefined,
-      ensureInstanceChecked: async () => { remote.push({ resource: 'instance' }); }
+      ensureMetadataChecked: async () => { remote.push({ resource: 'metadata' }); },
+      ensureInstanceChecked: async () => { throw new Error('Page entry must not inspect the Issue schema'); }
     },
     issuePanels: { close: () => undefined, suspendReads: () => undefined },
     timer: { setScope: async () => undefined }, syncTimerPolling: () => undefined,
@@ -87,6 +91,50 @@ function fixture(mode: string, connected = true) {
   });
   return { host, client, remote, cacheReads, local, messages, context, groups };
 }
+
+test('a cold signed-in project entry makes four API reads and never initializes Issue features', async () => {
+  const { host, groups } = fixture('clone');
+  const baseUrl = 'https://gitlab.test';
+  const id = accountId(baseUrl, 7);
+  const values = new Map<string, unknown>([
+    [ACCOUNTS_KEY, [{ id, baseUrl, userId: 7, name: 'Me', username: 'me', needsLogin: false,
+      group: { id: groups[0].id, fullPath: groups[0].full_path } }]],
+    [ACTIVE_ACCOUNT_KEY, id]
+  ]);
+  const state: Memento = {
+    get: <T>(key: string, fallback?: T): T | undefined => values.has(key) ? values.get(key) as T : fallback,
+    update: async (key: string, value: unknown) => { values.set(key, value); },
+    keys: () => [...values.keys()]
+  };
+  const secrets: SecretStorage = {
+    get: async (key: string) => key === accountTokenKey(id) ? 'fixture-only-token' : undefined,
+    store: async () => undefined, delete: async () => undefined,
+    onDidChange: () => ({ dispose() {} })
+  };
+  const session = new GitLabSession(secrets, state, true);
+  const requests: string[] = [];
+  session.setFetchForTesting(async input => {
+    const endpoint = new URL(String(input)).pathname;
+    requests.push(endpoint);
+    let body: unknown;
+    if (endpoint === '/api/v4/user') body = { id: 7, name: 'Me', username: 'me' };
+    else if (endpoint === '/api/v4/groups') body = groups;
+    else if (endpoint === '/api/v4/metadata') body = { version: '16.11.10', enterprise: false };
+    else if (endpoint === '/api/v4/groups/42/projects') body = [];
+    else throw new Error(`Project entry must not request ${endpoint}`);
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  Object.assign(host, { session, currentUser: undefined, groups: [] });
+  await session.initialize({ allowNetwork: false });
+  await host.refresh({ reason: 'entry' });
+  await session.ensureMetadataChecked();
+  assert.deepEqual(requests.sort(), ['/api/v4/groups', '/api/v4/groups/42/projects', '/api/v4/metadata', '/api/v4/user']);
+  assert.equal(session.issueCapabilities, undefined);
+  assert.equal(session.capabilityDiagnostics.find(item => item.id === 'tasks')?.status, 'unknown');
+  await host.refresh({ reason: 'entry' });
+  await session.ensureMetadataChecked();
+  assert.equal(requests.length, 4, 're-entering the same fresh project page reuses its data');
+});
 
 test('workspace pages retain completed pages, bound full-load batches and continue from their next cursor', async () => {
   const { host, client } = fixture('clone');

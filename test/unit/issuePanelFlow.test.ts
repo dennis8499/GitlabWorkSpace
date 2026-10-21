@@ -13,6 +13,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
   const discussionGate = new Promise<void>((resolve) => { releaseDiscussions = resolve; });
   let internalIssueNavigations = 0;
   let optionReads = 0;
+  let instanceChecks = 0;
   let issueLinkReads = 0;
   let relatedMergeRequestReads = 0;
   let todoReads = 0;
@@ -41,7 +42,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     baseUrl: 'http://gitlab.internal.test:8929/gitlab',
     selectedGroup: { id: 1, full_path: 'group' }, metadata: { version: '18.4.0' },
     instanceWarnings: [], issueCapabilities: { hierarchy: false, childMutations: false, discussionResolve: false, createPermission: true, issuePermissionSource: 'issue', issuePermissionFields: ['updateIssue', 'adminIssue', 'createNote'] },
-    getClient: async () => signalClient, ensureInstanceChecked: async () => undefined,
+    getClient: async () => signalClient, ensureInstanceChecked: async () => { instanceChecks++; },
     cachedRead: async (_key: string, load: (readClient: GitLabClient, signal: AbortSignal) => Promise<unknown>) => load(signalClient, new AbortController().signal)
   } as unknown as GitLabSession;
   const messages: IssuePanelResponse[] = [];
@@ -69,6 +70,11 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     navigate: (navigation) => navigations.push(navigation), show: async () => undefined
   });
   try {
+    panels.suspendReads();
+    await host.handle({ type: 'ready' });
+    assert.deepEqual([optionReads, instanceChecks, messages.length], [0, 0, 0], 'a mounted hidden Issue view must not load its creation form or schema');
+    assert.equal((panels as unknown as { suspended: boolean }).suspended, true, 'a ready event without navigation cannot resume reads');
+    assert.equal((panels as unknown as { ready: boolean }).ready, false);
     const originalCapabilities = { ...session.issueCapabilities! };
     Object.assign(session.issueCapabilities!, { issuePermissionFields: [], issuePermissionSource: 'workItem', workItemScope: 'project', workItemPermissionFields: ['updateWorkItem', 'adminWorkItem', 'deleteWorkItem', 'createNote'] });
     Object.assign(client, { getWorkItemPermissions: async () => ({ updateWorkItem: true, adminWorkItem: false, deleteWorkItem: false, createNote: true }) });
@@ -80,6 +86,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     await panels.showCreate();
     assert.equal(navigations.at(-1)?.mode, 'create');
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'ready' });
+    assert.deepEqual([optionReads, instanceChecks], [1, 1], 'the first explicit creation navigation loads options and schema once');
     await (panels as unknown as { handle(message: unknown): Promise<void> }).handle({ type: 'create', projectId: 42, input: { title: issue.title } });
     const optionsAfterCreate = optionReads;
     const detail = [...messages].reverse().find((message) => message.type === 'detailData');
@@ -248,5 +255,11 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     assert.deepEqual(postedTimeNotes, ['review\n\n/spend 1h 30m 2026-10-03']);
     await assert.rejects(host.handle({ type: 'invoke', issueId: childLoadFailureIssue.id, action: 'spend', payload: { duration: '1h', spentDate: '2026-02-31' } }), /valid calendar date/i);
     assert.equal(postedTimeNotes.length, 1, 'invalid dates are rejected without submitting or retrying a write');
+    panels.close();
+    panels.suspendReads();
+    const closedReads = [optionReads, instanceChecks, messages.length];
+    await host.handle({ type: 'ready' });
+    assert.deepEqual([optionReads, instanceChecks, messages.length], closedReads, 'closing navigation prevents a late ready event from reopening a creation form');
+    assert.equal((panels as unknown as { suspended: boolean }).suspended, true);
   } finally { panels.dispose(); }
 });

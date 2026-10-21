@@ -341,6 +341,12 @@ export class GitLabSession {
     this.publishReadInvalidation({ groupIds: [], resource: 'all' });
   }
 
+  async ensureMetadataChecked(): Promise<void> {
+    const epoch = this.connectionEpochValue;
+    await this.checkMetadata(epoch);
+    this.publishInstanceChecks(epoch);
+  }
+
   async ensureInstanceChecked(options: { force?: boolean } = {}): Promise<void> {
     const epoch = this.connectionEpochValue;
     if (options.force) {
@@ -355,6 +361,10 @@ export class GitLabSession {
       this.currentInstanceWarnings = [];
     }
     await Promise.all([this.checkMetadata(epoch), this.checkCapabilities(epoch, options.force)]);
+    this.publishInstanceChecks(epoch);
+  }
+
+  private publishInstanceChecks(epoch: number): void {
     if (epoch === this.connectionEpochValue) {
       this.updateInstanceWarnings();
       for (const listener of this.instanceCheckListeners) {
@@ -527,7 +537,7 @@ export class GitLabSession {
   private async activateAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {
     await this.enqueueTransition(() => this.commitAccount(normalizedUrl, token, user, attempt));
     if (attempt !== this.connectionAttempt) throw staleConnectionError();
-    void this.ensureInstanceChecked().catch(() => undefined);
+    void this.ensureMetadataChecked().catch(() => undefined);
   }
 
   private async commitAccount(normalizedUrl: string, token: string, user: GitLabUser, attempt: number): Promise<void> {

@@ -1344,8 +1344,9 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
       const kitVersion = (snapshot.workflowKitPackages ?? []).find((item) => item.source === 'bundled')?.version ?? installed.version;
       return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
-        {snapshot.skillsContext && <p class="workflow-kit-skills-root">目前 Skills 工作位置：{snapshot.skillsContext.root ?? '尚未選擇'} · {status[snapshot.skillsContext.installed.status] ?? snapshot.skillsContext.installed.status}</p>}
-        {snapshot.skillsContext?.reason && <p class="subtle" role="status">{snapshot.skillsContext.reason}</p>}
+        <p class="workflow-kit-skills-root">目前 Skills 工作位置：{target?.root ?? '尚未選擇'} · {status[installed.status] ?? installed.status}</p>
+        {installed.profile && target?.profile && installed.profile !== target.profile &&
+          <p class="subtle" role="status">安裝的 Skills 流程與目前專案不同，請安裝對應流程。</p>}
         <p class="subtle workflow-kit-install-root">安裝位置：{target?.root ?? '尚未選擇資料夾'}{target?.manual ? '（手動指定）' : target?.root ? '（預設位置）' : ''}</p>
         <p class="subtle">位置由共用專案根目錄設定控制；切換位置後會顯示該位置的安裝狀態。</p>
         {target?.error && target.error !== policy.reason && <p class="warning" role="status">{target.error}</p>}

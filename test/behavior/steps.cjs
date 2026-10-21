@@ -23,6 +23,7 @@ class IssueWorld {
     this.dom.window.addEventListener('workspaceAction', (event) => this.workspaceActions.push(event.detail));
     this.dom.window.eval(bundle);
     await this.tick();
+    assert.equal(this.messages.filter(message => message.type === 'ready').length, 1, 'the standalone Issue view announces readiness by default');
   }
   async tick() { await new Promise((done) => setTimeout(done, 120)); }
   async send(data) {

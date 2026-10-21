@@ -22,7 +22,7 @@ class Secrets {
 }
 function fixture(global = new State(), workspace = new State(), secrets = new Secrets()) {
   const session = new GitLabSession(secrets as unknown as SecretStorage, global, true, workspace);
-  session.ensureInstanceChecked = async () => undefined;
+  session.ensureMetadataChecked = async () => undefined;
   session.setFetchForTesting(async (_url, init) => {
     const token = new Headers(init?.headers).get('PRIVATE-TOKEN');
     if (!token || token === 'invalid') return new Response('{}', { status: 401 });
@@ -32,13 +32,13 @@ function fixture(global = new State(), workspace = new State(), secrets = new Se
   return { session, global, workspace, secrets };
 }
 
-test('authenticated login finishes before an optional capability probe', { timeout: 10_000 }, async () => {
+test('authenticated login finishes before an optional metadata probe', { timeout: 10_000 }, async () => {
   const { session } = fixture();
   let finish!: () => void;
   let probing = false;
   let started!: () => void;
   const probeStarted = new Promise<void>(resolve => { started = resolve; });
-  session.ensureInstanceChecked = async () => { probing = true; await new Promise<void>(resolve => { finish = resolve; started(); }); };
+  session.ensureMetadataChecked = async () => { probing = true; await new Promise<void>(resolve => { finish = resolve; started(); }); };
   let connected = false;
   const login = session.connect('https://gitlab.example.test', 'one').then(() => { connected = true; });
   await probeStarted;
@@ -47,7 +47,7 @@ test('authenticated login finishes before an optional capability probe', { timeo
   assert.ok(probing);
   const completedWithoutProbe = connected;
   finish(); await login;
-  assert.ok(completedWithoutProbe, 'optional schema probing must not block authenticated login');
+  assert.ok(completedWithoutProbe, 'optional metadata probing must not block authenticated login');
 });
 
 test('stores different servers and users independently and restores each selected Group', async () => {

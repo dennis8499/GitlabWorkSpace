@@ -71,6 +71,52 @@ async function sessionWithInstance(metadata: Promise<GitLabMetadata>): Promise<G
   return session;
 }
 
+test('metadata-only entry shares its pending read and leaves schema probing until Issue entry', async () => {
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore());
+  let metadataRequests = 0, capabilityRequests = 0, notifications = 0;
+  let releaseMetadata!: (value: GitLabMetadata) => void;
+  const metadata = new Promise<GitLabMetadata>(resolve => { releaseMetadata = resolve; });
+  const capabilities = { hierarchy: false, discussionResolve: true } as GitLabIssueCapabilities;
+  (session as unknown as { getClient: () => Promise<GitLabClient> }).getClient = async () => ({
+    getMetadata: () => { metadataRequests++; return metadata; },
+    getIssueCapabilities: async () => { capabilityRequests++; return capabilities; }
+  } as unknown as GitLabClient);
+  session.onDidChangeInstanceChecks(() => { notifications++; });
+
+  const entry = session.ensureMetadataChecked();
+  const repeatedEntry = session.ensureMetadataChecked();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual([metadataRequests, capabilityRequests], [1, 0]);
+  releaseMetadata({ version: '16.11.10', enterprise: false });
+  await Promise.all([entry, repeatedEntry]);
+  await session.ensureMetadataChecked();
+  assert.deepEqual([metadataRequests, capabilityRequests], [1, 0]);
+  assert.equal(session.issueCapabilities, undefined);
+  assert.equal(session.metadata?.version, '16.11.10');
+  assert.ok(notifications > 0, 'version diagnostics still notify their consumers');
+
+  await Promise.all([session.ensureInstanceChecked(), session.ensureInstanceChecked()]);
+  assert.deepEqual([metadataRequests, capabilityRequests], [1, 1]);
+  assert.deepEqual(session.issueCapabilities, capabilities);
+});
+
+test('authenticated activation reads version metadata without probing Issue schema', async () => {
+  const session = new GitLabSession(new MemorySecrets() as unknown as SecretStorage, new MemoryStore(), true);
+  const requests: string[] = [];
+  session.setFetchForTesting(async url => {
+    const pathname = new URL(String(url)).pathname;
+    requests.push(pathname);
+    const body = pathname === '/api/v4/user'
+      ? { id: 7, username: 'tester', name: 'Tester' }
+      : { version: '16.11.10', enterprise: false };
+    return new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+  });
+  await session.connect('https://gitlab.example.test', 'unit-only-lazy-schema-token');
+  await session.ensureMetadataChecked();
+  assert.deepEqual(requests, ['/api/v4/user', '/api/v4/metadata']);
+  assert.equal(session.issueCapabilities, undefined);
+});
+
 test('recognizes CE 16.11.10 as the minimum and keeps edition limits in capability diagnostics', async () => {
   const session = await sessionWithInstance(Promise.resolve({ version: '16.11.10-ee', enterprise: false }));
   assert.equal(session.issueCapabilities?.hierarchy, false);

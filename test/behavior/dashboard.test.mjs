@@ -9,6 +9,42 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('hidden Issue views do not announce readiness on any workspace page without navigation', async t => {
+  for (const mode of ['clone', 'developer', 'reviewer', 'sa', 'bmad', 'git']) {
+    const view = await mount({ mode }, snapshot(mode));
+    t.after(() => view.dom.window.close());
+    assert.equal(view.requests.some(request => request.type === 'issueRequest' && request.request.type === 'ready'), false, mode);
+    view.sendSnapshot(snapshot(mode)); await view.tick();
+    assert.equal(view.requests.some(request => request.type === 'issueRequest' && request.request.type === 'ready'), false, `${mode} snapshot`);
+  }
+});
+
+test('Issue activation announces readiness once and preserves a comment while another workspace page is visible', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  const readiness = () => view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'ready');
+  assert.equal(readiness().length, 0);
+  const navigation = { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 };
+  view.send({ type: 'issueNavigation', navigation }); await view.tick();
+  assert.equal(readiness().length, 1);
+  assert.equal(readiness()[0].revision, 1);
+  const response = { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canComment: true } };
+  view.send({ type: 'issueResponse', revision: 1, response }); await view.tick();
+  const comment = () => view.dom.window.document.querySelector('.issue-embed textarea');
+  comment().value = 'Keep this comment draft';
+  comment().dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  view.sendSnapshot(snapshot('sa')); await view.tick();
+  assert.equal(readiness().length, 1, 'hiding the editor never resumes its Host reads');
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(readiness().length, 2, 'returning to the active Issue resumes it once');
+  view.send({ type: 'issueResponse', revision: 1, response }); await view.tick();
+  assert.equal(comment().value, 'Keep this comment draft');
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(readiness().length, 2, 'ordinary snapshots do not repeat readiness');
+  view.send({ type: 'issueNavigation', navigation: null }); await view.tick();
+  assert.equal(readiness().length, 2, 'closing navigation does not announce a new Issue form');
+});
+
 test('page entry describes its source and local refresh keeps Group controls and remote reads out of local projects', async t => {
   const data = { ...snapshot('clone'), localOperationScope: 'local-root' };
   const view = await mount({ mode: 'clone', projectSource: 'local', developerView: 'graph' }, data);
@@ -1709,6 +1745,21 @@ test('offline installation exposes the shared root, reset, errors and busy state
   assert.equal(document.querySelector('.project-root-path').textContent, '專案根目錄不存在');
 });
 
+test('settings shows the checked installation while full Skills discovery is deferred', async t => {
+  const state = snapshot('clone'); setProjectContext(state, 'C:/local/repo', true);
+  state.workflowKitInstallTarget.state = { status: 'installed', version: '0.9.0', profile: 'repository' };
+  state.skillsContext = { mode: 'unavailable', root: 'C:/local/repo', installed: { status: 'missing' },
+    repositories: [], availableFeatures: [], revision: 'deferred', reason: 'Skills environment has not been discovered' };
+  const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  assert.match(document.querySelector('.workflow-kit-skills-root').textContent, /C:\/local\/repo · 已安裝/);
+  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '安裝／更新整包');
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
+  assert.ok(!document.querySelector('.tool-drawer').textContent.includes(state.skillsContext.reason));
+  state.workflowKitInstallTarget.profile = 'group'; view.sendSnapshot(state); await view.tick();
+  assert.match(document.querySelector('.tool-drawer').textContent, /安裝的 Skills 流程與目前專案不同/);
+});
+
 test('offline Skills offers downloads and one shared root without Group mode controls', async t => {
   const state = snapshot('sa'); state.connected = false; state.group = undefined;
   state.workflowKitSource = 'github'; state.workflowKitPackages[0].source = 'github';
@@ -2878,6 +2929,7 @@ test('the selected Issue tab survives Webview reconstruction without changing it
   assert.ok(tab); tab.click();
   assert.equal(view.savedState.issueEditorDrafts['instance-user'].tabs['1:1'].tab, 'time');
   const restored = await mount(view.savedState, data); t.after(() => restored.dom.window.close());
+  assert.equal(restored.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'ready').length, 1, 'a restored active Issue announces readiness once');
   restored.send({ type: 'issueNavigation', navigation });
   restored.send({ type: 'issueResponse', revision: 7, response });
   await restored.tick();

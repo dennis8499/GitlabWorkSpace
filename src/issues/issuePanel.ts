@@ -424,6 +424,7 @@ export class IssuePanels implements vscode.Disposable {
       return;
     }
     if (request.type === 'ready') {
+      if (!this.hasNavigation) return;
       this.ready = true;
       this.suspended = false;
       if (this.refreshAfterWrite) { this.refreshAfterWrite = false; return this.load(true); }
