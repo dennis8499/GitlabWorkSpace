@@ -23,7 +23,8 @@ test('Issue mutations distinguish confirmed writes, uncertain results and valida
     };
     const receipts: WorkspaceOperationState[] = [], responses: IssuePanelResponse[] = [];
     const operations = new OperationTracker(state => receipts.push(state));
-    const session = { baseUrl: 'https://gitlab.test', selectedGroup: { id: 1 }, getClient: async () => client } as unknown as GitLabSession;
+    const session = { baseUrl: 'https://gitlab.test', selectedGroup: { id: 1 }, getClient: async () => client,
+      cachedRead: async (_key: string, read: (client: unknown) => Promise<unknown>) => read(client) } as unknown as GitLabSession;
     const panels = new IssuePanels!({} as ExtensionContext, session, () => undefined, operations);
     panels.setWorkspace({ post: message => { if (message.type === 'issueResponse') responses.push(message.response); }, navigate: () => undefined, show: async () => undefined });
     Object.assign(panels, { issue, mode: 'detail', ready: true,

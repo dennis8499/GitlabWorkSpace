@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { render } from 'preact';
+import { render, type ComponentChildren } from 'preact';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
@@ -248,6 +248,30 @@ function WorkspaceSectionNotice({ section, label, status, onRetry }: {
   </div>;
 }
 
+type FilterOptionsSection = 'boards' | 'milestones';
+function filterOptionsComplete(snapshot: WorkspaceSnapshot, section: FilterOptionsSection): boolean {
+  const state = snapshot.sections?.[section];
+  const error = section === 'boards' ? snapshot.groupIssueBoardsError : snapshot.groupMilestonesError;
+  return !error && state?.status === 'ready' && state.complete === true && !state.error && !state.refreshing;
+}
+
+function WorkspaceFilterOptions({ label, status, error, count, retainedSelection, disabled, onLoad, children }: {
+  label: string; status?: WorkspaceSectionState; error?: string; count: number; disabled: boolean;
+  retainedSelection?: boolean; onLoad: () => void; children: ComponentChildren;
+}) {
+  const failure = error ?? status?.error;
+  const loading = status?.status === 'loading' || status?.refreshing;
+  const loaded = status?.status === 'ready' || count > 0;
+  return <>
+    {(loaded || retainedSelection) && children}
+    {(!loaded || failure) && <button class="quiet" type="button" disabled={disabled || !!loading || status?.status === 'unsupported'} onClick={onLoad}>
+      {status?.status === 'unsupported' ? `${label}目前不受支援` : loading ? `載入${label}中…` : failure ? `重試載入${label}` : `載入${label}`}
+    </button>}
+    {loaded && loading && <span role="status">載入{label}中…</span>}
+    {failure && <span class="warning developer-filter-error" role="alert">{label}清單載入失敗：{failure}。</span>}
+  </>;
+}
+
 function snapshotSectionActions(section: WorkspaceSection, status: WorkspaceSectionState) {
   if (!['projects', 'issues', 'mergeRequests', 'milestones', 'boards'].includes(section)) return null;
   const send = (mode: 'next' | 'all' | 'history' | 'current' | 'cancel') => {
@@ -362,6 +386,7 @@ function App() {
   const scopeRef = useRef(initial?.scopeKey);
   const instanceUserScopeRef = useRef(initial?.instanceUserScope);
   const issueBoardSelectionRef = useRef<string>();
+  const filterOptionsRequests = useRef<{ scope?: string; sections: Set<FilterOptionsSection>; statuses: Partial<Record<FilterOptionsSection, WorkspaceSectionState['status']>> }>({ sections: new Set(), statuses: {} });
   const issueNavigationRef = useRef(issueNavigation);
   issueNavigationRef.current = issueNavigation;
   const timerVersionRef = useRef(0);
@@ -545,7 +570,7 @@ function App() {
           issueGraphVersionRef.current = message.snapshot.issueGraphVersion ?? 0;
           const availableIds = message.snapshot.projects.map((project) => project.id);
           const preferredBoardId = value.issueBoardId ?? 'all';
-          const boardId = message.snapshot.groupIssueBoardsError || preferredBoardId === 'all'
+          const boardId = !filterOptionsComplete(message.snapshot, 'boards') || preferredBoardId === 'all'
             ? preferredBoardId
             : message.snapshot.groupIssueBoards.find((item) => item.id === preferredBoardId)?.id ?? 'all';
           issueBoardIdRef.current = boardId;
@@ -570,7 +595,7 @@ function App() {
         } else if (nextScope && nextScope === scopeRef.current) {
           const availableIds = message.snapshot.projects.map((project) => project.id);
           setSelectedProjectIds((current) => reconcileProjectSelection(current, availableIds));
-          if (!message.snapshot.groupIssueBoardsError) {
+          if (filterOptionsComplete(message.snapshot, 'boards')) {
             const selectedBoardId = issueBoardIdRef.current;
             const boardId = selectedBoardId === 'all' || message.snapshot.groupIssueBoards.some((item) => item.id === selectedBoardId)
               ? selectedBoardId
@@ -581,7 +606,7 @@ function App() {
             }
           }
         }
-        if (!message.snapshot.groupMilestonesError) {
+        if (filterOptionsComplete(message.snapshot, 'milestones')) {
           const availableMilestoneIds = new Set((message.snapshot.groupMilestones ?? []).map((milestone) => milestone.id));
           setIssueMilestoneFilter((current) => current === 'all' || current === 'none' ||
             (Number.isSafeInteger(Number(current)) && availableMilestoneIds.has(Number(current))) ? current : 'all');
@@ -679,6 +704,37 @@ function App() {
   }, []);
 
   const groupIssueBoardIdsKey = (snapshot?.groupIssueBoards ?? []).map((board) => board.id).join(',');
+  const boardsComplete = !!snapshot && filterOptionsComplete(snapshot, 'boards');
+  const ensureFilterOptions = (section: FilterOptionsSection): void => {
+    const connectedScope = snapshot?.connectedScope;
+    if (!connectedScope) return;
+    if (filterOptionsRequests.current.scope !== connectedScope) filterOptionsRequests.current = { scope: connectedScope, sections: new Set(), statuses: {} };
+    filterOptionsRequests.current.sections.add(section);
+    post({ type: 'ensureWorkspaceSection', section, connectedScope });
+  };
+  useEffect(() => {
+    const connectedScope = snapshot?.connectedScope;
+    if (filterOptionsRequests.current.scope !== connectedScope) filterOptionsRequests.current = { scope: connectedScope, sections: new Set(), statuses: {} };
+    for (const section of ['boards', 'milestones'] as const) {
+      const status = snapshot?.sections?.[section]?.status;
+      if (status === 'idle' && filterOptionsRequests.current.statuses[section] && filterOptionsRequests.current.statuses[section] !== 'idle') {
+        filterOptionsRequests.current.sections.delete(section);
+      }
+      filterOptionsRequests.current.statuses[section] = status;
+    }
+    if (!connectedScope || mode !== 'developer' || issueNavigation) { filterOptionsRequests.current.sections.clear(); return; }
+    for (const section of ['boards', 'milestones'] as const) {
+      const needed = section === 'boards' ? issueBoardId !== 'all' || graphBoardId !== 'all'
+        : issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none';
+      const state = snapshot.sections?.[section];
+      const error = section === 'boards' ? snapshot.groupIssueBoardsError : snapshot.groupMilestonesError;
+      const count = section === 'boards' ? snapshot.groupIssueBoards.length : snapshot.groupMilestones.length;
+      if (!needed || error || state && state.status !== 'idle' || !state && count > 0 || filterOptionsRequests.current.sections.has(section)) continue;
+      ensureFilterOptions(section);
+    }
+  }, [mode, !!issueNavigation, snapshot?.connectedScope, snapshot?.sections?.boards?.status, snapshot?.sections?.milestones?.status,
+    snapshot?.groupIssueBoardsError, snapshot?.groupMilestonesError, issueBoardId, graphBoardId, issueMilestoneFilter]);
+
   useEffect(() => {
     const connectedScope = snapshot?.connectedScope;
     if (!connectedScope || mode !== 'developer' || developerView !== 'list' || issueNavigation) {
@@ -688,9 +744,8 @@ function App() {
     if (snapshot?.groupIssueBoardsError) return;
 
     const boards = snapshot?.groupIssueBoards ?? [];
-    const availableSelection = issueBoardId === 'all' || boards.some((board) => board.id === issueBoardId)
-      ? issueBoardId
-      : 'all';
+    if (issueBoardId !== 'all' && !boards.some((board) => board.id === issueBoardId) && !boardsComplete) return;
+    const availableSelection = issueBoardId === 'all' || boards.some((board) => board.id === issueBoardId) ? issueBoardId : 'all';
     if (availableSelection !== issueBoardId) {
       setIssueBoardId(availableSelection);
       return;
@@ -704,7 +759,7 @@ function App() {
     if (issueBoardSelectionRef.current === selectionKey) return;
     issueBoardSelectionRef.current = selectionKey;
     post({ type: 'selectIssueBoard', boardId: availableSelection, connectedScope });
-  }, [mode, developerView, !!issueNavigation, snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, issueBoardId]);
+  }, [mode, developerView, !!issueNavigation, snapshot?.connectedScope, groupIssueBoardIdsKey, snapshot?.groupIssueBoardsError, boardsComplete, issueBoardId]);
 
   useEffect(() => {
     const connectedScope = snapshot?.connectedScope;
@@ -714,9 +769,9 @@ function App() {
   }, [mode, developerView, !!issueNavigation, snapshot?.connectedScope]);
 
   useEffect(() => {
-    if (graphBoardId === 'all' || !issueBoards.length || issueBoards.some((board) => board.id === graphBoardId)) return;
+    if (!boardsComplete || graphBoardId === 'all' || issueBoards.some((board) => board.id === graphBoardId)) return;
     setGraphBoardId('all');
-  }, [snapshot?.connectedScope, groupIssueBoardIdsKey, graphBoardId]);
+  }, [snapshot?.connectedScope, groupIssueBoardIdsKey, boardsComplete, graphBoardId]);
 
   useEffect(() => {
     const state: SavedState = {
@@ -829,7 +884,7 @@ function App() {
     issueGraphNodeKey(issue.project_id, projectById.get(issue.project_id)?.path_with_namespace ?? '', issue.iid))),
     [issues, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, filters.developer, projectById]);
   const issueGraphSnapshot = snapshot && snapshot.issueGraph?.connectedScope === snapshot.connectedScope ? snapshot.issueGraph : undefined;
-  const effectiveGraphBoardId: number | 'all' = issueBoards.some((board) => board.id === graphBoardId) ? graphBoardId : 'all';
+  const effectiveGraphBoardId = graphBoardId;
   const graphSelection = useMemo(() => issueGraphSnapshot
     ? selectIssueGraph(issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId)
     : { nodes: [], edges: [], rootCount: 0 }, [issueGraphSnapshot, matchingGraphRootIds, effectiveGraphBoardId]);
@@ -1010,8 +1065,8 @@ function App() {
         {snapshot.connectedScope && remotePage && <WorkspaceSectionNotice section="projects" label="專案清單" status={snapshot.sections?.projects} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'projects', connectedScope: snapshot.connectedScope! })} />}
         {snapshot.connectedScope && mode === 'developer' && <>
           <WorkspaceSectionNotice section="issues" label="指派 Issue" status={snapshot.sections?.issues} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'issues', connectedScope: snapshot.connectedScope! })} />
-          {developerView === 'list' && <WorkspaceSectionNotice section="boards" label="Issue Board" status={snapshot.sections?.boards} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'boards', connectedScope: snapshot.connectedScope! })} />}
-          {developerView === 'list' && <WorkspaceSectionNotice section="milestones" label="Milestone" status={snapshot.sections?.milestones} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'milestones', connectedScope: snapshot.connectedScope! })} />}
+          {snapshot.sections?.boards?.status === 'ready' && <WorkspaceSectionNotice section="boards" label="Issue Board" status={snapshot.sections.boards} onRetry={() => ensureFilterOptions('boards')} />}
+          {snapshot.sections?.milestones?.status === 'ready' && <WorkspaceSectionNotice section="milestones" label="Milestone" status={snapshot.sections.milestones} onRetry={() => ensureFilterOptions('milestones')} />}
           {developerView === 'graph' && <WorkspaceSectionNotice section="graph" label="Issue 圖譜" status={snapshot.sections?.graph} onRetry={retryIssueGraph} />}
         </>}
         {snapshot.connectedScope && mode === 'reviewer' && <WorkspaceSectionNotice section="mergeRequests" label="待審查 MR" status={snapshot.sections?.mergeRequests} onRetry={() => post({ type: 'retryWorkspaceSection', section: 'mergeRequests', connectedScope: snapshot.connectedScope! })} />}        <div class="issue-embed" key={snapshot.instanceUserScope ?? 'disconnected'} hidden={!issueNavigation}>
@@ -1105,6 +1160,7 @@ function App() {
                 <button class="primary" type="button" onClick={() => post({ type: 'createIssue' })}>＋ 新增議題</button>
               </div>
               <div class="filter-row developer-filter-row">
+                <WorkspaceFilterOptions label="看板" status={snapshot.sections?.boards} error={snapshot.groupIssueBoardsError} count={issueBoards.length} retainedSelection={(developerView === 'graph' ? graphBoardId : issueBoardId) !== 'all'} disabled={busy} onLoad={() => ensureFilterOptions('boards')}>
                 <select aria-label={developerView === 'graph' ? '圖譜 Issue Board' : 'Issue Board'} value={developerView === 'graph' ? effectiveGraphBoardId : issueBoardId} disabled={busy || developerView === 'list' && !issueBoards.length && !snapshot.groupIssueBoardsError} onChange={(event) => {
                   const value = event.currentTarget.value;
                   if (developerView === 'graph') setGraphBoardId(value === 'all' ? 'all' : Number(value));
@@ -1115,17 +1171,20 @@ function App() {
                     ? <option value="all">全部 Board</option>
                     : <option value="all">全部指派給我的 Issue{snapshot.groupIssueBoardsError ? '（Board 載入失敗）' : ''}</option>}
                   {issueBoards.map((board) => <option key={board.id} value={board.id}>{board.name}{(issueBoardNameCounts.get(board.name) ?? 0) > 1 ? ` (#${board.id})` : ''}</option>)}
+                  {(developerView === 'graph' ? graphBoardId : issueBoardId) !== 'all' && !issueBoards.some(board => board.id === (developerView === 'graph' ? graphBoardId : issueBoardId)) && <option value={developerView === 'graph' ? graphBoardId : issueBoardId}>目前選取的看板（尚未確認）</option>}
                 </select>
+                </WorkspaceFilterOptions>
                 <select aria-label="Issue 專案" value={issueProjectFilter} onChange={(event) => setIssueProjectFilter(event.currentTarget.value)}><option value="all">全部 Repo</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.path_with_namespace}</option>)}</select>
                 <select aria-label="Issue Label" value={issueLabelFilter} onChange={(event) => setIssueLabelFilter(event.currentTarget.value)}><option value="all">全部 Labels</option>{issueLabels.map((label) => <option key={label} value={label}>{label}</option>)}</select>
-                <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{snapshot.groupMilestonesError && issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（載入失敗）</option>}</select>
+                <WorkspaceFilterOptions label="里程碑" status={snapshot.sections?.milestones} error={snapshot.groupMilestonesError} count={issueMilestones.length} retainedSelection={issueMilestoneFilter !== 'all'} disabled={busy} onLoad={() => ensureFilterOptions('milestones')}>
+                <select aria-label="Issue Milestone" value={issueMilestoneFilter} onChange={(event) => setIssueMilestoneFilter(event.currentTarget.value)}><option value="all">全部 Milestones</option><option value="none">未設定 Milestone</option>{issueMilestones.map((milestone) => <option key={milestone.id} value={milestone.id}>{milestoneLabel(milestone)}</option>)}{issueMilestoneFilter !== 'all' && issueMilestoneFilter !== 'none' && !issueMilestones.some((milestone) => String(milestone.id) === issueMilestoneFilter) && <option value={issueMilestoneFilter}>目前選取的 Milestone（尚未確認）</option>}</select>
+                </WorkspaceFilterOptions>
               </div>
-              {snapshot.groupMilestonesError && <p class="warning developer-filter-error" role="alert">Milestone 清單載入失敗：{snapshot.groupMilestonesError}。按「更新資料」重試。</p>}
               {developerView === 'graph' ? <div class="developer-graph-panel">
                 {issueGraphSnapshot && <div class="graph-load-message" role="status"><span>已顯示 {issueGraphSnapshot.roots.length} 個主要 Issue；選取節點時才載入直接關聯。看板色彩可按需載入，尚未載入不代表無歸屬。</span>
                   {issueGraphSnapshot.roots.length < snapshot.issues.length && <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading'} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, moreRoots: true })}>顯示更多主要 Issue</button>}
                   <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading' || !issueGraphSnapshot.nodes.some(node => node.isRoot && node.relationsStatus !== 'ready')} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, nodeIds: issueGraphSnapshot.nodes.filter(node => node.isRoot && node.relationsStatus !== 'ready').slice(0, 20).map(node => node.id) })}>展開接下來 20 個 Issue</button>
-                  <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading' || !Object.values(issueGraphSnapshot.boardStatus).some(status => status.status !== 'ready')} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, loadBoards: true })}>載入／繼續看板色彩</button>
+                  <button class="quiet small" type="button" disabled={issueGraphSnapshot.status === 'loading' || boardsComplete && issueBoards.every(board => issueGraphSnapshot.boardStatus[board.id]?.status === 'ready')} onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, loadBoards: true })}>載入／繼續看板色彩</button>
                   {issueGraphSnapshot.status === 'loading' && <span>正在載入本批資料…</span>}
                   {issueGraphSnapshot.status === 'loading' && <button class="quiet small" type="button" onClick={() => post({ type: 'loadIssueGraph', connectedScope: snapshot.connectedScope!, cancel: true })}>取消本批載入</button>}
                 </div>}
@@ -1173,10 +1232,10 @@ function App() {
                 <VirtualRows resetKey={JSON.stringify([snapshot.connectedScope, filters.reviewer, reviewFilter])} className="work-list" items={visibleMrs} itemKey={workItemKey} estimateHeight={112} renderItem={(item) => <button type="button" class={`work-row ${(mrSelection?.projectId ?? mr?.project_id) === item.project_id && (mrSelection?.iid ?? mr?.iid) === item.iid ? 'selected' : ''}`} onClick={() => selectMergeRequest(item)}><span class="row-title">!{item.iid}　{item.title}</span><span class="row-meta">{projectById.get(item.project_id)?.path_with_namespace} · {item.author?.name ?? '未知作者'}</span><span class="branch-pair">{item.source_branch} → {item.target_branch}</span><span class="row-meta">Pipeline：{item.head_pipeline?.status ?? '未設定'}</span></button>} />
               </div><article class="detail-column reviewer-detail" aria-busy={mrPending}>{mrPending && <p role="status">正在載入選取的 MR…</p>}{selectedMr && mr ? <>
                 <div class="panel-title"><div><span class="eyebrow">{projectById.get(mr.project_id)?.path_with_namespace} !{mr.iid}</span><h2>{mr.title}</h2><span class="branch-pair">{mr.source_branch} → {mr.target_branch}</span></div><button class="quiet" type="button" onClick={() => openGitLab(mr.web_url)}>在 GitLab 開啟</button></div>
-                <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>重新檢查分支</button></div>
+                <div class="freshness"><BranchStatus state={selectedMr.freshness.state} behindBy={selectedMr.freshness.state === 'behind' ? selectedMr.freshness.behindBy : undefined} />{selectedMr.freshness.state === 'unknown' && <span class="subtle">{selectedMr.freshness.reason}</span>}{'checkedAt' in selectedMr.freshness && <span class="subtle">檢查於 {new Date(selectedMr.freshness.checkedAt).toLocaleString()}</span>}<button class="quiet small" type="button" disabled={selectedMr.freshness.state === 'checking'} onClick={() => post({ type: 'refreshMergeRequest', projectId: mr.project_id, iid: mr.iid })}>{selectedMr.freshness.state === 'checking' ? '正在檢查分支…' : selectedMr.freshness.state === 'not_checked' ? '檢查分支' : '重新檢查分支'}</button></div>
                 <div class="next-step" role="status">{selectedMr.freshness.state === 'current' ? '分支資料已確認，可前往分支審查。' : selectedMr.freshness.state === 'behind' ? '來源分支落後目標分支；分支審查會檢查合併預覽與相關影響。' : '目前分支狀態未確認；請檢查候選分支，Codex 執行時會取得明確指定的遠端版本。'}</div>
                 {<div class="button-row"><button class="primary" type="button" disabled={!!snapshot.skillsContext && !snapshot.skillsContext.root} onClick={openReviewerTask}>前往分支審查</button><span class="subtle">確認 Repo 與分支後複製提示詞，完成後可將 Markdown 作一般留言發布。</span></div>}
-                <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
+                <details class="technical-info"><summary>技術詳情（完整 SHA）</summary><div class="sha-pair"><span>差異來源 SHA <code>{selectedMr.sourceSha ?? mr.sha ?? '無法取得'}</code></span><span>差異目標 SHA <code>{selectedMr.targetSha ?? '無法取得'}</code></span><span>Pipeline：{mr.head_pipeline?.status ?? '未設定'}</span></div></details>
                 <nav class="issue-tabs review-tabs" role="tablist" aria-label="Merge Request 詳情分頁">{([['changes', '變更'], ['discussion', '討論'], ['report', '審查報告']] as const).map(([tab, label], index) => <button role="tab" tabIndex={reviewerTab === tab ? 0 : -1} aria-selected={reviewerTab === tab} class={reviewerTab === tab ? 'active' : ''} onKeyDown={(event) => {
                   const nextIndex = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
                   if (nextIndex < 0) return;

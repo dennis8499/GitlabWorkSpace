@@ -52,7 +52,12 @@ async function fixture(t: test.TestContext, initial = [project()]) {
     assert.equal(path.dirname(await realpath(root)), temporaryRoot);
     await rm(root, { recursive: true, force: true });
   });
-  for (const folder of workspacePaths.projectFolderNames(initial).values()) await mkdir(path.join(root, folder));
+  const initialFolders = workspacePaths.projectFolderNames(initial);
+  for (const item of initial) {
+    const target = path.join(root, initialFolders.get(item.id)!); await mkdir(target);
+    execFileSync('git', ['init', '--quiet', target]);
+    execFileSync('git', ['-C', target, 'remote', 'add', 'origin', item.http_url_to_repo]);
+  }
   const events: string[] = [];
   const requests: Array<string | undefined> = [];
   const details: number[] = [];
@@ -90,7 +95,7 @@ async function fixture(t: test.TestContext, initial = [project()]) {
     const groupProjects = dependencies.groupProjects ?? projects;
     const resolved: GitLabProject[] = [];
     const invocation = { ids: projects.map(item => item.id), groupProjects,
-      targets: projects.map(item => workspacePaths.groupRepositoryPath(targetRoot, item, groupProjects)), resolved };
+      targets: projects.map(item => workspacePaths.groupRepositoryPath(targetRoot, item, groupProjects, dependencies.layout?.folders, dependencies.layout?.rootProjectId)), resolved };
     invocations.push(invocation);
     for (const item of projects) resolved.push(await dependencies.resolveProject!(item, dependencies.signal));
     return { found: projects.length, updated: [], upToDate: resolved, skipped: [], failed: [] };
@@ -115,7 +120,7 @@ test('each confirmed sync forces all fresh metadata pages before running only co
   assert.deepEqual(f.events, ['confirm', 'page', 'page', 'confirm', 'page', 'page']);
   assert.deepEqual(f.details, []);
   assert.deepEqual(f.invocations.map(call => call.resolved.map(item => item.default_branch)), [['release', 'release'], ['stable', 'stable']]);
-  assert.equal(f.invocations[0].groupProjects, initial, 'the confirmed folder mapping is kept');
+  assert.deepEqual(f.invocations[0].groupProjects, initial, 'the confirmed folder mapping is kept');
 });
 
 test('a controlled 16 Repo inventory needs one fresh page and no per-project detail reads', async t => {
@@ -170,7 +175,7 @@ test('removed projects are skipped and newly listed duplicate names cannot expan
   await f.host.syncRepos();
   assert.deepEqual(f.details, []);
   assert.deepEqual(f.invocations[0].ids, [2]);
-  assert.equal(f.invocations[0].groupProjects, initial);
+  assert.deepEqual(f.invocations[0].groupProjects, initial);
   assert.deepEqual(f.invocations[0].targets, [path.join(f.root, initial[1].path)]);
   assert.equal(f.host.cloneOperation.items.find((item: any) => item.projectId === 1).state, 'skipped');
   assert.match(f.host.cloneOperation.items.find((item: any) => item.projectId === 1).message, /目前 Group/);
@@ -188,11 +193,6 @@ test('a detail fallback failure skips only that repository through the real sync
   const f = await fixture(t, initial);
   f.pages(async () => page(initial.map(item => { const incomplete = { ...item }; delete incomplete.empty_repo; return incomplete; })));
   f.detail(async id => { if (id === 1) throw new Error('detail metadata unavailable'); return project(id); });
-  for (const item of initial) {
-    const target = path.join(f.root, item.path);
-    execFileSync('git', ['init', '--quiet', target]);
-    execFileSync('git', ['-C', target, 'remote', 'add', 'origin', item.http_url_to_repo]);
-  }
   const synced: number[] = [];
   runSync = (targetRoot, projects, baseUrl, token, progress, dependencies) => cloneService.syncLocalDefaultBranches(targetRoot, projects, baseUrl, token, progress,
     { ...dependencies, syncRunner: async plan => { synced.push(plan.project.id); return { state: 'up-to-date' }; } });

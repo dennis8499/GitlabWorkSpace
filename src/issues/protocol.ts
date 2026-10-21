@@ -12,7 +12,11 @@ export interface IssueFormOptions {
   milestones: GitLabMilestone[];
   templates: Array<GitLabIssueTemplate & { key?: string; loaded?: boolean }>;
   warnings?: string[];
+  states?: Partial<Record<IssueFormOptionSection, IssueReadState>>;
 }
+
+export type IssueFormOptionSection = 'fields' | 'templates';
+export interface IssueReadState { status: IssueDetailSectionStatus; error?: string; }
 
 export interface IssueTask {
   id: string;
@@ -65,6 +69,7 @@ export interface IssueDetailData extends IssueRelationsData {
   mergeRequests: GitLabMergeRequestSummary[];
   reactions: GitLabEmojiReaction[];
   noteReactions: Record<number, GitLabEmojiReaction[]>;
+  noteReactionStates?: Record<number, IssueReadState>;
   todos: GitLabTodo[];
   timelogs: IssueTimelog[];
   startDate: string | null;
@@ -96,6 +101,8 @@ export type IssuePanelRequest = (
   | { type: 'cancelUpload'; targetRequestId: string }
   | { type: 'refresh' }
   | { type: 'loadSection'; sections: IssueDetailSection[] }
+  | { type: 'loadFormOptions'; projectId: number; section: IssueFormOptionSection }
+  | { type: 'loadNoteReactions'; noteId: number }
   | { type: 'loadTemplate'; requestId: string; projectId: number; key: string }
   | { type: 'copyDescription'; requestId: string; issueId: number }
   | { type: 'selectProject'; projectId: number }

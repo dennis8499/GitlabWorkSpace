@@ -280,6 +280,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'loadIssueGraph'; connectedScope: string; forceNetwork?: boolean; nodeIds?: string[]; loadBoards?: boolean; moreRoots?: boolean; cancel?: boolean }
   | { type: 'setIssueGraphVisibility'; visible: boolean; connectedScope: string }
   | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string; mode?: 'next' | 'all' | 'history' | 'current' | 'cancel' }
+  | { type: 'ensureWorkspaceSection'; section: 'milestones' | 'boards'; connectedScope: string }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }

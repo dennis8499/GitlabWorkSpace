@@ -1,9 +1,10 @@
 /** @jsxImportSource preact */
+import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
@@ -96,34 +97,69 @@ function Markdown({ html, baseUrl, images, onImage, onLink }: { html: string; ba
   }} dangerouslySetInnerHTML={{ __html: prepared.html }} />;
 }
 
-function IssueFields({ form, setForm, options, projectId, baseUrl, images, onImage, templateEnabled, startDateEnabled, onPreview, onUpload, onSearch, onTemplate, similar, previewHtml, onLink, editing }: {
+function ReactionDemand({ state, label, disabled, onLoad, children }: {
+  state?: IssueReadState; label: string; disabled: boolean; onLoad: () => void; children: ComponentChildren;
+}) {
+  if (!state || state.status === 'ready') return <>{children}</>;
+  return <div class="toolbar wrap reaction-demand">
+    <button type="button" disabled={disabled || state.status === 'loading' || state.status === 'unsupported'} onClick={onLoad}>
+      {state.status === 'loading' ? `正在載入${label}…` : state.status === 'error' ? `重試載入${label}` : state.status === 'unsupported' ? `${label}目前不受支援` : `載入${label}`}
+    </button>
+    {state.status === 'error' && <span class="warning" role="alert">{state.error ?? `${label}讀取失敗，請重試。`}</span>}
+  </div>;
+}
+
+function IssueFields({ form, setForm, options, projectId, baseUrl, images, onImage, templateEnabled, startDateEnabled, onPreview, onUpload, onSearch, onTemplate, onLoadOptions, similar, previewHtml, onLink, editing }: {
   form: FormState; setForm: (next: FormState) => void; options: IssueFormOptions; projectId: number;
   baseUrl: string; images: Record<string, string>; onImage: (url: string) => void;
   templateEnabled: boolean; startDateEnabled: boolean; onPreview: () => void; onUpload: () => void; onSearch: () => void;
   similar: GitLabIssue[]; previewHtml: string; onLink: (url: string) => void; editing: boolean;
   onTemplate?: (template?: IssueFormOptions['templates'][number]) => void;
+  onLoadOptions?: (section: IssueFormOptionSection) => void;
 }) {
-  const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(false);
+  const hasSelectedFields = !!form.assigneeId || !!form.milestoneId || form.labels.length > 0;
+  const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(hasSelectedFields);
+  const fieldsState = options.states?.fields;
+  const templatesState = options.states?.templates;
+  const requestOptions = (section: IssueFormOptionSection): void => {
+    onLoadOptions?.(section);
+  };
+  useEffect(() => {
+    if (!onLoadOptions || !(optionalFieldsOpen || hasSelectedFields) || fieldsState?.status !== 'idle') return;
+    requestOptions('fields');
+  }, [projectId, optionalFieldsOpen, hasSelectedFields, fieldsState?.status]);
+  const fieldsPending = !!fieldsState && fieldsState.status !== 'ready';
   const change = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm({ ...form, [key]: value });
   return <div class="form-grid">
     <label class="field field-wide"><span>標題 *</span><input value={form.title} maxLength={1024} required onInput={(event) => change('title', event.currentTarget.value)} onBlur={onSearch} placeholder="簡要描述工作內容" /></label>
     {similar.length > 0 && <div class="field-wide hint"><strong>相似 Issue</strong>{similar.slice(0, 5).map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}</div>}
-    {templateEnabled && options.templates.length > 0 && <label class="field field-wide"><span>描述範本</span><select onChange={(event) => {
+    {templateEnabled && templatesState && templatesState.status !== 'ready' && <div class="field-wide toolbar">
+      <button type="button" disabled={!projectId || templatesState.status === 'loading'} onClick={() => requestOptions('templates')}>
+        {templatesState.status === 'loading' ? '正在載入描述範本…' : templatesState.status === 'error' ? '重試載入描述範本' : '使用描述範本'}
+      </button>
+      {templatesState.error && <span class="warning" role="alert">{templatesState.error}</span>}
+    </div>}
+    {templateEnabled && (!templatesState || templatesState.status === 'ready') && options.templates.length > 0 && <label class="field field-wide"><span>描述範本</span><select onChange={(event) => {
       const template = options.templates.find((item) => item.name === event.currentTarget.value);
       if (onTemplate) onTemplate(template);
       else if (template) change('description', template.content);
     }}><option value="">選擇描述範本</option>{options.templates.map((item) => <option value={item.name}>{item.name}</option>)}</select></label>}
+    {templateEnabled && templatesState?.status === 'ready' && !options.templates.length && <p class="field-wide muted" role="status">目前沒有描述範本。</p>}
     <label class="field field-wide"><span>描述 · 支援 GitLab Markdown 與 quick actions</span><textarea rows={editing ? 12 : 8} value={form.description} onInput={(event) => change('description', event.currentTarget.value)} placeholder="填寫背景、操作步驟、驗收條件或 /quick_actions" /></label>
     <div class="field-wide toolbar"><button type="button" onClick={onPreview} disabled={!form.description.trim()}>預覽 Markdown</button><button type="button" onClick={onUpload} disabled={!projectId}>上傳附件</button></div>
     {previewHtml && <div class="field-wide preview"><span class="eyebrow">預覽</span><Markdown html={previewHtml} baseUrl={baseUrl} images={images} onImage={onImage} onLink={onLink} /></div>}
     <details class="field-wide issue-more-fields" open={editing || optionalFieldsOpen} onToggle={(event) => setOptionalFieldsOpen(event.currentTarget.open)}>
       <summary>其他設定：負責人、標籤、里程碑與日期</summary>
+      {fieldsPending && <div class="toolbar" role={fieldsState?.status === 'error' ? 'alert' : 'status'}>
+        <span>{fieldsState?.error ?? (fieldsState?.status === 'loading' ? '正在載入負責人、標籤與里程碑…' : '展開後載入選項；已填寫的內容會保留。')}</span>
+        {fieldsState?.status === 'error' && <button type="button" onClick={() => requestOptions('fields')}>重試載入欄位選項</button>}
+      </div>}
       <div class="form-grid">
-        <label class="field"><span>負責人</span><select value={form.assigneeId} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">不指派</option>{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select></label>
-        <label class="field"><span>里程碑</span><select value={form.milestoneId} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">不設定</option>{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select></label>
+        <label class="field"><span>負責人</span><select disabled={fieldsPending} value={form.assigneeId} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">不指派</option>{form.assigneeId && !options.members.some(person => String(person.id) === form.assigneeId) && <option value={form.assigneeId}>目前選取的負責人（尚未確認）</option>}{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select></label>
+        <label class="field"><span>里程碑</span><select disabled={fieldsPending} value={form.milestoneId} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">不設定</option>{form.milestoneId && !options.milestones.some(milestone => String(milestone.id) === form.milestoneId) && <option value={form.milestoneId}>目前選取的里程碑（尚未確認）</option>}{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select></label>
         <label class="field"><span>到期日</span><input type="date" value={form.dueDate} onInput={(event) => change('dueDate', event.currentTarget.value)} /></label>
         {startDateEnabled && <label class="field"><span>開始日期</span><input type="date" value={form.startDate} onInput={(event) => change('startDate', event.currentTarget.value)} /></label>}
-        <label class="field"><span>標籤</span><select multiple size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select><small>可用 Ctrl 多選。</small></label>
+        <label class="field"><span>標籤</span><select disabled={fieldsPending} multiple size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{form.labels.filter(name => !options.labels.some(label => label.name === name)).map(name => <option value={name} selected>{name}（尚未確認）</option>)}{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select><small>可用 Ctrl 多選。</small></label>
         <label class="check field-wide"><input type="checkbox" checked={form.confidential} onChange={(event) => change('confidential', event.currentTarget.checked)} />機密 Issue</label>
         {editing && <label class="check field-wide"><input type="checkbox" checked={form.discussionLocked} onChange={(event) => change('discussionLocked', event.currentTarget.checked)} />鎖定討論</label>}
       </div>
@@ -322,7 +358,6 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
     if (!detail) return;
     if (!editingRef.current) {
       editingRef.current = true; setEditing(true);
-      post({ type: 'loadSection', sections: ['options'] });
       return;
     }
     issueDrafts.current.delete(detail.issue.id);
@@ -701,11 +736,14 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
         latestProjectSearchRequest.current = null;
         noteRenderVersion.current.clear(); latestNoteRequests.current.clear();
         editorPreviewTargets.current.clear(); latestEditorPreview.current.clear(); uploadTargets.current.clear(); setEditorHtml({});
-        setMode('create'); setProjects(message.projects); setProjectId(message.selectedProjectId ?? 0);
+        modeRef.current = 'create'; projectIdRef.current = message.selectedProjectId ?? 0;
+        const restoredForm = createDrafts.current.get(projectIdRef.current) ?? blankForm();
+        formRef.current = restoredForm;
+        setMode('create'); setProjects(message.projects); setProjectId(projectIdRef.current);
         setCreateMetadata(message.metadata);
         setStartDateEnabled(message.canSetStartDate);
         setCanCreateIssue(message.canCreateIssue);
-        setOptions(message.options ?? emptyOptions); setForm(createDrafts.current.get(message.selectedProjectId ?? 0) ?? blankForm()); setDetail(null); setEditing(false); setPreviewHtml(''); setNoteHtml({}); setSimilar([]);
+        setOptions(message.options ?? emptyOptions); setForm(restoredForm); setDetail(null); setEditing(false); setPreviewHtml(''); setNoteHtml({}); setSimilar([]);
         setOptionsLoading(message.optionsLoading === true);
         if (message.projects.length) setError('');
         else localFeedback('No projects are available in the selected group.', message.operationId);
@@ -723,11 +761,14 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
         latestSearchRequest.current = null;
         latestProjectSearchRequest.current = null;
         editorPreviewTargets.current.clear(); latestEditorPreview.current.clear(); uploadTargets.current.clear(); setEditorHtml({});
+        projectIdRef.current = message.projectId;
         setOptions(message.options); setProjectId(message.projectId); setSimilar([]); setPreviewHtml(''); setBusy(false);
         setCanCreateIssue(message.canCreateIssue);
         setOptionsLoading(message.optionsLoading === true);
         const projectDraft = createDrafts.current.get(message.projectId);
-        setForm(projectDraft ? { ...projectDraft, assigneeId: '', labels: [], milestoneId: '' } : { ...blankForm(), ...formRef.current, assigneeId: '', labels: [], milestoneId: '' });
+        const nextForm = projectDraft ?? { ...blankForm(), ...formRef.current, assigneeId: '', labels: [], milestoneId: '' };
+        formRef.current = nextForm;
+        setForm(nextForm);
         setError('');
       } else if (message.type === 'detailData') {
         viewEpoch.current++;
@@ -795,11 +836,13 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
           return {
             ...current,
             ...message.patch,
-            options: message.patch.options ? { ...current.options, ...message.patch.options } : current.options,
+            options: message.patch.options ? { ...current.options, ...message.patch.options, states: { ...current.options.states, ...message.patch.options.states } } : current.options,
+            noteReactions: { ...current.noteReactions, ...message.patch.noteReactions },
+            noteReactionStates: current.noteReactionStates || message.patch.noteReactionStates ? { ...current.noteReactionStates, ...message.patch.noteReactionStates } : undefined,
             sections: { ...(current.sections ?? {}), ...(message.patch.sections ?? {}) }
           };
         });
-        if (message.patch.options) setOptions((current) => ({ ...current, ...message.patch.options }));
+        if (message.patch.options) setOptions((current) => ({ ...current, ...message.patch.options, states: { ...current.states, ...message.patch.options?.states } }));
       } else if (message.type === 'reply') {
         const epoch = requestEpoch.current.get(message.requestId);
         requestEpoch.current.delete(message.requestId);
@@ -877,9 +920,12 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
 
   const issue = detail?.issue;
   useEffect(() => {
+    if (active && editing && issue && detail?.sections?.options === 'idle') post({ type: 'loadSection', sections: ['options'] });
+  }, [active, editing, issue?.id, detail?.sections?.options]);
+  useEffect(() => {
     if (!active || !issue || !detail) return;
     const wanted: Record<typeof detailTab, IssueDetailSection[]> = {
-      content: ['activity', 'reactions', 'mergeRequests'],
+      content: ['activity', 'mergeRequests'],
       // Embedded relations use their single correlated workspace read.
       relations: onWorkspaceAction ? ['todos'] : ['links', 'tasks', 'todos'],
       time: ['dates', 'timelogs']
@@ -923,7 +969,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       {optionsLoading && <p class="subtle" role="status">正在載入欄位選項與建立權限，可以先填寫標題與描述。</p>}
       {!!options.warnings?.length && <div class="warning" role="alert"><span>部分欄位讀取失敗：{options.warnings.join('；')}</span><button class="quiet small" type="button" disabled={busy || !projectId} onClick={() => beginRequest({ type: 'selectProject', projectId })}>重試</button></div>}
       <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); beginRequest({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
-      <IssueFields form={form} setForm={updateFormDraft} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} onTemplate={selectTemplate} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
+      <IssueFields key={`create:${projectId}`} form={form} setForm={updateFormDraft} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} onTemplate={selectTemplate} onLoadOptions={(section) => post({ type: 'loadFormOptions', projectId, section })} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
       <div class="actions"><button class="primary" type="button" disabled={busy || !canCreateIssue || !projectId || !form.title.trim()} onClick={() => { if (!beginRequest({ type: 'create', projectId, input: createPayload(form) })) return; createDrafts.current.set(projectId, formRef.current); createPending.current = { projectId, title: form.title }; }}>建立 Issue</button></div>
     </section> : issue && detail && <>
       {!!detail.notices?.length && <div class="alert subtle" role="status"><strong>部分欄位未儲存</strong><ul>{detail.notices.map((notice) => <li>{notice}</li>)}</ul></div>}
@@ -954,11 +1000,11 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
               <div class="note-head"><strong>{note.author?.name ?? 'GitLab'}</strong><time>{note.created_at ? new Date(note.created_at).toLocaleString() : ''}</time>{note.internal && <span class="pill">內部留言</span>}</div>
               {editingNoteId === note.id ? <><textarea aria-label="編輯留言" rows={4} value={editingNoteBody} onInput={(event) => setEditingNoteBody(event.currentTarget.value)} /><div class="toolbar wrap"><button disabled={!editingNoteBody.trim()} onClick={() => previewEditor(`edit-note:${note.id}`, editingNoteBody)}>預覽 Markdown</button><button onClick={() => upload(`edit-note:${note.id}`)}>上傳附件</button><button class="primary" disabled={!editingNoteBody.trim() || busy} onClick={() => invoke('editNote', { discussionId: discussion.id, noteId: note.id, body: editingNoteBody })}>儲存</button><button onClick={() => setEditingNoteId(null)}>取消</button></div>{editorHtml[`edit-note:${note.id}`] && <Markdown html={editorHtml[`edit-note:${note.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</> : noteHtml[note.id] ? <Markdown html={noteHtml[note.id]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <p class="note-body">{note.body}</p>}
               {!note.system && note.author?.id === detail.user.id && editingNoteId !== note.id && <div class="toolbar"><button type="button" onClick={() => { setEditingNoteId(note.id); setEditingNoteBody(note.body); }}>編輯</button><button type="button" onClick={() => setDeletingNoteId(note.id)}>刪除</button></div>}
-              {!note.system && <div class="toolbar wrap">{[...new Set((detail.noteReactions[note.id] ?? []).map((reaction) => reaction.name))].map((name) => {
+              {!note.system && <ReactionDemand state={detail.noteReactionStates ? detail.noteReactionStates[note.id] ?? { status: 'idle' } : undefined} label="留言表情" disabled={busy} onLoad={() => post({ type: 'loadNoteReactions', noteId: note.id })}><div class="toolbar wrap">{[...new Set((detail.noteReactions[note.id] ?? []).map((reaction) => reaction.name))].map((name) => {
                 const reactions = (detail.noteReactions[note.id] ?? []).filter((reaction) => reaction.name === name);
                 const mine = reactions.find((reaction) => reaction.user.id === detail.user.id);
                 return <button class={mine ? 'selected' : ''} disabled={busy} onClick={() => mine ? invoke('unreactNote', { noteId: note.id, reactionId: mine.id }) : invoke('reactNote', { noteId: note.id, name })}>{name} {reactions.length}</button>;
-              })}<input aria-label={`留言表情 ${note.id}`} value={noteEmoji[note.id] ?? ''} onInput={(event) => setNoteEmoji((current) => ({ ...current, [note.id]: event.currentTarget.value }))} /><button disabled={!noteEmoji[note.id]?.trim() || busy} onClick={() => invoke('reactNote', { noteId: note.id, name: noteEmoji[note.id].trim() })}>回應留言</button></div>}
+              })}{!detail.noteReactions[note.id]?.length && <span class="muted">尚無表情。</span>}<input aria-label={`留言表情 ${note.id}`} value={noteEmoji[note.id] ?? ''} onInput={(event) => setNoteEmoji((current) => ({ ...current, [note.id]: event.currentTarget.value }))} /><button disabled={!noteEmoji[note.id]?.trim() || busy} onClick={() => invoke('reactNote', { noteId: note.id, name: noteEmoji[note.id].trim() })}>回應留言</button></div></ReactionDemand>}
               {deletingNoteId === note.id && <div class="toolbar alert"><span>要永久刪除此留言嗎？</span><button class="danger" disabled={busy} onClick={() => { invoke('deleteNote', { discussionId: discussion.id, noteId: note.id }); setDeletingNoteId(null); }}>刪除</button><button onClick={() => setDeletingNoteId(null)}>取消</button></div>}
             </div>)}
             {detail.canComment && !discussion.notes[0]?.system && <div class="reply-row"><textarea aria-label="回覆內容" rows={3} placeholder="回覆這則討論" value={reply[discussion.id] ?? ''} onInput={(event) => updateReplyDraft({ ...replyRef.current, [discussion.id]: event.currentTarget.value })} /><div class="toolbar wrap"><button type="button" disabled={!reply[discussion.id]?.trim()} onClick={() => previewEditor(`reply:${discussion.id}`, reply[discussion.id] ?? '')}>預覽 Markdown</button><button type="button" onClick={() => upload(`reply:${discussion.id}`)}>上傳附件</button><button type="button" disabled={!reply[discussion.id]?.trim() || busy} onClick={() => invoke('reply', { discussionId: discussion.id, body: reply[discussion.id] })}>送出回覆</button></div>{editorHtml[`reply:${discussion.id}`] && <Markdown html={editorHtml[`reply:${discussion.id}`]} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} />}</div>}
@@ -980,7 +1026,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
         <section class="card issue-section" hidden={detailTab !== 'content'}><h2>相關 Merge Request</h2>{detail.mergeRequests.length ? detail.mergeRequests.map((mr) => <div class="list-row"><span class={`state ${mr.state}`}>{mr.state}</span><button class="text-link" onClick={() => openLink(mr.web_url)}>!{mr.iid} {mr.title}</button></div>) : <p class="muted">尚無相關 Merge Request。</p>}</section>
       </div><aside class="sidebar">
         <section class="card issue-section" hidden={detailTab !== 'content'}><details class="issue-properties"><summary>屬性：負責人、標籤與里程碑</summary><dl><dt>建立者</dt><dd>{issue.author?.name ?? '—'}</dd><dt>負責人</dt><dd>{issue.assignees?.map((person) => person.name).join('、') || '未指派'}</dd><dt>標籤</dt><dd>{issue.labels?.length ? issue.labels.map((label) => <span class="pill">{label}</span>) : '無'}</dd><dt>里程碑</dt><dd>{issue.milestone?.title ?? '無'}</dd>{detail.hasStartDate && <><dt>開始日期</dt><dd>{detail.startDate ?? '無'}</dd></>}<dt>到期日</dt><dd>{issue.due_date ?? '無'}</dd><dt>機密</dt><dd>{issue.confidential ? '是' : '否'}</dd><dt>討論</dt><dd>{issue.discussion_locked ? '已鎖定' : '開放'}</dd></dl></details></section>
-        <section class="card issue-section" hidden={detailTab !== 'content'}><h2>表情回應</h2><div class="toolbar wrap">{detail.reactions.map((reaction) => <button class={myReactions.has(reaction.id) ? 'selected' : ''} onClick={() => myReactions.has(reaction.id) ? invoke('unreact', { reactionId: reaction.id }) : invoke('react', { name: reaction.name })}>{reaction.name}</button>)}</div><div class="inline-form"><input aria-label="表情名稱" value={emoji} onInput={(event) => setEmoji(event.currentTarget.value)} /><button disabled={!emoji.trim() || busy} onClick={() => invoke('react', { name: emoji.trim() })}>回應</button></div></section>
+        <section class="card issue-section" hidden={detailTab !== 'content'}><h2>表情回應</h2><ReactionDemand state={detail.sections?.reactions ? { status: detail.sections.reactions, error: detail.loadErrors?.reactions } : undefined} label="Issue 表情" disabled={busy} onLoad={() => post({ type: 'loadSection', sections: ['reactions'] })}><div class="toolbar wrap">{detail.reactions.map((reaction) => <button class={myReactions.has(reaction.id) ? 'selected' : ''} disabled={busy} onClick={() => myReactions.has(reaction.id) ? invoke('unreact', { reactionId: reaction.id }) : invoke('react', { name: reaction.name })}>{reaction.name}</button>)}{!detail.reactions.length && <span class="muted">尚無表情。</span>}</div><div class="inline-form"><input aria-label="表情名稱" value={emoji} onInput={(event) => setEmoji(event.currentTarget.value)} /><button disabled={!emoji.trim() || busy} onClick={() => invoke('react', { name: emoji.trim() })}>回應</button></div></ReactionDemand></section>
         <section class="card issue-section" hidden={detailTab !== 'relations'}><h2>訂閱與待辦</h2><div class="stack"><button onClick={() => invoke(issue.subscribed ? 'unsubscribe' : 'subscribe')}>{issue.subscribed ? '取消訂閱' : '訂閱此 Issue'}</button><button onClick={() => myTodo ? invoke('todoDone', { todoId: myTodo.id }) : invoke('todo')}>{myTodo ? '完成待辦' : '加入待辦'}</button></div></section>
         <section class="card issue-section" hidden={detailTab !== 'time'}><h2>工時</h2>
           {recoveredManualTime && <div class="recovered-draft"><strong>有一份舊工時草稿尚未指定 Issue</strong><p class="muted">為避免寫入錯誤的 Issue，請選擇專案並輸入 Issue 編號後再恢復。</p><div class="inline-form"><select aria-label="舊工時草稿的目標專案" value={recoveryProjectId} onChange={(event) => setRecoveryProjectId(event.currentTarget.value)}><option value="">選擇目標專案</option>{snapshot?.projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select><input aria-label="舊工時草稿的目標 Issue 編號" inputMode="numeric" type="number" min="1" placeholder="Issue 編號" value={recoveryIssueIid} onInput={(event) => setRecoveryIssueIid(event.currentTarget.value)} /><button type="button" disabled={!recoveryProjectId || !Number(recoveryIssueIid) || Number(recoveryIssueIid) < 1} onClick={() => { onRecoverManualTime?.(Number(recoveryProjectId), Number(recoveryIssueIid)); setRecoveryProjectId(''); setRecoveryIssueIid(''); }}>恢復到指定 Issue</button></div><p class="small">草稿：{[recoveredManualTime.duration, recoveredManualTime.summary, recoveredManualTime.spentAt].filter(Boolean).join(' · ')}</p></div>}

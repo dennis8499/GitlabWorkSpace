@@ -8,8 +8,9 @@ import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isAllowedGitRemote } from '../api/urlPolicy';
 import type { GitLabProject } from '../api/types';
-import { groupRepositoryPath, projectFolderNames, projectRootRepositoryId, sameLocalPath } from '../workspace/workspacePaths';
+import { groupRepositoryPath, sameLocalPath } from '../workspace/workspacePaths';
 import { withGitDirectoryLock } from './repositoryOperationLock';
+import { assertSameLocalRepositoryLayout, LocalRepositoryMetadataError, resolveLocalRepositoryLayout, type LocalRepositoryLayout } from '../workspace/localRepositoryLayout';
 
 export type CloneAction = 'clone' | 'update';
 
@@ -96,6 +97,8 @@ export interface CloneDependencies extends GitProcessOptions {
   resolveProject?: ProjectResolver;
   /** Complete selected Group inventory, used to make same-named child Repos deterministic. */
   groupProjects?: readonly GitLabProject[];
+  /** Destinations reviewed by the user; execution must revalidate without changing them. */
+  layout?: LocalRepositoryLayout;
 }
 
 export interface LocalSyncDependencies extends GitProcessOptions {
@@ -103,6 +106,7 @@ export interface LocalSyncDependencies extends GitProcessOptions {
   resolveProject?: ProjectResolver;
   /** Complete Group inventory, used to resolve stable paths when syncing only local repositories. */
   groupProjects?: readonly GitLabProject[];
+  layout?: LocalRepositoryLayout;
 }
 
 export class ClonePreflightError extends Error {
@@ -112,13 +116,35 @@ export class ClonePreflightError extends Error {
   }
 }
 
+/** Explicit operations may fill missing SSH metadata only for their selected projects. */
+export async function prepareOperationLayout(root: string, projects: readonly GitLabProject[], resolveProject?: ProjectResolver,
+  signal?: AbortSignal): Promise<{ projects: GitLabProject[]; layout: LocalRepositoryLayout }> {
+  let prepared = [...projects];
+  const completeProject = async (project: GitLabProject): Promise<GitLabProject> => {
+    const details = await resolveProject!(project, signal);
+    if (details.id !== project.id) throw new ClonePreflightError('GitLab returned a different project identity; no repository operation was started.');
+    return { ...project, ...details };
+  };
+  if (resolveProject) prepared = await mapPreflight(prepared, project =>
+    [project.path, project.path_with_namespace, project.http_url_to_repo].some(value => typeof value !== 'string' || !value.trim())
+      ? completeProject(project) : Promise.resolve(project));
+  try { return { projects: prepared, layout: await resolveLocalRepositoryLayout(root, prepared, projectRemoteMatches, signal) }; }
+  catch (error) {
+    if (!(error instanceof LocalRepositoryMetadataError) || !resolveProject) throw error;
+    const required = new Set(error.projectIds);
+    prepared = await mapPreflight(prepared, async project => required.has(project.id) ? completeProject(project) : project);
+    signal?.throwIfAborted();
+    return { projects: prepared, layout: await resolveLocalRepositoryLayout(root, prepared, projectRemoteMatches, signal) };
+  }
+}
+
 export function planClones(
   workspacePath: string,
   projects: readonly GitLabProject[],
   gitLabBaseUrl: string,
   exists: (target: string) => boolean = existsSync,
   groupProjects: readonly GitLabProject[] = projects,
-  folders: ReadonlyMap<number, string> = projectFolderNames(groupProjects)
+  folders: ReadonlyMap<number, string> = new Map(groupProjects.map(project => [project.id, `${project.path}--${project.id}`]))
 ): ClonePlan[] {
   const root = path.resolve(workspacePath);
   if (!exists(root) || !statSync(root).isDirectory()) {
@@ -129,12 +155,13 @@ export function planClones(
 }
 
 async function planClonesAsync(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
-  groupProjects: readonly GitLabProject[] = projects, folders = projectFolderNames(groupProjects), knownRoot?: { id?: number }): Promise<ClonePlan[]> {
+  groupProjects: readonly GitLabProject[] = projects, folders?: ReadonlyMap<number, string>, knownRoot?: { id?: number }, layout?: LocalRepositoryLayout): Promise<ClonePlan[]> {
   const root = path.resolve(workspacePath);
   try { if (!(await stat(root)).isDirectory()) throw new Error('not a directory'); }
   catch { throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.'); }
-  const rootProjectId = knownRoot ? knownRoot.id : await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
-  const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, () => false, rootProjectId);
+  const resolved = layout ?? await resolveLocalRepositoryLayout(root, groupProjects, projectRemoteMatches, gitProcessOptions.getStore()?.signal);
+  const rootProjectId = knownRoot ? knownRoot.id : resolved.rootProjectId;
+  const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders ?? resolved.folders, () => false, rootProjectId);
   for (let offset = 0; offset < plans.length; offset += 4) await Promise.all(plans.slice(offset, offset + 4).map(async plan => {
     plan.action = await isPathPresentAsync(plan.targetPath) ? 'update' : 'clone';
   }));
@@ -183,9 +210,19 @@ async function cloneProjectsInternal(workspacePath: string, projects: readonly G
   onProgress: (progress: CloneProgress) => void, dependencies: CloneDependencies): Promise<CloneBatchResult> {
   dependencies.signal?.throwIfAborted();
   if (projects[0]) onProgress({ project: projects[0], action: 'clone', state: 'starting', message: '正在檢查本機目的地與遠端資訊…' });
+  const layoutProjects = dependencies.layout ? (dependencies.groupProjects ?? projects).filter(project => dependencies.layout!.destinations.has(project.id)) : projects;
+  let prepared: Awaited<ReturnType<typeof prepareOperationLayout>>;
+  try { prepared = await prepareOperationLayout(workspacePath, layoutProjects, dependencies.resolveProject, dependencies.signal); }
+  catch (error) {
+    dependencies.signal?.throwIfAborted();
+    throw new ClonePreflightError((error instanceof Error ? error.message : 'Cannot verify local destinations.') + ' No repositories were changed.');
+  }
+  if (dependencies.layout) assertSameLocalRepositoryLayout(dependencies.layout, prepared.layout);
+  const preparedById = new Map(prepared.projects.map(project => [project.id, project]));
+  const selected = projects.map(project => preparedById.get(project.id) ?? project);
   // Validate every existing destination and remote before the first clone or fetch.
   const plans = await preflightExistingPlans(
-    await planClonesAsync(workspacePath, projects, gitLabBaseUrl, dependencies.groupProjects ?? projects),
+    await planClonesAsync(workspacePath, selected, gitLabBaseUrl, dependencies.groupProjects ?? selected, undefined, undefined, prepared.layout),
     workspacePath,
     gitLabBaseUrl,
     dependencies.resolveProject ?? (async (project) => project)
@@ -297,53 +334,33 @@ async function syncLocalDefaultBranchesInternal(workspacePath: string, projects:
   const resolveProject = dependencies.resolveProject ?? (async (project) => project);
   const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;
   const groupProjects = dependencies.groupProjects ?? projects;
-  const folders = projectFolderNames(groupProjects);
+  const layoutProjects = dependencies.layout ? groupProjects.filter(project => dependencies.layout!.destinations.has(project.id)) : groupProjects;
+  const layoutPreparation = await prepareOperationLayout(workspacePath, layoutProjects, dependencies.resolveProject, dependencies.signal);
+  if (dependencies.layout) assertSameLocalRepositoryLayout(dependencies.layout, layoutPreparation.layout);
+  const folders = layoutPreparation.layout.folders;
   const handledPaths = new Set<string>();
-  const root = path.resolve(workspacePath);
-  const rootProjectId = await projectRootRepositoryId(root, groupProjects, projectRemoteMatches);
+  const preparedById = new Map(layoutPreparation.projects.map(project => [project.id, project]));
+  const localProjects = projects.filter(project => layoutPreparation.layout.existingProjectIds.has(project.id))
+    .map(project => preparedById.get(project.id) ?? project);
+  // Finish the entire local/metadata preflight before any repository can fetch.
+  const localPlans = await planClonesAsync(workspacePath, localProjects, gitLabBaseUrl, groupProjects, folders, undefined, layoutPreparation.layout);
+  const checked = await mapPreflight(localPlans, async plan => {
+    try { return (await preflightExistingPlans([plan], workspacePath, gitLabBaseUrl, resolveProject, false, true))[0]; }
+    catch (error) {
+      dependencies.signal?.throwIfAborted();
+      if (error instanceof ClonePreflightError) throw error;
+      const reason = error instanceof Error ? error.message : 'The project metadata could not be read.';
+      result.skipped.push({ project: plan.project, reason }); onProgress({ project: plan.project, state: 'skipped', message: reason });
+      return undefined;
+    }
+  });
+  const plans = checked.filter((plan): plan is ClonePlan => plan !== undefined);
+  result.found = localPlans.length;
 
-  for (const project of projects) {
+  for (const prepared of plans) {
+    const project = prepared.project;
     if (dependencies.signal?.aborted) { result.cancelled = true; break; }
     onProgress({ project, state: 'starting', message: '正在檢查本機目的地與遠端資訊…' });
-    let targetPath: string;
-    try {
-      targetPath = groupRepositoryPath(root, project, groupProjects, folders, rootProjectId);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
-      result.skipped.push({ project, reason });
-      onProgress({ project, state: 'skipped', message: reason });
-      continue;
-    }
-
-    // Missing repositories are outside this command's scope, so their clone URLs
-    // do not need to be inspected.
-    if (!await isPathPresentAsync(targetPath)) continue;
-
-    let plan: ClonePlan;
-    try {
-      plan = (await planClonesAsync(workspacePath, [project], gitLabBaseUrl, groupProjects, folders, { id: rootProjectId }))[0];
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : 'The local repository path could not be verified.';
-      result.skipped.push({ project, reason });
-      onProgress({ project, state: 'skipped', message: reason });
-      continue;
-    }
-
-    // Synchronization only considers destinations that already exist locally.
-    if (plan.action === 'clone') continue;
-    result.found += 1;
-
-    let prepared: ClonePlan;
-    try {
-      prepared = (await preflightExistingPlans([plan], workspacePath, gitLabBaseUrl, resolveProject, false, true))[0];
-    } catch (error) {
-      const reason = error instanceof Error
-        ? error.message.replace(/ No repositories were changed\.$/, '')
-        : 'The existing repository could not be verified.';
-      result.skipped.push({ project, reason });
-      onProgress({ project, state: 'skipped', message: reason });
-      continue;
-    }
 
     const foldedPath = path.resolve(prepared.targetPath).toLocaleLowerCase('en-US');
     if (handledPaths.has(foldedPath)) {

@@ -134,12 +134,11 @@ test('first download works in an empty folder and cancellation preserves the sel
   assert.deepEqual(operations[0].ids, [1]);
 });
 
-test('target origin mismatches remain blocked by the real clone and update preflight', async t => {
-  const f = await fixture(t); const service = await f.repo(f.root, 'service', 'https://gitlab.test/other/service.git');
+test('occupied ID destinations remain blocked by the real clone and update preflight', async t => {
+  const f = await fixture(t); const service = await f.repo(f.root, 'service--1', 'https://gitlab.test/other/service.git');
   const { host } = controller([f.root]); realOperations = true;
-  await assert.rejects(host.clone([1], false), /not a Git repository for team\/service/);
-  await host.syncRepos(); assert.equal(host.cloneOperation.items[0].state, 'skipped');
-  assert.match(host.cloneOperation.items[0].message, /not a Git repository for team\/service/);
+  await assert.rejects(host.clone([1], false), /占用/);
+  await assert.rejects(host.syncRepos(), /占用/);
   assert.equal(execFileSync('git', ['-C', service, 'remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim(), 'https://gitlab.test/other/service.git');
 });
 

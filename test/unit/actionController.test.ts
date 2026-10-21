@@ -45,6 +45,44 @@ test('Issue Board cancel is immediate control traffic and selections retain late
   assert.equal(actions.getSnapshot().filter(value => value.status === 'queued').length, 1);
 });
 
+test('on-demand filter reads join identical sections while keeping boards, milestones and scopes independent', () => {
+  const { actions, sent } = setup();
+  const boards = { type: 'ensureWorkspaceSection', section: 'boards', connectedScope: 'group:a' };
+  const first = actions.dispatch(boards);
+  assert.equal(first.status, 'started');
+  const duplicate = actions.dispatch(boards);
+  assert.equal(duplicate.status, 'joined');
+  assert.equal(duplicate.operationId, first.operationId);
+  assert.equal(actions.dispatch({ ...boards, section: 'milestones' }).status, 'started');
+  assert.equal(sent.length, 2);
+
+  const policy = describeAction(boards, { scopeRevision: 'a', accountKey: 'account' });
+  assert.equal(policy.kind, 'read');
+  assert.equal(policy.concurrency, 'join');
+  assert.equal(policy.resourceKey, 'workspace-section:boards');
+  assert.equal(policy.label, '載入篩選選項');
+  assert.equal(policy.retryable, true);
+  assert.equal(policy.notify, false);
+  const anotherScope = { ...boards, connectedScope: 'group:b' };
+  const refresh = { type: 'retryWorkspaceSection', section: 'boards', connectedScope: 'group:a' };
+  assert.notEqual(policy.lockKey, describeAction(anotherScope, { scopeRevision: 'b', accountKey: 'account' }).lockKey);
+  assert.notEqual(policy.lockKey, describeAction(refresh, { scopeRevision: 'a', accountKey: 'account' }).lockKey);
+  actions.dispose();
+});
+
+test('Group changes cancel on-demand filter reads and prevent retrying the old scope', () => {
+  const { actions, sent } = setup();
+  actions.setContext({ scopeRevision: 'group:a', localOperationScope: 'local:root' });
+  const first = actions.dispatch({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: 'group:a' }).operationId!;
+  assert.equal(sent[0].operationScope, 'group:a');
+  actions.setContext({ scopeRevision: 'group:b' });
+  assert.equal(actions.get(first)?.status, 'cancelled');
+  assert.equal(actions.retry(first).status, 'blocked');
+  assert.equal(actions.dispatch({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: 'group:b' }).status, 'started');
+  assert.equal(sent[1].operationScope, 'group:b');
+  actions.dispose();
+});
+
 test('dispatch sets pending synchronously, joins identical reads and separates MR sections', () => {
   const { actions, sent } = setup();
   const read = { type: 'loadMergeRequestSection', projectId: 1, iid: 2, section: 'diffs' };

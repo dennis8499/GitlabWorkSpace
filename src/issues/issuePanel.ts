@@ -4,11 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
-import type { GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
+import type { GitLabIssue, GitLabLabel, GitLabMember, GitLabMilestone } from '../api/types';
 import type { GitLabSession } from '../connection/session';
-import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
+import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
-import { mapWithConcurrency } from '../workspace/issueGraph';
 import { operationResource, type OperationTracker, type WorkspaceOperationState } from '../workspace/operations';
 import { describeAction } from '../workspace/actionPolicy';
 
@@ -43,6 +42,10 @@ function requiredId(value: unknown, label: string): number {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function emptyFormOptions(): IssueFormOptions {
+  return { members: [], labels: [], milestones: [], templates: [], states: { fields: { status: 'idle' }, templates: { status: 'idle' } } };
 }
 
 function optionalId(value: unknown): number | undefined {
@@ -130,9 +133,12 @@ export class IssuePanels implements vscode.Disposable {
   private navigationVersion = 0;
   private projectOptionsVersion = 0;
   private templateAbort?: AbortController;
+  private createOptionsAbort?: AbortController;
+  private readonly formOptionsReads = new Map<string, Promise<void>>();
   private operationSnapshotAbort?: AbortController;
   private readonly uploads = new Map<string, AbortController>();
   private detailSectionLoader?: (sections: IssueDetailSection[], forceNetwork?: boolean) => Promise<void>;
+  private noteReactionLoader?: (noteId: number, forceNetwork?: boolean) => Promise<void>;
   private hasNavigation = false;
   private mode: 'create' | 'detail' = 'create';
   private revision = 0;
@@ -274,19 +280,28 @@ export class IssuePanels implements vscode.Disposable {
     this.suspended = true;
     this.ready = false;
     this.cancelNavigationReads();
+    const resetOptions = (options: IssueFormOptions): IssueFormOptions => ({ ...options, states: Object.fromEntries(
+      Object.entries(options.states ?? {}).map(([section, state]) => [section, state.status === 'loading' ? { status: 'idle' } : state])
+    ) });
     if (this.lastSnapshot?.type === 'detailData') {
       const sections = { ...this.lastSnapshot.data.sections };
       for (const section of Object.keys(sections) as IssueDetailSection[]) if (sections[section] === 'loading') sections[section] = 'idle';
-      this.lastSnapshot = { ...this.lastSnapshot, data: { ...this.lastSnapshot.data, sections } };
+      const noteReactionStates = Object.fromEntries(Object.entries(this.lastSnapshot.data.noteReactionStates ?? {})
+        .map(([id, state]) => [id, state.status === 'loading' ? { status: 'idle' as const } : state]));
+      this.lastSnapshot = { ...this.lastSnapshot, data: { ...this.lastSnapshot.data, sections, noteReactionStates, options: resetOptions(this.lastSnapshot.data.options) } };
+    } else if (this.lastSnapshot?.type === 'createData' && this.lastSnapshot.options) {
+      this.lastSnapshot = { ...this.lastSnapshot, options: resetOptions(this.lastSnapshot.options) };
     }
   }
 
   private cancelNavigationReads(): void {
     this.operationSnapshotAbort?.abort(); this.operationSnapshotAbort = undefined;
     this.templateAbort?.abort(); this.templateAbort = undefined;
+    this.createOptionsAbort?.abort(); this.createOptionsAbort = undefined; this.formOptionsReads.clear();
     this.navigationReadController?.abort();
     this.navigationReadController = undefined;
     this.detailSectionLoader = undefined;
+    this.noteReactionLoader = undefined;
   }
 
   close(): void {
@@ -363,6 +378,8 @@ export class IssuePanels implements vscode.Disposable {
       this.lastSnapshot = { type: 'detailData', data: {
         ...previous, ...message.patch,
         options: message.patch.options ? { ...previous.options, ...message.patch.options } : previous.options,
+        noteReactions: { ...previous.noteReactions, ...message.patch.noteReactions },
+        noteReactionStates: { ...previous.noteReactionStates, ...message.patch.noteReactionStates },
         sections: { ...(previous.sections ?? {}), ...(message.patch.sections ?? {}) }
       } };
     }
@@ -433,6 +450,7 @@ export class IssuePanels implements vscode.Disposable {
         if (this.lastSnapshot && this.navigationReadController && !this.navigationReadController.signal.aborted) return;
       }
       if (this.lastSnapshot) {
+        if (this.lastSnapshot.type === 'createData') this.createOptionsAbort ??= new AbortController();
         if (this.lastSnapshot.type === 'detailData' && !this.navigationReadController) {
           const controller = new AbortController();
           this.navigationReadController = controller;
@@ -551,13 +569,15 @@ export class IssuePanels implements vscode.Disposable {
     const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork });
     const first = projects[0];
     if (version !== this.navigationVersion || signal.aborted) return;
-    this.post({ type: 'createData', projects, selectedProjectId: first?.id, optionsLoading: !!first,
+    this.createOptionsAbort = new AbortController();
+    this.post({ type: 'createData', projects, selectedProjectId: first?.id, options: emptyFormOptions(), optionsLoading: false,
       metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue: false });
     if (!first) { await capabilitiesTask; return; }
     const optionsVersion = ++this.projectOptionsVersion;
-    const [options, canCreateIssue] = await Promise.all([this.formOptions(first.id, signal, forceNetwork),
-      capabilitiesTask.then(() => this.session.issueCapabilities?.createPermission ? client.canCreateIssue(first.path_with_namespace).catch(() => false) : false)]);
+    await capabilitiesTask;
+    const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(first.path_with_namespace).catch(() => false) : false;
     if (version !== this.navigationVersion || signal.aborted || optionsVersion !== this.projectOptionsVersion || this.mode !== 'create') return;
+    const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
     this.post({ type: 'projectData', projectId: first.id, options, optionsLoading: false, preserveDraft: true,
       canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
   }
@@ -566,30 +586,64 @@ export class IssuePanels implements vscode.Disposable {
     const results = await Promise.allSettled([
       this.session.cachedRead(`project/${projectId}/members`, (client) => client.listProjectMembers(projectId), { signal, force: forceNetwork }),
       this.session.cachedRead(`project/${projectId}/labels`, (client) => client.listProjectLabels(projectId), { signal, force: forceNetwork }),
-      this.session.cachedRead(`project/${projectId}/milestones`, (client) => client.listProjectMilestones(projectId), { signal, force: forceNetwork }),
-      this.session.cachedRead(`project/${projectId}/template-names`, async (client) => typeof client.listProjectIssueTemplateNames === 'function'
-        ? (await client.listProjectIssueTemplateNames(projectId)).map(template => ({ ...template, content: '', loaded: false }))
-        : client.listProjectIssueTemplates(projectId), { signal, force: forceNetwork })
+      this.session.cachedRead(`project/${projectId}/milestones`, (client) => client.listProjectMilestones(projectId), { signal, force: forceNetwork })
     ] as const);
-    const labels = ['members', 'labels', 'milestones', 'templates'];
+    const labels = ['members', 'labels', 'milestones'];
     const warnings = results.flatMap((result, index) => result.status === 'rejected' ? [`Could not load ${labels[index]}: ${safeError(result.reason)}`] : []);
     const value = <T,>(index: number): T[] => results[index].status === 'fulfilled' ? results[index].value as T[] : [];
     return {
       members: [...value<GitLabMember>(0)], labels: [...value<GitLabLabel>(1)],
-      milestones: [...value<GitLabMilestone>(2)], templates: [...value<IssueFormOptions['templates'][number]>(3)], warnings
+      milestones: [...value<GitLabMilestone>(2)], templates: [], warnings,
+      states: { fields: { status: warnings.length ? 'error' : 'ready', error: warnings.length ? warnings.join(' ') : undefined }, templates: { status: 'idle' } }
     };
   }
 
-  private async loadNoteReactions(client: import('../api/gitLabClient').GitLabClient, projectId: number, iid: number, discussions: GitLabIssueDiscussion[], signal: AbortSignal): Promise<{ reactions: Record<number, GitLabEmojiReaction[]>; failed: number }> {
-    const ids = discussions.flatMap((discussion) => discussion.notes.filter((note) => !note.system).map((note) => note.id));
-    const reactions: Record<number, GitLabEmojiReaction[]> = {};
-    let failed = 0;
-    await mapWithConcurrency(ids, 8, async (id) => {
-      if (signal.aborted) throw new Error('The Issue view request was cancelled.');
-      try { reactions[id] = await client.listIssueNoteReactions(projectId, iid, id); }
-      catch (error) { if (signal.aborted) throw error; failed++; }
-    });
-    return { reactions, failed };
+  private async loadCreateFormOptions(projectId: number, section: IssueFormOptionSection): Promise<void> {
+    if (this.mode !== 'create' || this.lastSnapshot?.type !== 'createData' || this.lastSnapshot.selectedProjectId !== projectId) {
+      throw new IssueValidationError('The selected creation project changed.');
+    }
+    if (section !== 'fields' && section !== 'templates') throw new IssueValidationError('Invalid form options section.');
+    const version = this.navigationVersion, optionsVersion = this.projectOptionsVersion;
+    const signal = this.createOptionsAbort?.signal;
+    const key = `${version}:${optionsVersion}:${projectId}:${section}`;
+    const pending = this.formOptionsReads.get(key);
+    if (pending) return pending;
+    const force = this.lastSnapshot.options?.states?.[section]?.status === 'error';
+    const current = () => !signal?.aborted && version === this.navigationVersion && optionsVersion === this.projectOptionsVersion &&
+      this.mode === 'create' && this.lastSnapshot?.type === 'createData' && this.lastSnapshot.selectedProjectId === projectId;
+    const publish = (state: IssueReadState, value?: Partial<IssueFormOptions>): void => {
+      if (!current() || this.lastSnapshot?.type !== 'createData') return;
+      const previous = this.lastSnapshot.options ?? emptyFormOptions();
+      this.post({ type: 'projectData', projectId, preserveDraft: true, canCreateIssue: this.lastSnapshot.canCreateIssue,
+        options: { ...previous, ...value, states: { ...previous.states, [section]: state } }, optionsLoading: false });
+    };
+    publish({ status: 'loading' });
+    const task = (async () => {
+      try {
+        const options = section === 'fields' ? await this.formOptions(projectId, signal, force) : {
+          templates: await this.session.cachedRead(`project/${projectId}/template-names`, async client => typeof client.listProjectIssueTemplateNames === 'function'
+            ? (await client.listProjectIssueTemplateNames(projectId)).map(template => ({ ...template, content: '', loaded: false }))
+            : client.listProjectIssueTemplates(projectId), { signal, force })
+        };
+        const warnings = section === 'fields' ? (options as IssueFormOptions).warnings : undefined;
+        if (warnings?.length) {
+          const action = this.actionContext.getStore(); if (action) { action.status = 'failed'; action.error = warnings.join(' '); }
+        }
+        const value: Partial<IssueFormOptions> = section === 'fields'
+          ? { members: (options as IssueFormOptions).members, labels: (options as IssueFormOptions).labels,
+            milestones: (options as IssueFormOptions).milestones, warnings }
+          : { templates: options.templates };
+        publish(warnings?.length ? { status: 'error', error: warnings.join(' ') } : { status: 'ready' }, value);
+      } catch (error) {
+        if (!current()) return;
+        const message = safeError(error), action = this.actionContext.getStore();
+        if (action) { action.status = 'failed'; action.error = message; }
+        publish({ status: 'error', error: message });
+      }
+    })();
+    this.formOptionsReads.set(key, task);
+    void task.finally(() => { if (this.formOptionsReads.get(key) === task) this.formOptionsReads.delete(key); }).catch(() => undefined);
+    return task;
   }
 
   private async loadTasks(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<{ tasks: IssueTask[]; parentWorkItemId?: string; taskTypeId?: string; permissions?: Record<string, boolean> }> {
@@ -634,18 +688,20 @@ export class IssuePanels implements vscode.Disposable {
     const seed = this.issue;
     if (!seed) return;
     const client = (await this.session.getClient()).withReadSignal(signal);
-    const [issue, project, user] = restoredData ? [restoredData.issue, restoredData.project, restoredData.user] : await Promise.all([
-      client.getIssue(seed.project_id, seed.iid), client.getProject(seed.project_id), client.getCurrentUser()
+    const [issue, project, user] = await Promise.all([
+      this.session.cachedRead(`project/${seed.project_id}/issue/${seed.iid}`, readClient => readClient.getIssue(seed.project_id, seed.iid), { signal, force: forceNetwork }),
+      this.session.cachedRead(`project/${seed.project_id}/details`, readClient => readClient.getProject(seed.project_id), { signal, force: forceNetwork }),
+      this.session.cachedRead('current-user', readClient => readClient.getCurrentUser(), { signal, force: forceNetwork })
     ]);
     if (version !== this.navigationVersion || signal.aborted) return;
     this.issue = issue;
     const group = this.session.selectedGroup;
     const sectionNames: IssueDetailSection[] = ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'];
     const sections = Object.fromEntries(sectionNames.map((name) => [name, 'idle'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
-    let data: IssueDetailData = restoredData ? { ...restoredData } : {
+    let data: IssueDetailData = restoredData ? { ...restoredData, issue, project, user } : {
       issue, project, projects: [project], user, metadata: this.session.metadata,
-      options: { members: [], labels: [], milestones: [], templates: [] },
-      discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [], timelogs: [],
+      options: emptyFormOptions(),
+      discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, noteReactionStates: {}, todos: [], tasks: [], timelogs: [],
       startDate: issue.start_date ?? null, startDateSupported: false,
       warnings: [], notices: [], loadErrors: {}, sections,
       canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
@@ -664,15 +720,17 @@ export class IssuePanels implements vscode.Disposable {
       if (warning) loadErrors[section] = warning;
       else if (status === 'ready') delete loadErrors[section];
       const next: Partial<IssueDetailData> = { ...value, sections: nextSections, loadErrors };
-      data = { ...data, ...next };
+      data = { ...data, ...next, noteReactions: { ...data.noteReactions, ...next.noteReactions },
+        noteReactionStates: { ...data.noteReactionStates, ...next.noteReactionStates } };
       if (section === 'permissions' || section === 'dates') {
         next.canSetStartDate = this.session.issueCapabilities?.startDate === true && data.startDateSupported === true && data.canEdit;
         data = { ...data, canSetStartDate: next.canSetStartDate };
       }
       this.post({ type: 'detailPatch', issueId: issue.id, patch: next });
     };
-    const loaders: Partial<Record<IssueDetailSection, () => Promise<Partial<IssueDetailData>>>> = {};
+    const loaders: Partial<Record<IssueDetailSection, (force?: boolean) => Promise<Partial<IssueDetailData>>>> = {};
     const running = new Map<IssueDetailSection, Promise<void>>();
+    const noteReads = new Map<number, Promise<void>>();
     loaders.options = async () => {
       const fields = await this.formOptions(issue.project_id, signal, forceNetwork);
       fields.members = [...fields.members]; fields.labels = [...fields.labels]; fields.milestones = [...fields.milestones];
@@ -682,19 +740,9 @@ export class IssuePanels implements vscode.Disposable {
       return { options: fields };
     };
     loaders.activity = async () => ({ discussions: await client.listIssueDiscussions(issue.project_id, issue.iid) });
-    loaders.reactions = async () => {
-      await runSection('activity');
-      if (signal.aborted) throw new Error('The Issue view request was cancelled.');
-      if (data.sections?.activity !== 'ready') throw new Error('Issue discussion activity must load before its reactions.');
-      const [reactions, noteResults] = await Promise.all([
-        client.listIssueReactions(issue.project_id, issue.iid),
-        this.loadNoteReactions(client, issue.project_id, issue.iid, data.discussions, signal)
-      ]);
-      return { reactions, noteReactions: noteResults.reactions, ...(noteResults.failed ? {
-        sections: { reactions: 'error' as const },
-        loadErrors: { reactions: `無法載入 ${noteResults.failed} 則留言的反應。` }
-      } : {}) };
-    };
+    loaders.reactions = async force => ({ reactions: await this.session.cachedRead(
+      `project/${issue.project_id}/issue/${issue.iid}/reactions`, readClient => readClient.listIssueReactions(issue.project_id, issue.iid),
+      { signal, force: forceNetwork || force }) });
     loaders.links = async () => ({ links: await client.listIssueLinks(issue.project_id, issue.iid) });
     loaders.mergeRequests = async () => ({ mergeRequests: await client.listRelatedMergeRequests(issue.project_id, issue.iid) });
     loaders.todos = async () => ({ todos: await client.listTodos() });
@@ -770,12 +818,12 @@ export class IssuePanels implements vscode.Disposable {
         canDeleteTimelog: capabilities?.timelogDelete === true && capabilities.timelogAdminPermission === true
       };
     };
-    const runSection = async (section: IssueDetailSection): Promise<void> => {
+    const runSection = async (section: IssueDetailSection, force = false): Promise<void> => {
       if (!current()) return;
       const status = data.sections?.[section];
-      if (status === 'ready' || status === 'unsupported') return;
+      if (!force && (status === 'ready' || status === 'unsupported')) return;
       const active = running.get(section);
-      if (active) return active;
+      if (active) { if (!force) return active; await active; if (!current()) return; }
       const loader = loaders[section];
       if (!loader) return;
       const action = this.actionContext.getStore();
@@ -788,13 +836,13 @@ export class IssuePanels implements vscode.Disposable {
       this.post({ type: 'detailPatch', issueId: issue.id, patch: { sections: data.sections } });
       const task = (async (): Promise<void> => {
         try {
-          const value = await loader();
+          const value = await loader(force || status === 'error');
           if (!current()) return;
           const optionErrors = section === 'options' ? value.options?.warnings : undefined;
           const loadWarning = value.loadErrors?.[section] ?? (optionErrors?.length ? optionErrors.join(' ') : undefined);
-          const status = value.sections?.[section] ?? (loadWarning ? 'error' : 'ready');
-          if (status === 'error' && loadWarning) failed(loadWarning);
-          patch(section, value, status, loadWarning);
+          const nextStatus = value.sections?.[section] ?? (loadWarning ? 'error' : 'ready');
+          if (nextStatus === 'error' && loadWarning) failed(loadWarning);
+          patch(section, value, nextStatus, loadWarning);
         } catch (error) {
           if (!current()) return;
           const message = `Could not load ${section === 'options' ? 'fields' : section === 'mergeRequests' ? 'merge requests' : section === 'timelogs' ? 'time entries' : section === 'dates' ? 'start date' : section === 'tasks' ? 'child tasks' : section === 'todos' ? 'to-dos' : section}` + `: ${safeError(error)}`;
@@ -813,7 +861,33 @@ export class IssuePanels implements vscode.Disposable {
         const loadErrors = { ...(data.loadErrors ?? {}) }; delete loadErrors[section];
         data = { ...data, loadErrors, sections: { ...(data.sections ?? {}), [section]: 'idle' } };
       }
-      await Promise.all(requested.map((section) => runSection(section)));
+      await Promise.all(requested.map((section) => runSection(section, force)));
+    };
+    this.noteReactionLoader = async (noteId, force = false) => {
+      if (!current()) return;
+      if (!data.discussions.some(discussion => discussion.notes.some(note => note.id === noteId && !note.system))) {
+        throw new IssueValidationError('Comment is not part of this issue.');
+      }
+      const pending = noteReads.get(noteId);
+      if (pending) { if (!force) return pending; await pending; if (!current()) return; }
+      const retry = data.noteReactionStates?.[noteId]?.status === 'error';
+      patch('activity', { noteReactionStates: { [noteId]: { status: 'loading' } } }, data.sections?.activity ?? 'ready');
+      const task = (async () => {
+        try {
+          const reactions = await this.session.cachedRead(`project/${issue.project_id}/issue/${issue.iid}/notes/${noteId}/reactions`,
+            readClient => readClient.listIssueNoteReactions(issue.project_id, issue.iid, noteId), { signal, force: forceNetwork || force || retry });
+          if (current()) patch('activity', { noteReactions: { [noteId]: reactions }, noteReactionStates: { [noteId]: { status: 'ready' } } }, data.sections?.activity ?? 'ready');
+        } catch (error) {
+          if (!current()) return;
+          const message = safeError(error), action = this.actionContext.getStore();
+          if (action?.effect === 'applied') action.refreshError = message;
+          else if (action) { action.status = 'failed'; action.error = message; }
+          patch('activity', { noteReactionStates: { [noteId]: { status: 'error', error: message } } }, data.sections?.activity ?? 'ready');
+        }
+      })();
+      noteReads.set(noteId, task);
+      void task.finally(() => { if (noteReads.get(noteId) === task) noteReads.delete(noteId); }).catch(() => undefined);
+      return task;
     };
     void this.detailSectionLoader(['activity', 'permissions', 'dates']);
   }
@@ -844,6 +918,11 @@ export class IssuePanels implements vscode.Disposable {
         ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'].includes(section));
       await this.detailSectionLoader?.([...new Set(valid)]);
       return;
+    }
+    if (request.type === 'loadFormOptions') return this.loadCreateFormOptions(requiredId(request.projectId, 'Project'), request.section);
+    if (request.type === 'loadNoteReactions') {
+      if (!this.noteReactionLoader || this.mode !== 'detail') throw new IssueValidationError('Open an issue first.');
+      return this.noteReactionLoader(requiredId(request.noteId, 'Comment'));
     }
     if (request.type === 'copyDescription') {
       const requestId = requiredString(request.requestId, 'Request ID');
@@ -880,16 +959,19 @@ export class IssuePanels implements vscode.Disposable {
       ? baseClient.withReadSignal(this.navigationReadController.signal) : baseClient;
     if (request.type === 'selectProject') {
       this.templateAbort?.abort();
+      this.createOptionsAbort?.abort(); this.createOptionsAbort = new AbortController(); this.formOptionsReads.clear();
       const version = this.navigationVersion;
       const optionsVersion = ++this.projectOptionsVersion;
       const projectId = requiredId(request.projectId, 'Project');
       const group = this.session.selectedGroup;
       const project = group ? (await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id))).find((item) => item.id === projectId) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
-      const [options, canCreateIssue] = await Promise.all([this.formOptions(projectId),
-        this.session.issueCapabilities?.createPermission ? client.canCreateIssue(project.path_with_namespace).catch(() => false) : Promise.resolve(false)]);
       if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
-      this.post({ type: 'projectData', projectId, options, canCreateIssue });
+      this.post({ type: 'projectData', projectId, options: emptyFormOptions(), optionsLoading: false, canCreateIssue: false });
+      const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
+      if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
+      const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
+      this.post({ type: 'projectData', projectId, options, preserveDraft: true, canCreateIssue });
       return;
     }
     if (request.type === 'create') {
@@ -1071,18 +1153,25 @@ export class IssuePanels implements vscode.Disposable {
       case 'resolveThread':
         if (!this.session.issueCapabilities?.discussionResolve) throw new Error('This GitLab instance does not expose discussion resolution.');
         await this.write(() => client.resolveIssueThread(requiredString(payload.discussionId, 'Thread'), payload.resolved === true)); break;
-      case 'react': await this.write(() => client.addIssueReaction(projectId, iid, requiredString(payload.name, 'Emoji'))); break;
-      case 'unreact': await this.write(() => client.removeIssueReaction(projectId, iid, requiredId(payload.reactionId, 'Reaction'))); break;
+      case 'react': case 'unreact': {
+        const reload = this.detailSectionLoader;
+        if (request.action === 'react') await this.write(() => client.addIssueReaction(projectId, iid, requiredString(payload.name, 'Emoji')));
+        else await this.write(() => client.removeIssueReaction(projectId, iid, requiredId(payload.reactionId, 'Reaction')));
+        await reload?.(['reactions'], true);
+        return;
+      }
       case 'reactNote': case 'unreactNote': {
         const noteId = requiredId(payload.noteId, 'Comment');
         if (!snapshot?.discussions.some((discussion) => discussion.notes.some((note) => note.id === noteId && !note.system))) throw new Error('Comment is not part of this issue.');
+        const reload = this.noteReactionLoader;
         if (request.action === 'reactNote') await this.write(() => client.addIssueNoteReaction(projectId, iid, noteId, requiredString(payload.name, 'Emoji')));
         else {
           const reactionId = requiredId(payload.reactionId, 'Reaction');
           if (!snapshot.noteReactions[noteId]?.some((reaction) => reaction.id === reactionId && reaction.user.id === snapshot.user.id)) throw new Error('Reaction is not yours.');
           await this.write(() => client.removeIssueNoteReaction(projectId, iid, noteId, reactionId));
         }
-        break;
+        await reload?.(noteId, true);
+        return;
       }
       case 'link': {
         if (!snapshot?.canLink) throw new Error('GitLab does not report permission to link Issues.');

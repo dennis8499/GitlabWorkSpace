@@ -135,8 +135,9 @@ test('clones a repository and keeps credentials out of args and remote URL', asy
 
     assert.equal(results.cloned.length, 1);
     assert.equal(results.completed.length, 1);
-    assert.equal(readFileSync(path.join(workspace, 'demo', 'README.md'), 'utf8').trim(), 'initial content');
-    const remoteUrl = git(['-C', path.join(workspace, 'demo'), 'remote', 'get-url', 'origin']);
+    const target = path.join(workspace, `${repo.path}--${repo.id}`);
+    assert.equal(readFileSync(path.join(target, 'README.md'), 'utf8').trim(), 'initial content');
+    const remoteUrl = git(['-C', target, 'remote', 'get-url', 'origin']);
     assert.doesNotMatch(argsText, /clone-unit-test-token-do-not-use/);
     assert.doesNotMatch(remoteUrl, /clone-unit-test-token-do-not-use|oauth2/);
     assert.equal(remoteUrl, bare);
@@ -232,7 +233,7 @@ test('real local clone logs its project and target with one start and one termin
     assert.equal(clone[1].exitCode, 0); assert.equal(clone[0].commandId, clone[1].commandId);
     for (const entry of clone) {
       assert.equal(entry.projectId, repo.id); assert.equal(entry.groupId, 991); assert.equal(entry.accountId, 'account');
-      assert.equal(entry.repositoryPath, path.join(workspace, repo.path)); assert.equal(entry.targetPath, path.join(workspace, repo.path));
+      assert.equal(entry.repositoryPath, path.join(workspace, `${repo.path}--${repo.id}`)); assert.equal(entry.targetPath, path.join(workspace, `${repo.path}--${repo.id}`));
       assert.equal(entry.network, true);
     }
     const commands = entries.filter(entry => entry.feature === 'git');
@@ -304,7 +305,7 @@ if ([WorkspaceShortPath]::GetShortPathName($env:GITLAB_WORKSPACE_TEST_LONG_PATH,
       updateRunner: async plan => { actions.push({ action: 'update', target: plan.targetPath }); return { state: 'updated' }; },
       cloneRunner: async plan => { actions.push({ action: 'clone', target: plan.targetPath }); git(['init', '--quiet', plan.targetPath]); }
     });
-    assert.deepEqual(actions, [{ action: 'update', target: alias }, { action: 'clone', target: path.join(alias, child.path) }]);
+    assert.deepEqual(actions, [{ action: 'update', target: alias }, { action: 'clone', target: path.join(alias, `${child.path}--${child.id}`) }]);
     assert.deepEqual(rooted.updated.map(item => item.id), [own.id]);
     assert.deepEqual(rooted.cloned.map(item => item.id), [child.id]);
     const synced: string[] = [];
@@ -330,7 +331,7 @@ test('fast-forwards the GitLab default branch and switches from a feature branch
   try {
     const firstRun = await cloneProjects(workspace, [repo], 'https://gitlab.example.test', dummyToken);
     assert.equal(firstRun.cloned.length, 1);
-    const target = path.join(workspace, repo.path);
+    const target = path.join(workspace, `${repo.path}--${repo.id}`);
     git(['-C', target, 'switch', '--quiet', '-c', 'feature/work']);
     commitAndPush(source, 'release', 'latest.txt', 'latest content\n', 'remote update');
     const results = await cloneProjects(workspace, [repo], 'https://gitlab.example.test', dummyToken);
@@ -521,7 +522,8 @@ test('preflights all destinations and rejects ordinary folders or a different or
   try {
     const workspace = path.join(temp, 'workspace');
     mkdirSync(workspace);
-    mkdirSync(path.join(workspace, 'second'));
+    const second = project('second');
+    mkdirSync(path.join(workspace, `${second.path}--${second.id}`));
     let started = 0;
     await assert.rejects(
       cloneProjects(
@@ -542,7 +544,7 @@ test('preflights all destinations and rejects ordinary folders or a different or
     mkdirSync(wrongWorkspace);
     const wrongProject = project('wrong');
     const wrongOrigin = 'https://gitlab.example.test/group/someone-else.git';
-    createExistingRepo(wrongWorkspace, wrongProject, bare, wrongOrigin);
+    createExistingRepo(wrongWorkspace, { ...wrongProject, path: `${wrongProject.path}--${wrongProject.id}` }, bare, wrongOrigin);
     let wrongOriginCloneCalls = 0;
     const notCloned = project('not-cloned');
     await assert.rejects(
@@ -839,7 +841,7 @@ test('skips dirty and divergent local default branches while continuing the batc
   }
 });
 
-test('skips invalid destinations, ignores missing repositories, and continues after a per-repository failure', async () => {
+test('stops before syncing an occupied destination, then ignores unrelated and missing folders and continues after a Git failure', async () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-local-sync-batch-'));
   try {
     const workspace = path.join(temp, 'workspace');
@@ -847,19 +849,25 @@ test('skips invalid destinations, ignores missing repositories, and continues af
     const { bare } = createBareRemote(temp);
     const wrongProject = project('wrong-origin');
     createExistingRepo(workspace, wrongProject, bare, 'https://gitlab.example.test/group/other.git');
-    const ordinaryProject = project('ordinary-folder');
+    const ordinaryProject = { ...project('ordinary-folder'), id: 100 };
     mkdirSync(path.join(workspace, ordinaryProject.path));
-    const failedProject = project('sync-failure');
+    const failedProject = { ...project('sync-failure'), id: 101 };
     createExistingRepo(workspace, failedProject, bare);
     const goodProject = { ...project('sync-success'), id: 99 };
     createExistingRepo(workspace, goodProject, bare);
-    const missingProject = project('not-downloaded');
+    const missingProject = { ...project('not-downloaded'), id: 102 };
     const missingExternalProject = {
-      ...project('external-not-downloaded'),
+      ...project('external-not-downloaded'), id: 103,
       http_url_to_repo: 'https://other.example.test/group/external-not-downloaded.git'
     };
     const calls: string[] = [];
 
+    const occupied = path.join(workspace, `${wrongProject.path}--${wrongProject.id}`);
+    mkdirSync(occupied);
+    await assert.rejects(syncLocalDefaultBranches(workspace, [failedProject, wrongProject], 'https://gitlab.example.test', dummyToken,
+      undefined, { syncRunner: async () => { calls.push('unexpected'); return { state: 'updated' }; } }), /占用/);
+    assert.equal(calls.length, 0);
+    rmSync(occupied, { recursive: true });
     const result = await syncLocalDefaultBranches(
       workspace,
       [wrongProject, ordinaryProject, failedProject, missingProject, missingExternalProject, goodProject],
@@ -875,8 +883,8 @@ test('skips invalid destinations, ignores missing repositories, and continues af
       }
     );
 
-    assert.equal(result.found, 4);
-    assert.deepEqual(result.skipped.map(({ project: skipped }) => skipped), [wrongProject, ordinaryProject]);
+    assert.equal(result.found, 2);
+    assert.deepEqual(result.skipped, []);
     assert.deepEqual(result.failed.map(({ project: failed }) => failed), [failedProject]);
     assert.equal(result.failed[0].reason, 'Git could not synchronize this repository.');
     assert.deepEqual(result.updated, [goodProject]);
@@ -911,7 +919,7 @@ test('an opened repository updates itself and clones another project into its ow
       updateRunner: async plan => { actions.push({ action: 'update', target: plan.targetPath }); return { state: 'updated' }; },
       cloneRunner: async plan => { actions.push({ action: 'clone', target: plan.targetPath }); git(['init', '--quiet', plan.targetPath]); }
     });
-    assert.deepEqual(actions, [{ action: 'update', target: root }, { action: 'clone', target: path.join(root, 'beta') }]);
+    assert.deepEqual(actions, [{ action: 'update', target: root }, { action: 'clone', target: path.join(root, 'beta--1002') }]);
     assert.deepEqual(result.updated.map(p => p.id), [own.id]); assert.deepEqual(result.cloned.map(p => p.id), [other.id]);
     const synced: string[] = [];
     await syncLocalDefaultBranches(root, [own], 'https://gitlab.example.test', dummyToken, undefined, {

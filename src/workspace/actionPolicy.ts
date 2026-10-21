@@ -48,6 +48,7 @@ export const workspaceActionKinds = {
   selectIssueBoard: 'read',
   loadIssueGraph: 'read',
   retryWorkspaceSection: 'read',
+  ensureWorkspaceSection: 'read',
   loadIssueRelations: 'read',
   selectProject: 'read',
   selectIssue: 'read',
@@ -143,6 +144,8 @@ export const issueActionKinds = {
   ready: 'control',
   refresh: 'read',
   loadSection: 'read',
+  loadFormOptions: 'read',
+  loadNoteReactions: 'read',
   loadTemplate: 'read',
   selectProject: 'read',
   preview: 'read',
@@ -218,7 +221,7 @@ export const operationLabels: Record<string, string> = {
   refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', importWorkflowKitPackage: '匯入工作流程包', copySkillGuidePrompt: '複製提示詞', copy: '複製內容', openCodexTerminal: '開啟 Codex CLI',
   selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
   postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', submitTimeEntry: '送出工時',
-  loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
+  loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', ensureWorkspaceSection: '載入篩選選項', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
 };
 
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'gitOpenRepository']);
@@ -272,7 +275,10 @@ export function describeAction(value: { type: string }, context: ActionContext =
   if (action === 'refreshRepositories') kind = 'read';
   let resourceKey = action;
   let slot = action;
-  if (request.type === 'retryWorkspaceSection') {
+  if (request.type === 'ensureWorkspaceSection') {
+    resourceKey = 'workspace-section:' + request.section;
+    slot = resourceKey + ':ensure:' + request.connectedScope;
+  } else if (request.type === 'retryWorkspaceSection') {
     resourceKey = 'workspace-section:' + request.section;
     slot = resourceKey + ':' + (request.mode ?? 'refresh');
     if (request.mode === 'cancel') kind = 'control';
@@ -299,6 +305,8 @@ export function describeAction(value: { type: string }, context: ActionContext =
     if ('target' in nested && nested.target) slot += ':' + nested.target;
     if (nested.type === 'image') slot += ':' + nested.url;
     if (nested.type === 'loadSection') slot += ':' + [...nested.sections].sort().join(',');
+    if (nested.type === 'loadFormOptions') slot += ':' + nested.section;
+    if (nested.type === 'loadNoteReactions') slot += ':' + nested.noteId;
   } else if ('iid' in request) {
     resourceKey = 'mr:' + request.projectId + ':' + request.iid;
     if (request.section) slot = resourceKey + ':' + request.section;

@@ -255,7 +255,7 @@ export function groupRepositoryPath(
 ): string {
   if (project.id === rootProjectId) return resolve(root);
   const folder = folders.get(project.id);
-  if (!folder || !/^[A-Za-z0-9_.-]+$/.test(folder) || folder === '.' || folder === '..' || /[. ]$/.test(folder) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(folder)) {
+  if (!folder || /[<>:"/\\|?*\x00-\x1f]/.test(folder) || folder === '.' || folder === '..' || /[. ]$/.test(folder) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(folder)) {
     throw new Error(`無法安全建立 Repo 路徑：${project.path_with_namespace}`);
   }
   const base = resolve(root);

@@ -1230,6 +1230,7 @@ function snapshot(activeMode = 'developer') {
     activeMode,
     instanceUserScope: 'instance-user',
     connectedScope: 'team-scope',
+    sections: { boards: { status: 'ready', complete: true }, milestones: { status: 'ready', complete: true } },
     projectMembers: [],
     timers: [],
     workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
@@ -2562,6 +2563,129 @@ test('graph relation forms use scoped requests, retry reads without repeating wr
   assert.match(document.querySelector('.graph-selected-detail h2').textContent, /Beta milestone issue/);
 });
 
+test('optional Issue filters load only on demand and retry failures without automatic requests', async t => {
+  const data = { ...snapshot(), groupIssueBoards: [], groupMilestones: [],
+    sections: { boards: { status: 'idle' }, milestones: { status: 'idle' } } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const ensureRequests = () => view.requests.filter(request => request.type === 'ensureWorkspaceSection');
+  const button = label => [...document.querySelectorAll('.developer-filter-row button')].find(item => item.textContent === label);
+  assert.equal(ensureRequests().length, 0);
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]'), null);
+  assert.equal(document.querySelector('select[aria-label="Issue Milestone"]'), null);
+  button('載入看板').click(); await view.tick();
+  assert.deepEqual(ensureRequests(), [{ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: 'team-scope' }]);
+  const loading = { ...data, sections: { ...data.sections, boards: { status: 'loading' } } };
+  view.sendSnapshot(loading); await view.tick();
+  assert.equal(button('載入看板中…').disabled, true);
+  view.sendSnapshot(loading); await view.tick();
+  assert.equal(ensureRequests().length, 1);
+  const failed = { ...data, groupIssueBoardsError: 'Board API unavailable',
+    sections: { ...data.sections, boards: { status: 'error', error: 'Board API unavailable' } } };
+  view.sendSnapshot(failed); await view.tick();
+  assert.match(document.querySelector('.developer-filter-row [role="alert"]').textContent, /Board API unavailable/);
+  view.sendSnapshot(failed); await view.tick();
+  assert.equal(ensureRequests().length, 1, 'a failed snapshot never automatically retries');
+  button('重試載入看板').click(); await view.tick();
+  assert.equal(ensureRequests().length, 2);
+  assert.equal(view.requests.some(request => request.type === 'retryWorkspaceSection'), false, 'the Host decides retry revalidation for the option demand');
+  view.sendSnapshot({ ...data, groupIssueBoards: snapshot().groupIssueBoards,
+    sections: { ...data.sections, boards: { status: 'ready', complete: true } } }); await view.tick();
+  const boards = document.querySelector('select[aria-label="Issue Board"]');
+  assert.equal(boards.options.length, 4);
+  assert.ok(button('載入里程碑'));
+  button('載入里程碑').click(); await view.tick();
+  assert.equal(ensureRequests().at(-1).section, 'milestones');
+  view.sendSnapshot(snapshot()); await view.tick();
+  const milestones = document.querySelector('select[aria-label="Issue Milestone"]');
+  milestones.value = '23'; milestones.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  assert.deepEqual([...document.querySelectorAll('.work-row .row-title')].map(item => item.textContent), ['Beta milestone issue']);
+});
+
+test('restored Board and Milestone filters ensure options once and survive empty, failed and partial lists', async t => {
+  const data = { ...snapshot(), groupIssueBoards: [], groupMilestones: [], issueBoardContent: undefined,
+    sections: { boards: { status: 'idle' }, milestones: { status: 'idle' } } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31, graphBoardId: 32, issueMilestoneFilter: '23' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const ensures = () => view.requests.filter(request => request.type === 'ensureWorkspaceSection');
+  const saved = () => view.savedState.scopedData['team-scope'];
+  assert.deepEqual(ensures().map(request => request.section).sort(), ['boards', 'milestones']);
+  assert.equal(document.querySelector('select[aria-label="Issue Board"]').value, '31');
+  assert.equal(document.querySelector('select[aria-label="Issue Milestone"]').value, '23');
+  assert.equal(view.requests.some(request => request.type === 'selectIssueBoard'), false);
+  view.sendSnapshot(data); await view.tick();
+  view.sendSnapshot({ ...data, groupIssueBoardsError: 'Board unavailable', groupMilestonesError: 'Milestone unavailable',
+    sections: { boards: { status: 'error' }, milestones: { status: 'error' } } }); await view.tick();
+  assert.equal(ensures().length, 2);
+  assert.equal(saved().issueBoardId, 31); assert.equal(saved().graphBoardId, 32); assert.equal(saved().issueMilestoneFilter, '23');
+  const partial = { ...data, groupIssueBoards: [snapshot().groupIssueBoards[0]], groupMilestones: [snapshot().groupMilestones[0]],
+    sections: { boards: { status: 'ready', complete: false }, milestones: { status: 'ready', complete: false } } };
+  view.sendSnapshot(partial); await view.tick();
+  assert.equal(saved().issueBoardId, 31); assert.equal(saved().graphBoardId, 32); assert.equal(saved().issueMilestoneFilter, '23');
+  assert.deepEqual(view.requests.findLast(request => request.type === 'selectIssueBoard'), { type: 'selectIssueBoard', boardId: 31, connectedScope: 'team-scope' });
+  [...document.querySelectorAll('.developer-view-switch button')].find(item => item.textContent === '圖譜').click(); await view.tick();
+  assert.equal(document.querySelector('select[aria-label="圖譜 Issue Board"]').value, '32');
+  assert.equal(ensures().length, 2, 'switching views does not repeat option discovery');
+  view.sendSnapshot({ ...snapshot(), groupIssueBoards: [snapshot().groupIssueBoards[0]],
+    groupMilestones: [snapshot().groupMilestones[0]] }); await view.tick();
+  assert.equal(saved().issueBoardId, 31); assert.equal(saved().graphBoardId, 'all'); assert.equal(saved().issueMilestoneFilter, 'all');
+});
+
+test('optional filter demand follows the active Group and graph entry with default filters reads no options', async t => {
+  const data = { ...snapshot(), groupIssueBoards: [], groupMilestones: [],
+    sections: { boards: { status: 'idle' }, milestones: { status: 'idle' } } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph', issueMilestoneFilter: 'none' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const ensures = () => view.requests.filter(request => request.type === 'ensureWorkspaceSection');
+  assert.equal(ensures().length, 0, 'graph visibility and the no-Milestone filter need no option discovery');
+  const loadBoards = () => [...document.querySelectorAll('.developer-filter-row button')].find(item => item.textContent === '載入看板');
+  loadBoards().click(); await view.tick();
+  assert.equal(ensures().at(-1).connectedScope, 'team-scope');
+  view.sendSnapshot({ ...data, connectedScope: 'another-scope', group: data.groups[1] }); await view.tick();
+  assert.equal(ensures().length, 1, 'previous Group requests do not become demand in the new Group');
+  loadBoards().click(); await view.tick();
+  assert.equal(ensures().at(-1).connectedScope, 'another-scope');
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(ensures().length, 2);
+  assert.equal(view.savedState.scopedData['team-scope'].issueMilestoneFilter, 'none');
+});
+
+test('restored filter demand resumes after cancellation and same-Group page reentry', async t => {
+  const data = { ...snapshot(), groupIssueBoards: [], groupMilestones: [],
+    sections: { boards: { status: 'idle' }, milestones: { status: 'idle' } } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, data);
+  t.after(() => view.dom.window.close());
+  const ensures = () => view.requests.filter(request => request.type === 'ensureWorkspaceSection');
+  assert.equal(ensures().length, 1);
+  view.sendSnapshot({ ...data, sections: { ...data.sections, boards: { status: 'loading' } } }); await view.tick();
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(ensures().length, 2, 'an interrupted loading read may start again once it returns to idle');
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(ensures().length, 2, 'ordinary idle snapshots do not resend the pending read');
+  view.sendSnapshot({ ...data, activeMode: 'clone' }); await view.tick();
+  view.sendSnapshot(data); await view.tick();
+  assert.equal(ensures().length, 3, 'returning to the same Group resumes a discarded pending read');
+  assert.equal(view.savedState.scopedData['team-scope'].issueBoardId, 31);
+});
+
+test('cold Issue graph keeps Board colors loadable without discovering options on entry', async t => {
+  const data = { ...snapshot(), groupIssueBoards: [], groupMilestones: [],
+    sections: { boards: { status: 'idle' }, milestones: { status: 'idle' } },
+    issueGraph: { connectedScope: 'team-scope', status: 'ready', roots: [], nodes: [], edges: [], boardIssueIds: {}, boardStatus: {}, errors: [], updatedAt: Date.now() } };
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope', developerView: 'graph' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const colors = [...document.querySelectorAll('.developer-graph-panel button')].find(button => button.textContent === '載入／繼續看板色彩');
+  assert.equal(view.requests.some(request => request.type === 'ensureWorkspaceSection' || request.type === 'loadIssueGraph' && request.loadBoards), false);
+  assert.equal(colors.disabled, false);
+  colors.click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'loadIssueGraph'), { type: 'loadIssueGraph', connectedScope: 'team-scope', loadBoards: true });
+  view.sendSnapshot({ ...data, sections: { ...data.sections, boards: { status: 'ready', complete: true } } }); await view.tick();
+  assert.equal(colors.disabled, true, 'an explicitly complete empty Board list needs no further color reads');
+});
+
 test('falls back to all assigned Issues after a saved Board is removed and survives Board API failures', async (t) => {
   const view = await mount({ mode: 'developer', scopeKey: 'team-scope', issueBoardId: 31 }, snapshot());
   t.after(() => view.dom.window.close());
@@ -2581,8 +2705,8 @@ test('falls back to all assigned Issues after a saved Board is removed and survi
   failed.issueBoardContent = undefined;
   view.sendSnapshot(failed);
   await view.tick();
-  assert.equal(document.querySelector('select[aria-label="Issue Board"]').disabled, false);
-  assert.match(document.querySelector('select[aria-label="Issue Board"] option[value="all"]').textContent, /Board 載入失敗/);
+  assert.ok([...document.querySelectorAll('.developer-filter-row button')].some(button => button.textContent === '重試載入看板'));
+  assert.match(document.querySelector('.developer-filter-row [role="alert"]').textContent, /Board API unavailable/);
   assert.equal(document.querySelectorAll('.work-row').length, 3);
 
   const noBoards = snapshot();
@@ -2746,6 +2870,26 @@ test('selects only visible Repo search results, preserves hidden selections, and
   view.sendSnapshot({ ...snapshot('clone'), busy: true });
   await view.tick();
   assert.equal(document.querySelector('input[aria-label="全選搜尋結果"]').disabled, true);
+});
+
+test('project search and selection stay local until the user explicitly loads another list page', async t => {
+  const data = { ...snapshot('clone'), sections: { projects: { status: 'ready', complete: false, loadedCount: 3 } } };
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'requestCloneSelection', requestId: 'selection-demand', scopeKey: 'team-scope' }); await view.tick();
+  const baseline = view.requests.length;
+  const search = document.querySelector('input[aria-label="搜尋 Repo"]');
+  search.value = 'alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('input[aria-label="全選搜尋結果"]').click(); await view.tick();
+  assert.deepEqual(view.savedState.selectedProjectIds, [1]);
+  view.send({ type: 'requestCloneSelection', requestId: 'selected-demand' }); await view.tick();
+  assert.deepEqual([...view.requests.findLast(request => request.type === 'cloneSelection').projectIds], [1]);
+  assert.equal(view.requests.slice(baseline).every(request => request.type === 'cloneSelection'), true,
+    'search and selection send no project detail, option discovery, download or sync requests');
+  const notice = [...document.querySelectorAll('.section-status')].find(item => item.textContent.includes('專案清單'));
+  [...notice.querySelectorAll('button')].find(button => button.textContent === '載入更多').click(); await view.tick();
+  assert.deepEqual(view.requests.findLast(request => request.type === 'retryWorkspaceSection'),
+    { type: 'retryWorkspaceSection', section: 'projects', connectedScope: 'team-scope', mode: 'next' });
 });
 
 test('shows the sanitized Git error details in the repository operation results', async (t) => {

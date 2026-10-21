@@ -250,7 +250,9 @@ test('MR result reconciliation queries markers and releases an uncertain receipt
   f.host.pendingMrWrites = () => pending;
   f.host.resolveGroupProject = async () => ({ id: 1 });
   f.host.savePendingMrWrite = async () => { pending.splice(0); };
-  f.host.loadMergeRequest = async () => { refreshed++; };
+  f.host.refreshMergeRequestData = async (projectId: number, iid: number, sections: string) => {
+    assert.deepEqual([projectId, iid, sections], [1, 2, 'discussions']); refreshed++;
+  };
   f.host.session.getClient = async () => ({ listMergeRequestDiscussions: async () => [{ notes: [{ body: '<!-- marker -->' }] }], createMergeRequestNote: async () => { published++; } });
   await f.host.reconcileMergeRequestWrite(1, 2);
   assert.equal(f.operations.get('uncertain')?.effect, 'applied'); assert.equal(f.operations.get('uncertain')?.status, 'succeeded');

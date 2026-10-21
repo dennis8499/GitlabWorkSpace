@@ -31,14 +31,18 @@ async function fixture(startDate = false) {
   return { panels, issue, client, messages, release, permissions: () => permissions };
 }
 
-test('create form is published while field options are still loading', async () => {
+test('create form and permissions are published before optional fields are requested', async () => {
   const f = await fixture();
   try {
     const pending = f.panels.showCreate();
     await new Promise(resolve => setImmediate(resolve));
-    assert.ok(f.messages.some(message => message.type === 'createData'), 'the form must not wait for slow labels');
-    f.release(); await pending;
+    assert.ok(f.messages.some(message => message.type === 'createData'), 'the form must not wait for optional labels');
+    await pending;
     assert.ok(f.messages.some(message => message.type === 'projectData'));
+    const fields = f.panels.handle({ type: 'loadFormOptions', projectId: 1, section: 'fields' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.messages.filter(message => message.type === 'projectData').at(-1)?.type, 'projectData');
+    f.release(); await fields;
   } finally { f.release(); f.panels.dispose(); }
 });
 
@@ -48,7 +52,9 @@ test('creating an issue loads template names and fetches only the selected templ
     getProjectIssueTemplate: async (_projectId: number, key: string) => { bodies++; return { name: key, content: 'Selected body' }; } });
   try {
     f.release(); await f.panels.showCreate();
-    const options = f.messages.find(message => message.type === 'projectData');
+    assert.equal(f.messages.some(message => message.type === 'projectData' && message.options.templates.length), false);
+    await f.panels.handle({ type: 'loadFormOptions', projectId: 1, section: 'templates' });
+    const options = f.messages.filter(message => message.type === 'projectData').at(-1);
     assert.equal(bodies, 0);
     assert.equal(options?.type === 'projectData' ? options.options.templates[0].loaded : undefined, false);
     await f.panels.handle({ type: 'loadTemplate', requestId: 'selected-template', projectId: 1, key: 'bug.md' });

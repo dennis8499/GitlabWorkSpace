@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 /** Source mode isolates UI regression runs from generated extension assets. */
 export async function webviewBundle(kind) {
-  const directory = kind === 'dashboard' ? 'issue-webview' : 'sidebar-webview';
+  const directory = kind === 'sidebar' ? 'sidebar-webview' : 'issue-webview';
   const html = await readFile(new URL(`../../resources/${directory}/${kind}.html`, import.meta.url), 'utf8');
   if (process.env.GITLAB_WORKSPACE_UI_SOURCE !== '1') {
     const script = await readFile(new URL(`../../resources/${directory}/${kind}.js`, import.meta.url), 'utf8');

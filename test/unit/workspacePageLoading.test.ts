@@ -54,6 +54,7 @@ function fixture(mode: string, connected = true) {
     workspaceSectionGenerations: new Map(), workspaceSectionAborts: new Map(), workspaceSections: {},
     mergeRequestSectionAborts: {}, mergeRequestSectionGenerations: { diffs: 0, discussions: 0 },
     groups: connected ? groups : [], currentUser: connected ? { id: 7, name: 'Me', username: 'me' } : undefined,
+    loadedScopeKey: connected ? 'https://gitlab.test|7|42' : undefined,
     projects: [], issues: [], mergeRequests: [], groupIssueBoards: [], groupMilestones: [],
     projectContext: context, groupRoot: context.root, cloneRoot: context.root,
     workspaceMatch: { status: 'matched', root: context.root, profile: 'group', repositories: [] },
@@ -247,6 +248,7 @@ test('ten thousand Issues and one hundred Boards show one hundred roots without 
   host.projects = [{ id: 101, name: 'Repo', path: 'repo', path_with_namespace: 'team-42/repo', http_url_to_repo: 'https://gitlab.test/team-42/repo.git', web_url: '' }];
   host.issues = Array.from({ length: 10_000 }, (_, index) => ({ id: index + 1, project_id: 101, iid: index + 1, title: `Issue ${index + 1}`, state: 'opened', labels: [], web_url: '' }));
   host.groupIssueBoards = Array.from({ length: 100 }, (_, index) => ({ id: index + 9, name: `Board ${index + 9}` })); host.issueGraphVersion = 0;
+  client.listGroupIssueBoards = async () => host.groupIssueBoards;
   host.session.getClient = async () => client;
   host.session.issueCapabilities = { graphWorkItems: true, graphLinkedItems: true };
   let relations = 0, boards = 0, labels = 0;
@@ -285,6 +287,7 @@ test('Board colors resume a partially read Board before another Board without re
   host.projects = [{ id: 101, path_with_namespace: 'team-42/repo', http_url_to_repo: 'local' }];
   host.issues = [{ id: 1, project_id: 101, iid: 1, title: 'Root', state: 'opened', labels: [] }];
   host.groupIssueBoards = [{ id: 9, name: 'Large Board' }, { id: 10, name: 'Next Board' }];
+  client.listGroupIssueBoards = async () => host.groupIssueBoards;
   host.issueGraphVersion = 0; host.session.getClient = async () => client;
   const batches: GitLabRequestBudget[] = [], completed: string[] = [];
   let budget!: GitLabRequestBudget;
@@ -445,7 +448,7 @@ test('opening Output preserves the active page and selection without refreshing 
 test('remote page entries share the selected Group, respect freshness and load only their own data', async t => {
   for (const [mode, resources] of [
     ['clone', ['projects']], ['reviewer', ['projects', 'mergeRequests']],
-    ['developer', ['projects', 'issues', 'boards', 'milestones']]
+    ['developer', ['projects', 'issues']]
   ] as const) await t.test(mode, async () => {
     const { host, remote, cacheReads, local } = fixture(mode);
     await host.refresh();
@@ -477,6 +480,209 @@ test('concurrent and later fresh page entries reuse data while manual refresh re
   assert.equal(remote.filter(read => read.resource === 'projects').length, 2);
   finish([]); await later;
   assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 2);
+});
+
+test('lazy filters load only their requested section, coalesce clicks, and retry a failed first read', async () => {
+  const { host, client, remote, cacheReads } = fixture('developer');
+  await host.refresh();
+  const scope = host.connectedScopeKey();
+  let reads = 0, finish!: (value: unknown) => void;
+  client.listGroupIssueBoardsPage = async () => {
+    reads++;
+    if (reads === 1) throw new Error('temporary Board failure');
+    return new Promise(resolve => { finish = resolve; });
+  };
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  assert.equal(host.workspaceSections.boards.status, 'error');
+  const first = host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  const duplicate = host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  assert.equal(reads, 2, 'repeated clicks join the retry already in flight');
+  finish({ items: [{ id: 9, name: 'Delivery' }], complete: true, updatedAt: new Date().toISOString() });
+  await Promise.all([first, duplicate]);
+  assert.equal(host.workspaceSections.boards.status, 'ready');
+  assert.deepEqual(host.groupIssueBoards.map((board: any) => board.id), [9]);
+  assert.equal(remote.some(read => read.resource === 'milestones'), false);
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  assert.equal(reads, 2, 'a fresh opened filter reuses its section');
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'milestones', connectedScope: scope });
+  assert.equal(remote.filter(read => read.resource === 'milestones').length, 1);
+  assert.deepEqual(cacheReads.filter(read => read.key.includes('/boards/')).map(read => read.force), [false, true],
+    'only an explicit retry bypasses cache, and repeated retry clicks join it');
+  assert.equal(cacheReads.find(read => read.key.includes('/milestones/'))?.force, false);
+});
+
+test('lazy filter messages reject old scopes, unsupported sections, and hidden or other pages', async () => {
+  const { host, remote } = fixture('developer');
+  const scope = host.connectedScopeKey();
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: 'old-scope' });
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'projects', connectedScope: scope });
+  host.panel.visible = false;
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  host.panel.visible = true; host.activeMode = 'reviewer';
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'milestones', connectedScope: scope });
+  assert.deepEqual(remote, []);
+  assert.equal(host.requestedWorkspaceSections?.size ?? 0, 0);
+});
+
+test('restored filters wait for delayed cold entry before registering their Group demand', async () => {
+  const { host, client, groups, remote } = fixture('developer');
+  host.groups = []; host.loadedScopeKey = undefined;
+  let finish!: (value: unknown) => void;
+  client.listGroups = async () => new Promise(resolve => { finish = resolve; });
+  const entry = host.refresh();
+  const restored = host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: host.connectedScopeKey() });
+  assert.equal(remote.some(read => read.resource === 'boards'), false, 'filter loading waits for scope initialization');
+  finish(groups);
+  await Promise.all([entry, restored]);
+  assert.equal(host.workspaceSections.boards.status, 'ready');
+  assert.equal(host.requestedWorkspaceSections.has('boards'), true);
+  assert.equal(remote.filter(read => read.resource === 'boards').length, 1);
+});
+
+test('an explicit failed-filter retry bypasses a retained fresh page and shares one HTTP request', async () => {
+  const { host, groups } = fixture('developer');
+  const baseUrl = 'https://gitlab.test', id = accountId(baseUrl, 7);
+  const values = new Map<string, unknown>([
+    [ACCOUNTS_KEY, [{ id, baseUrl, userId: 7, name: 'Me', username: 'me', needsLogin: false,
+      group: { id: groups[0].id, fullPath: groups[0].full_path } }]], [ACTIVE_ACCOUNT_KEY, id]
+  ]);
+  const state: Memento = {
+    get: <T>(key: string, fallback?: T): T | undefined => values.has(key) ? values.get(key) as T : fallback,
+    update: async (key: string, value: unknown) => { values.set(key, value); }, keys: () => [...values.keys()]
+  };
+  const secrets: SecretStorage = {
+    get: async (key: string) => key === accountTokenKey(id) ? 'fixture-only-token' : undefined,
+    store: async () => undefined, delete: async () => undefined, onDidChange: () => ({ dispose() {} })
+  };
+  const session = new GitLabSession(secrets, state, true);
+  let requests = 0, finish!: (value: Response) => void, retryStarted!: () => void;
+  const retryRequest = new Promise<void>(resolve => { retryStarted = resolve; });
+  const response = (boardId: number) => new Response(JSON.stringify([{ id: boardId, name: `Board ${boardId}` }]),
+    { status: 200, headers: { 'content-type': 'application/json' } });
+  session.setFetchForTesting(async input => {
+    assert.equal(new URL(String(input)).pathname, '/api/v4/groups/42/boards');
+    requests++;
+    if (requests === 1) return response(9);
+    if (requests === 2) return new Response('unavailable', { status: 500 });
+    return new Promise(resolve => { finish = resolve; retryStarted(); });
+  });
+  await session.initialize({ allowNetwork: false }); host.session = session;
+  const scope = host.connectedScopeKey();
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  await host.loadWorkspaceSection('boards', true);
+  assert.equal(host.workspaceSections.boards.status, 'ready', 'failed revalidation retains the previous rows');
+  assert.ok(host.workspaceSections.boards.error); assert.deepEqual(host.groupIssueBoards.map((board: any) => board.id), [9]);
+  const retry = host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  const repeated = host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: scope });
+  await Promise.race([retryRequest, Promise.all([retry, repeated]).then(() => { assert.fail('retry returned the retained page without issuing HTTP'); })]);
+  assert.equal(requests, 3, 'retry reaches HTTP despite the retained fresh cached page, exactly once');
+  finish(response(10)); await Promise.all([retry, repeated]);
+  assert.deepEqual(host.groupIssueBoards.map((board: any) => board.id), [10]);
+  assert.equal(host.workspaceSections.boards.error, undefined);
+});
+
+test('entry and manual refresh revisit only filters used in the current Group', async () => {
+  const { host, client, remote } = fixture('developer');
+  let memberships = 0;
+  client.listGroupBoardIssueMemberships = async () => { memberships++; return []; };
+  const count = (resource: string) => remote.filter(read => read.resource === resource).length;
+  await host.refresh();
+  await host.refresh({ forceNetwork: true, reason: 'manual' });
+  assert.equal(count('projects'), 2); assert.equal(count('issues'), 2);
+  assert.equal(count('boards'), 0); assert.equal(count('milestones'), 0);
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'milestones', connectedScope: host.connectedScopeKey() });
+  host.workspaceSections.milestones.updatedAt = Date.now() - 301_000;
+  await host.refresh();
+  assert.equal(count('milestones'), 2, 'returning revalidates a previously used, expired filter');
+  await host.refresh({ forceNetwork: true, reason: 'manual' });
+  assert.equal(count('milestones'), 3, 'manual refresh includes the filter already used');
+  assert.equal(count('boards'), 0); assert.equal(memberships, 0, 'refresh does not load unused graph Board colors');
+});
+
+test('switching back to a warm Group shares cached pages without restoring another Group filter demand', async () => {
+  const { host, client, remote, cacheReads } = fixture('developer');
+  const cache = new GitLabReadCache();
+  host.session.cachedRead = (key: string, load: (value: unknown) => Promise<unknown>, options: any = {}) => {
+    cacheReads.push({ key, force: options.force });
+    return cache.get(key, () => load(client), options);
+  };
+  await host.refresh();
+  const oldScope = host.connectedScopeKey();
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'boards', connectedScope: oldScope });
+  await host.selectGroup(43);
+  assert.equal(host.requestedWorkspaceSections.size, 0);
+  const before = remote.length;
+  await host.dispatchMessage({ type: 'ensureWorkspaceSection', section: 'milestones', connectedScope: oldScope });
+  assert.equal(remote.length, before, 'late filter events cannot read the next Group');
+  await host.selectGroup(42);
+  assert.equal(remote.filter(read => read.resource === 'projects' && read.groupId === 42).length, 1);
+  assert.equal(remote.filter(read => read.resource === 'issues' && read.groupId === 42).length, 1);
+  assert.equal(remote.filter(read => read.resource === 'boards').length, 1);
+  assert.equal(host.requestedWorkspaceSections.size, 0);
+  assert.ok(cacheReads.every(read => read.force !== true), 'Group navigation never forces a fresh page');
+});
+
+test('selecting the current Group keeps its view without reads while account transition guards still apply', async () => {
+  const { host, remote, cacheReads } = fixture('developer');
+  const issue = { id: 1, title: 'Keep this detail' };
+  host.selectedIssue = issue;
+  host.refresh = async () => { throw new Error('same-Group selection must not refresh'); };
+  host.accountTransitionBusy = true;
+  await assert.rejects(host.selectGroup(42), /帳號/);
+  host.accountTransitionBusy = false;
+  assert.equal(await host.selectGroup(42), true);
+  assert.equal(host.selectedIssue, issue);
+  assert.deepEqual(remote, []); assert.deepEqual(cacheReads, []);
+});
+
+test('Group selection rechecks its account after waiting for Group choices', async () => {
+  const { host, groups } = fixture('developer');
+  let finish!: (value: unknown) => void;
+  host.session.cachedRead = () => new Promise(resolve => { finish = resolve; });
+  const selection = host.selectGroup(43);
+  host.session.connectionEpoch++;
+  finish(groups);
+  await assert.rejects(selection, /帳號已變更/);
+  assert.equal(host.session.selectedGroup.id, 42);
+});
+
+test('loading graph colors first awaits one Board-list page without downloading its continuation', async () => {
+  const { host, client } = fixture('developer');
+  await host.refresh(); host.issueGraphVersion = 0;
+  host.session.getClient = async () => client;
+  let finish!: (value: unknown) => void, memberships = 0;
+  const cursors: Array<string | undefined> = [];
+  client.listGroupIssueBoardsPage = async (_id: number, cursor?: string) => {
+    cursors.push(cursor);
+    return new Promise(resolve => { finish = resolve; });
+  };
+  client.listGroupBoardIssueMemberships = async () => { memberships++; return []; };
+  const graph = host.loadIssueGraph(host.connectedScopeKey(), false, undefined, true);
+  assert.deepEqual(cursors, [undefined]); assert.equal(memberships, 0);
+  finish({ items: [{ id: 9, name: 'Delivery' }], complete: false, nextCursor: 'next-boards', updatedAt: new Date().toISOString() });
+  await graph;
+  assert.equal(memberships, 1); assert.deepEqual(cursors, [undefined]);
+  assert.equal(host.workspaceSections.boards.complete, false, 'the next Board-list page remains an explicit action');
+  assert.equal(host.requestedWorkspaceSections.has('boards'), true);
+});
+
+test('graph cancellation also stops the Board-list dependency it started', async () => {
+  const { host, client } = fixture('developer');
+  await host.refresh(); host.issueGraphVersion = 0;
+  host.session.getClient = async () => client;
+  let finish!: (value: unknown) => void, memberships = 0;
+  client.listGroupIssueBoardsPage = async () => new Promise(resolve => { finish = resolve; });
+  client.listGroupBoardIssueMemberships = async () => { memberships++; return []; };
+  const scope = host.connectedScopeKey();
+  const graph = host.loadIssueGraph(scope, false, undefined, true);
+  const boardController = host.workspaceSectionAborts.get('boards');
+  assert.ok(boardController);
+  await host.dispatchMessage({ type: 'loadIssueGraph', connectedScope: scope, cancel: true });
+  assert.equal(boardController.signal.aborted, true);
+  finish({ items: [{ id: 9, name: 'Delivery' }], complete: true, updatedAt: new Date().toISOString() });
+  await graph;
+  assert.equal(memberships, 0); assert.deepEqual(host.groupIssueBoards, []);
+  assert.equal(host.issueGraph.status, 'partial');
 });
 
 test('returning to remote pages uses five-minute projects and one-minute MR freshness', async () => {
