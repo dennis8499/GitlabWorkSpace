@@ -1,8 +1,10 @@
 import type { Memento, SecretStorage } from 'vscode';
+import { createHash } from 'node:crypto';
 import { GitLabClient, type FetchLike, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
-import { GitLabReadCache } from '../api/gitLabReadCache';
-import { groupBoardReadPrefix, groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
-import type { GitLabGroup, GitLabMetadata, GitLabUser } from '../api/types';
+import { GitLabReadCache, type GitLabCacheResult } from '../api/gitLabReadCache';
+import { GitLabRequestBudget } from '../api/gitLabRequestBudget';
+import { gitLabReadLifetimeMs, groupBoardReadPrefix, groupProjectsPageReadKey, groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
+import type { GitLabGroup, GitLabMetadata, GitLabPage, GitLabProject, GitLabUser } from '../api/types';
 import type { GitLabCapabilityDiagnostic } from '../api/graphqlCapabilities';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
 import { AccountStore, accountId, type GitLabAccount } from './accountStore';
@@ -21,6 +23,8 @@ interface CachedIssueCapabilities {
   expiresAt: number;
   capabilities: GitLabIssueCapabilities;
 }
+
+export interface GitLabCachedReadOptions { force?: boolean; signal?: AbortSignal; reason?: string; }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -69,6 +73,7 @@ export class GitLabSession {
   private metadataRetryAt = 0;
   private capabilitiesRetryAt = 0;
   private readonly groupProjectIds = new Map<number, Set<number>>();
+  private readonly projectCollectionRevisions = new Map<number, number>();
   private readonly readInvalidationListeners = new Set<(change: GitLabReadInvalidation) => void>();
   private readonly instanceCheckListeners = new Set<() => void>();
 
@@ -206,22 +211,100 @@ export class GitLabSession {
   cachedRead<T>(
     key: string,
     load: (client: GitLabClient, signal: AbortSignal) => Promise<T>,
-    options: { force?: boolean; signal?: AbortSignal } = {}
+    options: GitLabCachedReadOptions = {}
   ): Promise<T> {
+    return this.readCachedValue(key, load, options);
+  }
+
+  /** Navigation owns this lease until replacement subscriptions are established. */
+  beginReadHandoff(): { dispose(): void } { return this.readCache.beginHandoff(); }
+  /** Hide/close must not keep reads alive for a navigation that no longer exists. */
+  cancelReadHandoffs(): void { this.readCache.cancelHandoffs(); }
+  getGroupProjectsRevision(groupId: number): number { return this.projectCollectionRevisions.get(groupId) ?? 0; }
+
+  private readCachedValue<T>(key: string, load: (client: GitLabClient, signal: AbortSignal) => Promise<T>,
+    options: GitLabCachedReadOptions, collectionPage = false): Promise<T> {
     const baseUrl = this.baseUrl;
     if (!baseUrl) return Promise.reject(new Error('Connect to GitLab first.'));
+    // The opened/all suffix belongs to Issue filtering; Project inventory is the
+    // same collection for both consumers and therefore has one page namespace.
+    key = key.replace(/^(group\/\d+\/projects\/pages\/)all\//, '$1opened/');
     const cacheKey = `${this.connectionEpochValue}\0${baseUrl}\0${key}`;
+    const collection = /^group\/(\d+)\/projects$/.exec(key);
+    const pageGroup = /^group\/(\d+)\/projects\/pages\//.exec(key);
+    let cacheResult: GitLabCacheResult = options.force ? 'refresh' : 'miss';
     return this.readCache.get(cacheKey, async (signal) => {
       const client = await this.getClient();
-      const value = await load(client.withReadSignal(signal), signal);
+      const request = () => collection
+        ? this.loadGroupProjects(Number(collection[1]), load as (client: GitLabClient, signal: AbortSignal) => Promise<GitLabProject[]>, signal, options)
+        : load(client.withReadSignal(signal), signal);
+      const value = await (this.log?.withContext({ requestReason: options.reason ?? (options.force ? 'manual-refresh' : 'read'), cacheResult }, request) ?? request());
       const match = /^group\/(\d+)\/projects(?:\/pages\/.*)?$/.exec(key);
       const items = Array.isArray(value) ? value : value && typeof value === 'object' && 'items' in value && Array.isArray(value.items) ? value.items : undefined;
       if (match && items) {
         const ids = new Set([...(this.groupProjectIds.get(Number(match[1])) ?? []), ...items.flatMap((item) => item && typeof item === 'object' && 'id' in item && Number.isSafeInteger(item.id) ? [item.id as number] : [])]);
         this.groupProjectIds.set(Number(match[1]), ids);
       }
-      return value;
-    }, options);
+      return value as T;
+    }, { ...options, lifetimeMs: gitLabReadLifetimeMs(key), storeValue: !collection, handoff: !collection,
+      onResult: result => {
+        cacheResult = result;
+        this.log?.record({ feature: 'api-cache', action: 'read', result: 'success', network: false,
+          requestReason: options.reason ?? (options.force ? 'manual-refresh' : 'read'), cacheResult: result,
+          pageIdentity: 'cursor:' + createHash('sha256').update(key).digest('hex').slice(0, 16) });
+        if (pageGroup && key.endsWith('/first') && (result === 'miss' || result === 'refresh')) {
+          const groupId = Number(pageGroup[1]);
+          this.projectCollectionRevisions.set(groupId, (this.projectCollectionRevisions.get(groupId) ?? 0) + 1);
+          // A new generation cannot serve the previous first page while its
+          // replacement is loading: new readers must join the replacement.
+          this.readCache.invalidate(cacheKey);
+          const pagePrefix = `${this.connectionEpochValue}\0${baseUrl}\0group/${pageGroup[1]}/projects/pages/`;
+          this.readCache.invalidateWhere(other => other.startsWith(pagePrefix) && other !== cacheKey);
+        }
+        // An external fresh page starts a new collection snapshot. Existing full
+        // subscribers can finish, but subsequent callers must join the new pages.
+        if (pageGroup && !collectionPage && result !== 'hit' && result !== 'joined') {
+          this.readCache.invalidate(`${this.connectionEpochValue}\0${baseUrl}\0group/${pageGroup[1]}/projects`);
+        }
+      }
+    });
+  }
+
+  private async loadGroupProjects(groupId: number, fallback: (client: GitLabClient, signal: AbortSignal) => Promise<GitLabProject[]>,
+    signal: AbortSignal, options: GitLabCachedReadOptions): Promise<GitLabProject[]> {
+    const budget = new GitLabRequestBudget({ requests: 100, bytes: 32 * 1024 * 1024, timeoutMs: 120_000 });
+    const projects = new Map<number, GitLabProject>();
+    const seen = new Set<string>();
+    let cursor: string | undefined, bytes = 0, revision: number | undefined;
+    try {
+      for (let pages = 0; pages < 100; pages++) {
+        const pageCursor = cursor;
+        const pending = this.readCachedValue<GitLabPage<GitLabProject> | GitLabProject[]>(groupProjectsPageReadKey(groupId, pageCursor),
+          (client, pageSignal) => {
+            const budgeted = client.withRequestBudget?.(budget) ?? client;
+            return typeof budgeted.listGroupProjectsPage === 'function'
+              ? budgeted.listGroupProjectsPage(groupId, pageCursor) : fallback(budgeted, pageSignal);
+          }, { ...options, signal }, true);
+        revision ??= this.projectCollectionRevisions.get(groupId) ?? 0;
+        const value = await pending;
+        if (signal.aborted) throw Object.assign(new Error('The Project inventory read was cancelled.'), { name: 'AbortError' });
+        if (revision !== (this.projectCollectionRevisions.get(groupId) ?? 0)) {
+          throw Object.assign(new Error('The Project inventory changed while loading; retry the collection.'), { name: 'AbortError' });
+        }
+        const page: GitLabPage<GitLabProject> = Array.isArray(value)
+          ? { items: value, complete: true, updatedAt: new Date().toISOString() } : value;
+        if (!page || !Array.isArray(page.items) || typeof page.complete !== 'boolean' || !page.complete && !page.nextCursor) {
+          throw new Error('GitLab returned an incomplete Project page.');
+        }
+        bytes += Buffer.byteLength(JSON.stringify(page.items), 'utf8');
+        if (bytes > 32 * 1024 * 1024) throw new Error('GitLab Project inventory exceeded its 32 MiB budget.');
+        for (const project of page.items) projects.set(project.id, project);
+        if (page.complete) return [...projects.values()];
+        if (seen.has(page.nextCursor!) || page.nextCursor === pageCursor) throw new Error('GitLab returned a repeated Project page.');
+        seen.add(page.nextCursor!); cursor = page.nextCursor;
+      }
+      throw new Error('GitLab Project inventory exceeded its 100 page budget; the collection is incomplete.');
+    } finally { budget.dispose(); }
   }
 
   invalidateReadCache(): void { this.readCache.invalidate(); }
@@ -469,6 +552,7 @@ export class GitLabSession {
     this.metadataRetryAt = 0;
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
+    this.projectCollectionRevisions.clear();
     this.currentUserIdValue = user.id;
     this.cachedClient = this.makeClient(normalizedUrl, token, true);
   }
@@ -526,6 +610,7 @@ export class GitLabSession {
     this.metadataRetryAt = 0;
     this.capabilitiesRetryAt = 0;
     this.groupProjectIds.clear();
+    this.projectCollectionRevisions.clear();
     this.connectionTransition = false;
   }
 }

@@ -10,6 +10,14 @@ GitLab Workspace 與兩套 Reviewer 共用同一 OS 使用者的 Git 網路槽�
 - 寫入尚在排隊時取消，結果為未送出；真正開始傳送後中斷，結果維持待核對。程序尚未結束時不提前釋放槽位。
 - 每個 JSON 回應最多 32 MiB；附件沿用呼叫端大小限制。舊完整清單入口最多 100 頁、32 MiB、120 秒，達上限會明確回報未完成；新分頁入口可繼續載入。
 
+## 減少重複讀取
+
+一般切頁不強制繞過快取。Issue、MR、看板清單保留 60 秒，專案清單與成員、標籤、里程碑、範本選項保留 5 分鐘；到期只在下次需要時讀取。手動更新強制重讀目前頁面所需資料，成功寫入依既有規則讓相關資料失效。快取依連線世代隔離，仍有 256 筆及 32 MiB 的容量限制。
+
+分頁與完整專案清單共用頁面與進行中讀取；部分清單不會當成完整清單。切頁期間短暫保留共用讀取，交接完成後若無訂閱者即取消，隱藏／關閉或切換帳號立即終止已不需要的讀取。
+
+Git 命令以獨立 commandId 串接一筆開始與一筆結束；network 區分明確的遠端命令，targetPath 指出下載目標。API 記錄觸發原因、快取結果、GraphQL 操作名稱與分頁識別，不記錄 query／variables、憑證或原始 cursor。`rev-parse`、`config`、`symbolic-ref` 是本機查詢，不能按 Git Log 行數推算 Git Server 請求數。
+
 ## 共用政策
 
 Runtime 不放在專案或 OneDrive。Windows 為 `%LOCALAPPDATA%\GitLabWorkspace\runtime-v1`；Linux 有 `XDG_RUNTIME_DIR` 時使用其 `gitlab-workspace/runtime-v1`，否則使用 `~/.cache/gitlab-workspace/runtime-v1`。`GITLAB_WORKSPACE_RUNTIME_DIR` 可指定另一個本機目錄，測試使用獨立暫存目錄。

@@ -135,9 +135,107 @@ test('correlates Git exit codes while preserving command results and excluding a
   assert.equal(new Set(entries().map(entry => entry.operationId)).size, 1);
   assert.ok(entries().some(entry => entry.action === 'show' && entry.exitCode === 0 && entry.repositoryPath === 'repo'));
   assert.ok(entries().some(entry => entry.action === 'cat-file' && entry.exitCode === 128));
+  const git = entries().filter(entry => entry.feature === 'git');
+  assert.equal(git.length, 4, 'each execution has one start and one terminal record');
+  assert.equal(new Set(git.map(entry => entry.commandId)).size, 2);
+  for (const commandId of new Set(git.map(entry => entry.commandId))) {
+    assert.match(commandId!, /^[\da-f-]{36}$/);
+    const command = git.filter(entry => entry.commandId === commandId);
+    assert.deepEqual(command.map(entry => entry.result), ['started', command[0].action === 'show' ? 'success' : 'error']);
+    assert.ok(command.every(entry => entry.network === false));
+  }
   const serialized = JSON.stringify(output);
   for (const value of ['private-header', 'private-argument', 'private-stdout-output', 'private-stderr-output']) assert.ok(!serialized.includes(value));
   log.dispose();
+});
+
+test('Git network classification, accepted exit codes and cancellation keep exactly one terminal per execution', async () => {
+  const { log, entries } = fixture();
+  const cancelled = Object.assign(new Error('private-error'), { name: 'AbortError' });
+  await log.run('workflow', 'sync', {}, async () => {
+    await logGitCommand(['fetch', 'private-remote'], 'repo', async () => ({ code: 0 }));
+    await logGitCommand(['rev-parse'], 'repo', async () => ({ code: 1 }), undefined,
+      { outcome: value => ({ result: 'success', exitCode: value.code }) });
+    await logGitCommand(['fetch'], 'repo', async () => ({ code: 128 }));
+    await assert.rejects(logGitCommand(['status'], 'repo', async () => { throw cancelled; }), error => error === cancelled);
+    await assert.rejects(logGitCommand(['diff'], 'repo', async () => { throw Object.assign(new Error('private-error'), { exitCode: 2 }); }));
+  });
+  const commands = entries().filter(entry => entry.feature === 'git');
+  assert.equal(commands.length, 10);
+  assert.equal(new Set(commands.map(entry => entry.commandId)).size, 5);
+  assert.ok(commands.filter(entry => entry.action === 'fetch').every(entry => entry.network === true));
+  assert.equal(commands.find(entry => entry.action === 'rev-parse' && entry.result !== 'started')?.exitCode, 1);
+  assert.equal(commands.find(entry => entry.action === 'rev-parse' && entry.result !== 'started')?.result, 'success');
+  assert.equal(commands.find(entry => entry.action === 'status' && entry.result !== 'started')?.result, 'cancelled');
+  assert.equal(commands.find(entry => entry.action === 'diff' && entry.result !== 'started')?.exitCode, 2);
+  for (const commandId of new Set(commands.map(entry => entry.commandId))) {
+    const pair = commands.filter(entry => entry.commandId === commandId);
+    assert.equal(pair.length, 2); assert.equal(pair[0].result, 'started'); assert.notEqual(pair[1].result, 'started');
+  }
+});
+
+test('context-only diagnostics capture identity, retain correlation and isolate concurrent cache decisions', async () => {
+  const { log, entries } = fixture();
+  let identity = 'first';
+  log.setContextSource(() => ({ accountId: identity }));
+  await log.run('workspace', 'read', {}, async () => {
+    const result = log.withContext({ requestReason: 'page-entry', cacheResult: 'hit' }, () => 42);
+    assert.equal(result, 42);
+    await Promise.all(['miss', 'joined'].map(cacheResult => log.withContext({ requestReason: 'page-entry', cacheResult: cacheResult as 'miss' | 'joined' }, async () => {
+      identity = 'second'; await new Promise(resolve => setImmediate(resolve));
+      log.record({ feature: 'cache', action: 'projects', result: 'success' });
+    })));
+    log.record({ feature: 'workspace', action: 'after-cache', result: 'success' });
+  });
+  assert.equal(entries().length, 5, 'withContext adds no implicit start or terminal record');
+  assert.equal(new Set(entries().map(entry => entry.operationId)).size, 1);
+  assert.ok(entries().every(entry => entry.accountId === 'first'));
+  assert.deepEqual(entries().filter(entry => entry.feature === 'cache').map(entry => entry.cacheResult).sort(), ['joined', 'miss']);
+  assert.equal(entries().find(entry => entry.action === 'after-cache')?.cacheResult, undefined);
+  assert.equal(entries().find(entry => entry.action === 'after-cache')?.requestReason, undefined);
+  assert.equal(currentOperationLog(), undefined);
+});
+
+test('API diagnostics expose only approved operation names and safe page identities', async () => {
+  const { log, entries, output } = fixture();
+  const fetcher = log.wrapFetch(async () => new Response('private-response'));
+  const query = 'query IssueTasks($after: String) { privateField }';
+  const variables = { after: 'private-cursor', description: 'private-description' };
+  await log.withContext({ requestReason: 'manual-refresh', cacheResult: 'refresh' }, () =>
+    fetcher('https://gitlab.test/api/graphql?token=private-query', { method: 'POST', body: JSON.stringify({ query, variables }) }));
+  await fetcher('https://gitlab.test/api/graphql', { method: 'POST', body: JSON.stringify({ query, variables }) });
+  await fetcher('https://gitlab.test/api/graphql', { method: 'POST', body: JSON.stringify({ query, variables: { after: 'another-private-cursor' } }) });
+  await fetcher('https://gitlab.test/api/graphql', { method: 'POST', body: JSON.stringify({ query: 'query PrivateCustomerName { secrets }', variables: { after: null } }) });
+  await fetcher('https://gitlab.test/api/graphql', { method: 'POST', body: 'private-invalid-json' });
+  await fetcher('https://gitlab.test/api/v4/groups/1/projects?page=2&search=private-search');
+  await fetcher('https://gitlab.test/api/v4/groups/1/projects?page_token=private-page-token');
+  await fetcher('https://gitlab.test/api/v4/groups/1/projects?page=private-invalid-page');
+  const failure = new Error('Failed https://user:password@gitlab.test/api/v4/issues?search=private-search&page_token=private-page-token#private-fragment');
+  await assert.rejects(log.wrapFetch(async () => { throw failure; })('https://gitlab.test/api/v4/issues'), error => error === failure);
+  const api = entries();
+  assert.equal(api[0].graphqlOperationName, 'IssueTasks');
+  assert.equal(api[0].cacheResult, 'refresh'); assert.equal(api[0].requestReason, 'manual-refresh');
+  assert.match(api[0].pageIdentity!, /^cursor:[\da-f]{16}$/);
+  assert.equal(api[0].pageIdentity, api[1].pageIdentity); assert.notEqual(api[1].pageIdentity, api[2].pageIdentity);
+  assert.equal(api[3].graphqlOperationName, undefined); assert.equal(api[3].pageIdentity, 'page:1');
+  assert.equal(api[4].graphqlOperationName, undefined); assert.equal(api[4].pageIdentity, undefined);
+  assert.equal(api[5].pageIdentity, 'page:2');
+  assert.match(api[6].pageIdentity!, /^cursor:[\da-f]{16}$/); assert.match(api[7].pageIdentity!, /^cursor:[\da-f]{16}$/);
+  assert.equal(api[8].message, 'Failed https://gitlab.test/api/v4/issues');
+  for (const value of ['privateField', 'private-cursor', 'private-description', 'another-private-cursor', 'PrivateCustomerName', 'private-invalid-json', 'private-query', 'private-search', 'private-page-token', 'private-invalid-page', 'private-fragment', 'user:password', 'private-response']) {
+    assert.ok(!JSON.stringify(output).includes(value), value);
+  }
+});
+
+test('diagnostic fields apply redaction and reject unapproved enum or operation values', () => {
+  const { log, entries, output } = fixture(); log.addSecret('custom-secret');
+  log.withContext({ requestReason: 'custom-secret', targetPath: 'custom-secret', commandId: 'custom-secret', network: false }, () => {
+    log.record({ feature: 'cache', action: 'read', result: 'success', cacheResult: 'private-value',
+      graphqlOperationName: 'private-query-name', pageIdentity: 'private-cursor', query: 'private-query', variables: 'private-variables' } as any);
+  });
+  assert.equal(entries()[0].requestReason, '[redacted]'); assert.equal(entries()[0].network, false);
+  assert.equal(entries()[0].cacheResult, undefined); assert.equal(entries()[0].graphqlOperationName, undefined); assert.equal(entries()[0].pageIdentity, undefined);
+  for (const value of ['custom-secret', 'private-value', 'private-query-name', 'private-cursor', 'private-query', 'private-variables']) assert.ok(!JSON.stringify(output).includes(value));
 });
 
 test('standalone fetches retain captured context and preserve HTTP responses and thrown errors', async () => {

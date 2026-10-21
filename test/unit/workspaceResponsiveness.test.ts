@@ -74,7 +74,7 @@ test('a background read failure preserves loaded data and exposes a section retr
 
 test('returning to an expired project list revalidates projects without downloading user and groups', async () => {
   const host = hostFixture();
-  host.workspaceSections.projects = { status: 'ready', updatedAt: Date.now() - 61_000 };
+  host.workspaceSections.projects = { status: 'ready', updatedAt: Date.now() - 301_000 };
   const calls: string[] = [];
   host.session.cachedRead = async (key: string) => { calls.push(key); return [{ id: 2, path: 'current', path_with_namespace: 'team/current' }]; };
   await host.loadWorkspaceSection('projects');

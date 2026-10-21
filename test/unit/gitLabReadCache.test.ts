@@ -108,3 +108,73 @@ test('retained bytes evict LRU values and oversized responses remain uncached wi
   await read('a'); assert.equal(loads.get('a'), 2, 'byte capacity evicted the oldest entry before entry capacity');
   cache.invalidateWhere(key => key === 'b'); await read('b'); assert.equal(loads.get('b'), 2);
 });
+
+test('resource lifetimes expire independently and derived assemblies retain no duplicate collection', async () => {
+  let now = 0, dynamic = 0, inventory = 0, assemblies = 0;
+  const cache = new GitLabReadCache(60_000, 256, () => now);
+  const readDynamic = () => cache.get('issues', async () => ++dynamic);
+  const readInventory = () => cache.get('projects', async () => ++inventory, { lifetimeMs: 300_000 });
+  await readDynamic(); await readInventory();
+  now = 60_000;
+  assert.equal(await readDynamic(), 2);
+  assert.equal(await readInventory(), 1);
+  now = 300_000;
+  assert.equal(await readInventory(), 2);
+  const assemble = () => cache.get('collection', async () => { assemblies++; return readInventory(); }, { storeValue: false });
+  await assemble(); await assemble();
+  assert.equal(assemblies, 2);
+  assert.equal(inventory, 2, 'derived assemblies reuse retained pages');
+});
+
+test('navigation handoff joins a cancelled consumer and hide cancels unreplaced work immediately', async () => {
+  const cache = new GitLabReadCache();
+  let requests = 0, aborts = 0;
+  let finish!: (value: string) => void;
+  const load = (signal: AbortSignal): Promise<string> => {
+    requests++;
+    return new Promise((resolve, reject) => {
+      finish = resolve;
+      signal.addEventListener('abort', () => { aborts++; reject(abortedReadError()); }, { once: true });
+    });
+  };
+  const firstSignal = new AbortController();
+  const first = cache.get('projects', load, { signal: firstSignal.signal });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const handoff = cache.beginHandoff();
+  firstSignal.abort();
+  await assert.rejects(first, { name: 'AbortError' });
+  const outcomes: string[] = [];
+  const replacement = cache.get('projects', load, { onResult: result => outcomes.push(result) });
+  handoff.dispose();
+  assert.equal(aborts, 0);
+  finish('complete');
+  assert.equal(await replacement, 'complete');
+  assert.equal(requests, 1);
+  assert.deepEqual(outcomes, ['joined']);
+
+  const hiddenSignal = new AbortController();
+  const unused = cache.get('other', load, { signal: hiddenSignal.signal });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const abandoned = cache.beginHandoff();
+  hiddenSignal.abort();
+  await assert.rejects(unused, { name: 'AbortError' });
+  assert.equal(aborts, 0);
+  cache.cancelHandoffs();
+  assert.equal(aborts, 1, 'hide does not wait for the navigation finally block');
+  abandoned.dispose();
+});
+
+test('forced reads supersede older work and late old completion cannot replace refreshed data', async () => {
+  const cache = new GitLabReadCache();
+  const outcomes: string[] = [];
+  let finish!: (value: string) => void, requests = 0;
+  const first = cache.get('shared', async () => { requests++; return new Promise<string>(resolve => { finish = resolve; }); });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const refreshed = cache.get('shared', async () => { requests++; return 'new'; }, { force: true, onResult: result => outcomes.push(result) });
+  assert.equal(await refreshed, 'new');
+  finish('old');
+  assert.equal(await first, 'old');
+  assert.equal(await cache.get('shared', async () => 'unexpected', { onResult: result => outcomes.push(result) }), 'new');
+  assert.equal(requests, 2);
+  assert.deepEqual(outcomes, ['refresh', 'hit']);
+});

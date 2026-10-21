@@ -6,6 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import test, { type TestContext } from 'node:test';
 import { scanWorkspaceRepositories, localPathKey } from '../../src/git/repositoryScanner';
+import { OperationLog } from '../../src/logging/operationLog';
 
 const exec = promisify(execFile);
 async function directory(t: TestContext): Promise<string> {
@@ -89,4 +90,24 @@ test('directory budgets pause discovery and resume without rescanning completed 
   assert.equal(state.status, 'completed'); assert.equal(state.canResume, false);
   assert.equal(state.repositories.length, 2); assert.equal(state.checkedDirectories, 3);
   assert.equal(new Set(state.repositories.map(repo => repo.path)).size, 2);
+});
+
+test('scanner emits one terminal per local Git execution and retains failing exit codes', async t => {
+  const root = await directory(t); await repository(path.join(root, 'repo'));
+  const lines: string[] = [], write = (line: string) => { lines.push(line); };
+  const log = new OperationLog({ info: write, warn: write, error: write }); t.after(() => log.dispose());
+  const result = await log.run('projects', 'scanWorkspace', {}, () => scanWorkspaceRepositories([root], { log }));
+  assert.equal(result.repositories.length, 1);
+  const entries = lines.filter(line => line.startsWith('[git] ')).map(line => {
+    const match = /^\[git\] (\S+) (\S+) (\{.*\})$/.exec(line)!;
+    return { ...JSON.parse(match[3]), action: match[1], result: match[2] };
+  });
+  assert.ok(entries.length >= 4); assert.ok(entries.every(entry => entry.commandId && entry.network === false));
+  assert.equal(new Set(entries.map(entry => entry.operationId)).size, 1);
+  for (const commandId of new Set(entries.map(entry => entry.commandId))) {
+    const pair = entries.filter(entry => entry.commandId === commandId);
+    assert.equal(pair.length, 2); assert.equal(pair[0].result, 'started'); assert.notEqual(pair[1].result, 'started');
+    assert.equal(typeof pair[1].exitCode, 'number');
+  }
+  assert.ok(entries.some(entry => entry.result === 'error' && entry.exitCode === 128));
 });

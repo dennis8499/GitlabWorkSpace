@@ -1,6 +1,8 @@
 import { captureGitProcess } from './gitProcess';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { currentOperationLog } from '../logging/operationLog';
+import type { LogContext } from '../logging/logProtocol';
+import { logGitCommand } from './gitCommandLog';
 import { existsSync, lstatSync, statSync } from 'node:fs';
 import { lstat, mkdir, readdir, realpath, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -556,19 +558,12 @@ interface GitCaptureResult {
 }
 
 async function runGitCapture(args: string[], cwd?: string, env: NodeJS.ProcessEnv = process.env, allowTruncated = false): Promise<GitCaptureResult> {
-  const log = currentOperationLog(), started = Date.now();
-  const action = args[0] === '-C' ? args[2] : args[0];
   const repositoryPath = cwd ?? (args[0] === '-C' ? args[1] : undefined);
   const options = gitProcessOptions.getStore();
-  try {
-    const result = await captureGitProcess('git', args, { cwd, env, signal: options?.signal,
-      timeoutMs: Math.min(options?.timeoutMs ?? 30_000, 30_000), maxStdoutBytes: 64 * 1024, allowTruncated });
-    log?.record({ feature: 'git', action, repositoryPath, result: result.code === 0 ? 'success' : 'error', exitCode: result.code, durationMs: Date.now() - started });
-    return result.truncated && allowTruncated ? { ...result, code: 0 } : result;
-  } catch (error) {
-    log?.record({ feature: 'git', action, repositoryPath, result: options?.signal?.aborted ? 'cancelled' : 'error', exitCode: -1, durationMs: Date.now() - started, message: 'Git verification did not complete.' });
-    throw error;
-  }
+  const result = await logGitCommand(args, repositoryPath, () => captureGitProcess('git', args, { cwd, env, signal: options?.signal,
+    timeoutMs: Math.min(options?.timeoutMs ?? 30_000, 30_000), maxStdoutBytes: 64 * 1024, allowTruncated }), undefined,
+    { outcome: value => ({ result: value.code === 0 || value.truncated && allowTruncated ? 'success' : 'error', exitCode: value.code }) });
+  return result.truncated && allowTruncated ? { ...result, code: 0 } : result;
 }
 
 async function isPathPresentAsync(target: string): Promise<boolean> {
@@ -615,13 +610,24 @@ function runGitClone(plan: ClonePlan, baseUrl: string, token: string, onPercent:
     path.dirname(plan.targetPath),
     env,
     onPercent,
-    'clone'
+    'clone',
+    { targetPath: plan.targetPath, projectId: plan.project.id }
   ).then((result) => {
     if (result.code !== 0) throw new GitCommandFailure('clone', result);
   });
 }
 
 async function runGitUpdate(
+  plan: ClonePlan,
+  token: string,
+  onPercent: (percent: number) => void,
+  options: { requireCurrentDefault?: boolean } = {}
+): Promise<UpdateOutcome> {
+  const task = () => runGitUpdateInternal(plan, token, onPercent, options);
+  return currentOperationLog()?.withContext({ projectId: plan.project.id, targetPath: plan.targetPath }, task) ?? task();
+}
+
+async function runGitUpdateInternal(
   plan: ClonePlan,
   token: string,
   onPercent: (percent: number) => void,
@@ -805,17 +811,14 @@ export function sanitizeGitDiagnostic(stderr: string, secrets: readonly string[]
 
 async function runGitProcess(
   args: string[], cwd: string, env: NodeJS.ProcessEnv, onPercent?: (percent: number) => void,
-  operation: GitCommandFailure['command'] = 'fetch'
+  operation: GitCommandFailure['command'] = 'fetch', context?: LogContext
 ): Promise<GitProcessResult> {
-  const log = currentOperationLog(), started = Date.now(), options = gitProcessOptions.getStore();
+  const options = gitProcessOptions.getStore();
   try {
-    const result = await captureGitProcess('git', args, { cwd, env, signal: options?.signal,
+    return await logGitCommand(args, context?.targetPath ?? cwd, () => captureGitProcess('git', args, { cwd, env, signal: options?.signal,
       timeoutMs: options?.timeoutMs ?? 300_000, maxStdoutBytes: 64 * 1024,
-      onStderr: text => { for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\s*(\d+)%/g)) onPercent?.(Number(match[1])); } });
-    log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: result.code === 0 ? 'success' : 'error', exitCode: result.code, durationMs: Date.now() - started });
-    return result;
+      onStderr: text => { for (const match of text.matchAll(/(?:Receiving|Resolving|Updating|Compressing) objects:\s*(\d+)%/g)) onPercent?.(Number(match[1])); } }), undefined, { context });
   } catch (error) {
-    log?.record({ feature: 'git', action: operation, repositoryPath: cwd, result: options?.signal?.aborted ? 'cancelled' : 'error', exitCode: -1, durationMs: Date.now() - started, message: 'Git operation did not complete.' });
     if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) throw error;
     throw new GitCommandFailure(operation, { code: -1, stderr: 'Unable to complete Git.' });
   }

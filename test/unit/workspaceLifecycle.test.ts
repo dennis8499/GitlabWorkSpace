@@ -130,10 +130,11 @@ test('manual Workspace refresh reloads a ready empty MR list through the read ca
     web_url: 'https://gitlab.test/team/project/-/merge_requests/1', source_branch: 'feature', target_branch: 'main' }];
   await host.refresh();
   await Promise.all(sectionTasks.splice(0));
-  assert.equal(mrReads, 2, 'a new page entry fetches the current list');
+  assert.equal(mrReads, 1, 'a fresh page entry reuses the current list');
+  assert.deepEqual(host.mergeRequests, [], 'the cached empty list remains valid until refresh');
   await host.dispatchMessage({ type: 'refresh' });
   await Promise.all(sectionTasks.splice(0));
-  assert.equal(mrReads, 3, 'manual refresh sends another MR request despite the cached result');
+  assert.equal(mrReads, 2, 'manual refresh sends another MR request despite the cached result');
   assert.equal(host.workspaceSections.mergeRequests.status, 'ready');
   assert.deepEqual(host.mergeRequests, remoteRows);
 });

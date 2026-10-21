@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { issueGraphNodeKey } from '../../src/workspace/issueGraph';
 import { GitLabRequestBudget } from '../../src/api/gitLabRequestBudget';
+import { GitLabReadCache } from '../../src/api/gitLabReadCache';
 
 const executedCommands: string[] = [];
 const vscode = {
@@ -79,6 +80,7 @@ function fixture(mode: string, connected = true) {
     sendGitRepositories: async () => { local.push('git-list'); },
     syncBmadVisibility: () => undefined,
     gitRepositories: {
+      setActivePanelRepository: () => undefined,
       refresh: async () => { local.push('git-refresh'); },
       handleAction: async (_id: string, action: { type: string }) => { local.push(`git-${action.type}-snapshot`); return { id: 'repo' }; }
     }
@@ -120,6 +122,47 @@ test('cancelling a page keeps its completed prefix and resumes the unfinished cu
   const resumed = host.loadWorkspaceSection('projects', false, 'next'); await new Promise(resolve => setImmediate(resolve));
   finish({ items: [{ id: 2 }], complete: true, updatedAt: new Date().toISOString() }); await resumed;
   assert.deepEqual(requested, [undefined, 'second', 'second']); assert.equal(host.workspaceSections.projects.complete, true);
+});
+
+test('an external inventory refresh replaces old dashboard rows before entry or continuation', async t => {
+  for (const mode of [undefined, 'next'] as const) await t.test(mode ?? 'entry', async () => {
+    const { host, client } = fixture('clone');
+    let revision = 1;
+    const requests: Array<string | undefined> = [];
+    host.session.getGroupProjectsRevision = () => revision;
+    client.listGroupProjectsPage = async (_groupId: number, cursor?: string) => {
+      requests.push(cursor);
+      assert.equal(cursor, undefined, 'a new inventory snapshot must restart from its first page');
+      return { items: [{ id: revision }], complete: revision === 2,
+        nextCursor: revision === 1 ? 'old-second-page' : undefined, updatedAt: new Date().toISOString() };
+    };
+    await host.loadWorkspaceSection('projects');
+    assert.deepEqual(host.projects.map((project: any) => project.id), [1]);
+    revision = 2; // Another consumer force-refreshed the shared first page.
+    await host.loadWorkspaceSection('projects', false, mode);
+    assert.deepEqual(host.projects.map((project: any) => project.id), [2]);
+    assert.equal(host.workspaceSections.projects.complete, true);
+    assert.deepEqual(requests, [undefined, undefined]);
+  });
+});
+
+test('a late continuation from an older inventory generation cannot append to dashboard rows', async () => {
+  const { host, client } = fixture('clone');
+  let revision = 1, finish!: (value: unknown) => void;
+  host.session.getGroupProjectsRevision = () => revision;
+  client.listGroupProjectsPage = async (_groupId: number, cursor?: string) => cursor
+    ? new Promise(resolve => { finish = resolve; })
+    : { items: [{ id: revision }], complete: revision === 2, nextCursor: revision === 1 ? 'second' : undefined, updatedAt: new Date().toISOString() };
+  await host.loadWorkspaceSection('projects');
+  const continuation = host.loadWorkspaceSection('projects', false, 'next');
+  revision = 2;
+  finish({ items: [{ id: 9 }], complete: true, updatedAt: new Date().toISOString() });
+  await continuation;
+  assert.deepEqual(host.projects.map((project: any) => project.id), [1]);
+  assert.equal(host.workspaceSections.projects.status, 'idle');
+  assert.equal(host.workspaceSections.projects.complete, false, 'stale partial rows must not be treated as a complete clone inventory');
+  await host.loadWorkspaceSection('projects');
+  assert.deepEqual(host.projects.map((project: any) => project.id), [2]);
 });
 
 test('closed assigned Issues load only on an explicit history request and the current-work view can be restored', async () => {
@@ -351,38 +394,164 @@ test('opening Output preserves the active page and selection without refreshing 
   assert.deepEqual(messages, []);
 });
 
-test('remote page entries share the selected Group and load only their own data', async t => {
+test('remote page entries share the selected Group, respect freshness and load only their own data', async t => {
   for (const [mode, resources] of [
     ['clone', ['projects']], ['reviewer', ['projects', 'mergeRequests']],
     ['developer', ['projects', 'issues', 'boards', 'milestones']]
   ] as const) await t.test(mode, async () => {
     const { host, remote, cacheReads, local } = fixture(mode);
-    await host.refresh({ forceNetwork: true });
+    await host.refresh();
     const data = remote.filter(read => read.groupId !== undefined);
     assert.deepEqual(data.map(read => read.resource).sort(), [...resources].sort());
     assert.ok(data.every(read => read.groupId === 42));
-    assert.ok(cacheReads.every(read => read.force === true), 'entry bypasses ready data in the read cache');
+    assert.ok(cacheReads.every(read => read.force === false), 'ordinary entry uses the scoped read cache');
     assert.deepEqual(local, mode === 'clone' ? ['download-root'] : [], 'remote lists do not run unrelated Skills or local Git inspections');
     if (mode === 'developer') assert.deepEqual(host.issues.map((issue: any) => issue.project_id), [101]);
   });
 });
 
-test('concurrent notifications of one page entry join its request, and a later entry reloads ready data', async () => {
+test('concurrent and later fresh page entries reuse data while manual refresh reloads it', async () => {
   const { host, client, remote } = fixture('reviewer');
   let finish!: (projects: unknown[]) => void;
   client.listGroupProjects = async (groupId: number) => {
     remote.push({ resource: 'projects', groupId });
     return new Promise(resolve => { finish = resolve; });
   };
-  const first = host.refresh({ forceNetwork: true });
-  const duplicate = host.refresh({ forceNetwork: true });
+  const first = host.refresh();
+  const duplicate = host.refresh();
   assert.equal(remote.filter(read => read.resource === 'projects').length, 1);
   finish([]); await Promise.all([first, duplicate]);
   assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 1);
-  const later = host.refresh({ forceNetwork: true });
+  await host.refresh();
+  assert.equal(remote.filter(read => read.resource === 'projects').length, 1);
+  assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 1);
+  const later = host.refresh({ forceNetwork: true, reason: 'manual' });
   assert.equal(remote.filter(read => read.resource === 'projects').length, 2);
   finish([]); await later;
   assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 2);
+});
+
+test('returning to remote pages uses five-minute projects and one-minute MR freshness', async () => {
+  const { host, remote } = fixture('reviewer');
+  await host.refresh();
+  const count = (resource: string) => remote.filter(read => read.resource === resource).length;
+  host.workspaceSections.projects.updatedAt = Date.now() - 61_000;
+  host.workspaceSections.mergeRequests.updatedAt = Date.now() - 61_000;
+  await host.refresh();
+  assert.equal(count('projects'), 1, 'project inventory remains fresh for five minutes');
+  assert.equal(count('mergeRequests'), 2, 'expired MR list is read on entry');
+  host.workspaceSections.projects.updatedAt = Date.now() - 301_000;
+  await host.refresh();
+  assert.equal(count('projects'), 2, 'expired project inventory is read on entry');
+  assert.equal(count('mergeRequests'), 2, 'fresh MR list is reused');
+});
+
+test('an expired dashboard joins another consumer revalidating the same project page', async () => {
+  const { host, client } = fixture('clone');
+  const cache = new GitLabReadCache();
+  let reads = 0, finish!: (value: unknown) => void;
+  client.listGroupProjectsPage = async () => { reads++; return new Promise(resolve => { finish = resolve; }); };
+  host.session.cachedRead = (key: string, load: (value: unknown) => Promise<unknown>, options: any = {}) => cache.get(key, () => load(client), options);
+  host.workspaceSections.projects = { status: 'ready', updatedAt: Date.now() - 301_000 };
+  const other = host.session.cachedRead('group/42/projects/pages/opened/first', () => client.listGroupProjectsPage(42));
+  await new Promise(resolve => setImmediate(resolve));
+  const entry = host.refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(reads, 1, 'expiry resets the UI without forcing another HTTP request');
+  finish({ items: [], complete: true, updatedAt: new Date().toISOString() });
+  await Promise.all([other, entry]);
+});
+
+test('reloading expired Issues rebuilds graph roots and drops older relation checkpoints', async () => {
+  const { host, client } = fixture('developer');
+  let iid = 1;
+  host.developerView = 'graph'; host.session.getClient = async () => client;
+  client.listAssignedGroupIssues = async () => [{ id: iid, project_id: 101, iid, title: `Issue ${iid}`, state: 'opened', labels: [], web_url: '' }];
+  await host.refresh();
+  const oldRoot = host.issueGraph.roots[0];
+  host.issueGraph.nodes[0].relationsStatus = 'ready';
+  host.graphRelationLoads.set(oldRoot, { complete: true });
+  host.graphBoardLoads.set(999, { complete: true });
+  iid = 2; host.workspaceSections.issues.updatedAt = Date.now() - 61_000;
+  await host.refresh();
+  assert.deepEqual(host.issueGraph.roots, [issueGraphNodeKey(101, 'team-42/project', 2)]);
+  assert.equal(host.issueGraph.nodes.some((node: any) => node.id === oldRoot), false);
+  assert.equal(host.graphRelationLoads.size, 0); assert.equal(host.graphBoardLoads.size, 0);
+});
+
+test('a manual refresh arriving during cache-backed entry performs one forced pass', async () => {
+  const { host, client, remote } = fixture('reviewer');
+  let finish!: (value: unknown[]) => void, projects = 0;
+  client.listGroupProjects = async (groupId: number) => {
+    projects++; remote.push({ resource: 'projects', groupId });
+    return projects === 1 ? new Promise(resolve => { finish = resolve; }) : [];
+  };
+  const entry = host.refresh();
+  const manual = host.refresh({ forceNetwork: true, reason: 'manual' });
+  const duplicate = host.refresh({ forceNetwork: true, reason: 'manual' });
+  assert.equal(projects, 1);
+  finish([]);
+  await Promise.all([entry, manual, duplicate]);
+  assert.equal(projects, 2, 'manual notifications join one forced revalidation');
+  assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 2);
+});
+
+test('switching modes and restoring the Webview do not refetch fresh remote sections', async () => {
+  const { host, remote } = fixture('reviewer');
+  await host.refresh();
+  await host.dispatchMessage({ type: 'setMode', mode: 'developer' });
+  await host.dispatchMessage({ type: 'setMode', mode: 'reviewer' });
+  host.viewGeneration++; host.webviewReady = false;
+  await host.dispatchMessage({ type: 'ready' });
+  assert.equal(remote.filter(read => read.resource === 'projects').length, 1);
+  assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 1);
+  assert.equal(remote.filter(read => read.resource === 'issues').length, 1);
+  host.invalidateWorkspaceReads({ groupIds: [42], resource: 'mergeRequests' });
+  await host.refresh();
+  assert.equal(remote.filter(read => read.resource === 'projects').length, 1);
+  assert.equal(remote.filter(read => read.resource === 'mergeRequests').length, 2, 'write invalidation is consumed despite the TTL');
+});
+
+test('a mode transition hands off its pending project read instead of cancelling and resending it', async () => {
+  const { host, client } = fixture('reviewer');
+  const cache = new GitLabReadCache();
+  let reads = 0, transportSignal!: AbortSignal, finish!: (value: unknown) => void;
+  let readSignal!: AbortSignal;
+  host.session.beginReadHandoff = () => cache.beginHandoff();
+  host.session.cancelReadHandoffs = () => cache.cancelHandoffs();
+  host.session.cachedRead = (key: string, load: (value: unknown) => Promise<unknown>, options: any) =>
+    cache.get(key, signal => { readSignal = signal; return load(client); }, options);
+  client.listGroupProjectsPage = async () => {
+    reads++; transportSignal = readSignal;
+    return new Promise(resolve => { finish = resolve; });
+  };
+  const previous = host.refresh();
+  await new Promise(resolve => setImmediate(resolve));
+  const replacement = host.dispatchMessage({ type: 'setMode', mode: 'developer' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(transportSignal.aborted, false, 'replacement page owns the original transport');
+  assert.equal(reads, 1, 'shared inventory is requested once');
+  finish({ items: [], complete: true, updatedAt: new Date().toISOString() });
+  await Promise.all([previous, replacement]);
+  assert.equal(host.activeMode, 'developer');
+  assert.equal(host.workspaceSections.projects.complete, true);
+  assert.equal(transportSignal.aborted, false);
+});
+
+test('command navigation starts its handoff before closing Issue reads and releases it on failure', async () => {
+  const { host } = fixture('reviewer');
+  let active = false, closed = 0;
+  host.session.beginReadHandoff = () => {
+    active = true;
+    return { dispose: () => { active = false; } };
+  };
+  host.issuePanels.close = () => { assert.equal(active, true); closed++; };
+  host.show = async () => undefined;
+  await host.navigateTo('reviewer');
+  assert.equal(closed, 1); assert.equal(active, false);
+  host.show = async () => { throw new Error('navigation failed'); };
+  await assert.rejects(host.navigateTo('developer'), /navigation failed/);
+  assert.equal(closed, 2); assert.equal(active, false);
 });
 
 test('duplicate ready messages load once per view generation and a restored view loads once again', async () => {
@@ -403,11 +572,11 @@ test('graph visibility loads once per entry and manual refresh follows the curre
   const { host } = fixture('developer');
   const scope = host.connectedScopeKey();
   const graphs: Array<{ scope: string; force: boolean }> = [];
-  host.loadIssueGraph = async (connectedScope: string, force: boolean) => { graphs.push({ scope: connectedScope, force }); };
+  host.loadIssueGraph = async (connectedScope: string, force = false) => { graphs.push({ scope: connectedScope, force }); };
   await host.dispatchMessage({ type: 'setIssueGraphVisibility', connectedScope: scope, visible: true });
   await host.dispatchMessage({ type: 'setIssueGraphVisibility', connectedScope: scope, visible: true });
   assert.equal(host.developerView, 'graph');
-  assert.deepEqual(graphs, [{ scope, force: true }]);
+  assert.deepEqual(graphs, [{ scope, force: false }]);
   await host.dispatchMessage({ type: 'refresh', mode: 'developer' });
   assert.equal(graphs.length, 2, 'manual refresh reloads the visible graph');
   await host.dispatchMessage({ type: 'setIssueGraphVisibility', connectedScope: scope, visible: false });

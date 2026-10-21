@@ -18,6 +18,8 @@ import {
   syncLocalDefaultBranches
 } from '../../src/git/cloneService';
 import { groupRepositoryPath, sameRealLocalPath } from '../../src/workspace/workspacePaths';
+import { OperationLog } from '../../src/logging/operationLog';
+import type { OperationLogEntry } from '../../src/logging/logProtocol';
 
 const dummyToken = 'clone-unit-test-token-do-not-use';
 let remoteCounter = 0;
@@ -208,6 +210,39 @@ test('shows sanitized Git diagnostics when a clone is rejected by the server', a
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test('real local clone logs its project and target with one start and one terminal per Git execution', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-clone-log-'));
+  const workspace = path.join(temp, 'workspace'); mkdirSync(workspace);
+  const repo = project('logged-clone'), { bare } = createBareRemote(temp);
+  const restoreRewrite = addUrlRewrite(repo.http_url_to_repo, bare);
+  const lines: string[] = [], write = (line: string) => { lines.push(line); };
+  const log = new OperationLog({ info: write, warn: write, error: write }); log.addSecret(dummyToken);
+  try {
+    const result = await log.run('projects', 'clone', { accountId: 'account', groupId: 991 }, () =>
+      cloneProjects(workspace, [repo], 'https://gitlab.example.test', dummyToken));
+    assert.deepEqual(result.cloned, [repo]);
+    const entries = lines.map(line => {
+      const match = /^\[([^\]]+)\] (\S+) (\S+) (\{.*\})$/.exec(line)!;
+      return { ...JSON.parse(match[4]), feature: match[1], action: match[2], result: match[3] } as OperationLogEntry;
+    });
+    const clone = entries.filter(entry => entry.feature === 'git' && entry.action === 'clone');
+    assert.deepEqual(clone.map(entry => entry.result), ['started', 'success']);
+    assert.equal(clone[1].exitCode, 0); assert.equal(clone[0].commandId, clone[1].commandId);
+    for (const entry of clone) {
+      assert.equal(entry.projectId, repo.id); assert.equal(entry.groupId, 991); assert.equal(entry.accountId, 'account');
+      assert.equal(entry.repositoryPath, path.join(workspace, repo.path)); assert.equal(entry.targetPath, path.join(workspace, repo.path));
+      assert.equal(entry.network, true);
+    }
+    const commands = entries.filter(entry => entry.feature === 'git');
+    for (const commandId of new Set(commands.map(entry => entry.commandId))) {
+      assert.ok(commandId);
+      const pair = commands.filter(entry => entry.commandId === commandId);
+      assert.equal(pair.length, 2); assert.equal(pair[0].result, 'started'); assert.notEqual(pair[1].result, 'started');
+    }
+    assert.ok(!lines.join('\n').includes(dummyToken));
+  } finally { log.dispose(); restoreRewrite(); rmSync(temp, { recursive: true, force: true }); }
 });
 
 test('sanitizes credentials and bounds Git diagnostic text', () => {

@@ -1,4 +1,16 @@
 /** Shared read keys keep loads and write invalidation in the same namespace. */
+import { createHash } from 'node:crypto';
+
+/** Low-churn inventories/options outlive the dynamic Issue and MR state. */
+export function gitLabReadLifetimeMs(key: string): number {
+  return /^group\/\d+\/(?:projects|milestones)(?:\/|$)/.test(key) ||
+    /^project\/\d+\/(?:members|labels|milestones|templates|template-names)(?:\/|$)/.test(key) ? 300_000 : 60_000;
+}
+
+export function groupProjectsPageReadKey(groupId: number, cursor?: string): string {
+  return `group/${groupId}/projects/pages/opened/${cursor ? createHash('sha256').update(cursor).digest('hex') : 'first'}`;
+}
+
 export type GroupWorkspaceSection = 'issues' | 'mergeRequests' | 'milestones' | 'boards';
 export function groupWorkspaceReadKey(groupId: number, section: GroupWorkspaceSection): string {
   return `group/${groupId}/${section === 'issues' ? 'assigned-issues' : section}`;

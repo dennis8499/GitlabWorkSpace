@@ -10,6 +10,7 @@ import net from 'node:net';
 import type { captureGitProcess } from '../../src/git/gitProcess';
 import type { RefreshClock } from '../../src/git/gitRefreshScheduler';
 import { withGitDirectoryLock } from '../../src/git/repositoryOperationLock';
+import { OperationLog } from '../../src/logging/operationLog';
 
 const head = 'a'.repeat(40);
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); await new Promise(resolve => setTimeout(resolve, 10)); };
@@ -233,6 +234,27 @@ test('network commands receive only their operation AskPass binding and respect 
   f.configuration['git.useIntegratedAskPass'] = false;
   await f.service.runGitCommand(f.repository, ['fetch', 'external'], undefined, { GIT_CONFIG_COUNT: '0', GIT_ASKPASS: '' });
   assert.equal(calls, 2);
+});
+
+test('repository Git commands log one terminal and preserve accepted and failed exit codes', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const lines: string[] = [], write = (line: string) => { lines.push(line); };
+  const log = new OperationLog({ info: write, warn: write, error: write }); t.after(() => log.dispose());
+  (f.session as any).log = log;
+  let code = 0;
+  f.setCapture(async () => ({ stdout: '', stderr: 'private-stderr', code, truncated: false }));
+  const execute = (...args: unknown[]) => Object.getPrototypeOf(f.service).runGit.call(f.service, f.repository, ...args);
+  await execute(['symbolic-ref', '--quiet', 'HEAD']);
+  code = 1; await execute(['rev-parse', '--verify', 'missing'], undefined, {}, [1]);
+  code = 128; await assert.rejects(execute(['show', 'missing']), (error: any) => error.exitCode === 128);
+  const entries = lines.map(line => {
+    const match = /^\[git\] (\S+) (\S+) (\{.*\})$/.exec(line)!;
+    return { ...JSON.parse(match[3]), action: match[1], result: match[2] };
+  });
+  assert.equal(entries.length, 6); assert.ok(entries.every(entry => entry.network === false));
+  assert.deepEqual(entries.filter(entry => entry.result !== 'started').map(entry => [entry.result, entry.exitCode]), [['success', 0], ['success', 1], ['error', 128]]);
+  for (const commandId of new Set(entries.map(entry => entry.commandId))) assert.equal(entries.filter(entry => entry.commandId === commandId).length, 2);
+  assert.ok(!lines.join('\n').includes('private-stderr'));
 });
 
 test('an unknown recursive AskPass destination aborts its Git command and explains independent sign-in', async t => {

@@ -7,10 +7,23 @@ interface CachedValue {
 interface PendingRead<T> {
   controller: AbortController;
   force: boolean;
+  handoff: boolean;
   invalidated: boolean;
   settled: boolean;
   subscribers: number;
   promise: Promise<T>;
+}
+
+export type GitLabCacheResult = 'hit' | 'miss' | 'joined' | 'refresh';
+export interface GitLabReadCacheOptions {
+  force?: boolean;
+  signal?: AbortSignal;
+  lifetimeMs?: number;
+  /** Derived collections share pages, but only retain their assembly promise. */
+  storeValue?: boolean;
+  /** Derived readers stop promptly while their pending page can be handed off. */
+  handoff?: boolean;
+  onResult?: (result: GitLabCacheResult) => void;
 }
 
 export function abortedReadError(): Error {
@@ -27,6 +40,8 @@ export function isAbortedRead(error: unknown, signal?: AbortSignal): boolean {
 export class GitLabReadCache {
   private readonly values = new Map<string, CachedValue>();
   private readonly inFlight = new Map<string, PendingRead<unknown>>();
+  private readonly handoffs = new Set<object>();
+  private readonly orphaned = new Set<PendingRead<unknown>>();
   private cachedBytes = 0;
 
   constructor(
@@ -43,9 +58,11 @@ export class GitLabReadCache {
   get<T>(
     key: string,
     load: (signal: AbortSignal) => Promise<T>,
-    options: { force?: boolean; signal?: AbortSignal } = {}
+    options: GitLabReadCacheOptions = {}
   ): Promise<T> {
     const { force = false, signal } = options;
+    const lifetimeMs = options.lifetimeMs ?? this.lifetimeMs;
+    if (!Number.isSafeInteger(lifetimeMs) || lifetimeMs <= 0) throw new RangeError('Cache lifetime must be positive.');
     if (signal?.aborted) return Promise.reject(abortedReadError());
     this.expire();
 
@@ -54,6 +71,7 @@ export class GitLabReadCache {
       if (cached) {
         this.values.delete(key);
         this.values.set(key, cached);
+        options.onResult?.('hit');
         return Promise.resolve(cached.value as T);
       }
     }
@@ -61,10 +79,36 @@ export class GitLabReadCache {
     let pending = this.inFlight.get(key) as PendingRead<T> | undefined;
     if (!pending || pending.invalidated || (force && !pending.force)) {
       if (pending) pending.invalidated = true;
-      pending = this.start(key, load, force);
+      options.onResult?.(force ? 'refresh' : 'miss');
+      pending = this.start(key, load, force, lifetimeMs, options.storeValue !== false, options.handoff !== false);
       this.inFlight.set(key, pending);
-    }
+    } else options.onResult?.('joined');
     return this.subscribe(pending, signal);
+  }
+
+  /** Preserve pending work while same-session navigation replaces its consumers. */
+  beginHandoff(): { dispose(): void } {
+    const handoff = {};
+    this.handoffs.add(handoff);
+    return { dispose: () => {
+      if (!this.handoffs.delete(handoff) || this.handoffs.size) return;
+      this.abortOrphans();
+    } };
+  }
+
+  cancelHandoffs(): void {
+    this.handoffs.clear();
+    this.abortOrphans();
+  }
+
+  private abortOrphans(): void {
+    for (const pending of this.orphaned) {
+      if (!pending.subscribers && !pending.settled) {
+        pending.invalidated = true;
+        pending.controller.abort();
+      }
+    }
+    this.orphaned.clear();
   }
 
   invalidate(key?: string): void {
@@ -87,25 +131,26 @@ export class GitLabReadCache {
   }
 
   clear(): void {
+    this.cancelHandoffs();
     this.values.clear();
     this.cachedBytes = 0;
     for (const pending of this.inFlight.values()) pending.controller.abort();
     this.inFlight.clear();
   }
 
-  private start<T>(key: string, load: (signal: AbortSignal) => Promise<T>, force: boolean): PendingRead<T> {
+  private start<T>(key: string, load: (signal: AbortSignal) => Promise<T>, force: boolean, lifetimeMs: number, storeValue: boolean, handoff: boolean): PendingRead<T> {
     const pending: PendingRead<T> = {
-      controller: new AbortController(), force, invalidated: false, settled: false, subscribers: 0,
+      controller: new AbortController(), force, handoff, invalidated: false, settled: false, subscribers: 0,
       promise: Promise.resolve(undefined as T)
     };
     pending.promise = Promise.resolve().then(() => load(pending.controller.signal)).then((value) => {
-      if (!pending.controller.signal.aborted && !pending.invalidated && this.inFlight.get(key) === pending) {
+      if (storeValue && !pending.controller.signal.aborted && !pending.invalidated && this.inFlight.get(key) === pending) {
         this.deleteValue(key);
         const bytes = estimateCacheBytes(value, this.maxBytes) + key.length * 2;
         // Oversized values still reach their subscribers, but cannot evict the entire
         // cache or turn a bounded entry count into unbounded retained memory.
         if (bytes <= this.maxBytes) {
-          this.values.set(key, { value, bytes, expiresAt: this.now() + this.lifetimeMs });
+          this.values.set(key, { value, bytes, expiresAt: this.now() + lifetimeMs });
           this.cachedBytes += bytes;
           while (this.values.size > this.capacity || this.cachedBytes > this.maxBytes) this.deleteValue(this.values.keys().next().value!);
         }
@@ -113,12 +158,14 @@ export class GitLabReadCache {
       return value;
     }).finally(() => {
       pending.settled = true;
+      this.orphaned.delete(pending);
       if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
     });
     return pending;
   }
 
   private subscribe<T>(pending: PendingRead<T>, signal?: AbortSignal): Promise<T> {
+    this.orphaned.delete(pending);
     pending.subscribers++;
     return new Promise<T>((resolve, reject) => {
       let active = true;
@@ -128,8 +175,8 @@ export class GitLabReadCache {
         signal?.removeEventListener('abort', onAbort);
         pending.subscribers--;
         if (cancelled && pending.subscribers === 0 && !pending.settled) {
-          pending.invalidated = true;
-          pending.controller.abort();
+          if (this.handoffs.size && pending.handoff) this.orphaned.add(pending);
+          else { pending.invalidated = true; pending.controller.abort(); }
         }
       };
       const onAbort = (): void => { finish(true); reject(abortedReadError()); };

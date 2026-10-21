@@ -8,6 +8,13 @@ export interface LogContext {
   projectId?: number;
   issueIid?: number;
   repositoryPath?: string;
+  targetPath?: string;
+  commandId?: string;
+  network?: boolean;
+  requestReason?: string;
+  cacheResult?: 'hit' | 'miss' | 'joined' | 'refresh';
+  graphqlOperationName?: string;
+  pageIdentity?: string;
 }
 
 export interface OperationLogEntry extends LogContext {

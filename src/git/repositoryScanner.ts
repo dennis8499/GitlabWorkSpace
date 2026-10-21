@@ -3,6 +3,7 @@ import { lstat, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { OperationLog } from '../logging/operationLog';
+import { logGitCommand } from './gitCommandLog';
 
 const exec = promisify(execFile);
 export const DEFAULT_SCAN_EXCLUDES = ['.git', 'node_modules', '.venv'];
@@ -48,22 +49,10 @@ export async function scanWorkspaceRepositories(roots: readonly string[], option
     options.onProgress?.({ ...state, repositories: state.repositories.map(repository => ({ ...repository, remotes: [...repository.remotes] })), errors: [...state.errors] });
   };
   const command = async (cwd: string, args: string[]): Promise<string> => {
-    const task = async (): Promise<string> => {
-      const start = Date.now();
-      try {
-        const output = await exec(options.gitPath ?? 'git', ['-C', cwd, ...args], {
-          windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, signal: options.signal
-        });
-        options.log?.record({ feature: 'git', action: args[0], result: 'success', exitCode: 0, durationMs: Date.now() - start, repositoryPath: cwd });
-        return output.stdout;
-      } catch (error) {
-        const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'number' ? error.code : undefined;
-        options.log?.record({ feature: 'git', action: args[0], result: options.signal?.aborted ? 'cancelled' : 'error', exitCode: code,
-          durationMs: Date.now() - start, repositoryPath: cwd, message: 'Git 檢查未完成。' });
-        throw error;
-      }
-    };
-    return options.log ? options.log.run('git', args[0], { repositoryPath: cwd }, task) : task();
+    const output = await logGitCommand(args, cwd, () => exec(options.gitPath ?? 'git', ['-C', cwd, ...args], {
+      windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024, signal: options.signal
+    }), options.log);
+    return output.stdout;
   };
   const inspect = async (candidate: string, allowParent: boolean): Promise<void> => {
     try {

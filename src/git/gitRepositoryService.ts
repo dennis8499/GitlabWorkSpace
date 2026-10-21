@@ -561,17 +561,9 @@ export class GitRepositoryService implements vscode.Disposable {
     if (managed) this.managedRefreshes.set(repositoryId, (this.managedRefreshes.get(repositoryId) ?? 0) + 1);
     const repositoryPath = this.api?.repositories.find(repository => this.repositoryId(repository.rootUri.fsPath) === repositoryId)?.rootUri.fsPath;
     const task = async () => {
-      const started = Date.now();
-      try {
-        const result = await this.handleActionInternal(repositoryId, action, generation, panelGeneration);
-        if (result) { result.busy = this.activeOperations.has(repositoryId); if (write) result.revision = this.revisionByRepository.get(repositoryId) ?? 0; this.rememberSummary(result); }
-        if (write) this.gitlabSession.log?.record({ feature: 'git', action: action.type, result: 'success', repositoryPath, exitCode: 0, durationMs: Date.now() - started });
-        return result;
-      } catch (error) {
-        const exitCode = error && typeof error === 'object' && 'exitCode' in error && typeof error.exitCode === 'number' ? error.exitCode : undefined;
-        this.gitlabSession.log?.record({ feature: 'git', action: action.type, result: 'error', repositoryPath, exitCode, durationMs: Date.now() - started, message: '版控操作未完成。' });
-        throw error;
-      }
+      const result = await this.handleActionInternal(repositoryId, action, generation, panelGeneration);
+      if (result) { result.busy = this.activeOperations.has(repositoryId); if (write) result.revision = this.revisionByRepository.get(repositoryId) ?? 0; this.rememberSummary(result); }
+      return result;
     };
     const operation = this.gitlabSession.log?.run('git', action.type, { repositoryPath }, task) ?? task();
     if (!write) this.readTasks.set(readKey, operation);
@@ -1582,7 +1574,8 @@ export class GitRepositoryService implements vscode.Disposable {
     environmentOverrides: NodeJS.ProcessEnv = {}, acceptedExitCodes: number[] = []
   ): Promise<GitCommandOutput & { code: number }> {
     const task = () => this.runGitCommand(repository, arguments_, input, environmentOverrides, acceptedExitCodes);
-    return this.gitlabSession.log?.run('git', arguments_[0] ?? 'git', { repositoryPath: repository.rootUri.fsPath }, task) ?? task();
+    return logGitCommand(arguments_, repository.rootUri.fsPath, task, this.gitlabSession.log,
+      { outcome: value => ({ result: 'success', exitCode: value.code }) });
   }
 
   private async runGitCommand(
@@ -1595,7 +1588,6 @@ export class GitRepositoryService implements vscode.Disposable {
     const gitPath = this.api?.git.path;
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
     this.executedGitCommandCount++;
-    const logStarted = Date.now();
     const diff = arguments_[0] === 'diff' || arguments_[0] === 'show' && arguments_.includes('--format=');
     let askpass: GitAskpassBridge | undefined;
     try {
@@ -1615,13 +1607,9 @@ export class GitRepositoryService implements vscode.Disposable {
         signal
       });
       const success = result.code === 0 || acceptedExitCodes.includes(result.code) || result.truncated && diff;
-      this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', repositoryPath: repository.rootUri.fsPath,
-        result: success ? 'success' : 'error', exitCode: result.code, durationMs: Date.now() - logStarted });
       if (!success) throw new GitCommandError(result.code, sanitizeGitError(result.stderr));
       return result;
     } catch (error) {
-      this.gitlabSession.log?.record({ feature: 'git', action: arguments_[0] ?? 'git', repositoryPath: repository.rootUri.fsPath,
-        result: 'error', durationMs: Date.now() - logStarted, message: 'Git command did not complete.' });
       if (askpass?.blockedDestination) throw Object.assign(new Error('Git 認證目的地無法確認，已停止這次操作。請先檢查 Repo 狀態，針對該遠端獨立登入或設定 Git credential helper 後再重試。', { cause: error }), { effect: 'unknown' as const });
       throw error;
     } finally { await askpass?.dispose(); }
