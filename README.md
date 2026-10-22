@@ -42,6 +42,8 @@
 
 ## 0.32.0 更新
 
+本次正式發布包含 0.31.0 與 0.32.0 的累積更新，並依使用者決定接受既有 Reviewer 驗收限制：30% 效能目標未達，48 次最終執行取得 47 份完整報告，Native UI／production activation 未驗證。完整 CI 仍須通過，詳見 [0.32.0 發布說明](docs/releases/v0.32.0.md)。
+
 - MergeReviewer 0.19.0 與 ReleaseReviewer 0.8.0 共用 start／step／check／finish／status／cancel 操作順序，各自保留結果契約與完成門檻。check 先彙整草稿缺口，finish 驗證固定證據並直接產生五區報告。
 - 兩種審查頁均提供本機狀態、按 request ID 取消、開啟報告、複製恢復與重新同步指令；依工具識別驗證 runtime 與 job，使用已安裝的對應 helper。恢復指令沿用同一份固定證據。
 - 報告發布狀態與初次審查完整性分開顯示；已發布但有審查缺口會保留未完整標示及缺口，舊紀錄未保存權威摘要時顯示未知。暫存清理與人工 Checklist 不會改寫初次審查判斷。
