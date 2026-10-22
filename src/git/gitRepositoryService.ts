@@ -18,6 +18,7 @@ import { isGitWriteAction } from './gitProtocol';
 import { GitDiffFileSystemProvider } from './gitDiffFileSystemProvider';
 import { logGitCommand } from './gitCommandLog';
 import { scanWorkspaceRepositories, DEFAULT_SCAN_EXCLUDES, type RepositoryScanState, type ScannedRepository } from './repositoryScanner';
+import { withReviewSyncInvalidation } from '../workspace/reviewSessions';
 import type {
   GitAction, GitBranchSummary, GitChange, GitCommitSummary, GitPanelMessage, GitPullStrategy,
   GitRefKind, GitRecoveryRefSummary, GitRepositoryDetails, GitRepositorySnapshot, GitRepositorySummary, GitStashSummary
@@ -1587,6 +1588,24 @@ export class GitRepositoryService implements vscode.Disposable {
   ): Promise<GitCommandOutput & { code: number }> {
     const gitPath = this.api?.git.path;
     if (!gitPath) throw new Error('VS Code 內建 Git 尚未準備完成。');
+    let reviewBoundary: { roots: string[]; common: string } | undefined;
+    if (['fetch', 'pull', 'push'].includes(arguments_[0])) {
+      const gitDirectory = await gitDirectoryForRepository(repository.rootUri.fsPath);
+      if (gitDirectory) {
+        let common = gitDirectory;
+        try { common = path.resolve(gitDirectory, (await readFile(path.join(gitDirectory, 'commondir'), 'utf8')).trim()); } catch { /* Normal Repo. */ }
+        common = await realpath(common);
+        const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('reviewRuntimePath', '').trim()
+          || process.env.MERGE_REVIEW_RUNTIME_DIR;
+        const roots = configured ? [path.resolve(configured)] : [
+          ...(vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file')
+            .map(folder => path.join(folder.uri.fsPath, '.review-runtime')),
+          ...(vscode.workspace.workspaceFile?.scheme === 'file'
+            ? [path.join(path.dirname(vscode.workspace.workspaceFile.fsPath), '.review-runtime')] : []),
+        ];
+        reviewBoundary = { roots, common };
+      }
+    }
     this.executedGitCommandCount++;
     const diff = arguments_[0] === 'diff' || arguments_[0] === 'show' && arguments_.includes('--format=');
     let askpass: GitAskpassBridge | undefined;
@@ -1601,11 +1620,13 @@ export class GitRepositoryService implements vscode.Disposable {
       if (remoteUrl && shouldUseGitAskpass(remoteUrl, environment, vscode.workspace.getConfiguration('git', repository.rootUri).get<boolean>('useIntegratedAskPass', true))) {
         askpass = await createGitAskpassBridge({ remoteUrl, environment, signal, prompt: createGitCredentialPrompt(), onCancel: () => credentialsCancelled.abort() });
       }
-      const result = await captureGitProcess(gitPath, ['-c', 'core.quotepath=false', ...arguments_], {
+      const execute = () => captureGitProcess(gitPath, ['-c', 'core.quotepath=false', ...arguments_], {
         cwd: repository.rootUri.fsPath, env: { ...environment, ...askpass?.environment },
         input, timeoutMs: 120_000, maxStdoutBytes: diff ? MAX_DIFF_BYTES : 8 * 1024 * 1024, allowTruncated: diff,
         signal
       });
+      const result = await (reviewBoundary
+        ? withReviewSyncInvalidation(reviewBoundary.roots, reviewBoundary.common, execute) : execute());
       const success = result.code === 0 || acceptedExitCodes.includes(result.code) || result.truncated && diff;
       if (!success) throw new GitCommandError(result.code, sanitizeGitError(result.stderr));
       return result;

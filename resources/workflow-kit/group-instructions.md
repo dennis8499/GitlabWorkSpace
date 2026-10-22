@@ -24,18 +24,25 @@ Preserve user-authored Wiki content, synchronize `wiki/index.md` and append
 `wiki/log.md` for durable updates. Raw sources remain read-only during Wiki work.
 
 Use `$merge-reviewer` with exactly one Repo and explicit base/head branches.
-The Skill agent applies Codex Code Review defect criteria to the Code Diff and
-follows only evidence-linked contracts and consumers. The declared VSCode workspace,
-including a saved `.code-workspace`, controls related Repo discovery. After complete
-inputs, the first helper captures base/head and every peer Repo's current local HEAD
-before semantic review. Local branches and peer HEADs require zero network calls.
-For explicitly remote base/head, batch one precise fetch per Repo/remote; stop on
-failure without using stale refs. Frozen reads, searches and validation never connect.
-Preview and copying do not capture.
-Write one Markdown report titled `合併審查: {Repo}` under the selected Repo's `review-reports/`.
+The Skill agent applies Codex Code Review criteria to the Code Diff and follows
+evidence-linked contracts and consumers within the declared VSCode workspace,
+including its saved `.code-workspace`. Use `review_session.py start`, ordered
+`step` batches, then `finish`. Save request ID and runtime for `status` recovery.
+Each review freezes its own base/head and fresh local peer HEADs. Remote inputs
+share in-flight synchronization or a complete result younger than 300 seconds;
+otherwise fetch only required refs. Stop on failure without stale-ref fallback.
+Frozen evidence remains offline. Local branches, peer HEADs, preview and copying
+require zero network calls. Use a shared owned runtime outside every Git Repo:
+Group roots default to `.review-runtime/`; single-Repo roots require an external
+`--runtime-root` (workbench setting `gitlabWorkspace.reviewRuntimePath`).
+Independent drafts, ledgers and cleanup stay isolated. New versions require a
+new request with `start --refresh`. Cancel only by that request ID.
+Write one Markdown report titled `合併審查: {Repo}` under the selected Repo's
+`review-reports/`. The renderer directly produces the five H2 headings below.
 MR handoff supplies editable branch candidates; the user may post a valid report
 as a general comment. Keep pending confirmations and incomplete coverage visible.
-Use owned system temporary evidence and clean the session on completion or interruption.
+Exit 3 repairs the same frozen draft; exit 2 stops. Finish saves publication before
+cleanup and safely returns the existing report when retried.
 
 Use `$release-reviewer` with exactly one Repo and explicit base/head branches.
 The first helper freezes base/head and every peer Repo's current local HEAD before

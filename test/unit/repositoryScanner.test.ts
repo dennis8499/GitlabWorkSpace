@@ -28,6 +28,7 @@ test('discovers deep repositories and workspace ancestors, deduplicates overlapp
   const root = await directory(t), repo = path.join(root, 'source'), nested = path.join(repo, 'deep', 'nested');
   await repository(repo); await repository(nested); await mkdir(path.join(repo, 'subfolder'));
   await repository(path.join(root, 'node_modules', 'ignored'));
+  await repository(path.join(root, '.review-runtime', 'sessions', 'must-never-discover'));
   const first = await scanWorkspaceRepositories([root, repo, path.join(repo, 'subfolder')]);
   assert.equal(first.status, 'completed');
   assert.equal(first.repositories.length, 2);

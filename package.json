@@ -155,11 +155,18 @@
           "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。",
           "type": "string"
         },
+        "gitlabWorkspace.reviewRuntimePath": {
+          "default": "",
+          "description": "MergeReviewer 共用的本機任務與快取目錄，須位於所有 Git Repo 外。群組工作區留白使用根目錄的 .review-runtime；單 Repo 工作區必須指定外部可寫目錄。",
+          "scope": "resource",
+          "type": "string"
+        },
         "gitlabWorkspace.repositoryScan.excludeDirectories": {
           "default": [
             ".git",
             "node_modules",
-            ".venv"
+            ".venv",
+            ".review-runtime"
           ],
           "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。",
           "items": {
@@ -272,5 +279,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.30.1"
+  "version": "0.31.0"
 }

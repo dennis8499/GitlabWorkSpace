@@ -105,20 +105,15 @@ test('Skill agent branch review uses only three inputs and actual saved workspac
   assert.match(prompt, /merge-reviewer-workspace-context\/v3/);
   assert.match(prompt, /--workspace-file "C:\/declared\/team.code-workspace"/);
   assert.match(prompt, /只輸出 Markdown/);
-  assert.match(prompt, /<base-commit前8碼>-<head-commit前8碼>\.md/);
-  assert.match(prompt, /比較資訊：Repo／路徑、輸入分支與實際 ref/);
-  assert.match(prompt, /# 合併審查: \{Repo\}/);
-  assert.match(prompt, /--summary/);
-  assert.match(prompt, /batch-read／batch-search/);
-  assert.match(prompt, /問題名稱、影響說明、操作情境、建議處理/);
-  assert.match(prompt, /技術觸發方式、證據說明、影響範圍、工程修正建議及固定證據/);
+  assert.match(prompt, /review_session\.py start/);
+  assert.match(prompt, /start → 必要 step → finish/);
+  assert.match(prompt, /300 秒/);
+  assert.match(prompt, /本機分支與 peer HEAD 不連線/);
+  assert.match(prompt, /request_id、runtime_root、context_dir、draft_path 及 artifact/);
+  assert.match(prompt, /status 恢復/);
   assert.match(prompt, /report_layout=engineering-review\/v1/);
-  assert.match(prompt, /operation_scenario、technical_trigger、technical_explanation、impact_scope、engineering_fix/);
-  assert.match(prompt, /技術審查紀錄包含比較資訊/);
-  assert.doesNotMatch(prompt, /結論後列出比較資訊|每項問題依序呈現問題描述/);
-  assert.match(prompt, /line_start／line_end/);
-  assert.match(prompt, /行號、來源及完整 ref/);
-  assert.doesNotMatch(prompt, /技術附錄/);
+  assert.match(prompt, /exit 3 沿原 context 修稿，exit 2 停止/);
+  assert.match(prompt, /完成門檻全部適用/);
   assert.doesNotMatch(prompt, /--quick|--mode|--scope|--target|--include-json|--mr-context/);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
 });
@@ -173,13 +168,16 @@ test('both reviewer profiles target the selected workspace Repo and retain the d
         assert.ok(prompt.includes('"defaultBranch":"trunk"'));
         assert.match(prompt, /defaultBranch 只作工作區資料，不改變快照選擇/);
       }
-      assert.match(prompt, /第一個 helper 呼叫立即凍結/);
+      if (tool === 'release-reviewer') assert.match(prompt, /第一個 helper 呼叫立即凍結/);
+      else assert.match(prompt, /review_session\.py start/);
       assert.match(prompt, /宣告工作區其他 Repo 的本機當前 HEAD/);
       assert.match(prompt, /同一個 Skill agent 完成核心 Code Review/);
-      assert.match(prompt, /以 Code Diff 為起點，只延伸追查可連回變更/);
+      assert.match(prompt, /Code Diff/);
       assert.match(prompt, /report_layout=engineering-review\/v1/);
-      assert.match(prompt, /--retain-on-validation-error/);
-      assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
+      if (tool === 'release-reviewer') {
+        assert.match(prompt, /--retain-on-validation-error/);
+        assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
+      } else assert.match(prompt, /exit 3 沿原 context 修稿/);
       if (tool === 'release-reviewer') {
         assert.match(prompt, /scenario 與 technical_details\.explanation、technical_details\.impact_scope、technical_details\.engineering_fix/);
         assert.match(prompt, /新增部署依賴及 Checklist 放在範圍與限制/);

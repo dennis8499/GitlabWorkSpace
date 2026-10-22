@@ -6,7 +6,7 @@ import {
 
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
-export type SkillGuideContext = WikiGuideContext;
+export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; reviewAuthScope?: string };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -159,6 +159,21 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   const selectedRepo = resolveReviewerRepository(input('repo'), context.repositories);
   const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
+  if (card.tool === 'merge-reviewer') return [
+    '$merge-reviewer 請依下列明確輸入執行分支合併審查。',
+    '專案名稱：' + project, '基礎分支：' + quoted('base'), '比較分支：' + quoted('head'),
+    '使用目前工作區安裝的 Skill；依 start → 必要 step → finish 完成同一 request_id。',
+    '啟動 helper：review_session.py start --workspace ' + JSON.stringify(releaseWorkspace) +
+      (context.workspaceFile ? ' --workspace-file ' + JSON.stringify(context.workspaceFile) : '') +
+      ' --project ' + project + ' --base ' + quoted('base') + ' --head ' + quoted('head') +
+      (context.reviewRuntimeRoot ? ' --runtime-root ' + JSON.stringify(context.reviewRuntimeRoot) : '') +
+      (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') + '。',
+    'start 前讀取 Skill 的原生審查規則。merge-reviewer-workspace-context/v3 固定 base/head 與宣告工作區其他 Repo 的本機當前 HEAD。逐項完成必要覆蓋、parent 對照及可連回 Code Diff 的契約追查；同一個 Skill agent 完成核心 Code Review。',
+    '遠端成功同步結果可共用 300 秒，相同同步中的請求共用結果；不同 MR 仍取得必要分支。本機分支與 peer HEAD 不連線。',
+    '保存 request_id、runtime_root、context_dir、draft_path 及 artifact。依返回格式批次 step，壓縮對話後使用 status 恢復；不查找其他任務的暫存或程序。',
+    '新草稿使用 merge-reviewer-workspace-result/v3、report_layout=engineering-review/v1。完成所有語意欄位後由 finish 驗證及發布；exit 3 沿原 context 修稿，exit 2 停止。Skill 的證據、工程欄位、pending_confirmations、遮蔽及完成門檻全部適用。',
+    '保留本機未提交修改；只輸出 Markdown 至所選 Repo/review-reports/。renderer 直接產生審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）五個 H2；提供問題、缺口及本機報告連結。預覽與複製不啟動擷取。',
+  ].join('\n');
   if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
   const lines = [
     `$${card.tool} 請依下列明確輸入執行${card.tool === 'release-reviewer' ? '上版檢查' : '分支合併審查'}。`,
@@ -171,15 +186,6 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     'Skill 收到完整 Repo、基礎分支與比較分支後，第一個 helper 呼叫立即凍結所選 Repo 的 base／head 與宣告工作區其他 Repo 的本機當前 HEAD；取得本次 context、時間與 SHA 後才開始語意審查。提示詞預覽與複製只傳遞輸入，不代表已完成凍結。',
     '由同一個 Skill agent 完成核心 Code Review，沿用 Codex Code Review 的缺陷判準。以 Code Diff 為起點，只延伸追查可連回變更的行為、契約、消費端與部署依賴，將關聯與固定證據寫入紀錄。',
     '報告依序只使用五個二級標題：審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）。'
-  );
-  if (card.tool === 'merge-reviewer') lines.push(
-    '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、quick、暫存、未提交、直接比較、MR 任務或 JSON 選項。',
-    `版本擷取 helper：git_review_context.py --workspace ${JSON.stringify(releaseWorkspace)}${context.workspaceFile ? ` --workspace-file ${JSON.stringify(context.workspaceFile)}` : ''} --project ${project} --base ${quoted('base')} --head ${quoted('head')} --summary。`,
-    '使用 merge-reviewer-workspace-context/v3、merge-reviewer-workspace-result/v3 與本次凍結證據。只以所選 Repo 為審查起點；依 Code Diff 追查工作區內必要契約與消費端。',
-    '摘要提供 context_dir 與 manifest_path，完整固定證據仍在 manifest；已知且互不相依的讀取與搜尋使用 review_workspace.py batch-read／batch-search，依技能指引追查後續線索並完成全部覆蓋。',
-    '開始語意審查前完成自足快照：固定 base／head、合併預覽、相關 Repo 與適用指示，後續讀取、搜尋及驗證只使用 owned context。擷取後雲端或本機分支移動不使本次快照失效、不自動重審；報告明列擷取時間，結論僅適用本次固定 SHA。',
-    '證據不足而需要人工核對的事項填入選填 pending_confirmations，連結固定變更並說明缺少證據、核對方式及負責角色；已有證據仍須嚴格驗證，不把壞 ref／行號降格成待確認。有待確認項不得宣告通過，保留所有已確認問題，報告附人工勾選、核對人、日期與確認證據欄。',
-    '以 review_report.py 只產生所選 Repo/review-reports/merge-review-<timestamp>-<base-commit前8碼>-<head-commit前8碼>.md，標題為「# 合併審查: {Repo}」。問題詳情先呈現問題名稱、影響說明、操作情境、建議處理，再列技術證據：觸發條件、技術觸發方式、證據說明、影響範圍、工程修正建議及固定證據，保留預期／實際結果與責任角色。新草稿使用 report_layout=engineering-review/v1，每項 finding 實際填齊 operation_scenario、technical_trigger、technical_explanation、impact_scope、engineering_fix；缺漏或「未提供」須修正後才能發布。非空文字證據提供 line_start／line_end，只引用必要固定行段，附 Repo／路徑、行號、來源及完整 ref，空檔案標示 0 行。技術審查紀錄包含比較資訊：Repo／路徑、輸入分支與實際 ref、8 碼 commit、合併方向及共同祖先到比較分支的主要差異範圍，並保留逐檔覆蓋與功能鏈證據。保留有證據支持的問題、必要缺口及下一步；完整驗證後才能完成，未完成不得當作通過。只輸出 Markdown，不發布 MR 留言。'
   );
   if (card.tool === 'release-reviewer') lines.push(
     '只接受上述三項輸入及明確分支，不接受 tag、commit、HEAD、直接比較或 JSON 選項。固定合併前審查，以乾淨合併預覽為最終行為；缺少預覽或有衝突時明列未完成。',

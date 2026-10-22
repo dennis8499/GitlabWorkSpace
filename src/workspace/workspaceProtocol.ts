@@ -144,6 +144,8 @@ export interface SkillsContext {
   workspaceRoot?: string;
   workspaceFile?: string;
   workspaceRootAmbiguous?: boolean;
+  reviewRuntimeRoot?: string;
+  reviewAuthScope?: string;
 }
 
 export interface WorkflowKitPackageSummary {
@@ -322,6 +324,10 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
   | { type: 'openBranchReview'; projectId: number; iid: number }
   | { type: 'loadSkillBranches'; repo: string; revision: string; requestId: string }
+  | { type: 'loadReviewSessions'; revision: string }
+  | { type: 'cancelReviewSession'; revision: string; requestId: string }
+  | { type: 'copyReviewRefresh'; revision: string; requestId: string }
+  | { type: 'openReviewReport'; revision: string; requestId: string }
   | { type: 'replyMergeRequest'; projectId: number; iid: number; discussionId: string; body: string }
   | { type: 'approveMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
@@ -343,6 +349,7 @@ export type WorkspaceResponse =
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
+  | { type: 'reviewSessions'; revision: string; sessions: import('./reviewSessionProtocol').ReviewSessionSummary[]; error?: string }
   | { type: 'openAccountManager'; intent: AccountPanelIntent }
   | { type: 'accountLoginResult'; requestId: string; error?: string; name?: string }
   | GitPanelMessage

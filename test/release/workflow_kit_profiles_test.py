@@ -455,6 +455,40 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(before, (target / MARKER).read_bytes())
                 self.assertEqual(('update-available', profile), (self.status(target)['status'], self.status(target)['profile']))
 
+    def test_verified_0301_identical_payload_upgrades_and_restores_each_profile(self):
+        # The archived 0.30.1 payload was byte-verified against trusted 0.30.0;
+        # only its recorded kit version differs. Recreate that identity using
+        # the committed frozen payload instead of an untracked dist artifact.
+        fixture = ROOT / "test/fixtures/workflow-kit-0.30.0"
+        archive = fixture / "workflow-kit.tar.xz"
+        for profile in ("group", "repository"):
+            with self.subTest(profile=profile):
+                target = self.base / ("previous-0301-" + profile)
+                target.mkdir()
+                if profile == "repository":
+                    subprocess.run(["git", "init", "-q", "-b", "main", str(target)], check=True, capture_output=True)
+                old = subprocess.run([sys.executable, "-X", "utf8", "-B", str(fixture / "installer.py"), "install",
+                    str(archive), str(target), "0.30.0", "bundled", "--format", "tar.xz", "--entry-root", "workflow-kit",
+                    "--archive-sha256", hashlib.sha256(archive.read_bytes()).hexdigest(), "--profile", profile],
+                    capture_output=True, text=True, encoding="utf-8")
+                self.assertEqual(0, old.returncode, old.stdout + old.stderr)
+                marker = json.loads((target / MARKER).read_text(encoding="utf-8"))
+                marker["version"] = "0.30.1"
+                before = (json.dumps(marker, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+                (target / MARKER).write_bytes(before)
+                report = target / "review-reports/preserved.md"
+                report.parent.mkdir(exist_ok=True)
+                report.write_text("prior review", encoding="utf-8")
+                self.assertEqual("update-available", self.status(target)["status"])
+                result, installed = self.execute("install", ARCHIVE, target, VERSION, "bundled", "--format", "tar.xz",
+                    "--entry-root", "workflow-kit", "--archive-sha256", hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(),
+                    "--profile", profile)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                result, _ = self.execute("rollback", target, installed["transaction"])
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(before, (target / MARKER).read_bytes())
+                self.assertEqual("prior review", report.read_text(encoding="utf-8"))
+
     def test_frozen_018_work_keeps_original_package_then_upgrades_and_rolls_back(self):
         fixture = ROOT / 'test/fixtures/workflow-kit-0.18.0'
         archive = fixture / 'workflow-kit.tar.xz'

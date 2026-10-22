@@ -7,6 +7,8 @@ import { ActionController } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';
 import { reportLocalFeedback } from './notificationFeedback';
 import { BranchInput, type BranchReadStatus } from './BranchInput';
+import { ReviewSessions } from './ReviewSessions';
+import type { ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -19,7 +21,8 @@ const wikiGroups = [
 ];
 
 export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, kitInstalled, skillsContext,
-  branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope, ...context }: SkillGuideContext & {
+  branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
+  reviewSessions = [], reviewSessionsError, onLoadReviewSessions, onCancelReview, onCopyReviewRefresh, onOpenReviewReport, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
@@ -33,6 +36,12 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   branchError?: string;
   operationScope?: string;
   kitInstalled: boolean;
+  reviewSessions?: ReviewSessionSummary[];
+  reviewSessionsError?: string;
+  onLoadReviewSessions?: () => void;
+  onCancelReview?: (id: string) => void;
+  onCopyReviewRefresh?: (id: string) => void;
+  onOpenReviewReport?: (id: string) => void;
 }) {
   const profile = context.profile ?? 'group';
   const cards = getSkillGuideCards(profile);
@@ -58,6 +67,9 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   useEffect(() => {
     if (reviewer && repo) onLoadBranches?.(repo);
   }, [tool, repo, skillsContext?.revision, operationScope]);
+  useEffect(() => {
+    if (tool === 'merge-reviewer') onLoadReviewSessions?.();
+  }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
   const promptContext = reviewer ? { ...context, repositories } : context;
   try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
@@ -150,6 +162,10 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
           <p class="skills-next-step">下一步：複製提示詞 → 開啟 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
+        {tool === 'merge-reviewer' && onLoadReviewSessions && <ReviewSessions sessions={reviewSessions}
+          error={reviewSessionsError} onRefresh={onLoadReviewSessions}
+          onCancel={id => onCancelReview?.(id)} onCopyRefresh={id => onCopyReviewRefresh?.(id)}
+          onOpenReport={id => onOpenReviewReport?.(id)} />}
       </section>
     </div>
   </div>;

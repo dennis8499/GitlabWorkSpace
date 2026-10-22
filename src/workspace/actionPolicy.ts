@@ -64,6 +64,10 @@ export const workspaceActionKinds = {
   confirmOperationResult: 'read',
   openBranchReview: 'read',
   loadSkillBranches: 'read',
+  loadReviewSessions: 'read',
+  cancelReviewSession: 'write',
+  copyReviewRefresh: 'write',
+  openReviewReport: 'local',
   setWorkflowKitSource: 'read',
   refreshWorkflowKit: 'read',
   gitOpenRepository: 'read',
@@ -212,6 +216,8 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
+  loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
+  copyReviewRefresh: '複製重新同步指令', openReviewReport: '開啟審查報告',
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
@@ -234,6 +240,7 @@ const localWorkspaceActions = new Set([
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
   'installWorkflowKit', 'refreshWorkflowKit', 'importWorkflowKitPackage', 'setWorkflowKitSource',
   'openWorkflowKitDownload', 'openCodexTerminal', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
+  'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'openLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
   'openAnalysis', 'openBmad', 'openGit', 'openAdmin', 'openRepository'
@@ -316,17 +323,18 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
+  else if (['loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'openReviewReport'].includes(action)) resourceKey = 'review:' + (request.requestId ?? 'sessions');
   else if (connectionActions.has(action)) resourceKey = 'connection';
   else if (rootActions.has(action) || action === 'refreshRepositories') resourceKey = 'repositories';
   else if (skillsActions.has(action)) resourceKey = 'skills';
   else if (request.id && /Timer|TimeEntry/.test(action)) resourceKey = 'time:' + request.id;
-  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyBmadCommand' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
+  const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyReviewRefresh' || action === 'copyBmadCommand' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
   const nestedType = request.type === 'gitAction' ? request.action.type : request.type === 'issueRequest' ? request.request.type : undefined;
   const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && action !== 'openNotifications')
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
     || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate'].includes(nestedType));
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
-  const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey === 'repositories' || resourceKey === 'skills';
+  const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by
   // connection scope: switching accounts cannot permit a second local write.
   const namespace = clipboard || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') ? 'global'

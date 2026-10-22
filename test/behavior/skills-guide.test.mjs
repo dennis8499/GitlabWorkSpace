@@ -156,8 +156,9 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   await change('[id="wiki-input-merge-repo.head"]','feature/review','input');
   assert.equal(document.querySelector('.wiki-copy-button').disabled,false);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/merge-reviewer-workspace-context\/v3/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/<base-commit前8碼>-<head-commit前8碼>\.md/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/比較資訊/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/review_session\.py start/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/start → 必要 step → finish/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/300 秒/);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
@@ -166,6 +167,32 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   assert.equal(view.requests.findLast(request => request.type==='openCodexTerminal').revision,`${profile}-revision`);
   const reopened=await mount(t,profile,view.savedState);
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value,'feature/review');
+});
+
+test('local review cards isolate request IDs, ignore stale snapshots and only request local controls', async t => {
+  const view = await mount(t, 'group');
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'loadReviewSessions').length, 1);
+  const first = 'a'.repeat(32), second = 'b'.repeat(32);
+  const rows = [first, second].map((id, index) => ({ requestId: id, repository: 'service-' + index,
+    repositoryPath: 'C:/service-' + index, base: 'main', head: 'topic-' + index,
+    state: index ? 'published' : 'reviewing', phase: index ? 'complete' : 'review',
+    reportPath: index ? 'C:/service-1/review-reports/report.md' : undefined,
+    updatedAt: '2026-10-22T00:00:00Z', fetchCount: index ? 0 : 1, packCacheHits: index }));
+  await view.send({ type: 'reviewSessions', revision: 'obsolete', sessions: rows });
+  assert.equal(view.document.querySelectorAll('.review-session-list article').length, 0);
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', sessions: rows });
+  assert.equal(view.document.querySelectorAll('.review-session-list article').length, 2);
+  const button = text => [...view.document.querySelectorAll('.review-sessions button')].find(item => item.textContent === text);
+  button('取消審查').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'cancelReviewSession').requestId, first);
+  button('開啟報告').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'openReviewReport').requestId, second);
+  button('複製重新同步指令').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'copyReviewRefresh').requestId, first);
+  button('更新審查狀態').click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'loadReviewSessions').length, 2);
+  assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
 });
 
 test('copy feedback blocks duplicate clicks, allows retry and ignores obsolete environment receipts', async t => {

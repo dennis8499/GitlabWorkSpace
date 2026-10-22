@@ -6,7 +6,7 @@ import type { OperationLog } from '../logging/operationLog';
 import { logGitCommand } from './gitCommandLog';
 
 const exec = promisify(execFile);
-export const DEFAULT_SCAN_EXCLUDES = ['.git', 'node_modules', '.venv'];
+export const DEFAULT_SCAN_EXCLUDES = ['.git', 'node_modules', '.venv', '.review-runtime'];
 import type { RepositoryScanState } from './repositoryScanProtocol';
 export type { RepositoryScanState, ScannedRepository } from './repositoryScanProtocol';
 export const localPathKey = (value: string): string => process.platform === 'win32' ? value.toLocaleLowerCase('en-US') : value;
@@ -24,7 +24,7 @@ export async function scanWorkspaceRepositories(roots: readonly string[], option
   maxDirectories?: number;
   maxDurationMs?: number;
 } = {}): Promise<RepositoryScanState> {
-  const excludes = [...new Set(['.git', ...(options.excludes ?? DEFAULT_SCAN_EXCLUDES)])];
+  const excludes = [...new Set(['.git', '.review-runtime', ...(options.excludes ?? DEFAULT_SCAN_EXCLUDES)])];
   const directoryName = (value: string): string => process.platform === 'win32' ? value.toLocaleLowerCase('en-US') : value;
   const excludedNames = new Set(excludes.map(directoryName));
   const signature = JSON.stringify([roots.map(root => localPathKey(path.resolve(root))), excludes.map(directoryName).sort()]);

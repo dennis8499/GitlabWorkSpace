@@ -19,3 +19,11 @@
 @media (max-width: 700px) {
   .account-popover.account-manager { position: fixed; top: 100px; right: 12px; width: min(440px, calc(100vw - 24px)); min-width: 0; max-height: calc(100dvh - 120px); }
 }
+/* Independent review sessions use local metadata, without page refresh polling. */
+.review-sessions { border-top: 1px solid var(--vscode-panel-border); margin-top: 20px; padding-top: 12px; }
+.review-sessions > header, .review-session-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-sessions > header { justify-content: space-between; }
+.review-session-list { display: grid; gap: 12px; max-height: 420px; overflow: auto; }
+.review-session-list article { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px; overflow-wrap: anywhere; }
+.review-session-list article p { margin: 5px 0; }
+.review-session-list article small { margin-left: 10px; opacity: .7; }

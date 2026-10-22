@@ -18,6 +18,7 @@ import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import type { WikiGuideInputValues } from './codebaseWikiGuideData';
 import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
+import type { ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
@@ -376,6 +377,7 @@ function App() {
   const mrSelectionRef = useRef(mrSelection); mrSelectionRef.current = mrSelection;
   const blockingWrite = useActionSelector(actions, () => ['repositories', 'skills', 'connection'].some(resource => actions.hasPendingWrite(resource)));
   const [skillBranches, setSkillBranches] = useState<{ repo: string; revision: string; requestId: string; branches: string[]; status: 'loading' | 'ready' | 'error'; error?: string }>();
+  const [reviewSessions, setReviewSessions] = useState<{ revision: string; sessions: ReviewSessionSummary[]; error?: string }>();
   const branchRequest = useRef<{ repo: string; revision: string; requestId: string; operationId?: string }>();
   const branchRequestSequence = useRef(0);
   const snapshotRef = useRef<WorkspaceSnapshot>();
@@ -500,6 +502,10 @@ function App() {
           && message.repo === pending.repo && message.requestId === pending.requestId) {
           setSkillBranches({ ...message, status: message.error ? 'error' : 'ready' });
         }
+        return;
+      }
+      if (message.type === 'reviewSessions') {
+        if (message.revision === snapshotRef.current?.skillsContext?.revision) setReviewSessions(message);
         return;
       }
       if (message.type === 'branchReviewReady') {
@@ -1135,6 +1141,13 @@ function App() {
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
               />
             : mode === 'sa' ? <SkillsGuide operationScope={snapshot.localOperationScope ?? localOperationScope}
+              reviewRuntimeRoot={snapshot.skillsContext?.reviewRuntimeRoot} reviewAuthScope={snapshot.skillsContext?.reviewAuthScope}
+              reviewSessions={reviewSessions?.revision === snapshot.skillsContext?.revision ? reviewSessions?.sessions : []}
+              reviewSessionsError={reviewSessions?.revision === snapshot.skillsContext?.revision ? reviewSessions?.error : undefined}
+              onLoadReviewSessions={() => snapshot.skillsContext && post({ type: 'loadReviewSessions', revision: snapshot.skillsContext.revision })}
+              onCancelReview={requestId => snapshot.skillsContext && post({ type: 'cancelReviewSession', revision: snapshot.skillsContext.revision, requestId })}
+              onCopyReviewRefresh={requestId => snapshot.skillsContext && post({ type: 'copyReviewRefresh', revision: snapshot.skillsContext.revision, requestId })}
+              onOpenReviewReport={requestId => snapshot.skillsContext && post({ type: 'openReviewReport', revision: snapshot.skillsContext.revision, requestId })}
               branchCandidates={currentSkillBranches?.branches}
               branchStatus={currentSkillBranches?.status ?? 'idle'} branchError={currentSkillBranches?.error}
               reviewerRepositories={reviewerRepositories}
