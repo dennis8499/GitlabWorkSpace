@@ -40,6 +40,14 @@
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
+## 0.32.0 更新
+
+- MergeReviewer 0.19.0 與 ReleaseReviewer 0.8.0 共用 start／step／check／finish／status／cancel 操作順序，各自保留結果契約與完成門檻。check 先彙整草稿缺口，finish 驗證固定證據並直接產生五區報告。
+- 兩種審查頁均提供本機狀態、按 request ID 取消、開啟報告、複製恢復與重新同步指令；依工具識別驗證 runtime 與 job，使用已安裝的對應 helper。恢復指令沿用同一份固定證據。
+- 報告發布狀態與初次審查完整性分開顯示；已發布但有審查缺口會保留未完整標示及缺口，舊紀錄未保存權威摘要時顯示未知。暫存清理與人工 Checklist 不會改寫初次審查判斷。
+- Release 使用獨立 `.release-review-runtime/`；單 Repo 設定外部 runtime 時，Release 放在設定目錄的 `release-reviewer/` 子目錄。兩套 runtime 均排除 Repo 探索，草稿、快取與清理互相隔離。
+- 升級與交易回復只處理受管理 Skills；既有合併／上版報告及人工 Checklist 保留。完整 agent 品質與時間驗收另列，不以 helper 重播推論模型加速。
+
 ## 0.31.0 更新
 
 - MergeReviewer 0.18.0 使用 start／step／finish，支援同工作區陸續啟動的多份審查，共用 300 秒同步結果與固定 peer 物件。
@@ -158,11 +166,11 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.31.0 的 VSIX 與組合包共用版本；整合 Wiki 0.6.4、MergeReviewer 0.18.0、ReleaseReviewer 0.7.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
+GitLab Workspace v0.32.0 的 VSIX 與組合包共用版本；整合 Wiki 0.6.4、MergeReviewer 0.19.0、ReleaseReviewer 0.8.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-0.31.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4、0.25.0、0.26.0、0.27.0、0.28.0、0.28.1、0.29.0、0.30.0、0.30.1 升級與交易回復；未知或被修改的受管理安裝保留內容並阻擋覆寫。BMAD 已改由使用者管理，其本機變更不阻擋其他 Skills 的更新；工作紀錄、鎖、Wiki、報告及既有產物保留。
+0.32.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4、0.25.0、0.26.0、0.27.0、0.28.0、0.28.1、0.29.0、0.30.0、0.30.1、0.31.0 升級與交易回復；未知或被修改的受管理安裝保留內容並阻擋覆寫。BMAD 已改由使用者管理，其本機變更不阻擋其他 Skills 的更新；工作紀錄、鎖、Wiki、報告及既有產物保留。
 
 舊工作流程包可透過受信任摘要升級並交易回復；既有 BMAD 與 Megin 工作紀錄均保留。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
 

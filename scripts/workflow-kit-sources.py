@@ -114,11 +114,20 @@ def check(compare_local: bool = True) -> dict:
             'workspaceFilesChecked': len(snapshot.get('workspaceFiles', {})), 'capabilities': snapshot['capabilities']}
 
 
-def freeze() -> dict:
+def freeze(selected_tools: list[str] | None = None) -> dict:
     builder = load_module('kit_sources_builder', ROOT / 'scripts/build-workflow-kit.py')
-    records = {}
+    selected = set(selected_tools or REPOS)
+    if selected - REPOS.keys():
+        raise ValueError('Unknown upstream source selection')
+    previous = json.loads(SNAPSHOTS.read_text(encoding='utf-8')) if SNAPSHOTS.exists() else {}
+    records = dict(previous.get('sources', {})) if selected_tools else {}
     pins = {record['id']: record for record in builder.PINNED_SOURCES}
     for tool, repo_name in REPOS.items():
+        if tool not in selected:
+            if tool not in records:
+                raise ValueError(f'Unselected source has no frozen snapshot: {tool}')
+            archive_entries(records[tool])
+            continue
         version, entries = local_entries(tool)
         pin = pins[tool]
         filename = pin['filename'] if pin['version'] == version else (
@@ -159,16 +168,21 @@ def freeze() -> dict:
     SNAPSHOTS.write_bytes((json.dumps({'schema': 'GitLabWorkspaceSourceSnapshots/v1', 'sources': records, 'workspaceFiles': workspace_files,
                                      'capabilities': {'group': capabilities, 'repository': capabilities}},
                                     ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8'))
-    return check()
+    # A scoped freeze preserves unselected archives; comparing their unrelated
+    # live checkouts is a separate explicit source-drift check.
+    return check(compare_local=selected_tools is None)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--freeze', action='store_true', help='Explicitly snapshot reviewed sibling sources.')
+    parser.add_argument('--tool', action='append', choices=tuple(REPOS), help='Freeze only these reviewed upstreams; preserve all other frozen source records and archives.')
     parser.add_argument('--archives-only', action='store_true', help='Verify fixed archives without sibling repositories (CI).')
     args = parser.parse_args()
+    if args.tool and not args.freeze:
+        parser.error('--tool requires --freeze')
     try:
-        print(json.dumps(freeze() if args.freeze else check(not args.archives_only), ensure_ascii=False, indent=2))
+        print(json.dumps(freeze(args.tool) if args.freeze else check(not args.archives_only), ensure_ascii=False, indent=2))
     except (OSError, ValueError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(json.dumps({'ok': False, 'error': str(error)}, ensure_ascii=False))
         raise SystemExit(1)

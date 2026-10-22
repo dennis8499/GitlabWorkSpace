@@ -8,7 +8,7 @@ import { ActionContext, useActionSelector } from './useActions';
 import { reportLocalFeedback } from './notificationFeedback';
 import { BranchInput, type BranchReadStatus } from './BranchInput';
 import { ReviewSessions } from './ReviewSessions';
-import type { ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
+import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -22,7 +22,7 @@ const wikiGroups = [
 
 export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, kitInstalled, skillsContext,
   branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
-  reviewSessions = [], reviewSessionsError, onLoadReviewSessions, onCancelReview, onCopyReviewRefresh, onOpenReviewReport, ...context }: SkillGuideContext & {
+  reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
@@ -37,11 +37,13 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   operationScope?: string;
   kitInstalled: boolean;
   reviewSessions?: ReviewSessionSummary[];
+  reviewSessionsTool?: ReviewerToolId;
   reviewSessionsError?: string;
-  onLoadReviewSessions?: () => void;
-  onCancelReview?: (id: string) => void;
-  onCopyReviewRefresh?: (id: string) => void;
-  onOpenReviewReport?: (id: string) => void;
+  onLoadReviewSessions?: (tool: ReviewerToolId) => void;
+  onCancelReview?: (tool: ReviewerToolId, id: string) => void;
+  onCopyReviewRefresh?: (tool: ReviewerToolId, id: string) => void;
+  onCopyReviewResume?: (tool: ReviewerToolId, id: string) => void;
+  onOpenReviewReport?: (tool: ReviewerToolId, id: string) => void;
 }) {
   const profile = context.profile ?? 'group';
   const cards = getSkillGuideCards(profile);
@@ -68,7 +70,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
     if (reviewer && repo) onLoadBranches?.(repo);
   }, [tool, repo, skillsContext?.revision, operationScope]);
   useEffect(() => {
-    if (tool === 'merge-reviewer') onLoadReviewSessions?.();
+    if (tool === 'merge-reviewer' || tool === 'release-reviewer') onLoadReviewSessions?.(tool);
   }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
   const promptContext = reviewer ? { ...context, repositories } : context;
@@ -162,10 +164,11 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
           <p class="skills-next-step">下一步：複製提示詞 → 開啟 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
-        {tool === 'merge-reviewer' && onLoadReviewSessions && <ReviewSessions sessions={reviewSessions}
-          error={reviewSessionsError} onRefresh={onLoadReviewSessions}
-          onCancel={id => onCancelReview?.(id)} onCopyRefresh={id => onCopyReviewRefresh?.(id)}
-          onOpenReport={id => onOpenReviewReport?.(id)} />}
+        {(tool === 'merge-reviewer' || tool === 'release-reviewer') && onLoadReviewSessions && <ReviewSessions tool={tool}
+          sessions={reviewSessionsTool === tool ? reviewSessions.filter(item => item.tool === tool) : []}
+          error={reviewSessionsTool === tool ? reviewSessionsError : undefined} onRefresh={() => onLoadReviewSessions(tool)}
+          onCancel={id => onCancelReview?.(tool, id)} onCopyRefresh={id => onCopyReviewRefresh?.(tool, id)}
+          onCopyResume={id => onCopyReviewResume?.(tool, id)} onOpenReport={id => onOpenReviewReport?.(tool, id)} />}
       </section>
     </div>
   </div>;

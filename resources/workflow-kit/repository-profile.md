@@ -33,43 +33,48 @@ complete result. Wiki work does not publish Issues or remote Git operations.
 
 ## Branch review
 
-Use `$merge-reviewer` with exactly one Repo and explicit base/head branches.
-The Skill agent applies Codex Code Review criteria to the Code Diff and follows
-evidence-linked contracts and consumers within the declared VSCode workspace,
-including its saved `.code-workspace`. Use `review_session.py start`, ordered
-`step` batches, then `finish`. Save request ID and runtime for `status` recovery.
-Each review freezes its own base/head and fresh local peer HEADs. Remote inputs
-share in-flight synchronization or a complete result younger than 300 seconds;
-otherwise fetch only required refs. Stop on failure without stale-ref fallback.
-Frozen evidence remains offline. Local branches, peer HEADs, preview and copying
-require zero network calls. Use a shared owned runtime outside every Git Repo:
-Group roots default to `.review-runtime/`; single-Repo roots require an external
-`--runtime-root` (workbench setting `gitlabWorkspace.reviewRuntimePath`).
-Independent drafts, ledgers and cleanup stay isolated. New versions require a
-new request with `start --refresh`. Cancel only by that request ID.
-Write one Markdown report titled `合併審查: {Repo}` under the selected Repo's
-`review-reports/`. The renderer directly produces the five H2 headings below.
-MR handoff supplies editable branch candidates; the user may post a valid report
-as a general comment. Keep pending confirmations and incomplete coverage visible.
-Exit 3 repairs the same frozen draft; exit 2 stops. Finish saves publication before
-cleanup and safely returns the existing report when retried.
+Use `$merge-reviewer` or `$release-reviewer` with exactly one Repo and explicit
+base/head branches. Load that installed Skill's rules, then use its own
+`scripts/review_session.py`: `start`, necessary ordered `step` batches, `check`,
+then `finish`. Save request ID, runtime, draft and artifact paths. After context
+compression use `status` and its remaining work to resume the same frozen review;
+use `cancel` with the same ID to abandon it. The two tools keep independent
+runtime markers, job schemas, drafts and caches; route by the selected tool.
 
-Use `$release-reviewer` with exactly one Repo and explicit base/head branches.
-The first helper freezes base/head and every peer Repo's current local HEAD before
-semantic review. Local branches and peer HEADs require no network; explicitly remote
-base/head batch one precise fetch per Repo/remote, then frozen evidence stays offline. The Skill
-agent applies Codex Code Review defect criteria, then follows API, event, DB, cache and
-configuration chains linked to the Code Diff within the declared VSCode workspace.
-Separate direct P0/P1 blockers, evidence gaps and new deployment dependencies.
-Write one Traditional Chinese report titled `上版檢查: {Repo}` in the selected Repo's
-`review-reports/`, with an editable manual Checklist. Preserve fixed report content
-and the v3 helper, batch evidence, retained-draft correction and cleanup contracts.
+The first helper freezes base/head and fresh local peer HEADs within the declared
+VSCode workspace, including its saved `.code-workspace`. Local branches, peer
+HEADs, preview and copying require zero network calls; frozen review stays offline.
+MergeReviewer may share in-flight synchronization or complete results younger than
+300 seconds; ReleaseReviewer fetches explicit remote inputs independently. Stop
+on failure without stale-ref fallback. New versions require `start --refresh`.
+Group roots default to `.review-runtime/` for Merge and `.release-review-runtime/`
+for Release. Single-Repo roots require an external `--runtime-root`; the workbench
+uses `gitlabWorkspace.reviewRuntimePath` and a separate `release-reviewer/` child
+for Release. Keep runtime outside every Git Repo.
+
+The Skill agent applies Codex Code Review criteria to the Code Diff and follows
+fixed evidence to necessary contracts and direct/indirect consumers. Merge keeps
+`merge-reviewer-workspace-result/v3`, P0-P3 findings and pending confirmations.
+Release keeps `ReleaseReviewDraft/v3`, direct P0/P1 blockers, evidence gaps and new
+deployment dependencies; compare resource use with the entry Repo's fixed base.
+Use each Skill's own evidence and result contract; helper success does not complete
+semantic review. `check` gathers authoring gaps without Git; exit 3 repairs the same
+frozen draft and exit 2 stops. `finish` validates evidence and saves publication
+before cleanup, then safely returns that existing report when retried.
+
+Write one Markdown report under the selected Repo's `review-reports/`, titled
+`合併審查: {Repo}` for Merge or `上版檢查: {Repo}` for Release. Keep incomplete
+coverage visible. Release includes an editable manual Checklist while fixed
+report content stays intact. Existing reports and manual checklist entries survive
+Skills updates and rollback. MR handoff supplies editable branch candidates;
+posting a report remains a separate user-authorized action.
 
 Both reviewer reports use exactly these five H2 headings, in order: `審查結論`,
 `問題總攬`, `問題詳情（工程師參考）`, `範圍與限制`, `技術審查紀錄（工程師參考）`.
 Problem details show name, impact, operation scenario and suggested action, then trigger,
 technical explanation, impact scope, engineering fix and fixed evidence. New drafts use
-`report_layout=engineering-review/v1` and complete the Skill's engineering fields.
+Merge `report_layout=engineering-review/v1` or Release `report_layout=engineering-review/v2`
+and complete that Skill's engineering fields, including Release expected/actual.
 Comparison and coverage records belong in the technical section; Release dependencies
 and the editable Checklist belong in scope and limitations.
 

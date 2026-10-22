@@ -49,7 +49,8 @@ import { resolveSkillsContext } from './skillsContext';
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards, resolveReviewerRepository } from '../webview/skillsGuideData';
 import { collectReviewerRepositories } from './reviewerRepositories';
 import { readReviewerBranches } from './reviewerBranches';
-import { readReviewSessions, readReviewJob, cancelReviewSession } from './reviewSessions';
+import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript } from './reviewSessions';
+import { isReviewerTool, type ReviewerToolId } from './reviewSessionProtocol';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
@@ -1220,9 +1221,10 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
       case 'importWorkflowKitPackage': await this.importWorkflowKitPackage(request.source); break;
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
-      case 'loadReviewSessions': await this.loadReviewSessions(request.revision); break;
+      case 'loadReviewSessions': await this.loadReviewSessions(request.revision, request.tool); break;
       case 'cancelReviewSession': await this.controlReviewSession(request, 'cancel'); break;
       case 'copyReviewRefresh': await this.controlReviewSession(request, 'refresh'); break;
+      case 'copyReviewResume': await this.controlReviewSession(request, 'resume'); break;
       case 'openReviewReport': await this.controlReviewSession(request, 'report'); break;
       case 'refreshWorkflowKit': await this.refreshWorkflowKitInstallState(); break;
       case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
@@ -1840,9 +1842,13 @@ export class WorkspacePanel implements vscode.Disposable {
     const reviewRuntimeRoot = reviewRoot ? path.resolve(reviewRoot)
       : current.profile === 'group' && (workspaceFile || folders.length === 1)
         ? path.join(workspaceFile ? path.dirname(workspaceFile) : folders[0], '.review-runtime') : undefined;
+    const releaseReviewRuntimeRoot = process.env.RELEASE_REVIEW_RUNTIME_DIR ? path.resolve(process.env.RELEASE_REVIEW_RUNTIME_DIR)
+      : reviewRoot ? path.join(path.resolve(reviewRoot), 'release-reviewer')
+        : current.profile === 'group' && (workspaceFile || folders.length === 1)
+          ? path.join(workspaceFile ? path.dirname(workspaceFile) : folders[0], '.release-review-runtime') : undefined;
     const reviewAuthScope = createHash('sha256').update(JSON.stringify([this.session.baseUrl,
       this.currentUser?.id, this.session.connectionEpoch])).digest('hex');
-    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot, reviewRuntimeRoot, reviewAuthScope,
+    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot, reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope,
       folders, this.reviewerNativeRepositories ?? []]);
     const cached = this.skillsContextCache;
     if (cached?.signature === signature && cached.context === this.projectContext && cached.match === current &&
@@ -1862,12 +1868,12 @@ export class WorkspacePanel implements vscode.Disposable {
     const localRepositories = current.repositories.map(({ name, path: repoPath, remoteFingerprint }) => ({ name, path: repoPath, remoteFingerprint }));
     const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision,
       current.status, current.profile, localRepositories, installed, workspaceFile,
-      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, reviewAuthScope])).digest('hex');
+      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope])).digest('hex');
     const value = { ...resolveSkillsContext({ match, installed, expectedVersion: String(this.context.extension.packageJSON.version), revision }),
       reviewerRepositories, workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
         : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile,
-      reviewRuntimeRoot, reviewAuthScope };
+      reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope };
     this.skillsContextCache = { signature, context: this.projectContext, match: current, installed: this.skillsWorkflowKitState, projects: this.projects, value };
     return value;
   }
@@ -1900,7 +1906,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (reviewer && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
-      reviewRuntimeRoot: current.reviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
+      reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
       workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
       workspaceRoot: vscode.workspace.workspaceFile?.scheme === 'file'
@@ -3872,61 +3878,75 @@ export class WorkspacePanel implements vscode.Disposable {
     } finally { if (this.skillBranchReads.get(key) === task) this.skillBranchReads.delete(key); }
   }
 
-  private async loadReviewSessions(revision: string): Promise<void> {
+  private async loadReviewSessions(revision: string, tool: ReviewerToolId): Promise<void> {
+    if (!isReviewerTool(tool)) throw new Error('無效的審查工具。');
     const skills = this.getSkillsContext();
     if (revision !== skills.revision) return;
-    const root = skills.reviewRuntimeRoot;
+    const root = tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
     const workspace = skills.workspaceRoot ?? skills.root;
     if (!root || !workspace) {
-      this.post({ type: 'reviewSessions', revision, sessions: [],
+      this.post({ type: 'reviewSessions', revision, tool, sessions: [],
         error: '單 Repo 工作區請設定 gitlabWorkspace.reviewRuntimePath，路徑須位於各 Git Repo 外。' });
       return;
     }
-    if (this.reviewWatcherRoot !== root + '\0' + revision && vscode.workspace.createFileSystemWatcher) {
+    if (this.reviewWatcherRoot !== root + '\0' + revision + '\0' + tool && vscode.workspace.createFileSystemWatcher) {
       this.reviewWatcher?.dispose();
-      this.reviewWatcherRoot = root + '\0' + revision;
+      this.reviewWatcherRoot = root + '\0' + revision + '\0' + tool;
       this.reviewWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(
         vscode.Uri.file(path.dirname(root)), path.basename(root) + '/jobs/*.json'));
       const refresh = (): void => {
         if (this.reviewRefreshTimer) clearTimeout(this.reviewRefreshTimer);
         this.reviewRefreshTimer = setTimeout(() => {
-          if (!this.disposed) void this.loadReviewSessions(revision);
+          if (!this.disposed) void this.loadReviewSessions(revision, tool);
         }, 150);
       };
       this.reviewWatcher.onDidCreate(refresh); this.reviewWatcher.onDidChange(refresh); this.reviewWatcher.onDidDelete(refresh);
     }
     try {
-      const sessions = await readReviewSessions(root, workspace, (skills.reviewerRepositories ?? []).map(repo => repo.path));
-      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, sessions });
+      const sessions = await readReviewSessions(root, workspace, (skills.reviewerRepositories ?? []).map(repo => repo.path), tool);
+      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, tool, sessions });
     } catch (error) {
-      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, sessions: [], error: readableError(error) });
+      if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, tool, sessions: [], error: readableError(error) });
     }
   }
 
-  private async controlReviewSession(request: { revision: string; requestId: string }, action: 'cancel' | 'refresh' | 'report'): Promise<void> {
+  private async controlReviewSession(request: { revision: string; requestId: string; tool: ReviewerToolId }, action: 'cancel' | 'refresh' | 'resume' | 'report'): Promise<void> {
+    if (!isReviewerTool(request.tool)) throw new Error('無效的審查工具。');
     const skills = this.getSkillsContext();
-    if (skills.revision !== request.revision || !skills.reviewRuntimeRoot || !(skills.workspaceRoot ?? skills.root)) throw new Error('目前審查環境已變更，請重新讀取。');
-    const root = skills.reviewRuntimeRoot, workspace = (skills.workspaceRoot ?? skills.root)!;
+    const root = request.tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
+    if (skills.revision !== request.revision || !root || !(skills.workspaceRoot ?? skills.root)) throw new Error('目前審查環境已變更，請重新讀取。');
+    const workspace = (skills.workspaceRoot ?? skills.root)!;
     const repositories = skills.reviewerRepositories ?? [];
     const paths = repositories.map(repo => repo.path);
-    const job = await readReviewJob(root, request.requestId, workspace, paths);
+    const job = await readReviewJob(root, request.requestId, workspace, paths, request.tool);
     if (action === 'cancel') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
       await cancelReviewSession(root, request.requestId, workspace, paths, python,
-        path.join(skills.root, '.agents', 'skills', 'merge-reviewer'));
-      await this.loadReviewSessions(request.revision);
+        path.join(skills.root, '.agents', 'skills'), request.tool);
+      await this.loadReviewSessions(request.revision, request.tool);
     } else if (action === 'report') {
       if (!job.report_path) throw new Error('這份審查尚未產生報告。');
       await access(job.report_path);
       await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(job.report_path));
+    } else if (action === 'resume') {
+      if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
+      const script = reviewSessionScript(path.join(skills.root, '.agents', 'skills'), request.tool);
+      await vscode.env.clipboard.writeText(`使用 $${request.tool} 恢復同一份固定版本審查。\n` +
+        `先執行已安裝 helper：python ${JSON.stringify(script)} status --runtime-root ${JSON.stringify(root)} --request-id ${request.requestId}。\n` +
+        '依 status 回傳的草稿、artifact、diagnostics 與 remaining 繼續必要 step → check → finish；維持原 request_id，不重新 capture。' +
+        'input-repair／draft-repair 須依 status/errors 實際指向修正操作檔、operation 欄位或草稿的讀取／JSON 錯誤，再沿用同一 request_id 與成功的 operation IDs 繼續；依 recoverable/terminal 與 job.state 判斷 exit 3。' +
+        'owned evidence 損壞須遵守 helper 的終止判斷，不得從業務 Repo 補回或重新 capture 掩蓋。' +
+        '已發布時依 review_outcome 區分發布成功與審查完整性；摘要缺失應明示未知，不推測報告內容。若 cleanup_pending，使用 finish 重試清理並回傳既有報告；其他已發布狀態回傳收據中的報告連結及原有審查缺口，不把發布成功視為審查完整。');
+      this.post({ type: 'message', message: '已複製恢復審查指令；貼入 Codex 後沿用同份固定證據。' });
     } else {
-      const card = getSkillGuideCards(skills.mode === 'group' ? 'group' : 'repository').find(item => item.id === 'merge-repo')!;
+      const cardId = request.tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
+      const card = getSkillGuideCards(skills.mode === 'group' ? 'group' : 'repository').find(item => item.id === cardId)!;
       const prompt = buildSkillGuidePrompt(card, {
-        'merge-repo.repo': job.inputs.project, 'merge-repo.base': job.inputs.base, 'merge-repo.head': job.inputs.head,
+        [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,
       }, { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
-        reviewRuntimeRoot: root, reviewAuthScope: skills.reviewAuthScope });
+        reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope });
       await vscode.env.clipboard.writeText(prompt.replace('review_session.py start ', 'review_session.py start --refresh ') +
         '\n建立新的 request_id，保留既有審查的固定版本與報告。');
       this.post({ type: 'message', message: '已複製重新同步審查指令；貼入 Codex 執行後才會取得新版本。' });

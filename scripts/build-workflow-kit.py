@@ -35,16 +35,16 @@ PINNED_SOURCES = ({'id': 'codebase-wiki',
   'root': 'codebase-llm-wiki-codex-0.6.4'},
  {'id': 'merge-reviewer',
   'repository': 'MergeReviewer',
-  'asset': 'merge-reviewer-0.18.0.zip',
-  'filename': 'merge-reviewer-0.18.0.zip',
-  'version': '0.18.0',
-  'sha256': '12ad5716d4e53e83b31095776320fcfe0c81be3b8f9e72ec1c20cbd092299001'},
+  'asset': 'merge-reviewer-0.19.0.zip',
+  'filename': 'merge-reviewer-0.19.0.zip',
+  'version': '0.19.0',
+  'sha256': '2d450087b00bcd45e3db43e610d6272ed12cbcec0730ee40b18545a981b1f463'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
-  'asset': 'release-reviewer-0.7.0.zip',
-  'filename': 'release-reviewer-0.7.0.zip',
-  'version': '0.7.0',
-  'sha256': 'a24a7e600d44b82773f75109f622133fd9ee2da17ab8fd3e6dce634662960253'})
+  'asset': 'release-reviewer-0.8.0.zip',
+  'filename': 'release-reviewer-0.8.0.zip',
+  'version': '0.8.0',
+  'sha256': 'a629adce8c49a7d8747bf48399efcf3d896cbf1e0775418b5203e567c9b5579b'})
 
 
 def digest(data: bytes) -> str:
@@ -55,8 +55,8 @@ def source_summary(upstream: dict[str, dict[str, str]]) -> list[str]:
     """Keep human-readable source notes bound to the same pins as the payload."""
     return [
         f"Native Codebase LLM Wiki {upstream['codebase-wiki']['version']} is single-codebase; GitlabWorkSpace overlay restores Group-relative specifications and shared-Wiki rules.",
-        f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches. Its Skill agent applies Code Review defect criteria to the diff and evidence-linked consumers after the first helper freezes base/head and all peer Repos' current local HEADs. It writes one Traditional Chinese report beginning with the conclusion and following the native five-section layout under the selected Repo's review-reports/ with 8-character commit IDs in the filename and full evidence validation. No Workspace overlay or MR-specific report adapter is applied.",
-        f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts one Repo and explicit base/head branches. Its Skill agent reviews diff-linked blockers and deployment dependencies using base/head and all peer Repos' current local HEADs frozen by the first helper. It writes one Traditional Chinese report beginning with the conclusion and following the native five-section layout with an editable manual checklist under the selected Repo's review-reports/ without an overlay.",
+        f"Native MergeReviewer {upstream['merge-reviewer']['version']} accepts one Repo and explicit base/head branches. Its own start/step/check/finish/status/cancel facade keeps MergeReviewSession/v1 jobs. The Skill agent applies Code Review defect criteria to the diff and evidence-linked consumers after start freezes base/head and all peer Repos' current local HEADs. It writes one Traditional Chinese report beginning with the conclusion and following the native five-section layout under the selected Repo's review-reports/ with 8-character commit IDs in the filename and full evidence validation. No Workspace overlay or MR-specific report adapter is applied.",
+        f"Native ReleaseReviewer {upstream['release-reviewer']['version']} accepts one Repo and explicit base/head branches. Its own start/step/check/finish/status/cancel facade keeps ReleaseReviewSession/v1 jobs in an independent runtime. The Skill agent reviews diff-linked blockers and deployment dependencies using base/head and all peer Repos' current local HEADs frozen by start. It writes one Traditional Chinese report beginning with the conclusion and following the native five-section layout with an editable manual checklist under the selected Repo's review-reports/ without an overlay.",
     ]
 
 

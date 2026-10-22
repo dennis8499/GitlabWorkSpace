@@ -151,7 +151,9 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   assert.equal(clipboard.length, 1);
   assert.ok(clipboard[0].includes(`專案名稱：${JSON.stringify(other)}`));
   assert.ok(clipboard[0].includes(`Skills 專案根目錄：${root}`));
-  assert.ok(clipboard[0].includes(JSON.stringify({ repositories: context.reviewerRepositories.map(repo => ({ ...repo, defaultBranch: repo.defaultBranch ?? null })) })));
+  for (const repo of context.reviewerRepositories) assert.ok(clipboard[0].includes(`- ${repo.name} → ${repo.path}`));
+  assert.ok(clipboard[0].includes(`--workspace-file ${JSON.stringify(vscode.workspace.workspaceFile.fsPath)}`));
+  assert.match(clipboard[0], /start → 必要 step → check → finish/);
   request.inputs['release-review.repo'] = path.dirname(root);
   await assert.rejects(host.copySkillGuidePrompt(request), /VS Code 工作區/);
   assert.equal(clipboard.length, 1);

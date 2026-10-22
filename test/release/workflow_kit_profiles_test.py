@@ -514,6 +514,39 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(0, run.returncode, run.stderr or run.stdout)
                 self.assertEqual(marker, (target / MARKER).read_bytes()); self.assertEqual(original_skill, skill.read_bytes())
 
+    def test_frozen_031_upgrade_and_rollback_preserve_both_reports_and_manual_checklist(self):
+        fixture = ROOT / 'test/fixtures/workflow-kit-0.31.0'
+        archive = fixture / 'workflow-kit.tar.xz'
+        for profile in ('group', 'repository'):
+            with self.subTest(profile=profile):
+                target = self.base / ('old-031-' + profile); target.mkdir()
+                if profile == 'repository':
+                    subprocess.run(['git', 'init', '-q', '-b', 'main', str(target)], check=True, capture_output=True)
+                old = subprocess.run([sys.executable, '-X', 'utf8', '-B', str(fixture / 'installer.py'), 'install',
+                    str(archive), str(target), '0.31.0', 'bundled', '--format', 'tar.xz', '--entry-root', 'workflow-kit',
+                    '--archive-sha256', hashlib.sha256(archive.read_bytes()).hexdigest(), '--profile', profile],
+                    capture_output=True, text=True, encoding='utf-8')
+                self.assertEqual(0, old.returncode, old.stderr or old.stdout)
+                marker = (target / MARKER).read_bytes()
+                reports = target / 'review-reports'; reports.mkdir(exist_ok=True)
+                merge = reports / 'merge-review-prior.md'; merge.write_text('# prior merge\n', encoding='utf-8')
+                release = reports / 'release-review-prior.md'
+                release.write_text('# prior release\n<!-- release-checklist:start -->\n- [x] owner=engineer; date=2026-10-22; evidence=verified\n<!-- release-checklist:end -->\n', encoding='utf-8')
+                preserved = {p: p.read_bytes() for p in (merge, release)}
+                state = self.status(target)
+                self.assertEqual('update-available', state['status'], state)
+                run, installed = self.execute('install', ARCHIVE, target, VERSION, 'bundled', '--format', 'tar.xz',
+                    '--entry-root', 'workflow-kit', '--archive-sha256', hashlib.sha256(ARCHIVE.read_bytes()).hexdigest(), '--profile', profile)
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                for p, content in preserved.items(): self.assertEqual(content, p.read_bytes())
+                current = reports / 'release-review-current.md'
+                current.write_text('# created after upgrade\n<!-- release-checklist:start -->\n- [x] checked after upgrade\n<!-- release-checklist:end -->\n', encoding='utf-8')
+                preserved[current] = current.read_bytes()
+                run, _ = self.execute('rollback', target, installed['transaction'])
+                self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+                self.assertEqual(marker, (target / MARKER).read_bytes())
+                for p, content in preserved.items(): self.assertEqual(content, p.read_bytes())
+
     def test_conversion_failure_restores_original_profile_and_rejects_tampering(self):
         self.installed("group")
         original = (self.repo / MARKER).read_bytes()

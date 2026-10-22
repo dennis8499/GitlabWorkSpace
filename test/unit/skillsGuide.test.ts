@@ -56,23 +56,21 @@ test('release checks require manual Repo/base/head and preserve literal Unicode 
   assert.match(prompt, /\$release-reviewer/);
   assert.match(prompt, /固定合併前審查/);
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
-  assert.match(prompt, /base_sha 的整個 Repo/);
-  assert.match(prompt, /在所選 Repo\/review-reports\//);
-  assert.ok(prompt.includes(`--workspace 為 ${JSON.stringify(context.groupRoot)}`));
+  assert.match(prompt, /base_sha 整個入口 Repo/);
+  assert.match(prompt, /至所選 Repo\/review-reports\//);
+  assert.ok(prompt.includes(`--workspace ${JSON.stringify(context.groupRoot)}`));
   assert.match(prompt, /# 上版檢查: \{Repo\}/);
   assert.match(prompt, /檔名前綴 release-review/);
-  assert.match(prompt, /本機分支與其他 Repo 的 HEAD 擷取均為零網路操作/);
-  assert.match(prompt, /遠端 base／head 依 Repo／remote 合併為一次批次精確 fetch/);
-  assert.match(prompt, /失敗停止，不退回舊 ref/);
-  assert.match(prompt, /完成凍結後，讀取、搜尋、修稿與驗證只使用 owned context，均不連線/);
+  assert.match(prompt, /本機分支與 peer HEAD 不連線/);
+  assert.match(prompt, /後續只使用 owned context/);
   assert.match(prompt, /只輸出 Markdown/);
   assert.equal(prompt.includes('--include-json'), false);
-  assert.match(prompt, /環境設定、DB 建立或套用狀態標為未查證/);
-  assert.match(prompt, /review-worklist\.json/);
-  assert.match(prompt, /review-result-draft\.json.*尚未審查/);
-  assert.match(prompt, /--retain-on-validation-error/);
-  assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
-  assert.match(prompt, /成功、其他失敗或放棄修稿時清理/);
+  assert.match(prompt, /實際環境及套用狀態標為未查證/);
+  assert.match(prompt, /start → 必要 step → check → finish/);
+  assert.match(prompt, /status 恢復、cancel 取消/);
+  assert.match(prompt, /結果沿用 ReleaseReviewDraft\/v3/);
+  assert.match(prompt, /exit 3 沿原 context 修稿，exit 2 停止/);
+  assert.doesNotMatch(prompt, /release_report\.py|evidence\.py batch|--retain-on-validation-error/);
   assert.throws(() => buildSkillGuidePrompt(card, { ...inputs, 'release-review.mode': '直接比較', 'release-review.output': 'Markdown＋JSON' }, context), /只接受 Repo/);
   for (const ref of ['HEAD', 'refs/tags/v1', 'f'.repeat(40), 'main~1']) assert.equal(canCopySkillPrompt(card, { ...inputs, 'release-review.head': ref }), false);
 });
@@ -85,7 +83,7 @@ test('release prompt binds actual folder and saved multi-root workspace without 
   const workspaceRoot = 'C:\\actual workspace';
   const workspaceFile = 'C:\\actual workspace\\review.code-workspace';
   const prompt = buildSkillGuidePrompt(card, inputs, { ...context, workspaceRoot, workspaceFile });
-  assert.ok(prompt.includes(`--workspace 為 ${JSON.stringify(workspaceRoot)}`));
+  assert.ok(prompt.includes(`--workspace ${JSON.stringify(workspaceRoot)}`));
   assert.ok(prompt.includes(`--workspace-file ${JSON.stringify(workspaceFile)}`));
   assert.deepEqual(card.fields.map(field => field.id), ['repo', 'base', 'head']);
   assert.throws(() => buildSkillGuidePrompt(card, inputs, { ...context, workspaceRootAmbiguous: true }), /工作區根目錄/);
@@ -106,7 +104,7 @@ test('Skill agent branch review uses only three inputs and actual saved workspac
   assert.match(prompt, /--workspace-file "C:\/declared\/team.code-workspace"/);
   assert.match(prompt, /只輸出 Markdown/);
   assert.match(prompt, /review_session\.py start/);
-  assert.match(prompt, /start → 必要 step → finish/);
+  assert.match(prompt, /start → 必要 step → check → finish/);
   assert.match(prompt, /300 秒/);
   assert.match(prompt, /本機分支與 peer HEAD 不連線/);
   assert.match(prompt, /request_id、runtime_root、context_dir、draft_path 及 artifact/);
@@ -164,20 +162,14 @@ test('both reviewer profiles target the selected workspace Repo and retain the d
       assert.ok(prompt.includes('--workspace-file "C:/saved workspace/team.code-workspace"'));
       assert.ok(prompt.includes('"feature/manual"'));
       if (tool === 'merge-reviewer') assert.ok(prompt.includes('--project "D:/other root/consumer"'));
-      else {
-        assert.ok(prompt.includes('"defaultBranch":"trunk"'));
-        assert.match(prompt, /defaultBranch 只作工作區資料，不改變快照選擇/);
-      }
+      else assert.match(prompt, /review_session\.py start/);
       if (tool === 'release-reviewer') assert.match(prompt, /第一個 helper 呼叫立即凍結/);
       else assert.match(prompt, /review_session\.py start/);
       assert.match(prompt, /宣告工作區其他 Repo 的本機當前 HEAD/);
       assert.match(prompt, /同一個 Skill agent 完成核心 Code Review/);
       assert.match(prompt, /Code Diff/);
-      assert.match(prompt, /report_layout=engineering-review\/v1/);
-      if (tool === 'release-reviewer') {
-        assert.match(prompt, /--retain-on-validation-error/);
-        assert.match(prompt, /exit 3.*保留同次 context.*完整重驗/);
-      } else assert.match(prompt, /exit 3 沿原 context 修稿/);
+      assert.match(prompt, tool === 'merge-reviewer' ? /report_layout=engineering-review\/v1/ : /report_layout=engineering-review\/v2/);
+      assert.match(prompt, /exit 3 沿原 context 修稿/);
       if (tool === 'release-reviewer') {
         assert.match(prompt, /scenario 與 technical_details\.explanation、technical_details\.impact_scope、technical_details\.engineering_fix/);
         assert.match(prompt, /新增部署依賴及 Checklist 放在範圍與限制/);

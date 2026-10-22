@@ -39,6 +39,7 @@ class SourcePackageTests(unittest.TestCase):
         self.reviewer = self.base / 'MergeReviewer'
         (self.workspace / 'scripts').mkdir(parents=True)
         shutil.copyfile(ROOT / 'scripts/build-workflow-kit.py', self.workspace / 'scripts/build-workflow-kit.py')
+        shutil.copyfile(ROOT / 'package.json', self.workspace / 'package.json')
         snapshot = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))
         snapshot['sources'] = {'merge-reviewer': snapshot['sources']['merge-reviewer']}
         snapshot['workspaceFiles'] = {}
@@ -98,6 +99,24 @@ class SourcePackageTests(unittest.TestCase):
         self.assertEqual(b'a\r\nb', entries['payload.bin'])
         with self.assertRaisesRegex(ValueError, 'local source drift'):
             sources.check(compare_local=True)
+
+    def test_scoped_freeze_preserves_unselected_source_without_reading_its_live_checkout(self):
+        snapshot = json.loads(self.snapshot.read_text(encoding='utf-8'))
+        release = json.loads((ROOT / 'resources/offline-tools/source-snapshots.json').read_text(encoding='utf-8'))['sources']['release-reviewer']
+        snapshot['sources']['release-reviewer'] = release
+        self.snapshot.write_text(json.dumps(snapshot), encoding='utf-8')
+        archive = self.workspace / 'resources/offline-tools/sources' / release['filename']
+        shutil.copyfile(ROOT / 'resources/offline-tools/sources' / release['filename'], archive)
+        before = archive.read_bytes()
+        read = sources.local_entries
+        with mock.patch.object(sources, 'REPOS', {'merge-reviewer': 'MergeReviewer', 'release-reviewer': 'ReleaseReviewer'}), \
+             mock.patch.object(sources, 'git_info', return_value={'commit': 'a' * 40, 'dirty': False}), \
+             mock.patch.object(sources, 'local_entries', side_effect=lambda tool: read(tool) if tool == 'merge-reviewer' else self.fail('Read unselected source')):
+            result = sources.freeze(['merge-reviewer'])
+        self.assertTrue(result['ok'])
+        self.assertFalse(result['localCompared'])
+        self.assertEqual(release, json.loads(self.snapshot.read_text(encoding='utf-8'))['sources']['release-reviewer'])
+        self.assertEqual(before, archive.read_bytes())
 
 
 if __name__ == '__main__':

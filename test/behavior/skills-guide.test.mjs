@@ -157,7 +157,7 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   assert.equal(document.querySelector('.wiki-copy-button').disabled,false);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/merge-reviewer-workspace-context\/v3/);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/review_session\.py start/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/start → 必要 step → finish/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/start → 必要 step → check → finish/);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/300 秒/);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
@@ -174,24 +174,109 @@ test('local review cards isolate request IDs, ignore stale snapshots and only re
   view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
   assert.equal(view.requests.filter(request => request.type === 'loadReviewSessions').length, 1);
   const first = 'a'.repeat(32), second = 'b'.repeat(32);
-  const rows = [first, second].map((id, index) => ({ requestId: id, repository: 'service-' + index,
+  const rows = [first, second].map((id, index) => ({ tool: 'merge-reviewer', requestId: id, repository: 'service-' + index,
     repositoryPath: 'C:/service-' + index, base: 'main', head: 'topic-' + index,
     state: index ? 'published' : 'reviewing', phase: index ? 'complete' : 'review',
     reportPath: index ? 'C:/service-1/review-reports/report.md' : undefined,
     updatedAt: '2026-10-22T00:00:00Z', fetchCount: index ? 0 : 1, packCacheHits: index }));
-  await view.send({ type: 'reviewSessions', revision: 'obsolete', sessions: rows });
+  await view.send({ type: 'reviewSessions', tool: 'merge-reviewer', revision: 'obsolete', sessions: rows });
   assert.equal(view.document.querySelectorAll('.review-session-list article').length, 0);
-  await view.send({ type: 'reviewSessions', revision: 'group-revision', sessions: rows });
+  await view.send({ type: 'reviewSessions', tool: 'merge-reviewer', revision: 'group-revision', sessions: rows });
   assert.equal(view.document.querySelectorAll('.review-session-list article').length, 2);
   const button = text => [...view.document.querySelectorAll('.review-sessions button')].find(item => item.textContent === text);
   button('取消審查').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'cancelReviewSession').requestId, first);
+  assert.equal(view.requests.findLast(request => request.type === 'cancelReviewSession').tool, 'merge-reviewer');
+  button('複製恢復審查指令').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'copyReviewResume').requestId, first);
   button('開啟報告').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'openReviewReport').requestId, second);
   button('複製重新同步指令').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type === 'copyReviewRefresh').requestId, first);
   button('更新審查狀態').click(); await view.tick();
   assert.equal(view.requests.filter(request => request.type === 'loadReviewSessions').length, 2);
+  assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
+});
+
+test('Release local controls keep same-ID Merge sessions separate and resume the selected tool', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  view.document.getElementById('skill-tool-release-reviewer').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'loadReviewSessions').tool, 'release-reviewer');
+  const id = 'a'.repeat(32), row = { tool: 'release-reviewer', requestId: id, repository: 'release-service',
+    repositoryPath: 'C:/release-service', base: 'main', head: 'release-topic', state: 'reviewing', phase: 'review',
+    updatedAt: '2026-10-22T00:00:00Z', fetchCount: 0, packCacheHits: 0 };
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [row] });
+  assert.equal(view.document.querySelectorAll('.review-session-list article').length, 1);
+  const button = text => [...view.document.querySelectorAll('.review-sessions button')].find(item => item.textContent === text);
+  button('複製恢復審查指令').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'copyReviewResume').tool, 'release-reviewer');
+  button('取消審查').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'cancelReviewSession').tool, 'release-reviewer');
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'merge-reviewer', sessions: [{ ...row, tool: 'merge-reviewer', repository: 'foreign-merge' }] });
+  assert.equal(view.document.querySelectorAll('.review-session-list article').length, 1);
+  assert.doesNotMatch(view.document.querySelector('.review-sessions').textContent, /foreign-merge/);
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [{ ...row, state: 'published', phase: 'complete', cleanupPending: true }] });
+  assert.match(view.document.querySelector('.review-sessions').textContent, /報告已保存，暫存清理待重試/);
+  button('複製恢復審查指令').click(); await view.tick();
+  assert.equal(view.requests.findLast(request => request.type === 'copyReviewResume').tool, 'release-reviewer');
+  assert.equal(button('取消審查'), undefined);
+  await view.send({ type: 'reviewSessions', revision: 'group-revision', tool: 'release-reviewer', sessions: [{ ...row, state: 'failed', phase: 'terminal' }] });
+  assert.equal(button('複製恢復審查指令'), undefined);
+  assert.ok(button('複製重新同步指令'));
+  assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
+});
+
+test('both reviewer cards keep input repair resumable and route controls to the same request', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  for (const tool of ['merge-reviewer', 'release-reviewer']) {
+    view.document.getElementById('skill-tool-' + tool).click(); await view.tick();
+    const id = 'e'.repeat(32);
+    await view.send({ type: 'reviewSessions', revision: 'group-revision', tool, sessions: [{ tool, requestId: id,
+      repository: 'repair-service', repositoryPath: 'C:/service', base: 'main', head: 'topic',
+      state: 'reviewing', phase: 'input-repair', updatedAt: '2026-10-23T00:00:00Z', fetchCount: 0, packCacheHits: 0 }] });
+    const card = view.document.querySelector('.review-session-list article');
+    assert.match(card.textContent, /審查中 · 修正操作輸入後續跑/);
+    assert.doesNotMatch(card.textContent, /已停止|已取消/);
+    const button = text => [...card.querySelectorAll('button')].find(item => item.textContent === text);
+    button('複製恢復審查指令').click(); await view.tick();
+    const resume = view.requests.findLast(request => request.type === 'copyReviewResume');
+    assert.equal(resume.tool, tool); assert.equal(resume.requestId, id);
+    button('取消審查').click(); await view.tick();
+    const cancel = view.requests.findLast(request => request.type === 'cancelReviewSession');
+    assert.equal(cancel.tool, tool); assert.equal(cancel.requestId, id);
+  }
+  assert.equal(view.requests.some(request => ['refresh', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
+});
+
+test('both published reviewer cards distinguish publication from incomplete, complete and unknown review coverage', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  for (const tool of ['merge-reviewer', 'release-reviewer']) {
+    view.document.getElementById('skill-tool-' + tool).click(); await view.tick();
+    const row = { tool, requestId: 'c'.repeat(32), repository: tool, repositoryPath: 'C:/service',
+      base: 'main', head: 'topic', state: 'published', phase: 'complete', reportPath: 'C:/service/review-reports/report.md',
+      updatedAt: '2026-10-22T00:00:00Z', fetchCount: 0, packCacheHits: 0 };
+    const send = reviewOutcome => view.send({ type: 'reviewSessions', revision: 'group-revision', tool,
+      sessions: [{ ...row, reviewOutcome }] });
+    await send({ reviewComplete: false, reviewStatus: 'incomplete', gaps: ['未完成呼叫端追查。'] });
+    let card = view.document.querySelector('.review-session-list article');
+    assert.match(card.textContent, /報告已產生 · 發布完成/);
+    assert.match(card.querySelector('.review-outcome').textContent, /審查覆蓋：未完整/);
+    assert.match(card.querySelector('.review-outcome').textContent, /未完成呼叫端追查/);
+    const open = [...card.querySelectorAll('button')].find(item => item.textContent === '開啟報告');
+    open.click(); await view.tick();
+    assert.equal(view.requests.findLast(request => request.type === 'openReviewReport').tool, tool);
+    await send({ reviewComplete: true, reviewStatus: 'complete', gaps: [] });
+    assert.equal(view.document.querySelector('.review-outcome').textContent, '審查覆蓋：完整');
+    assert.equal(view.document.querySelector('.review-outcome').classList.contains('warning'), false);
+    await send({ reviewComplete: null, reviewStatus: 'unknown', gaps: ['舊發布紀錄無摘要。'] });
+    assert.match(view.document.querySelector('.review-outcome').textContent, /審查覆蓋：未知/);
+    assert.match(view.document.querySelector('.review-outcome').textContent, /舊發布紀錄無摘要/);
+    await send(undefined);
+    card = view.document.querySelector('.review-outcome');
+    assert.match(card.textContent, /審查覆蓋：未知/);
+    assert.match(card.textContent, /無法確認初次審查完整性/);
+    assert.equal([...view.document.querySelectorAll('.review-session-list button')].some(item => item.textContent === '複製恢復審查指令'), false);
+  }
   assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
 });
 

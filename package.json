@@ -157,7 +157,7 @@
         },
         "gitlabWorkspace.reviewRuntimePath": {
           "default": "",
-          "description": "MergeReviewer 共用的本機任務與快取目錄，須位於所有 Git Repo 外。群組工作區留白使用根目錄的 .review-runtime；單 Repo 工作區必須指定外部可寫目錄。",
+          "description": "審查任務與快取的外部可寫目錄。Merge 直接使用此目錄，Release 使用其 release-reviewer 子目錄；兩套資料獨立。群組工作區留白分別使用 .review-runtime 與 .release-review-runtime；單 Repo 必須指定 Git Repo 外目錄。",
           "scope": "resource",
           "type": "string"
         },
@@ -166,7 +166,8 @@
             ".git",
             "node_modules",
             ".venv",
-            ".review-runtime"
+            ".review-runtime",
+            ".release-review-runtime"
           ],
           "description": "一鍵掃描略過的資料夾名稱；.git 永遠不遞迴。修改後重新掃描即可套用。",
           "items": {
@@ -279,5 +280,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.31.0"
+  "version": "0.32.0"
 }
