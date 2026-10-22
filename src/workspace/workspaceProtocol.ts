@@ -296,7 +296,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'openBmadArtifact'; revision: string; stepId: string; path: string }
   | { type: 'clone'; projectIds: number[]; cloneAll?: boolean }
   | { type: 'cloneSelection'; requestId: string; scopeKey?: string; projectIds: number[] }
-  | { type: 'syncRepos' }
+  | { type: 'syncRepos'; projectIds?: number[] }
   | { type: 'selectProject'; projectId: number }
   | { type: 'selectIssue'; projectId: number; issueIid: number }
   | { type: 'openIssue'; projectId: number; issueIid: number; tab?: IssueDetailTab }

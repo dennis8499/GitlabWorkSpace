@@ -310,10 +310,16 @@ export class GitLabSession {
   invalidateReadCache(): void { this.readCache.invalidate(); }
 
   private invalidateAfterWrite(context: GitLabWriteContext): void {
+    if (context.invalidateAll) {
+      this.readCache.invalidate();
+      this.publishReadInvalidation({ groupIds: [], resource: 'all' });
+      return;
+    }
     const url = new URL(context.url);
+    const scope = url.pathname.endsWith('/api/graphql') ? context.scope : undefined;
     const project = /\/projects\/(\d+)(?:\/|$)/.exec(url.pathname);
     const group = /\/groups\/(\d+)(?:\/|$)/.exec(url.pathname);
-    const projectId = project ? Number(project[1]) : undefined;
+    const projectId = project ? Number(project[1]) : scope?.projectId;
     const groupId = group ? Number(group[1]) : undefined;
     if (groupId !== undefined) {
       this.readCache.invalidateWhere((key) => key.includes(`\0group/${groupId}/`));
@@ -321,14 +327,41 @@ export class GitLabSession {
       return;
     }
     if (projectId !== undefined) {
+      const issue = /\/projects\/\d+\/issues(?:\/(\d+)(?:\/(.*))?)?$/.exec(url.pathname);
+      const issueAction = issue?.[2]?.split('/')[0];
+      // Cross-Project Issue operations and MR closing keywords can affect an
+      // unknown target. A source URL alone cannot safely narrow those writes.
+      if (issueAction === 'move' || issueAction === 'clone' || issueAction === 'links' || /\/merge_requests\/\d+\/merge$/.test(url.pathname)) {
+        this.readCache.invalidate();
+        this.publishReadInvalidation({ groupIds: [], resource: 'all' });
+        return;
+      }
       const groups = new Set([...this.groupProjectIds].filter(([, ids]) => ids.has(projectId)).map(([id]) => id));
       const currentGroupId = this.selectedGroup?.id;
+      // A partial current inventory cannot disprove membership in a parent Group.
       if (currentGroupId !== undefined) groups.add(currentGroupId);
-      const issueWrite = /\/issues(?:\/|$)/.test(url.pathname);
-      const mergeRequestWrite = /\/merge_requests(?:\/|$)/.test(url.pathname);
+      const issueWrite = scope?.resource === 'issues' || /\/issues(?:\/|$)/.test(url.pathname);
+      const mergeRequestWrite = scope?.resource === 'mergeRequests' || /\/merge_requests(?:\/|$)/.test(url.pathname);
+      const knownIssueWrite = scope?.resource === 'issues' || !!issueAction && [
+        'notes', 'discussions', 'award_emoji', 'time_estimate', 'reset_time_estimate', 'add_spent_time',
+        'reset_spent_time', 'subscribe', 'unsubscribe', 'todo'
+      ].includes(issueAction);
+      const knownMergeRequestWrite = scope?.resource === 'mergeRequests' || /\/projects\/\d+\/merge_requests\/\d+\/(?:notes|discussions|approve|unapprove)(?:\/.*)?$/.test(url.pathname);
       this.readCache.invalidateWhere((key) => {
         const scoped = key.split('\0').at(-1) ?? key;
-        if (scoped.startsWith(`project/${projectId}/`)) return true;
+        if (scoped.startsWith(`project/${projectId}/`)) {
+          // Issue/Work Item mutations may also change linked children, but cannot
+          // alter Project identity or form options. Retain those independent reads.
+          if (knownIssueWrite) {
+            const issuePrefix = `project/${projectId}/issue/`;
+            // REST subresources identify one Issue. GraphQL scopes can include
+            // its children, so expire that Project's Issue reads conservatively.
+            return scope || !issue?.[1] ? scoped.startsWith(issuePrefix)
+              : scoped === issuePrefix + issue[1] || scoped.startsWith(issuePrefix + issue[1] + '/');
+          }
+          if (knownMergeRequestWrite) return scoped.startsWith(`project/${projectId}/merge-request/`);
+          return true;
+        }
         if (issueWrite && [...groups].some((id) => scoped === `group/${id}/assigned-issues` || scoped.startsWith(`group/${id}/assigned-issues/`) || scoped.startsWith(`group/${id}/graph`))) return true;
         if (issueWrite && [...groups].some(id => scoped.startsWith(groupBoardReadPrefix(id)))) return true;
         if (mergeRequestWrite && [...groups].some((id) => scoped === groupWorkspaceReadKey(id, 'mergeRequests') || scoped.startsWith(`${groupWorkspaceReadKey(id, 'mergeRequests')}/`))) return true;

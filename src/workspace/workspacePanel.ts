@@ -1181,7 +1181,7 @@ export class WorkspacePanel implements vscode.Disposable {
         waiter.resolve(projectIds);
         break;
       }
-      case 'syncRepos': await this.syncRepos(); break;
+      case 'syncRepos': await this.syncRepos(request.projectIds); break;
       case 'selectProject': this.selectedProjectId = request.projectId; await this.context.globalState.update('gitlabWorkspace.selectedProjectId', request.projectId); this.sendSnapshot(); break;
       case 'selectIssue': await this.selectIssue(request.projectId, request.issueIid); break;
       case 'openIssue': await this.openIssue(request.projectId, request.issueIid, request.tab); break;
@@ -3226,9 +3226,22 @@ export class WorkspacePanel implements vscode.Disposable {
     }
   }
 
-  private async syncRepos(): Promise<void> {
+  private async syncRepos(projectIds?: number[]): Promise<void> {
+    if (projectIds !== undefined && (!Array.isArray(projectIds) || projectIds.some(id => !Number.isSafeInteger(id) || id <= 0))) {
+      throw new Error('選取專案識別資料無效，請重新選取 Repo。');
+    }
+    if (projectIds?.length === 0) {
+      this.post({ type: 'message', message: '請先在專案清單勾選要同步的 Repo。' });
+      return;
+    }
+    const wantedIds = projectIds === undefined ? undefined : new Set(projectIds);
     const group = this.session.selectedGroup;
     if (!group || !this.session.baseUrl) throw new Error('請先連線 GitLab 並選擇 Group。');
+    if (wantedIds) {
+      const selected = this.projects.filter(project => wantedIds.has(project.id));
+      if (selected.length !== wantedIds.size) throw new Error('選取專案不在已載入的 Group 清單，請重新選取。');
+      if (selected.some(project => !project.path_with_namespace.startsWith(`${group.full_path}/`))) throw new Error('選取專案不屬於目前 Group，請重新載入清單。');
+    }
     if (this.busy || this.repositoryOperationInProgress || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.accountTransitionBusy) throw new Error('目前有工作正在處理，完成後再開始 Repo 操作。');
     const epoch = this.session.connectionEpoch, workspaceGeneration = this.workspaceFoldersGeneration;
     const checkProject = this.captureWorkflowKitAccess(true);
@@ -3253,7 +3266,9 @@ export class WorkspacePanel implements vscode.Disposable {
       const layout = preparedLayout.layout;
       const folderNames = layout.folders;
       const rootProjectId = layout.rootProjectId;
-      const localStates = await mapWithConcurrency(groupProjects, 4, async (project) => {
+      const candidates = wantedIds ? groupProjects.filter(project => wantedIds.has(project.id)) : groupProjects;
+      if (wantedIds && candidates.some(project => !project.path_with_namespace.startsWith(`${group.full_path}/`))) throw new Error('專案已不屬於目前 Group，請重新載入清單。');
+      const localStates = await mapWithConcurrency(candidates, 4, async (project) => {
         repositoryAbort.signal.throwIfAborted();
         try {
           const targetPath = groupRepositoryPath(root!, project, groupProjects, folderNames, rootProjectId);
@@ -3261,9 +3276,9 @@ export class WorkspacePanel implements vscode.Disposable {
         } catch { return [project.id, 'unsafe' as const] as const; }
       });
       const existingIds = new Set(localStates.filter(([, state]) => state === 'ready').map(([id]) => id));
-      const existingProjects = groupProjects.filter((project) => existingIds.has(project.id));
+      const existingProjects = candidates.filter((project) => existingIds.has(project.id));
       if (!existingProjects.length) {
-        this.post({ type: 'message', message: `${group.full_path} 尚無已存在且路徑安全的本機 Repo 可更新。` });
+        this.post({ type: 'message', message: wantedIds ? '選取專案尚無已存在且路徑安全的本機 Repo 可同步。' : `${group.full_path} 尚無已存在且路徑安全的本機 Repo 可更新。` });
         return;
       }
       const activeOperation: CloneOperationState = {
@@ -3274,7 +3289,7 @@ export class WorkspacePanel implements vscode.Disposable {
       progressPublisher = this.cloneProgressPublisher(activeOperation);
       publishOperation();
       this.operationPhase('syncRepos', '等待確認更新本機預設分支…');
-      const confirm = await vscode.window.showWarningMessage(`Fetch 並 Pull ${group.full_path} 下 ${existingProjects.length} 個已存在 Repo 的預設分支？本機分支不會刪除。`, { modal: true }, '更新預設分支');
+      const confirm = await vscode.window.showWarningMessage(`Fetch 並 Pull ${group.full_path} 下${wantedIds ? '選取的' : '全部'} ${existingProjects.length} 個已存在 Repo 的預設分支？本機分支不會刪除。`, { modal: true }, '更新預設分支');
       if (confirm !== '更新預設分支') {
         this.noteOutcome({ status: 'cancelled', effect: 'none' });
         activeOperation.phase = 'cancelled';
@@ -3561,7 +3576,8 @@ export class WorkspacePanel implements vscode.Disposable {
       if (submitting.spentAt && submitting.summary.trim() && !capabilities?.timelogCreateSummary) throw new Error('This GitLab schema cannot store a summary with dated time entries.');
       if (capabilities?.timelogCreate && issue.id && (!submitting.summary.trim() || capabilities.timelogCreateSummary === true)) {
         const spentAt = submitting.spentAt ? new Date(`${submitting.spentAt}T12:00:00`).toISOString() : undefined;
-        await client.createIssueTimelog(issue.id, gitLabDuration(submitting.elapsedSeconds), submitting.summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
+        const scopedClient = client.withWriteScope?.({ projectId: issue.project_id, issueIid: issue.iid, resource: 'issues' }) ?? client;
+        await scopedClient.createIssueTimelog(issue.id, gitLabDuration(submitting.elapsedSeconds), submitting.summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
       } else if (submitting.spentAt) {
         throw new Error('此 GitLab 版本不支援指定日期的工時紀錄。');
       } else {

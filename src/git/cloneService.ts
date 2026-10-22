@@ -154,11 +154,16 @@ export function planClones(
   return buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders, target => isPathPresent(target, exists));
 }
 
-async function planClonesAsync(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
-  groupProjects: readonly GitLabProject[] = projects, folders?: ReadonlyMap<number, string>, knownRoot?: { id?: number }, layout?: LocalRepositoryLayout): Promise<ClonePlan[]> {
+async function validateWorkspaceDirectory(workspacePath: string): Promise<string> {
   const root = path.resolve(workspacePath);
   try { if (!(await stat(root)).isDirectory()) throw new Error('not a directory'); }
   catch { throw new ClonePreflightError('Choose an existing local folder for the cloned repositories.'); }
+  return root;
+}
+
+async function planClonesAsync(workspacePath: string, projects: readonly GitLabProject[], gitLabBaseUrl: string,
+  groupProjects: readonly GitLabProject[] = projects, folders?: ReadonlyMap<number, string>, knownRoot?: { id?: number }, layout?: LocalRepositoryLayout): Promise<ClonePlan[]> {
+  const root = await validateWorkspaceDirectory(workspacePath);
   const resolved = layout ?? await resolveLocalRepositoryLayout(root, groupProjects, projectRemoteMatches, gitProcessOptions.getStore()?.signal);
   const rootProjectId = knownRoot ? knownRoot.id : resolved.rootProjectId;
   const plans = buildClonePlans(root, projects, gitLabBaseUrl, groupProjects, folders ?? resolved.folders, () => false, rootProjectId);
@@ -329,7 +334,7 @@ async function syncLocalDefaultBranchesInternal(workspacePath: string, projects:
   onProgress: (progress: LocalSyncProgress) => void, dependencies: LocalSyncDependencies): Promise<LocalSyncBatchResult> {
   dependencies.signal?.throwIfAborted();
   // Validate the chosen workspace once, including when the group has no projects.
-  await planClonesAsync(workspacePath, [], gitLabBaseUrl);
+  await validateWorkspaceDirectory(workspacePath);
   const result: LocalSyncBatchResult = { found: 0, updated: [], upToDate: [], failed: [], skipped: [] };
   const resolveProject = dependencies.resolveProject ?? (async (project) => project);
   const syncRunner = dependencies.syncRunner ?? runGitDefaultBranchSync;

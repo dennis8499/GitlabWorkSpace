@@ -99,7 +99,7 @@
       {
         "command": "gitlabWorkspace.syncLocalDefaultBranches",
         "icon": "$(sync)",
-        "title": "GitLab Workspace: 更新本機預設分支"
+        "title": "GitLab Workspace: 更新全部本機預設分支"
       },
       {
         "command": "gitlabWorkspace.createIssue",

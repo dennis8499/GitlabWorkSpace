@@ -690,6 +690,9 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       if (message.type === 'reply') finishDomainAction(actions, message.requestId, { status: message.error ? 'failed' : 'succeeded', error: message.error, effect: message.effect, refreshError: message.refreshError });
       if (message.type === 'actionResult') {
         finishDomainAction(actions, message.requestId, { status: message.status, error: message.error, effect: message.effect, refreshError: message.refreshError });
+        // Host replies precede their terminal result; cancelled reads may finish without a reply.
+        requestEpoch.current.delete(message.requestId);
+        editorPreviewTargets.current.delete(message.requestId);
         const submitted = submittedRequests.current.get(message.requestId);
         submittedRequests.current.delete(message.requestId);
         if (message.effect === 'unknown' && submitted) {

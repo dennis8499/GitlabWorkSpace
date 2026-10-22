@@ -96,3 +96,24 @@ test('restored Issue editing demands fields only and failed note reactions requi
   v.button('重試載入留言表情').click(); await v.tick();
   assert.equal(v.requests.filter(r => r.type === 'loadNoteReactions' && r.noteId === 1).length, 2);
 });
+
+test('preview replies render before terminal cleanup and cancelled reads cannot repaint the form', async t => {
+  const v = await mount(t);
+  await v.send({ type: 'createData', projects: [project], selectedProjectId: 1, options: idleOptions(), canCreateIssue: true });
+  await v.input(v.document.querySelector('textarea'), 'Description');
+  v.button('預覽 Markdown').click(); await v.tick();
+  const first = v.requests.findLast(request => request.type === 'preview');
+  assert.ok(first);
+  await v.send({ type: 'reply', requestId: first.requestId, result: { html: '<p>Current preview</p>' } });
+  await v.finish(first);
+  assert.match(v.document.querySelector('.preview')?.textContent ?? '', /Current preview/);
+  v.button('預覽 Markdown').click(); await v.tick();
+  const cancelled = v.requests.findLast(request => request.type === 'preview');
+  assert.notEqual(cancelled.requestId, first.requestId);
+  await v.send({ type: 'actionResult', requestId: cancelled.requestId, status: 'cancelled', effect: 'none' });
+  await v.send({ type: 'reply', requestId: cancelled.requestId, result: { html: '<p>Discarded preview</p>' } });
+  assert.match(v.document.querySelector('.preview')?.textContent ?? '', /Current preview/);
+  assert.doesNotMatch(v.document.body.textContent, /Discarded preview/);
+  v.button('預覽 Markdown').click(); await v.tick();
+  assert.equal(v.requests.filter(request => request.type === 'preview').length, 3, 'terminal cleanup permits the next read');
+});

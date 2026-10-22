@@ -13,6 +13,7 @@ import {
   createCloneEnvironmentForTest,
   createScopedGitEnvironment,
   planClones,
+  prepareOperationLayout,
   projectRemoteMatches,
   sanitizeGitDiagnostic,
   syncLocalDefaultBranches
@@ -662,6 +663,72 @@ test('syncs no repositories when the Group workspace contains no existing projec
     assert.deepEqual(result.upToDate, []);
     assert.equal(syncCalls, 0);
   } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('sync validates the workspace without a second full repository discovery', async () => {
+  const temp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-discovery-')));
+  const workspace = path.join(temp, 'workspace'); mkdirSync(workspace);
+  const repos = [{ ...project('first'), id: 101 }, { ...project('second'), id: 102 }];
+  for (const repo of repos) {
+    const target = path.join(workspace, repo.path);
+    git(['init', '--quiet', target]);
+    git(['-C', target, 'remote', 'add', 'origin', repo.http_url_to_repo]);
+  }
+  const lines: string[] = [], write = (line: string) => { lines.push(line); };
+  const log = new OperationLog({ info: write, warn: write, error: write });
+  const synced: number[] = [];
+  try {
+    const result = await log.run('projects', 'syncRepos', {}, () =>
+      syncLocalDefaultBranches(workspace, repos, 'https://gitlab.example.test', dummyToken, undefined, {
+        syncRunner: async plan => { synced.push(plan.project.id); return { state: 'up-to-date' }; }
+      }));
+    assert.deepEqual(synced, repos.map(repo => repo.id));
+    assert.equal(result.found, 2);
+    const starts = lines.flatMap(line => {
+      const match = /^\[git\] (\S+) started (\{.*\})$/.exec(line);
+      return match ? [{ ...JSON.parse(match[2]), action: match[1] } as OperationLogEntry] : [];
+    });
+    assert.equal(starts.filter(entry => entry.action === 'rev-parse' && entry.repositoryPath === workspace).length, 1,
+      'only the required layout validation discovers the container and its repositories');
+    assert.equal(starts.filter(entry => entry.network).length, 0);
+  } finally {
+    log.dispose();
+    assert.equal(path.dirname(temp), realpathSync(os.tmpdir()));
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('sync rejects invalid workspace directories even with an empty project list', async () => {
+  const temp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-root-')));
+  try {
+    const file = path.join(temp, 'plain-file'); writeFileSync(file, 'not a directory');
+    for (const root of [file, path.join(temp, 'missing')]) {
+      await assert.rejects(syncLocalDefaultBranches(root, [], 'https://gitlab.example.test', dummyToken),
+        /Choose an existing local folder/);
+    }
+  } finally {
+    assert.equal(path.dirname(temp), realpathSync(os.tmpdir()));
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('sync still rejects a changed origin after the reviewed layout was prepared', async () => {
+  const temp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-layout-')));
+  const repo = project('reviewed');
+  const target = path.join(temp, repo.path);
+  try {
+    git(['init', '--quiet', target]); git(['-C', target, 'remote', 'add', 'origin', repo.http_url_to_repo]);
+    const reviewed = await prepareOperationLayout(temp, [repo]);
+    git(['-C', target, 'remote', 'set-url', 'origin', 'https://gitlab.example.test/group/other.git']);
+    let syncCalls = 0;
+    await assert.rejects(syncLocalDefaultBranches(temp, [repo], 'https://gitlab.example.test', dummyToken, undefined, {
+      layout: reviewed.layout, syncRunner: async () => { syncCalls++; return { state: 'updated' }; }
+    }));
+    assert.equal(syncCalls, 0);
+  } finally {
+    assert.equal(path.dirname(temp), realpathSync(os.tmpdir()));
     rmSync(temp, { recursive: true, force: true });
   }
 });

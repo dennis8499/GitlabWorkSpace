@@ -27,9 +27,19 @@ async function mapReads<T, R>(items: readonly T[], load: (item: T, index: number
   return result;
 }
 
+export interface GitLabWriteScope {
+  projectId: number;
+  issueIid?: number;
+  resource: 'issues' | 'mergeRequests';
+}
+
 export interface GitLabWriteContext {
   url: string;
   method: string;
+  /** Optional GraphQL mutation scope; REST writes retain their URL-based policy. */
+  scope?: GitLabWriteScope;
+  /** Quick actions in a comment can affect resources outside the URL's Project. */
+  invalidateAll?: true;
 }
 
 export class GitLabApiError extends Error {
@@ -94,7 +104,8 @@ export class GitLabClient {
     private readonly runWrite?: <T>(task: () => Promise<T>) => Promise<T>,
     private readonly writeTimeoutMs = 30_000,
     private readonly networkGate = new GitLabNetworkGate(),
-    private readonly requestBudgets: readonly GitLabRequestBudget[] = []
+    private readonly requestBudgets: readonly GitLabRequestBudget[] = [],
+    private readonly writeScope?: GitLabWriteScope
   ) {
     this.baseUrl = normalizeGitLabBaseUrl(baseUrl);
     this.apiRoot = gitLabApiRoot(this.baseUrl);
@@ -106,13 +117,21 @@ export class GitLabClient {
 
   withReadSignal(signal: AbortSignal): GitLabClient {
     const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, this.requestBudgets);
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, this.requestBudgets, this.writeScope);
   }
 
   withRequestBudget(options: GitLabRequestBudgetOptions | GitLabRequestBudget = {}): GitLabClient {
     const budget = options instanceof GitLabRequestBudget ? options : new GitLabRequestBudget(options);
     const inherited = this.readSignal ? (Array.isArray(this.readSignal) ? [...this.readSignal] : [this.readSignal]) : [];
-    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, budget.signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, [...this.requestBudgets, budget]);
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, [...inherited, budget.signal], this.onSuccessfulWrite, this.readGate, this.runWrite, this.writeTimeoutMs, this.networkGate, [...this.requestBudgets, budget], this.writeScope);
+  }
+
+  withWriteScope(scope: GitLabWriteScope): GitLabClient {
+    if (!Number.isSafeInteger(scope.projectId) || scope.projectId <= 0 ||
+      scope.issueIid !== undefined && (!Number.isSafeInteger(scope.issueIid) || scope.issueIid <= 0) ||
+      !['issues', 'mergeRequests'].includes(scope.resource)) throw new RangeError('Invalid GitLab write scope.');
+    return new GitLabClient(this.baseUrl, this.token, this.fetcher, this.readSignal, this.onSuccessfulWrite, this.readGate,
+      this.runWrite, this.writeTimeoutMs, this.networkGate, this.requestBudgets, Object.freeze({ ...scope }));
   }
 
   async getCurrentUser(): Promise<GitLabUser> {
@@ -955,7 +974,6 @@ export class GitLabClient {
 
   private checkMutation(result: { errors: string[] } | undefined, fallback: string): void {
     if (!result || result.errors.length) throw new GitLabApiError(result?.errors.join('; ') || fallback);
-    this.onSuccessfulWrite?.({ url: new URL('../graphql', this.apiRoot).toString(), method: 'POST' });
   }
 
   addIssueLink(projectId: number, issueIid: number, targetProjectId: number, targetIssueIid: number, linkType: 'relates_to' | 'blocks' | 'is_blocked_by'): Promise<unknown> {
@@ -1128,10 +1146,26 @@ export class GitLabClient {
         ...(signal ? { signal } : {}),
         redirect: 'manual'
       }, readOnly);
-      return { response, result: await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response) };
+      const result = await this.readJson<{ data?: T; errors?: Array<{ message?: string }> }>(response);
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        throw new GitLabApiError('GitLab returned an invalid GraphQL response.', response.status);
+      }
+      return { response, result };
     };
-    const { response, result } = readOnly ? await this.withReadRequest((signal) => request(signal)) : await this.withWriteRequest(request);
-    if (!readOnly && result.data) this.onSuccessfulWrite?.({ url: url.toString(), method: 'POST' });
+    const notifyWrite = (): void => this.onSuccessfulWrite?.({ url: url.toString(), method: 'POST', ...(this.writeScope ? { scope: this.writeScope } : {}) });
+    let completed: Awaited<ReturnType<typeof request>>;
+    try {
+      completed = readOnly ? await this.withReadRequest((signal) => request(signal)) : await this.withWriteRequest(request);
+    } catch (error) {
+      // An interrupted/malformed response can follow an applied mutation. Expire
+      // affected reads once without changing the unknown outcome or retrying it.
+      if (!readOnly && error instanceof GitLabWriteUnknownError) notifyWrite();
+      throw error;
+    }
+    const { response, result } = completed;
+    // GraphQL execution may partially apply a mutation before returning errors,
+    // including data:null. Only request errors with no data establish no execution.
+    if (!readOnly && (result.data !== undefined || !result.errors?.length)) notifyWrite();
     if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
     return result.data;
   }
@@ -1241,6 +1275,12 @@ export class GitLabClient {
       throw new GitLabApiError('The request is outside the configured GitLab API.');
     }
     const method = (init.method ?? 'GET').toUpperCase();
+    let notifiedWrite = false;
+    const notifyWrite = (): void => {
+      if (notifiedWrite) return;
+      notifiedWrite = true;
+      this.onSuccessfulWrite?.(this.restWriteContext(url, method, init));
+    };
     const request = async (signal?: AbortSignal): Promise<T> => {
       const response = await this.send(url, {
         ...init,
@@ -1249,10 +1289,28 @@ export class GitLabClient {
         redirect: 'manual'
       });
       const value = await this.readJson<T>(response);
-      if (method !== 'GET' && method !== 'HEAD' && response.ok) this.onSuccessfulWrite?.({ url: url.toString(), method });
+      if (method !== 'GET' && method !== 'HEAD' && response.ok) notifyWrite();
       return value;
     };
-    return method === 'GET' || method === 'HEAD' ? this.withReadRequest(request) : this.withWriteRequest(request);
+    if (method === 'GET' || method === 'HEAD') return this.withReadRequest(request);
+    try { return await this.withWriteRequest(request); }
+    catch (error) {
+      if (error instanceof GitLabWriteUnknownError) notifyWrite();
+      throw error;
+    }
+  }
+
+  private restWriteContext(url: URL, method: string, init: RequestInit): GitLabWriteContext {
+    let invalidateAll = false;
+    if (/\/(?:issues|merge_requests)\/\d+\/(?:notes|discussions)(?:\/|$)/.test(url.pathname) && typeof init.body === 'string') {
+      try {
+        const body = (JSON.parse(init.body) as { body?: unknown } | null)?.body;
+        // Deliberately conservative inside Markdown too: commands can move an
+        // Issue or change labels/time, and their full effects are not URL-scoped.
+        invalidateAll = typeof body === 'string' && /(?:^|\r?\n)[ \t]*\/[a-z][a-z0-9_-]*(?=\s|$)/i.test(body);
+      } catch { /* Non-JSON request bodies cannot contain JSON note quick actions. */ }
+    }
+    return { url: url.toString(), method, ...(invalidateAll ? { invalidateAll: true as const } : {}) };
   }
 
   private send(input: string | URL | Request, init: RequestInit = {}, safeRead?: boolean, responseLimit?: number): Promise<Response> {

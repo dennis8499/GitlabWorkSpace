@@ -208,7 +208,8 @@ export class IssuePanels implements vscode.Disposable {
 
   async mutateIssueRelations(projectId: number, iid: number, action: IssueRelationAction): Promise<void> {
     const relations = await this.loadIssueRelations(projectId, iid);
-    const client = await this.session.getClient();
+    const baseClient = await this.session.getClient();
+    const client = baseClient.withWriteScope?.({ projectId, issueIid: iid, resource: 'issues' }) ?? baseClient;
     switch (action.type) {
       case 'createChild': {
         if (!relations.canManageChildren || !relations.parentWorkItemId || !relations.taskTypeId) throw new Error('You cannot create child tasks on this issue.');
@@ -450,7 +451,10 @@ export class IssuePanels implements vscode.Disposable {
         if (this.lastSnapshot && this.navigationReadController && !this.navigationReadController.signal.aborted) return;
       }
       if (this.lastSnapshot) {
-        if (this.lastSnapshot.type === 'createData') this.createOptionsAbort ??= new AbortController();
+        if (this.lastSnapshot.type === 'createData') {
+          this.createOptionsAbort ??= new AbortController();
+          this.navigationReadController ??= new AbortController();
+        }
         if (this.lastSnapshot.type === 'detailData' && !this.navigationReadController) {
           const controller = new AbortController();
           this.navigationReadController = controller;
@@ -954,9 +958,25 @@ export class IssuePanels implements vscode.Disposable {
       if (!opened) throw new Error('Could not open the GitLab issue in your browser.');
       return;
     }
+    if (request.type === 'search' && typeof request.query === 'string' && !request.query.trim()) {
+      requiredId(request.projectId, 'Project');
+      this.post({ type: 'reply', requestId: requiredString(request.requestId, 'Request ID'), result: [] });
+      return;
+    }
+    const readVersion = this.navigationVersion, readEpoch = this.session.connectionEpoch;
+    const readGroup = this.session.selectedGroup;
+    const readSignal = this.navigationReadController?.signal;
+    const cachedPreviewRead = request.type === 'preview' || request.type === 'search';
+    const currentRead = () => {
+      const current = readVersion === this.navigationVersion && readEpoch === this.session.connectionEpoch &&
+        readGroup?.id === this.session.selectedGroup?.id && !readSignal?.aborted && !this.suspended;
+      if (!current) { const action = this.actionContext.getStore(); if (action) action.status = 'cancelled'; }
+      return current;
+    };
     const baseClient = await this.session.getClient();
-    const client = ['selectProject', 'searchProjects', 'preview', 'search', 'image'].includes(request.type) && this.navigationReadController
-      ? baseClient.withReadSignal(this.navigationReadController.signal) : baseClient;
+    if (cachedPreviewRead && !currentRead()) return;
+    let client = ['selectProject', 'searchProjects', 'preview', 'search', 'image'].includes(request.type) && readSignal
+      ? baseClient.withReadSignal(readSignal) : baseClient;
     if (request.type === 'selectProject') {
       this.templateAbort?.abort();
       this.createOptionsAbort?.abort(); this.createOptionsAbort = new AbortController(); this.formOptionsReads.clear();
@@ -991,7 +1011,8 @@ export class IssuePanels implements vscode.Disposable {
             if (!details.supported) throw new Error('這個 Issue 類型沒有可用的開始日期 Widget。');
             const workItemId = await client.getWorkItemId(project.path_with_namespace, created.iid, this.session.issueCapabilities?.workItemScope);
             if (!workItemId) throw new Error('GitLab did not return the new Work Item ID.');
-            await this.write(() => client.setIssueStartDate(workItemId, startDate));
+            const scopedClient = client.withWriteScope?.({ projectId, issueIid: created.iid, resource: 'issues' }) ?? client;
+            await this.write(() => scopedClient.setIssueStartDate(workItemId, startDate));
           } catch (error) { this.operationWarning = `Issue created, but the start date was not saved: ${safeError(error)}`; }
         }
       }
@@ -1016,16 +1037,20 @@ export class IssuePanels implements vscode.Disposable {
     if (request.type === 'preview' || request.type === 'search' || request.type === 'upload') {
       const projectId = requiredId(request.projectId, 'Project');
       const requestId = requiredString(request.requestId, 'Request ID');
-      const group = this.session.selectedGroup;
-      const allowed = this.issue?.project_id === projectId || (group && (await client.listGroupProjects(group.id)).some((project) => project.id === projectId));
+      const group = cachedPreviewRead ? readGroup : this.session.selectedGroup;
+      const allowed = this.issue?.project_id === projectId || (group && (cachedPreviewRead
+        ? await this.session.cachedRead(`group/${group.id}/projects`, readClient => readClient.listGroupProjects(group.id), { signal: readSignal })
+        : await client.listGroupProjects(group.id)).some((project) => project.id === projectId));
+      if (cachedPreviewRead && !currentRead()) return;
       if (!allowed) throw new Error('Project is outside the selected group.');
       try {
         let result: unknown;
         if (request.type === 'preview') {
-          const project = await client.getProject(projectId);
+          const project = await this.session.cachedRead(`project/${projectId}/details`, readClient => readClient.getProject(projectId), { signal: readSignal });
+          if (!currentRead()) return;
           result = await client.renderMarkdown(project.path_with_namespace, request.markdown);
         } else if (request.type === 'search') {
-          result = request.query.trim() ? await client.searchProjectIssues(projectId, request.query.trim()) : [];
+          result = await client.searchProjectIssues(projectId, request.query.trim());
         } else {
           const file = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Attach to GitLab Issue' });
           if (!file?.[0] || file[0].scheme !== 'file') { result = null; const context = this.actionContext.getStore(); if (context) context.status = 'cancelled'; }
@@ -1042,8 +1067,9 @@ export class IssuePanels implements vscode.Disposable {
             finally { stream.destroy(); this.uploads.delete(requestId); }
           }
         }
-        this.post({ type: 'reply', requestId, result });
+        if (!cachedPreviewRead || currentRead()) this.post({ type: 'reply', requestId, result });
       } catch (error) {
+        if (cachedPreviewRead && !currentRead()) return;
         this.uploads.delete(requestId);
         if (error instanceof Error && error.name === 'AbortError') {
           const context = this.actionContext.getStore();
@@ -1106,6 +1132,7 @@ export class IssuePanels implements vscode.Disposable {
     }
     const projectId = issue.project_id;
     const iid = issue.iid;
+    client = baseClient.withWriteScope?.({ projectId, issueIid: iid, resource: 'issues' }) ?? baseClient;
     const snapshot = this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === issue.id ? this.lastSnapshot.data : undefined;
     if (request.type === 'update') {
       if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
@@ -1150,9 +1177,12 @@ export class IssuePanels implements vscode.Disposable {
       case 'reply':
         if (!snapshot?.canComment) throw new Error('GitLab does not report permission to comment on this Issue.');
         await this.write(() => client.replyToIssueThread(projectId, iid, requiredString(payload.discussionId, 'Thread'), requiredString(payload.body, 'Reply'))); break;
-      case 'resolveThread':
+      case 'resolveThread': {
         if (!this.session.issueCapabilities?.discussionResolve) throw new Error('This GitLab instance does not expose discussion resolution.');
-        await this.write(() => client.resolveIssueThread(requiredString(payload.discussionId, 'Thread'), payload.resolved === true)); break;
+        const discussionId = requiredString(payload.discussionId, 'Thread');
+        const discussionClient = snapshot?.discussions?.some(discussion => discussion.id === discussionId) ? client : baseClient;
+        await this.write(() => discussionClient.resolveIssueThread(discussionId, payload.resolved === true)); break;
+      }
       case 'react': case 'unreact': {
         const reload = this.detailSectionLoader;
         if (request.action === 'react') await this.write(() => client.addIssueReaction(projectId, iid, requiredString(payload.name, 'Emoji')));
@@ -1243,14 +1273,15 @@ export class IssuePanels implements vscode.Disposable {
       case 'removeChild': case 'setChildState': {
         const id = requiredString(payload.taskId, 'Task');
         if (!snapshot?.tasks.some((task) => task.id === id)) throw new Error('Task is not a child of this issue.');
-        if (request.action === 'removeChild') await this.write(() => client.setChildParent(id, null));
-        else await this.write(() => client.setChildState(id, payload.stateEvent === 'reopen' ? 'reopen' : 'close'));
+        // Hierarchy children can belong to other projects; their opaque IDs do not establish a write scope.
+        if (request.action === 'removeChild') await this.write(() => baseClient.setChildParent(id, null));
+        else await this.write(() => baseClient.setChildState(id, payload.stateEvent === 'reopen' ? 'reopen' : 'close'));
         break;
       }
       case 'updateChild': {
         const id = requiredString(payload.taskId, 'Task');
         if (!snapshot?.tasks.some((task) => task.id === id && task.canEdit)) throw new Error('You cannot edit this child task.');
-        await this.write(() => client.updateChildTask(id, requiredString(payload.title, 'Task title').trim(), optionalString(payload.description) ?? ''));
+        await this.write(() => baseClient.updateChildTask(id, requiredString(payload.title, 'Task title').trim(), optionalString(payload.description) ?? ''));
         break;
       }
       case 'move': {

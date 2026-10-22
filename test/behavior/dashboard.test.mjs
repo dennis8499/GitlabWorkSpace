@@ -2240,8 +2240,9 @@ test('mixed workspaces use the common root for downloads, sync and settings', as
   const document = view.dom.window.document; assert.equal(document.querySelector('.clone-submit').disabled, false);
   assert.match(document.querySelector('.clone-root-line').textContent, /mixed/);
   document.querySelector('.clone-submit').click(); assert.equal(view.requests.at(-1).type, 'clone');
-  const sync = [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新本機預設分支');
+  const sync = [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新全部本機預設分支');
   await view.tick(); sync.click(); assert.equal(view.requests.at(-1).type, 'syncRepos');
+  assert.equal(Object.hasOwn(view.requests.at(-1), 'projectIds'), false);
   document.querySelector('.clone-select-root').click(); await view.tick();
   const reset = [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '恢復 VS Code 根目錄');
   reset.click(); assert.equal(view.requests.at(-1).type, 'resetProjectRoot');
@@ -2870,6 +2871,32 @@ test('selects only visible Repo search results, preserves hidden selections, and
   view.sendSnapshot({ ...snapshot('clone'), busy: true });
   await view.tick();
   assert.equal(document.querySelector('input[aria-label="全選搜尋結果"]').disabled, true);
+});
+
+test('selected Repo sync requires a selection, preserves hidden selections and keeps an explicit all option', async t => {
+  const data = snapshot('clone');
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const selectedSync = () => [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent.startsWith('更新選取 Repo 預設分支'));
+  const allSync = () => [...document.querySelectorAll('.more-actions-panel button')].find(button => button.textContent === '更新全部本機預設分支');
+  assert.equal(selectedSync().disabled, true); selectedSync().click(); await view.tick();
+  assert.equal(view.requests.some(request => request.type === 'syncRepos'), false);
+  document.querySelectorAll('.repo-row input[type="checkbox"]')[0].click(); await view.tick();
+  document.querySelectorAll('.repo-row input[type="checkbox"]')[2].click(); await view.tick();
+  const search = document.querySelector('input[aria-label="搜尋 Repo"]');
+  search.value = 'alpha'; search.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.match(document.querySelector('.clone-selection-summary').textContent, /1 個不在目前搜尋結果/);
+  assert.equal(selectedSync().disabled, false); selectedSync().click(); await view.tick();
+  assert.deepEqual([...view.requests.findLast(request => request.type === 'syncRepos').projectIds], [1, 3]);
+  allSync().click(); await view.tick();
+  assert.equal(Object.hasOwn(view.requests.findLast(request => request.type === 'syncRepos'), 'projectIds'), false);
+  view.sendSnapshot({ ...data, busy: true }); await view.tick();
+  assert.equal(selectedSync().disabled, true); assert.equal(allSync().disabled, true);
+  const requestCount = view.requests.filter(request => request.type === 'syncRepos').length;
+  view.sendSnapshot({ ...data, connectedScope: 'other-team-scope', group: data.groups[1] }); await view.tick();
+  assert.equal(selectedSync().disabled, true, 'a new Group never inherits the old sync selection');
+  selectedSync().click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'syncRepos').length, requestCount);
 });
 
 test('project search and selection stay local until the user explicitly loads another list page', async t => {
