@@ -669,7 +669,8 @@ test('syncs no repositories when the Group workspace contains no existing projec
 
 test('sync validates the workspace without a second full repository discovery', async () => {
   const temp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'gitlab-workspace-sync-discovery-')));
-  const workspace = path.join(temp, 'workspace'); mkdirSync(workspace);
+  const physicalWorkspace = path.join(temp, 'workspace'); mkdirSync(physicalWorkspace);
+  const workspace = process.platform === 'win32' ? path.join(temp, 'WORKSPACE') : physicalWorkspace;
   const repos = [{ ...project('first'), id: 101 }, { ...project('second'), id: 102 }];
   for (const repo of repos) {
     const target = path.join(workspace, repo.path);
@@ -690,7 +691,8 @@ test('sync validates the workspace without a second full repository discovery', 
       const match = /^\[git\] (\S+) started (\{.*\})$/.exec(line);
       return match ? [{ ...JSON.parse(match[2]), action: match[1] } as OperationLogEntry] : [];
     });
-    assert.equal(starts.filter(entry => entry.action === 'rev-parse' && entry.repositoryPath === workspace).length, 1,
+    assert.equal(starts.filter(entry => entry.action === 'rev-parse' && typeof entry.repositoryPath === 'string' &&
+      sameRealLocalPath(entry.repositoryPath, workspace)).length, 1,
       'only the required layout validation discovers the container and its repositories');
     assert.equal(starts.filter(entry => entry.network).length, 0);
   } finally {
