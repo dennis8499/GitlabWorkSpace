@@ -1,0 +1,12 @@
+{
+  "candidate": "f604064670fecc70e24dea8525a588b51e451abb",
+  "dependencies": {
+    "MergeReviewer": "16706dc7b402a0c61de82cf5c24878075e1d1cff",
+    "ReleaseReviewer": "da8796bfa7569bf7320dcb0100df7eaddbd9c267"
+  },
+  "previousTag": "v0.30.1",
+  "repository": "GitlabWorkSpace",
+  "runId": "20261022T235111Z-c269daa3",
+  "schema": "workspace-release/v1",
+  "targetVersion": "0.32.0"
+}

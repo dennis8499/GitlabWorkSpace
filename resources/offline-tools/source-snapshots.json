@@ -151,14 +151,14 @@
         "VERSION": "20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e"
       },
       "repository": "code-base-llm-wiki",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "f4b314055b02df60e9cd40637e41255807dcbe7e1f33c4d901b9c56156c4c292",
       "version": "0.6.4"
     },
     "merge-reviewer": {
-      "archiveSha256": "2d450087b00bcd45e3db43e610d6272ed12cbcec0730ee40b18545a981b1f463",
-      "commit": "f9479f57e70396c843084b7aa9ed0f15bb28a412",
-      "dirty": true,
+      "archiveSha256": "74fcd02ff44b7d3c6e7a7cbe50bcc17f17ff63a8ca3d6c922de53d2ab6d3c32e",
+      "commit": "16706dc7b402a0c61de82cf5c24878075e1d1cff",
+      "dirty": false,
       "entryRoot": "merge-reviewer",
       "filename": "merge-reviewer-0.19.0.zip",
       "files": {
@@ -188,14 +188,14 @@
         "scripts/workspace_report.py": "2e58bea4fae685e5d3bc7e0cd848568ccfa6edfb844e792112dda7ac721a85f1"
       },
       "repository": "MergeReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "ea69d5e7855218a215bd17cc922e21f6b73c3d038b4c98d70397fe203c475369",
       "version": "0.19.0"
     },
     "release-reviewer": {
-      "archiveSha256": "a629adce8c49a7d8747bf48399efcf3d896cbf1e0775418b5203e567c9b5579b",
-      "commit": "f3de3939229348b086dba4b1d0304d04867561cc",
-      "dirty": true,
+      "archiveSha256": "b6ba140cd12db38fbe0ff2a43c142515197826b69891785f16e34e5012294a72",
+      "commit": "da8796bfa7569bf7320dcb0100df7eaddbd9c267",
+      "dirty": false,
       "entryRoot": "release-reviewer",
       "filename": "release-reviewer-0.8.0.zip",
       "files": {
@@ -228,7 +228,7 @@
         "scripts/review_worklist.py": "f997f898e737ae0e7132f1cea835dff0dafc43f31e4805394d6cc25b83243642"
       },
       "repository": "ReleaseReviewer",
-      "sourceKind": "local-snapshot",
+      "sourceKind": "official-release",
       "treeSha256": "b3367db9a3f3e954408f7be30db960a85b11bac29cd4d35dfe4c0a9a1d2775ef",
       "version": "0.8.0"
     }

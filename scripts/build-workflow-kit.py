@@ -38,13 +38,13 @@ PINNED_SOURCES = ({'id': 'codebase-wiki',
   'asset': 'merge-reviewer-0.19.0.zip',
   'filename': 'merge-reviewer-0.19.0.zip',
   'version': '0.19.0',
-  'sha256': '2d450087b00bcd45e3db43e610d6272ed12cbcec0730ee40b18545a981b1f463'},
+  'sha256': '74fcd02ff44b7d3c6e7a7cbe50bcc17f17ff63a8ca3d6c922de53d2ab6d3c32e'},
  {'id': 'release-reviewer',
   'repository': 'ReleaseReviewer',
   'asset': 'release-reviewer-0.8.0.zip',
   'filename': 'release-reviewer-0.8.0.zip',
   'version': '0.8.0',
-  'sha256': 'a629adce8c49a7d8747bf48399efcf3d896cbf1e0775418b5203e567c9b5579b'})
+  'sha256': 'b6ba140cd12db38fbe0ff2a43c142515197826b69891785f16e34e5012294a72'})
 
 
 def digest(data: bytes) -> str:

@@ -155,12 +155,6 @@
           "description": "匯入、檢查及安裝工具套件時使用的 Python 3.11+ 執行檔路徑。",
           "type": "string"
         },
-        "gitlabWorkspace.reviewRuntimePath": {
-          "default": "",
-          "description": "審查任務與快取的外部可寫目錄。Merge 直接使用此目錄，Release 使用其 release-reviewer 子目錄；兩套資料獨立。群組工作區留白分別使用 .review-runtime 與 .release-review-runtime；單 Repo 必須指定 Git Repo 外目錄。",
-          "scope": "resource",
-          "type": "string"
-        },
         "gitlabWorkspace.repositoryScan.excludeDirectories": {
           "default": [
             ".git",
@@ -174,6 +168,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "gitlabWorkspace.reviewRuntimePath": {
+          "default": "",
+          "description": "審查任務與快取的外部可寫目錄。Merge 直接使用此目錄，Release 使用其 release-reviewer 子目錄；兩套資料獨立。群組工作區留白分別使用 .review-runtime 與 .release-review-runtime；單 Repo 必須指定 Git Repo 外目錄。",
+          "scope": "resource",
+          "type": "string"
         }
       },
       "title": "GitLab Workspace"
