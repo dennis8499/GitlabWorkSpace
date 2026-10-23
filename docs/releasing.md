@@ -1,63 +1,33 @@
-# 工作區 Release
+# 發行
 
-日常只需指定要發版的專案與目標版本。工具自動處理版本準備、完整 CI、上游正式附件、工作台整合、發布與下載驗證。未變更的上游沿用既有正式版本；本機 Skills 與 VS Code 安裝另行處理。
+GitLab Workspace 版本記錄於 `package.json` 與鎖定檔；WorkflowKit 使用其獨立 Repo 的 `VERSION`。Extension Release 只提供 VSIX 與 `SHA256SUMS`，整合包、獨立安裝器和 `release.json` 由 WorkflowKit Release 提供。
 
-## 開始與續跑
+## 單一 Repo
 
-先提交各 Repo 要發版的程式碼，保持工作樹乾淨。五個 Repo 放在同一個父目錄，並使用既有 GitHub 登入與 Git 的 user.name／user.email。工具僅依賴 Python 3.11+、Git 與專案既有建置工具。Windows 可用 `python -X utf8 -B` 執行。
+變更版本並完成測試後，將提交整合至 `main`，建立同版本 `vX.Y.Z` tag。CI 會核對 tag、來源及完整矩陣，發布已驗證的相同產物；重跑不覆寫不同內容的既有附件。
 
-從工作區父目錄執行；下列版本僅為指令格式示例，請換成本次指定版本：
+Extension 執行 `npm test`，WorkflowKit 執行 `python -X utf8 -B scripts/test.py`。兩個 checkout 都可獨立建置。
 
-```text
-python -X utf8 -B GitlabWorkSpace/scripts/release.py plan --version MergeReviewer=1.2.3 --version GitlabWorkSpace=2.3.4
-python -X utf8 -B GitlabWorkSpace/scripts/release.py run <run-id>
-python -X utf8 -B GitlabWorkSpace/scripts/release.py status <run-id>
-python -X utf8 -B GitlabWorkSpace/scripts/release.py resume <run-id>
+正式 Release 發布後，Windows 可用隔離的 VS Code CLI 安裝 VSIX，再從實際安裝目錄執行線上下載、雙 profile 安裝及 Skills 可用性驗收：
+
+```powershell
+python -X utf8 -B scripts/verify-installed-reviewers.py --vsix dist/gitlab-workspace-0.33.0.vsix --evidence-dir .verification/formal-release
 ```
 
-`plan` 只讀取 Git／GitHub 狀態並保存計畫，不推送或發布。它比較各 Repo 候選 tree 與上一個正式 Release；任何受控內容差異都列入候選。上游有變更時，工作台也需指定新版本。缺少版本會一次列出；不自動猜測 major／minor／patch。沒有差異則回報 `no-changes`。
+這個命令會連線查詢正式 WorkflowKit Release；內網來源可加上 `--source gitea`。驗收不包含 Native UI。
 
-預設父目錄由腳本位置推導，也可在子命令前指定 `--workspace <父目錄>`、`--evidence-root <證據目錄>`。每次計畫固定 Repo、remote、候選 SHA、原 main、目標版本與依賴圖；修改計畫檔或來源後須重新產生計畫。
+## 跨 Repo 協調
 
-`run` 會推送發版提交並建立正式 tag，請在已決定發版時執行。它使用 `.release-worktrees/<run-id>/<Repo>` 的獨立 clone 保留原工作樹，避免自訂深層證據目錄拉長 Windows 路徑；只允許 main 快進，不重設或強制推送。完成後可正常 fetch／快進本機 main，取得工具產生的版本與釘選提交。
+工作區使用 `Skills/<Repo>` 與 `Extensions/GitlabWorkSpace` 的配置；每個 Repo 保留獨立 Git 歷史與遠端。從工作區根目錄執行：
 
-Wiki 候選若已提交目標版本，工具直接重驗完整 readiness，保留原 SHA，不要求再次升版或建立空提交。若先前部分發版已公開上游，而新計畫中的工作台仍保留同版本本機快照，工具會下載正式附件、核對固定來源內容後更新釘選；不重發既有上游，也不沿用未驗證的本機 ZIP。
-
-## 執行順序
-
-1. 取得 workspace lock，核對固定輸入，在每次發版的獨立目錄準備版本與來源提交。
-2. 四個獨立上游可同時啟動：推送 main → 等待完整矩陣 → 建立 tag → 等待正式 Release → 下載並核對附件、摘要與來源內容；各 Repo 內的重型測試仍預設兩個 worker。
-3. 工作台使用已驗證的正式 ZIP 原始位元組更新來源釘選與 source snapshots；未變更來源記錄維持原值。
-4. 從上一個正式 VSIX／組合包取得原始 installer 與雙 profile payload，自動建立可信升級／回復夾具；現有歷史夾具保留。
-5. 工作台完成完整四格 CI 與正式發布，再核對 VSIX／ZIP payload 相等、來源摘要及兩種 profile 的離線安裝。
-
-工作台 `npm test` 使用單次 prepare barrier；有界平行測試只讀準備完成的共用成果。各獨立命令仍可自行準備。Megin 以固定 test ID 分片，Wiki 聚合驗證共用單次檢查結果。
-
-## CI 證據與正式附件
-
-每個 Repo 使用自己的 workflow 與獨立 helper，不依賴另一個 Repo 的浮動版本。main／手動準備執行完整矩陣，保存來源 SHA／tree、workflow 與依賴摘要、環境、矩陣結果及附件摘要。Tag 只接受同 Repo、相同候選、可信 main、七天內完整成功的證據；PR、本機紀錄、缺少或略過的必要矩陣均不能作為發布依據。無有效證據時執行完整矩陣。
-
-正式產物固定使用 Linux：工作台 Python 3.11、Megin 3.13、Wiki 與兩個 Reviewer 3.14。發布階段下載驗證過的原始附件，不重新建置。CI 附件保留十四天；過期時重新驗證。
-
-同一 CI run 的 failed-jobs 重跑可沿用先前成功 cell；每個 cell 以最新 attempt 為準，不拼接不同 run 的結果。所有必要 cell 成功後才允許正式發布。
-
-## 失敗處理與交付紀錄
-
-每次結果保存於 `.release-evidence/<run-id>/`：`plan.json` 固定輸入、`state.json` 階段與重試、`logs/` 原始命令輸出、`downloads/` 正式附件、`verification/` 核對結果、`report.md` 結果與耗時。
-
-`resume` 沿用成功步驟，重跑失敗工作並再次核對外部交付。main、候選或附件改變時停止；已存在 tag／附件相同則沿用，不同則報錯。上游已公開而下游失敗時保留公開結果，只續跑剩餘工作。鎖不以等待時間自動過期；同一 run 的程序已結束後才能由 resume 恢復。
-
-報告分別列出總等待時間、各階段時間及 GitHub job 秒數，包含 CI 等待與重試情況。加速比例以相同來源與環境的實測為準，不能把歷史失敗執行當作成功基準。憑證只從既有 credential helper 或 GH_TOKEN／GITHUB_TOKEN 取得，留在記憶體，不寫入命令列或證據。
-
-開發時可執行離線演練，使用暫存 Git Repo 與假的 GitHub API，涵蓋無變更、跨專案依賴、來源變更、矩陣缺漏、中斷續跑與附件衝突：
-
-```text
-python -X utf8 -B GitlabWorkSpace/test/release/release_manager_test.py -v
-python -X utf8 -B GitlabWorkSpace/scripts/test_release_ci.py -v
+```powershell
+python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . plan --version MergeReviewer=X.Y.Z --version WorkflowKit=A.B.C
+python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . run <run_id>
+python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . resume <run_id>
 ```
 
-## Workspace 與獨立工具的依賴
+先發行有變更的上游，再由 WorkflowKit 整合正式附件。上游更新不會自動要求 Extension 改版；只有 Extension 自身有變更時才單獨指定其版本。Megin 不屬於 WorkflowKit 上游。既有 Extension 的 `scripts/release.py` 會轉交新入口。
 
-Megin 仍可獨立發版；Workspace 僅依賴 Wiki、MergeReviewer 與 ReleaseReviewer。
-單獨的 Megin 變更不選取 Workspace，也不把 Megin 附件加入其來源封包。新版拒絕
-仍將 Megin 列為 Workspace 上游的舊發版計畫，請保留原紀錄並重新產生計畫。
+## Gitea 備援
+
+在可連線內網的環境執行 WorkflowKit 的 `scripts/mirror-release.py --tag vX.Y.Z`。發布者提供 `GITEA_TOKEN`，工具核對 GitHub 正式附件、按相同 tag 上傳並重新下載比對；不同內容的既有附件會阻擋覆寫。下載者不需要 Token。

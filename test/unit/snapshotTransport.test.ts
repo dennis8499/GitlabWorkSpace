@@ -7,7 +7,7 @@ const snapshot = (changes: Partial<WorkspaceSnapshot> = {}): WorkspaceSnapshot =
   connected: false, groups: [], projects: [], groupRepositories: [], groupRepositoryScanStatus: 'idle',
   groupMilestones: [], groupIssueBoards: [], localRepositories: {}, projectLocalRepositories: {},
   issues: [], mergeRequests: [], activeMode: 'developer', projectMembers: [], timers: [],
-  workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'bundled', ...changes
+  workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'github', ...changes
 });
 
 test('a small workspace change does not transport the unchanged large collections', () => {

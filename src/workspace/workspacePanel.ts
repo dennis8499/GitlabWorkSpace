@@ -32,12 +32,12 @@ import { collectWorkspaceFeedback } from '../notifications/workspaceFeedback';
 import type { NotificationOrigin } from '../notifications/notificationProtocol';
 import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphNode, type IssueGraphSnapshot } from './issueGraph';
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
-import { WorkflowKitPackageManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './toolPackages';
+import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY } from './workflowKitReleases';
 import type {
   BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
   CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from './workspaceProtocol';
-import type { WorkflowKitPackage } from './toolPackages';
+import type { WorkflowKitRelease } from './workflowKitReleases';
 import { normalizeWorkspaceMode } from './workspaceProtocol';
 import type { GitLabSession } from '../connection/session';
 import { isAllowedGitRemote, normalizeGitLabBaseUrl } from '../api/urlPolicy';
@@ -101,7 +101,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private inventoryGeneration = 0;
   private panel?: vscode.WebviewPanel;
   private readonly timer: IssueTimeTracker;
-  private readonly packages: WorkflowKitPackageManager;
+  private readonly packages: WorkflowKitReleaseManager;
   private interval?: NodeJS.Timeout;
   private timerVersion = 0;
   private issueGraphVersion = 0;
@@ -199,7 +199,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private workflowKitInstallTarget: WorkflowKitInstallTarget = { manual: false, state: { status: 'missing' } };
   private workflowKitInstallation?: WorkflowKitInstallTarget;
   private workflowKitSelectingRoot = false;
-  private workflowKitImporting = false;
+  private workflowKitCheckingRelease = false;
   private workflowKitHelperQueue?: Promise<void>;
   private workflowKitRefreshGeneration = 0;
   private workflowKitRefreshTask?: { signature: string; projects: GitLabProject[]; installation: WorkflowKitInstallTarget | undefined; signal?: AbortSignal; task: Promise<void> };
@@ -220,7 +220,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private reviewWatcherRoot?: string;
   private reviewRefreshTimer?: NodeJS.Timeout;
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
-  private workflowKitPackages: WorkflowKitPackage[] = [];
+  private workflowKitReleases: WorkflowKitRelease[] = [];
   private busy = false;
   private instanceCheckBusy = false;
   private repositoryOperationInProgress = false;
@@ -286,16 +286,10 @@ export class WorkspacePanel implements vscode.Disposable {
       void Promise.resolve(this.syncSidebarState?.()).catch(() => undefined);
     }));
     const savedToolSource = context.globalState.get<unknown>(TOOL_SOURCE_KEY);
-    if (savedToolSource !== 'gitea' && savedToolSource !== 'github' && savedToolSource !== 'bundled') {
-      void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'bundled')).catch(() => undefined);
+    if (savedToolSource !== 'gitea' && savedToolSource !== 'github') {
+      void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'github')).catch(() => undefined);
     }
-    const offlineRoot = vscode.Uri.joinPath(context.extensionUri, 'resources', 'offline-tools');
-    this.packages = new WorkflowKitPackageManager(
-      context.globalStorageUri.fsPath,
-      vscode.Uri.joinPath(offlineRoot, 'workflow-kit.tar.xz').fsPath,
-      vscode.Uri.joinPath(offlineRoot, 'manifest.json').fsPath,
-      String(context.extension.packageJSON.version)
-    );
+    this.packages = new WorkflowKitReleaseManager(context.globalStorageUri.fsPath, String(context.extension.packageJSON.version));
     this.activeMode = normalizeWorkspaceMode(context.globalState.get<unknown>(SELECTED_MODE_KEY));
     this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
@@ -1219,7 +1213,6 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'setWorkflowKitSource': await this.setWorkflowKitSource(request.source); break;
       case 'openWorkflowKitDownload': await this.openWorkflowKitDownload(request.source); break;
-      case 'importWorkflowKitPackage': await this.importWorkflowKitPackage(request.source); break;
       case 'copySkillGuidePrompt': await this.copySkillGuidePrompt(request); break;
       case 'loadReviewSessions': await this.loadReviewSessions(request.revision, request.tool); break;
       case 'cancelReviewSession': await this.controlReviewSession(request, 'cancel'); break;
@@ -1227,10 +1220,11 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'copyReviewResume': await this.controlReviewSession(request, 'resume'); break;
       case 'openReviewReport': await this.controlReviewSession(request, 'report'); break;
       case 'refreshWorkflowKit': await this.refreshWorkflowKitInstallState(); break;
+      case 'checkWorkflowKitReleases': await this.refreshWorkflowKitReleases(request.source); break;
       case 'openWorkspaceFolder': await vscode.commands.executeCommand('workbench.action.files.openFolder'); break;
       case 'selectWorkflowKitInstallRoot': await this.selectWorkflowKitInstallRoot(); break;
       case 'resetWorkflowKitInstallRoot': await this.resetWorkflowKitInstallRoot(); break;
-      case 'installWorkflowKit': await this.installWorkflowKit(request.packageId); break;
+      case 'installWorkflowKit': await this.installWorkflowKit(request.releaseId); break;
       default: break;
     }
   }
@@ -1748,7 +1742,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private assertProjectContextMutable(): void {
     if (this.busy && !this.refreshTask || this.writesInFlight || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
         this.repositoryOperationInProgress || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.accountTransitionBusy ||
-        this.workflowKitInstallation || this.workflowKitImporting) {
+        this.workflowKitInstallation || this.workflowKitCheckingRelease) {
       throw new Error('請等候目前專案操作完成後再變更根目錄。');
     }
   }
@@ -2719,7 +2713,7 @@ export class WorkspacePanel implements vscode.Disposable {
       operations: [...this.operations.list(this.operationScope()), ...this.operations.list(this.getLocalOperationScope())],
       operationSnapshot: this.operations.snapshot(),
       projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
-        this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitImporting),
+        this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitCheckingRelease),
       projectContext: this.projectContext,
       bmad: this.bmad?.snapshot?.root === root ? this.bmad?.snapshot : undefined,
       bmadEnvironment: this.bmadEnvironment?.root === root ? this.bmadEnvironment : undefined,
@@ -2788,9 +2782,9 @@ export class WorkspacePanel implements vscode.Disposable {
       workflowKit: root && this.workflowKitStateRoot === root ? this.workflowKitState : { status: 'missing' },
       workflowKitInstallTarget: this.workflowKitInstallTarget,
       workflowKitPolicy: this.getWorkflowKitPolicy(),
-      workflowKitOperationBusy: this.workflowKitSelectingRoot || this.workflowKitImporting || !!this.workflowKitInstallation,
+      workflowKitOperationBusy: this.workflowKitSelectingRoot || this.workflowKitCheckingRelease || !!this.workflowKitInstallation,
       workflowKitSource: this.workflowKitSource(),
-      workflowKitPackages: this.workflowKitPackages.map(({ id, version, source, assetName, format, entryRoot, available, error, skillCount }) =>
+      workflowKitReleases: this.workflowKitReleases.map(({ id, version, source, assetName, format, entryRoot, available, error, skillCount }) =>
         ({ id, version, source, assetName, format, entryRoot, available, error, skillCount })),
       cloneOperation: this.cloneOperation,
       busy: this.busy || this.repositoryOperationInProgress || this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot,
@@ -4156,7 +4150,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   private workflowKitSource(): ToolSource {
     const source = this.context.globalState.get<unknown>(TOOL_SOURCE_KEY);
-    return source === 'github' || source === 'gitea' || source === 'bundled' ? source : 'bundled';
+    return source === 'gitea' ? 'gitea' : 'github';
   }
 
   private async assertWorkflowKitReady(): Promise<void> {
@@ -4166,8 +4160,8 @@ export class WorkspacePanel implements vscode.Disposable {
     if (this.workflowKitInstallation?.root && sameLocalPath(skills.root, this.workflowKitInstallation.root)) {
       throw new Error('此專案的技能包正在安裝中，請等候完成後再執行操作。');
     }
-    if (skills.installed.profile !== skills.mode || skills.installed.version !== String(this.context.extension.packageJSON.version) ||
-        !['installed'].includes(skills.installed.status)) {
+    if (skills.installed.profile !== skills.mode || skills.installed.workspaceContract !== 2 || skills.installed.installerApi !== 1 ||
+        !['installed', 'update-available'].includes(skills.installed.status)) {
       throw new Error(skills.reason ?? '請先在設定中安裝或更新目前專案的工作流程包。');
     }
   }
@@ -4181,13 +4175,38 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async setWorkflowKitSource(source: ToolSource): Promise<void> {
-    if (!['gitea', 'github', 'bundled'].includes(source)) throw new Error('Invalid workflow kit source.');
+    if (!['gitea', 'github'].includes(source)) throw new Error('Invalid workflow kit source.');
     await this.context.globalState.update(TOOL_SOURCE_KEY, source);
     await this.refreshWorkflowKitInstallState();
   }
 
-  private workflowKitHelper(): string {
-    return vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'workflow-kit-installer.py').fsPath;
+  private async workflowKitHelper(): Promise<{ path: string; version: string }> {
+    return await this.packages.statusHelper() ?? {
+      path: vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'workflow-kit-status.py').fsPath,
+      version: '0.32.0'
+    };
+  }
+
+  private async refreshWorkflowKitReleases(source: RemoteToolSource = this.workflowKitSource()): Promise<void> {
+    if (this.workflowKitCheckingRelease || this.workflowKitInstallation) throw new Error('請等候目前 WorkflowKit 操作完成。');
+    const check = this.captureWorkflowKitAccess();
+    this.workflowKitCheckingRelease = true;
+    this.workflowKitReleases = this.workflowKitReleases.filter(item => item.source !== source);
+    this.sendSnapshot();
+    try {
+      this.operationPhase('checkWorkflowKitReleases', '正在查詢最新相容正式版…');
+      const releases = await this.packages.refresh(source);
+      check();
+      if (releases[0]) await this.packages.prepareInstaller(releases[0].id, check);
+      // A local check started when the drawer opened may have selected the
+      // legacy verifier. Wait for it, then inspect again with the trusted one.
+      if (this.projectContext?.root) await this.workflowKitStatusReads.get(localPathKey(this.projectContext.root));
+      check();
+      this.workflowKitInstallRefreshGeneration++;
+      this.workflowKitInstallRefreshTask = undefined;
+      await this.refreshWorkflowKitInstallState();
+      if (!releases.length) this.post({ type: 'message', message: '目前來源沒有適用於此 Extension 的正式 WorkflowKit Release。' });
+    } finally { this.workflowKitCheckingRelease = false; this.sendSnapshot(); }
   }
 
   private getWorkflowKitPolicy(): WorkflowKitPolicy {
@@ -4209,7 +4228,7 @@ export class WorkspacePanel implements vscode.Disposable {
     check(); return check;
   }
 
-  private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000, beforeLaunch?: () => void | Promise<void>): Promise<Record<string, unknown>> {
+  private async runWorkflowKitHelper(args: string[], timeout = 10 * 60_000, beforeLaunch?: () => void | Promise<void>, installerPath?: string): Promise<Record<string, unknown>> {
     const previous = this.workflowKitHelperQueue;
     let release!: () => void;
     this.workflowKitHelperQueue = new Promise<void>(resolve => { release = resolve; });
@@ -4221,7 +4240,12 @@ export class WorkspacePanel implements vscode.Disposable {
       const python = await resolvePythonRuntime(pythonPath);
       await beforeLaunch?.();
       this.operationPhase('', args[0] === 'install' ? '正在安裝 Skills…' : args[0] === 'inspect' ? '正在驗證工作流程包…' : '正在檢查 Skills 安裝狀態…');
-      const result = await execFileAsync(python.executable, [...python.args, this.workflowKitHelper(), ...args], {
+      const helper = installerPath ? { path: installerPath, version: '' } : await this.workflowKitHelper();
+      if (args[0] === 'status') {
+        const index = args.indexOf('--expected-version');
+        if (index >= 0) args = [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)];
+      }
+      const result = await execFileAsync(python.executable, [...python.args, helper.path, ...args], {
         cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
       }).catch((error: unknown) => {
         const stdout = error && typeof error === 'object' && 'stdout' in error && typeof error.stdout === 'string' ? error.stdout : '';
@@ -4251,6 +4275,8 @@ export class WorkspacePanel implements vscode.Disposable {
           upstreamVersions: response.upstreamVersions && typeof response.upstreamVersions === 'object' ? response.upstreamVersions as Record<string, string> : undefined,
           capabilities: Array.isArray(response.capabilities) ? response.capabilities.filter((item): item is string => typeof item === 'string') : [],
 
+          workspaceContract: typeof response.workspaceContract === 'number' ? response.workspaceContract : undefined,
+          installerApi: typeof response.installerApi === 'number' ? response.installerApi : undefined,
           version: typeof response.version === 'string' ? response.version : undefined,
           source: response.source === 'bundled' || response.source === 'gitea' || response.source === 'github' ? response.source : undefined,
           message: typeof response.message === 'string' ? response.message : undefined,
@@ -4353,10 +4379,10 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitStateRoot = context.root; this.skillsWorkflowKitStateRoot = context.root;
     if (!sameRoot || !this.skillsWorkflowKitState || this.skillsWorkflowKitState.status === 'missing') this.workflowKitState = this.skillsWorkflowKitState = { status: context.root ? 'checking' : 'missing' };
     if (publish) this.sendSnapshot();
-    const [packages, state] = await Promise.all([this.packages.listPackages(),
+    const [packages, state] = await Promise.all([this.packages.listReleases(),
       context.root && !target.error ? this.readWorkflowKitState(context.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })]);
     if (!current()) return;
-    this.workflowKitPackages = packages;
+    this.workflowKitReleases = packages;
     this.workflowKitState = this.skillsWorkflowKitState = state;
     const requestId = this.operationContext.getStore();
     const operation = requestId ? this.operations.get(requestId) : undefined;
@@ -4381,43 +4407,13 @@ export class WorkspacePanel implements vscode.Disposable {
     await vscode.env.openExternal(vscode.Uri.parse(WORKFLOW_KIT_RELEASES[source]));
   }
 
-  private async importWorkflowKitPackage(source: RemoteToolSource): Promise<void> {
-    if (source !== 'gitea' && source !== 'github') throw new Error('Invalid import source.');
-    const checkAccess = this.captureWorkflowKitAccess();
-    if (this.workflowKitImporting || this.workflowKitInstallation || this.workflowKitSelectingRoot) throw new Error('請等候目前 Skills 操作完成。');
-    this.workflowKitImporting = true; this.sendSnapshot();
-    try {
-      const selection = await vscode.window.showOpenDialog({
-        canSelectFiles: true, canSelectFolders: false, canSelectMany: false,
-        openLabel: 'Import workflow kit ZIP', filters: { 'Workflow kit ZIP': ['zip'] }
-      });
-      const archive = selection?.[0];
-      if (!archive) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
-      if (archive.scheme !== 'file') throw new Error('請選擇本機 ZIP 檔案。');
-      checkAccess();
-      const inspected = await this.runWorkflowKitHelper(['inspect', archive.fsPath, '--format', 'zip', '--expected-version', String(this.context.extension.packageJSON.version)], 3 * 60_000);
-      if (inspected.package !== 'gitlab-workspace-kit' || inspected.version !== this.context.extension.packageJSON.version ||
-        typeof inspected.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(inspected.sha256)) {
-        throw new Error(typeof inspected.error === 'string' ? inspected.error : 'The ZIP does not match this workflow kit version.');
-      }
-      checkAccess();
-      const selected = await this.packages.importPackage({
-        version: String(inspected.version), source, assetName: path.basename(archive.fsPath), archivePath: archive.fsPath,
-        verifiedSha256: inspected.sha256.toLowerCase()
-      }, checkAccess);
-      this.noteOutcome({ effect: 'applied' });
-      await this.reconcileAfterWrite(() => this.refreshWorkflowKitInstallState());
-      this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} saved for offline installation.` });
-    } finally { this.workflowKitImporting = false; this.sendSnapshot(); }
-  }
-
-  private async installWorkflowKit(packageId: string): Promise<void> {
-    if (typeof packageId !== 'string' || !packageId) throw new Error('Select a workflow kit version first.');
-    if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting) throw new Error('目前有技能包操作正在進行，請等候完成。');
+  private async installWorkflowKit(releaseId: string): Promise<void> {
+    if (typeof releaseId !== 'string' || !releaseId) throw new Error('Select a workflow kit version first.');
+    if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitCheckingRelease) throw new Error('目前有技能包操作正在進行，請等候完成。');
     this.operationPhase('installWorkflowKit', '正在核對安裝位置與 Skills…');
     await this.refreshWorkflowKitInstallState();
     const checkAccess = this.captureWorkflowKitAccess();
-    if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitImporting) throw new Error('目前有技能包操作正在進行，請等候完成。');
+    if (this.repositoryOperationInProgress || this.workflowKitInstallation || this.workflowKitSelectingRoot || this.workflowKitCheckingRelease) throw new Error('目前有技能包操作正在進行，請等候完成。');
     const target = this.workflowKitInstallTarget;
     if (!target.root || target.error) throw new Error(target.error ?? '請先選擇技能包安裝資料夾。');
     if (this.busy && !this.refreshTask || ['checking', 'installing', 'needs-cleanup'].includes(target.state.status)) {
@@ -4440,7 +4436,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const validation = await resolveWorkflowKitInstallRoot(root, undefined, []);
       if (validation.error) throw new Error(validation.error);
       if (!validation.root || !sameLocalPath(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
-      const selected = await this.packages.getPackage(packageId);
+      const selected = await this.packages.getRelease(releaseId, checkAccess, message => this.operationPhase('installWorkflowKit', message));
       checkAccess();
       const beforeLaunch = async () => {
         checkAccess();
@@ -4462,7 +4458,7 @@ export class WorkspacePanel implements vscode.Disposable {
       const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
         title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, async () =>
         this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
-          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch));
+          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch, selected.installerPath));
       if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('The installer returned an unexpected package identity.');
       this.noteOutcome({ effect: 'applied' });
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });

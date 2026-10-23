@@ -257,7 +257,6 @@
     "benchmark:live": "npm run package && node scripts/run-live-extension-tests.mjs --benchmark",
     "benchmark:performance": "npm run compile && node --expose-gc scripts/performance-benchmark.cjs",
     "build:webview": "npm run typecheck:webview && vite build --config vite.dashboard.config.mjs && vite build --config vite.sidebar.config.mjs",
-    "check:kit-sources": "node scripts/run-python.mjs scripts/workflow-kit-sources.py",
     "check:release": "node scripts/check-release.mjs",
     "compile": "node scripts/clean-compiled.mjs && tsc -p .",
     "package": "node scripts/run-validation.mjs package",
@@ -280,5 +279,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.32.0"
+  "version": "0.33.0"
 }

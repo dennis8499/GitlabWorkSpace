@@ -25,7 +25,7 @@ export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
 }
 export type AnalysisIntent = 'requirements' | 'audit';
 export type TimerPhase = 'running' | 'paused' | 'ready' | 'sending' | 'posted' | 'uncertain' | 'needs-review';
-export type ToolSource = 'gitea' | 'github' | 'bundled';
+export type ToolSource = 'gitea' | 'github';
 export type RemoteToolSource = Exclude<ToolSource, 'bundled'>;
 export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
@@ -117,7 +117,9 @@ export interface InstalledWorkflowKitState {
   upstreamVersions?: Record<string, string>;
   capabilities?: string[];
   version?: string;
-  source?: ToolSource;
+  source?: ToolSource | 'bundled';
+  workspaceContract?: number;
+  installerApi?: number;
   status: 'installed' | 'missing' | 'update-available' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
   message?: string;
   legacyPaths?: string[];
@@ -149,7 +151,7 @@ export interface SkillsContext {
   reviewAuthScope?: string;
 }
 
-export interface WorkflowKitPackageSummary {
+export interface WorkflowKitReleaseSummary {
   id: string;
   version: string;
   skillCount?: number;
@@ -231,7 +233,7 @@ export interface WorkspaceSnapshot {
   workflowKitPolicy?: WorkflowKitPolicy;
   workflowKitOperationBusy?: boolean;
   workflowKitSource: ToolSource;
-  workflowKitPackages?: WorkflowKitPackageSummary[];
+  workflowKitReleases?: WorkflowKitReleaseSummary[];
   cloneOperation?: CloneOperationState;
   busy?: boolean;
   error?: string;
@@ -335,13 +337,13 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'mergeMergeRequest'; projectId: number; iid: number; sha: string }
   | { type: 'setWorkflowKitSource'; source: ToolSource }
   | { type: 'openWorkflowKitDownload'; source: RemoteToolSource }
-  | { type: 'importWorkflowKitPackage'; source: RemoteToolSource }
   | { type: 'refreshWorkflowKit' }
+  | { type: 'checkWorkflowKitReleases'; source: RemoteToolSource }
   | { type: 'copySkillGuidePrompt'; featureId: string; inputs: Record<string, string>; revision: string }
   | { type: 'openWorkspaceFolder' }
   | { type: 'selectWorkflowKitInstallRoot' }
   | { type: 'resetWorkflowKitInstallRoot' }
-  | { type: 'installWorkflowKit'; packageId: string }
+  | { type: 'installWorkflowKit'; releaseId: string }
 ) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
 
 export type WorkspaceResponse =

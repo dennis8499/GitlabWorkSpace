@@ -1,10 +1,11 @@
 /** @jsxImportSource preact */
+import { compareVersions } from '../workspace/workflowKitVersion';
 import { render, type ComponentChildren } from 'preact';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssue, GitLabMergeRequest, GitLabProject } from '../api/types';
 import type { IssueFormOptions, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type {
-  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitPackageSummary,
+  AnalysisIntent, IssueDraft, IssueDraftBundle, IssueNavigation, ToolSource, WorkflowKitReleaseSummary,
   CloneOperationState, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
 } from '../workspace/workspaceProtocol';
 import { normalizeWorkspaceMode } from '../workspace/workspaceProtocol';
@@ -77,7 +78,6 @@ interface SavedState {
   draftChoices: Record<string, DraftChoice>;
   reports: Record<string, { text: string; sha: string; targetSha?: string; validated?: boolean }>;
   workflowKitSource: ToolSource;
-  selectedWorkflowKitPackageId?: string;
   /** Read older saved webview state without discarding it. */
   toolSource?: ToolSource;
   /** Kept only to migrate older unscoped drafts. */
@@ -146,7 +146,7 @@ const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: strin
 ];
 const emptySaved = (): SavedState => ({
   mode: 'developer', filters: {}, selectedIds: {}, selectedProjectIds: [], issueBoardId: 'all', issueProjectFilter: 'all', issueLabelFilter: 'all', issueMilestoneFilter: 'all', reviewFilter: 'all', analysisIntent: 'requirements', requirement: '', importText: '', draftChecked: {},
-  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'bundled', manualTimes: {}, timeEdits: {}
+  draftAssignees: {}, draftMilestones: {}, draftLabels: {}, draftChoices: {}, reports: {}, workflowKitSource: 'github', manualTimes: {}, timeEdits: {}
 });
 const emptyScopedState = (): ScopedSavedState => ({
   filters: {}, selectedIds: {}, selectedProjectIds: [], analysisProjectIds: [], issueBoardId: 'all',
@@ -349,8 +349,7 @@ function App() {
   const [settingsSection, setSettingsSection] = useState<'tools' | 'accounts'>('tools');
   const [accountIntent, setAccountIntent] = useState<AccountPanelIntent>();
   const drawerReturnFocus = useRef<HTMLElement>();
-  const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'bundled');
-  const [selectedWorkflowKitPackageId, setSelectedWorkflowKitPackageId] = useState<string>(initial?.selectedWorkflowKitPackageId ?? '');
+  const [workflowKitSource, setWorkflowKitSource] = useState<ToolSource>(initial?.workflowKitSource ?? initial?.toolSource ?? 'github');
   const initialScopeState = initialScopedState;
   const initialManualTimeState = restoreManualTimeState(initialScopeState, initial);
   const [manualTimes, setManualTimes] = useState<Record<string, ManualTimeDraft>>(initialManualTimeState.manualTimes);
@@ -792,10 +791,10 @@ function App() {
       mode, projectSource: projectTab, filters, selectedIds, selectedProjectIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, analysisIntent: intent, requirement, importText,
       importedBundle: bundle, draftChecked, issueDetailSearch, draftAssignees: initial?.draftAssignees ?? {}, draftMilestones: initial?.draftMilestones ?? {},
       draftLabels: initial?.draftLabels ?? {}, draftChoices, reports, workflowKitSource: snapshot?.workflowKitSource ?? workflowKitSource, recoveredBundle,
-      selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts: issueEditorDrafts.current
+      manualTimes, recoveredManualTime, timeEdits, issueEditorDrafts: issueEditorDrafts.current
     };
     vscode.setState(state);
-  }, [bmadUiByRoot, mode, projectTab, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, selectedWorkflowKitPackageId, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles]);
+  }, [bmadUiByRoot, mode, projectTab, filters, selectedIds, selectedProjectIds, appliedCloneOperationIds, analysisProjectIds, issueBoardId, developerView, graphBoardId, graphCamera, graphNodePositions, graphAnimationEnabled, selectedGraphNodeId, issueDetailSearch, issueProjectFilter, issueLabelFilter, issueMilestoneFilter, reviewFilter, intent, requirement, importText, bundle, recoveredBundle, draftChecked, draftChoices, reports, workflowKitSource, manualTimes, recoveredManualTime, timeEdits, skillsGuide, snapshot?.workflowKitSource, issueNavigation, reviewerTab, mrReplyDrafts, mrExpandedFiles]);
 
   useEffect(() => {
     if (toolDrawer && settingsSection === 'tools') post({ type: 'refreshWorkflowKit' });
@@ -1305,16 +1304,13 @@ function App() {
     }); }} />}
     {toolDrawer && <ToolDrawer actions={actions} snapshot={snapshot} operationBusy={!!(snapshot.projectOperationBusy ?? blockingWork)} source={workflowKitSource}
       section={settingsSection} onSection={section => { setAccountIntent(undefined); setSettingsSection(section); }} accountIntent={accountIntent} post={post}
-      selectedPackageId={selectedWorkflowKitPackageId}
       onRetryInstance={() => post({ type: 'retryInstanceCheck' })}
       onSource={(source) => { setWorkflowKitSource(source); post({ type: 'setWorkflowKitSource', source }); }}
-      onSelectPackage={setSelectedWorkflowKitPackageId}
-      onInstall={(packageId) => post({ type: 'installWorkflowKit', packageId })}
+      onInstall={(releaseId) => post({ type: 'installWorkflowKit', releaseId })}
       onOpenDownload={(source) => post({ type: 'openWorkflowKitDownload', source })}
-      onImport={(source) => post({ type: 'importWorkflowKitPackage', source })}
       onSelectProjectRoot={() => post({ type: 'selectProjectRoot' })}
       onResetProjectRoot={() => post({ type: 'resetProjectRoot' })}
-      onRefresh={() => post({ type: 'refreshWorkflowKit' })} onSelectGroup={() => post({ type: 'selectGroup' })}
+      onRefresh={() => post({ type: 'checkWorkflowKitReleases', source: workflowKitSource })} onSelectGroup={() => post({ type: 'selectGroup' })}
       onConnect={() => post({ type: 'connect' })}
       onOpenLogs={() => { setToolDrawer(false); post({ type: 'openLogs' }); }}
       onClose={() => { setToolDrawer(false); setAccountIntent(undefined); requestAnimationFrame(() => {
@@ -1357,12 +1353,12 @@ function Discussion({ disabled, discussion, reply, onReplyChange, onReply }: { d
   }}>回覆</button></div></div>;
 }
 
-function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageId, onSource, onSelectPackage, onInstall, onOpenDownload, onImport, onSelectProjectRoot, onResetProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post }: {
+function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInstall, onOpenDownload, onSelectProjectRoot, onResetProjectRoot, onRefresh, onRetryInstance, onSelectGroup, onConnect, onOpenLogs, onClose, section, onSection, accountIntent, post }: {
   actions: ActionController; section: 'tools' | 'accounts'; onSection: (section: 'tools' | 'accounts') => void; accountIntent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void;
-  snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource; selectedPackageId: string;
-  onSource: (source: ToolSource) => void; onSelectPackage: (packageId: string) => void;
-  onInstall: (packageId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
-  onImport: (source: 'gitea' | 'github') => void; onRefresh: () => void; onRetryInstance: () => void;
+  snapshot: WorkspaceSnapshot; operationBusy: boolean; source: ToolSource;
+  onRefresh: () => void; onRetryInstance: () => void;
+  onSource: (source: ToolSource) => void;
+  onInstall: (releaseId: string) => void; onOpenDownload: (source: 'gitea' | 'github') => void;
   onSelectProjectRoot: () => void; onResetProjectRoot: () => void;
   onSelectGroup: () => void; onConnect: () => void; onOpenLogs: () => void; onClose: () => void;
 }) {
@@ -1386,8 +1382,8 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
   }, []);
   const capabilityStatus: Record<string, string> = { supported: '支援', unsupported: '不支援', unknown: '未確認' };
   const policy = snapshot.workflowKitPolicy ?? { allowed: true, reason: undefined };
-  const checkingKit = useActionSelector(actions, states => states.some(item => item.action === 'refreshWorkflowKit' && isActiveOperation(item)));
-  const kitBusy = !!snapshot.workflowKitOperationBusy || snapshot.workflowKitInstallTarget?.state.status === 'installing';
+  const checkingKit = useActionSelector(actions, states => states.some(item => item.action === 'checkWorkflowKitReleases' && isActiveOperation(item)));
+  const kitBusy = checkingKit || !!snapshot.workflowKitOperationBusy || snapshot.workflowKitInstallTarget?.state.status === 'installing';
   return <div class="drawer-scrim" role="presentation" onClick={(event) => { if (event.currentTarget === event.target) onClose(); }}><aside ref={drawerRef} class="tool-drawer" role="dialog" aria-modal="true" aria-labelledby="tool-title">
     <div class="drawer-heading"><div><span class="eyebrow">GitLab Workspace 設定</span><h2 id="tool-title">{section === 'accounts' ? '帳號與連線' : '工作區與工具'}</h2></div><button ref={closeRef} class="quiet" type="button" onClick={onClose}>關閉</button></div>
     <div class="settings-tabs" role="tablist" aria-label="設定類別" onKeyDown={event => {
@@ -1413,33 +1409,28 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, selectedPackageI
       <ul class="capability-list">{(snapshot.instance?.capabilities ?? []).map((item) => <li><div class="capability-heading"><strong>{item.label}</strong><span class={`capability-status ${item.status}`}>{capabilityStatus[item.status] ?? item.status}</span></div>{item.source && <small>方式：{item.source}</small>}{item.reason && <p class="subtle">{item.reason}</p>}</li>)}</ul>
       <button class="secondary small" type="button" disabled={operationBusy || snapshot.instanceChecking} onClick={onRetryInstance}>{snapshot.instanceChecking ? '正在重新偵測…' : '重新偵測功能支援'}</button>
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
-    <section class="tool-settings"><h3>工作流程組合包</h3>
-    <label class="field">套件來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="bundled">VS Code 內附離線包（預設）</option><option value="gitea">內網 Gitea Release</option><option value="github">GitHub Release</option></select></label>
-    <p class="source-lines">依專案目錄自動提供適用流程，包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer。GitHub／Gitea 套件先下載再匯入，版本必須符合目前擴充功能。</p>
-    <p class="subtle">下載及匯入可免登入；套件安裝於上方設定的共用專案根目錄。</p>
-    {source !== 'bundled' && <div class="button-row"><button class="quiet small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={() => onImport(source)}>匯入組合包 ZIP</button></div>}
+    <section class="tool-settings"><h3>WorkflowKit 工作流程整合包</h3>
+    <label class="field">下載來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="github">GitHub Release</option><option value="gitea">內網 Gitea 備援</option></select></label>
+    <p class="source-lines">包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer 與 Output Style。依目前專案使用適用的 Skills 流程。</p>
+    <div class="button-row"><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={onRefresh}>檢查最新相容版本</button><button class="quiet small" type="button" disabled={kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button></div>
     {(() => {
       const target = snapshot.workflowKitInstallTarget;
       const installed = target?.state ?? { status: 'missing' as const };
-      const packages = (snapshot.workflowKitPackages ?? []).filter((item) => item.source === source);
-      const effectiveId = packages.some((item) => item.id === selectedPackageId)
-        ? selectedPackageId : packages.find((item) => item.available)?.id || '';
-      const selected = packages.find((item) => item.id === effectiveId);
-      const kitVersion = (snapshot.workflowKitPackages ?? []).find((item) => item.source === 'bundled')?.version ?? installed.version;
-      return <section class="tool-card"><div class="panel-title"><strong>GitLab Workspace{kitVersion ? ` v${kitVersion}` : ''} 工作流程包</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
-        <p>{installed.version ? `目前版本 v${installed.version} · ${installed.source ?? '來源未知'}` : '尚未安裝'}</p>
+      const selected = (snapshot.workflowKitReleases ?? []).find(item => item.source === source);
+      const comparison = selected && installed.version ? compareVersions(selected.version, installed.version) : 1;
+      const update = comparison > 0;
+      const downgrade = comparison < 0;
+      return <section class="tool-card"><div class="panel-title"><strong>WorkflowKit</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
+        <p>{installed.version ? `目前版本 v${installed.version}` : '尚未安裝'}</p>
+        <p>{selected ? `最新相容版本 v${selected.version} · ${selected.skillCount ?? 4} 個 Skills` : '請檢查最新相容版本。'}</p>
+        {downgrade && <p class="subtle">已安裝版本較新，請選擇提供該版本的來源。</p>}
         <p class="workflow-kit-skills-root">目前 Skills 工作位置：{target?.root ?? '尚未選擇'} · {status[installed.status] ?? installed.status}</p>
-        {installed.profile && target?.profile && installed.profile !== target.profile &&
-          <p class="subtle" role="status">安裝的 Skills 流程與目前專案不同，請安裝對應流程。</p>}
-        <p class="subtle workflow-kit-install-root">安裝位置：{target?.root ?? '尚未選擇資料夾'}{target?.manual ? '（手動指定）' : target?.root ? '（預設位置）' : ''}</p>
-        <p class="subtle">位置由共用專案根目錄設定控制；切換位置後會顯示該位置的安裝狀態。</p>
-        {target?.error && target.error !== policy.reason && <p class="warning" role="status">{target.error}</p>}
+        <p class="workflow-kit-profile">適用流程：{target?.profile === 'repository' ? 'Repository（單一 Repo）' : target?.profile === 'group' ? 'Group（共用 Wiki）' : '尚未辨識'}</p>
+        {installed.profile && target?.profile && installed.profile !== target.profile && <p class="warning">安裝的 Skills 流程與目前專案不同，請安裝對應流程。</p>}
+        {target?.error && <p class="warning">{target.error}</p>}
         {installed.message && <p class="warning">{installed.message}</p>}
         {installed.legacyPaths?.length ? <details><summary>舊版工具需人工清除</summary><code>{installed.legacyPaths.join('\n')}</code></details> : null}
-        <label class="field">組合包版本<select aria-label="GitLab Workspace 組合包版本" value={effectiveId} onChange={(event) => onSelectPackage(event.currentTarget.value)}><option value="">請選擇本機版本</option>{packages.map((item: WorkflowKitPackageSummary) => <option value={item.id} disabled={!item.available}>v{item.version} · {item.source}{item.available ? '' : '（無法讀取）'}</option>)}</select></label>
-        {source === 'bundled' && <p class="subtle">擴充功能內附離線整包，安裝前會檢查 SHA-256 與{selected?.skillCount ? ` ${selected.skillCount} 個 Skills` : '套件 Skills'}。</p>}
-        {selected && <p class="subtle">{selected.assetName} · {selected.format === 'tar.xz' ? 'TAR.XZ 離線包' : 'ZIP 匯入包'} · {selected.available ? '可用，安裝時再次驗證內容與版本' : selected.error}</p>}
-        <button class="primary workflow-kit-install-button" type="button" disabled={!policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.status === 'installed' ? '安裝／更新整包' : '安裝整包'}</button>
+        <button class="primary workflow-kit-install-button" type="button" disabled={downgrade || !policy.allowed || kitBusy || !target?.root || !!target.error || !selected?.available || ['checking', 'installing', 'needs-cleanup'].includes(installed.status) || operationBusy} onClick={() => selected && onInstall(selected.id)}>{installed.version ? update ? '下載並更新' : '重新安裝目前版本' : '下載並安裝'}</button>
       </section>;
     })()}
     </section>

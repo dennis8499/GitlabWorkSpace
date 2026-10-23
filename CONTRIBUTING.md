@@ -34,7 +34,7 @@ npm run test:extension
 npm test
 ```
 
-`npm test` 先檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 與工作流程包各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
+`npm test` 先檢查 Extension Host 的安裝與版本，再統一編譯、檢查前端型別、建置 Webview 各一次；先執行真實 Extension Host 測試，確認桌面宿主能啟動，再執行單元、行為及發行流程測試。全部成功後才產生並驗證唯一一份 VSIX 與校驗檔。CI 可直接上傳這次測試的 `dist` 附件，不必再次打包。提交變更前，請執行與變更範圍相符的測試；若修改擴充功能行為，請執行完整的 `npm test`。
 
 各獨立測試與 `npm run package` 仍會自動準備必要建置。要在同一份來源重複檢查，可先執行 `npm run prepare:validation`，再使用 `test:unit:prepared`、`test:behavior:prepared`、`test:release:prepared`、`test:extension:prepared` 或 `package:prepared`。這些命令核對來源與產物的 SHA-256；來源、測試、建置腳本或產物改變後，須重新準備。多個命令不可共用目錄同時建置；驗證器使用工作目錄鎖避免互相刪除產物。
 
@@ -106,3 +106,7 @@ GitHub Actions 只會在推送 `v` 開頭的版本標籤時啟動發行流程。
    ```
 
 工作流程會檢查標籤、版本、`main` 分支關係，執行測試並打包 VSIX，最後建立附有安裝檔與自動產生版本說明的 GitHub Release。初版 `v0.1.0` 與含有語意化版本預發布字尾（例如 `-beta.1`）的標籤會建立為預發布版本。擴充功能目前透過 GitHub Releases 發布，未發布至 Visual Studio Marketplace。
+
+## WorkflowKit 維護
+
+整合包來源、固定上游附件、完整安裝器及升級測試由獨立 WorkflowKit Repo 維護。Extension checkout 可獨立測試及產生 VSIX；線上安裝測試使用固定且帶摘要的 Release fixture，不依賴同機的 WorkflowKit checkout。VSIX 只包含狀態檢查及線上安裝橋接。

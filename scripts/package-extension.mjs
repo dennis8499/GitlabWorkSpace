@@ -22,9 +22,8 @@ function runPython(script) {
 }
 
 const prepared = process.argv.slice(2).includes('--prepared');
-if (prepared) await assertPrepared(repositoryRoot, ['compile', 'webview', 'kit']);
+if (prepared) await assertPrepared(repositoryRoot, ['compile', 'webview']);
 await mkdir(join(repositoryRoot, 'dist'), { recursive: true });
-if (!prepared) runPython('scripts/build-workflow-kit.py');
 
 const result = spawnSync(process.execPath, [
   vsceCommand,

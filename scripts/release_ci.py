@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record CI provenance and promote exact, fully validated GitHub artifacts.
 
-This file is copied byte-for-byte to the five repositories. It has no runtime
+This shared publisher supports the six workspace repositories. It has no runtime
 dependency on another repository and never accepts PR or local test evidence.
 """
 from __future__ import annotations
@@ -30,6 +30,8 @@ PRERELEASE_ID = r"(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
 BUILD_ID = r"[0-9A-Za-z-]+"
 SEMVER = re.compile(rf"{NUMERIC}\.{NUMERIC}\.{NUMERIC}(?:-({PRERELEASE_ID}(?:\.{PRERELEASE_ID})*))?(?:\+({BUILD_ID}(?:\.{BUILD_ID})*))?")
 SPECS = {
+    "WorkflowKit": {"workflow": "release.yml", "version": "VERSION", "canonical": "linux-py3.14",
+        "cells": {f"{os_name}-py{py}": [system, py] for os_name, system in (("linux", "Linux"), ("windows", "Windows")) for py in ("3.11", "3.14")}},
     "GitlabWorkSpace": {"workflow": "release.yml", "version": "package.json", "canonical": "linux-py3.11-stable",
         "cells": {"linux-py3.11-stable": ["Linux", "3.11"], "windows-py3.11-1.90.0": ["Windows", "3.11"],
                   "windows-py3.11-stable": ["Windows", "3.11"], "windows-py3.14-stable": ["Windows", "3.14"]}},
@@ -155,7 +157,8 @@ def identity(root, repository):
 def asset_names(repository, version):
     name, _ = config(repository)
     return {
-        "GitlabWorkSpace": [f"gitlab-workspace-{version}.vsix", f"gitlab-workspace-kit-{version}.zip", "SHA256SUMS"],
+        "GitlabWorkSpace": [f"gitlab-workspace-{version}.vsix", "SHA256SUMS"],
+        "WorkflowKit": [f"gitlab-workspace-kit-{version}.zip", f"workflowkit-installer-{version}.py", "release.json", "SHA256SUMS"],
         "MergeReviewer": [f"merge-reviewer-{version}.zip"],
         "ReleaseReviewer": [f"release-reviewer-{version}.zip", f"release-reviewer-{version}.zip.sha256"],
         "Megin": ["megin-skills.zip"],

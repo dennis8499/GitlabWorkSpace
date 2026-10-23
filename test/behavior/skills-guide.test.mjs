@@ -22,7 +22,7 @@ function snapshot(profile, features) {
     localRepositories: {}, projectLocalRepositories: {}, projectMembers: [], timers: [], tools: [],
     activeMode: 'sa', connectedScope: profile === 'group' ? 'group-scope' : undefined, instanceUserScope: 'tester',
     workflowKit: installed, workflowKitInstallTarget: { root, manual: false, profile, state: installed },
-    workflowKitPackages: [], workflowKitSource: 'bundled', busy: false,
+    workflowKitReleases: [], workflowKitSource: 'github', busy: false,
     skillsContext: { mode: profile, root, revision: `${profile}-revision`, installed, availableFeatures: capabilities,
       repositories: [repo], reviewerRepositories: [repo], groupMatch: { status: profile === 'group' ? 'matched' : 'unverified',
         root: profile === 'group' ? root : undefined, repositories: [repo] } }

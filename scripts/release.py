@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
-"""Workspace release entry point. See docs/releasing.md."""
-from release_manager import main
+"""Launch the workspace coordinator from the grouped checkout."""
+from pathlib import Path
+import runpy
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    runpy.run_path(str(Path(__file__).with_name('release_manager.py')), run_name='__main__')

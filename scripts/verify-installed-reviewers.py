@@ -1,13 +1,13 @@
-"""Install a local VSIX with Code CLI and verify its delivered reviewer resources.
+"""Install a local VSIX with Code CLI and verify its online WorkflowKit bridge.
 
 This never launches an Extension Host or a workbench window. It verifies native
-CLI installation plus helper/transaction integration, not UI or activation E2E.
+CLI installation, real Release download, both profiles and Skills availability.
+It does not verify native UI or production activation.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
 import json
 import os
 from pathlib import Path
@@ -15,7 +15,6 @@ import shutil
 import subprocess
 import sys
 import time
-import unittest
 import uuid
 import zipfile
 
@@ -106,64 +105,16 @@ def verify_payload(vsix, installed):
     return checks
 
 
-def run_integration(installed, run_root):
-    """Local test logic, with every current production helper/kit read from Code's install."""
-    resources = installed / 'resources'
-    sys.path.insert(0, str(ROOT / 'test/release'))
-    harness = importlib.import_module('workflow_kit_installer_test')
-    harness.INSTALLER = resources / 'workflow-kit-installer.py'
-    harness.ARCHIVE = resources / 'offline-tools/workflow-kit.tar.xz'
-    original_execute = harness.WorkflowKitInstallerTests.execute
-    def preserved_files(args):
-        if not args or args[0] not in ('install', 'status', 'rollback'):
-            return {}
-        target = Path(args[2] if args[0] == 'install' else args[1])
-        reports = target / 'review-reports'
-        files = list(reports.rglob('*.md')) if reports.is_dir() else []
-        marker = target / '.gitlab-workspace/tool-manifests/workflow-kit.json'
-        if marker.is_file():
-            files.append(marker)
-        return {str(file.relative_to(target)): digest(file.read_bytes()) for file in files}
-    def execute(case, *args, **kwargs):
-        before = preserved_files(args)
-        process, output = original_execute(case, *args, **kwargs)
-        append_event(run_root / 'installer-events.jsonl', {'installer': str(harness.INSTALLER),
-            'arguments': list(map(str, args)), 'exit_code': process.returncode, 'result': output,
-            'preserved_before': before, 'preserved_after': preserved_files(args)})
-        return process, output
-    harness.WorkflowKitInstallerTests.execute = execute
-    subject = importlib.import_module('reviewer_sessions_integration_test')
-    original_install = harness.WorkflowKitInstallerTests.install
-    def install(case, group, **kwargs):
-        return original_install(case, group, archive=harness.ARCHIVE, **kwargs)
-    subject.InstalledReviewerSessionTests.install = install
-    original_cli = subject.InstalledReviewerSessionTests.cli
-    def helper_cli(case, tool, command, *args, code=0):
-        event = {'tool': tool, 'command': command, 'arguments': list(map(str, args)), 'expected_exit_code': code}
-        try:
-            value = original_cli(case, tool, command, *args, code=code)
-        except BaseException as error:
-            append_event(run_root / 'helper-events.jsonl', {**event, 'error': str(error)})
-            raise
-        report_path = value.get('report_path')
-        if report_path and Path(report_path).is_file():
-            event['report_sha256'] = digest(Path(report_path).read_bytes())
-        append_event(run_root / 'helper-events.jsonl', {**event, 'result': value})
-        return value
-    subject.InstalledReviewerSessionTests.cli = helper_cli
-    profiles = importlib.import_module('workflow_kit_profiles_test')
-    suite = unittest.TestSuite([
-        unittest.defaultTestLoader.loadTestsFromTestCase(subject.InstalledReviewerSessionTests),
-        profiles.ProfileTests('test_frozen_031_upgrade_and_rollback_preserve_both_reports_and_manual_checklist'),
-    ])
-    # The existing cases own short-lived OS-temp fixtures; keeping their short
-    # paths avoids Windows MAX_PATH in the Wiki installer's staging tree.
-    with (run_root / 'integration-tests.log').open('w', encoding='utf-8', newline='') as log:
-        result = unittest.TextTestRunner(stream=log, verbosity=2).run(suite)
-    return {'tests': result.testsRun, 'failures': len(result.failures), 'errors': len(result.errors),
-            'skipped': len(result.skipped), 'success': result.wasSuccessful(),
-            'production_installer': str(harness.INSTALLER), 'production_kit': str(harness.ARCHIVE),
-            'legacy_fixture': str(ROOT / 'test/fixtures/workflow-kit-0.31.0')}
+def run_integration(installed, run_root, source):
+    """Run the delivered online bridge and Skills resolver against formal Releases."""
+    process = subprocess.run(['node', str(ROOT / 'scripts/verify-online-workflowkit.cjs'),
+        '--extension-root', str(installed), '--evidence-dir', str(run_root), '--source', source],
+        cwd=ROOT, capture_output=True, text=True, encoding='utf-8', timeout=600)
+    (run_root / 'online-integration.log').write_text(process.stdout + process.stderr, encoding='utf-8')
+    result_file = run_root / 'online-workflowkit.json'
+    result = json.loads(result_file.read_text(encoding='utf-8')) if result_file.is_file() else {'status': 'failed', 'error': process.stderr}
+    result['success'] = process.returncode == 0 and result['status'] == 'passed'
+    return result
 
 
 def main():
@@ -171,7 +122,7 @@ def main():
     parser.add_argument('--vsix', type=Path, required=True)
     parser.add_argument('--evidence-dir', type=Path, required=True)
     parser.add_argument('--code-cli', type=Path)
-    parser.add_argument('--verify-release-longpaths', action='store_true', help='Run the R4 deep owned-runtime regression from installed resources.')
+    parser.add_argument('--source', choices=('github', 'gitea'), default='github')
     args = parser.parse_args()
     if sys.platform != 'win32':
         raise ValueError('This native CLI verifier requires Windows.')
@@ -204,19 +155,9 @@ def main():
         checks = verify_payload(vsix, installed)
         write_json(run_root / 'installed-payload-hashes.json', checks)
         report['verified_payload_files'] = len(checks)
-        report['integration'] = run_integration(installed, run_root)
+        report['integration'] = run_integration(installed, run_root, args.source)
         if not report['integration']['success']:
-            raise RuntimeError('Installed resource integration failed; inspect integration-tests.log.')
-        if args.verify_release_longpaths:
-            deep_evidence = run_root / 'release-longpaths'
-            command = [sys.executable, '-X', 'utf8', '-B', str(ROOT / 'test/release/installed_release_longpaths.py'),
-                       '--extension-root', str(installed), '--evidence-dir', str(deep_evidence)]
-            process = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', timeout=180)
-            (run_root / 'release-longpaths-driver.log').write_bytes((process.stdout + process.stderr).encode('utf-8'))
-            result_file = deep_evidence / 'result.json'
-            report['release_longpaths'] = json.loads(result_file.read_text(encoding='utf-8')) if result_file.is_file() else {'status': 'failed', 'error': process.stderr}
-            if process.returncode or report['release_longpaths']['status'] != 'passed':
-                raise RuntimeError('Installed deep-path regression failed; inspect release-longpaths evidence.')
+            raise RuntimeError('Online installation integration failed; inspect online-integration.log.')
         if digest(vsix.read_bytes()) != report['vsix_sha256']:
             raise ValueError('The tested VSIX changed during verification.')
         report['status'] = 'passed'

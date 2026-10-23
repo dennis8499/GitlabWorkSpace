@@ -621,7 +621,7 @@ async function exercisePackagedGraphWorker(
     connectedScope: scope, instanceUserScope: scope, operationScope: scope, activeMode: 'developer',
     groupRepositories: [], groupRepositoryScanStatus: 'idle', groupMilestones: [], groupIssueBoards: [],
     localRepositories: {}, projectLocalRepositories: {}, issues, mergeRequests: [], projectMembers: [], timers: [],
-    workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'bundled',
+    workflowKit: { status: 'missing' }, workflowKitInstallTarget: { manual: false, state: { status: 'missing' } }, workflowKitSource: 'github',
     sections: { projects: { status: 'ready' }, issues: { status: 'ready' }, graph: { status: 'ready' }, boards: { status: 'ready' }, milestones: { status: 'ready' } },
     issueGraph: graph, issueGraphVersion: 1
   };

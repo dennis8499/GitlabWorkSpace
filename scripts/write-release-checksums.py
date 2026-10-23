@@ -12,7 +12,6 @@ manifest = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
 DIST = ROOT / "dist"
 ASSETS = sorted((
     DIST / f"{manifest['name']}-{manifest['version']}.vsix",
-    DIST / f"gitlab-workspace-kit-{manifest['version']}.zip",
 ), key=lambda item: item.name)
 
 

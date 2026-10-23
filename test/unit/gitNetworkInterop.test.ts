@@ -17,10 +17,10 @@ test('TypeScript and the Reviewer Python runtime serialize the same Git lease in
   const parent = await realpath(os.tmpdir()), root = await mkdtemp(path.join(parent, 'glw-network-interop-'));
   t.after(async () => { assert.equal(path.dirname(root), parent); assert.ok(path.basename(root).startsWith('glw-network-interop-')); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 30 }); });
   const repository = path.resolve(__dirname, '../../..');
-  const snapshot = JSON.parse(await readFile(path.join(repository, 'resources/offline-tools/source-snapshots.json'), 'utf8')).sources['merge-reviewer'];
+  const snapshot = JSON.parse(await readFile(path.join(repository, 'test/fixtures/workflowkit-release-1.0.0/capabilities.json'), 'utf8')).sources['merge-reviewer'];
   assert.match(snapshot.filename, /^merge-reviewer-[0-9.]+\.zip$/);
   assert.equal(snapshot.entryRoot, 'merge-reviewer');
-  const archive = path.join(repository, 'resources/offline-tools/sources', snapshot.filename);
+  const archive = path.join(repository, 'test/fixtures/workflowkit-release-1.0.0/sources', snapshot.filename);
   const script = path.join(root, 'fixture.py'), ready = path.join(root, 'ready'), acquired = path.join(root, 'acquired');
   await writeFile(script, 'import sys,time,hashlib,io,zipfile\nfrom pathlib import Path\nsys.dont_write_bytecode=True\nroot=Path(sys.argv[3])\ndata=Path(sys.argv[1]).read_bytes()\nassert hashlib.sha256(data).hexdigest()==sys.argv[2],"Frozen Reviewer archive digest differs"\nwith zipfile.ZipFile(io.BytesIO(data)) as archive:\n info=archive.getinfo("merge-reviewer/scripts/git_network_lease.py")\n assert info.file_size<1024*1024 and (info.external_attr>>16)&0o170000!=0o120000\n module=archive.read(info)\nruntime=root/"reviewer-runtime"\nruntime.mkdir()\n(runtime/"git_network_lease.py").write_bytes(module)\nsys.path.insert(0,str(runtime))\nfrom git_network_lease import DirectoryLease\n(root/"ready").write_text("ready")\nlease=DirectoryLease(root,timeout=10).acquire()\n(root/"acquired").write_text("acquired")\ntime.sleep(0.3)\nlease.release(process_tree_confirmed=True)\n');
   const first = await LocalNetworkLease.acquire(path.join(root, 'git-network.lock'), 'git');

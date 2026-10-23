@@ -34,3 +34,6 @@ resources/tool-installer.py
 resources/offline-tools/sources/**
 resources/offline-tools/offline-tools.tar.xz
 resources/workflow-kit/**
+
+resources/offline-tools/**
+resources/workflow-kit-installer.py

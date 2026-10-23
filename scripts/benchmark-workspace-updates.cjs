@@ -37,7 +37,7 @@ function fixture(Panel, repos, issues) {
     actualRepositories: inventory.map(({ name, path }) => ({ name, path })), actualRepositoryScanStatus: 'ready', actualRepositoriesRoot: root,
     workspaceSections: { projects: { status: 'ready' }, issues: { status: 'ready' } }, groupMilestones: [], groupIssueBoards: [],
     issues: Array.from({ length: issues }, (_, i) => ({ id: i + 1, iid: i + 1, project_id: i % repos + 1, title: `Issue ${i}`, description: 'Fixture text. '.repeat(20), state: 'opened', labels: [] })),
-    mergeRequests: [], projectMembers: [], workflowKitPackages: [], activeMode: 'clone',
+    mergeRequests: [], projectMembers: [], workflowKitReleases: [], activeMode: 'clone',
     workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
     notificationCenter: { snapshot: () => notifications, publishState: () => {}, publish: () => {} },
     operationTracker: { sessionId: 'benchmark', list: () => [], get: () => undefined,

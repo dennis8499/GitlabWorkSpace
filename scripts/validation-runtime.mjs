@@ -33,9 +33,7 @@ export function preparationInputs() {
     'vite.sidebar.config.mjs', 'vite.issue-test.config.mjs', '.vscode-test.mjs',
     '.vscodeignore', 'README.md', 'CONTRIBUTING.md', 'resources/git-rebase-editor.cjs', 'resources/windows-git-supervisor.ps1',
     'resources/git-askpass.js', 'resources/git-askpass.sh', 'resources/git-ssh-askpass.sh',
-    'resources/gitlab-workspace.svg', 'resources/tool-installer.py',
-    'resources/workflow-kit', 'resources/workflow-kit-installer.py', 'resources/bmad',
-    'resources/offline-tools/sources', 'resources/offline-tools/source-snapshots.json'];
+    'resources/gitlab-workspace.svg', 'resources/workflow-kit-status.py', 'resources/bmad'];
 }
 
 export async function savePreparation(root, stages, outputs) {

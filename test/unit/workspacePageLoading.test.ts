@@ -58,7 +58,7 @@ function fixture(mode: string, connected = true) {
     projects: [], issues: [], mergeRequests: [], groupIssueBoards: [], groupMilestones: [],
     projectContext: context, groupRoot: context.root, cloneRoot: context.root,
     workspaceMatch: { status: 'matched', root: context.root, profile: 'group', repositories: [] },
-    skillsWorkflowKitState: { status: 'installed', profile: 'group', version: 'test', capabilities: ['codebase-wiki'] },
+    skillsWorkflowKitState: { status: 'installed', workspaceContract: 2, installerApi: 1, profile: 'group', version: 'test', capabilities: ['codebase-wiki'] },
     skillBranchReads: new Map(), reviewerNativeRepositories: [], remoteWatchers: [],
     repositoryScan: { status: 'idle', checkedDirectories: 0, repositories: [], errors: [], excludes: [] },
     context: { globalState: { get: () => undefined, update: async () => undefined },
@@ -417,8 +417,8 @@ test('Skills identifies a local multi-Repo folder and becomes ready without an a
     Object.assign(context, { root, folders: [] });
     host.projectContext = context;
     delete host.refreshWorkflowKit;
-    host.packages = { listPackages: async () => [] };
-    host.readWorkflowKitState = async () => ({ status: 'installed', profile: 'group', version: 'test', capabilities: ['codebase-wiki'] });
+    host.packages = { listReleases: async () => [] };
+    host.readWorkflowKitState = async () => ({ status: 'installed', workspaceContract: 2, installerApi: 1, profile: 'group', version: 'test', capabilities: ['codebase-wiki'] });
     await host.refresh({ forceNetwork: true });
     const skills = host.getSkillsContext();
     assert.equal(skills.mode, 'group', 'the local folder workflow is retained independently of GitLab Groups');

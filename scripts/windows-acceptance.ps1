@@ -69,17 +69,17 @@ import importlib.util
 import sys
 from pathlib import Path
 
-spec = importlib.util.spec_from_file_location("tool_installer", sys.argv[1])
+spec = importlib.util.spec_from_file_location("workflow_kit_status", sys.argv[1])
 installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 try:
-    installer.safe_group_path(Path(sys.argv[2]), "workspace-link/payload")
+    installer.assert_safe(Path(sys.argv[2]), "workspace-link/payload", allow_missing=True)
 except ValueError:
     raise SystemExit(0)
 raise SystemExit("junction path was accepted")
 '@
     [System.IO.File]::WriteAllText($junctionProbe, $junctionProbeSource, $utf8)
-    & $node.Source (Join-Path $repositoryRoot 'scripts/run-python.mjs') $junctionProbe (Join-Path $repositoryRoot 'resources/tool-installer.py') $groupDirectory
+    & $node.Source (Join-Path $repositoryRoot 'scripts/run-python.mjs') $junctionProbe (Join-Path $repositoryRoot 'resources/workflow-kit-status.py') $groupDirectory
     if ($LASTEXITCODE -ne 0) { throw 'The installer accepted a junction inside a Group workspace path.' }
 
     & $npm.Source test

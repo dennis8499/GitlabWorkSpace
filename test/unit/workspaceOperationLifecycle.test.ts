@@ -37,12 +37,12 @@ test('host publishes one terminal receipt for preflight rejection and permits a 
   const f = fixture(); let calls = 0;
   f.host.dispatchMessage = async () => { calls++; };
   f.host.accountTransitionBusy = true;
-  await assert.rejects(f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'blocked', operationScope: f.host.getLocalOperationScope() }), /帳號正在切換/);
+  await assert.rejects(f.host.handleMessage({ type: 'installWorkflowKit', releaseId: 'bundled', operationId: 'blocked', operationScope: f.host.getLocalOperationScope() }), /帳號正在切換/);
   assert.equal(calls, 0); assert.equal(terminal(f.events, 'blocked').length, 1);
   assert.equal(f.operations.get('blocked')?.status, 'failed');
   assert.equal(f.operations.get('blocked')?.effect, 'none');
   f.host.accountTransitionBusy = false;
-  await f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'retry', operationScope: f.host.getLocalOperationScope() });
+  await f.host.handleMessage({ type: 'installWorkflowKit', releaseId: 'bundled', operationId: 'retry', operationScope: f.host.getLocalOperationScope() });
   assert.equal(calls, 1); assert.equal(f.operations.get('retry')?.status, 'succeeded');
 });
 
@@ -179,7 +179,7 @@ test('quiet read failures keep their captured source and applied refresh warning
     f.host.post({ type: 'message', message: 'Saved' });
     f.host.noteOutcome({ effect: 'applied', refreshError: 'Actual reload failure' });
   };
-  await f.host.handleMessage({ type: 'installWorkflowKit', operationId: 'saved', packageId: 'bundled' });
+  await f.host.handleMessage({ type: 'installWorkflowKit', operationId: 'saved', releaseId: 'bundled' });
   const saved = f.host.notifications.snapshot().items.find((entry: any) => entry.operationId === 'saved');
   assert.equal(saved.level, 'warn'); assert.match(saved.messages.join('\n'), /Saved.*Actual reload failure/s);
   assert.equal(f.operations.get('saved')?.effect, 'applied');
@@ -211,7 +211,7 @@ test('applied mutations preserve their outcome when refreshing fails', async () 
   assert.equal(f.operations.get('relation')?.status, 'succeeded'); assert.equal(f.operations.get('relation')?.effect, 'applied');
   assert.match(f.operations.get('relation')?.refreshError ?? '', /重新載入失敗/);
   f.host.dispatchMessage = async () => { f.host.noteOutcome({ effect: 'applied' }); await f.host.reconcileAfterWrite(async () => { throw new Error('offline'); }); };
-  await f.host.handleMessage({ type: 'installWorkflowKit', packageId: 'bundled', operationId: 'install' });
+  await f.host.handleMessage({ type: 'installWorkflowKit', releaseId: 'bundled', operationId: 'install' });
   assert.equal(f.operations.get('install')?.status, 'succeeded'); assert.equal(f.operations.get('install')?.effect, 'applied');
   assert.match(f.operations.get('install')?.refreshError ?? '', /offline/);
 });

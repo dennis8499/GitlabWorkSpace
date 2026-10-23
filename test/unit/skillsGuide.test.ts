@@ -23,7 +23,7 @@ test('all executable guide prompts route optional output style once and preserve
 });
 
 test('both Analysis profiles expose the frozen analysis capabilities while BMAD has its own page', () => {
-  const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../resources/offline-tools/source-snapshots.json'), 'utf8'));
+  const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../test/fixtures/workflowkit-release-1.0.0/capabilities.json'), 'utf8'));
   for (const profile of ['group', 'repository'] as const) {
     assert.equal(snapshot.capabilities[profile].includes('bmad-workflow'), false);
     assert.equal(snapshot.capabilities[profile].length, 14);

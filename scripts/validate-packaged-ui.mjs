@@ -56,7 +56,7 @@ function createFixture() {
   const features = ['ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
     'merge-repo', 'release-review'];
-  const installed = { status: 'installed', version: '0.24.1', profile: 'group', source: 'bundled', capabilities: features,
+  const installed = { status: 'installed', version: '1.0.0', profile: 'group', source: 'github', workspaceContract: 2, installerApi: 1, capabilities: features,
     upstreamVersions: { 'codebase-wiki': '0.6.0', 'merge-reviewer': '0.12.1', 'release-reviewer': '0.3.0' } };
   const local = Object.fromEntries(projects.map(project => [project.id, { state: 'ready', path: repositories[project.id - 1].path }]));
   const matched = projects.map(project => ({ name: project.name, path: repositories[project.id - 1].path, projectId: project.id, matched: true, defaultBranch: 'main' }));
@@ -73,8 +73,8 @@ function createFixture() {
     projectMembers: [], timers: [], timerVersion: 0,
     operationScope: 'fixture-operation-scope', scopeEpoch: 1,
     workflowKit: installed, workflowKitInstallTarget: { root: 'C:/fixture/team', profile: 'group', manual: false, state: installed },
-    workflowKitPackages: [{ id: 'bundled-0.24.0', version: '0.24.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
-    workflowKitSource: 'bundled', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
+    workflowKitReleases: [{ id: 'workflowkit:github:1.0.0:fixture', version: '1.0.0', source: 'github', assetName: 'gitlab-workspace-kit-1.0.0.zip', format: 'zip', entryRoot: 'workflow-kit', available: true }],
+    workflowKitSource: 'github', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
     skillsContext: { mode: 'group', root: 'C:/fixture/team', revision: 'fixture-revision', installed, availableFeatures: features,
       groupMatch: { status: 'matched', root: 'C:/fixture/team', repositories: matched }, repositories: matched },
     accounts: [], tools: [], busy: false } };

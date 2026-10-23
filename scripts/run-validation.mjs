@@ -10,10 +10,10 @@ if (!validModes.includes(mode) || args.some(arg => !['--prepared', '--production
   throw new Error('Usage: run-validation.mjs [all|prepare|unit|behavior|release|extension|package|prepublish] [--prepared] [--production]');
 }
 const prepared = args.includes('--prepared') || (mode === 'prepublish' && process.env.GITLAB_WORKSPACE_PREPARED === '1');
-const stages = mode === 'release' ? ['kit'] : mode === 'extension' ? ['compile']
+const stages = mode === 'release' ? [] : mode === 'extension' ? ['compile']
   : mode === 'behavior' ? ['compile', 'webview', 'issue']
   : (mode === 'prepare' || mode === 'all') && !args.includes('--production')
-    ? ['compile', 'webview', 'kit', 'issue'] : ['compile', 'webview', 'kit'];
+    ? ['compile', 'webview', 'issue'] : ['compile', 'webview'];
 if (prepared) await assertPrepared(root, stages);
 if (mode === 'prepublish' && prepared) process.exit(0);
 
@@ -72,13 +72,11 @@ try {
       await required(node('build-dashboard', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.dashboard.config.mjs'));
       await required(node('build-sidebar', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.sidebar.config.mjs'));
     }
-    if (stages.includes('kit')) await required(python('build-kit', 'scripts/build-workflow-kit.py'));
     if (stages.includes('issue')) await required(node('build-issue-tests', 'node_modules/vite/bin/vite.js', 'build', '--config', 'vite.issue-test.config.mjs'));
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
     const outputs = stages.flatMap(stage => ({ compile: ['out', 'out/src/extension.js'],
       webview: ['resources/issue-webview', 'resources/sidebar-webview', 'resources/issue-webview/dashboard.js', 'resources/sidebar-webview/sidebar.js'],
       issue: ['resources/issue-webview/issue-test.js'],
-      kit: ['resources/offline-tools/workflow-kit.tar.xz', 'resources/offline-tools/manifest.json', `dist/gitlab-workspace-kit-${manifest.version}.zip`]
     })[stage]);
     await savePreparation(root, stages, outputs);
   }
@@ -104,7 +102,10 @@ try {
     if (mode === 'all' || mode === 'release') {
       const tooling = (await readdir(path.join(root, 'scripts'))).filter(name => name.endsWith('.test.mjs')).sort();
       await required(node('release-tooling', '--test', ...tooling.map(name => `scripts/${name}`)));
-      const files = (await readdir(path.join(root, 'test/release'))).filter(name => name.endsWith('_test.py')).sort();
+      const files = (await readdir(path.join(root, 'test/release')).catch(error => {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+      })).filter(name => name.endsWith('_test.py')).sort();
       const jobs = files.map(name => python(`release-${name.replace('_test.py', '')}`, `test/release/${name}`));
       // Start historically expensive suites first to avoid leaving one long
       // suite on the final worker while the other worker is already idle.

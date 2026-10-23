@@ -42,7 +42,7 @@ async function fixture(t) {
     else if(process.env.FAKE_HOST_FAILURE==='1')process.exit(9);`);
   await put('scripts/package-extension.mjs', `${header}
     import {assertPrepared} from './validation-runtime.mjs';
-    await assertPrepared(process.cwd(),['compile','webview','kit']);
+    await assertPrepared(process.cwd(),['compile','webview']);
     put('dist/gitlab-workspace-1.2.3.vsix');put('dist/SHA256SUMS');`);
   await put('scripts/tooling.test.mjs', "import test from 'node:test';test('tooling',()=>{});");
   await put('node_modules/@cucumber/cucumber/bin/cucumber.js', '');
@@ -66,10 +66,11 @@ test('full validation builds once, discovers suites, and packages only after eve
   assert.equal(result.status, 'success');
   assert.equal(result.success, true);
   const ids = result.stages.map(stage => stage.id);
-  for (const id of ['compile', 'build-dashboard', 'build-sidebar', 'build-kit', 'package', 'verify-package']) {
+  for (const id of ['compile', 'build-dashboard', 'build-sidebar', 'package', 'verify-package']) {
     assert.equal(ids.filter(value => value === id).length, 1, id);
   }
   assert.ok(ids.includes('release-one'));
+  assert.equal(ids.includes('build-kit'), false, 'Extension validation never builds a local installation package');
   assert.ok(ids.indexOf('extension') < ids.indexOf('unit'));
   assert.equal(ids.at(-2), 'package');
   assert.equal(ids.at(-1), 'verify-package');
@@ -87,4 +88,14 @@ test('a real host launch failure stops before expensive suites and produces no p
   assert.equal(result.stages.at(-1).exitCode, 9);
   assert.ok(!result.stages.some(stage => ['unit', 'package'].includes(stage.id)));
   await assert.rejects(readFile(path.join(root, 'dist/gitlab-workspace-1.2.3.vsix')));
+});
+
+test('an independent Extension checkout validates without the extracted Python bundle suites', async t => {
+  const { root, evidenceDir, run } = await fixture(t);
+  await rm(path.join(root, 'test/release'), { recursive: true });
+  const child = run();
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  const result = JSON.parse(await readFile(path.join(evidenceDir, 'timings.json'), 'utf8'));
+  assert.equal(result.status, 'success');
+  assert.ok(result.stages.some(stage => stage.id === 'verify-package'));
 });

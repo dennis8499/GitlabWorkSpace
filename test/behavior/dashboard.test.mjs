@@ -502,13 +502,15 @@ test('Skills recheck shows waiting inside settings immediately and preserves unr
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
   const recheck = document.querySelector('.tool-drawer .drawer-footer button');
   assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 1, 'entering tools loads its local environment once');
-  assert.equal(recheck.getAttribute('aria-busy'), 'true'); assert.equal(recheck.disabled, true);
+  assert.equal(recheck.getAttribute('aria-busy'), 'false'); assert.equal(recheck.disabled, false);
   assert.equal(document.querySelector('.notifications-trigger').disabled, false);
   view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
   assert.equal(recheck.disabled, false);
   recheck.click(); await view.tick();
-  assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 2);
-  view.receipt(view.rawRequests.findLast(request => request.type === 'refreshWorkflowKit')); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'checkWorkflowKitReleases').length, 1);
+  assert.equal(recheck.getAttribute('aria-busy'), 'true'); assert.equal(recheck.disabled, true);
+  assert.equal(document.querySelector('.notifications-trigger').disabled, false);
+  view.receipt(view.rawRequests.findLast(request => request.type === 'checkWorkflowKitReleases')); await view.tick();
   assert.equal(recheck.disabled, false);
 });
 
@@ -543,8 +545,8 @@ test('Skills recheck completes 35 full running snapshot and terminal receipt cyc
   for (let index = 0; index < 35; index++) {
     assert.equal(button().disabled, false, `cycle ${index + 1} starts enabled`);
     button().click(); await view.tick();
-    const request = view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').at(-1);
-    assert.equal(view.rawRequests.filter(item => item.type === 'refreshWorkflowKit').length, index + 2);
+    const request = view.rawRequests.filter(item => item.type === 'checkWorkflowKitReleases').at(-1);
+    assert.equal(view.rawRequests.filter(item => item.type === 'checkWorkflowKitReleases').length, index + 1);
     const operation = { ...describeAction(request, { scopeRevision: data.operationScope, accountKey: data.instanceUserScope, rootKey: data.projectContext.root }),
       requestId: request.operationId, scopeRevision: request.operationScope, hostSessionId: sessionId,
       status: 'running', phase: '正在檢查安裝', startedAt: index + 1, revision: ++revision };
@@ -1236,8 +1238,8 @@ function snapshot(activeMode = 'developer') {
     workflowKit: { status: 'installed', version: '0.9.0', source: 'bundled' },
     projectContext: { folders: [{ uri: 'file:C:/workspace/team', path: 'C:/workspace/team', name: 'team' }], selectedFolderUri: 'file:C:/workspace/team', root: 'C:/workspace/team', manual: false, revision: 'root-team' },
     workflowKitInstallTarget: { root: 'C:/workspace/team', manual: false, state: { status: 'installed', version: '0.9.0', source: 'bundled' } },
-    workflowKitPackages: [{ id: 'bundled-0.9.0', version: '0.9.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
-    workflowKitSource: 'bundled',
+    workflowKitReleases: [{ id: 'github-1.0.0', version: '1.0.0', source: 'github', assetName: 'gitlab-workspace-kit-1.0.0.zip', format: 'zip', entryRoot: 'workflow-kit', available: true }],
+    workflowKitSource: 'github',
     tools: [],
     toolSource: 'gitea',
     busy: false
@@ -1754,16 +1756,16 @@ test('settings shows the checked installation while full Skills discovery is def
   const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
   assert.match(document.querySelector('.workflow-kit-skills-root').textContent, /C:\/local\/repo · 已安裝/);
-  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '安裝／更新整包');
+  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '下載並更新');
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, false);
   assert.ok(!document.querySelector('.tool-drawer').textContent.includes(state.skillsContext.reason));
   state.workflowKitInstallTarget.profile = 'group'; view.sendSnapshot(state); await view.tick();
   assert.match(document.querySelector('.tool-drawer').textContent, /安裝的 Skills 流程與目前專案不同/);
 });
 
-test('offline Skills offers downloads and one shared root without Group mode controls', async t => {
+test('Skills offers online Releases and one shared root without Group mode controls', async t => {
   const state = snapshot('sa'); state.connected = false; state.group = undefined;
-  state.workflowKitSource = 'github'; state.workflowKitPackages[0].source = 'github';
+  state.workflowKitSource = 'github'; state.workflowKitReleases[0].source = 'github';
   state.workflowKitInstallTarget.root = 'C:/local/repo'; setSkillsContext(state);
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
@@ -1772,7 +1774,36 @@ test('offline Skills offers downloads and one shared root without Group mode con
   assert.equal(button('選擇共用根目錄').disabled, false); assert.equal(button('開啟 GitHub Release').disabled, false);
   button('開啟 GitHub Release').click(); assert.equal(view.requests.at(-1).type, 'openWorkflowKitDownload');
   state.workflowKitOperationBusy = true; view.sendSnapshot(state); await view.tick();
-  assert.equal(button('選擇共用根目錄').disabled, true); assert.equal(button('匯入組合包 ZIP').disabled, true);
+  assert.equal(button('選擇共用根目錄').disabled, true); assert.equal(button('匯入組合包 ZIP'), undefined); assert.equal(button('檢查最新相容版本').disabled, true);
+});
+
+test('online setup explicitly checks Releases and offers only GitHub and Gitea sources', async t => {
+  const state = snapshot('clone'); setProjectContext(state, 'C:/local/repo', true);
+  state.workflowKitReleases = []; state.workflowKitInstallTarget.state = { status: 'missing' };
+  const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  const tools = document.querySelector('.tool-settings');
+  assert.deepEqual([...tools.querySelectorAll('select option')].map(option => option.value), ['github', 'gitea']);
+  assert.equal(tools.querySelectorAll('select').length, 1);
+  assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
+  assert.equal(view.requests.some(request => request.type === 'checkWorkflowKitReleases'), false);
+  assert.equal([...tools.querySelectorAll('button')].some(button => button.textContent.includes('匯入')), false);
+  [...tools.querySelectorAll('button')].find(button => button.textContent === '檢查最新相容版本').click();
+  assert.equal(view.requests.at(-1).type, 'checkWorkflowKitReleases');
+  assert.equal(view.requests.at(-1).source, 'github');
+});
+
+test('online installation sends a Release identity without a client-controlled local archive', async t => {
+  const state = snapshot('clone'); setProjectContext(state, 'C:/local/repo', true);
+  state.workflowKitInstallTarget.state = { status: 'missing' };
+  const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
+  assert.ok(document.querySelector('.tool-settings').textContent.includes('最新相容版本 v1.0.0'));
+  const button = document.querySelector('.workflow-kit-install-button');
+  assert.equal(button.disabled, false); button.click();
+  assert.equal(view.requests.at(-1).type, 'installWorkflowKit');
+  assert.equal(view.requests.at(-1).releaseId, 'github-1.0.0');
+  assert.equal(Object.hasOwn(view.requests.at(-1), 'archivePath'), false);
 });
 
 test('guided login keeps secrets transient, matches results by request ID, and allows retry after an invalid Token', async t => {
@@ -1845,8 +1876,8 @@ test('an installed custom folder does not enable the Group guide when the Group 
   await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, true);
   document.querySelector('.skills-install-button').click(); await view.tick();
-  assert.match(document.querySelector('.workflow-kit-install-root').textContent, /C:\/another\/repo/);
-  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '安裝／更新整包');
+  assert.match(document.querySelector('.workflow-kit-skills-root').textContent, /C:\/another\/repo/);
+  assert.equal(document.querySelector('.workflow-kit-install-button').textContent, '下載並更新');
   state.workflowKit = { status: 'installed', version: '0.9.0' };
   view.sendSnapshot(state); await view.tick();
   assert.equal(document.querySelector('.wiki-copy-button').disabled, false);
@@ -2253,7 +2284,7 @@ test('settings display the same root for installation and Skills', async t => {
   const state = snapshot('sa'); setSkillsContext(state, 'group');
   const view = await mount({ mode: 'sa' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
-  for (const selector of ['.project-root-path', '.workflow-kit-install-root', '.workflow-kit-skills-root']) {
+  for (const selector of ['.project-root-path', '.workflow-kit-skills-root']) {
     assert.ok(document.querySelector(selector).textContent.includes(state.skillsContext.root), selector);
   }
   assert.equal(document.querySelector('.tool-drawer').textContent.includes('安裝版型：'), false);

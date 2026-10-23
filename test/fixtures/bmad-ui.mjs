@@ -62,7 +62,7 @@ export function bmadWorkspaceSnapshot(root = 'C:/專案/服務 A', bmad = bmadUi
     scopeEpoch: 1, operationScope: `offline:${root ?? 'none'}`,
     operationSnapshot: { sessionId: 'bmad-test-host', revision: 0, operations: [] },
     workflowKit: installed, workflowKitInstallTarget: { root, manual: false, profile: 'repository', state: installed },
-    workflowKitPackages: [], workflowKitSource: 'bundled', busy: false,
+    workflowKitReleases: [], workflowKitSource: 'bundled', busy: false,
     projectContext: { folders: root ? [{ uri: `file:${root}`, path: root, name: '目前專案' }] : [],
       selectedFolderUri: root ? `file:${root}` : undefined, root, manual: false, revision: `project:${root ?? 'none'}` },
     skillsContext: { mode: root ? 'repository' : 'unavailable', root, revision: `skills:${root ?? 'none'}`,

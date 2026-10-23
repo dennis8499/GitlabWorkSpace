@@ -1,7 +1,0 @@
-{
-  "version": "0.31.0",
-  "baseline_commit": "ae5f045841533ea802a5ed9e04f351c45ac5ab5e",
-  "archive_sha256": "67323b5a41feae05447e7ac97529581571ed51febc16eaab4e9e94df7482cea2",
-  "installer_sha256": "2df751e9453db9552a2834d7410709df811a19636f95011169fe1b92bc0f1632",
-  "source": "existing 0.31.0 archive matched to the frozen baseline installer payload"
-}
