@@ -36,7 +36,7 @@
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 「BMAD 開發流程」提供 Codex 的安裝教學、依需求選能力及精簡進度摘要。使用者自行透過官方 CLI 安裝 BMAD；頁面提供終端機／Codex 原生指令複製，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。教學依 BMAD 6.12.4，完整目錄可展開參考。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從設定一次安裝或更新 GitLab Workspace 工作流程包。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，下載與匯入可免登入。
+- 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
@@ -48,7 +48,7 @@
 
 ## 0.32.0 更新
 
-本次正式發布包含 0.31.0 與 0.32.0 的累積更新，並依使用者決定接受既有 Reviewer 驗收限制：30% 效能目標未達，48 次最終執行取得 47 份完整報告，Native UI／production activation 未驗證。完整 CI 仍須通過，詳見 [0.32.0 發布說明](docs/releases/v0.32.0.md)。
+0.32.0 正式版包含 0.31.0 與 0.32.0 的累積更新，並依使用者決定接受既有 Reviewer 驗收限制：30% 效能目標未達，48 次最終執行取得 47 份完整報告，Native UI／production activation 未驗證。完整 CI 仍須通過，詳見 [0.32.0 發布說明](docs/releases/v0.32.0.md)。
 
 - MergeReviewer 0.19.0 與 ReleaseReviewer 0.8.0 共用 start／step／check／finish／status／cancel 操作順序，各自保留結果契約與完成門檻。check 先彙整草稿缺口，finish 驗證固定證據並直接產生五區報告。
 - 兩種審查頁均提供本機狀態、按 request ID 取消、開啟報告、複製恢復與重新同步指令；依工具識別驗證 runtime 與 job，使用已安裝的對應 helper。恢復指令沿用同一份固定證據。
@@ -215,7 +215,7 @@ npm run package
 
 `npm test` 會執行單元、行為、整包安裝／回復、Group 工作流程、發行流程及 Extension Host 測試，並打包與驗證 VSIX。打包結果包含 `dist/gitlab-workspace-<版本>.vsix`、`dist/gitlab-workspace-kit-<版本>.zip` 及 `dist/SHA256SUMS`。Windows PowerShell 若無法執行 `npm` 指令，請改用 `npm.cmd`。
 
-建置會從 `resources/offline-tools/sources/` 的固定來源 ZIP 驗證 SHA-256，重建可重現的 TAR.XZ 與 Release ZIP，並確認兩者 payload 完全相同。原始來源 ZIP 只供本機重建使用，不會打包進 VSIX；本機整合版本的驗證不代表已發布對應上游 Release。
+Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查資源。WorkflowKit Repo 維護固定上游 ZIP、來源摘要、獨立建置器與升級／rollback 測試；完整整合包及安裝器由 WorkflowKit Release 提供。
 
 ## 版本發行
 
