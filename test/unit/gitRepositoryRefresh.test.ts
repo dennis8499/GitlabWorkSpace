@@ -141,6 +141,63 @@ test('each explicit page open or refresh reads once and a write refreshes only i
   assert.equal(JSON.stringify(f.counts), reads);
 });
 
+test('staging preserves history, tags, stash and configuration reads; unknown native events invalidate them', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  const first = await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  const metadataReads = () => JSON.stringify({ branches: f.counts.branches, config: f.counts.config,
+    commands: f.counts.commands.filter(args => ['log', 'for-each-ref', 'stash'].includes(args[0])) });
+  const before = metadataReads();
+  const staged = await f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true });
+  assert.equal(metadataReads(), before, 'known index writes do not rerun log, tags, stash, recovery refs or config');
+  assert.equal(staged.stagedCount, 1); assert.equal(staged.unstagedCount, 0);
+  assert.ok(staged.revision > first.revision);
+  f.emit();
+  assert.equal(metadataReads(), before, 'an unknown notification still waits for an explicit read');
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id, refresh: false });
+  assert.notEqual(metadataReads(), before, 'unknown native events conservatively expire reference/config caches');
+});
+
+test('a HEAD change during an index action expires history and reference details', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  const before = f.counts.commands.filter(args => args[0] === 'log').length;
+  const run = f.service.runGit;
+  f.service.runGit = async (repository: unknown, args: string[]) => {
+    const result = await run(repository, args);
+    if (args[0] === 'add') { f.repository.state.HEAD.commit = 'e'.repeat(40); f.emit(); }
+    return result;
+  };
+  const result = await f.service.handleAction(f.id, { type: 'stageFile', path: 'README.md', staged: true });
+  assert.equal(result.headCommit, 'e'.repeat(40));
+  assert.equal(f.counts.commands.filter(args => args[0] === 'log').length, before + 1);
+  assert.equal(f.counts.branches, 2);
+});
+
+test('partial staging keeps reference reads while validating and applying the selected patch', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  await f.service.handleAction(f.id, { type: 'open', repoId: f.id });
+  const diff = await f.service.handleAction(f.id, { type: 'readDiff', path: 'README.md', staged: false });
+  const before = { branches: f.counts.branches, config: f.counts.config,
+    references: f.counts.commands.filter(args => ['log', 'for-each-ref', 'stash'].includes(args[0])).length };
+  await f.service.handleAction(f.id, { type: 'stagePatch', path: 'README.md', lines: [4, 5], basedOnDiff: diff.diffText });
+  assert.ok(f.counts.commands.some(args => args[0] === 'apply' && args.includes('--cached')));
+  assert.deepEqual({ branches: f.counts.branches, config: f.counts.config,
+    references: f.counts.commands.filter(args => ['log', 'for-each-ref', 'stash'].includes(args[0])).length }, before);
+});
+
+test('Fetch freshness records only observed successful workbench fetches', async t => {
+  const f = await fixture(); t.after(() => f.service.dispose());
+  assert.equal((await f.service.buildSummary(f.repository, f.id)).lastSuccessfulFetchAt, undefined);
+  await f.service.fetchRemote(f.repository, 'origin');
+  const observed = (await f.service.buildSummary(f.repository, f.id)).lastSuccessfulFetchAt;
+  assert.ok(Number.isFinite(observed) && observed > 0);
+  f.service.runGit = async () => { throw new Error('fetch failed'); };
+  await assert.rejects(f.service.fetchRemote(f.repository, 'origin'), /fetch failed/);
+  assert.equal((await f.service.buildSummary(f.repository, f.id)).lastSuccessfulFetchAt, observed);
+  f.emit();
+  assert.equal(f.service.successfulFetches.get(f.id), observed, 'external status events do not invent a fetch time');
+});
+
 test('native Diff exposes blob read failures instead of inventing an empty file', async t => {
   const f = await fixture(); t.after(() => f.service.dispose());
   f.service.safeRelativePath = async () => 'README.md';

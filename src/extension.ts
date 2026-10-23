@@ -22,6 +22,7 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openGit: 'gitlabWorkspace.openGitMode',
   openAdmin: 'gitlabWorkspace.openAdmin',
   openNotifications: 'gitlabWorkspace.openNotifications',
+  openSettings: 'gitlabWorkspace.openSettings',
   addAccount: 'gitlabWorkspace.addAccount',
   manageAccounts: 'gitlabWorkspace.manageAccounts',
   switchAccount: 'gitlabWorkspace.switchAccount',
@@ -111,6 +112,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
   context.subscriptions.push(
     registerLoggedCommand('gitlabWorkspace.openWorkspace', () => getWorkspace().navigateTo()),
     registerLoggedCommand('gitlabWorkspace.openNotifications', () => getWorkspace().openNotifications()),
+    registerLoggedCommand('gitlabWorkspace.openSettings', () => getWorkspace().openSettings()),
     registerLoggedCommand('gitlabWorkspace.connect', async () => {
       try {
         await getWorkspace().connectFromSidebar();

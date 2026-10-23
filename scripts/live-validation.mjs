@@ -5,13 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildLoadGraphEdges, buildLoadIssueWork, buildLoadMergeRequestBranches } from './live-fixture-plan.mjs';
 import { sameFilesystemPath } from './live-test-paths.mjs';
+import { liveEnvironments } from './live-environments.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_ROOT = path.join(ROOT, '.gitlab-workspace-validation');
-const ENVIRONMENTS = {
-  ce19: { url: 'http://127.0.0.1:8929', tokenName: 'GLW_CE19_TOKEN', version: '19.4.1' },
-  ce16: { url: 'http://127.0.0.1:8930', tokenName: 'GLW_CE16_TOKEN', version: '16.11.10' }
-};
+const ENVIRONMENTS = liveEnvironments();
 const MARKER = 'GitLab Workspace isolated live-validation fixture';
 const RUN_ID = process.env.GLW_RUN_ID || `20261006-${randomUUID().slice(0, 8)}`;
 const MAX_REQUESTS = 6;
@@ -35,7 +33,6 @@ export class GitLab {
     if (!config || !token) throw new Error('A named local GitLab environment and process token are required.');
     this.key = key;
     this.url = new URL(config.url);
-    if (!['127.0.0.1', 'localhost'].includes(this.url.hostname)) throw new Error('Live validation is restricted to the two configured localhost servers.');
     this.token = token;
     this.gate = new Semaphore();
     this.metrics = { requests: 0, responseBytes: 0, failures: 0, apiMs: [] };
@@ -50,7 +47,7 @@ export class GitLab {
       for (let attempt = 0; ; attempt++) {
         attemptStarted = performance.now();
         try {
-          response = await fetch(new URL(`/api/v4/${route}`, this.url), {
+          response = await fetch(new URL(`api/v4/${route}`, this.url.href.replace(/\/$/, '') + '/'), {
             method,
             headers: { 'PRIVATE-TOKEN': this.token, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
             ...(body ? { body: JSON.stringify(body) } : {}),
@@ -198,7 +195,7 @@ async function preflight(client) {
     client.pages(`groups/${parent.id}/merge_requests`)
   ]);
   return {
-    environment: client.key, baseUrl: client.url.origin, version: metadata.version,
+    environment: client.key, baseUrl: ENVIRONMENTS[client.key].url, expectedGitLabVersion: expectedVersion, version: metadata.version,
     revision: metadata.revision ?? version.revision ?? null, enterprise: metadata.enterprise, userId: user.id, group: parent.full_path,
     groupId: parent.id, projectCount: projects.length, childGroupCount: children.length,
     issueCount: issues.length, mergeRequestCount: mergeRequests.length,

@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import path from 'node:path';
 import { GitLabSession } from '../../src/connection/session';
 import { accountTokenKey } from '../../src/connection/accountStore';
+import type { IssueNavigation } from '../../src/workspace/workspaceProtocol';
 
 const loader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const original = loader._load;
-loader._load = (name, parent, main) => name === 'vscode' ? {} : original(name, parent, main);
+const vscode = {
+  Uri: { joinPath: (base: { fsPath: string }, ...parts: string[]) => ({ fsPath: path.join(base.fsPath, ...parts) }) },
+  ViewColumn: { Active: 1 },
+  window: { createWebviewPanel: (..._args: unknown[]): any => { throw new Error('Unexpected panel creation'); } }
+};
+loader._load = (name, parent, main) => name === 'vscode' ? vscode : original(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
 try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); }
 finally { loader._load = original; }
@@ -53,6 +60,32 @@ function fixture() {
     cancelMergeRequestSectionReads: () => undefined, issuePanels: { close: () => undefined }
   });
   return { host, session, secrets, globalState, messages, snapshots, logMetadata, registeredSecrets, intents, probes: () => probes };
+}
+
+function panelLifecycleFixture() {
+  const value = fixture(), panels: any[] = [];
+  vscode.window.createWebviewPanel = () => {
+    let disposed!: () => void, changed!: () => void;
+    const panel = {
+      visible: true,
+      webview: { html: '', cspSource: 'test:', asWebviewUri: () => ({ toString: () => 'https://fixture.test/assets' }),
+        onDidReceiveMessage: () => ({ dispose() {} }) },
+      onDidDispose: (listener: () => void) => { disposed = listener; },
+      onDidChangeViewState: (listener: () => void) => { changed = listener; },
+      reveal: () => { panel.visible = true; },
+      dispose: () => disposed(),
+      hide: () => { panel.visible = false; changed(); }
+    };
+    panels.push(panel);
+    return panel;
+  };
+  Object.assign(value.host, {
+    show: WorkspacePanel!.prototype.show,
+    context: { ...value.host.context, extensionUri: { fsPath: path.resolve(__dirname, '../../..') } },
+    viewReadAbort: new AbortController(), refresh: async () => undefined,
+    suspendViewReads: () => { value.host.webviewReady = false; value.host.viewGeneration++; }
+  });
+  return { ...value, panels };
 }
 
 const login = (requestId: string, token = 'one-secret', accountId?: string) => ({ type: 'submitAccountLogin', requestId, baseUrl: 'https://gitlab.test/', token, accountId });
@@ -149,6 +182,101 @@ test('sidebar and command entry points open the same panel and retain intent unt
   host.webviewReady = true; host.publishAccountPanel();
   assert.equal([...messages].reverse().find(message => message.type === 'openAccountManager').intent.startLogin, true);
   assert.equal(host.pendingAccountPanel, undefined);
+});
+
+for (const panelState of ['visible', 'hidden'] as const) {
+  test(`settings command reveals a ${panelState} ready panel once without changing the current workspace destination`, async () => {
+    const { host, messages, globalState } = fixture();
+    const calls: unknown[] = [];
+    const issueNavigation: IssueNavigation = { mode: 'detail', projectId: 1, issueIid: 2, revision: 3 };
+    const selectedGitRepositoryId = 'a'.repeat(32);
+    host.activeMode = 'git'; host.issueNavigation = issueNavigation; host.webviewReady = true;
+    host.selectedGitRepositoryId = selectedGitRepositoryId; host.panel = { visible: panelState === 'visible' };
+    host.show = async (...args: unknown[]) => { calls.push(args); host.panel.visible = true; };
+    await host.runCommandAction('openSettings', () => host.openSettings(), { operationId: 'open-settings' });
+    assert.deepEqual(calls, [[undefined, { refresh: false }]]);
+    assert.equal(messages.filter(message => message.type === 'openSettings').length, 1);
+    host.publishSettings();
+    assert.equal(messages.filter(message => message.type === 'openSettings').length, 1);
+    assert.equal(host.pendingSettingsOpen, false);
+    assert.equal(host.activeMode, 'git'); assert.equal(host.issueNavigation, issueNavigation);
+    assert.equal(host.selectedGitRepositoryId, selectedGitRepositoryId); assert.equal(host.panel.visible, true);
+    assert.equal(globalState.values.size, 0);
+    const receipt = host.operations.get('open-settings');
+    assert.equal(receipt.action, 'openSettings'); assert.equal(receipt.kind, 'read');
+    assert.equal(receipt.label, '開啟設定'); assert.equal(receipt.status, 'succeeded');
+  });
+}
+
+for (const panelState of ['cold', 'hidden'] as const) {
+  test(`settings entry from a ${panelState} panel arrives once before its ready refresh completes`, async () => {
+    const { host, messages } = fixture();
+    host.panel = panelState === 'cold' ? undefined : { visible: false };
+    host.webviewReady = false; host.viewReadAbort = new AbortController();
+    host.show = async () => { host.panel = { visible: true }; };
+    let finishRefresh!: () => void, refreshes = 0;
+    host.refresh = async () => { refreshes++; await new Promise<void>(resolve => { finishRefresh = resolve; }); };
+    await host.openSettings();
+    assert.equal(messages.some(message => message.type === 'openSettings'), false);
+    assert.equal(host.pendingSettingsOpen, true);
+    const ready = host.dispatchMessage({ type: 'ready' });
+    assert.equal(refreshes, 1);
+    assert.equal(messages.filter(message => message.type === 'openSettings').length, 1, 'settings does not wait for page data');
+    assert.equal(host.pendingSettingsOpen, false);
+    await host.dispatchMessage({ type: 'ready' });
+    assert.equal(refreshes, 1, 'a duplicate ready event does not restart entry');
+    finishRefresh(); await ready;
+    assert.equal(messages.filter(message => message.type === 'openSettings').length, 1);
+    assert.equal(host.activeMode, 'developer');
+  });
+}
+
+test('settings entry racing the webview ready event is not sent again after the panel opens', async () => {
+  const { host, messages } = fixture();
+  host.webviewReady = false; host.viewReadAbort = new AbortController();
+  host.refresh = async () => undefined;
+  host.show = async () => { await host.dispatchMessage({ type: 'ready' }); };
+  await host.openSettings();
+  assert.equal(messages.filter(message => message.type === 'openSettings').length, 1);
+  assert.equal(host.pendingSettingsOpen, false);
+});
+
+test('hiding preserves a pending settings entry but closing it discards the entry before a normal reopen', async () => {
+  const { host, messages, panels } = panelLifecycleFixture();
+  await host.openSettings();
+  assert.equal(host.pendingSettingsOpen, true);
+  panels[0].hide();
+  assert.equal(host.pendingSettingsOpen, true, 'temporarily hiding the same panel retains its pending destination');
+  panels[0].dispose();
+  assert.equal(host.pendingSettingsOpen, false);
+  assert.equal(host.panel, undefined);
+  await host.show();
+  await host.dispatchMessage({ type: 'ready' });
+  assert.equal(panels.length, 2);
+  assert.equal(messages.some(message => message.type === 'openSettings'), false, 'normal reopen does not replay dismissed settings');
+});
+
+test('an obsolete panel disposal does not discard the current panel settings entry', async () => {
+  const { host, messages, panels } = panelLifecycleFixture();
+  await host.show();
+  host.panel = undefined;
+  await host.openSettings();
+  panels[0].dispose();
+  assert.equal(host.panel, panels[1]); assert.equal(host.pendingSettingsOpen, true);
+  await host.dispatchMessage({ type: 'ready' });
+  assert.equal(messages.filter(message => message.type === 'openSettings').length, 1);
+});
+
+test('a settings panel opening failure clears its pending entry and preserves the original error', async () => {
+  const { host, messages } = fixture();
+  const failure = new Error('Cannot open workspace panel');
+  host.show = async () => { throw failure; };
+  await assert.rejects(host.openSettings(), error => error === failure);
+  assert.equal(host.pendingSettingsOpen, false);
+  host.webviewReady = false; host.viewReadAbort = new AbortController();
+  host.show = async () => undefined; host.refresh = async () => undefined;
+  await host.show(); await host.dispatchMessage({ type: 'ready' });
+  assert.equal(messages.some(message => message.type === 'openSettings'), false);
 });
 
 test('login succeeds independently of Group selection and reports a workspace loading failure separately', async () => {

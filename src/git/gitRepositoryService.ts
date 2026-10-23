@@ -33,9 +33,9 @@ const API_EXTENSION_ID = 'vscode.git';
 /** Project explicitly: structural typing does not strip Snapshot properties at runtime. */
 export function repositorySummary(value: GitRepositorySummary): GitRepositorySummary {
   const { id, name, path, branch, headCommit, tracking, ahead, behind, stagedCount, unstagedCount,
-    conflictCount, busy, revision } = value;
+    conflictCount, busy, revision, lastSuccessfulFetchAt } = value;
   return { id, name, path, branch, headCommit, tracking, ahead, behind, stagedCount, unstagedCount,
-    conflictCount, busy, revision };
+    conflictCount, busy, revision, lastSuccessfulFetchAt };
 }
 
 interface GitBranch {
@@ -209,6 +209,9 @@ export class GitRepositoryService implements vscode.Disposable {
   private activePanelGeneration = 0;
   private readonly managedRefreshes = new Map<string, number>();
   private readonly dataEpochs = new Map<string, number>();
+  private readonly referenceEpochs = new Map<string, number>();
+  private readonly worktreeMutations = new Map<string, string>();
+  private readonly successfulFetches = new Map<string, number>();
   private readonly summaryCache = new Map<string, { epoch: number; value: GitRepositorySummary }>();
   private readonly detailsCache = new Map<string, { epoch: number; value: GitRepositoryDetails }>();
   private readonly detailsTasks = new Map<string, Promise<GitRepositoryDetails>>();
@@ -369,6 +372,7 @@ export class GitRepositoryService implements vscode.Disposable {
         id, name: path.basename(repository.rootUri.fsPath) || repository.rootUri.fsPath, path: repository.rootUri.fsPath,
         headCommit: head?.commit, tracking: tracking ? tracking.remote + '/' + tracking.name : undefined,
         ahead: head?.ahead, behind: head?.behind, stagedCount: state.indexChanges.length,
+        lastSuccessfulFetchAt: this.successfulFetches.get(id),
         unstagedCount: state.workingTreeChanges.length, conflictCount: state.mergeChanges.length,
         busy: this.activeOperations.has(id), revision: this.revisionByRepository.get(id) ?? 0
       };
@@ -384,13 +388,13 @@ export class GitRepositoryService implements vscode.Disposable {
     await this.initialization;
     const repository = this.findRepository(repositoryId);
     if (!repository || this.disposed || !this.enabled) throw new Error('找不到這個 VS Code 工作區 Repo，請重新整理清單。');
-    const epoch = this.dataEpochs.get(repositoryId) ?? 0;
+    const epoch = this.referenceEpochs.get(repositoryId) ?? 0;
     const lifetime = this.repositoryLifetime(repository);
     const key = repositoryId + ':' + epoch + ':' + lifetime;
     const pending = this.detailsTasks.get(key);
     if (pending) return pending;
     const current = () => !this.disposed && lifetime === this.repositoryLifetime(repository) &&
-      !!this.findRepository(repositoryId) && epoch === (this.dataEpochs.get(repositoryId) ?? 0);
+      !!this.findRepository(repositoryId) && epoch === (this.referenceEpochs.get(repositoryId) ?? 0);
     const task = withGitDirectoryLock(repository.rootUri.fsPath, async () => {
       if (!current()) throw new Error('Repo 狀態已變更，請重新展開以讀取分支與 Stash。');
       if (this.detailsCache.get(repositoryId)?.epoch !== epoch) {
@@ -510,9 +514,10 @@ export class GitRepositoryService implements vscode.Disposable {
     const details = await this.buildDetails(repository, repositoryId);
     const page = await this.historyPage(repository, repositoryId);
     const diff = await this.lastDiffFor(repositoryId);
+    const referenceEpoch = this.referenceEpochs.get(repositoryId) ?? 0;
     let strategy = this.pullStrategyCache.get(repositoryId);
-    if (!strategy || strategy.epoch !== epoch) {
-      strategy = { epoch, value: await this.configuredPullStrategy(repository) };
+    if (!strategy || strategy.epoch !== referenceEpoch) {
+      strategy = { epoch: referenceEpoch, value: await this.configuredPullStrategy(repository) };
       this.pullStrategyCache.set(repositoryId, strategy);
     }
     if (diff && !diff.ref && diff.epoch !== epoch) {
@@ -616,58 +621,64 @@ export class GitRepositoryService implements vscode.Disposable {
     await this.requireRepository(repositoryId);
     const affectedPaths = 'path' in action ? [action.path] : undefined;
     return withGitDirectoryLock(repository.rootUri.fsPath, async () => {
-      await repository.status();
-      if (this.activeOperations.has(repositoryId)) throw new Error('此 Repo 正在執行版控操作，請稍後再試。');
-      const ongoing = await this.operationFor(repository);
-      if (ongoing && !['stageFile', 'stagePatch', 'abort', 'continue', 'skip'].includes(action.type)) {
-        throw new Error('此 Repo 有尚未完成的 ' + ongoing + ' 操作。請先解決衝突，再繼續、中止或略過。');
-      }
-      if (ongoing === 'stash-conflict' && ['abort', 'continue', 'skip'].includes(action.type)) {
-        throw new Error('Stash 套用衝突已保留原 Stash；請解決檔案後標記為已暫存。');
-      }
-      if (this.needsSavedEditorCheck(action) && !await this.confirmSavedEditors(repository, affectedPaths)) {
-        try {
-          return { ...await this.readSnapshot(repository, repositoryId), actionEffect: 'none', actionCancelled: true,
-            ...(action.type === 'commit' ? { commitCompleted: false } : {}) };
-        } catch (error) {
-          throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true,
-            ...(action.type === 'commit' ? { commitCompleted: false } : {}) });
-        }
-      }
-      this.activeOperations.add(repositoryId);
-      this.bump(repositoryId);
-      this.publishRepositoryState(repositoryId);
-      let actionEffect: 'none' | 'applied' = 'none';
-      let actionCancelled = false;
-      let commitCompleted: boolean | undefined;
+      // These actions change only the index. Native status notifications within
+      // this scope can retain reference reads only while their identity agrees.
+      const worktreeOnly = action.type === 'stageFile' || action.type === 'stagePatch';
+      if (worktreeOnly) this.worktreeMutations.set(repositoryId, this.referenceIdentity(repository));
       try {
-        const completed = await this.performAction(repository, repositoryId, action);
-        actionCancelled = completed === false;
-        actionEffect = actionCancelled ? 'none' : 'applied';
-        if (action.type === 'commit') commitCompleted = completed === true;
         await repository.status();
-        this.invalidateRepository(repositoryId);
-        const snapshot = await this.readSnapshot(repository, repositoryId);
-        snapshot.actionEffect = actionEffect; snapshot.actionCancelled = actionCancelled;
-        if (action.type === 'commit') snapshot.commitCompleted = commitCompleted;
-        this.actionTraceHandler?.({ phase: 'complete', repositoryId, action: action.type });
-        return snapshot;
-      } catch (error) {
-        this.actionTraceHandler?.({ phase: 'error', repositoryId, action: action.type, error: readableGitError(error) });
-        if (actionEffect === 'applied') throw Object.assign(new Error(readableGitError(error), { cause: error }), {
-          effect: 'applied' as const, refreshError: readableGitError(error), commitCompleted
-        });
-        if (actionCancelled) throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true, commitCompleted });
-        if (error && typeof error === 'object' && 'effect' in error && error.effect === 'none') throw error;
-        if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') {
-          throw Object.assign(new Error('Git 操作逾時，結果未能確認；請先檢查 Repo 狀態再決定是否重試。', { cause: error }), { effect: 'unknown' as const });
+        if (this.activeOperations.has(repositoryId)) throw new Error('此 Repo 正在執行版控操作，請稍後再試。');
+        const ongoing = await this.operationFor(repository);
+        if (ongoing && !['stageFile', 'stagePatch', 'abort', 'continue', 'skip'].includes(action.type)) {
+          throw new Error('此 Repo 有尚未完成的 ' + ongoing + ' 操作。請先解決衝突，再繼續、中止或略過。');
         }
-        throw error;
-      } finally {
-        this.activeOperations.delete(repositoryId);
+        if (ongoing === 'stash-conflict' && ['abort', 'continue', 'skip'].includes(action.type)) {
+          throw new Error('Stash 套用衝突已保留原 Stash；請解決檔案後標記為已暫存。');
+        }
+        if (this.needsSavedEditorCheck(action) && !await this.confirmSavedEditors(repository, affectedPaths)) {
+          try {
+            return { ...await this.readSnapshot(repository, repositoryId), actionEffect: 'none', actionCancelled: true,
+              ...(action.type === 'commit' ? { commitCompleted: false } : {}) };
+          } catch (error) {
+            throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true,
+              ...(action.type === 'commit' ? { commitCompleted: false } : {}) });
+          }
+        }
+        this.activeOperations.add(repositoryId);
         this.bump(repositoryId);
         this.publishRepositoryState(repositoryId);
-      }
+        let actionEffect: 'none' | 'applied' = 'none';
+        let actionCancelled = false;
+        let commitCompleted: boolean | undefined;
+        try {
+          const completed = await this.performAction(repository, repositoryId, action);
+          actionCancelled = completed === false;
+          actionEffect = actionCancelled ? 'none' : 'applied';
+          if (action.type === 'commit') commitCompleted = completed === true;
+          await repository.status();
+          this.invalidateRepository(repositoryId, worktreeOnly && this.worktreeMutations.get(repositoryId) === this.referenceIdentity(repository) ? 'worktree' : 'all');
+          const snapshot = await this.readSnapshot(repository, repositoryId);
+          snapshot.actionEffect = actionEffect; snapshot.actionCancelled = actionCancelled;
+          if (action.type === 'commit') snapshot.commitCompleted = commitCompleted;
+          this.actionTraceHandler?.({ phase: 'complete', repositoryId, action: action.type });
+          return snapshot;
+        } catch (error) {
+          this.actionTraceHandler?.({ phase: 'error', repositoryId, action: action.type, error: readableGitError(error) });
+          if (actionEffect === 'applied') throw Object.assign(new Error(readableGitError(error), { cause: error }), {
+            effect: 'applied' as const, refreshError: readableGitError(error), commitCompleted
+          });
+          if (actionCancelled) throw Object.assign(new Error(readableGitError(error), { cause: error }), { effect: 'none' as const, actionCancelled: true, commitCompleted });
+          if (error && typeof error === 'object' && 'effect' in error && error.effect === 'none') throw error;
+          if (error && typeof error === 'object' && 'name' in error && error.name === 'TimeoutError') {
+            throw Object.assign(new Error('Git 操作逾時，結果未能確認；請先檢查 Repo 狀態再決定是否重試。', { cause: error }), { effect: 'unknown' as const });
+          }
+          throw error;
+        } finally {
+          this.activeOperations.delete(repositoryId);
+          this.bump(repositoryId);
+          this.publishRepositoryState(repositoryId);
+        }
+      } finally { if (worktreeOnly) this.worktreeMutations.delete(repositoryId); }
     });
   }
 
@@ -684,6 +695,7 @@ export class GitRepositoryService implements vscode.Disposable {
     this.detailsTasks.clear();
     this.canonicalPaths.clear();
     this.repositoryLifetimes.clear();
+    this.referenceEpochs.clear(); this.worktreeMutations.clear(); this.successfulFetches.clear();
     for (const subscription of this.subscriptions.splice(0)) subscription.dispose();
     for (const subscription of this.repositorySubscriptions.values()) subscription.dispose();
     this.repositorySubscriptions.clear();
@@ -756,6 +768,7 @@ export class GitRepositoryService implements vscode.Disposable {
         this.bump(id);
         this.repositorySubscriptions.get(id)?.dispose();
         this.repositorySubscriptions.delete(id);
+        this.successfulFetches.delete(id);
         this.invalidateRepository(id);
         this.publishRepositories();
       }),
@@ -793,7 +806,8 @@ export class GitRepositoryService implements vscode.Disposable {
     this.repositorySubscriptions.set(id, repository.state.onDidChange(() => {
       if (this.disposed) return;
       this.nativeStatusEvents++;
-      this.invalidateRepository(id);
+      const knownIndexMutation = this.worktreeMutations.get(id);
+      this.invalidateRepository(id, knownIndexMutation !== undefined && knownIndexMutation === this.referenceIdentity(repository) ? 'worktree' : 'all');
       this.bump(id);
     }));
   }
@@ -846,12 +860,20 @@ export class GitRepositoryService implements vscode.Disposable {
     this.revisionByRepository.set(repositoryId, (this.revisionByRepository.get(repositoryId) ?? 0) + 1);
   }
 
-  private invalidateRepository(id: string): void {
+  private referenceIdentity(repository: GitRepository): string {
+    const state = repository.state;
+    return JSON.stringify([state.HEAD, state.refs, state.remotes, state.rebaseCommit]);
+  }
+
+  private invalidateRepository(id: string, scope: 'worktree' | 'all' = 'all'): void {
     this.dataEpochs.set(id, (this.dataEpochs.get(id) ?? 0) + 1);
     this.summaryCache.delete(id);
-    this.detailsCache.delete(id);
-    this.historyCache.delete(id);
-    this.pullStrategyCache.delete(id);
+    if (scope === 'all') {
+      this.referenceEpochs.set(id, (this.referenceEpochs.get(id) ?? 0) + 1);
+      this.detailsCache.delete(id);
+      this.historyCache.delete(id);
+      this.pullStrategyCache.delete(id);
+    }
     this.dirtySummaryIds.add(id);
   }
 
@@ -864,7 +886,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async historyPage(repository: GitRepository, id: string, ref?: string, skip = 0): Promise<{ history: GitCommitSummary[]; hasMore: boolean }> {
-    const epoch = this.dataEpochs.get(id) ?? 0;
+    const epoch = this.referenceEpochs.get(id) ?? 0;
     let cache = this.historyCache.get(id);
     if (!cache || cache.epoch !== epoch) { cache = { epoch, pages: new Map() }; this.historyCache.set(id, cache); }
     const key = (ref ?? '--all') + ':' + skip;
@@ -946,6 +968,7 @@ export class GitRepositoryService implements vscode.Disposable {
       path: repository.rootUri.fsPath, branch: currentName, headCommit: head?.commit,
       tracking: tracked ? tracked.remote + '/' + tracked.name : undefined,
       ahead: head?.ahead, behind: head?.behind,
+      lastSuccessfulFetchAt: this.successfulFetches.get(id),
       stagedCount: status.indexChanges.length, unstagedCount: status.workingTreeChanges.length,
       conflictCount: status.mergeChanges.length, busy: this.activeOperations.has(id),
       revision: this.revisionByRepository.get(id) ?? 0
@@ -953,7 +976,7 @@ export class GitRepositoryService implements vscode.Disposable {
   }
 
   private async buildDetails(repository: GitRepository, id: string): Promise<GitRepositoryDetails> {
-    const epoch = this.dataEpochs.get(id) ?? 0;
+    const epoch = this.referenceEpochs.get(id) ?? 0;
     const revision = this.revisionByRepository.get(id) ?? 0;
     const cached = this.detailsCache.get(id);
     if (cached?.epoch === epoch) return { ...cached.value, revision };
@@ -981,7 +1004,7 @@ export class GitRepositoryService implements vscode.Disposable {
     const stashes = parseStashes((await this.runGit(repository, ['stash', 'list', '--format=%H%x00%gd%x00%s'])).stdout).slice(0, 100);
     const recoveryRefs = parseRecoveryRefs((await this.runGit(repository, ['for-each-ref', '--format=%(refname:short)%00%(objectname)%00%(committerdate:iso-strict)%00%(subject)', 'refs/gitlab-workspace/backups'])).stdout).slice(0, 100);
     const value = { id, revision, branches, stashes, recoveryRefs };
-    if (!this.disposed && lifetime === this.repositoryLifetime(repository) && this.findRepository(id) && (this.dataEpochs.get(id) ?? 0) === epoch) {
+    if (!this.disposed && lifetime === this.repositoryLifetime(repository) && this.findRepository(id) && (this.referenceEpochs.get(id) ?? 0) === epoch) {
       this.detailsCache.set(id, { epoch, value });
     }
     return value;
@@ -1568,6 +1591,9 @@ export class GitRepositoryService implements vscode.Disposable {
     // configured prune/submodule behavior. Do not expand it to `--tags`.
     const prune = branch === undefined && vscode.workspace.getConfiguration('git', repository.rootUri).get<boolean>('pruneOnFetch', false);
     await this.runGit(repository, gitFetchArguments(remote, branch, prune));
+    const id = this.repositoryId(repository.rootUri.fsPath);
+    this.successfulFetches.set(id, Date.now());
+    this.summaryCache.delete(id);
   }
 
   private async runGit(
@@ -1716,7 +1742,7 @@ export class GitRepositoryService implements vscode.Disposable {
     if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(reference)) return;
     const id = this.repositoryId(repository.rootUri.fsPath);
     const cached = this.detailsCache.get(id);
-    const listedBranch = cached?.epoch === (this.dataEpochs.get(id) ?? 0)
+    const listedBranch = cached?.epoch === (this.referenceEpochs.get(id) ?? 0)
       ? cached.value.branches.some((ref) => ref.name === reference)
       : (await repository.getBranches({ remote: true, count: 1200 })).some((ref) => gitRefName(ref) === reference);
     const listedTag = !listedBranch && await this.runGit(repository, ['show-ref', '--verify', '--quiet', 'refs/tags/' + reference])

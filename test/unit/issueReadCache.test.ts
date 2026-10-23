@@ -5,7 +5,7 @@ import { GitLabClient, type FetchLike, type GitLabWriteScope } from '../../src/a
 import { groupProjectsPageReadKey } from '../../src/api/gitLabReadKeys';
 import type { GitLabProject } from '../../src/api/types';
 import { GitLabSession } from '../../src/connection/session';
-import type { IssuePanelRequest, IssuePanelResponse } from '../../src/issues/protocol';
+import type { IssuePageResult, IssuePanelRequest, IssuePanelResponse } from '../../src/issues/protocol';
 import { OperationTracker } from '../../src/workspace/operations';
 
 const json = (value: unknown, headers?: HeadersInit) => new Response(JSON.stringify(value), { headers });
@@ -42,6 +42,7 @@ async function fixture(trackOperations = false) {
   const requests: string[] = [], messages: IssuePanelResponse[] = [];
   const hooks = {
     inventory: [project(1), project(2)],
+    projectPath: undefined as string | undefined,
     pause: undefined as undefined | ((path: string) => Promise<void>)
   };
   const fetcher: FetchLike = async input => {
@@ -52,7 +53,7 @@ async function fixture(trackOperations = false) {
       return url.searchParams.get('page') === '2' ? json(hooks.inventory.slice(1))
         : json(hooks.inventory.slice(0, 1), hooks.inventory.length > 1 ? { 'x-next-page': '2' } : {});
     }
-    if (path === '/api/v4/projects/1') return json(project(1));
+    if (path === '/api/v4/projects/1') return json({ ...project(1), ...(hooks.projectPath ? { path_with_namespace: hooks.projectPath } : {}) });
     if (path === '/api/v4/projects/1/issues') return json([{ id: 100, iid: 1, project_id: 1, title: url.searchParams.get('search') }]);
     if (path === '/api/v4/markdown') return json({ html: '<p>Preview</p>' });
     throw new Error(`Unexpected test request: ${path}`);
@@ -76,12 +77,12 @@ test('create preview/search reuse real Session inventory pages and project detai
     await f.session.cachedRead(groupProjectsPageReadKey(42), client => client.listGroupProjectsPage(42));
     await f.session.cachedRead('project/1/details', client => client.getProject(1));
     await f.panels.showCreate();
-    assert.equal(f.count('groups/42/projects'), 2, 'creation shares the dashboard first page and completes its inventory');
+    assert.equal(f.count('groups/42/projects'), 1, 'creation reuses the dashboard first page without downloading unused continuations');
     for (const suffix of ['one', 'two']) {
       await f.panels.handle({ type: 'preview', requestId: `preview-${suffix}`, projectId: 1, markdown: suffix });
       await f.panels.handle({ type: 'search', requestId: `search-${suffix}`, projectId: 1, query: `  ${suffix}  ` });
     }
-    assert.equal(f.count('groups/42/projects'), 2, 'repeated reads issue no additional inventory pages');
+    assert.equal(f.count('groups/42/projects'), 1, 'preview and search use the Host-owned picker scope without inventory enumeration');
     assert.equal(f.count('projects/1'), 1, 'previews share the project details cache');
     assert.equal(f.count('markdown'), 2);
     assert.equal(f.count('projects/1/issues'), 2, 'new queries still reach GitLab');
@@ -98,11 +99,12 @@ test('empty Issue searches return before acquiring a client or checking Group in
     await f.panels.handle({ type: 'search', requestId: 'empty', projectId: 1, query: ' \n\t ' });
     assert.deepEqual(f.requests, []); assert.equal(f.clientReads(), before);
     const reply = f.messages.find(message => message.type === 'reply' && message.requestId === 'empty');
-    assert.deepEqual(reply?.type === 'reply' ? reply.result : undefined, []);
+    const page = reply?.type === 'reply' ? reply.result as IssuePageResult<unknown> : undefined;
+    assert.deepEqual(page?.items, []); assert.equal(page?.complete, true); assert.equal(page?.query, '');
   } finally { f.panels.dispose(); }
 });
 
-test('concurrent preview/search join inventory refresh and creation/upload still check fresh membership', async () => {
+test('concurrent preview/search skip inventory refresh and creation/upload verify fresh scoped Project details', async () => {
   const f = await fixture();
   try {
     await f.panels.showCreate(); f.session.invalidateReadCache(); f.requests.length = 0;
@@ -110,11 +112,13 @@ test('concurrent preview/search join inventory refresh and creation/upload still
       f.panels.handle({ type: 'preview', requestId: 'preview', projectId: 1, markdown: 'Hello' }),
       f.panels.handle({ type: 'search', requestId: 'search', projectId: 1, query: 'Hello' })
     ]);
-    assert.equal(f.count('groups/42/projects'), 2, 'concurrent readers join both inventory pages');
-    f.hooks.inventory = [];
+    assert.equal(f.count('groups/42/projects'), 0, 'the Host picker already proves the selected Project belongs to this Group');
+    const before = f.count('projects/1');
+    f.hooks.projectPath = 'team2/project-1';
     await assert.rejects(f.panels.handle({ type: 'create', projectId: 1, input: { title: 'New issue' } }), /outside the selected group/i);
     await assert.rejects(f.panels.handle({ type: 'upload', requestId: 'upload', projectId: 1 }), /outside the selected group/i);
-    assert.equal(f.count('groups/42/projects'), 4, 'writes independently recheck membership despite the valid read cache');
+    assert.equal(f.count('groups/42/projects'), 0, 'explicit writes validate one fresh Project instead of downloading the Group inventory');
+    assert.equal(f.count('projects/1'), before + 2, 'creation and upload independently validate live namespace membership');
     assert.equal(f.count('projects/1/issues'), 1, 'membership failure prevents Issue creation');
   } finally { f.panels.dispose(); }
 });
@@ -148,26 +152,26 @@ for (const type of ['preview', 'search'] as const) for (const change of ['naviga
   });
 }
 
-test('cancelled inventory validation cannot start preview or search requests', async () => {
+test('cancelled Project validation cannot start preview while a completed independent search remains observable', async () => {
   const f = await fixture(); let release!: () => void;
   const delay = new Promise<void>(resolve => { release = resolve; });
   try {
     await f.panels.showCreate(); f.session.invalidateReadCache(); f.requests.length = 0;
     const started = deferred();
-    f.hooks.pause = async path => { if (path === '/api/v4/groups/42/projects') { started.resolve(); await delay; } };
+    f.hooks.pause = async path => { if (path === '/api/v4/projects/1') { started.resolve(); await delay; } };
     const pending = Promise.all([
       f.panels.handle({ type: 'preview', requestId: 'cancel-preview', projectId: 1, markdown: 'Hello' }),
       f.panels.handle({ type: 'search', requestId: 'cancel-search', projectId: 1, query: 'Hello' })
     ]);
     await waitForRead(started.promise, pending);
     f.panels.close(); release(); await pending;
-    assert.equal(f.count('groups/42/projects'), 1);
-    assert.equal(f.count('markdown'), 0); assert.equal(f.count('projects/1/issues'), 0);
-    assert.equal(f.messages.some(message => message.type === 'reply' && message.requestId.startsWith('cancel-')), false);
-    for (const requestId of ['cancel-preview', 'cancel-search']) {
-      const result = f.messages.find(message => message.type === 'actionResult' && message.requestId === requestId);
-      assert.equal(result?.type === 'actionResult' ? result.status : undefined, 'cancelled');
-    }
+    assert.equal(f.count('groups/42/projects'), 0);
+    assert.equal(f.count('markdown'), 0, 'an abandoned Project details read cannot initiate Markdown rendering');
+    assert.equal(f.messages.some(message => message.type === 'reply' && message.requestId === 'cancel-preview'), false);
+    const preview = f.messages.find(message => message.type === 'actionResult' && message.requestId === 'cancel-preview');
+    assert.equal(preview?.type === 'actionResult' ? preview.status : undefined, 'cancelled');
+    const search = f.messages.find(message => message.type === 'actionResult' && message.requestId === 'cancel-search');
+    assert.ok(search?.type === 'actionResult' && ['succeeded', 'cancelled'].includes(search.status), 'search has its own receipt independent of optional preview validation');
   } finally { release(); f.panels.dispose(); }
 });
 

@@ -2,6 +2,7 @@
   "activationEvents": [
     "onCommand:gitlabWorkspace.openWorkspace",
     "onCommand:gitlabWorkspace.openNotifications",
+    "onCommand:gitlabWorkspace.openSettings",
     "onCommand:gitlabWorkspace.openCloneMode",
     "onCommand:gitlabWorkspace.openSaMode",
     "onCommand:gitlabWorkspace.openBmadMode",
@@ -29,6 +30,10 @@
       {
         "command": "gitlabWorkspace.openNotifications",
         "title": "GitLab Workspace: 訊息中心"
+      },
+      {
+        "command": "gitlabWorkspace.openSettings",
+        "title": "GitLab Workspace: 設定"
       },
       {
         "command": "gitlabWorkspace.openWorkspace",
@@ -146,7 +151,7 @@
       "properties": {
         "gitlabWorkspace.projectRoot": {
           "default": "",
-          "description": "專案下載、Skills 安裝與執行、Codex 共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。",
+          "description": "專案下載、Skills 安裝與執行共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。",
           "scope": "resource",
           "type": "string"
         },
@@ -279,5 +284,5 @@
     "vscode:prepublish": "node scripts/run-validation.mjs prepublish",
     "watch": "tsc -watch -p ."
   },
-  "version": "0.33.0"
+  "version": "0.34.0"
 }

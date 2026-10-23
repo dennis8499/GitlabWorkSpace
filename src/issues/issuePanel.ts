@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
-import type { GitLabIssue, GitLabLabel, GitLabMember, GitLabMilestone } from '../api/types';
+import type { GitLabIssue, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
+import { groupProjectsPageReadKey } from '../api/gitLabReadKeys';
+import { IssuePageStore, issueQueryDigest } from './issuePageStore';
 import type { GitLabSession } from '../connection/session';
 import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssueTask, IssueTimelog } from './protocol';
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
@@ -45,7 +47,7 @@ function optionalString(value: unknown): string | undefined {
 }
 
 function emptyFormOptions(): IssueFormOptions {
-  return { members: [], labels: [], milestones: [], templates: [], states: { fields: { status: 'idle' }, templates: { status: 'idle' } } };
+  return { members: [], labels: [], milestones: [], templates: [], states: { fields: { status: 'idle' }, members: { status: 'idle' }, labels: { status: 'idle' }, milestones: { status: 'idle' }, templates: { status: 'idle' } } };
 }
 
 function optionalId(value: unknown): number | undefined {
@@ -135,6 +137,9 @@ export class IssuePanels implements vscode.Disposable {
   private templateAbort?: AbortController;
   private createOptionsAbort?: AbortController;
   private readonly formOptionsReads = new Map<string, Promise<void>>();
+  private readonly pageStore: IssuePageStore;
+  private readonly creationProjects = new Map<number, GitLabProject>();
+  private creationProjectScope?: string;
   private operationSnapshotAbort?: AbortController;
   private readonly uploads = new Map<string, AbortController>();
   private detailSectionLoader?: (sections: IssueDetailSection[], forceNetwork?: boolean) => Promise<void>;
@@ -154,7 +159,7 @@ export class IssuePanels implements vscode.Disposable {
     private readonly session: GitLabSession,
     private readonly refreshIssues: () => void,
     private readonly operations?: OperationTracker
-  ) {}
+  ) { this.pageStore = new IssuePageStore(session); }
 
   setWorkspace(workspace: {
     post: (message: WorkspaceResponse) => void;
@@ -296,6 +301,7 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private cancelNavigationReads(): void {
+    this.pageStore.cancel();
     this.operationSnapshotAbort?.abort(); this.operationSnapshotAbort = undefined;
     this.templateAbort?.abort(); this.templateAbort = undefined;
     this.createOptionsAbort?.abort(); this.createOptionsAbort = undefined; this.formOptionsReads.clear();
@@ -307,6 +313,7 @@ export class IssuePanels implements vscode.Disposable {
 
   close(): void {
     this.cancelNavigationReads();
+    this.pageStore.cancel(true); this.creationProjects.clear(); this.creationProjectScope = undefined;
     this.navigationVersion++;
     this.revision++;
     this.hasNavigation = false;
@@ -370,6 +377,11 @@ export class IssuePanels implements vscode.Disposable {
         projectId: this.issue?.project_id, issueIid: this.issue?.iid, message: message.type === 'error' ? message.message : message.error });
     }
     if (message.type === 'createData' || message.type === 'detailData') this.lastSnapshot = message;
+    else if (message.type === 'createProjectsPage' && this.lastSnapshot?.type === 'createData') {
+      const selected = this.creationProjects.get(this.lastSnapshot.selectedProjectId ?? 0);
+      this.lastSnapshot = { ...this.lastSnapshot, projectsState: message.page,
+        projects: selected && !message.page.items.some(project => project.id === selected.id) ? [selected, ...message.page.items] : message.page.items };
+    }
     else if (message.type === 'projectData' && this.lastSnapshot?.type === 'createData') this.lastSnapshot = {
       ...this.lastSnapshot, selectedProjectId: message.projectId, options: message.options, optionsLoading: message.optionsLoading,
       canCreateIssue: message.canCreateIssue, canSetStartDate: message.canSetStartDate ?? this.lastSnapshot.canSetStartDate
@@ -570,11 +582,12 @@ export class IssuePanels implements vscode.Disposable {
     const client = (await this.session.getClient()).withReadSignal(signal);
     const capabilitiesTask = this.session.ensureInstanceChecked();
     void capabilitiesTask.catch(() => {});
-    const projects = await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id), { signal, force: forceNetwork });
+    const page = await this.readCreationProjects('', undefined, undefined, forceNetwork);
+    const projects = page.items;
     const first = projects[0];
     if (version !== this.navigationVersion || signal.aborted) return;
     this.createOptionsAbort = new AbortController();
-    this.post({ type: 'createData', projects, selectedProjectId: first?.id, options: emptyFormOptions(), optionsLoading: false,
+    this.post({ type: 'createData', projects, projectsState: page, selectedProjectId: first?.id, options: emptyFormOptions(), optionsLoading: false,
       metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue: false });
     if (!first) { await capabilitiesTask; return; }
     const optionsVersion = ++this.projectOptionsVersion;
@@ -584,6 +597,73 @@ export class IssuePanels implements vscode.Disposable {
     const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
     this.post({ type: 'projectData', projectId: first.id, options, optionsLoading: false, preserveDraft: true,
       canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
+  }
+
+  private async readCreationProjects(query: string, mode?: 'next', queryIdentity?: string, force = false) {
+    const group = this.session.selectedGroup;
+    if (!group || this.mode !== 'create') throw new IssueValidationError('Select a GitLab group first.');
+    query = query.trim();
+    if (query.length > 200) throw new IssueValidationError('搜尋內容不可超過 200 個字元。');
+    const scope = JSON.stringify([this.session.connectionEpoch, this.session.baseUrl, group.id]);
+    if (scope !== this.creationProjectScope) { this.creationProjects.clear(); this.creationProjectScope = scope; }
+    const page = await this.pageStore.load('create-projects', `group/${group.id}/project-search/${issueQueryDigest(query)}`, query,
+      (client, cursor) => query ? typeof client.searchGroupProjectsPage === 'function' ? client.searchGroupProjectsPage(group.id, query, cursor) : client.listGroupProjects(group.id)
+        : typeof client.listGroupProjectsPage === 'function' ? client.listGroupProjectsPage(group.id, cursor) : client.listGroupProjects(group.id),
+      { signal: this.navigationReadController?.signal, next: mode === 'next', queryIdentity, force,
+        ...(!query ? { firstKey: groupProjectsPageReadKey(group.id) } : {}) });
+    const selected = this.lastSnapshot?.type === 'createData' ? this.creationProjects.get(this.lastSnapshot.selectedProjectId ?? 0) : undefined;
+    this.creationProjects.clear();
+    if (selected) this.creationProjects.set(selected.id, selected);
+    for (const project of page.items) this.creationProjects.set(project.id, project);
+    return page;
+  }
+
+  /** Only a project returned by this Group's Host-owned picker can be selected. */
+  private async resolveCreationProject(projectId: number, signal?: AbortSignal, fresh = false): Promise<GitLabProject> {
+    const group = this.session.selectedGroup;
+    const scope = JSON.stringify([this.session.connectionEpoch, this.session.baseUrl, group?.id]);
+    const known = scope === this.creationProjectScope ? this.creationProjects.get(projectId) : undefined;
+    if (!group || !known) throw new IssueValidationError('Project is outside the selected group.');
+    if (!fresh) return known;
+    const client = (await this.session.getClient());
+    const project = await (signal ? client.withReadSignal(signal) : client).getProject(projectId);
+    if (signal?.aborted || scope !== JSON.stringify([this.session.connectionEpoch, this.session.baseUrl, this.session.selectedGroup?.id])) {
+      throw Object.assign(new Error('The creation project changed.'), { name: 'AbortError' });
+    }
+    if (project.id !== projectId || !group.full_path || !project.path_with_namespace.startsWith(group.full_path + '/')) {
+      throw new IssueValidationError('Project is outside the selected group.');
+    }
+    this.creationProjects.set(projectId, project);
+    return project;
+  }
+
+  private async searchPage(request: Extract<IssuePanelRequest, { type: 'search' | 'searchProjects' }>): Promise<void> {
+    const requestId = requiredString(request.requestId, 'Request ID');
+    const query = typeof request.query === 'string' ? request.query.trim() : '';
+    if (query.length > 200) throw new IssueValidationError('搜尋內容不可超過 200 個字元。');
+    const signal = this.navigationReadController?.signal;
+    const version = this.navigationVersion, epoch = this.session.connectionEpoch;
+    try {
+      if (request.type === 'searchProjects' && (this.mode !== 'detail' || !this.issue)) throw new IssueValidationError('Open an issue first.');
+      const projectId = request.type === 'search' ? requiredId(request.projectId, 'Project') : undefined;
+      const prefix = projectId !== undefined ? `project/${projectId}/issue-search/${issueQueryDigest(query)}` : `member-project-search/${issueQueryDigest(query)}`;
+      if (!query) {
+        this.post({ type: 'reply', requestId, result: { items: [], query, queryIdentity: issueQueryDigest(prefix), complete: true, updatedAt: new Date().toISOString() } });
+        return;
+      }
+      if (projectId !== undefined && this.issue?.project_id !== projectId) await this.resolveCreationProject(projectId, signal);
+      const page = await this.pageStore.load<GitLabIssue | GitLabProject>(request.type, prefix, query, (client, cursor) => projectId !== undefined
+        ? typeof client.searchProjectIssuesPage === 'function' ? client.searchProjectIssuesPage(projectId, query, cursor) : client.searchProjectIssues(projectId, query)
+        : typeof client.searchMemberProjectsPage === 'function' ? client.searchMemberProjectsPage(query, cursor) : client.searchMemberProjects(query),
+      { signal, next: request.mode === 'next', queryIdentity: request.queryIdentity });
+      if (signal?.aborted || version !== this.navigationVersion || epoch !== this.session.connectionEpoch || this.suspended) {
+        throw Object.assign(new Error('The Issue search is no longer visible.'), { name: 'AbortError' });
+      }
+      this.post({ type: 'reply', requestId, result: page });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw error;
+      if (!signal?.aborted && version === this.navigationVersion && epoch === this.session.connectionEpoch && !this.suspended) this.post({ type: 'reply', requestId, error: safeError(error) });
+    }
   }
 
   private async formOptions(projectId: number, signal?: AbortSignal, forceNetwork = false): Promise<IssueFormOptions> {
@@ -602,28 +682,46 @@ export class IssuePanels implements vscode.Disposable {
     };
   }
 
-  private async loadCreateFormOptions(projectId: number, section: IssueFormOptionSection): Promise<void> {
-    if (this.mode !== 'create' || this.lastSnapshot?.type !== 'createData' || this.lastSnapshot.selectedProjectId !== projectId) {
+  private async loadCreateFormOptions(projectId: number, section: IssueFormOptionSection, mode?: 'next'): Promise<void> {
+    const creation = this.mode === 'create' && this.lastSnapshot?.type === 'createData' && this.lastSnapshot.selectedProjectId === projectId;
+    const detail = this.mode === 'detail' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.project_id === projectId;
+    if (!creation && !detail) {
       throw new IssueValidationError('The selected creation project changed.');
     }
-    if (section !== 'fields' && section !== 'templates') throw new IssueValidationError('Invalid form options section.');
+    if (!['fields', 'members', 'labels', 'milestones', 'templates'].includes(section) || detail && section === 'templates') throw new IssueValidationError('Invalid form options section.');
     const version = this.navigationVersion, optionsVersion = this.projectOptionsVersion;
-    const signal = this.createOptionsAbort?.signal;
-    const key = `${version}:${optionsVersion}:${projectId}:${section}`;
+    const signal = creation ? this.createOptionsAbort?.signal : this.navigationReadController?.signal;
+    const key = `${version}:${optionsVersion}:${projectId}:${section}:${mode ?? 'first'}`;
     const pending = this.formOptionsReads.get(key);
     if (pending) return pending;
-    const force = this.lastSnapshot.options?.states?.[section]?.status === 'error';
+    const getOptions = (): IssueFormOptions => this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions()
+      : this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data.options : emptyFormOptions();
+    const force = getOptions().states?.[section]?.status === 'error';
     const current = () => !signal?.aborted && version === this.navigationVersion && optionsVersion === this.projectOptionsVersion &&
-      this.mode === 'create' && this.lastSnapshot?.type === 'createData' && this.lastSnapshot.selectedProjectId === projectId;
+      (creation ? this.mode === 'create' && this.lastSnapshot?.type === 'createData' && this.lastSnapshot.selectedProjectId === projectId
+        : this.mode === 'detail' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.project_id === projectId);
     const publish = (state: IssueReadState, value?: Partial<IssueFormOptions>): void => {
-      if (!current() || this.lastSnapshot?.type !== 'createData') return;
-      const previous = this.lastSnapshot.options ?? emptyFormOptions();
-      this.post({ type: 'projectData', projectId, preserveDraft: true, canCreateIssue: this.lastSnapshot.canCreateIssue,
-        options: { ...previous, ...value, states: { ...previous.states, [section]: state } }, optionsLoading: false });
+      if (!current()) return;
+      const previous = getOptions();
+      const options = { ...previous, ...value, states: { ...previous.states, [section]: state } };
+      if (this.lastSnapshot?.type === 'createData') this.post({ type: 'projectData', projectId, preserveDraft: true,
+        canCreateIssue: this.lastSnapshot.canCreateIssue, options, optionsLoading: false });
+      else if (this.lastSnapshot?.type === 'detailData') this.post({ type: 'detailPatch', issueId: this.lastSnapshot.data.issue.id, patch: { options } });
     };
-    publish({ status: 'loading' });
+    publish({ ...getOptions().states?.[section], status: 'loading', error: undefined });
     const task = (async () => {
       try {
+        if (section === 'members' || section === 'labels' || section === 'milestones') {
+          const page = await this.pageStore.load<GitLabMember | GitLabLabel | GitLabMilestone>(`options:${projectId}:${section}`, `project/${projectId}/${section}`, '',
+            (client, cursor) => section === 'members'
+              ? typeof client.listProjectMembersPage === 'function' ? client.listProjectMembersPage(projectId, cursor) : client.listProjectMembers(projectId)
+              : section === 'labels'
+                ? typeof client.listProjectLabelsPage === 'function' ? client.listProjectLabelsPage(projectId, cursor) : client.listProjectLabels(projectId)
+                : typeof client.listProjectMilestonesPage === 'function' ? client.listProjectMilestonesPage(projectId, cursor) : client.listProjectMilestones(projectId),
+            { signal, force, next: mode === 'next' });
+          publish({ status: 'ready', complete: page.complete, loadedCount: page.items.length, updatedAt: page.updatedAt }, { [section]: page.items });
+          return;
+        }
         const options = section === 'fields' ? await this.formOptions(projectId, signal, force) : {
           templates: await this.session.cachedRead(`project/${projectId}/template-names`, async client => typeof client.listProjectIssueTemplateNames === 'function'
             ? (await client.listProjectIssueTemplateNames(projectId)).map(template => ({ ...template, content: '', loaded: false }))
@@ -905,8 +1003,8 @@ export class IssuePanels implements vscode.Disposable {
       this.templateAbort?.abort(); const controller = new AbortController(); this.templateAbort = controller;
       try {
         const group = this.session.selectedGroup;
-        const projects = group ? await this.session.cachedRead(`group/${group.id}/projects`, client => client.listGroupProjects(group.id), { signal: controller.signal }) : [];
-        if (!projects.some(project => project.id === projectId)) throw new IssueValidationError('Project is outside the selected group.');
+        if (!group) throw new IssueValidationError('Select a GitLab group first.');
+        await this.resolveCreationProject(projectId, controller.signal);
         const result = await this.session.cachedRead(`project/${projectId}/template/${encodeURIComponent(key)}`,
           client => client.getProjectIssueTemplate(projectId, key), { signal: controller.signal });
         if (version === this.navigationVersion && !controller.signal.aborted) this.post({ type: 'reply', requestId, result });
@@ -923,7 +1021,12 @@ export class IssuePanels implements vscode.Disposable {
       await this.detailSectionLoader?.([...new Set(valid)]);
       return;
     }
-    if (request.type === 'loadFormOptions') return this.loadCreateFormOptions(requiredId(request.projectId, 'Project'), request.section);
+    if (request.type === 'loadFormOptions') return this.loadCreateFormOptions(requiredId(request.projectId, 'Project'), request.section, request.mode);
+    if (request.type === 'loadCreateProjects') {
+      const page = await this.readCreationProjects(request.query ?? '', request.mode, request.queryIdentity);
+      this.post({ type: 'createProjectsPage', page });
+      return;
+    }
     if (request.type === 'loadNoteReactions') {
       if (!this.noteReactionLoader || this.mode !== 'detail') throw new IssueValidationError('Open an issue first.');
       return this.noteReactionLoader(requiredId(request.noteId, 'Comment'));
@@ -958,15 +1061,11 @@ export class IssuePanels implements vscode.Disposable {
       if (!opened) throw new Error('Could not open the GitLab issue in your browser.');
       return;
     }
-    if (request.type === 'search' && typeof request.query === 'string' && !request.query.trim()) {
-      requiredId(request.projectId, 'Project');
-      this.post({ type: 'reply', requestId: requiredString(request.requestId, 'Request ID'), result: [] });
-      return;
-    }
+    if (request.type === 'search' || request.type === 'searchProjects') return this.searchPage(request);
     const readVersion = this.navigationVersion, readEpoch = this.session.connectionEpoch;
     const readGroup = this.session.selectedGroup;
     const readSignal = this.navigationReadController?.signal;
-    const cachedPreviewRead = request.type === 'preview' || request.type === 'search';
+    const cachedPreviewRead = request.type === 'preview';
     const currentRead = () => {
       const current = readVersion === this.navigationVersion && readEpoch === this.session.connectionEpoch &&
         readGroup?.id === this.session.selectedGroup?.id && !readSignal?.aborted && !this.suspended;
@@ -978,17 +1077,19 @@ export class IssuePanels implements vscode.Disposable {
     let client = ['selectProject', 'searchProjects', 'preview', 'search', 'image'].includes(request.type) && readSignal
       ? baseClient.withReadSignal(readSignal) : baseClient;
     if (request.type === 'selectProject') {
+      this.pageStore.cancel();
       this.templateAbort?.abort();
       this.createOptionsAbort?.abort(); this.createOptionsAbort = new AbortController(); this.formOptionsReads.clear();
       const version = this.navigationVersion;
       const optionsVersion = ++this.projectOptionsVersion;
       const projectId = requiredId(request.projectId, 'Project');
       const group = this.session.selectedGroup;
-      const project = group ? (await this.session.cachedRead(`group/${group.id}/projects`, (readClient) => readClient.listGroupProjects(group.id))).find((item) => item.id === projectId) : undefined;
+      const project = group ? await this.resolveCreationProject(projectId, readSignal) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
       if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
       this.post({ type: 'projectData', projectId, options: emptyFormOptions(), optionsLoading: false, canCreateIssue: false });
-      const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
+      const permissionClient = this.createOptionsAbort ? client.withReadSignal(this.createOptionsAbort.signal) : client;
+      const canCreateIssue = this.session.issueCapabilities?.createPermission ? await permissionClient.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
       if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
       const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
       this.post({ type: 'projectData', projectId, options, preserveDraft: true, canCreateIssue });
@@ -997,7 +1098,7 @@ export class IssuePanels implements vscode.Disposable {
     if (request.type === 'create') {
       const projectId = requiredId(request.projectId, 'Project');
       const group = this.session.selectedGroup;
-      const project = group ? (await client.listGroupProjects(group.id)).find((item) => item.id === projectId) : undefined;
+      const project = group ? await this.resolveCreationProject(projectId, undefined, true) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
       if (!this.session.issueCapabilities?.createPermission || !await client.canCreateIssue(project.path_with_namespace)) throw new Error('You cannot create issues in this project.');
       const created = await this.write(() => client.createIssue(projectId, createInput(request.input)));
@@ -1023,24 +1124,11 @@ export class IssuePanels implements vscode.Disposable {
       this.workspace?.navigate({ mode: 'detail', projectId: created.project_id, issueIid: created.iid, revision: ++this.revision });
       return this.load();
     }
-    if (request.type === 'searchProjects') {
-      const requestId = requiredString(request.requestId, 'Request ID');
-      if (this.mode !== 'detail' || !this.issue) throw new Error('Open an issue first.');
-      try {
-        const query = requiredString(request.query, 'Project search').trim();
-        this.post({ type: 'reply', requestId, result: await client.searchMemberProjects(query) });
-      } catch (error) {
-        this.post({ type: 'reply', requestId, error: safeError(error) });
-      }
-      return;
-    }
-    if (request.type === 'preview' || request.type === 'search' || request.type === 'upload') {
+    if (request.type === 'preview' || request.type === 'upload') {
       const projectId = requiredId(request.projectId, 'Project');
       const requestId = requiredString(request.requestId, 'Request ID');
       const group = cachedPreviewRead ? readGroup : this.session.selectedGroup;
-      const allowed = this.issue?.project_id === projectId || (group && (cachedPreviewRead
-        ? await this.session.cachedRead(`group/${group.id}/projects`, readClient => readClient.listGroupProjects(group.id), { signal: readSignal })
-        : await client.listGroupProjects(group.id)).some((project) => project.id === projectId));
+      const allowed = this.issue?.project_id === projectId || (group && this.mode === 'create' && !!await this.resolveCreationProject(projectId, readSignal, request.type === 'upload'));
       if (cachedPreviewRead && !currentRead()) return;
       if (!allowed) throw new Error('Project is outside the selected group.');
       try {
@@ -1049,8 +1137,6 @@ export class IssuePanels implements vscode.Disposable {
           const project = await this.session.cachedRead(`project/${projectId}/details`, readClient => readClient.getProject(projectId), { signal: readSignal });
           if (!currentRead()) return;
           result = await client.renderMarkdown(project.path_with_namespace, request.markdown);
-        } else if (request.type === 'search') {
-          result = await client.searchProjectIssues(projectId, request.query.trim());
         } else {
           const file = await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFolders: false, openLabel: 'Attach to GitLab Issue' });
           if (!file?.[0] || file[0].scheme !== 'file') { result = null; const context = this.actionContext.getStore(); if (context) context.status = 'cancelled'; }

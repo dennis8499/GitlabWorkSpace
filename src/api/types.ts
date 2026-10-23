@@ -277,8 +277,10 @@ export interface GitLabMergeRequestDiff {
 }
 
 export interface GitLabMergeRequestDiffResult {
+  versionId?: number;
+  diffRefs?: { base_sha: string; start_sha: string; head_sha: string };
   diffs: GitLabMergeRequestDiff[];
-  source: 'diffs' | 'changes';
+  source: 'diffs' | 'changes' | 'version';
   warnings: string[];
   truncated: boolean;
 }

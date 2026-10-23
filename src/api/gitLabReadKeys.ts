@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 
 /** Low-churn inventories/options outlive the dynamic Issue and MR state. */
 export function gitLabReadLifetimeMs(key: string): number {
+  if (/^group\/\d+\/(?:project-search|verified-mr-diff)(?:\/|$)/.test(key)) return 300_000;
   return /^group\/\d+\/(?:projects|milestones)(?:\/|$)/.test(key) ||
     /^project\/\d+\/(?:members|labels|milestones|templates|template-names)(?:\/|$)/.test(key) ? 300_000 : 60_000;
 }

@@ -42,6 +42,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-error span { flex: 1; white-space: pre-wrap; }
 .section-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 6px; margin: 4px 0; padding: 7px 10px; color: var(--muted); font-size: 11px; }
 .section-status.error { border-color: color-mix(in srgb, var(--danger), transparent 55%); color: var(--danger); }
+.data-freshness { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-inline-start: 6px; color: var(--muted); }
+.transport-status { display: inline-block; margin-inline-start: 6px; color: var(--vscode-editorWarning-foreground, #cca700); }
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+.filter-chip { display: inline-flex; align-items: center; max-width: 100%; border: 1px solid var(--border); border-radius: 14px; padding: 4px 9px; overflow-wrap: anywhere; font-size: 11px; }
+.detail-column:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .instance-capabilities { border: 1px solid var(--border); border-radius: 8px; padding: 13px; margin: 12px 0 18px; }
 .instance-capabilities h3 { margin: 0 0 9px; }
 .capability-list { display: grid; gap: 7px; padding: 0; list-style: none; }
@@ -430,7 +435,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .issue-workspace-layout .inline-form > * { min-width: 0; }
   .issue-workspace-layout .field input, .issue-workspace-layout .field select, .issue-workspace-layout .field textarea { max-width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 .page[data-mode="git"] { padding: 0; overflow: hidden; }
 .page[data-mode="git"] .workspace-tasks { min-height: 0; flex: 1 1 0; }

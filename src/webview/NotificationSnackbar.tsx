@@ -1,6 +1,7 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { NotificationSnapshot, WorkspaceNotification } from '../notifications/notificationProtocol';
+import { usePresence } from './motion';
 
 interface QueuedNotification { key: string; item: WorkspaceNotification; }
 const duration = 6000;
@@ -20,6 +21,11 @@ export function NotificationSnackbar({ snapshot, onView }: {
   const baseline = useRef<{ session?: string; seen: Map<string, string> }>({ seen: new Map() });
   const timing = useRef({ key: '', remaining: duration });
   const active = queue[0];
+  const retained = useRef<QueuedNotification>();
+  if (active) retained.current = active;
+  const presence = usePresence(!!active, { durationMs: 160, immediate: document.hidden, resetKey: snapshot?.sessionId,
+    onExited: () => { retained.current = undefined; } });
+  const shown = active ?? retained.current;
   const dismiss = () => setQueue(current => current.slice(1));
 
   useEffect(() => {
@@ -64,14 +70,14 @@ export function NotificationSnackbar({ snapshot, onView }: {
   // Queue replacements reuse the actions, so focus and hover still pause the next message.
   useEffect(() => { if (!active) { setHovered(false); setFocused(false); } }, [active?.key]);
 
-  if (!active) return null;
-  return <div class={`notification-snackbar ${active.item.level}`} role="region" aria-label="最新訊息"
+  if (!presence.present || !shown) return null;
+  return <div class={`notification-snackbar motion-snackbar ${shown.item.level}`} data-presence={presence.phase} onAnimationEnd={presence.onAnimationEnd} role="region" aria-label="最新訊息"
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusIn={() => setFocused(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
     <div class="notification-snackbar-content" role="status" aria-live="polite" aria-atomic="true">
-      <strong>{active.item.title}</strong><span>{active.item.messages.at(-1)}</span>
+      <strong>{shown.item.title}</strong><span>{shown.item.messages.at(-1)}</span>
     </div>
-    <div class="notification-snackbar-actions"><button type="button" onClick={() => { onView(active.item.id); dismiss(); }}>查看</button>
-      <button class="quiet" type="button" onClick={dismiss}>關閉</button></div>
+    <div class="notification-snackbar-actions"><button type="button" disabled={!active} onClick={() => { onView(shown.item.id); dismiss(); }}>查看</button>
+      <button class="quiet" type="button" disabled={!active} onClick={dismiss}>關閉</button></div>
   </div>;
 }

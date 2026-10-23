@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { observeRead } from './readObservation';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { GitLabReadGate } from './gitLabReadGate';
@@ -45,6 +46,7 @@ export class GitLabNetworkGate {
     let attempt = 0;
     for (;;) {
       let reservation: { directory: string; nonce: string };
+      observeRead({ transportStage: 'waiting' });
       try { reservation = await this.acquire(input.hostname, signal, deadline); }
       catch (error) {
         if (signal?.aborted) throw networkAbort();
@@ -55,10 +57,12 @@ export class GitLabNetworkGate {
       try {
         if (signal?.aborted) throw networkAbort();
         onStart?.();
+        observeRead({ transportStage: 'sending' });
         response = await fetcher(input, init);
         if (response.status === 429 || response.status === 503) {
           const retryAt = parseRetryAfter(response.headers.get('retry-after')) ?? Date.now() + (response.status === 429 ? 30_000 : Math.min(30_000, 1_000 * 2 ** attempt));
           await this.cooldown(reservation.directory, retryAt);
+          observeRead({ transportStage: 'cooldown', retryAt });
           if (safeRead && attempt < 2 && retryAt + 100 < deadline) {
             await response.body?.cancel().catch(() => undefined);
             attempt++;
@@ -116,6 +120,7 @@ export class GitLabNetworkGate {
   }
   private async acquireShared(directory: string, policy: ApiPolicy, signal: AbortSignal, deadline: number): Promise<{ directory: string; nonce: string }> {
     await secureRuntimeDirectory(directory);
+    let observedCooldown = 0;
     for (;;) {
       if (signal?.aborted) throw signal.reason ?? networkAbort();
       if (Date.now() >= deadline) throw new GitLabNetworkError('GitLab request budget expired before sending.');
@@ -129,6 +134,10 @@ export class GitLabNetworkGate {
           catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH'; }
         });
         const now = Date.now(), readyAt = Math.max(state.nextStartAt, state.cooldownUntil);
+        if (state.cooldownUntil > now && observedCooldown !== state.cooldownUntil) {
+          observedCooldown = state.cooldownUntil;
+          observeRead({ transportStage: 'cooldown', retryAt: state.cooldownUntil });
+        }
         if (readyAt >= deadline) throw new GitLabNetworkError('GitLab requested a pause. Resume after ' + new Date(readyAt).toISOString() + '.', readyAt);
         if (state.active.length < policy.concurrency && readyAt <= now) {
           const nonce = randomUUID();

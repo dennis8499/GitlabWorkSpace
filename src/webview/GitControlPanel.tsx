@@ -9,6 +9,8 @@ import { layoutGitGraph, type GitGraphRow } from '../git/gitGraphLayout';
 import { makeDiffLines, makeSelectedPatch, type GitDiffLine } from '../git/gitDiffSelection';
 import { EMPTY_GIT_UI, GIT_UI_STORAGE_KEY, LEGACY_GIT_UI_STORAGE_KEY, restoreGitUi, type RepoGitUi } from './gitUiState';
 import { VirtualRows } from './VirtualRows';
+import { usePresence, useVisualTransition } from './motion';
+import './motion.css';
 import './git-control-panel.css';
 
 export interface GitPanelUiState {
@@ -66,6 +68,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const [selectedDiffLines, setSelectedDiffLines] = useState<number[]>([]);
   const selectedDiffLineSet = useMemo(() => new Set(selectedDiffLines), [selectedDiffLines]);
   const [dialog, setDialog] = useState<DialogState>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogError, setDialogError] = useState('');
   const [pendingByRepo, setPendingByRepo] = useState<Record<string, string>>(() => Object.fromEntries(restoredWrites.map(write => [write.repoId, write.label])));
   const [readingByRepo, setReadingByRepo] = useState<Record<string, string>>({});
@@ -82,6 +85,19 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const [historyViewport, setHistoryViewport] = useState({ top: 0, height: 600 });
   const historyListRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLElement>(null);
+  const dialogTrigger = useRef<{ element: HTMLElement; repoId: string }>();
+  const restoringDialogFocus = useRef(false);
+  const dialogScopeMatches = dialogTrigger.current?.repoId === selectedId;
+  const dialogPresence = usePresence(dialogOpen && active && dialogScopeMatches, { immediate: !active || !dialogScopeMatches, resetKey: selectedId,
+    onExited: () => {
+      setDialog(undefined);
+      const trigger = dialogTrigger.current; dialogTrigger.current = undefined;
+      if (!active || trigger?.repoId !== selectedId) return;
+      restoringDialogFocus.current = true;
+      if (trigger.element.isConnected && !trigger.element.matches(':disabled')) trigger.element.focus();
+      else hostRef.current?.focus();
+      restoringDialogFocus.current = false;
+    } });
   const resizeCleanup = useRef<() => void>();
   const retrySender = useRef<GitRequestSender>();
   retrySender.current = send;
@@ -141,6 +157,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
     if (pendingIds.length) { actions.dispatch({ type: 'reconcileOperations', pendingIds }); persist(); }
   }, [actions]);
   const ui = uiByRepo[selectedId] ?? EMPTY_GIT_UI;
+  useVisualTransition(hostRef, selectedId + ':' + ui.view, active);
   const snapshot = snapshotByRepo[selectedId];
   const pending = pendingByRepo[selectedId] || (actions.getSnapshot().some(operation => operation.resourceKey === 'git:' + selectedId && operation.kind === 'write' &&
     (operation.status === 'queued' || operation.status === 'running' || operation.effect === 'unknown')) ? '正在處理 Repo…' : '');
@@ -311,10 +328,10 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   }, [active, ui.view, selectedId]);
 
   useEffect(() => {
-    if (!active) { openedRepository.current = ''; return; }
+    if (!active) { openedRepository.current = ''; setDialogOpen(false); return; }
     if (selectedId === openedRepository.current) return;
     openedRepository.current = selectedId;
-    setDialog(undefined); setLeftOpen(false); setRightOpen(false);
+    setDialogOpen(false); setLeftOpen(false); setRightOpen(false);
     if (!restoring.current) setHistoryFilter('');
     setHistoryViewport((current) => ({ ...current, top: 0 }));
     if (historyListRef.current) historyListRef.current.scrollTop = 0;
@@ -337,20 +354,23 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const parsedDiff = useRef<typeof diffIdentity>();
   useEffect(() => { if (!active || parsedDiff.current === diffIdentity) return; parsedDiff.current = diffIdentity; setDiffLines(oversizedDiff ? [] : makeDiffLines(diffText)); setSelectedDiffLines([]); }, [active, oversizedDiff, diffIdentity]);
   useEffect(() => {
-    if (!dialog) return;
+    if (!dialogPresence.present || !active) return;
     const form = hostRef.current?.querySelector<HTMLFormElement>('.git-dialog');
-    form?.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+    const focusFirst = () => (form?.querySelector<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)') ?? form)?.focus();
+    focusFirst();
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); setDialog(undefined); }
+      if (event.key === 'Escape') { event.preventDefault(); setDialogOpen(false); }
       if (event.key !== 'Tab' || !form) return;
       const elements = Array.from(form.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
       const first = elements[0], last = elements.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
+    const focusin = (event: FocusEvent) => { if (!restoringDialogFocus.current && form && !form.contains(event.target as Node)) focusFirst(); };
     window.addEventListener('keydown', keydown);
-    return () => window.removeEventListener('keydown', keydown);
-  }, [dialog?.kind]);
+    window.addEventListener('focusin', focusin);
+    return () => { window.removeEventListener('keydown', keydown); window.removeEventListener('focusin', focusin); };
+  }, [dialog?.kind, dialogPresence.present, active]);
 
   function send(action: GitAction, repoId = selectedId): DispatchResult {
     const showBlocked = (message: string) => setErrorsByRepo(current => ({ ...current, [repoId]: message }));
@@ -521,12 +541,19 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   const graphWidth = Math.max(48, graph.lanes * 18 + 20);
   function closeMenus(): void { hostRef.current?.querySelectorAll<HTMLDetailsElement>('.git-actions-menu, .git-ref-menu').forEach((menu) => { menu.open = false; }); }
   function startDialog(kind: DialogState['kind'], value?: string): void {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && !focused.closest('.git-dialog')) {
+      const menu = focused.closest<HTMLDetailsElement>('details');
+      dialogTrigger.current = { element: menu?.querySelector<HTMLElement>('summary') ?? focused, repoId: selectedId };
+    }
     closeMenus();
     setDialogError('');
     setDialog({ kind, value, operation: kind === 'pick' && value?.split('|')[1] === 'revert' ? 'revert' : kind === 'pick' ? 'cherryPick' : undefined });
+    setDialogOpen(true);
   }
   function confirmDialog(event: Event): void {
     event.preventDefault();
+    if (!dialogOpen || !active) return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const text = (name: string): string => String(data.get(name) ?? '').trim();
@@ -579,7 +606,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
           break;
         }
       }
-      if (!keepDialogOpen) setDialog(undefined);
+      if (!keepDialogOpen) setDialogOpen(false);
     } catch (caught) {
       reportLocalFeedback(notice => actions.dispatch(notice), caught instanceof Error ? caught.message : '請檢查 Git 操作欄位。',
         { title: '版控操作', onInline: setDialogError });
@@ -600,7 +627,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
   function openNativeConflict(path: string): void { post({ type: 'gitOpenMergeEditor', repositoryId: selectedId, path }); }
 
 
-  return <section class="git-workbench" ref={hostRef} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
+  return <section class="git-workbench" ref={hostRef} tabIndex={-1} aria-label="Git 版控工作台" data-theme={layout.theme} style={{ '--git-left-width': layout.left + 'px', '--git-right-width': layout.right + 'px' }}>
     <header class="git-toolbar">
       <div class="git-repo-picker"><GitIcon name="repo" /><label><span>REPOSITORY</span><select aria-label="版控 Repo" value={selectedId} onChange={(event) => setSelectedId(event.currentTarget.value)}><option value="">選擇 Repo</option>{visibleRepositories.map((repo) => <option key={repo.id} value={repo.id}>{repo.name} · {repo.path}</option>)}</select></label></div>
       <label class="git-branch-picker"><GitIcon name="branch" /><select aria-label="切換本機分支" disabled={!snapshot || !!pending} value={snapshot?.branch ?? ''} onChange={(event) => event.currentTarget.value && send({ type: 'checkout', name: event.currentTarget.value })}>{!snapshot?.branch && <option value="">Detached HEAD</option>}{snapshot?.branch && !localBranches.some((branch) => branch.name === snapshot.branch) && <option value={snapshot.branch}>{snapshot.branch}</option>}{localBranches.map((branch) => <option key={branch.name} value={branch.name}>{branch.name}</option>)}</select></label>
@@ -692,9 +719,9 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
           </> : <div class="git-empty-list">正在讀取提交內容…</div>}<button class="git-return-worktree" onClick={() => setUi({ selection: 'worktree', view: 'graph', selectedPath: undefined, selectedSection: undefined })}>← 返回工作中變更</button></div>}
         </aside>
       </div>
-      <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span>{snapshot.tracking && <span class="git-tracking" title={snapshot.tracking}>↗ {snapshot.tracking}</span>}<span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
+      <footer class="git-statusbar"><div class="git-repo-heading"><GitIcon name="repo" /><strong title={snapshot.path}>{snapshot.name}</strong><code title={snapshot.path}>{snapshot.path}</code></div><span class="git-status-branch"><GitIcon name="branch" />{snapshot.branch ?? 'Detached HEAD'}</span><span class="git-local-tracking" title="依本機遠端追蹤分支計算；外部 Git 工具的 Fetch 時間無法由工作台確認。">本機追蹤分支資訊 {snapshot.tracking ?? '未設定 upstream'} <span class="git-sync-counts">↑{snapshot.ahead ?? 0} ↓{snapshot.behind ?? 0}</span></span><span class="git-fetch-freshness">工作台最近成功 Fetch：{snapshot.lastSuccessfulFetchAt === undefined ? '尚未執行' : new Date(snapshot.lastSuccessfulFetchAt).toLocaleString()}</span><span class={'git-status-message ' + (pending ? 'git-progress' : '')} role="status">{(pending || reading) && <span class="spinner" />}{pending ? pending + '…' : reading ? reading + '…' : (snapshot.changes.length ? snapshot.changes.length + ' 個變更' : '工作目錄乾淨')}</span></footer>
     </> : <div class="git-empty-state"><GitIcon name="repo" /><h2>{available === false ? 'VS Code 內建 Git 尚未啟用' : repositories.length ? reading ? '正在開啟 Repo…' : error ? '無法開啟 Repo' : '尚未開啟 Repo' : available === undefined ? '正在尋找本機 Repo…' : '找不到本機 Git Repo'}</h2><p>{error || serviceMessage || (available === false ? '請啟用 VS Code 內建 Git，再重新整理。' : '開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。')}</p><button disabled={!!reading} onClick={() => selectedId ? send({ type: 'open', repoId: selectedId }) : post({ type: 'gitReady' })}>重新整理</button></div>}
-    {dialog && snapshot && <div class="git-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialog(undefined); }}><form class="git-dialog" role="dialog" aria-modal="true" onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialog(undefined)}>×</button></header><div class="git-dialog-body">
+    {dialogPresence.present && dialog && snapshot && <div class="git-dialog-backdrop motion-overlay motion-dialog" data-presence={dialogPresence.phase} onAnimationEnd={dialogPresence.onAnimationEnd} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDialogOpen(false); }}><form class="git-dialog motion-surface" role="dialog" aria-modal="true" tabIndex={-1} onSubmit={confirmDialog} aria-label="Git 操作"><header><h2>{dialogTitle(dialog)}</h2><button type="button" class="quiet" aria-label="關閉" onClick={() => setDialogOpen(false)}>×</button></header><div class="git-dialog-body">
       {dialog.kind === 'branch' && <Field name="name" label="新分支名稱" placeholder="feature/my-change" autoFocus />}
       {dialog.kind === 'fetch' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><p class="subtle">Fetch 只會更新遠端追蹤分支，不會改動目前工作目錄。</p></>}
       {dialog.kind === 'pull' && <><SelectField name="remote" label="遠端" values={remotes} defaultValue={snapshot.tracking?.split('/')[0] ?? remotes[0]} /><Field name="branch" label="分支" defaultValue={snapshot.tracking?.split('/').slice(1).join('/') ?? snapshot.branch ?? ''} /><SelectField name="strategy" label="整合方式" values={['configured', 'ff-only', 'merge', 'rebase', 'rebase-merges', 'interactive']} labels={['依 Repo Git 設定', '只接受快轉', 'Merge', 'Rebase', 'Rebase 並保留 Merge 結構', '互動式 Rebase']} defaultValue="configured" /><p class="subtle">目前 Repo 設定：{snapshot.configuredPullStrategy ?? 'Merge'}。會先顯示來源與策略確認畫面。</p></>}
@@ -715,7 +742,7 @@ export function GitControlPanel({ active = true, post, actions: sharedActions, i
       {dialog.kind === 'commit' && <><label class="git-field"><span>提交訊息</span><textarea name="message" rows={4} defaultValue={ui.draft} placeholder="描述這次變更…" autoFocus /></label><label class="git-checkbox"><input type="checkbox" name="amend" defaultChecked={dialog.value === 'amend'} />Amend 最近一次提交（改寫歷史，執行前會確認並建立復原點）</label><div class="git-staged-preview"><strong>將提交的暫存內容</strong>{snapshot.changes.filter((change) => change.section === 'staged').map((change) => <span>{change.kind}　{change.path}</span>)}{!snapshot.changes.some((change) => change.section === 'staged') && <span>目前沒有已暫存檔案。</span>}</div></>}
       {dialog.kind === 'pick' && <><label class="git-field"><span>操作</span><select name="operation" value={dialog.operation ?? 'cherryPick'} onChange={(event) => setDialog((current) => current?.kind === 'pick' ? { ...current, operation: event.currentTarget.value as 'cherryPick' | 'revert' } : current)}><option value="cherryPick">Cherry-pick</option><option value="revert">Revert</option></select></label><Field name="hash" label="提交 SHA" defaultValue={(dialog.value ?? snapshot.selectedCommit?.hash ?? '').split('|')[0]} /><label class="git-field"><span>Merge Commit mainline parent（一般提交留空）</span><select name="mainline"><option value="">一般提交</option><option value="1">Parent 1</option><option value="2">Parent 2</option><option value="3">Parent 3</option></select></label><p class="subtle">Merge Commit 請選擇要保留的 mainline parent。</p></>}
       {dialogError && <p class="warning" role="alert">{dialogError}</p>}
-    </div><footer><button type="button" class="quiet" onClick={() => setDialog(undefined)}>取消</button><button type="submit" class="primary">{dialog.kind === 'commit' ? dialog.value === 'amend' ? 'Amend' : '提交' : '檢視並執行'}</button></footer></form></div>}
+    </div><footer><button type="button" class="quiet" onClick={() => setDialogOpen(false)}>取消</button><button type="submit" class="primary" disabled={!dialogOpen}>{dialog.kind === 'commit' ? dialog.value === 'amend' ? 'Amend' : '提交' : '檢視並執行'}</button></footer></form></div>}
   </section>;
 }
 function StashRow({ stash, onAction }: { stash: GitStashSummary; onAction: (operation: string) => void }) {

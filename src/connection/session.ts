@@ -2,6 +2,7 @@ import type { Memento, SecretStorage } from 'vscode';
 import { createHash } from 'node:crypto';
 import { GitLabClient, type FetchLike, type GitLabIssueCapabilities, type GitLabWriteContext } from '../api/gitLabClient';
 import { GitLabReadCache, type GitLabCacheResult } from '../api/gitLabReadCache';
+import type { ReadObservation } from '../api/readObservation';
 import { GitLabRequestBudget } from '../api/gitLabRequestBudget';
 import { gitLabReadLifetimeMs, groupBoardReadPrefix, groupProjectsPageReadKey, groupWorkspaceReadKey, type GitLabReadInvalidation } from '../api/gitLabReadKeys';
 import type { GitLabGroup, GitLabMetadata, GitLabPage, GitLabProject, GitLabUser } from '../api/types';
@@ -24,7 +25,7 @@ interface CachedIssueCapabilities {
   capabilities: GitLabIssueCapabilities;
 }
 
-export interface GitLabCachedReadOptions { force?: boolean; signal?: AbortSignal; reason?: string; }
+export interface GitLabCachedReadOptions { force?: boolean; signal?: AbortSignal; reason?: string; onState?: (event: ReadObservation) => void; }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -204,7 +205,10 @@ export class GitLabSession {
             : '無法確認 GitLab Edition 或方案，因此阻擋關聯仍未確認。',
         source: 'REST'
       },
-      diagnostic('mergeRequestApprovals', 'Merge Request 核准', true, '', 'REST')
+      { id: 'mergeRequestApprovals', label: 'Merge Request 核准', source: 'REST',
+        status: this.currentMetadata?.enterprise === false ? 'unsupported' : 'unknown',
+        reason: this.currentMetadata?.enterprise === false ? 'GitLab Community Edition 不支援 MR 核准 API。'
+          : 'MR 核准仍須確認站台方案及目前使用者權限。' }
     ];
   }
 
@@ -247,6 +251,8 @@ export class GitLabSession {
       }
       return value as T;
     }, { ...options, lifetimeMs: gitLabReadLifetimeMs(key), storeValue: !collection, handoff: !collection,
+      onTransport: options.onState,
+      onRead: metadata => { try { options.onState?.(metadata); } catch { /* Observers cannot fail reads. */ } },
       onResult: result => {
         cacheResult = result;
         this.log?.record({ feature: 'api-cache', action: 'read', result: 'success', network: false,
@@ -365,6 +371,7 @@ export class GitLabSession {
         if (issueWrite && [...groups].some((id) => scoped === `group/${id}/assigned-issues` || scoped.startsWith(`group/${id}/assigned-issues/`) || scoped.startsWith(`group/${id}/graph`))) return true;
         if (issueWrite && [...groups].some(id => scoped.startsWith(groupBoardReadPrefix(id)))) return true;
         if (mergeRequestWrite && [...groups].some((id) => scoped === groupWorkspaceReadKey(id, 'mergeRequests') || scoped.startsWith(`${groupWorkspaceReadKey(id, 'mergeRequests')}/`))) return true;
+        if (mergeRequestWrite && /\/merge$/.test(url.pathname) && /^group\/\d+\/verified-mr-diff\//.test(scoped)) return true;
         return false;
       });
       this.publishReadInvalidation({ groupIds: [...groups], projectId, resource: issueWrite ? 'issues' : mergeRequestWrite ? 'mergeRequests' : 'group' });
@@ -415,10 +422,15 @@ export class GitLabSession {
       try {
         const client = await this.getClient();
         let metadata: GitLabMetadata;
-        try {
-          metadata = await client.getMetadata();
-          if (!metadata.version) metadata = await client.getVersion();
-        } catch { metadata = await client.getVersion(); }
+        try { metadata = await client.getMetadata(); }
+        catch { metadata = { version: '' }; }
+        if (!metadata.version || typeof metadata.enterprise !== 'boolean') {
+          try {
+            const fallback = await client.getVersion();
+            metadata = { ...fallback, ...metadata, version: metadata.version || fallback.version,
+              enterprise: typeof metadata.enterprise === 'boolean' ? metadata.enterprise : fallback.enterprise };
+          } catch (error) { if (!metadata.version) throw error; }
+        }
         if (!metadata.version) throw new Error('GitLab returned no version metadata.');
         if (epoch !== this.connectionEpochValue || revision !== this.instanceProbeRevision) return;
         this.currentMetadata = metadata;

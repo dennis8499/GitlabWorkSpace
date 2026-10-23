@@ -29,6 +29,7 @@ suite('GitLab Workspace extension activation', () => {
       'gitlabWorkspace.disconnect',
       'gitlabWorkspace.openIssue',
       'gitlabWorkspace.openWorkspace',
+      'gitlabWorkspace.openSettings',
       'gitlabWorkspace.openCloneMode',
       'gitlabWorkspace.openSaMode',
       'gitlabWorkspace.openBmadMode',
@@ -45,6 +46,9 @@ suite('GitLab Workspace extension activation', () => {
     assert.equal(wikiGuideCommand?.title, 'GitLab Workspace: Skills 功能指引');
     const showLogsCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.showLogs');
     assert.equal(showLogsCommand?.title, 'GitLab Workspace: 開啟 Log');
+    const settingsCommand = extension.packageJSON.contributes.commands.find((item: { command: string }) => item.command === 'gitlabWorkspace.openSettings');
+    assert.equal(settingsCommand?.title, 'GitLab Workspace: 設定');
+    assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.openSettings'));
     assert.ok(extension.packageJSON.activationEvents.includes('onCommand:gitlabWorkspace.showLogs'));
     assert.ok(extension.packageJSON.contributes.menus.commandPalette.some((item: { command: string; when?: string }) =>
       item.command === 'gitlabWorkspace.openAdmin' && item.when === 'false'));

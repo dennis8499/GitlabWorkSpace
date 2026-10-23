@@ -323,6 +323,9 @@ suite('Live GitLab Workspace Webview validation', function () {
   if (!enabled) this.skip();
   assert.equal(vscode.version, process.env.GLW_LIVE_VSCODE_VERSION ?? '1.140.0', 'the real Extension Host uses the pinned local VS Code version');
   const environment = process.env.GLW_LIVE_ENVIRONMENT!;
+  const expectedGitLabVersion = process.env.GLW_LIVE_EXPECTED_GITLAB_VERSION ?? (environment === 'ce19' ? '19.4.1' : '16.11.10');
+  assert.match(expectedGitLabVersion, /^\d+\.\d+\.\d+$/, 'the live target is an exact major.minor.patch version');
+  assert.equal(expectedGitLabVersion.trim(), expectedGitLabVersion, 'the exact target version contains no surrounding whitespace');
   const baseUrl = process.env.GLW_LIVE_BASE_URL!;
   const groupPath = process.env.GLW_LIVE_GROUP_PATH!;
   const workspaceRoot = process.env.GLW_LIVE_WORKSPACE_ROOT!;
@@ -370,7 +373,6 @@ suite('Live GitLab Workspace Webview validation', function () {
     await api.session.ensureInstanceChecked();
     process.env.GLW_LIVE_TOKEN = '';
     assert.ok(connected.id > 0, 'GitLab validated the token against the requested localhost server');
-    const expectedGitLabVersion = environment === 'ce19' ? '19.4.1' : '16.11.10';
     assert.equal(api.session.metadata?.version, expectedGitLabVersion, `the live server is the exact ${environment} target version`);
     assert.equal(api.session.metadata?.enterprise, false, 'the live target identifies itself as GitLab CE');
     const initialSchemaRequests = metrics.filter((item) => item.path === 'graphql' && item.method === 'POST').length;
@@ -528,7 +530,7 @@ suite('Live GitLab Workspace Webview validation', function () {
 
     const report = {
       schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
-      environment, baseUrl, version: api.session.metadata?.version, revision: api.session.metadata?.revision ?? null,
+      environment, baseUrl, expectedGitLabVersion, version: api.session.metadata?.version, revision: api.session.metadata?.revision ?? null,
       vscodeVersion: vscode.version, currentUserId: connected.id, selectedGroup: group.full_path,
       testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
       projects: groupPath, visibleRepoCount,
@@ -569,7 +571,7 @@ suite('Live GitLab Workspace Webview validation', function () {
     const status = /timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL';
     writeFileSync(reportPath, `${JSON.stringify({
       schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
-      environment, baseUrl, expectedGitLabVersion: environment === 'ce19' ? '19.4.1' : '16.11.10',
+      environment, baseUrl, expectedGitLabVersion,
       vscodeVersion: vscode.version, testedArtifact: { vsix: process.env.GLW_LIVE_VSIX, sha256: process.env.GLW_LIVE_VSIX_SHA256 },
       status, error: message
     }, null, 2)}\n`, 'utf8');

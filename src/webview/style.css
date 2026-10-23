@@ -76,6 +76,10 @@ small, .small { font-size: 11px; }
 .task-detail { padding: 10px 12px; margin: 0 0 10px 12px; border-left: 2px solid var(--vscode-panel-border); background: var(--vscode-editorWidget-background); }
 .task-detail .field { margin-bottom: 10px; }
 .time-report { margin-top: 14px; }
+.issue-project-search { margin-bottom: 12px; align-items: end; }
+.issue-project-search .field { flex: 1; min-width: 180px; }
+.option-demand { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.option-demand button { font-size: 12px; padding: 4px 8px; }
 dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 7px 8px; margin: 0; }
 dt { color: var(--vscode-descriptionForeground); }
 dd { margin: 0; overflow-wrap: anywhere; }

@@ -1,0 +1,116 @@
+{
+  "schema": "gitlab-workspace-validation/v1",
+  "mode": "package",
+  "workers": 2,
+  "seconds": 11.353,
+  "nodeVersion": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64",
+  "status": "success",
+  "success": true,
+  "stages": [
+    {
+      "id": "clean-compiled",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/clean-compiled.mjs"
+      ],
+      "startedAt": "2026-10-23T08:39:18.721Z",
+      "finishedAt": "2026-10-23T08:39:18.871Z",
+      "seconds": 0.15,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\clean-compiled.log"
+    },
+    {
+      "id": "compile",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "."
+      ],
+      "startedAt": "2026-10-23T08:39:18.873Z",
+      "finishedAt": "2026-10-23T08:39:20.131Z",
+      "seconds": 1.257,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\compile.log"
+    },
+    {
+      "id": "typecheck-webview",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.webview.json"
+      ],
+      "startedAt": "2026-10-23T08:39:20.133Z",
+      "finishedAt": "2026-10-23T08:39:21.038Z",
+      "seconds": 0.905,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\typecheck-webview.log"
+    },
+    {
+      "id": "build-dashboard",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.dashboard.config.mjs"
+      ],
+      "startedAt": "2026-10-23T08:39:21.040Z",
+      "finishedAt": "2026-10-23T08:39:21.752Z",
+      "seconds": 0.712,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\build-dashboard.log"
+    },
+    {
+      "id": "build-sidebar",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.sidebar.config.mjs"
+      ],
+      "startedAt": "2026-10-23T08:39:21.754Z",
+      "finishedAt": "2026-10-23T08:39:22.338Z",
+      "seconds": 0.584,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\build-sidebar.log"
+    },
+    {
+      "id": "package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/package-extension.mjs",
+        "--prepared"
+      ],
+      "startedAt": "2026-10-23T08:39:22.811Z",
+      "finishedAt": "2026-10-23T08:39:29.447Z",
+      "seconds": 6.636,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\package.log"
+    },
+    {
+      "id": "verify-package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "scripts/verify-vsix.py"
+      ],
+      "startedAt": "2026-10-23T08:39:29.449Z",
+      "finishedAt": "2026-10-23T08:39:30.070Z",
+      "seconds": 0.621,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-23T08-39-18.712Z-32084\\verify-package.log"
+    }
+  ]
+}

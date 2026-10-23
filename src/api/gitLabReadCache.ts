@@ -1,10 +1,16 @@
+import { withReadObservation, type ReadObservation } from './readObservation';
+
 interface CachedValue {
+  fetchedAt: number;
   expiresAt: number;
   value: unknown;
   bytes: number;
 }
 
 interface PendingRead<T> {
+  transportListeners: Set<(event: ReadObservation) => void>;
+  transport?: ReadObservation;
+  fetchedAt?: number;
   controller: AbortController;
   force: boolean;
   handoff: boolean;
@@ -24,6 +30,8 @@ export interface GitLabReadCacheOptions {
   /** Derived readers stop promptly while their pending page can be handed off. */
   handoff?: boolean;
   onResult?: (result: GitLabCacheResult) => void;
+  onRead?: (metadata: { dataSource: 'cache' | 'network'; fetchedAt: number; expiresAt: number }) => void;
+  onTransport?: (event: ReadObservation) => void;
 }
 
 export function abortedReadError(): Error {
@@ -72,6 +80,7 @@ export class GitLabReadCache {
         this.values.delete(key);
         this.values.set(key, cached);
         options.onResult?.('hit');
+        options.onRead?.({ dataSource: 'cache', fetchedAt: cached.fetchedAt, expiresAt: cached.expiresAt });
         return Promise.resolve(cached.value as T);
       }
     }
@@ -83,7 +92,12 @@ export class GitLabReadCache {
       pending = this.start(key, load, force, lifetimeMs, options.storeValue !== false, options.handoff !== false);
       this.inFlight.set(key, pending);
     } else options.onResult?.('joined');
-    return this.subscribe(pending, signal);
+    const subscribed = pending;
+    return this.subscribe(pending, signal, options.onTransport).then(value => {
+      const fetchedAt = subscribed.fetchedAt ?? this.now();
+      options.onRead?.({ dataSource: 'network', fetchedAt, expiresAt: fetchedAt + lifetimeMs });
+      return value;
+    });
   }
 
   /** Preserve pending work while same-session navigation replaces its consumers. */
@@ -140,17 +154,21 @@ export class GitLabReadCache {
 
   private start<T>(key: string, load: (signal: AbortSignal) => Promise<T>, force: boolean, lifetimeMs: number, storeValue: boolean, handoff: boolean): PendingRead<T> {
     const pending: PendingRead<T> = {
-      controller: new AbortController(), force, handoff, invalidated: false, settled: false, subscribers: 0,
+      controller: new AbortController(), force, handoff, invalidated: false, settled: false, subscribers: 0, transportListeners: new Set(),
       promise: Promise.resolve(undefined as T)
     };
-    pending.promise = Promise.resolve().then(() => load(pending.controller.signal)).then((value) => {
+    pending.promise = Promise.resolve().then(() => withReadObservation(event => {
+      pending.transport = event;
+      for (const listener of pending.transportListeners) { try { listener(event); } catch { /* Presentation only. */ } }
+    }, () => load(pending.controller.signal))).then((value) => {
+      pending.fetchedAt = this.now();
       if (storeValue && !pending.controller.signal.aborted && !pending.invalidated && this.inFlight.get(key) === pending) {
         this.deleteValue(key);
         const bytes = estimateCacheBytes(value, this.maxBytes) + key.length * 2;
         // Oversized values still reach their subscribers, but cannot evict the entire
         // cache or turn a bounded entry count into unbounded retained memory.
         if (bytes <= this.maxBytes) {
-          this.values.set(key, { value, bytes, expiresAt: this.now() + lifetimeMs });
+          this.values.set(key, { value, bytes, fetchedAt: pending.fetchedAt, expiresAt: pending.fetchedAt + lifetimeMs });
           this.cachedBytes += bytes;
           while (this.values.size > this.capacity || this.cachedBytes > this.maxBytes) this.deleteValue(this.values.keys().next().value!);
         }
@@ -164,9 +182,14 @@ export class GitLabReadCache {
     return pending;
   }
 
-  private subscribe<T>(pending: PendingRead<T>, signal?: AbortSignal): Promise<T> {
+  private subscribe<T>(pending: PendingRead<T>, signal?: AbortSignal, onTransport?: (event: ReadObservation) => void): Promise<T> {
     this.orphaned.delete(pending);
     pending.subscribers++;
+    const listener = onTransport ? (event: ReadObservation) => onTransport(event) : undefined;
+    if (listener) {
+      pending.transportListeners.add(listener);
+      if (pending.transport) { try { listener(pending.transport); } catch { /* Presentation only. */ } }
+    }
     return new Promise<T>((resolve, reject) => {
       let active = true;
       const finish = (cancelled: boolean): void => {
@@ -174,6 +197,7 @@ export class GitLabReadCache {
         active = false;
         signal?.removeEventListener('abort', onAbort);
         pending.subscribers--;
+        if (listener) pending.transportListeners.delete(listener);
         if (cancelled && pending.subscribers === 0 && !pending.settled) {
           if (this.handoffs.size && pending.handoff) this.orphaned.add(pending);
           else { pending.invalidated = true; pending.controller.abort(); }

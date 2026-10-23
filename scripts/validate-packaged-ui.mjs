@@ -290,8 +290,8 @@ function installHost(data) {
   };
 }
 
-async function mount(browser, files, width = 1440, highContrast = false) {
-  const context = await browser.newContext({ viewport: { width: width + 300, height: 900 }, reducedMotion: 'reduce' });
+async function mount(browser, files, width = 1440, highContrast = false, reducedMotion = 'reduce') {
+  const context = await browser.newContext({ viewport: { width: width + 300, height: 900 }, reducedMotion });
   const page = await context.newPage(); page.setDefaultTimeout(8000);
   const network = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -527,6 +527,40 @@ async function smoke(browser, files) {
         assert.ok(await view.dashboard.locator('body').evaluate(element => element.scrollWidth <= element.clientWidth));
         const selector = view.dashboard.locator('#skill-tool-codebase-wiki, select[aria-label="Skills 工具"]'); await selector.focus();
         assert.ok(await selector.evaluate(element => element === element.ownerDocument.activeElement));
+      });
+    } finally { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
+  }
+  for (const preference of ['no-preference', 'reduce']) {
+    const view = await mount(browser, files, 800, false, preference);
+    try {
+      await check(`motion ${preference}: stable snapshots, exit focus and mobile preview`, async () => {
+        const trigger = view.dashboard.locator('.settings-trigger');
+        await trigger.click();
+        const overlay = view.dashboard.locator('.drawer-scrim'), dialog = view.dashboard.locator('.tool-drawer');
+        await dialog.waitFor(); await view.page.evaluate(() => window.__host.idle());
+        if (args.label === 'baseline' && await overlay.getAttribute('data-presence') === null) return { preference, motion: 'Not available in the immutable baseline artifact.' };
+        if (preference === 'reduce') assert.equal(await overlay.evaluate(element => getComputedStyle(element).animationName), 'none');
+        await view.page.waitForFunction(() => document.getElementById('dashboard').contentDocument.querySelector('.drawer-scrim')?.dataset.presence === 'entered');
+        const requests = await view.page.evaluate(() => window.__host.requests.length);
+        await view.page.evaluate(async () => { for (let index = 0; index < 5; index++) window.__host.publish(); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
+        assert.equal(await view.page.evaluate(() => window.__host.requests.length), requests, 'snapshots must not repeat reads or animations');
+        const exit = await dialog.locator('.drawer-heading > button').evaluate(async button => {
+          button.click(); await new Promise(resolve => requestAnimationFrame(resolve));
+          const overlay = button.ownerDocument.querySelector('.drawer-scrim');
+          return { phase: overlay?.dataset.presence, focusInDialog: !!overlay?.contains(button.ownerDocument.activeElement), animation: overlay && getComputedStyle(overlay).animationName };
+        });
+        if (preference === 'no-preference') {
+          assert.equal(exit.phase, 'exiting'); assert.equal(exit.focusInDialog, true); assert.equal(exit.animation, 'overlay-exit');
+          await view.page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(element => element.contains(element.ownerDocument.activeElement)));
+        }
+        await dialog.waitFor({ state: 'detached' });
+        assert.ok(await trigger.evaluate(element => element === element.ownerDocument.activeElement));
+        await view.dashboard.locator('.work-row').first().click();
+        assert.ok(await view.dashboard.locator('.issue-detail').evaluate(element => element === element.ownerDocument.activeElement));
+        await view.dashboard.locator('.mobile-switch').click();
+        assert.ok(await view.dashboard.locator('.work-row').first().evaluate(element => element === element.ownerDocument.activeElement));
+        await shot(view, `800-motion-${preference}`);
+        return { preference, exit, snapshots: 5, extraRequests: 0 };
       });
     } finally { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
   }

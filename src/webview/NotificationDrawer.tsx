@@ -1,10 +1,12 @@
 /** @jsxImportSource preact */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { NotificationRequest, NotificationSnapshot } from '../notifications/notificationProtocol';
+import type { usePresence } from './motion';
 
-export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRequest }: {
+export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRequest, open = true, presence }: {
   snapshot?: NotificationSnapshot; post: (request: NotificationRequest) => void; onClose: () => void;
   targetId?: string; targetRequest?: number;
+  open?: boolean; presence?: ReturnType<typeof usePresence>;
 }) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [expanded, setExpanded] = useState(new Set<string>());
@@ -14,6 +16,7 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
   const requestedRead = useRef(new Set<string>());
   const targetHandled = useRef('');
   const markRead = (id: string) => {
+    if (!open) return;
     const item = snapshot?.items.find(item => item.id === id);
     const key = `${id}:${snapshot?.revision}`;
     if (!item || item.read || requestedRead.current.has(key)) return;
@@ -30,22 +33,26 @@ export function NotificationDrawer({ snapshot, post, onClose, targetId, targetRe
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
+    const containFocus = (event: FocusEvent) => {
+      if (event.target instanceof Node && drawer.current && !drawer.current.contains(event.target)) close.current?.focus();
+    };
     document.addEventListener('keydown', keydown);
-    return () => document.removeEventListener('keydown', keydown);
+    document.addEventListener('focusin', containFocus);
+    return () => { document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', containFocus); };
   }, []);
   useEffect(() => {
     const key = `${targetId}:${targetRequest}`;
-    if (!targetId || targetHandled.current === key || !snapshot?.items.some(item => item.id === targetId)) return;
+    if (!open || !targetId || targetHandled.current === key || !snapshot?.items.some(item => item.id === targetId)) return;
     targetHandled.current = key;
     setFilter('all');
     setExpanded(current => new Set([...current, targetId]));
     markRead(targetId);
     requestAnimationFrame(() => { summaries.current.get(targetId)?.focus(); summaries.current.get(targetId)?.scrollIntoView?.({ block: 'nearest' }); });
-  }, [targetId, targetRequest, snapshot]);
+  }, [targetId, targetRequest, snapshot, open]);
   const items = (snapshot?.items ?? []).filter(item => filter === 'all' || !item.read || expanded.has(item.id));
   const chooseFilter = (next: 'all' | 'unread') => { if (next !== filter) { setExpanded(new Set()); setFilter(next); } };
-  return <div class="drawer-scrim notification-scrim" role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <aside ref={drawer} class="tool-drawer notification-drawer" role="dialog" aria-modal="true" aria-labelledby="notification-title">
+  return <div class="drawer-scrim notification-scrim motion-overlay" data-presence={presence?.phase ?? 'entered'} onAnimationEnd={presence?.onAnimationEnd} role="presentation" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <aside ref={drawer} class="tool-drawer notification-drawer motion-surface" role="dialog" aria-modal="true" aria-labelledby="notification-title" onClickCapture={event => { if (!open) { event.preventDefault(); event.stopPropagation(); } }} onKeyDownCapture={event => { if (!open && !['Tab', 'Escape'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); } }}>
       <div class="drawer-heading"><div><h2 id="notification-title">訊息中心</h2><p class="subtle">本次 VS Code 工作階段 · {snapshot?.unreadCount ?? 0} 筆未讀</p></div><button ref={close} class="quiet" type="button" onClick={onClose}>關閉</button></div>
       <div class="notification-controls"><div role="group" aria-label="訊息篩選"><button type="button" aria-pressed={filter === 'all'} onClick={() => chooseFilter('all')}>全部</button><button type="button" aria-pressed={filter === 'unread'} onClick={() => chooseFilter('unread')}>未讀</button></div>
         <button class="quiet" type="button" disabled={!snapshot?.unreadCount} onClick={() => snapshot && post({ type: 'markAllNotificationsRead', revision: snapshot.revision })}>全部已讀</button>

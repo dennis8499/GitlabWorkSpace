@@ -31,7 +31,10 @@ export type ToolArchiveFormat = 'zip' | 'tar.xz';
 export type WorkspaceDestination = WorkspaceMode | 'issue-create' | 'issue-detail';
 export type IssueDetailTab = 'content' | 'relations' | 'time';
 export type WorkspaceSection = 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards' | 'graph' | 'repositories';
+export type MergeRequestFilter = 'all' | 'reviewer' | 'assigned';
 export interface WorkspaceSectionState { status: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported'; error?: string; updatedAt?: number; refreshing?: boolean;
+  dataSource?: 'cache' | 'network' | 'mixed'; fetchedAt?: number; expiresAt?: number;
+  transportStage?: 'waiting' | 'sending' | 'cooldown'; retryAt?: number;
   complete?: boolean; loadedCount?: number; pausedReason?: string; includeClosed?: boolean; }
 
 /** These identities have different formats and must not be used interchangeably. */
@@ -100,6 +103,7 @@ export type BranchFreshness =
   | { state: 'unknown'; reason: string; checkedAt: number };
 
 export interface MergeRequestDetail {
+  diffVersionId?: number;
   request: GitLabMergeRequest;
   sourceProject?: GitLabProject;
   diffs: GitLabMergeRequestDiff[];
@@ -190,6 +194,7 @@ export interface WorkspaceSnapshot {
   groupRepositoryScanStatus: 'idle' | 'scanning' | 'ready' | 'error';
   groupRepositoryScanError?: string;
   projects: GitLabProject[];
+  mergeRequestFilter?: MergeRequestFilter;
   sections?: Partial<Record<WorkspaceSection, WorkspaceSectionState>>;
   groupMilestones: GitLabMilestone[];
   groupMilestonesError?: string;
@@ -258,13 +263,14 @@ export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId
 
 export type WorkspaceRequest = (NotificationRequest
   | GitPanelRequest
-  | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph' }
+  | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph'; mergeRequestFilter?: MergeRequestFilter }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
   | { type: 'confirmOperationResult'; targetOperationId: string; recovery?: OperationRecoveryMetadata }
   | GitPanelRequest
   | { type: 'refresh'; mode?: WorkspaceMode; projectSource?: 'gitlab' | 'local' }
   | { type: 'retryInstanceCheck' }
-  | { type: 'setMode'; mode: WorkspaceMode; projectSource?: 'gitlab' | 'local' }
+  | { type: 'setMode'; mode: WorkspaceMode; projectSource?: 'gitlab' | 'local'; mergeRequestFilter?: MergeRequestFilter }
+  | { type: 'setMergeRequestFilter'; filter: MergeRequestFilter; connectedScope: string }
   | { type: 'setProjectSource'; source: 'gitlab' | 'local' }
   | { type: 'issueRequest'; request: IssuePanelRequest; revision?: number }
   | { type: 'closeIssue' }
@@ -294,7 +300,6 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'resetProjectRoot' }
   | { type: 'selectCloneRoot' }
   | { type: 'resetCloneRoot' }
-  | { type: 'openCodexTerminal'; revision: string }
   | { type: 'refreshBmad' }
   | ({ type: 'copyBmadCommand' } & { [Key in keyof BmadCommandRequest]: BmadCommandRequest[Key] })
   | { type: 'openBmadTerminal'; revision: string }
@@ -349,6 +354,7 @@ export type WorkspaceRequest = (NotificationRequest
 export type WorkspaceResponse =
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
+  | { type: 'openSettings' }
   | { type: 'operationChanged'; operation: WorkspaceOperationState }
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }

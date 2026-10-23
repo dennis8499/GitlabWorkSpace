@@ -35,7 +35,7 @@ const sameRepository = (left: GitRepositorySummary, right: GitRepositorySummary)
     && (Object.keys(left) as Array<keyof GitRepositorySummary>).every(key => left[key] === right[key]);
 
 const destinations: Array<{
-  id: Exclude<QuickAction, 'openRepository' | 'openWorkspace' | 'openNotifications'>;
+  id: Exclude<QuickAction, 'openRepository' | 'openWorkspace' | 'openNotifications' | 'openSettings'>;
   mode: NonNullable<QuickActionsState['activeMode']>;
   label: string;
   icon: string;
@@ -327,6 +327,10 @@ function GitSidebar() {
         aria-busy={busy(destination.id)}
         onClick={() => navigate(destination.id)}
       ><span class="nav-icon" aria-hidden="true">{destination.icon}</span><span>{destination.label}</span></button>)}
+      <button class="action-button workspace-shortcut settings-link" type="button" aria-haspopup="dialog"
+        disabled={legacyBusy} aria-busy={busy('openSettings')} onClick={() => navigate('openSettings')}>
+        <span class="nav-icon" aria-hidden="true">⚙</span><span>設定</span>
+      </button>
     </nav>
     {repositorySection}
     <ActionFeedback scopeRevision={state.operationScope} localOperationScope={state.localOperationScope} retryRequests={retries.current} dispatchNotice={dispatchNotice}

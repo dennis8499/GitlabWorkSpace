@@ -1,0 +1,22 @@
+:root { --motion-fast: 120ms; --motion-content: 160ms; --motion-overlay: 200ms; --motion-ease: cubic-bezier(.2,0,0,1); }
+button, summary { transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease; }
+.motion-overlay[data-presence="entering"] { animation: overlay-enter var(--motion-overlay) var(--motion-ease) both; }
+.motion-overlay[data-presence="exiting"] { animation: overlay-exit var(--motion-overlay) var(--motion-ease) both; }
+.motion-overlay[data-presence="entering"] > .motion-surface { animation: surface-enter var(--motion-overlay) var(--motion-ease) both; }
+.motion-overlay[data-presence="exiting"] > .motion-surface { animation: surface-exit var(--motion-overlay) var(--motion-ease) both; }
+.motion-dialog[data-presence="entering"] > .motion-surface { animation-name: dialog-enter; }
+.motion-dialog[data-presence="exiting"] > .motion-surface { animation-name: dialog-exit; }
+.motion-snackbar[data-presence="entering"] { animation: snackbar-enter var(--motion-content) var(--motion-ease) both; }
+.motion-snackbar[data-presence="exiting"] { animation: snackbar-exit var(--motion-content) var(--motion-ease) both; }
+.motion-overlay[data-presence="exiting"] .motion-surface { pointer-events: none; }
+@keyframes overlay-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes overlay-exit { from { opacity: 1; } to { opacity: 0; } }
+@keyframes surface-enter { from { transform: translateX(24px); } to { transform: translateX(0); } }
+@keyframes surface-exit { from { transform: translateX(0); } to { transform: translateX(24px); } }
+@keyframes dialog-enter { from { transform: translateY(6px) scale(.98); } to { transform: translateY(0) scale(1); } }
+@keyframes dialog-exit { from { transform: translateY(0) scale(1); } to { transform: translateY(6px) scale(.98); } }
+@keyframes snackbar-enter { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes snackbar-exit { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, 6px); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

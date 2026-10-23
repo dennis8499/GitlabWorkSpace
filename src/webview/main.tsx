@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
-import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData } from '../issues/protocol';
+import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssuePageResult } from '../issues/protocol';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
@@ -109,13 +109,14 @@ function ReactionDemand({ state, label, disabled, onLoad, children }: {
   </div>;
 }
 
-function IssueFields({ form, setForm, options, projectId, baseUrl, images, onImage, templateEnabled, startDateEnabled, onPreview, onUpload, onSearch, onTemplate, onLoadOptions, similar, previewHtml, onLink, editing }: {
+function IssueFields({ form, setForm, options, projectId, baseUrl, images, onImage, templateEnabled, startDateEnabled, onPreview, onUpload, onSearch, onSearchMore, onTemplate, onLoadOptions, similar, similarPage, previewHtml, onLink, editing }: {
   form: FormState; setForm: (next: FormState) => void; options: IssueFormOptions; projectId: number;
   baseUrl: string; images: Record<string, string>; onImage: (url: string) => void;
   templateEnabled: boolean; startDateEnabled: boolean; onPreview: () => void; onUpload: () => void; onSearch: () => void;
   similar: GitLabIssue[]; previewHtml: string; onLink: (url: string) => void; editing: boolean;
+  similarPage?: IssuePageResult<GitLabIssue>; onSearchMore?: () => void;
   onTemplate?: (template?: IssueFormOptions['templates'][number]) => void;
-  onLoadOptions?: (section: IssueFormOptionSection) => void;
+  onLoadOptions?: (section: IssueFormOptionSection, mode?: 'next') => void;
 }) {
   const hasSelectedFields = !!form.assigneeId || !!form.milestoneId || form.labels.length > 0;
   const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(hasSelectedFields);
@@ -124,15 +125,20 @@ function IssueFields({ form, setForm, options, projectId, baseUrl, images, onIma
   const requestOptions = (section: IssueFormOptionSection): void => {
     onLoadOptions?.(section);
   };
-  useEffect(() => {
-    if (!onLoadOptions || !(optionalFieldsOpen || hasSelectedFields) || fieldsState?.status !== 'idle') return;
-    requestOptions('fields');
-  }, [projectId, optionalFieldsOpen, hasSelectedFields, fieldsState?.status]);
-  const fieldsPending = !!fieldsState && fieldsState.status !== 'ready';
+  const stateFor = (section: 'members' | 'labels' | 'milestones') => options.states?.[section] ?? fieldsState;
+  const loadOnFocus = (section: 'members' | 'labels' | 'milestones') => { if (stateFor(section)?.status === 'idle') requestOptions(section); };
+  const demand = (section: 'members' | 'labels' | 'milestones', label: string) => {
+    const state = stateFor(section);
+    return state && (state.status !== 'ready' || state.complete === false) ? <span class="option-demand">
+      <button type="button" disabled={!projectId || state.status === 'loading'} onClick={() => onLoadOptions?.(section, state.status === 'ready' ? 'next' : undefined)}>
+        {state.status === 'loading' ? `正在載入${label}…` : state.status === 'ready' ? `載入更多${label}` : state.status === 'error' ? `重試載入${label}` : `載入${label}`}
+      </button>{state.error && <small role="alert">{state.error}</small>}
+    </span> : null;
+  };
   const change = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm({ ...form, [key]: value });
   return <div class="form-grid">
     <label class="field field-wide"><span>標題 *</span><input value={form.title} maxLength={1024} required onInput={(event) => change('title', event.currentTarget.value)} onBlur={onSearch} placeholder="簡要描述工作內容" /></label>
-    {similar.length > 0 && <div class="field-wide hint"><strong>相似 Issue</strong>{similar.slice(0, 5).map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}</div>}
+    {similar.length > 0 && <div class="field-wide hint"><strong>相似 Issue · 已載入 {similar.length} 筆{similarPage?.complete === false ? '，尚有更多結果' : ''}</strong>{similar.map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}{similarPage?.complete === false && <button type="button" onClick={onSearchMore}>載入更多相似 Issue</button>}</div>}
     {templateEnabled && templatesState && templatesState.status !== 'ready' && <div class="field-wide toolbar">
       <button type="button" disabled={!projectId || templatesState.status === 'loading'} onClick={() => requestOptions('templates')}>
         {templatesState.status === 'loading' ? '正在載入描述範本…' : templatesState.status === 'error' ? '重試載入描述範本' : '使用描述範本'}
@@ -150,16 +156,12 @@ function IssueFields({ form, setForm, options, projectId, baseUrl, images, onIma
     {previewHtml && <div class="field-wide preview"><span class="eyebrow">預覽</span><Markdown html={previewHtml} baseUrl={baseUrl} images={images} onImage={onImage} onLink={onLink} /></div>}
     <details class="field-wide issue-more-fields" open={editing || optionalFieldsOpen} onToggle={(event) => setOptionalFieldsOpen(event.currentTarget.open)}>
       <summary>其他設定：負責人、標籤、里程碑與日期</summary>
-      {fieldsPending && <div class="toolbar" role={fieldsState?.status === 'error' ? 'alert' : 'status'}>
-        <span>{fieldsState?.error ?? (fieldsState?.status === 'loading' ? '正在載入負責人、標籤與里程碑…' : '展開後載入選項；已填寫的內容會保留。')}</span>
-        {fieldsState?.status === 'error' && <button type="button" onClick={() => requestOptions('fields')}>重試載入欄位選項</button>}
-      </div>}
       <div class="form-grid">
-        <label class="field"><span>負責人</span><select disabled={fieldsPending} value={form.assigneeId} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">不指派</option>{form.assigneeId && !options.members.some(person => String(person.id) === form.assigneeId) && <option value={form.assigneeId}>目前選取的負責人（尚未確認）</option>}{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select></label>
-        <label class="field"><span>里程碑</span><select disabled={fieldsPending} value={form.milestoneId} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">不設定</option>{form.milestoneId && !options.milestones.some(milestone => String(milestone.id) === form.milestoneId) && <option value={form.milestoneId}>目前選取的里程碑（尚未確認）</option>}{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select></label>
+        <label class="field"><span>負責人</span><select value={form.assigneeId} onFocus={() => loadOnFocus('members')} onChange={(event) => change('assigneeId', event.currentTarget.value)}><option value="">不指派</option>{form.assigneeId && !options.members.some(person => String(person.id) === form.assigneeId) && <option value={form.assigneeId}>目前選取的負責人（尚未確認）</option>}{options.members.filter((person) => !person.state || person.state === 'active').map((person) => <option value={person.id}>{person.name} (@{person.username})</option>)}</select>{demand('members', '負責人')}</label>
+        <label class="field"><span>里程碑</span><select value={form.milestoneId} onFocus={() => loadOnFocus('milestones')} onChange={(event) => change('milestoneId', event.currentTarget.value)}><option value="">不設定</option>{form.milestoneId && !options.milestones.some(milestone => String(milestone.id) === form.milestoneId) && <option value={form.milestoneId}>目前選取的里程碑（尚未確認）</option>}{options.milestones.map((milestone) => <option value={milestone.id}>{milestone.title}</option>)}</select>{demand('milestones', '里程碑')}</label>
         <label class="field"><span>到期日</span><input type="date" value={form.dueDate} onInput={(event) => change('dueDate', event.currentTarget.value)} /></label>
         {startDateEnabled && <label class="field"><span>開始日期</span><input type="date" value={form.startDate} onInput={(event) => change('startDate', event.currentTarget.value)} /></label>}
-        <label class="field"><span>標籤</span><select disabled={fieldsPending} multiple size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{form.labels.filter(name => !options.labels.some(label => label.name === name)).map(name => <option value={name} selected>{name}（尚未確認）</option>)}{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select><small>可用 Ctrl 多選。</small></label>
+        <label class="field"><span>標籤</span><select multiple onFocus={() => loadOnFocus('labels')} size={Math.min(6, Math.max(2, options.labels.length))} onChange={(event) => change('labels', Array.from(event.currentTarget.selectedOptions).map((item) => item.value))}>{form.labels.filter(name => !options.labels.some(label => label.name === name)).map(name => <option value={name} selected>{name}（尚未確認）</option>)}{options.labels.map((label) => <option value={label.name} selected={form.labels.includes(label.name)}>{label.name}</option>)}</select>{demand('labels', '標籤')}<small>可用 Ctrl 多選。</small></label>
         <label class="check field-wide"><input type="checkbox" checked={form.confidential} onChange={(event) => change('confidential', event.currentTarget.checked)} />機密 Issue</label>
         {editing && <label class="check field-wide"><input type="checkbox" checked={form.discussionLocked} onChange={(event) => change('discussionLocked', event.currentTarget.checked)} />鎖定討論</label>}
       </div>
@@ -239,6 +241,10 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
   }, snapshot?.operationScope ?? snapshot?.connectedScope ?? 'issue-panel', operation => operation.resourceKey.startsWith('issue:'));
   const [mode, setMode] = useState<'waiting' | 'create' | 'detail' | 'deleted'>('waiting');
   const [projects, setProjects] = useState<GitLabProject[]>([]);
+  const [createProjectsPage, setCreateProjectsPage] = useState<IssuePageResult<GitLabProject>>();
+  const [createProjectQuery, setCreateProjectQuery] = useState('');
+  const [createProjectsLoading, setCreateProjectsLoading] = useState(false);
+  const latestPickerRequest = useRef<string>();
   const [projectId, setProjectId] = useState(0);
   const [options, setOptions] = useState<IssueFormOptions>(emptyOptions);
   const [optionsLoading, setOptionsLoading] = useState(false);
@@ -374,6 +380,10 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
   const [targetProject, setTargetProject] = useState('');
   const [targetQuery, setTargetQuery] = useState('');
   const [targetProjectResults, setTargetProjectResults] = useState<GitLabProject[]>([]);
+  const [targetProjectsPage, setTargetProjectsPage] = useState<IssuePageResult<GitLabProject>>();
+  const [similarPage, setSimilarPage] = useState<IssuePageResult<GitLabIssue>>();
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [projectSearchLoading, setProjectSearchLoading] = useState(false);
   const [cloneWithNotes, setCloneWithNotes] = useState(false);
   const [emoji, setEmoji] = useState('thumbsup');
   const [noteEmoji, setNoteEmoji] = useState<Record<number, string>>({});
@@ -556,8 +566,13 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
     latestEditorPreview.current.set(target, requestId);
     postReplyRequest({ type: 'preview', requestId, projectId: activeProjectId, markdown, target: 'editor:' + target });
   };
-  const searchSimilar = () => { if (mode === 'create' && projectId && form.title.trim().length >= 3) { const requestId = `search-${stamp()}`; latestSearchRequest.current = requestId; postReplyRequest({ type: 'search', requestId, projectId, query: form.title.trim() }); } };
-  const searchTargetProjects = () => { if (targetQuery.trim()) { const requestId = `project-search-${stamp()}`; latestProjectSearchRequest.current = requestId; postReplyRequest({ type: 'searchProjects', requestId, query: targetQuery.trim() }); } };
+  const searchSimilar = (next = false) => { if (mode === 'create' && projectId && (next ? similarPage?.query ?? '' : form.title.trim()).length >= 3) { const requestId = `search-${stamp()}`; latestSearchRequest.current = requestId; setSearchLoading(true); postReplyRequest({ type: 'search', requestId, projectId, query: next ? similarPage!.query : form.title.trim(), ...(next ? { mode: 'next', queryIdentity: similarPage?.queryIdentity } : {}) }); } };
+  const searchTargetProjects = (next = false) => { if (next ? targetProjectsPage?.query : targetQuery.trim()) { const requestId = `project-search-${stamp()}`; latestProjectSearchRequest.current = requestId; setProjectSearchLoading(true); postReplyRequest({ type: 'searchProjects', requestId, query: next ? targetProjectsPage!.query : targetQuery.trim(), ...(next ? { mode: 'next', queryIdentity: targetProjectsPage?.queryIdentity } : {}) }); } };
+  const loadCreationProjects = (next = false) => {
+    const requestId = `picker-${stamp()}`; latestPickerRequest.current = requestId;
+    const result = post({ type: 'loadCreateProjects', requestId, query: next ? createProjectsPage?.query : createProjectQuery.trim(), ...(next ? { mode: 'next', queryIdentity: createProjectsPage?.queryIdentity } : {}) });
+    setCreateProjectsLoading(result.status !== 'blocked');
+  };
   const selectTemplate = (template?: IssueFormOptions['templates'][number]) => {
     latestTemplateRequest.current = undefined;
     if (!template) return;
@@ -689,6 +704,9 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       }
       if (message.type === 'reply') finishDomainAction(actions, message.requestId, { status: message.error ? 'failed' : 'succeeded', error: message.error, effect: message.effect, refreshError: message.refreshError });
       if (message.type === 'actionResult') {
+        if (message.requestId === latestPickerRequest.current) setCreateProjectsLoading(false);
+        if (message.requestId === latestSearchRequest.current) setSearchLoading(false);
+        if (message.requestId === latestProjectSearchRequest.current) setProjectSearchLoading(false);
         finishDomainAction(actions, message.requestId, { status: message.status, error: message.error, effect: message.effect, refreshError: message.refreshError });
         // Host replies precede their terminal result; cancelled reads may finish without a reply.
         requestEpoch.current.delete(message.requestId);
@@ -742,7 +760,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
         modeRef.current = 'create'; projectIdRef.current = message.selectedProjectId ?? 0;
         const restoredForm = createDrafts.current.get(projectIdRef.current) ?? blankForm();
         formRef.current = restoredForm;
-        setMode('create'); setProjects(message.projects); setProjectId(projectIdRef.current);
+        setMode('create'); setProjects(message.projects); setCreateProjectsPage(message.projectsState); setCreateProjectQuery(''); setCreateProjectsLoading(false); setProjectId(projectIdRef.current);
         setCreateMetadata(message.metadata);
         setStartDateEnabled(message.canSetStartDate);
         setCanCreateIssue(message.canCreateIssue);
@@ -751,6 +769,13 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
         if (message.projects.length) setError('');
         else localFeedback('No projects are available in the selected group.', message.operationId);
         setBusy(false);
+      } else if (message.type === 'createProjectsPage') {
+        if (modeRef.current !== 'create') return;
+        setCreateProjectsPage(message.page); setCreateProjectsLoading(false);
+        setProjects(current => {
+          const selected = current.find(project => project.id === projectIdRef.current);
+          return selected && !message.page.items.some(project => project.id === selected.id) ? [selected, ...message.page.items] : message.page.items;
+        });
       } else if (message.type === 'projectData') {
         if (message.preserveDraft) {
           if (modeRef.current !== 'create' || projectIdRef.current !== message.projectId) return;
@@ -877,8 +902,14 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
           if (Number.isSafeInteger(id)) setNoteHtml((current) => ({ ...current, [id]: (message.result as { html?: string })?.html ?? '' }));
         }
         else if (editorTarget) setEditorHtml((current) => ({ ...current, [editorTarget]: (message.result as { html?: string })?.html ?? '' }));
-        else if (message.requestId.startsWith('search-')) setSimilar(message.result as GitLabIssue[] ?? []);
-        else if (message.requestId.startsWith('project-search-')) setTargetProjectResults(message.result as GitLabProject[] ?? []);
+        else if (message.requestId.startsWith('search-')) {
+          const page: IssuePageResult<GitLabIssue> = Array.isArray(message.result) ? { items: message.result, query: '', queryIdentity: 'legacy', complete: true, updatedAt: '' } : message.result as IssuePageResult<GitLabIssue>;
+          setSimilarPage(page); setSimilar(page?.items ?? []); setSearchLoading(false);
+        }
+        else if (message.requestId.startsWith('project-search-')) {
+          const page: IssuePageResult<GitLabProject> = Array.isArray(message.result) ? { items: message.result, query: '', queryIdentity: 'legacy', complete: true, updatedAt: '' } : message.result as IssuePageResult<GitLabProject>;
+          setTargetProjectsPage(page); setTargetProjectResults(page?.items ?? []); setProjectSearchLoading(false);
+        }
         else if (message.requestId.startsWith('template-')) {
           const template = latestTemplateRequest.current;
           latestTemplateRequest.current = undefined;
@@ -922,9 +953,6 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
   }, [active, embedded, navigation?.revision]);
 
   const issue = detail?.issue;
-  useEffect(() => {
-    if (active && editing && issue && detail?.sections?.options === 'idle') post({ type: 'loadSection', sections: ['options'] });
-  }, [active, editing, issue?.id, detail?.sections?.options]);
   useEffect(() => {
     if (!active || !issue || !detail) return;
     const wanted: Record<typeof detailTab, IssueDetailSection[]> = {
@@ -971,8 +999,11 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
     {mode === 'create' ? <section class="card">
       {optionsLoading && <p class="subtle" role="status">正在載入欄位選項與建立權限，可以先填寫標題與描述。</p>}
       {!!options.warnings?.length && <div class="warning" role="alert"><span>部分欄位讀取失敗：{options.warnings.join('；')}</span><button class="quiet small" type="button" disabled={busy || !projectId} onClick={() => beginRequest({ type: 'selectProject', projectId })}>重試</button></div>}
+      <div class="toolbar wrap issue-project-search"><label class="field"><span>搜尋 Group 專案</span><input value={createProjectQuery} maxLength={200} onInput={event => setCreateProjectQuery(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); loadCreationProjects(); } }} /></label><button type="button" disabled={createProjectsLoading} onClick={() => loadCreationProjects()}>搜尋專案</button></div>
       <label class="field"><span>專案 *</span><select value={projectId} disabled={busy} onChange={(event) => { const id = Number(event.currentTarget.value); if (projectId > 0) createDrafts.current.set(projectId, formRef.current); beginRequest({ type: 'selectProject', projectId: id }); }}><option value="0">選擇專案</option>{projects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label>
-      <IssueFields key={`create:${projectId}`} form={form} setForm={updateFormDraft} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={searchSimilar} onTemplate={selectTemplate} onLoadOptions={(section) => post({ type: 'loadFormOptions', projectId, section })} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
+      {createProjectsPage && <div class="toolbar wrap" role="status"><span>{createProjectsLoading ? '正在載入專案…' : `已載入 ${createProjectsPage.items.length} 個專案${createProjectsPage.complete ? '' : '，尚有更多結果'}`}</span>{!createProjectsPage.complete && <button type="button" disabled={createProjectsLoading} onClick={() => loadCreationProjects(true)}>載入更多專案</button>}</div>}
+      {searchLoading && <p role="status">正在搜尋相似 Issue…</p>}
+      <IssueFields key={`create:${projectId}`} form={form} setForm={updateFormDraft} options={options} projectId={projectId} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled startDateEnabled={startDateEnabled} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => searchSimilar()} onSearchMore={() => { if (!searchLoading) searchSimilar(true); }} similarPage={similarPage} onTemplate={selectTemplate} onLoadOptions={(section, mode) => post({ type: 'loadFormOptions', projectId, section, mode })} similar={similar} previewHtml={previewHtml} onLink={openLink} editing={false} />
       <div class="actions"><button class="primary" type="button" disabled={busy || !canCreateIssue || !projectId || !form.title.trim()} onClick={() => { if (!beginRequest({ type: 'create', projectId, input: createPayload(form) })) return; createDrafts.current.set(projectId, formRef.current); createPending.current = { projectId, title: form.title }; }}>建立 Issue</button></div>
     </section> : issue && detail && <>
       {!!detail.notices?.length && <div class="alert subtle" role="status"><strong>部分欄位未儲存</strong><ul>{detail.notices.map((notice) => <li>{notice}</li>)}</ul></div>}
@@ -992,7 +1023,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
       }} onClick={() => updateDetailTab(id)}>{label}</button>)}</nav>
       <div class="layout"><div class="main-column">
         <section class="card issue-section" hidden={detailTab !== 'content'}><div class="section-head"><div><span class={`state ${issue.state}`}>{issue.state === 'closed' ? '已結案' : '未結案'}</span><span class="muted">{issue.references?.full ?? `#${issue.iid}`}</span></div><div class="toolbar">{detail.canEdit && <button type="button" onClick={toggleIssueEditing}>{editing ? '取消編輯' : '編輯需求'}</button>}{detail.canEdit && <button type="button" onClick={() => invoke(issue.state === 'opened' ? 'close' : 'reopen')}>{issue.state === 'opened' ? '結案 Issue' : '重新開啟'}</button>}</div></div>
-          {editing ? <><IssueFields form={form} setForm={updateFormDraft} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { if (!beginRequest({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) })) return; pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
+          {editing ? <><IssueFields form={form} setForm={updateFormDraft} options={options} projectId={issue.project_id} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} templateEnabled={false} startDateEnabled={detail.canSetStartDate} onPreview={() => requestPreview(form.description)} onUpload={upload} onSearch={() => undefined} onLoadOptions={(section, mode) => post({ type: 'loadFormOptions', projectId: issue.project_id, section, mode })} similar={[]} previewHtml={previewHtml} onLink={openLink} editing /><div class="actions"><button class="primary" disabled={busy || !form.title.trim()} onClick={() => { if (!beginRequest({ type: 'update', issueId: issue.id, expectedUpdatedAt: issue.updated_at, input: updatePayload(form) })) return; pendingIssueSave.current = true; submittedIssueForm.current = formRef.current; }}>儲存變更</button></div></> : <><div class="description">{issue.description ? previewHtml ? <Markdown html={previewHtml} baseUrl={markdownBaseUrl} images={images} onImage={requestImage} onLink={openLink} /> : <pre class="note-body">{issue.description}</pre> : <p class="muted">尚未提供描述。</p>}</div><p class="muted small">建立於 {issue.created_at ? new Date(issue.created_at).toLocaleString() : '—'} · 更新於 {issue.updated_at ? new Date(issue.updated_at).toLocaleString() : '—'}</p></>}
           {!editing && <div class="toolbar wrap"><button class="quiet small" type="button" disabled={busy || !issue.description?.trim()} aria-label="複製 Issue 描述" onClick={() => postReplyRequest({ type: 'copyDescription', requestId: `copy-description-${issue.id}-${stamp()}`, issueId: issue.id })}>複製描述</button></div>}
         </section>
         <section class="card issue-section" hidden={detailTab !== 'content'}><h2>討論與活動</h2>
@@ -1036,7 +1067,7 @@ export function IssueView({ active = true, onBack, snapshot, navigation, actions
           <dl><dt>預估</dt><dd>{issue.time_stats?.human_time_estimate ?? '尚未設定'}</dd><dt>已登錄</dt><dd>{issue.time_stats?.human_total_time_spent ?? '尚無紀錄'}</dd></dl>{detail.canTrackTime && <><IssueTimerPanel snapshot={snapshot} issue={issue} timeEdits={timeEdits} onTimeEdit={onTimeEdit} onRequest={postWorkspace} />
           <label class="field"><span>新增手動工時（例如 45m、1h30m）</span><input aria-label="工時長度" placeholder="45m" value={manualTime.duration} onInput={(event) => onManualTimeChange?.({ ...manualTime, duration: event.currentTarget.value })} /></label><label class="field"><span>工時摘要</span><input aria-label="工時摘要" value={manualTime.summary} onInput={(event) => onManualTimeChange?.({ ...manualTime, summary: event.currentTarget.value })} /></label><label class="field"><span>登錄日期（必要時以 /spend 留言登錄）</span><input aria-label="工時日期" type="date" disabled={detail.canLogDatedTime !== true || busy} value={manualTime.spentAt} onInput={(event) => onManualTimeChange?.({ ...manualTime, spentAt: event.currentTarget.value })} /></label><div class="toolbar wrap"><button disabled={!manualTime.duration.trim() || busy} onClick={() => postWorkspace({ type: 'addManualTime', projectId: issue.project_id, issueIid: issue.iid, ...manualTime, spentAt: manualTime.spentAt || undefined })}>新增待送出工時</button><button disabled={!manualTime.duration.trim() || busy} onClick={() => invoke('estimate', { duration: manualTime.duration })}>設定預估</button><button onClick={() => invoke('resetEstimate')}>重設預估</button><button onClick={() => invoke('resetSpent')}>重設已登錄工時</button></div>
           </>}{detail.timelogs.length > 0 && <div class="time-report"><h3>GitLab 工時紀錄</h3>{detail.timelogs.map((entry) => <div class="list-row" key={entry.id}><span>{entry.timeSpent}s · {entry.user.name} · {new Date(entry.spentAt).toLocaleDateString()}{entry.summary ? ` · ${entry.summary}` : ''}</span>{detail.canDeleteTimelog && entry.userPermissions?.adminTimelog && <button class="danger" disabled={busy} onClick={() => invoke('deleteTimelog', { timelogId: entry.id })}>刪除</button>}</div>)}</div>}</section>
-        {(detail.canClone || detail.canMove || detail.canDelete) && <details class="card issue-actions"><summary>更多 Issue 操作</summary>{(detail.canClone || detail.canMove) && <><label class="field"><span>搜尋目標專案（包含其他 Group）</span><input aria-label="搜尋目標專案" value={targetQuery} onInput={(event) => setTargetQuery(event.currentTarget.value)} /></label><button disabled={!targetQuery.trim() || busy} onClick={searchTargetProjects}>搜尋專案</button><label class="field"><span>目標專案</span><select value={targetProject} onChange={(event) => setTargetProject(event.currentTarget.value)}><option value="">選擇專案</option>{targetProjects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label></>}<div class="stack">{detail.canClone && <><label class="check"><input type="checkbox" checked={cloneWithNotes} onChange={(event) => setCloneWithNotes(event.currentTarget.checked)} /> 複製時包含留言</label><button disabled={!targetProject || busy} onClick={() => invoke('clone', { toProjectId: Number(targetProject), withNotes: cloneWithNotes })}>複製 Issue</button></>}{detail.canMove && <button disabled={!targetProject || busy} onClick={() => invoke('move', { toProjectId: Number(targetProject) })}>移動 Issue</button>}{detail.canDelete && <button class="danger" disabled={busy} onClick={() => invoke('delete')}>刪除 Issue</button>}</div></details>}
+        {(detail.canClone || detail.canMove || detail.canDelete) && <details class="card issue-actions"><summary>更多 Issue 操作</summary>{(detail.canClone || detail.canMove) && <><label class="field"><span>搜尋目標專案（包含其他 Group）</span><input aria-label="搜尋目標專案" value={targetQuery} onInput={(event) => setTargetQuery(event.currentTarget.value)} /></label><button type="button" disabled={!targetQuery.trim() || busy || projectSearchLoading} onClick={() => searchTargetProjects()}>搜尋專案</button>{projectSearchLoading && <p role="status">正在搜尋專案…</p>}{targetProjectsPage && <p class="subtle">已載入 {targetProjectsPage.items.length} 筆{targetProjectsPage.complete ? '' : '，尚有更多結果'}</p>}{targetProjectsPage?.complete === false && <button type="button" disabled={projectSearchLoading} onClick={() => searchTargetProjects(true)}>載入更多搜尋專案</button>}<label class="field"><span>目標專案</span><select value={targetProject} onChange={(event) => setTargetProject(event.currentTarget.value)}><option value="">選擇專案</option>{targetProjects.map((project) => <option value={project.id}>{project.path_with_namespace}</option>)}</select></label></>}<div class="stack">{detail.canClone && <><label class="check"><input type="checkbox" checked={cloneWithNotes} onChange={(event) => setCloneWithNotes(event.currentTarget.checked)} /> 複製時包含留言</label><button disabled={!targetProject || busy} onClick={() => invoke('clone', { toProjectId: Number(targetProject), withNotes: cloneWithNotes })}>複製 Issue</button></>}{detail.canMove && <button disabled={!targetProject || busy} onClick={() => invoke('move', { toProjectId: Number(targetProject) })}>移動 Issue</button>}{detail.canDelete && <button class="danger" disabled={busy} onClick={() => invoke('delete')}>刪除 Issue</button>}</div></details>}
       </aside></div>
       </div></div>
     </>}

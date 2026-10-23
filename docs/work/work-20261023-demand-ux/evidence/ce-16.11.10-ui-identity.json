@@ -1,0 +1,91 @@
+{
+  "schema": "GitLabWorkspaceUiArtifactIdentity/v1",
+  "generatedAt": "2026-10-23T08:40:15.155Z",
+  "status": "PASS",
+  "method": "Exact Buffer.equals comparison of the six uncompressed packaged Webview assets; SHA-256 is computed from the same archive and asset buffers.",
+  "scope": "Establishes UI asset identity only; does not establish Extension Host behavior or repeat browser performance measurements.",
+  "reference": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\docs\\work\\work-20261023-demand-ux\\evidence\\browser-tested.vsix",
+    "bytes": 1127845,
+    "sha256": "565ebd0a3b84c747640b0dfdeab4634d40e3b06d36d20d10c19c7b6f4e81f811"
+  },
+  "candidate": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\Extensions\\GitlabWorkSpace\\dist\\gitlab-workspace-0.33.0.vsix",
+    "bytes": 1128488,
+    "sha256": "0b0289b224ccc9692d78463b3b49d1307576737c65349e3cd517ecb7c2626b4e"
+  },
+  "assets": [
+    {
+      "path": "extension/resources/issue-webview/dashboard.html",
+      "reference": {
+        "bytes": 443,
+        "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957"
+      },
+      "candidate": {
+        "bytes": 443,
+        "sha256": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957"
+      },
+      "identical": true
+    },
+    {
+      "path": "extension/resources/issue-webview/dashboard.js",
+      "reference": {
+        "bytes": 426031,
+        "sha256": "7e49d5fdd1243dd11528e1370d7b277135978a9d65f662b15dbadb42b805b073"
+      },
+      "candidate": {
+        "bytes": 426031,
+        "sha256": "7e49d5fdd1243dd11528e1370d7b277135978a9d65f662b15dbadb42b805b073"
+      },
+      "identical": true
+    },
+    {
+      "path": "extension/resources/issue-webview/dashboard.css",
+      "reference": {
+        "bytes": 97346,
+        "sha256": "21fe49b0019787ab2401e9bd55a15826003ee728199a83fe56564f4d1b5c7e1d"
+      },
+      "candidate": {
+        "bytes": 97346,
+        "sha256": "21fe49b0019787ab2401e9bd55a15826003ee728199a83fe56564f4d1b5c7e1d"
+      },
+      "identical": true
+    },
+    {
+      "path": "extension/resources/sidebar-webview/sidebar.html",
+      "reference": {
+        "bytes": 459,
+        "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf"
+      },
+      "candidate": {
+        "bytes": 459,
+        "sha256": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf"
+      },
+      "identical": true
+    },
+    {
+      "path": "extension/resources/sidebar-webview/sidebar.js",
+      "reference": {
+        "bytes": 55533,
+        "sha256": "db61c25ab6e21dec5afb10c8bf72cbc547b8784317a6ad7002532a96aa9d95eb"
+      },
+      "candidate": {
+        "bytes": 55533,
+        "sha256": "db61c25ab6e21dec5afb10c8bf72cbc547b8784317a6ad7002532a96aa9d95eb"
+      },
+      "identical": true
+    },
+    {
+      "path": "extension/resources/sidebar-webview/sidebar.css",
+      "reference": {
+        "bytes": 9723,
+        "sha256": "40d830a7d19d1d3710d88efb6ece8d84a2dfd6d1a48bcfb2bb2daacbc06e5fb3"
+      },
+      "candidate": {
+        "bytes": 9723,
+        "sha256": "40d830a7d19d1d3710d88efb6ece8d84a2dfd6d1a48bcfb2bb2daacbc06e5fb3"
+      },
+      "identical": true
+    }
+  ]
+}

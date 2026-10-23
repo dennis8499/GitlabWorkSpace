@@ -252,6 +252,10 @@ export class GitLabClient {
     return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&per_page=100`, cursor);
   }
 
+  searchGroupProjectsPage(groupId: number, query: string, cursor?: string): Promise<GitLabPage<GitLabProject>> {
+    return this.getPage<GitLabProject>(`groups/${encodeURIComponent(String(groupId))}/projects?include_subgroups=true&with_shared=false&search=${encodeURIComponent(query)}&per_page=20`, cursor);
+  }
+
   listAssignedGroupIssuesPage(groupId: number, cursor?: string, state: 'opened' | 'all' = 'opened'): Promise<GitLabPage<GitLabIssue>> {
     return this.getPage<GitLabIssue>(`groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=${state}&per_page=100`, cursor);
   }
@@ -485,8 +489,13 @@ export class GitLabClient {
     return this.getPage<GitLabMilestone>(`groups/${encodeURIComponent(String(groupId))}/milestones?include_descendants=true&per_page=100`, cursor);
   }
 
-  async listGroupMergeRequestsPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabMergeRequest>> {
-    const page = await this.getPage<GitLabMergeRequest>(`groups/${encodeURIComponent(String(groupId))}/merge_requests?scope=all&state=opened&per_page=100`, cursor);
+  async listGroupMergeRequestsPage(groupId: number, cursor?: string, selection: { filter: 'all' | 'reviewer' | 'assigned'; userId: number } = { filter: 'all', userId: 0 }): Promise<GitLabPage<GitLabMergeRequest>> {
+    const query = new URLSearchParams({ scope: 'all', state: 'opened', per_page: '100' });
+    if (selection.filter !== 'all') {
+      if (!['reviewer', 'assigned'].includes(selection.filter) || !Number.isSafeInteger(selection.userId) || selection.userId <= 0) throw new GitLabApiError('Invalid MR filter.');
+      query.set(selection.filter === 'reviewer' ? 'reviewer_id' : 'assignee_id', String(selection.userId));
+    }
+    const page = await this.getPage<GitLabMergeRequest>(`groups/${encodeURIComponent(String(groupId))}/merge_requests?${query}`, cursor);
     return { ...page, items: page.items.filter(request => request.state === 'opened' && Number.isSafeInteger(request.project_id) && Number.isSafeInteger(request.iid)) };
   }
 
@@ -544,6 +553,25 @@ export class GitLabClient {
     }
   }
 
+  /** Bounded discovery only: the server's ordering is not assumed. */
+  async findMergeRequestDiffVersion(projectId: number, iid: number, refs: { base_sha: string; start_sha: string; head_sha: string }): Promise<number | undefined> {
+    const page = await this.getPage<{ id: number; base_commit_sha: string; start_commit_sha: string; head_commit_sha: string }>(
+      `${this.projectPath(projectId)}/merge_requests/${iid}/versions?per_page=20`);
+    return page.items.find(item => Number.isSafeInteger(item.id) && item.id > 0 && item.base_commit_sha === refs.base_sha &&
+      item.start_commit_sha === refs.start_sha && item.head_commit_sha === refs.head_sha)?.id;
+  }
+
+  async getMergeRequestDiffVersion(projectId: number, iid: number, versionId: number,
+    refs: { base_sha: string; start_sha: string; head_sha: string }): Promise<GitLabMergeRequestDiffResult> {
+    const value = await this.getJson<{ id: number; base_commit_sha: string; start_commit_sha: string; head_commit_sha: string;
+      diffs: unknown[]; real_size?: string; state?: string }>(`${this.projectPath(projectId)}/merge_requests/${iid}/versions/${versionId}`);
+    if (!value || value.id !== versionId || value.base_commit_sha !== refs.base_sha || value.start_commit_sha !== refs.start_sha ||
+      value.head_commit_sha !== refs.head_sha || !Array.isArray(value.diffs)) throw new GitLabApiError('MR 差異版本與審查 SHA 不符，請重新載入。');
+    const complete = value.state === 'collected' && /^\d+$/.test(value.real_size ?? '') && Number(value.real_size) === value.diffs.length;
+    const result = mergeRequestDiffResult(value.diffs, 'version', [], !complete);
+    return { ...result, versionId, diffRefs: { ...refs } };
+  }
+
   listMergeRequestDiscussions(projectId: number, iid: number): Promise<GitLabIssueDiscussion[]> {
     return this.getPages<GitLabIssueDiscussion>(`${this.projectPath(projectId)}/merge_requests/${iid}/discussions?per_page=100`);
   }
@@ -593,6 +621,22 @@ export class GitLabClient {
     return this.getPages<GitLabProject>(`projects?membership=true&simple=true&search=${encodeURIComponent(query)}&per_page=100`);
   }
 
+  searchMemberProjectsPage(query: string, cursor?: string): Promise<GitLabPage<GitLabProject>> {
+    return this.getPage<GitLabProject>(`projects?membership=true&simple=true&search=${encodeURIComponent(query)}&per_page=20`, cursor);
+  }
+
+  listProjectMembersPage(projectId: number, cursor?: string): Promise<GitLabPage<GitLabMember>> {
+    return this.getPage<GitLabMember>(`${this.projectPath(projectId)}/members/all?per_page=20`, cursor);
+  }
+
+  listProjectLabelsPage(projectId: number, cursor?: string): Promise<GitLabPage<GitLabLabel>> {
+    return this.getPage<GitLabLabel>(`${this.projectPath(projectId)}/labels?per_page=20&include_ancestor_groups=true`, cursor);
+  }
+
+  listProjectMilestonesPage(projectId: number, cursor?: string): Promise<GitLabPage<GitLabMilestone>> {
+    return this.getPage<GitLabMilestone>(`${this.projectPath(projectId)}/milestones?state=active&include_ancestors=true&per_page=20`, cursor);
+  }
+
   getProject(projectId: number): Promise<GitLabProject> {
     return this.getJson<GitLabProject>(this.projectPath(projectId));
   }
@@ -625,6 +669,10 @@ export class GitLabClient {
 
   searchProjectIssues(projectId: number, query: string): Promise<GitLabIssue[]> {
     return this.getPages<GitLabIssue>(`${this.projectPath(projectId)}/issues?scope=all&state=all&search=${encodeURIComponent(query)}&per_page=20`);
+  }
+
+  searchProjectIssuesPage(projectId: number, query: string, cursor?: string): Promise<GitLabPage<GitLabIssue>> {
+    return this.getPage<GitLabIssue>(`${this.projectPath(projectId)}/issues?scope=all&state=all&search=${encodeURIComponent(query)}&per_page=20`, cursor);
   }
 
   getIssue(projectId: number, issueIid: number): Promise<GitLabIssue> {

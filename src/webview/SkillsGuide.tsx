@@ -20,7 +20,7 @@ const wikiGroups = [
   { title: '匯出', ids: ['notebooklm-export'] }
 ];
 
-export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCodex, kitInstalled, skillsContext,
+export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstalled, skillsContext,
   branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
   reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
@@ -28,7 +28,6 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
   onCopy: (text: string, featureId: string) => void;
   onOpenSettings: () => void;
-  onOpenCodex?: () => void;
   onLoadBranches?: (repo: string) => void;
   branchCandidates?: string[];
   branchStatus?: BranchReadStatus;
@@ -157,11 +156,10 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, onOpenCod
         {promptError && <p class="warning" role="alert">{promptError}</p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
           <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" disabled={!ready || copyPending} aria-label={`複製${card.title}提示詞`}
-            onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button>
-            {onOpenCodex && <button class="secondary skills-codex-button" type="button" disabled={!available} onClick={onOpenCodex}>開啟 Codex CLI</button>}</div>
+            onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button></div>
           {!ready && available && !promptError && <p class="subtle">{tool === 'merge-reviewer' || tool === 'release-reviewer'
             ? '請填妥必要欄位，使用明確分支名稱後再複製。' : '請填妥必要欄位後再複製。'}</p>}
-          <p class="skills-next-step">下一步：複製提示詞 → 開啟 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
+          <p class="skills-next-step">下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
         {(tool === 'merge-reviewer' || tool === 'release-reviewer') && onLoadReviewSessions && <ReviewSessions tool={tool}

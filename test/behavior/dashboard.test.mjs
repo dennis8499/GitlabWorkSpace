@@ -9,6 +9,96 @@ import { webviewBundle } from './webview-bundle.mjs';
 const { html, script } = await webviewBundle('dashboard');
 const dashboardCss = await readFile(new URL('../../src/webview/dashboard.css', import.meta.url), 'utf8');
 
+test('Issue empty states distinguish initial loading, failure, partial and confirmed empty without new reads', async t => {
+  const data = { ...snapshot(), issues: [], sections: { issues: { status: 'loading' } } };
+  const view = await mount({}, data); t.after(() => view.dom.window.close());
+  const text = () => view.dom.window.document.querySelector('.developer-view-shell .empty-inline').textContent;
+  assert.match(text(), /正在載入指派給你的 Issue/); assert.doesNotMatch(text(), /目前沒有指派|Group 沒有指派/);
+  const count = view.requests.length;
+  view.sendSnapshot({ ...data, sections: { issues: { status: 'error', error: 'Offline fixture' } } }); await view.tick();
+  assert.match(text(), /Issue 載入失敗.*Offline fixture/s); assert.doesNotMatch(text(), /Group 沒有指派/);
+  view.sendSnapshot({ ...data, sections: { issues: { status: 'ready', complete: false } } }); await view.tick();
+  assert.match(text(), /目前已載入.*尚未完整/s);
+  view.sendSnapshot({ ...data, sections: { issues: { status: 'ready', complete: true } } }); await view.tick();
+  assert.match(text(), /目前沒有指派給你的 Issue/);
+  assert.equal(view.requests.length, count);
+});
+
+test('MR saved role is sent on readiness and role changes request the selected server scope once', async t => {
+  const view = await mount({ mode: 'reviewer', reviewFilter: 'reviewer' }, snapshot('reviewer')); t.after(() => view.dom.window.close());
+  assert.equal(view.requests[0].mergeRequestFilter, 'reviewer');
+  const button = [...view.dom.window.document.querySelectorAll('.filter-tabs button')].find(item => item.textContent === '指派給我');
+  button.click(); await view.tick(); button.click(); await view.tick();
+  assert.deepEqual(view.requests.filter(item => item.type === 'setMergeRequestFilter'), [{ type: 'setMergeRequestFilter', filter: 'assigned', connectedScope: 'team-scope' }]);
+  assert.equal(button.getAttribute('aria-pressed'), 'true');
+});
+
+test('MR section reentry asks the Host to apply TTL once while snapshots and failed sections remain quiet', async t => {
+  const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'TTL fixture', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead, base_sha: gitParent } };
+  data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'error', error: 'Fixture error' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const reads = () => view.requests.filter(item => item.type === 'loadMergeRequestSection');
+  assert.equal(reads().length, 1, 'ready sections still need a TTL decision on entry');
+  for (let index = 0; index < 3; index++) { view.sendSnapshot(data); await view.tick(); }
+  assert.equal(reads().length, 1);
+  const tab = label => [...view.dom.window.document.querySelectorAll('.review-tabs button')].find(item => item.textContent === label);
+  tab('討論').click(); await view.tick(); assert.equal(reads().length, 1, 'a previous error never retries automatically');
+  tab('變更').click(); await view.tick(); assert.equal(reads().length, 2);
+  view.sendSnapshot({ ...data, activeMode: 'sa' }); await view.tick(); view.sendSnapshot(data); await view.tick();
+  assert.equal(reads().length, 3);
+  const changed = { ...data, selectedMergeRequest: { ...data.selectedMergeRequest, sourceSha: 'c'.repeat(40) } };
+  view.sendSnapshot(changed); await view.tick(); assert.equal(reads().length, 4, 'a different diff version establishes a new demand identity');
+});
+
+test('Issue filter chips clear local search without requesting remote data', async t => {
+  const view = await mount({}, snapshot()); t.after(() => view.dom.window.close());
+  const input = view.dom.window.document.querySelector('input[aria-label="搜尋 Issue"]');
+  input.value = 'no matching issue'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const before = view.requests.length;
+  view.dom.window.document.querySelector('[aria-label="清除 Issue 搜尋"]').click(); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('input[aria-label="搜尋 Issue"]').value, '');
+  assert.equal(view.dom.window.document.querySelectorAll('.work-row').length, 3);
+  assert.equal(view.requests.length, before);
+});
+
+test('freshness expiration and cooldown countdown change presentation without automatic requests', async t => {
+  let clock;
+  const data = { ...snapshot(), sections: { issues: { status: 'ready', dataSource: 'cache', fetchedAt: 1000, expiresAt: 60000, transportStage: 'cooldown', retryAt: 5000 } } };
+  const view = await mount({}, data, {}, window => { clock = snackbarClock(window); }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, before = view.requests.length;
+  assert.match(document.querySelector('.data-freshness').textContent, /使用快取.*資料取得於/s);
+  assert.match(document.querySelector('.transport-status').textContent, /5 秒後可重試/);
+  clock.advance(60000); await view.tick();
+  assert.match(document.querySelector('.data-freshness').textContent, /下次需要時更新/);
+  assert.match(document.querySelector('.transport-status').textContent, /暫停時間已到/);
+  assert.equal(view.requests.length, before);
+});
+
+test('drawer exit retains its focus boundary, clears unsent Tokens immediately and does not reload on snapshots', async t => {
+  const view = await mount({}, snapshot(), {}, window => {
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
+  }); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document, trigger = document.querySelector('.settings-trigger');
+  trigger.focus(); trigger.click(); await view.tick();
+  document.querySelector('#settings-tab-accounts').click(); await view.tick();
+  document.querySelector('.accounts-heading button').click(); await view.tick();
+  document.querySelector('.account-login').requestSubmit(); await view.tick();
+  const token = document.querySelector('[name="token"]'); token.value = 'unsent-fixture-token'; token.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const reads = view.requests.filter(item => item.type === 'refreshWorkflowKit').length;
+  document.querySelector('.drawer-heading > button').click(); await view.tick();
+  const overlay = document.querySelector('.drawer-scrim');
+  assert.equal(overlay.dataset.presence, 'exiting');
+  assert.equal(document.querySelector('[name="token"]').value, '');
+  view.sendSnapshot(snapshot()); await view.tick();
+  assert.equal(view.requests.filter(item => item.type === 'refreshWorkflowKit').length, reads);
+  document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+  assert.ok(document.querySelector('.tool-drawer').contains(document.activeElement));
+  overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.tool-drawer'), null); assert.equal(document.activeElement, trigger);
+  assert.equal(view.requests.some(item => item.type === 'submitAccountLogin'), false);
+});
+
 test('hidden Issue views do not announce readiness on any workspace page without navigation', async t => {
   for (const mode of ['clone', 'developer', 'reviewer', 'sa', 'bmad', 'git']) {
     const view = await mount({ mode }, snapshot(mode));
@@ -532,6 +622,43 @@ test('settings load local tools once per entry and account settings do not read 
   assert.equal(view.requests.filter(request => request.type === 'refreshWorkflowKit').length, 2);
 });
 
+test('host settings navigation resets account login intent and preserves the selected Issue and draft', async t => {
+  const data = snapshot(), view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const navigation = { mode: 'detail', projectId: 1, issueIid: 1, revision: 1 };
+  view.send({ type: 'issueNavigation', navigation }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 1, response: { type: 'detailData', data: {
+    ...issueDetailData(data.issues[0], data.projects[0]), canComment: true
+  } } }); await view.tick();
+  const comment = document.querySelector('.issue-embed textarea');
+  comment.value = 'Keep this selected Issue draft';
+  comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const readiness = view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'ready').length;
+  view.send({ type: 'openAccountManager', intent: { id: 'settings-login', startLogin: true } }); await view.tick();
+  assert.ok(document.querySelector('.account-login'));
+  assert.equal(document.querySelector('#settings-tab-accounts').getAttribute('aria-selected'), 'true');
+  const loginUrl = document.querySelector('.account-login [name="baseUrl"]');
+  loginUrl.focus(); assert.equal(document.activeElement, loginUrl);
+  const before = view.requests.length;
+  view.send({ type: 'openSettings' }); await view.tick();
+  assert.equal(document.querySelector('#settings-tab-tools').getAttribute('aria-selected'), 'true');
+  assert.equal(document.activeElement, document.querySelector('#settings-tab-tools'));
+  assert.equal(document.querySelector('.account-login'), null);
+  assert.equal(view.requests.slice(before).filter(request => request.type === 'refreshWorkflowKit').length, 1);
+  document.querySelector('#settings-tab-accounts').click(); await view.tick();
+  assert.equal(document.querySelector('.account-login'), null, 'returning to accounts does not restart the earlier login intent');
+  document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.tool-drawer'), null);
+  assert.equal(document.activeElement, document.querySelector('.settings-trigger'));
+  assert.equal(document.querySelector('.page').dataset.mode, 'developer');
+  assert.deepEqual(view.savedState.issueNavigation, navigation);
+  assert.equal(document.querySelector('.issue-embed textarea'), comment);
+  assert.equal(comment.value, 'Keep this selected Issue draft');
+  assert.equal(view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'ready').length, readiness);
+  assert.equal(view.requests.slice(before).some(request => ['setMode', 'closeIssue', 'selectIssue', 'refresh'].includes(request.type)), false);
+});
+
 test('Skills recheck completes 35 full running snapshot and terminal receipt cycles without retaining busy state', async t => {
   const sessionId = 'skills-soak-host';
   const data = { ...snapshot(), operationScope: 'skills-soak', operationSnapshot: { sessionId, revision: 0, operations: [] } };
@@ -812,8 +939,8 @@ function gitSnapshot(id = 'repo-a', patch = {}) {
     historyHasMore: false, configuredPullStrategy: 'merge', revision: 1, ...patch
   };
 }
-async function mountGit(t, storage = {}, data = gitSnapshot()) {
-  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), storage);
+async function mountGit(t, storage = {}, data = gitSnapshot(), beforeMount = () => {}) {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), storage, beforeMount);
   t.after(() => view.dom.window.close());
   for (let attempt = 0; attempt < 40 && !view.requests.some((request) => request.type === 'gitReady'); attempt++) await view.tick();
   assert.ok(view.requests.some((request) => request.type === 'gitReady'));
@@ -1379,8 +1506,10 @@ test('settings opens native Output with or without a connection or an active pro
     const view = await mount({ mode: 'developer' }, data, {}, () => {}, { autoOperations: false });
     t.after(() => view.dom.window.close());
     const document = view.dom.window.document;
-    document.querySelector('.settings-trigger').click();
+    if (connected) document.querySelector('.settings-trigger').click();
+    else view.send({ type: 'openSettings' });
     await view.tick();
+    assert.equal(document.querySelector('#settings-tab-tools').getAttribute('aria-selected'), 'true');
     const open = [...document.querySelectorAll('.tool-drawer button')].find((button) => button.textContent === '開啟 Log');
     assert.ok(open);
     assert.equal(open.disabled, false);
@@ -1487,6 +1616,18 @@ test('opening Output keeps the active Repo, selected file and commit draft', asy
   document.querySelector('.git-change-name').click(); await view.tick();
   const before = structuredClone(view.savedState.gitUi);
   const requestCount = view.requests.length;
+  document.querySelector('.notifications-trigger').click(); await view.tick();
+  assert.ok(document.querySelector('.notification-drawer'));
+  view.send({ type: 'openSettings' }); await view.tick();
+  assert.equal(document.querySelector('.notification-drawer'), null);
+  assert.equal(document.querySelector('#settings-tab-tools').getAttribute('aria-selected'), 'true');
+  assert.ok(document.querySelector('.tool-drawer').contains(document.activeElement));
+  document.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.tool-drawer'), null);
+  assert.equal(document.activeElement, document.querySelector('.settings-trigger'), 'a removed notification control is never the return focus target');
+  assert.equal(document.querySelector('.page').dataset.mode, 'git');
+  assert.deepEqual(view.savedState.gitUi, before);
+  assert.equal(document.querySelector('.git-commit-composer textarea').value, 'Keep this commit draft');
   document.querySelector('.settings-trigger').click(); await view.tick();
   [...document.querySelectorAll('.tool-drawer button')].find(button => button.textContent === '開啟 Log').click();
   await view.tick();
@@ -3048,6 +3189,7 @@ test('MR empty results appear only after a successful load and respect the curre
 
 test('MR reports publish as manual comments while approval and merge remain SHA based', async t => {
   const data=snapshot('reviewer'); const request={id:41,iid:4,project_id:1,title:'Review',state:'opened',source_branch:'feature',target_branch:'main',diff_refs:{head_sha:gitHead}};
+  data.instance={version:'16.11.0',enterprise:true};
   data.mergeRequests=[request]; data.selectedMergeRequest={request,diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};
   const view=await mount({mode:'reviewer'},data); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
   [...document.querySelectorAll('[role=tab]')].find(button => button.textContent==='審查報告').click(); await view.tick();
@@ -3058,6 +3200,19 @@ test('MR reports publish as manual comments while approval and merge remain SHA 
   assert.equal(buttons.find(button => button.textContent==='合併 MR').disabled,false);
   buttons.find(button => button.textContent==='作一般留言發布').click(); await view.tick();
   assert.equal(view.requests.findLast(request => request.type==='postMergeRequestNote').body,input.value);
+});
+
+test('CE and unconfirmed instances omit unsupported MR approvals while preserving merge and comments', async t => {
+  for (const enterprise of [false, undefined]) {
+    const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead } };
+    data.instance = { version: '16.11.0', enterprise };
+    data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
+    const view = await mount({ mode: 'reviewer', reviewerTab: 'report' }, data); t.after(() => view.dom.window.close());
+    const buttons = [...view.dom.window.document.querySelectorAll('.reviewer-detail button')];
+    assert.equal(buttons.some(item => item.textContent === '核准'), false);
+    assert.equal(buttons.find(item => item.textContent === '合併 MR').disabled, false);
+    assert.equal(view.requests.some(item => item.type === 'approveMergeRequest'), false);
+  }
 });
 
 test('Webview reconstruction restores Git drafts and selections and acknowledges a completed write without resending it', async (t) => {
@@ -3454,4 +3609,72 @@ test('MR discussion replies retain failed and uncertain drafts and clear only co
   await type('Confirmed exact text'); const applied = await submit();
   await finish(applied, { status: 'succeeded', effect: 'applied', refreshError: 'Discussions unavailable' });
   assert.equal(input.value, ''); assert.equal(view.savedState.mrReplyDrafts[key], '');
+});
+
+test('Git dialog cancellation restores its trigger and focus stays inside until closure', async t => {
+  const view = await mountGit(t);
+  const document = view.dom.window.document;
+  const trigger = document.querySelector('.git-fetch');
+  trigger.focus(); trigger.click(); await view.tick();
+  const dialog = document.querySelector('.git-dialog');
+  assert.ok(dialog.contains(document.activeElement));
+  document.querySelector('.git-branch-picker select').focus();
+  assert.ok(dialog.contains(document.activeElement), 'programmatic focus cannot escape the modal');
+  const controls = [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+  controls.at(-1).focus();
+  view.dom.window.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Tab', cancelable: true }));
+  assert.equal(document.activeElement, controls[0]);
+  view.dom.window.dispatchEvent(new view.dom.window.KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+  await view.tick();
+  assert.equal(document.querySelector('.git-dialog'), null);
+  assert.equal(document.activeElement, trigger);
+  assert.equal(gitActions(view, 'fetch').length, 0);
+  assert.match(document.querySelector('.git-statusbar').textContent, /本機追蹤分支資訊.*工作台最近成功 Fetch：尚未執行/);
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 2, lastSuccessfulFetchAt: 1_800_000_000_000 }) });
+  await view.tick();
+  assert.doesNotMatch(document.querySelector('.git-fetch-freshness').textContent, /尚未執行/);
+});
+
+test('Git dialog exit animation blocks submit, preserves focus return and supports rapid reopening', async t => {
+  const view = await mountGit(t, {}, gitSnapshot(), window => {
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
+  });
+  const document = view.dom.window.document;
+  const trigger = document.querySelector('.git-fetch');
+  trigger.focus(); trigger.click(); await view.tick();
+  let overlay = document.querySelector('.git-dialog-backdrop');
+  overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
+  assert.equal(overlay.dataset.presence, 'entered');
+  document.querySelector('.git-dialog button[aria-label="關閉"]').click(); await view.tick();
+  assert.equal(overlay.dataset.presence, 'exiting');
+  document.querySelector('.git-dialog').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  await view.tick(); assert.equal(gitActions(view, 'fetch').length, 0);
+  // A quick reopen must cancel the old exit callback without losing its form.
+  trigger.click(); await view.tick();
+  overlay = document.querySelector('.git-dialog-backdrop');
+  overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
+  assert.equal(overlay.dataset.presence, 'entered');
+  document.querySelector('.git-dialog button[aria-label="關閉"]').click(); await view.tick();
+  overlay.dispatchEvent(new view.dom.window.Event('animationend', { bubbles: true })); await view.tick();
+  assert.equal(document.querySelector('.git-dialog'), null);
+  assert.equal(document.activeElement, trigger);
+  assert.equal(gitActions(view, 'fetch').length, 0);
+});
+
+test('changing Git Repo immediately removes the previous Repo dialog without an exit animation', async t => {
+  const view = await mountGit(t, {}, gitSnapshot(), window => {
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    Object.defineProperty(window.HTMLElement.prototype, 'onanimationend', { configurable: true, writable: true, value: null });
+  });
+  const document = view.dom.window.document;
+  const trigger = document.querySelector('.git-fetch');
+  trigger.focus(); trigger.click(); await view.tick();
+  assert.ok(document.querySelector('.git-dialog'));
+  const picker = document.querySelector('.git-repo-picker select');
+  picker.value = 'repo-b'; picker.dispatchEvent(new view.dom.window.Event('change', { bubbles: true }));
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-b', { revision: 2 }) });
+  await view.tick();
+  assert.equal(document.querySelector('.git-dialog'), null, 'old-scope form must not remain against the next Repo snapshot');
+  assert.equal(gitActions(view, 'fetch').length, 0);
 });

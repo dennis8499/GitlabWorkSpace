@@ -21,6 +21,14 @@ test('all transport and nested action policies are explicit and control traffic 
   assert.equal(describeAction({ type: 'gitAction', action: { type: 'rebasePreview', pullSource: { remote: 'origin', branch: 'main' } } } as any).kind, 'write');
 });
 
+test('retired Codex terminal requests are rejected before dispatch', () => {
+  const { actions, sent } = setup();
+  assert.throws(() => actions.dispatch({ type: 'openCodexTerminal', contextRevision: 'old-context' }), /此操作已移除/);
+  assert.deepEqual(sent, []);
+  assert.deepEqual(actions.getSnapshot(), []);
+  actions.dispose();
+});
+
 test('pagination cancellation bypasses pending reads and distinct sections and graph expansions never join each other', () => {
   const { actions, sent } = setup();
   actions.dispatch({ type: 'retryWorkspaceSection', section: 'projects', mode: 'all', connectedScope: 'scope' });

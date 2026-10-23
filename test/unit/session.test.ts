@@ -117,7 +117,7 @@ test('authenticated activation reads version metadata without probing Issue sche
   assert.equal(session.issueCapabilities, undefined);
 });
 
-test('recognizes CE 16.11.10 as the minimum and keeps edition limits in capability diagnostics', async () => {
+test('recognizes supported CE metadata and keeps edition limits in capability diagnostics', async () => {
   const session = await sessionWithInstance(Promise.resolve({ version: '16.11.10-ee', enterprise: false }));
   assert.equal(session.issueCapabilities?.hierarchy, false);
   assert.ok(!session.instanceWarnings.some((warning) => /blocking issue links/i.test(warning)));
@@ -125,7 +125,7 @@ test('recognizes CE 16.11.10 as the minimum and keeps edition limits in capabili
   assert.equal(blockingLinks?.status, 'unsupported');
   assert.match(blockingLinks?.reason ?? '', /Community Edition/);
   assert.ok(!session.instanceWarnings.some((warning) => /低於最低支援版本/));
-  assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'mergeRequestApprovals')?.status, 'supported');
+  assert.equal(session.capabilityDiagnostics.find((item) => item.id === 'mergeRequestApprovals')?.status, 'unsupported');
 });
 
 test('does not infer Premium or Ultimate blocking-link support from Enterprise Edition metadata', async () => {

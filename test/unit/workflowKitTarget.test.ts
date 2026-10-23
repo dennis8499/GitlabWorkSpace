@@ -14,7 +14,6 @@ const folderKey = 'gitlabWorkspace.projectFolder';
 let preferGroup: boolean | undefined;
 let resolvingPython: (() => void) | undefined;
 const updates: any[] = [];
-const terminals: any[] = [];
 const vscode = {
   workspace: {
     workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
@@ -26,7 +25,6 @@ const vscode = {
   ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
   env: { openExternal: async (_uri: unknown) => true, clipboard: { writeText: async (_text: string) => undefined } },
   window: {
-    createTerminal: (options: any) => { terminals.push(options); return { show: () => undefined, sendText: () => undefined }; },
     showQuickPick: async (_items: any[], _options: unknown): Promise<any> => undefined,
     showOpenDialog: async (_options: unknown): Promise<any> => undefined,
     withProgress: async (_options: unknown, task: () => Promise<unknown>) => task()
@@ -35,9 +33,7 @@ const vscode = {
 };
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = moduleLoader._load;
-moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : name === './windowsTerminal' ? {
-  windowsCodexTerminalOptions: () => ({ shellPath: 'codex.exe' })
-} : name === './pythonRuntime' ? {
+moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : name === './pythonRuntime' ? {
   resolvePythonRuntime: async () => { resolvingPython?.(); return { executable: process.execPath, args: [], env: process.env }; }
 } : originalLoad(name, parent, main);
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
@@ -170,15 +166,6 @@ test('switching GitLab Group does not change local paths or workflow', async t =
   assert.equal(host.cloneRoot, group);
 });
 
-test('Codex uses the selected workspace folder and rejects a stale context', async t => {
-  const [, repo, other] = await directories(t); const { host, installed } = fixture([repo, other]);
-  installed.set(repo, 'repository'); installed.set(other, 'repository');
-  await selectFolder(host, repo); const context = host.getSkillsContext(); terminals.length = 0;
-  await host.openCodexTerminal(context.revision); assert.equal(terminals[0].cwd, repo);
-  await selectFolder(host, other); await assert.rejects(host.openCodexTerminal(context.revision), /啟動位置/);
-  assert.equal(terminals.length, 1);
-});
-
 test('an empty window permits package downloads but requires an opened project for local operations', async t => {
   const [, repo] = await directories(t); const { host, calls } = fixture([]);
   await host.refreshWorkflowKit(); await host.openWorkflowKitDownload('gitea');
@@ -205,7 +192,7 @@ test('legacy independent paths do not override the VS Code project root', async 
   assert.equal(host.workflowKitInstallTarget.root, repo);
 });
 
-test('changing the shared root switches installation, Skills and Codex together', async t => {
+test('changing the shared root switches installation and Skills together', async t => {
   const [group, repo] = await directories(t); const { host, installed } = fixture([group]);
   installed.set(group, 'group'); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
   const oldRevision = host.getSkillsContext().revision;
@@ -214,7 +201,6 @@ test('changing the shared root switches installation, Skills and Codex together'
   assert.equal(host.getSkillsContext().root, repo);
   assert.notEqual(host.getSkillsContext().revision, oldRevision);
   assert.equal(updates.at(-1).target, 2); assert.equal(updates.at(-1).key, 'projectRoot');
-  terminals.length = 0; await host.openCodexTerminal(host.getSkillsContext().revision); assert.equal(terminals[0].cwd, repo);
   await host.resetWorkflowKitInstallRoot(); assert.equal(host.cloneRoot, group);
 });
 

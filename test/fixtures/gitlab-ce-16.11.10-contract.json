@@ -1,0 +1,18 @@
+{
+  "version": "16.11.10",
+  "enterprise": false,
+  "sourceTag": "v16.11.10-ee",
+  "sources": [
+    "https://gitlab.com/gitlab-org/gitlab/-/raw/v16.11.10-ee/doc/api/merge_requests.md",
+    "https://gitlab.com/gitlab-org/gitlab/-/raw/v16.11.10-ee/doc/api/merge_request_approvals.md",
+    "https://gitlab.com/gitlab-org/gitlab/-/raw/v16.11.10-ee/app/graphql/types/project_type.rb"
+  ],
+  "note": "Version-pinned REST and conservative selective-probe contract, not an exported CE schema or live acceptance evidence. Missing optional probe fields must stay disabled. Existing 16.11.10 positive capability fixtures remain separate.",
+  "liveVerified": false,
+  "project": { "id": 4, "name": "One", "path": "one", "path_with_namespace": "team/one", "default_branch": "main", "http_url_to_repo": "https://gitlab.test/team/one.git", "web_url": "https://gitlab.test/team/one" },
+  "issue": { "id": 41, "iid": 1, "project_id": 4, "title": "Contract issue", "state": "opened", "web_url": "https://gitlab.test/team/one/-/issues/1", "assignees": [], "labels": [] },
+  "types": [
+    { "name": "Project", "kind": "OBJECT", "fields": [{ "name": "fullPath", "type": { "name": "ID", "kind": "SCALAR" } }] },
+    { "name": "Mutation", "kind": "OBJECT", "fields": [] }
+  ]
+}

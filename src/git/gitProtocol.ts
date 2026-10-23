@@ -28,6 +28,8 @@ export interface GitRepositorySummary {
   tracking?: string;
   ahead?: number;
   behind?: number;
+  /** Successful fetch observed by this workbench session; external fetches are unknown. */
+  lastSuccessfulFetchAt?: number;
   stagedCount: number;
   unstagedCount: number;
   conflictCount: number;

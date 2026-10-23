@@ -3,6 +3,7 @@ import { useContext, useEffect } from 'preact/hooks';
 import { ActionController } from '../workspace/actionController';
 import { isActiveOperation, type WorkspaceOperationState } from '../workspace/operations';
 import { ActionContext, useActionSelector } from './useActions';
+import { TransportStatus } from './DataStatus';
 
 const fallback = new ActionController(() => {});
 const emptyOperations: WorkspaceOperationState[] = [];
@@ -45,6 +46,7 @@ export function OperationFeedback({ resourceKey, scopeRevision, initialOperation
     class={`operation-status ${item.status}`} role={item.status === 'failed' || item.refreshError ? 'alert' : 'status'}>
     {isActiveOperation(item) && <span class="spinner" />}
     <strong>{item.label}</strong><span>{item.refreshError ? `已更新，重新載入失敗：${item.refreshError}` : item.error ?? item.phase}</span>
+    {isActiveOperation(item) && <TransportStatus status={item} service={item.resourceKey.startsWith('git:') ? 'git' : 'api'} />}
     {item.total !== undefined && item.completed !== undefined && <span>{item.completed}／{item.total}</span>}
     {item.effect === 'unknown' ? <button class="quiet small" type="button" onClick={() => {
       const match = /^mr:(\d+):(\d+)$/.exec(item.resourceKey);

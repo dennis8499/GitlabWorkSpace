@@ -8,6 +8,7 @@ import { runTests } from '@vscode/test-electron';
 import { fileURLToPath } from 'node:url';
 import { compareLiveBenchmarks } from './live-benchmark-comparison.mjs';
 import { sameFilesystemPath, createLiveTestProfile } from './live-test-paths.mjs';
+import { liveEnvironments } from './live-environments.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE = path.join(ROOT, '.gitlab-workspace-validation');
@@ -17,9 +18,10 @@ if (!evidenceRelative || evidenceRelative.startsWith('..' + path.sep) || evidenc
 const TEST_PROFILE_ROOT = path.join(tmpdir(), 'gitlab-workspace-vscode-test');
 const PACKAGE = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 let validatedVSCodeVersion;
+const configuredEnvironments = liveEnvironments();
 const ENVS = {
-  ce19: { url: 'http://127.0.0.1:8929', tokenName: 'GLW_CE19_TOKEN', group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9341 },
-  ce16: { url: 'http://127.0.0.1:8930', tokenName: 'GLW_CE16_TOKEN', group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9342 }
+  ce19: { ...configuredEnvironments.ce19, group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9341 },
+  ce16: { ...configuredEnvironments.ce16, group: 'grp-sn-maint/gitlab-workspace-live-validation/demo', port: 9342 }
 };
 
 function option(name, fallback) {
@@ -201,6 +203,7 @@ async function runOne(key, round, args, executable, packageInfo) {
     ELECTRON_RUN_AS_NODE: undefined,
     GLW_LIVE_ENVIRONMENT: key,
     GLW_LIVE_BASE_URL: config.url,
+    GLW_LIVE_EXPECTED_GITLAB_VERSION: config.version,
     GLW_LIVE_TOKEN: token,
     GLW_LIVE_MANIFEST: fixtureManifest,
     GLW_LIVE_GROUP_PATH: manifest.group?.fullPath ?? config.group,
@@ -239,7 +242,7 @@ async function runOne(key, round, args, executable, packageInfo) {
     const failure = {
       ...recorded,
       schema: 'GitLabWorkspaceLiveExtensionEvidence/v1', generatedAt: new Date().toISOString(),
-      environment: key, baseUrl: config.url, expectedGitLabVersion: key === 'ce19' ? '19.4.1' : '16.11.10',
+      environment: key, baseUrl: config.url, expectedGitLabVersion: config.version,
       vscodeVersion: validatedVSCodeVersion, testedArtifact: { vsix: packageInfo.vsix, sha256: packageInfo.sha256 },
       status: recorded?.status ?? (/timed out|fetch failed|ECONNREFUSED|network error/i.test(message) ? 'BLOCKED' : 'FAIL'), error: message
     };
@@ -1054,13 +1057,14 @@ async function main() {
       catch (error) {
         const message = safeError(error);
         const status = classifyLiveStatus(error);
-        failures.push({ environment: key, round, status, error: message });
+        failures.push({ environment: key, baseUrl: ENVS[key].url, expectedGitLabVersion: ENVS[key].version, round, status, error: message });
         if (status === 'BLOCKED') break;
       }
     }
   }
   const summary = {
     schema: 'GitLabWorkspaceLiveVerification/v1', generatedAt: new Date().toISOString(),
+    targets: keys.map(key => ({ environment: key, baseUrl: ENVS[key].url, expectedGitLabVersion: ENVS[key].version })),
     vscodeVersion: validatedVSCodeVersion, testedArtifact: artifactEvidence,
     mode: args.benchmark ? 'benchmark' : args.gitGui ? 'git-gui' : 'live-smoke', fixture: args.fixture, runId: args.runId,
     ...(label ? { label } : {}),

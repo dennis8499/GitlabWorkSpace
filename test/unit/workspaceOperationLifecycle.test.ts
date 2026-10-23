@@ -5,7 +5,10 @@ import { NotificationCenter } from '../../src/notifications/notificationCenter';
 import { describeAction } from '../../src/workspace/actionPolicy';
 import { GitLabClient } from '../../src/api/gitLabClient';
 
-const vscode = { window: { showWarningMessage: async () => undefined as string | undefined } };
+const vscode = { window: {
+  showWarningMessage: async () => undefined as string | undefined,
+  createTerminal: (_options: unknown) => ({ show: () => undefined, sendText: (_text: string) => undefined })
+} };
 const loader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = loader._load;
 loader._load = (name, parent, main) => name === 'vscode' ? vscode : originalLoad(name, parent, main);
@@ -32,6 +35,17 @@ function fixture() {
 }
 
 const terminal = (events: WorkspaceOperationState[], id: string) => events.filter(item => item.requestId === id && item.finishedAt !== undefined);
+
+test('retired Codex launch requests are rejected without opening a terminal', async t => {
+  const f = fixture();
+  const createTerminal = t.mock.method(vscode.window, 'createTerminal');
+  f.host.dispatchMessage = (WorkspacePanel.prototype as any).dispatchMessage;
+  for (const metadata of [{}, { operationId: 'retired-codex' }]) {
+    await assert.rejects(f.host.handleMessage({ type: 'openCodexTerminal', revision: 'old-root', ...metadata }), /此操作已移除/);
+  }
+  assert.equal(createTerminal.mock.callCount(), 0);
+  assert.equal(f.events.length, 0);
+});
 
 test('host publishes one terminal receipt for preflight rejection and permits a fresh explicit retry', async () => {
   const f = fixture(); let calls = 0;
@@ -132,7 +146,7 @@ test('handled read failures and scanning errors remain failed operations', async
   assert.equal(f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'scan').messages[0], 'Scan denied');
 });
 
-test('MR fallback renders the recovered files and records a truthful warning; failed retries retain both errors', async () => {
+test('fixed-version MR Diff renders limited files with a truthful warning and failed retry retains its error', async () => {
   const f = fixture(); let fallbackFails = false;
   const summaries: any[] = [], endpoints: string[] = [];
   f.host.runLogged = (WorkspacePanel.prototype as any).runLogged;
@@ -142,24 +156,27 @@ test('MR fallback renders the recovered files and records a truthful warning; fa
   f.host.dispatchMessage = (WorkspacePanel.prototype as any).dispatchMessage;
   f.host.mergeRequestSectionAborts = {}; f.host.mergeRequestSectionGenerations = { diffs: 0, discussions: 0 };
   f.host.mergeRequestGeneration = 0; f.host.requestGeneration = 0;
-  f.host.selectedMergeRequest = { request: { project_id: 1, iid: 2 }, diffs: [], warnings: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
+  f.host.selectedMergeRequest = { request: { project_id: 1, iid: 2, diff_refs: { base_sha: 'base', start_sha: 'start', head_sha: 'head' } }, diffs: [], warnings: [], sections: { diffs: { status: 'idle' }, discussions: { status: 'idle' } } };
+  f.host.loadMergeRequest = async () => undefined;
+  const version = { id: 8, base_commit_sha: 'base', start_commit_sha: 'start', head_commit_sha: 'head' };
   const client = new GitLabClient('https://gitlab.test', 'test-only', async input => {
     const endpoint = new URL(String(input)).pathname; endpoints.push(endpoint);
-    return endpoint.endsWith('/diffs') ? new Response('{}', { status: 500 }) : fallbackFails ? new Response('{}', { status: 503 })
-      : new Response(JSON.stringify({ changes: [{ old_path: 'a.ts', new_path: 'a.ts', diff: '+restored' }], overflow: false }));
+    return endpoint.endsWith('/versions') ? new Response(JSON.stringify([version])) : fallbackFails ? new Response('{}', { status: 503 })
+      : new Response(JSON.stringify({ ...version, state: 'overflow', real_size: '1000+', diffs: [{ old_path: 'a.ts', new_path: 'a.ts', diff: '+restored' }] }));
   });
   f.host.session.getClient = async () => client;
+  f.host.session.cachedRead = async (_key: string, load: (value: GitLabClient) => Promise<unknown>) => load(client);
   await f.host.handleMessage({ type: 'loadMergeRequestSection', section: 'diffs', projectId: 1, iid: 2, operationId: 'recovered' });
   assert.equal(f.host.selectedMergeRequest.sections.diffs.status, 'ready');
   assert.equal(f.host.selectedMergeRequest.diffs[0].diff, '+restored');
-  assert.match(f.host.selectedMergeRequest.warnings[0], /相容差異 API/);
+  assert.match(f.host.selectedMergeRequest.warnings[0], /不完整/);
   assert.equal(f.host.notifications.snapshot().items.length, 1);
   assert.equal(f.host.notifications.snapshot().items[0].level, 'warn');
   assert.equal(summaries[0].result, 'success');
   fallbackFails = true; f.host.selectedMergeRequest.sections.diffs = { status: 'error' };
   await f.host.handleMessage({ type: 'loadMergeRequestSection', section: 'diffs', projectId: 1, iid: 2, operationId: 'failed-retry' });
   assert.equal(f.host.selectedMergeRequest.sections.diffs.status, 'error');
-  assert.match(f.host.selectedMergeRequest.sections.diffs.error, /HTTP 500.*HTTP 503/);
+  assert.match(f.host.selectedMergeRequest.sections.diffs.error, /HTTP 503/);
   assert.equal(f.operations.get('failed-retry')?.status, 'failed');
   const failed = f.host.notifications.snapshot().items.find((item: any) => item.operationId === 'failed-retry');
   assert.equal(failed.level, 'error'); assert.equal(failed.messages.length, 1);

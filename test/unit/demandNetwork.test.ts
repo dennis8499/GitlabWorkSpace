@@ -29,6 +29,9 @@ function networkFixture() {
       : endpoint.includes('/repository/branches/') ? { name: endpoint.split('/').at(-1), commit: { id: endpoint.endsWith('/main') ? 'target-live' : 'source-live' } }
       : endpoint.endsWith('/repository/compare') ? { commits: [] }
       : endpoint.endsWith('/diffs') ? [{ old_path: 'a', new_path: 'a', diff: '+b' }]
+      : endpoint.endsWith('/versions') ? [{ id: 12, base_commit_sha: request.diff_refs?.base_sha, start_commit_sha: request.diff_refs?.start_sha, head_commit_sha: request.diff_refs?.head_sha }]
+      : endpoint.endsWith('/versions/12') ? { id: 12, base_commit_sha: request.diff_refs?.base_sha, start_commit_sha: request.diff_refs?.start_sha, head_commit_sha: request.diff_refs?.head_sha,
+        state: 'collected', real_size: '1', diffs: [{ old_path: 'a', new_path: 'a', diff: '+b' }] }
       : endpoint.endsWith('/groups/42/projects') ? [project]
       : endpoint.endsWith('/projects/1') ? project
       : endpoint.endsWith('/issues/1') ? { id: 101, iid: 1, project_id: 1, title: 'Issue', state: 'opened' }
@@ -60,16 +63,16 @@ test('MR selection is one actual HTTP GET, joins duplicate clicks, and branch ch
   await f.host.loadMergeRequestSection('discussions', 1, 1);
   const diffs = f.host.selectedMergeRequest.diffs;
   await f.host.loadMergeRequest(1, 1);
-  assert.equal(f.calls.length, 3); assert.equal(f.host.selectedMergeRequest.diffs, diffs);
+  assert.equal(f.calls.length, 4); assert.equal(f.host.selectedMergeRequest.diffs, diffs);
   await Promise.all([f.host.refreshMergeRequestBranches(1, 1), f.host.refreshMergeRequestBranches(1, 1)]);
-  assert.equal(f.calls.length, 7, 'one explicit check adds a fresh summary, two branches and compare');
+  assert.equal(f.calls.length, 8, 'one explicit check adds a fresh summary, two branches and compare');
   assert.equal(f.host.selectedMergeRequest.sourceSha, 'head-review');
   assert.equal(f.host.selectedMergeRequest.targetSha, 'start-review');
   assert.equal(f.host.selectedMergeRequest.freshness.sourceSha, 'source-live');
   assert.equal(f.host.selectedMergeRequest.diffs, diffs);
   const before = f.calls.length;
   await f.host.refreshMergeRequestData(1, 1, 'used');
-  assert.equal(f.calls.length, before + 3, 'manual refresh updates summary plus the two used tabs');
+  assert.equal(f.calls.length, before + 4, 'manual refresh updates summary, fixed Diff version and discussions');
   assert.equal(f.calls.slice(before).some(url => /branches|compare/.test(url.pathname)), false);
   f.advance(60_001); await f.host.loadMergeRequest(1, 1);
   assert.equal(f.calls.filter(url => url.pathname.endsWith('/merge_requests/1')).length, 4);
@@ -83,7 +86,7 @@ test('MR identity changes cancel an old Diff and late old account results cannot
   const f = networkFixture(); await f.host.loadMergeRequest(1, 1);
   let finish!: () => void;
   const delayed = new Promise<void>(resolve => { finish = resolve; });
-  f.intercept(async url => { if (url.pathname.endsWith('/diffs')) { await delayed; return new Response(JSON.stringify([{ old_path: 'old', new_path: 'old', diff: '+old' }]), { headers: { 'content-type': 'application/json' } }); } });
+  f.intercept(async url => { if (url.pathname.endsWith('/versions/12')) { await delayed; return new Response(JSON.stringify({ id: 12, base_commit_sha: 'base-review', start_commit_sha: 'start-review', head_commit_sha: 'head-review', state: 'collected', real_size: '1', diffs: [{ old_path: 'old', new_path: 'old', diff: '+old' }] }), { headers: { 'content-type': 'application/json' } }); } });
   const pending = f.host.loadMergeRequestSection('diffs', 1, 1); await tick();
   f.host.cancelMergeRequestSectionReads();
   assert.equal(f.host.selectedMergeRequest.sections.diffs.status, 'idle', 'hidden views can resume an interrupted section');

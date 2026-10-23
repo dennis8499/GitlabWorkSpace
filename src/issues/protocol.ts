@@ -15,8 +15,12 @@ export interface IssueFormOptions {
   states?: Partial<Record<IssueFormOptionSection, IssueReadState>>;
 }
 
-export type IssueFormOptionSection = 'fields' | 'templates';
-export interface IssueReadState { status: IssueDetailSectionStatus; error?: string; }
+export type IssueFormOptionSection = 'fields' | 'members' | 'labels' | 'milestones' | 'templates';
+export interface IssueReadState { status: IssueDetailSectionStatus; error?: string; complete?: boolean; loadedCount?: number; updatedAt?: string; }
+/** Continuations remain in the Host; Webview requests can only advance this query. */
+export interface IssuePageResult<T> {
+  items: T[]; query: string; queryIdentity: string; complete: boolean; updatedAt: string;
+}
 
 export interface IssueTask {
   id: string;
@@ -101,7 +105,8 @@ export type IssuePanelRequest = (
   | { type: 'cancelUpload'; targetRequestId: string }
   | { type: 'refresh' }
   | { type: 'loadSection'; sections: IssueDetailSection[] }
-  | { type: 'loadFormOptions'; projectId: number; section: IssueFormOptionSection }
+  | { type: 'loadFormOptions'; projectId: number; section: IssueFormOptionSection; mode?: 'next' }
+  | { type: 'loadCreateProjects'; query?: string; mode?: 'next'; queryIdentity?: string }
   | { type: 'loadNoteReactions'; noteId: number }
   | { type: 'loadTemplate'; requestId: string; projectId: number; key: string }
   | { type: 'copyDescription'; requestId: string; issueId: number }
@@ -109,8 +114,8 @@ export type IssuePanelRequest = (
   | { type: 'create'; projectId: number; input: IssueCreateInput }
   | { type: 'update'; issueId: number; input: IssueUpdateInput; expectedUpdatedAt?: string }
   | { type: 'preview'; requestId: string; projectId: number; markdown: string; target?: string }
-  | { type: 'search'; requestId: string; projectId: number; query: string }
-  | { type: 'searchProjects'; requestId: string; query: string }
+  | { type: 'search'; requestId: string; projectId: number; query: string; mode?: 'next'; queryIdentity?: string }
+  | { type: 'searchProjects'; requestId: string; query: string; mode?: 'next'; queryIdentity?: string }
   | { type: 'upload'; requestId: string; projectId: number; target?: string }
   | { type: 'image'; requestId: string; url: string }
   | { type: 'invoke'; issueId: number; action: IssueAction; payload?: Record<string, unknown> }
@@ -126,7 +131,8 @@ export type IssueAction =
   | 'createChild' | 'addChild' | 'removeChild' | 'setChildState' | 'updateChild';
 
 export type IssuePanelResponse = (
-  | { type: 'createData'; projects: GitLabProject[]; selectedProjectId?: number; options?: IssueFormOptions; optionsLoading?: boolean; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
+  | { type: 'createData'; projects: GitLabProject[]; projectsState?: IssuePageResult<GitLabProject>; selectedProjectId?: number; options?: IssueFormOptions; optionsLoading?: boolean; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
+  | { type: 'createProjectsPage'; page: IssuePageResult<GitLabProject> }
   | { type: 'projectData'; projectId: number; options: IssueFormOptions; optionsLoading?: boolean; preserveDraft?: boolean; canSetStartDate?: boolean; canCreateIssue: boolean }
   | { type: 'detailData'; data: IssueDetailData }
   | { type: 'detailPatch'; issueId: number; patch: Partial<IssueDetailData> }

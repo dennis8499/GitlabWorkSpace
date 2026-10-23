@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { LocalNetworkLease, networkRuntimeRoot } from '../api/localNetworkLease';
+import { observeRead } from '../api/readObservation';
 
 export interface GitProcessOutput { code: number; stdout: string; stderr: string; truncated: boolean; }
 
@@ -16,9 +17,11 @@ export async function captureGitProcess(executable: string, args: readonly strin
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) return Promise.reject(new RangeError('Git timeout must be a positive 32-bit integer.'));
   if (options.signal?.aborted) return Promise.reject(aborted());
   const network = options.network ?? isGitNetworkCommand(args);
+  if (network) observeRead({ transportStage: 'waiting' });
   const lease = network
     ? await LocalNetworkLease.acquire(path.join(networkRuntimeRoot(), 'git-network.lock'), 'git', { signal: options.signal, timeoutMs }) : undefined;
   let processTreeConfirmed = !lease;
+  if (network) observeRead({ transportStage: 'sending' });
   const supervised = process.platform === 'win32' && !!lease;
   const nonce = randomUUID();
   const receiptPath = lease ? path.join(lease.directory, `execution-${nonce}.json`) : undefined;

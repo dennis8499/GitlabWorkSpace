@@ -145,7 +145,7 @@ test('Skills prompt error deduplication resets for another card or operation con
   await view.tick(); assert.equal(notices().length, 3, 'feedback itself does not cause a publication render loop');
 });
 
-for (const profile of ['group', 'repository']) test(`${profile} native branch review uses three inputs and separate Codex opening`, async t => {
+for (const profile of ['group', 'repository']) test(`${profile} native branch review copies prompts without opening Codex`, async t => {
   const view = await mount(t, profile); const { document, change } = view;
   document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
   assert.equal(document.querySelector('[id="wiki-input-merge-repo.target"]'), null);
@@ -162,11 +162,13 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
+  assert.equal(document.querySelector('.skills-codex-button'),null);
+  assert.match(document.querySelector('.skills-next-step').textContent,/自行啟動 Codex CLI/);
   assert.equal(view.requests.some(request => request.type==='openCodexTerminal'),false);
-  document.querySelector('.skills-codex-button').click(); await view.tick();
-  assert.equal(view.requests.findLast(request => request.type==='openCodexTerminal').revision,`${profile}-revision`);
   const reopened=await mount(t,profile,view.savedState);
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value,'feature/review');
+  assert.equal(reopened.document.querySelector('.skills-codex-button'),null);
+  assert.equal(reopened.requests.some(request => request.type==='openCodexTerminal'),false);
 });
 
 test('local review cards isolate request IDs, ignore stale snapshots and only request local controls', async t => {

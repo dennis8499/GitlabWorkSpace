@@ -179,7 +179,8 @@ body.vscode-light .git-workbench[data-theme="vscode"], body.vscode-high-contrast
 .git-empty-state > .git-icon { width: 42px; height: 42px; color: var(--git-accent); }
 .git-empty-state h2 { margin: 0; font-size: 16px; }
 .git-empty-state p { max-width: 520px; margin: 0; color: var(--git-muted); line-height: 1.7; }
-.git-statusbar { display: flex; min-height: 28px; flex: 0 0 auto; align-items: center; gap: 12px; border-top: 1px solid var(--git-border); padding: 4px 12px; color: var(--git-muted); background: var(--git-panel); font-size: 10px; }
+.git-statusbar { display: flex; flex-wrap: wrap; min-height: 28px; flex: 0 0 auto; align-items: center; gap: 6px 12px; border-top: 1px solid var(--git-border); padding: 4px 12px; color: var(--git-muted); background: var(--git-panel); font-size: 10px; }
+.git-local-tracking, .git-fetch-freshness { overflow-wrap: anywhere; }
 .git-repo-heading { display: flex; min-width: 0; align-items: center; gap: 6px; }
 .git-repo-heading strong { color: var(--git-fg); font-size: 10px; font-weight: 500; }
 .git-repo-heading code { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }

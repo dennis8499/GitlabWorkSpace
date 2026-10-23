@@ -31,6 +31,7 @@ export const workspaceActionKinds = {
   resyncWorkspace: 'control',
   setMode: 'local',
   setProjectSource: 'local',
+  setMergeRequestFilter: 'read',
   closeIssue: 'local',
   openAccountManager: 'local',
   openLogs: 'local',
@@ -87,7 +88,6 @@ export const workspaceActionKinds = {
   resetProjectRoot: 'write',
   selectCloneRoot: 'write',
   resetCloneRoot: 'write',
-  openCodexTerminal: 'write',
   refreshBmad: 'read',
   copyBmadCommand: 'write',
   openBmadTerminal: 'local',
@@ -150,6 +150,7 @@ export const issueActionKinds = {
   refresh: 'read',
   loadSection: 'read',
   loadFormOptions: 'read',
+  loadCreateProjects: 'read',
   loadNoteReactions: 'read',
   loadTemplate: 'read',
   selectProject: 'read',
@@ -209,6 +210,7 @@ export const quickActionKinds = {
   openAdmin: 'local',
   openRepository: 'read',
   openNotifications: 'read',
+  openSettings: 'read',
   addAccount: 'read',
   manageAccounts: 'read',
   switchAccount: 'write',
@@ -223,10 +225,10 @@ export const operationLabels: Record<string, string> = {
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
-  openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟 Log', openLogs: '開啟 Log', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理',
+  openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟 Log', openLogs: '開啟 Log', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理', openSettings: '開啟設定',
   refresh: '更新目前頁面', retryInstanceCheck: '偵測 GitLab 功能', connect: '連線 GitLab', addAccount: '登入 GitLab', submitAccountLogin: '驗證帳號', switchAccount: '切換帳號', removeAccount: '移除帳號', disconnect: '登出', logoutAccount: '登出',
   selectGroup: '切換 Group', selectProjectFolder: '辨識專案資料夾', selectProjectRoot: '選擇專案目錄', resetProjectRoot: '重新辨識專案目錄', scanRepositories: '掃描本機 Repo', clone: '下載／更新 Repo', syncRepos: '更新預設分支',
-  refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', copySkillGuidePrompt: '複製提示詞', copy: '複製內容', openCodexTerminal: '開啟 Codex CLI',
+  refreshWorkflowKit: '檢查 Skills', installWorkflowKit: '安裝／更新 Skills', copySkillGuidePrompt: '複製提示詞', copy: '複製內容',
   selectIssue: '載入 Issue', openIssue: '開啟 Issue', createIssue: '開啟新增 Issue', createIssueDrafts: '建立 Issue', selectMergeRequest: '載入 MR', refreshMergeRequest: '檢查 MR 分支', loadMergeRequestSection: '載入 MR 內容', openBranchReview: '準備分支審查', loadSkillBranches: '讀取分支候選',
   postMergeRequestNote: '發布 MR 留言', replyMergeRequest: '回覆 MR', approveMergeRequest: '核准 MR', mergeMergeRequest: '合併 MR', submitTimeEntry: '送出工時',
   loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', ensureWorkspaceSection: '載入篩選選項', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
@@ -235,13 +237,13 @@ export const operationLabels: Record<string, string> = {
 const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
-const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'openCodexTerminal', 'refreshBmad', 'openBmadTerminal']);
+const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
   'installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource',
-  'openWorkflowKitDownload', 'openCodexTerminal', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
+  'openWorkflowKitDownload', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
   'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'openLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
@@ -274,7 +276,7 @@ export function writeResourceLock(resourceKey: string, context: ActionContext = 
 
 /** Policy contains metadata only; bodies, credentials and uploads stay in transport. */
 export function describeAction(value: { type: string }, context: ActionContext = {}): ActionPolicy {
-  if (['prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'copyWikiUpdatePrompt', 'copyAndOpenCodex'].includes(value.type)) {
+  if (['prepareDelivery', 'commitDelivery', 'pushDelivery', 'createDeliveryMergeRequest', 'copyWikiUpdatePrompt', 'copyAndOpenCodex', 'openCodexTerminal'].includes(value.type)) {
     throw new Error('此操作已移除，請重新開啟工作台。');
   }
   const request = value as Record<string, any>;
@@ -314,7 +316,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
     if ('target' in nested && nested.target) slot += ':' + nested.target;
     if (nested.type === 'image') slot += ':' + nested.url;
     if (nested.type === 'loadSection') slot += ':' + [...nested.sections].sort().join(',');
-    if (nested.type === 'loadFormOptions') slot += ':' + nested.section;
+    if (nested.type === 'loadFormOptions') slot += ':' + nested.section + ':' + (nested.mode ?? 'first');
     if (nested.type === 'loadNoteReactions') slot += ':' + nested.noteId;
   } else if ('iid' in request) {
     resourceKey = 'mr:' + request.projectId + ':' + request.iid;
@@ -332,9 +334,9 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (request.id && /Timer|TimeEntry/.test(action)) resourceKey = 'time:' + request.id;
   const clipboard = action === 'copy' || action === 'copySkillGuidePrompt' || action === 'copyReviewRefresh' || action === 'copyReviewResume' || action === 'copyBmadCommand' || (request.type === 'issueRequest' && request.request.type === 'copyDescription');
   const nestedType = request.type === 'gitAction' ? request.action.type : request.type === 'issueRequest' ? request.request.type : undefined;
-  const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && action !== 'openNotifications')
+  const latest = latestActions.has(action) || (request.type === 'perform' && action.startsWith('open') && !['openNotifications', 'openSettings'].includes(action))
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
-    || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate'].includes(nestedType));
+    || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate', 'loadCreateProjects'].includes(nestedType)) || action === 'setMergeRequestFilter';
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
   const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by

@@ -8,6 +8,8 @@ export interface WorkspaceOperationState {
   action: string;
   label: string;
   phase: string;
+  transportStage?: 'waiting' | 'sending' | 'cooldown';
+  retryAt?: number;
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
   startedAt: number;
   finishedAt?: number;
@@ -171,7 +173,7 @@ export class OperationTracker {
       this.outcomes.set(requestId, { ...this.outcomes.get(requestId), ...outcome });
     }
   }
-  update(requestId: string, patch: Partial<Pick<WorkspaceOperationState, 'phase' | 'completed' | 'total'>>): void {
+  update(requestId: string, patch: Partial<Pick<WorkspaceOperationState, 'phase' | 'completed' | 'total' | 'transportStage' | 'retryAt'>>): void {
     const state = this.states.get(requestId);
     if (state && isActiveOperation(state) && Object.entries(patch).some(([key, value]) => state[key as keyof WorkspaceOperationState] !== value)) {
       Object.assign(state, patch); this.emit(state);

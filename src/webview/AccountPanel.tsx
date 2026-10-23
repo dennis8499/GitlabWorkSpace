@@ -1,5 +1,5 @@
 /** @jsxImportSource preact */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { GitLabAccount, AccountPanelIntent } from '../connection/accountProtocol';
 import { accountStatus } from '../connection/accountProtocol';
 import { normalizeGitLabBaseUrl } from '../api/urlPolicy';
@@ -16,8 +16,8 @@ export function AccountIdentity({ account, status }: { account: Pick<GitLabAccou
   </div>;
 }
 
-export function AccountPanel({ snapshot, intent, post: send, actions: sharedActions }: {
-  snapshot: WorkspaceSnapshot; intent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void; actions?: ActionController;
+export function AccountPanel({ snapshot, intent, post: send, actions: sharedActions, active = true }: {
+  snapshot: WorkspaceSnapshot; intent?: AccountPanelIntent; post: (request: WorkspaceRequest) => void; actions?: ActionController; active?: boolean;
 }) {
   const actions = useDomainActions(sharedActions, send, snapshot.operationScope ?? 'accounts');
   const [step, setStep] = useState<'manage' | 'url' | 'token' | 'success'>('manage');
@@ -30,7 +30,11 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
   const [welcome, setWelcome] = useState('');
   const requestRef = useRef<string>();
   const formRef = useRef<HTMLFormElement>(null);
-  const busy = pending || !!snapshot.accountOperation || actions.isPending('connection');
+  const busy = !active || pending || !!snapshot.accountOperation || actions.isPending('connection');
+  useLayoutEffect(() => {
+    if (active) return;
+    requestRef.current = undefined; setToken(''); setShowToken(false); setPending(false);
+  }, [active]);
   const feedbackContext = { operationScope: snapshot.operationScope, scopeEpoch: snapshot.scopeEpoch,
     hostSessionId: snapshot.operationSnapshot?.sessionId };
   const validationError = (message: string) => reportLocalFeedback(notice => actions.dispatch(notice), message,
@@ -44,12 +48,13 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
     setToken(''); setShowToken(false); setError(''); setWelcome(''); setStep('url');
   };
   useEffect(() => {
+    if (!active) return;
     if (intent?.startLogin) startLogin(intent.accountId);
     else { setStep('manage'); setToken(''); setError(''); }
-  }, [intent?.id]);
+  }, [intent?.id, active]);
   useEffect(() => {
-    if (step === 'url' || step === 'token') (formRef.current?.querySelector<HTMLInputElement>('input:not([readonly])') ?? formRef.current?.querySelector<HTMLButtonElement>('button[type="submit"]'))?.focus();
-  }, [step]);
+    if (active && (step === 'url' || step === 'token')) (formRef.current?.querySelector<HTMLInputElement>('input:not([readonly])') ?? formRef.current?.querySelector<HTMLButtonElement>('button[type="submit"]'))?.focus();
+  }, [step, active]);
   useEffect(() => {
     const receive = (event: MessageEvent<WorkspaceResponse>) => {
       const result = event.data;
@@ -102,7 +107,7 @@ export function AccountPanel({ snapshot, intent, post: send, actions: sharedActi
       <fieldset disabled={busy}>
         {step === 'url' ? <><label class="field"><span>GitLab 網址</span><input name="baseUrl" type="url" required maxLength={2048} value={baseUrl} readOnly={!!accountId} placeholder="https://gitlab.example.com" onInput={event => setBaseUrl(event.currentTarget.value)} /></label>
           <p class="subtle">輸入 GitLab 站台的完整網址，例如 https://gitlab.com，或包含子路徑的公司站台網址。</p></>
-          : <><p class="login-site">登入站台：<strong>{baseUrl}</strong></p><label class="field"><span>Personal Access Token</span><div class="token-input"><input name="token" type={showToken ? 'text' : 'password'} required maxLength={8192} value={token} autoComplete="off" spellcheck={false} onInput={event => setToken(event.currentTarget.value)} /><button class="quiet small" type="button" aria-pressed={showToken} onClick={() => setShowToken(!showToken)}>{showToken ? '隱藏 Token' : '顯示 Token'}</button></div></label>
+          : <><p class="login-site">登入站台：<strong>{baseUrl}</strong></p><label class="field"><span>Personal Access Token</span><div class="token-input"><input name="token" type={active && showToken ? 'text' : 'password'} required maxLength={8192} value={active ? token : ''} autoComplete="off" spellcheck={false} onInput={event => setToken(event.currentTarget.value)} /><button class="quiet small" type="button" aria-pressed={showToken} onClick={() => setShowToken(!showToken)}>{showToken ? '隱藏 Token' : '顯示 Token'}</button></div></label>
             <p class="subtle" id="token-help">在 GitLab 個人設定建立 Personal Access Token，勾選 <code>api</code> 權限。驗證成功後只存入 VS Code SecretStorage。</p>
             {baseUrl.startsWith('http:') && <p class="warning">此站台使用 HTTP，Token 傳輸未加密。</p>}</>}
       </fieldset>

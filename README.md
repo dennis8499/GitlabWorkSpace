@@ -21,8 +21,8 @@
 - VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。工作台設定提供「開啟 Log」入口。
 - 各頁進入或重新進入時重用有效資料：Issue／MR／看板清單快取 60 秒，專案清單與成員、標籤、里程碑、範本選項快取 5 分鐘；到期後下次進頁才重抓，也可手動更新。目前頁面停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後讓受影響資料失效。
 - 「我的工作」先載入專案與 Issue；看板、里程碑在點擊載入篩選選項或恢復指定條件時才讀取。選擇 Group 重用有效快取，重選目前 Group 不重載。專案頁只先取得一頁清單（最多 100 筆），載入更多或下載／更新由使用者觸發，進頁的本機目錄檢查不連 Git Server。
-- Issue 預覽與詳情共用 60 秒基本資料快取；閱讀不預抓成員。新增 Issue 展開「其他設定」才讀成員、標籤與里程碑，使用描述範本才讀名稱；切換專案保留完整草稿。Issue 與每則留言的表情分別點擊載入，寫入後只刷新該目標。
-- MR 選取不執行分支比較；按「檢查分支」才讀取即時分支與 compare。摘要、討論快取 60 秒，差異依分頁載入；即時分支 SHA 與審查 Diff 版本分開保存。
+- Issue 預覽與詳情共用 60 秒基本資料快取；閱讀不預抓成員。新增 Issue 的成員、標籤與里程碑各自按需分頁，使用描述範本才讀名稱；切換專案保留完整草稿。Issue 與每則留言的表情分別點擊載入，寫入後只刷新該目標。
+- MR 選取不執行分支比較；按「檢查分支」才讀取即時分支與 compare。摘要、討論快取 60 秒，差異在開啟分頁時讀取已核對的固定版本；即時分支 SHA 與審查 Diff 版本分開保存。
 - 勾選下載只使用已載入的 Group 專案，不補齊其餘頁；下載全部仍可取得完整清單。新目錄固定為 `專案路徑名稱--專案ID`，既有 Repo 沿用本機 root 與 origin 驗證後的唯一位置，多副本或目的地占用會在遠端 Git 操作前停止。
 - 預設分支可只同步勾選的本機 Repo，也可明確同步全部；每次確認後仍核對最新 GitLab 資料，未下載的 Repo 不會因此自動 Clone。
 - 專案頁提供離線本機 Repo 清單與一鍵掃描；辨識巢狀 Repo、submodule 和 worktree，登錄至 VS Code 原生 Git，並列出同一 GitLab 專案的所有本機副本。
@@ -32,13 +32,26 @@
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製與開啟 Codex CLI 分開操作。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由同一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
+- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由同一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 「BMAD 開發流程」提供 Codex 的安裝教學、依需求選能力及精簡進度摘要。使用者自行透過官方 CLI 安裝 BMAD；頁面提供終端機／Codex 原生指令複製，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。教學依 BMAD 6.12.4，完整目錄可展開參考。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
-- 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行、Codex 啟動共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
+- 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.34.0 更新
+
+### UI 與按需連線改善
+
+- MR Reviewer／指派篩選交由 Server；搜尋與新增 Issue 專案／欄位選項採按需分頁。
+- MR Diff 以實際固定版本與三個 SHA 核對，五分鐘內可跨選取重用，仍受共用快取容量限制。
+- 介面區分載入、部分清單、空結果與錯誤；顯示資料來源、取得時間及網路等待狀態，提供篩選清除與鍵盤返回。
+- 過場採 120／160／200 ms，支援減少動態效果；動畫、快取到期及倒數均不觸發背景刷新。
+- 驗收目標與最低支援版本統一為 CE 16.11.10，搭配版本釘選合約與精確版本測試設定；[驗證紀錄](docs/work/work-20261023-demand-ux/verification.md) 區分模擬與實機證據。
+- 移除「開啟 Codex CLI」功能；複製提示詞後，由使用者自行在相同專案根目錄啟動 Codex，再貼上執行。BMAD 一般專案終端與指令複製保留。
+
+完整變更與驗證限制見 [0.34.0 發布說明](docs/releases/v0.34.0.md)。
 
 ## 0.33.0 更新
 
@@ -160,13 +173,13 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
 4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。
 5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。在 WorkflowKit 區塊選擇 GitHub 或內網 Gitea，按「檢查最新相容版本」，再按「下載並安裝」。安裝前會檢查相容契約、附件摘要及舊工具安裝歸屬。
-6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製到相同根目錄的 Codex CLI 執行。也可選擇 Wiki 知識維護或分支審查功能。
+6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 知識維護或分支審查功能。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
 8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。
 
 查看操作紀錄時，從工作台 **設定 → 開啟 Log**，或執行命令 **GitLab Workspace: 開啟 Log**，即可開啟並聚焦原生 Output 的「GitLab Workspace」通道。背景記錄與錯誤不會自動展開 Output，也不會切換工作台頁面。原生 Log 的保存與輪替交由 VS Code 管理；舊版自行保存的 JSONL 檔案不再讀取、不遷移，也不自動刪除。
 
-工作台的 **開啟 Codex CLI** 會在目前 Skills 情境所選的 Group 或 Repo 根目錄開啟整合式終端並執行 `codex`；Windows 固定使用 PowerShell，優先執行 `codex.exe`，其次為 `codex.cmd`。狀態檢查與安裝需要 Python 3.11+。下載與安裝由使用者觸發；已驗證的安裝工具會保存於 Extension 儲存區，供後續本機狀態檢查使用。
+按 **複製提示詞** 後，自行開啟終端機，在目前 Skills 情境顯示的 Group 或 Repo 根目錄執行 `codex`，再貼上提示詞執行。狀態檢查與安裝需要 Python 3.11+。下載與安裝由使用者觸發；已驗證的安裝工具會保存於 Extension 儲存區，供後續本機狀態檢查使用。
 
 
 直接在 VS Code 開啟要操作的專案資料夾，再進入 **設定 → 工作區與 Skills → 共用專案根目錄**。留白使用開啟的資料夾；同視窗有多個根資料夾時，先選擇本次操作的專案資料夾，選擇會依工作區保留。根目錄本身為 Git Repo 時使用單專案流程，一般資料夾使用整個工作區的流程，空資料夾亦可安裝。GitLab 帳號、遠端 Group 或其他 Repo 的 origin 不會改變本機根目錄。
@@ -175,7 +188,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.33.0 搭配獨立發行的 WorkflowKit；首版整合 Wiki 0.6.4、MergeReviewer 0.19.0、ReleaseReviewer 0.8.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
+GitLab Workspace v0.34.0 搭配獨立發行的 WorkflowKit；首版整合 Wiki 0.6.4、MergeReviewer 0.19.0、ReleaseReviewer 0.8.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
@@ -213,7 +226,7 @@ npm test
 npm run package
 ```
 
-`npm test` 會執行單元、行為、整包安裝／回復、Group 工作流程、發行流程及 Extension Host 測試，並打包與驗證 VSIX。打包結果包含 `dist/gitlab-workspace-<版本>.vsix`、`dist/gitlab-workspace-kit-<版本>.zip` 及 `dist/SHA256SUMS`。Windows PowerShell 若無法執行 `npm` 指令，請改用 `npm.cmd`。
+`npm test` 會執行單元、行為、整包安裝／回復、Group 工作流程、發行流程及 Extension Host 測試，並打包與驗證 `dist/gitlab-workspace-<版本>.vsix`。Windows PowerShell 若無法執行 `npm` 指令，請改用 `npm.cmd`。
 
 Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查資源。WorkflowKit Repo 維護固定上游 ZIP、來源摘要、獨立建置器與升級／rollback 測試；完整整合包及安裝器由 WorkflowKit Release 提供。
 
@@ -229,9 +242,9 @@ Extension 建置只產生 VSIX，並驗證其線上安裝橋接及狀態檢查�
 
 - The minimum supported server version is GitLab Community Edition 16.11.10. Version metadata and GraphQL capabilities are probed independently. If version metadata is unavailable, confirmed APIs remain available and the UI says that the minimum version could not be verified.
 - Capability discovery requests only the GraphQL types used by the extension and supports both the legacy Project/projectPath and newer Namespace/namespacePath shapes. Missing optional schema fields or permissions disable only the affected operation and explain why.
-- CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list loads all accessible opened Merge Requests in the selected Group and its subgroups with the 16.11-compatible scope=all&state=opened query. The All, Reviewer and Assigned tabs filter this complete list locally; manually refreshing the review page reloads it from GitLab. All changed files load through paginated /diffs.
+- CE does not include Premium/Ultimate blocking Issue links or Merge Request approvals. The review list uses independent server queries for All, Reviewer and Assigned, with the current authenticated user's ID and 100 results per page. Diff reads discover a version matching all three review SHAs and verify its fixed-version response; missing or truncated data is never presented as complete.
 - Each page loads its own data once on entry or re-entry and on manual refresh; Issue relations, time data, discussions, and the graph load when their page or tab is opened. GitLab projects, assigned Issues, Boards, and Merge Requests share the selected Group; local Git, Skills, BMAD, and logs work without one.
-- Each connection runs at most six concurrent reads with a 30-second timeout. Read results are cached for 60 seconds with a 256-entry limit, and identical in-flight reads are shared. Page entry and manual refresh request fresh page data; cache expiry and native Git events do not start background reads. The sidebar Repo list refreshes on entry or its Update button.
+- Each connection runs at most six concurrent reads with a 30-second timeout. Dynamic data is cached for 60 seconds; project lists, field options and verified fixed-version Diffs use five minutes. All share the existing 256-entry / 32 MiB limit, and identical in-flight reads are shared. Page entry reuses valid data, expired data reloads on demand, and manual refresh requests fresh data; cache expiry and native Git events do not start background reads. The sidebar Repo list refreshes on entry or its Update button.
 - Repo, Issue, Merge Request, and diff lists virtualize rows above 200 items. Local Repo status work is limited to four concurrent operations; graph changes are coalesced and sent as deltas every 100 ms.
 - Validation commands: npm test, npm run typecheck:webview, and npm run benchmark:performance. The benchmark uses production helpers and synthetic data; it does not represent a live GitLab instance or VS Code Webview network, disk, or memory results. Conditions and results are in docs/work/work-20261002-workspace-performance/evidence/performance.md.
 
