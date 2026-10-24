@@ -1,7 +1,9 @@
 """Install a local VSIX with Code CLI and verify its online WorkflowKit bridge.
 
 This never launches an Extension Host or a workbench window. It verifies native
-CLI installation, real Release download, both profiles and Skills availability.
+CLI installation, Release transport, both profiles and Skills availability.
+Explicit candidate mode supplies local bytes through the production bridge and
+compares installed reviewer files with frozen sources; it never publishes.
 It does not verify native UI or production activation.
 """
 from __future__ import annotations
@@ -105,10 +107,13 @@ def verify_payload(vsix, installed):
     return checks
 
 
-def run_integration(installed, run_root, source):
-    """Run the delivered online bridge and Skills resolver against formal Releases."""
-    process = subprocess.run(['node', str(ROOT / 'scripts/verify-online-workflowkit.cjs'),
-        '--extension-root', str(installed), '--evidence-dir', str(run_root), '--source', source],
+def run_integration(installed, run_root, source, candidate_kit=None, candidate_snapshots=None):
+    """Run the delivered bridge against formal Releases or explicit local candidate bytes."""
+    arguments = ['node', str(ROOT / 'scripts/verify-online-workflowkit.cjs'),
+        '--extension-root', str(installed), '--evidence-dir', str(run_root), '--source', source]
+    if candidate_kit is not None:
+        arguments.extend(['--candidate-kit-dir', str(candidate_kit), '--candidate-snapshots', str(candidate_snapshots)])
+    process = subprocess.run(arguments,
         cwd=ROOT, capture_output=True, text=True, encoding='utf-8', timeout=600)
     (run_root / 'online-integration.log').write_text(process.stdout + process.stderr, encoding='utf-8')
     result_file = run_root / 'online-workflowkit.json'
@@ -123,7 +128,13 @@ def main():
     parser.add_argument('--evidence-dir', type=Path, required=True)
     parser.add_argument('--code-cli', type=Path)
     parser.add_argument('--source', choices=('github', 'gitea'), default='github')
+    parser.add_argument('--candidate-kit-dir', type=Path,
+                        help='Use a local candidate Release directory through the production bridge with an injected transport.')
+    parser.add_argument('--candidate-snapshots', type=Path,
+                        help='Frozen reviewer file hashes required with --candidate-kit-dir.')
     args = parser.parse_args()
+    if bool(args.candidate_kit_dir) != bool(args.candidate_snapshots):
+        parser.error('--candidate-kit-dir and --candidate-snapshots are required together.')
     if sys.platform != 'win32':
         raise ValueError('This native CLI verifier requires Windows.')
     vsix = args.vsix.resolve(strict=True)
@@ -143,6 +154,7 @@ def main():
               'tested_vsix': str(vsix), 'vsix_sha256': digest(vsix.read_bytes()),
               'code_cli': str(cli), 'user_data': str(run_root / 'user-data'), 'extensions': str(run_root / 'extensions'),
               'removed_inherited_environment_keys': sorted(set(os.environ) - set(environment))}
+    report['release_transport'] = 'local candidate (injected, no publication)' if args.candidate_kit_dir else 'public release service'
     try:
         report['code_version'] = run_cli(cli, run_root, vsix, 'version', environment)['stdout'].splitlines()
         run_cli(cli, run_root, vsix, 'install', environment)
@@ -155,7 +167,8 @@ def main():
         checks = verify_payload(vsix, installed)
         write_json(run_root / 'installed-payload-hashes.json', checks)
         report['verified_payload_files'] = len(checks)
-        report['integration'] = run_integration(installed, run_root, args.source)
+        report['integration'] = run_integration(installed, run_root, args.source,
+            args.candidate_kit_dir, args.candidate_snapshots)
         if not report['integration']['success']:
             raise RuntimeError('Online installation integration failed; inspect online-integration.log.')
         if digest(vsix.read_bytes()) != report['vsix_sha256']:
