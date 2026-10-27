@@ -54,7 +54,7 @@ class IssueWorld {
     await this.tick();
   }
   async detail(canEdit = true) {
-    this.data = { issue, project, projects: [project, target], user, options, discussions: [discussion], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [{ id: 'gid://gitlab/WorkItem/99', iid: '3', title: 'Child task', description: 'Task details', state: 'OPEN', canEdit }], timelogs: [], startDate: null, parentWorkItemId: 'gid://gitlab/WorkItem/401', taskTypeId: 'gid://gitlab/WorkItems::Type/5', warnings: [], canEdit, canDelete: canEdit, canMove: canEdit, canClone: canEdit, canComment: canEdit, canInternalComment: canEdit, canLink: canEdit, canManageChildren: canEdit, canTrackTime: canEdit, canResolveThreads: canEdit, canSetStartDate: canEdit, hasStartDate: true, canLogTime: canEdit, canDeleteTimelog: canEdit };
+    this.data = { issue, project, projects: [project, target], user, options, discussions: [discussion], links: [], mergeRequests: [], reactions: [], noteReactions: {}, todos: [], tasks: [{ id: 'gid://gitlab/WorkItem/99', iid: '3', title: 'Child task', description: 'Task details', state: 'OPEN', canEdit }], timelogs: [], startDate: null, parentWorkItemId: 'gid://gitlab/WorkItem/401', taskTypeId: 'gid://gitlab/WorkItems::Type/5', warnings: [], canEdit, canDelete: canEdit, deleteAvailability: canEdit ? { status: 'allowed' } : { status: 'denied', reason: '刪除 Issue 需要專案 Owner 權限。' }, canMove: canEdit, canClone: canEdit, canComment: canEdit, canInternalComment: canEdit, canLink: canEdit, canManageChildren: canEdit, canTrackTime: canEdit, canResolveThreads: canEdit, canSetStartDate: canEdit, hasStartDate: true, canLogTime: canEdit, canDeleteTimelog: canEdit };
     await this.send({ type: 'detailData', data: this.data });
   }
 }
@@ -459,11 +459,12 @@ Then('the comment reaction sends its own typed operation', function () {
 });
 
 Given('the Issue Webview is ready with a read-only issue', async function () { await this.boot(); await this.detail(false); });
-Then('editing and destructive controls are hidden', function () {
+Then('editing is hidden and destructive controls are disabled', function () {
   assert.equal([...this.root.querySelectorAll('.main-column .card:first-child button')].some((button) => button.textContent.trim() === 'Edit'), false);
-  for (const label of ['移動 Issue', '刪除 Issue', '建立子工作']) {
+  for (const label of ['移動 Issue', '建立子工作']) {
     assert.equal([...this.root.querySelectorAll('button')].some((button) => button.textContent.trim() === label), false);
   }
+  assert.equal(this.button('刪除 Issue').disabled, true);
   assert.match(this.root.body.textContent, /開始日期/);
 });
 When('GitLab rejects an action', async function () { await this.tab('關聯與子工作'); await this.click('訂閱此 Issue'); await this.send({ type: 'error', message: 'GitLab rejected this operation.' }); });

@@ -11,7 +11,7 @@
     ] },
     { "name": "Issue", "kind": "OBJECT", "fields": [{ "name": "userPermissions", "type": { "name": "IssuePermissions", "kind": "OBJECT" } }] },
     { "name": "IssuePermissions", "kind": "OBJECT", "fields": [
-      { "name": "updateIssue" }, { "name": "adminIssue" }, { "name": "deleteIssue" }, { "name": "createNote" }
+      { "name": "updateIssue" }, { "name": "adminIssue" }, { "name": "createNote" }
     ] },
     { "name": "ProjectPermissions", "kind": "OBJECT", "fields": [{ "name": "createIssue" }] },
     { "name": "WorkItem", "kind": "OBJECT", "fields": [
@@ -57,7 +57,7 @@
     { "name": "WorkItemWidgetHierarchyInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "parentId" }] },
     { "name": "WorkItemWidgetStartAndDueDateInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "startDate" }] },
     { "name": "TimelogCreateInput", "kind": "INPUT_OBJECT", "inputFields": [
-      { "name": "issuableId" }, { "name": "timeSpent" }, { "name": "spentAt" }, { "name": "summary" }
+      { "name": "issuableId" }, { "name": "timeSpent" }, { "name": "spentAt", "type": { "kind": "NON_NULL", "ofType": { "name": "Time", "kind": "SCALAR" } } }, { "name": "summary", "type": { "kind": "NON_NULL", "ofType": { "name": "String", "kind": "SCALAR" } } }
     ] },
     { "name": "TimelogDeleteInput", "kind": "INPUT_OBJECT", "inputFields": [{ "name": "id" }] },
     { "name": "DiscussionToggleResolveInput", "kind": "INPUT_OBJECT", "inputFields": [] }

@@ -657,19 +657,23 @@ test('start dates and individual time entries use the supported GraphQL contract
     if (body.query.includes('SetIssueStartDate')) return new Response(JSON.stringify({ data: { workItemUpdate: { errors: [] } } }));
     if (body.query.includes('IssueStartDate')) return new Response(JSON.stringify({ data: { namespace: { workItem: { widgets: [{ startDate: '2026-10-02' }] } } } }));
     if (body.query.includes('IssueTimelogs')) return new Response(JSON.stringify({ data: { namespace: { workItem: { widgets: [{ timelogs: { nodes: [{ id: 'gid://gitlab/Timelog/1', timeSpent: 3600, spentAt: '2026-09-24T12:00:00Z', summary: 'Review', user: { id: 9, name: 'Tester', username: 'tester' }, userPermissions: { adminTimelog: true } }] } }] } } } }));
-    if (body.query.includes('AddIssueTimelog')) return new Response(JSON.stringify({ data: { timelogCreate: { errors: [] } } }));
+    if (body.query.includes('AddIssueTimelog')) return new Response(JSON.stringify({ data: { timelogCreate: { timelog: { id: 'gid://gitlab/Timelog/1' }, errors: [] } } }));
     return new Response(JSON.stringify({ data: { timelogDelete: { errors: [] } } }));
   };
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
   await client.setIssueStartDate('gid://gitlab/WorkItem/401', '2026-10-02');
   assert.equal(await client.getIssueStartDate('group/project', 7), '2026-10-02');
   assert.equal((await client.listIssueTimelogs('group/project', 7))[0].summary, 'Review');
-  await client.createIssueTimelog(401, '1h', 'Review', '2026-09-24T12:00:00Z');
+  assert.equal(await client.createIssueTimelog(401, '1h', 'Review', '2026-09-24T12:00:00Z'), 'gid://gitlab/Timelog/1');
+  const before = Date.now();
   await client.createIssueTimelog(401, '30m');
+  const after = Date.now();
   await client.deleteIssueTimelog('gid://gitlab/Timelog/1');
   assert.deepEqual(calls[0].variables, { id: 'gid://gitlab/WorkItem/401', startDate: '2026-10-02' });
   assert.deepEqual(calls[3].variables.input, { issuableId: 'gid://gitlab/Issue/401', timeSpent: '1h', summary: 'Review', spentAt: '2026-09-24T12:00:00Z' });
-  assert.deepEqual(calls[4].variables.input, { issuableId: 'gid://gitlab/Issue/401', timeSpent: '30m', summary: '' });
+  const undated = calls[4].variables.input as { issuableId: string; timeSpent: string; summary: string; spentAt: string };
+  assert.deepEqual({ ...undated, spentAt: undefined }, { issuableId: 'gid://gitlab/Issue/401', timeSpent: '30m', summary: '', spentAt: undefined });
+  assert.ok(Date.parse(undated.spentAt) >= before && Date.parse(undated.spentAt) <= after);
   assert.deepEqual(calls[5].variables, { id: 'gid://gitlab/Timelog/1' });
 });
 

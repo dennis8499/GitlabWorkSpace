@@ -18,6 +18,7 @@ export function TimeRow({ entry, edit, onEdit, onRequest }: {
     <input aria-label="工時長度" placeholder="45m" value={value.duration} onInput={(event) => onEdit({ ...value, duration: event.currentTarget.value })} />
     <input aria-label="工時摘要" placeholder="工時摘要" value={value.summary} onInput={(event) => onEdit({ ...value, summary: event.currentTarget.value })} />
     <input aria-label="工時日期" type="date" value={value.spentAt} onInput={(event) => onEdit({ ...value, spentAt: event.currentTarget.value })} />
+    {entry.lastError && <span class="warning" role="alert">{entry.lastError}</span>}
     <button class="quiet small" type="button" onClick={() => onRequest({ type: 'updateTimeEntry', id: entry.id, ...value })}>儲存</button>
     {entry.phase === 'ready' && <button class="quiet small" type="button" onClick={() => onRequest({ type: 'submitTimeEntry', id: entry.id })}>送至 GitLab</button>}
     {entry.phase === 'uncertain' && <button class="quiet small" type="button" onClick={() => onRequest({ type: 'acknowledgeTimeEntry', id: entry.id })}>已對帳</button>}

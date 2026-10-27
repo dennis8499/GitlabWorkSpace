@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
+import { issueDeleteAvailability } from '../api/actionAvailability';
+import { timeEntryTimestamp } from '../api/timeEntry';
 import type { GitLabIssue, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import { groupProjectsPageReadKey } from '../api/gitLabReadKeys';
 import { IssuePageStore, issueQueryDigest } from './issuePageStore';
@@ -206,7 +208,6 @@ export class IssuePanels implements vscode.Disposable {
       mapped.updateIssue = workItem.updateWorkItem === true || workItem.adminWorkItem === true;
       mapped.adminIssue = workItem.adminWorkItem === true;
     }
-    if (fields.has('deleteWorkItem') || fields.has('adminWorkItem')) mapped.deleteIssue = workItem.deleteWorkItem === true || workItem.adminWorkItem === true;
     if (fields.has('createNote')) mapped.createNote = workItem.createNote === true;
     return mapped;
   }
@@ -499,8 +500,8 @@ export class IssuePanels implements vscode.Disposable {
           context.status = 'cancelled'; context.effect = 'none'; return;
         }
         context.status = 'failed'; context.error = safeError(error);
-        const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
-          error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
+        const definitive = error && typeof error === 'object' && 'effect' in error && error.effect === 'none' || error instanceof IssueValidationError || error instanceof GitLabConflictError ||
+          error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500 && error.status !== 408;
         if (context.effect === 'applied' || context.effect === 'partial') {
           context.status = 'succeeded'; context.refreshError = context.error; context.error = undefined;
           return;
@@ -537,8 +538,8 @@ export class IssuePanels implements vscode.Disposable {
       if (context) context.effect = 'applied';
       return result;
     } catch (error) {
-      const definitive = error instanceof IssueValidationError || error instanceof GitLabConflictError ||
-        error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
+      const definitive = error && typeof error === 'object' && 'effect' in error && error.effect === 'none' || error instanceof IssueValidationError || error instanceof GitLabConflictError ||
+        error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500 && error.status !== 408;
       if (context && context.effect === 'none' && !definitive) context.effect = 'unknown';
       if (error && typeof error === 'object' && Object.isExtensible(error)) Object.assign(error, { effect: context?.effect ?? (definitive ? 'none' : 'unknown') });
       throw error;
@@ -800,13 +801,15 @@ export class IssuePanels implements vscode.Disposable {
     const group = this.session.selectedGroup;
     const sectionNames: IssueDetailSection[] = ['options', 'activity', 'links', 'mergeRequests', 'reactions', 'todos', 'tasks', 'permissions', 'projects', 'dates', 'timelogs'];
     const sections = Object.fromEntries(sectionNames.map((name) => [name, 'idle'])) as Record<IssueDetailSection, IssueDetailSectionStatus>;
-    let data: IssueDetailData = restoredData ? { ...restoredData, issue, project, user } : {
+    let data: IssueDetailData = restoredData ? { ...restoredData, issue, project, user, canDelete: false,
+      sections: { ...restoredData.sections, permissions: 'idle' },
+      deleteAvailability: { status: 'unknown', reason: '正在確認刪除權限。' } } : {
       issue, project, projects: [project], user, metadata: this.session.metadata,
       options: emptyFormOptions(),
       discussions: [], links: [], mergeRequests: [], reactions: [], noteReactions: {}, noteReactionStates: {}, todos: [], tasks: [], timelogs: [],
       startDate: issue.start_date ?? null, startDateSupported: false,
       warnings: [], notices: [], loadErrors: {}, sections,
-      canEdit: false, canDelete: false, canMove: false, canClone: false, canComment: false, canInternalComment: false,
+      canEdit: false, canDelete: false, deleteAvailability: { status: 'unknown', reason: '正在確認刪除權限。' }, canMove: false, canClone: false, canComment: false, canInternalComment: false,
       canLink: false, canManageChildren: false, canTrackTime: false, canResolveThreads: false, canSetStartDate: false,
       hasStartDate: !!issue.start_date, canLogTime: false, canDeleteTimelog: false
     };
@@ -880,6 +883,9 @@ export class IssuePanels implements vscode.Disposable {
         canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true };
     };
     loaders.permissions = async () => {
+      const [freshProject, freshUser] = await Promise.all([client.getProject(issue.project_id), client.getCurrentUser()]);
+      const deleteAvailability = issueDeleteAvailability(freshProject, freshUser);
+      patch('permissions', { project: freshProject, user: freshUser, deleteAvailability, canDelete: deleteAvailability.status === 'allowed' }, 'loading');
       await capabilitiesTask;
       const capabilities = this.session.issueCapabilities;
       const fields = capabilities?.issuePermissionFields ?? [];
@@ -888,6 +894,7 @@ export class IssuePanels implements vscode.Disposable {
       if (!permissionSource) return {
         metadata: this.session.metadata,
         sections: { permissions: 'unsupported' },
+        deleteAvailability, canDelete: deleteAvailability.status === 'allowed',
         permissionNotice: '此 GitLab Schema 未提供 Issue 權限資料，因此不能確認這個帳號可執行哪些操作。'
       };
       const hasEditField = permissionSource === 'issue'
@@ -906,7 +913,7 @@ export class IssuePanels implements vscode.Disposable {
         metadata: this.session.metadata,
         permissionNotice: permissionWarnings.join(' '),
         canEdit: editable,
-        canDelete: permissions.deleteIssue === true || permissions.adminIssue === true,
+        deleteAvailability, canDelete: deleteAvailability.status === 'allowed',
         canMove: editable,
         canClone: editable,
         canComment,
@@ -1308,18 +1315,18 @@ export class IssuePanels implements vscode.Disposable {
         if (!snapshot?.canLogTime) throw new Error('GitLab does not report permission to log time on this Issue.');
         const duration = requiredString(payload.duration, 'Duration');
         const spentDate = optionalDate(payload.spentDate);
+        const spentAt = timeEntryTimestamp(spentDate);
         const summary = optionalString(payload.summary);
         const capabilities = this.session.issueCapabilities;
-        const datedQuickAction = !!spentDate && (!capabilities?.timelogCreateDated || (!!summary?.trim() && !capabilities.timelogCreateSummary));
+        const datedQuickAction = !!spentDate && !(capabilities?.timelogCreate && capabilities.timelogCreateDated && capabilities.timelogCreateSummary);
         if (datedQuickAction) {
           if (summary && summary.length > 1000) throw new Error('Time entry summary is too long (maximum 1,000 characters).');
           const safeDuration = quickActionDuration(duration);
           const safeSummary = summary?.trim().replace(/[\r\n]+/g, ' ').replace(/^\s*\/[A-Za-z][A-Za-z0-9_-]*(?:\s|$)/, ' ').trim();
           const body = [safeSummary, `/spend ${safeDuration} ${spentDate}`].filter(Boolean).join('\n\n');
           await this.write(() => client.addIssueNote(projectId, iid, body));
-        } else if (capabilities?.timelogCreate && (!summary?.trim() || capabilities.timelogCreateSummary === true)) {
-          const spentAt = spentDate ? new Date(`${spentDate}T12:00:00`).toISOString() : undefined;
-          await this.write(() => client.createIssueTimelog(issue.id, duration, summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true));
+        } else if (capabilities?.timelogCreate && capabilities.timelogCreateDated && capabilities.timelogCreateSummary) {
+          await this.write(() => client.createIssueTimelog(issue.id, duration, summary, spentAt));
         } else await this.write(() => client.addSpentTime(projectId, iid, duration, summary));
         break;
       }
@@ -1389,12 +1396,31 @@ export class IssuePanels implements vscode.Disposable {
         return this.load();
       }
       case 'delete': {
-        if (!snapshot?.canDelete) throw new Error('GitLab does not report permission to delete this Issue.');
+        if (snapshot?.deleteAvailability?.status !== 'allowed') throw new IssueValidationError(snapshot?.deleteAvailability?.reason ?? 'GitLab 尚未確認刪除 Issue 的權限。');
+        const sameDeleteScope = () => readVersion === this.navigationVersion && readEpoch === this.session.connectionEpoch &&
+          readGroup?.id === this.session.selectedGroup?.id && this.mode === 'detail' && this.issue?.id === issue.id;
         const confirm = await vscode.window.showWarningMessage(`Permanently delete issue #${iid}?`, { modal: true }, 'Delete Issue');
         if (confirm !== 'Delete Issue') { this.post({ type: 'cancelled' }); return; }
+        if (!sameDeleteScope()) throw new IssueValidationError('帳號或顯示的 Issue 已變更，請重新確認。');
+        let project: Awaited<ReturnType<typeof client.getProject>>, user: Awaited<ReturnType<typeof client.getCurrentUser>>, currentIssue: Awaited<ReturnType<typeof client.getIssue>>;
+        try { [project, user, currentIssue] = await Promise.all([client.getProject(projectId), client.getCurrentUser(), client.getIssue(projectId, iid)]); }
+        catch (error) {
+          if (sameDeleteScope()) this.post({ type: 'detailPatch', issueId: issue.id, patch: { canDelete: false, deleteAvailability: { status: 'unknown', reason: '無法重新確認刪除權限，請重試。' } } });
+          throw error;
+        }
+        if (!sameDeleteScope()) throw new IssueValidationError('帳號或顯示的 Issue 已變更，請重新確認。');
+        if (currentIssue.id !== issue.id) {
+          this.post({ type: 'detailPatch', issueId: issue.id, patch: { canDelete: false, deleteAvailability: { status: 'unknown', reason: 'Issue 已變更，請重新整理。' } } });
+          throw new IssueValidationError('Issue 已變更，請重新整理。');
+        }
+        const availability = issueDeleteAvailability(project, user);
+        if (availability.status !== 'allowed') {
+          this.post({ type: 'detailPatch', issueId: issue.id, patch: { project, user, canDelete: false, deleteAvailability: availability } });
+          throw new IssueValidationError(availability.reason ?? 'GitLab 尚未確認刪除 Issue 的權限。');
+        }
         await this.write(() => client.deleteIssue(projectId, iid));
         this.refreshIssues();
-        this.post({ type: 'deleted' });
+        if (sameDeleteScope()) this.post({ type: 'deleted' });
         return;
       }
       default: throw new Error('Unsupported issue action.');

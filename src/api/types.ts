@@ -37,6 +37,7 @@ export interface GitLabUser {
   name: string;
   avatar_url?: string | null;
   web_url?: string;
+  is_admin?: boolean;
 }
 
 export interface GitLabGroup {
@@ -90,6 +91,7 @@ export interface GitLabProject {
   default_branch?: string | null;
   empty_repo?: boolean;
   namespace?: { full_path?: string; name?: string };
+  owner?: { id: number } | null;
   permissions?: {
     project_access?: { access_level: number } | null;
     group_access?: { access_level: number } | null;
@@ -246,6 +248,7 @@ export interface GitLabMergeRequest {
   state: string;
   web_url: string;
   author?: GitLabUser;
+  user?: { can_merge?: boolean } | null;
   assignees?: GitLabUser[];
   reviewers?: GitLabUser[];
   source_branch: string;

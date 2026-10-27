@@ -19,7 +19,7 @@ test('capacity rejects new work without deleting running, ready or uncertain tim
   assert.deepEqual(store.list(), before);
   assert.ok(store.list().some(entry => entry.id === running.id && entry.phase === 'running'));
   const pending = store.list().find(entry => entry.phase === 'ready')!;
-  await store.beginSubmit(pending.id); await store.finishSubmit(pending.id, false);
+  await store.beginSubmit(pending.id); await store.finishSubmit(pending.id, 'unknown');
   await assert.rejects(store.addManual(project, issue, '1m', 'overflow'), /250|上限|容量/);
   assert.equal(store.list().find(entry => entry.id === pending.id)?.phase, 'uncertain');
   await store.stop(running.id);
@@ -28,7 +28,7 @@ test('capacity rejects new work without deleting running, ready or uncertain tim
 test('capacity retires only posted history and rejects invalid dates before changing a time entry', async () => {
   const store = tracker(); await store.setScope('https://gitlab.test', 1);
   const posted = await store.addManual(project, issue, '1m', 'posted');
-  await store.beginSubmit(posted.id); await store.finishSubmit(posted.id, true);
+  await store.beginSubmit(posted.id); await store.finishSubmit(posted.id, 'applied');
   for (let index = 0; index < 250; index++) await store.addManual(project, issue, '1m', String(index));
   assert.equal(store.list().length, 250);
   assert.ok(!store.list().some(entry => entry.id === posted.id));

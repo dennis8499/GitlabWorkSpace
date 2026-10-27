@@ -96,19 +96,21 @@ test('creation option reads join per group and stale project responses cannot re
   } finally { release(); f.panels.dispose(); }
 });
 
-test('Issue metadata and note reactions reuse the 60-second read cache without caching permissions', async () => {
+test('Issue reads reuse the 60-second cache while deletion and Issue permissions are checked afresh', async () => {
   const f = await fixture();
   try {
     await f.panels.showIssue(f.issue as never); await tick();
     await f.panels.handle({ type: 'loadNoteReactions', noteId: 1 });
     await f.panels.showIssue(f.issue as never); await tick();
     await f.panels.handle({ type: 'loadNoteReactions', noteId: 1 });
-    for (const read of ['issue', 'project', 'user', 'note:1']) assert.equal(f.reads.filter(value => value === read).length, 1, read);
+    for (const read of ['issue', 'note:1']) assert.equal(f.reads.filter(value => value === read).length, 1, read);
+    for (const read of ['project', 'user']) assert.equal(f.reads.filter(value => value === read).length, 3, read);
     assert.equal(f.reads.filter(read => read === 'permissions').length, 2);
     f.advance(60_001);
     await f.panels.showIssue(f.issue as never); await tick();
     await f.panels.handle({ type: 'loadNoteReactions', noteId: 1 });
-    for (const read of ['issue', 'project', 'user', 'note:1']) assert.equal(f.reads.filter(value => value === read).length, 2, read);
+    for (const read of ['issue', 'note:1']) assert.equal(f.reads.filter(value => value === read).length, 2, read);
+    for (const read of ['project', 'user']) assert.equal(f.reads.filter(value => value === read).length, 5, read);
   } finally { f.panels.dispose(); }
 });
 

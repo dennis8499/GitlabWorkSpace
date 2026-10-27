@@ -1,6 +1,7 @@
 import type { Memento } from 'vscode';
 import { createHash, randomUUID } from 'node:crypto';
 import type { WorkspaceTimerEntry } from './workspaceProtocol';
+import { timeEntryTimestamp } from '../api/timeEntry';
 
 const DATA_KEY = 'gitlabWorkspace.timeEntries.v1';
 const MANUAL_DURATION = /^(?=.{1,32}$)(?:\d+h)?(?:\d+m)?(?:\d+s)?$/;
@@ -8,8 +9,7 @@ const MAX_ENTRIES = 250;
 
 function checkedSpentDate(value?: string): string | undefined {
   if (!value) return undefined;
-  const parsed = /^\d{4}-\d\d-\d\d$/.test(value) ? new Date(`${value}T12:00:00Z`) : undefined;
-  if (!parsed || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error('日期請使用有效的 YYYY-MM-DD 格式。');
+  timeEntryTimestamp(value);
   return value;
 }
 
@@ -202,6 +202,7 @@ export class IssueTimeTracker {
     entry.summary = text;
     entry.spentAt = date;
     entry.phase = 'ready';
+    entry.lastError = undefined;
     entry.updatedAt = Date.now();
     await this.persist();
     return { ...entry };
@@ -211,15 +212,22 @@ export class IssueTimeTracker {
     const entry = this.require(id);
     if (entry.phase !== 'ready') throw new Error('這筆工時需要確認後才能送出，請先編輯並儲存。');
     entry.phase = 'sending';
+    entry.lastError = undefined;
     entry.updatedAt = Date.now();
-    await this.persist();
+    try { await this.persist(); }
+    catch (error) {
+      entry.phase = 'ready';
+      entry.lastError = '無法保存工時狀態，尚未送出。';
+      throw Object.assign(new Error(entry.lastError, { cause: error }), { effect: 'none' as const });
+    }
     return { ...entry };
   }
 
-  async finishSubmit(id: string, success: boolean): Promise<WorkspaceTimerEntry> {
+  async finishSubmit(id: string, outcome: 'applied' | 'none' | 'unknown', error?: string): Promise<WorkspaceTimerEntry> {
     const entry = this.require(id);
     if (entry.phase !== 'sending') throw new Error('這筆工時狀態已變更，請重新整理。');
-    entry.phase = success ? 'posted' : 'uncertain';
+    entry.phase = outcome === 'applied' ? 'posted' : outcome === 'none' ? 'ready' : 'uncertain';
+    entry.lastError = error;
     entry.updatedAt = Date.now();
     await this.persist();
     return { ...entry };
