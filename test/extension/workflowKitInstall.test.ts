@@ -71,7 +71,7 @@ suite('Online workflow kit installation', () => {
       const release = { tag_name: `v${kitIndex.version}`, draft: false, prerelease: false, assets: [...files].map(([name, bytes]) => ({
         name, size: bytes.length, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, browser_download_url: base + name
       })) };
-      const manager = new WorkflowKitReleaseManager(path.join(temporary, 'storage'), packageJSON.version, (async (input: string | URL | Request) => {
+      const manager = new WorkflowKitReleaseManager(path.join(temporary, 'storage'), (async (input: string | URL | Request) => {
         const url = String(input);
         if (url.startsWith('https://api.github.com/repos/dennis8499/WorkflowKit/releases?')) return new Response(JSON.stringify([release]));
         const bytes = files.get(url.slice(base.length));

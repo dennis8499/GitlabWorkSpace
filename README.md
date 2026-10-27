@@ -55,7 +55,7 @@
 
 ## 0.33.0 更新
 
-工作流程整合包已拆成獨立的 [WorkflowKit](https://github.com/dennis8499/WorkflowKit)，版本與 Extension 分開管理。設定中可檢查最新相容正式版，再由 GitHub 或公司內網 Gitea 下載安裝。安裝前核對附件與逐檔摘要，沿用交易升級及 rollback。VSIX 不再內附整合包，也不提供本機 ZIP 匯入。
+工作流程整合包已拆成獨立的 [WorkflowKit](https://github.com/dennis8499/WorkflowKit)，版本與 Extension 分開管理。設定中可從所選的 GitHub 或公司內網 Gitea 檢查最新正式版並下載安裝。安裝前核對同一 Release 的附件與逐檔摘要，沿用交易升級及 rollback。VSIX 不再內附整合包，也不提供本機 ZIP 匯入。
 
 已驗證且契約相容的安裝可以繼續使用；有更新時會顯示可更新，不會只因版本不同而停用 Skills。
 
@@ -172,7 +172,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
 4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。
-5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。在 WorkflowKit 區塊選擇 GitHub 或內網 Gitea，按「檢查最新相容版本」，再按「下載並安裝」。安裝前會檢查相容契約、附件摘要及舊工具安裝歸屬。
+5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。在 WorkflowKit 區塊選擇 GitHub 或內網 Gitea，按「檢查最新正式版」，再按「下載並安裝」。安裝前會檢查安裝介面、附件摘要及舊工具安裝歸屬。
 6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 知識維護或分支審查功能。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
 8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。

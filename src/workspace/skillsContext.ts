@@ -4,7 +4,6 @@ import type { InstalledWorkflowKitState, SkillsContext } from './workspaceProtoc
 export function resolveSkillsContext(input: {
   match: GroupWorkspaceMatch;
   installed: InstalledWorkflowKitState;
-  expectedVersion?: string;
   revision: string;
   preferGroup?: boolean;
   selectedRoot?: string;
@@ -18,7 +17,7 @@ export function resolveSkillsContext(input: {
   const availableFeatures = root && compatible && verified ? installed.capabilities ?? [] : [];
   const reason = mode === 'unavailable' ? match.reason ?? '請選擇目前 VS Code 專案資料夾。'
     : installed.profile && installed.profile !== mode ? '安裝的 Skills 流程與目前專案不同，請安裝對應流程。'
-    : installed.version && !compatible ? '目前工作流程包的契約不相容，請安裝適用版本。'
+    : installed.version && !compatible ? '目前工作流程包的整合介面尚未受此工作台支援，部分功能暫不可用。'
     : !verified ? installed.message ?? '請先安裝或更新目前專案的工作流程包。' : undefined;
   return { mode, root, revision: input.revision, groupMatch: match, repositories,
     installed, availableFeatures, reason };

@@ -300,7 +300,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (savedToolSource !== 'gitea' && savedToolSource !== 'github') {
       void Promise.resolve(context.globalState.update(TOOL_SOURCE_KEY, 'github')).catch(() => undefined);
     }
-    this.packages = new WorkflowKitReleaseManager(context.globalStorageUri.fsPath, String(context.extension.packageJSON.version));
+    this.packages = new WorkflowKitReleaseManager(context.globalStorageUri.fsPath);
     this.activeMode = normalizeWorkspaceMode(context.globalState.get<unknown>(SELECTED_MODE_KEY));
     this.selectedGitRepositoryId = context.globalState.get<string>(SELECTED_GIT_REPOSITORY_KEY);
     this.gitMessages = gitRepositories?.onDidMessage((message) => this.post(message)) ?? { dispose: () => undefined };
@@ -1925,7 +1925,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision,
       current.status, current.profile, localRepositories, installed, workspaceFile,
       reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope])).digest('hex');
-    const value = { ...resolveSkillsContext({ match, installed, expectedVersion: String(this.context.extension.packageJSON.version), revision }),
+    const value = { ...resolveSkillsContext({ match, installed, revision }),
       reviewerRepositories, workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
         : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile,
@@ -4277,7 +4277,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitReleases = this.workflowKitReleases.filter(item => item.source !== source);
     this.sendSnapshot();
     try {
-      this.operationPhase('checkWorkflowKitReleases', '正在查詢最新相容正式版…');
+      this.operationPhase('checkWorkflowKitReleases', '正在查詢最新正式版…');
       const releases = await this.packages.refresh(source);
       check();
       if (releases[0]) await this.packages.prepareInstaller(releases[0].id, check);
@@ -4288,7 +4288,7 @@ export class WorkspacePanel implements vscode.Disposable {
       this.workflowKitInstallRefreshGeneration++;
       this.workflowKitInstallRefreshTask = undefined;
       await this.refreshWorkflowKitInstallState();
-      if (!releases.length) this.post({ type: 'message', message: '目前來源沒有適用於此 Extension 的正式 WorkflowKit Release。' });
+      if (!releases.length) this.post({ type: 'message', message: `${source === 'github' ? 'GitHub' : 'Gitea'} 目前沒有正式 WorkflowKit Release。` });
     } finally { this.workflowKitCheckingRelease = false; this.sendSnapshot(); }
   }
 
@@ -4326,7 +4326,8 @@ export class WorkspacePanel implements vscode.Disposable {
       const helper = installerPath ? { path: installerPath, version: '' } : await this.workflowKitHelper();
       if (args[0] === 'status') {
         const index = args.indexOf('--expected-version');
-        if (index >= 0) args = [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)];
+        args = index >= 0 ? [...args.slice(0, index + 1), helper.version, ...args.slice(index + 2)]
+          : [...args, '--expected-version', helper.version];
       }
       const result = await execFileAsync(python.executable, [...python.args, helper.path, ...args], {
         cwd: this.context.extensionUri.fsPath, env: python.env, timeout, maxBuffer: 1024 * 1024, windowsHide: true
@@ -4350,7 +4351,7 @@ export class WorkspacePanel implements vscode.Disposable {
     if (pending) return pending;
     const task = (async (): Promise<InstalledWorkflowKitState> => {
       try {
-        const response = await this.runWorkflowKitHelper(['status', root, '--expected-version', String(this.context.extension.packageJSON.version)], 60_000);
+        const response = await this.runWorkflowKitHelper(['status', root], 60_000);
         const valid = ['installed', 'missing', 'update-available', 'needs-cleanup', 'error'].includes(String(response.status));
         return valid ? {
           status: response.status as InstalledWorkflowKitState['status'],
@@ -4538,11 +4539,16 @@ export class WorkspacePanel implements vscode.Disposable {
         }
         checkAccess();
       };
-      const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
-        title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, async () =>
-        this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
-          '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch, selected.installerPath));
-      if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('The installer returned an unexpected package identity.');
+      try {
+        const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification,
+          title: `Install GitLab Workspace kit v${selected.version}`, cancellable: false }, async () =>
+          this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
+            '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch, selected.installerPath));
+        if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('安裝工具回傳的套件資訊不符。');
+      } catch (error) {
+        const source = selected.source === 'github' ? 'GitHub' : selected.source === 'gitea' ? 'Gitea' : 'WorkflowKit';
+        throw new Error(`${source} Release v${selected.version}：${readableError(error)}`, { cause: error });
+      }
       this.noteOutcome({ effect: 'applied' });
       this.post({ type: 'message', message: `GitLab Workspace kit v${selected.version} installed in ${root}.` });
     } catch (error) {

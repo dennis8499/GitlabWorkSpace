@@ -101,10 +101,10 @@ function git(directory, args) {
 }
 async function main() {
   const fetcher = candidateDirectory ? candidateTransport(candidateDirectory) : globalThis.fetch;
-  const manager = new WorkflowKitReleaseManager(path.join(temporary, 'cache'), extension.version, fetcher);
+  const manager = new WorkflowKitReleaseManager(path.join(temporary, 'cache'), fetcher);
   assert.deepEqual(await manager.listReleases(), []);
   const [release] = await manager.refresh(source);
-  assert.ok(release, 'No compatible formal Release');
+  assert.ok(release, 'No formal Release');
   const downloaded = await manager.getRelease(release.id, undefined, message => process.stderr.write(message + '\n'));
   report.releaseVersion = release.version;
   report.releaseId = release.id;
@@ -135,7 +135,7 @@ async function main() {
     report.profiles.push({ profile, install: installed.status, repeated: repeated.status, skills: context.availableFeatures,
       ...(candidateDirectory ? { candidateSkills: verifyCandidateSkills(target) } : {}) });
   }
-  const restarted = new WorkflowKitReleaseManager(path.join(temporary, 'cache'), extension.version,
+  const restarted = new WorkflowKitReleaseManager(path.join(temporary, 'cache'),
     candidateDirectory ? async () => { throw new Error('Cached restart must not request transport'); } : fetcher);
   assert.equal((await restarted.statusHelper()).version, release.version);
   report.status = 'passed';

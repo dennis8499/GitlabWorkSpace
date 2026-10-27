@@ -19,7 +19,7 @@ const API: Record<RemoteToolSource, string> = {
 interface Asset { name: string; size: number; sha256: string; }
 export interface ReleaseDescriptor {
   schema: 'workflowkit-release/v1'; package: 'gitlab-workspace-kit'; version: string;
-  workspaceContract: number; installerApi: number; minimumExtensionVersion: string;
+  workspaceContract: number; installerApi: number; minimumExtensionVersion?: unknown;
   profiles: string[]; skills: string[]; assets: { package: Asset; installer: Asset };
 }
 export interface WorkflowKitRelease extends WorkflowKitReleaseSummary {
@@ -36,8 +36,7 @@ export class PackageIntegrityError extends Error {
 
 export class WorkflowKitReleaseManager {
   private releases: WorkflowKitRelease[] = [];
-  constructor(private readonly storagePath: string, private readonly extensionVersion: string,
-    private readonly fetcher: typeof fetch = globalThis.fetch) {}
+  constructor(private readonly storagePath: string, private readonly fetcher: typeof fetch = globalThis.fetch) {}
 
   async listReleases(): Promise<WorkflowKitRelease[]> { return [...this.releases]; }
 
@@ -55,36 +54,44 @@ export class WorkflowKitReleaseManager {
         if (link !== null) nextPage = /;\s*rel="?next"?(?:\s|,|$)/.test(link);
       })).toString('utf8'));
       if (!Array.isArray(items)) throw new Error('Release 清單格式無效。');
-      candidates.push(...items.filter(item => item && !item.draft && !item.prerelease && /^v\d+\.\d+\.\d+$/.test(item.tag_name) && Array.isArray(item.assets)));
+      candidates.push(...items.filter(item => item && !item.draft && !item.prerelease && /^v\d+\.\d+\.\d+$/.test(item.tag_name)));
       if (nextPage === false || nextPage === undefined && items.length < pageSize) break;
     }
     candidates.sort((a, b) => compareVersions(b.tag_name.slice(1), a.tag_name.slice(1)));
-    let selected: WorkflowKitRelease | undefined;
-    for (const candidate of candidates) {
+    const candidate = candidates[0];
+    if (!candidate) return [];
+    try {
+      if (!Array.isArray(candidate.assets)) throw new PackageIntegrityError('Release 附件清單無效。');
       const metadata = candidate.assets.find(asset => asset.name === 'release.json');
-      if (!metadata) continue;
+      if (!metadata) throw new PackageIntegrityError('Release 缺少 release.json 索引。');
       assertAssetUrl(metadata.browser_download_url, source, candidate.tag_name, metadata.name);
       const bytes = await this.download(metadata.browser_download_url, source, META, signal);
       if (metadata.size !== bytes.length || metadata.digest && metadata.digest !== `sha256:${digest(bytes)}`) throw new PackageIntegrityError('Release 索引摘要或大小不符。');
-      const metadataValue = JSON.parse(bytes.toString('utf8'));
-      if (metadataValue?.schema !== 'workflowkit-release/v1') continue;
+      let metadataValue: unknown;
+      try { metadataValue = JSON.parse(bytes.toString('utf8')); }
+      catch { throw new PackageIntegrityError('Release 索引不是有效的 JSON。'); }
+      if (!metadataValue || typeof metadataValue !== 'object' || (metadataValue as { schema?: unknown }).schema !== 'workflowkit-release/v1') {
+        throw new PackageIntegrityError('Release 索引格式不受支援。');
+      }
       const descriptor = parseDescriptor(metadataValue);
       if (descriptor.version !== candidate.tag_name.slice(1)) throw new PackageIntegrityError('Release tag 與套件版本不符。');
-      if (!isCompatibleRelease(descriptor, this.extensionVersion)) continue;
+      if (descriptor.installerApi !== 1) throw new Error('此 Release 的安裝介面不受此工作台支援。');
       for (const asset of Object.values(descriptor.assets)) {
         const published = candidate.assets.find(item => item.name === asset.name);
         if (!published || published.size !== asset.size || published.digest && published.digest !== `sha256:${asset.sha256}`) throw new PackageIntegrityError('Release 缺少完整且摘要一致的附件。');
         assertAssetUrl(published.browser_download_url, source, candidate.tag_name, asset.name);
       }
-      selected = { id: `workflowkit:${source}:${descriptor.version}:${digest(bytes)}`, version: descriptor.version, source,
+      const selected: WorkflowKitRelease = { id: `workflowkit:${source}:${descriptor.version}:${digest(bytes)}`, version: descriptor.version, source,
         assetName: descriptor.assets.package.name, format: 'zip', entryRoot: 'workflow-kit', available: true,
         skillCount: descriptor.skills.length, descriptor, descriptorSha256: digest(bytes), sha256: descriptor.assets.package.sha256,
         assetUrls: { package: candidate.assets.find(item => item.name === descriptor.assets.package.name)!.browser_download_url,
           installer: candidate.assets.find(item => item.name === descriptor.assets.installer.name)!.browser_download_url } };
-      break;
+      this.releases = [...this.releases.filter(item => item.source !== source), selected];
+      return [selected];
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw releaseError(source, candidate.tag_name, error);
     }
-    this.releases = [...this.releases.filter(item => item.source !== source), ...(selected ? [selected] : [])];
-    return this.releases.filter(item => item.source === source);
   }
 
   async prepareInstaller(id: string, beforeWrite: () => void = () => undefined, signal?: AbortSignal): Promise<string> {
@@ -92,7 +99,9 @@ export class WorkflowKitReleaseManager {
     const filename = await this.cacheAsset(selected, selected.descriptor.assets.installer, beforeWrite, signal);
     const records = await this.readCache();
     const existing = records.find(item => item.source === selected.source && item.descriptor.version === selected.version);
-    if (existing && existing.descriptorSha256 !== selected.descriptorSha256) throw new PackageIntegrityError('相同來源的同版本 Release 已有不同摘要。');
+    if (existing && existing.descriptorSha256 !== selected.descriptorSha256) {
+      throw releaseError(selected.source, `v${selected.version}`, new PackageIntegrityError('相同來源的同版本 Release 已有不同摘要。'));
+    }
     if (!existing) {
       beforeWrite(); await mkdir(this.storagePath, { recursive: true });
       const catalog = path.join(this.storagePath, 'workflow-kit-release-cache.json');
@@ -118,10 +127,10 @@ export class WorkflowKitReleaseManager {
 
   async statusHelper(): Promise<{ path: string; version: string } | undefined> {
     for (const item of (await this.readCache()).sort((a, b) => compareVersions(b.descriptor.version, a.descriptor.version))) {
-      if (!isCompatibleRelease(item.descriptor, this.extensionVersion)) continue;
+      if (item.descriptor.installerApi !== 1) continue;
       const filename = this.assetPath(item.descriptor.assets.installer);
       try { await verifiedFile(filename, item.descriptor.assets.installer); return { path: filename, version: item.descriptor.version }; }
-      catch (error) { if (!isMissing(error)) throw error; }
+      catch (error) { if (!isMissing(error)) throw releaseError(item.source, `v${item.descriptor.version}`, error); }
     }
     return undefined;
   }
@@ -129,16 +138,23 @@ export class WorkflowKitReleaseManager {
   private selected(id: string): WorkflowKitRelease {
     if (typeof id !== 'string' || id.length > 256) throw new Error('Release 選擇無效。');
     const selected = this.releases.find(item => item.id === id);
-    if (!selected) throw new Error('請先檢查最新相容版本，再選擇安裝。');
+    if (!selected) throw new Error('請先檢查最新正式版，再選擇安裝。');
     return selected;
   }
   private assetPath(asset: Asset): string { return path.join(this.storagePath, 'workflow-kit-downloads', `${asset.sha256}${path.extname(asset.name)}`); }
   private async cacheAsset(release: WorkflowKitRelease, asset: Asset, check: () => void, signal?: AbortSignal): Promise<string> {
     check(); const filename = this.assetPath(asset);
-    try { await verifiedFile(filename, asset); return filename; } catch (error) { if (!isMissing(error)) throw error; }
+    try { await verifiedFile(filename, asset); return filename; }
+    catch (error) { if (!isMissing(error)) throw releaseError(release.source, `v${release.version}`, error); }
     const url = asset === release.descriptor.assets.installer ? release.assetUrls.installer : release.assetUrls.package;
-    const data = await this.download(url, release.source, asset === release.descriptor.assets.installer ? 4 * META : MAX_PACKAGE_BYTES, signal);
-    if (data.length !== asset.size || digest(data) !== asset.sha256) throw new PackageIntegrityError('下載附件的 SHA-256 或大小與 Release 索引不符。');
+    let data: Buffer;
+    try {
+      data = await this.download(url, release.source, asset === release.descriptor.assets.installer ? 4 * META : MAX_PACKAGE_BYTES, signal);
+      if (data.length !== asset.size || digest(data) !== asset.sha256) throw new PackageIntegrityError('下載附件的 SHA-256 或大小與 Release 索引不符。');
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw releaseError(release.source, `v${release.version}`, error);
+    }
     check(); await mkdir(path.dirname(filename), { recursive: true });
     const directory = await lstat(path.dirname(filename));
     if (!directory.isDirectory() || directory.isSymbolicLink()) throw new PackageIntegrityError('下載快取目錄不是安全目錄。');
@@ -197,7 +213,7 @@ export class WorkflowKitReleaseManager {
 
 export function parseDescriptor(value: unknown): ReleaseDescriptor {
   const data = value as ReleaseDescriptor;
-  if (!data || data.schema !== 'workflowkit-release/v1' || data.package !== 'gitlab-workspace-kit' || !isVersion(data.version) || !isVersion(data.minimumExtensionVersion) ||
+  if (!data || data.schema !== 'workflowkit-release/v1' || data.package !== 'gitlab-workspace-kit' || !isVersion(data.version) ||
     !Number.isSafeInteger(data.workspaceContract) || !Number.isSafeInteger(data.installerApi) || !Array.isArray(data.profiles) ||
     !['group', 'repository'].every(profile => data.profiles.includes(profile)) || !Array.isArray(data.skills) || !data.skills.every(skill => typeof skill === 'string') ||
     !data.assets?.package || !data.assets?.installer || Object.keys(data.assets).length !== 2) throw new PackageIntegrityError('WorkflowKit Release 索引格式無效。');
@@ -208,10 +224,11 @@ export function parseDescriptor(value: unknown): ReleaseDescriptor {
   if (!data.assets.package.name.endsWith('.zip') || !data.assets.installer.name.endsWith('.py')) throw new PackageIntegrityError('Release 附件類型無效。');
   return data;
 }
-export function isCompatibleRelease(data: ReleaseDescriptor, extensionVersion: string): boolean {
-  return data.workspaceContract === 2 && data.installerApi === 1 && compareVersions(extensionVersion, data.minimumExtensionVersion) >= 0;
-}
 export function isVersion(value: unknown): value is string { return typeof value === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value); }
+function releaseError(source: RemoteToolSource, tag: string, error: unknown): Error {
+  const message = `${source === 'github' ? 'GitHub' : 'Gitea'} Release ${tag}：${error instanceof Error ? error.message : String(error)}`;
+  return error instanceof PackageIntegrityError ? new PackageIntegrityError(message) : new Error(message, { cause: error });
+}
 function digest(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
 function isMissing(error: unknown): boolean { return !!error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'; }
 function assertSource(source: unknown): asserts source is RemoteToolSource { if (source !== 'github' && source !== 'gitea') throw new Error('Release 來源無效。'); }

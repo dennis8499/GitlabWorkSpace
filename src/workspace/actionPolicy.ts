@@ -219,7 +219,7 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
-  checkWorkflowKitReleases: '檢查最新相容版本',
+  checkWorkflowKitReleases: '檢查最新正式版',
   loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
   copyReviewRefresh: '複製重新同步指令', copyReviewResume: '恢復本機審查', openReviewReport: '開啟審查報告',
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',

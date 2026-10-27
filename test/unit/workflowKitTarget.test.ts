@@ -105,6 +105,19 @@ test('settings checks stay local and only an explicit source check queries Relea
   assert.deepEqual(sources, ['gitea']);
 });
 
+test('an installer failure identifies the selected source and release', async t => {
+  const [, repo] = await directories(t); const { host } = fixture([repo]);
+  const original = host.runWorkflowKitHelper;
+  host.packages.getRelease = async () => ({ version: '2.0.0', source: 'github', archivePath: 'archive.zip', installerPath: 'installer.py',
+    format: 'zip', entryRoot: 'workflow-kit', sha256: 'a'.repeat(64) });
+  host.runWorkflowKitHelper = async (args: string[], ...rest: unknown[]) => {
+    if (args[0] === 'install') throw new Error('安裝工具拒絕操作');
+    return original(args, ...rest);
+  };
+  await host.refreshWorkflowKit();
+  await assert.rejects(host.installWorkflowKit('selected'), /GitHub Release v2\.0\.0.*安裝工具拒絕操作/);
+});
+
 test('a source check re-reads installed state after an earlier local verifier completes', async t => {
   const [, repo] = await directories(t); const { host } = fixture([repo]);
   let finish!: (value: unknown) => void, started!: () => void, checks = 0;
@@ -465,8 +478,8 @@ test('copying rechecks compatibility and rejects stale context and retired featu
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision: 'stale' }), /已變更/);
   host.runWorkflowKitHelper = async () => ({ ok: true, status: 'update-available', version: '0.16.0', profile: 'repository', capabilities: ['query'] });
   await host.refreshWorkflowKit(); const revision = host.getSkillsContext().revision;
-  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /契約不相容/);
-  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /契約不相容|未知|功能/);
+  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /整合介面尚未受此工作台支援/);
+  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
 });
 
 test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
@@ -554,6 +567,20 @@ test('a failing helper process exposes its JSON error instead of the entire comm
       assert.doesNotMatch(error.message, /Command failed|failed-helper/);
       return true;
     });
+  }
+});
+
+test('status passes the cached WorkflowKit helper version instead of the Extension version', async t => {
+  const [group, repo] = await directories(t);
+  const { host } = fixture([repo]);
+  const script = path.join(group, 'status-helper.cjs');
+  await writeFile(script, 'process.stdout.write(JSON.stringify({ok:true,args:process.argv.slice(2)}));');
+  host.workflowKitHelper = async () => ({ path: script, version: '2.0.0' });
+  host.context.extensionUri = uri(repo);
+  const run = WorkspacePanel!.prototype['runWorkflowKitHelper'].bind(host);
+  for (const args of [['status', repo], ['status', repo, '--expected-version', '0.17.0']]) {
+    const result = await run(args, 5000);
+    assert.equal(argumentValue(result.args as string[], '--expected-version'), '2.0.0');
   }
 });
 

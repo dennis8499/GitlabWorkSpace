@@ -1497,7 +1497,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
     <section class="tool-settings"><h3>WorkflowKit 工作流程整合包</h3>
     <label class="field">下載來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="github">GitHub Release</option><option value="gitea">內網 Gitea 備援</option></select></label>
     <p class="source-lines">包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer 與 Output Style。依目前專案使用適用的 Skills 流程。</p>
-    <div class="button-row"><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={onRefresh}>檢查最新相容版本</button><button class="quiet small" type="button" disabled={kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button></div>
+    <div class="button-row"><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={onRefresh}>檢查最新正式版</button><button class="quiet small" type="button" disabled={kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button></div>
     {(() => {
       const target = snapshot.workflowKitInstallTarget;
       const installed = target?.state ?? { status: 'missing' as const };
@@ -1507,7 +1507,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       const downgrade = comparison < 0;
       return <section class="tool-card"><div class="panel-title"><strong>WorkflowKit</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version}` : '尚未安裝'}</p>
-        <p>{selected ? `最新相容版本 v${selected.version} · ${selected.skillCount ?? 4} 個 Skills` : '請檢查最新相容版本。'}</p>
+        <p>{selected ? `最新正式版 v${selected.version} · ${selected.skillCount ?? 4} 個 Skills` : '請檢查最新正式版。'}</p>
         {downgrade && <p class="subtle">已安裝版本較新，請選擇提供該版本的來源。</p>}
         <p class="workflow-kit-skills-root">目前 Skills 工作位置：{target?.root ?? '尚未選擇'} · {status[installed.status] ?? installed.status}</p>
         <p class="workflow-kit-profile">適用流程：{target?.profile === 'repository' ? 'Repository（單一 Repo）' : target?.profile === 'group' ? 'Group（共用 Wiki）' : '尚未辨識'}</p>

@@ -1915,7 +1915,7 @@ test('Skills offers online Releases and one shared root without Group mode contr
   assert.equal(button('選擇共用根目錄').disabled, false); assert.equal(button('開啟 GitHub Release').disabled, false);
   button('開啟 GitHub Release').click(); assert.equal(view.requests.at(-1).type, 'openWorkflowKitDownload');
   state.workflowKitOperationBusy = true; view.sendSnapshot(state); await view.tick();
-  assert.equal(button('選擇共用根目錄').disabled, true); assert.equal(button('匯入組合包 ZIP'), undefined); assert.equal(button('檢查最新相容版本').disabled, true);
+  assert.equal(button('選擇共用根目錄').disabled, true); assert.equal(button('匯入組合包 ZIP'), undefined); assert.equal(button('檢查最新正式版').disabled, true);
 });
 
 test('online setup explicitly checks Releases and offers only GitHub and Gitea sources', async t => {
@@ -1929,7 +1929,7 @@ test('online setup explicitly checks Releases and offers only GitHub and Gitea s
   assert.equal(document.querySelector('.workflow-kit-install-button').disabled, true);
   assert.equal(view.requests.some(request => request.type === 'checkWorkflowKitReleases'), false);
   assert.equal([...tools.querySelectorAll('button')].some(button => button.textContent.includes('匯入')), false);
-  [...tools.querySelectorAll('button')].find(button => button.textContent === '檢查最新相容版本').click();
+  [...tools.querySelectorAll('button')].find(button => button.textContent === '檢查最新正式版').click();
   assert.equal(view.requests.at(-1).type, 'checkWorkflowKitReleases');
   assert.equal(view.requests.at(-1).source, 'github');
 });
@@ -1939,7 +1939,7 @@ test('online installation sends a Release identity without a client-controlled l
   state.workflowKitInstallTarget.state = { status: 'missing' };
   const view = await mount({ mode: 'clone' }, state); t.after(() => view.dom.window.close());
   const document = view.dom.window.document; document.querySelector('.settings-trigger').click(); await view.tick();
-  assert.ok(document.querySelector('.tool-settings').textContent.includes('最新相容版本 v1.0.0'));
+  assert.ok(document.querySelector('.tool-settings').textContent.includes('最新正式版 v1.0.0'));
   const button = document.querySelector('.workflow-kit-install-button');
   assert.equal(button.disabled, false); button.click();
   assert.equal(view.requests.at(-1).type, 'installWorkflowKit');
