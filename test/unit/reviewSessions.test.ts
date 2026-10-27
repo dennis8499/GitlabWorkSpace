@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, symlink } f
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation } from '../../src/workspace/reviewSessions';
+import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewSync, withReviewSyncInvalidation, sharedReviewCacheRoot, sharedReviewCacheV2Root, resolveReviewRuntime, defaultReviewRuntime, invalidateReviewAuth } from '../../src/workspace/reviewSessions';
 import { workspaceActionKinds, describeAction } from '../../src/workspace/actionPolicy';
 
 async function fixture(t: test.TestContext) {
@@ -23,6 +23,41 @@ async function fixture(t: test.TestContext) {
   return { base, root, repo, id, job, save };
 }
 
+test('local budget projection distinguishes wrap-up, one extension and incomplete publication without renewing elapsed time', async t => {
+  const f = await fixture(t);
+  const started = Date.now() / 1000 - 200;
+  const budget = { schema: 'ReviewBudget/v1', id: 'b'.repeat(32), profile: 'balanced',
+    started_at_epoch: started, started_monotonic: 100, base_seconds: 180, repo_count: 1 };
+  await f.save({ ...f.job, budget });
+  let row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.budget?.phase, 'wrap-up');
+  assert.equal(row.budget?.limitSeconds, 180);
+  const extension = { budget_id: budget.id, update_id: 'evidence-backed', additional_seconds: 90 };
+  // An extension-only semantic update can leave the previous step's phase behind.
+  await f.save({ ...f.job, phase: 'wrap-up', budget: { ...budget, extension } });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.budget?.phase, 'extended-investigation');
+  assert.equal(row.budget?.limitSeconds, 270);
+  assert.equal(row.budget?.extensionUsed, true);
+  await f.save({ ...f.job, phase: 'wrap-up', budget: { ...budget, started_at_epoch: started - 100, extension } });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.budget?.phase, 'wrap-up');
+  assert.equal(row.budget?.remainingSeconds, 0);
+  const finished = started + 220;
+  const outcome = { schema: 'MergeReviewOutcome/v1', outcome_available: true, review_complete: false,
+    review_status: '審查未完成', gaps: ['因時間預算未完成必要 caller。'] };
+  await f.save({ ...f.job, state: 'published', phase: 'complete', finished_at_epoch: finished,
+    review_outcome: outcome, budget: { ...budget, extension } });
+  row = (await readReviewSessions(f.root, f.base, [f.repo]))[0];
+  assert.equal(row.budget?.phase, 'incomplete');
+  assert.equal(row.budget?.elapsedSeconds, 220);
+  assert.equal((await readReviewSessions(f.root, f.base, [f.repo]))[0].budget?.elapsedSeconds, 220);
+  assert.equal(row.reviewOutcome?.reviewComplete, false);
+  assert.equal(row.fetchCount, 0);
+  await f.save(f.job);
+  assert.equal((await readReviewSessions(f.root, f.base, [f.repo]))[0].budget, undefined);
+});
+
 test('local review status validates workspace ownership and filters foreign or malformed jobs', async t => {
   const f = await fixture(t), before = await readdir(f.root);
   await f.save({ ...f.job, request_id: 'b'.repeat(32), inputs: { ...f.job.inputs, workspace: path.dirname(f.base) } }, 'b'.repeat(32));
@@ -38,6 +73,36 @@ test('local review status validates workspace ownership and filters foreign or m
   await assert.rejects(readReviewJob(f.root, '../elsewhere', f.base, [f.repo]));
   await assert.rejects(readReviewJob(f.root, f.id, f.base, [path.dirname(f.repo)]));
   assert.deepEqual(await readReviewSessions(path.join(f.base, 'absent'), f.base, [f.repo]), []);
+});
+
+test('v2 invalidation works before a workspace has any review jobs', async t => {
+  const f = await fixture(t), previous = process.env.REVIEW_SHARED_CACHE_DIR;
+  const shared = path.join(f.base, 'reviewer-cache-v2');
+  process.env.REVIEW_SHARED_CACHE_DIR = shared;
+  t.after(() => { if (previous === undefined) delete process.env.REVIEW_SHARED_CACHE_DIR; else process.env.REVIEW_SHARED_CACHE_DIR = previous; });
+  await mkdir(shared);
+  await writeFile(path.join(shared, '.review-shared-cache.json'), JSON.stringify({ schema: 'ReviewerSharedCache/v2', directory: shared }));
+  assert.equal(sharedReviewCacheV2Root(), shared);
+  const absent = path.join(f.base, 'never-started'), common = path.join(f.repo, '.git');
+  await invalidateReviewSync(absent, common);
+  const key = createHash('sha256').update(JSON.stringify(path.resolve(common))).digest('hex');
+  assert.equal(JSON.parse(await readFile(path.join(shared, 'invalidations', key + '.json'), 'utf8')).schema, 'ReviewerSharedInvalidation/v1');
+  assert.equal(await invalidateReviewAuth([]), 1);
+  await assert.rejects(readdir(absent));
+});
+
+test('legacy jobs resume in place and new status separates fixed SHA, capture and sync times', async t => {
+  const f = await fixture(t), preferred = defaultReviewRuntime(f.base, 'merge-reviewer');
+  await f.save({ ...f.job, fixed_identity: { base_sha: '1'.repeat(40), head_sha: '2'.repeat(40), capture_completed_at: '2026-10-25T00:00:01Z' },
+    sync_activity: [{ mode: 'cached', synced_at: 1792886400 }] });
+  assert.equal(await resolveReviewRuntime(preferred, f.id, f.base, [f.repo], 'merge-reviewer'), f.root);
+  const rows = await readReviewSessions(f.root, f.base, [f.repo]);
+  assert.equal(rows[0].baseSha, '1'.repeat(40));
+  assert.equal(rows[0].headSha, '2'.repeat(40));
+  assert.equal(rows[0].capturedAt, '2026-10-25T00:00:01Z');
+  assert.equal(rows[0].syncObservations?.[0].mode, 'cached');
+  assert.equal(rows[0].fetchCount, 0);
+  await assert.rejects(readdir(preferred));
 });
 
 test('known Git writes invalidate only the requested common directory; status stays unchanged', async t => {
@@ -67,6 +132,29 @@ test('a receipt made while a Git write is waiting is invalidated again after com
     throw new Error('uncertain transport result');
   }), /uncertain transport result/);
   assert.notEqual(await readFile(marker, 'utf8'), during);
+});
+
+test('both reviewer runtimes invalidate the same owned shared cache and preserve legacy epochs', async t => {
+  const f = await fixture(t), release = path.join(f.base, '.release-review-runtime'), shared = path.join(f.base, '.review-shared-cache');
+  const previous = process.env.REVIEW_SHARED_CACHE_DIR;
+  delete process.env.REVIEW_SHARED_CACHE_DIR;
+  t.after(() => { if (previous === undefined) delete process.env.REVIEW_SHARED_CACHE_DIR; else process.env.REVIEW_SHARED_CACHE_DIR = previous; });
+  await mkdir(release);
+  await writeFile(path.join(release, '.release-reviewer-runtime.json'), JSON.stringify({ schema: 'ReleaseReviewRuntime/v1', directory: release }));
+  await mkdir(shared);
+  await writeFile(path.join(shared, '.review-shared-cache.json'), JSON.stringify({ schema: 'ReviewerSharedCache/v1', directory: shared }));
+  assert.equal(await sharedReviewCacheRoot(f.root), shared);
+  assert.equal(await sharedReviewCacheRoot(release), shared);
+  const common = path.join(f.repo, '.git'), key = createHash('sha256').update(JSON.stringify(path.resolve(common))).digest('hex');
+  const sharedMarker = path.join(shared, 'invalidations', key + '.json');
+  await invalidateReviewSync(f.root, common);
+  const first = await readFile(sharedMarker, 'utf8');
+  await invalidateReviewSync(release, common);
+  assert.notEqual(await readFile(sharedMarker, 'utf8'), first);
+  assert.equal(JSON.parse(await readFile(sharedMarker, 'utf8')).schema, 'ReviewerSharedInvalidation/v1');
+  assert.equal(JSON.parse(await readFile(path.join(release, 'invalidations', key + '.json'), 'utf8')).schema, 'MergeReviewInvalidation/v1');
+  await writeFile(path.join(shared, '.review-shared-cache.json'), JSON.stringify({ schema: 'ReviewerSharedCache/v1', directory: path.dirname(shared) }));
+  await assert.rejects(invalidateReviewSync(f.root, common), /共享快取所有權/);
 });
 
 test('status refuses linked runtime and linked jobs instead of traversing them', async t => {

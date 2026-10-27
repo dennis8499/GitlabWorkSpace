@@ -27,4 +27,32 @@ export interface ReviewSessionSummary {
   packCacheHits: number;
   cleanupPending?: boolean;
   reviewOutcome?: ReviewOutcomeSummary;
+  baseSha?: string;
+  headSha?: string;
+  capturedAt?: string;
+  syncObservations?: Array<{ mode: string; at: string }>;
+  budget?: ReviewBudgetSummary;
+}
+export interface ReviewBudgetSummary {
+  profile: 'balanced' | 'unlimited';
+  elapsedSeconds: number;
+  baseSeconds?: number;
+  limitSeconds?: number;
+  remainingSeconds?: number;
+  extensionUsed: boolean;
+  phase: 'within-budget' | 'extended-investigation' | 'wrap-up' | 'complete' | 'incomplete' | 'stopped';
+}
+export interface ReviewerCapabilities {
+  schema: 'ReviewCapabilities/v1';
+  tool: ReviewerToolId;
+  skill_version: string;
+  prepare_evidence: boolean;
+  updates_schema: 'ReviewUpdates/v1';
+  shared_cache_schema: 'ReviewerSharedCache/v2';
+  payload_sha256: string;
+  runtime_root: string;
+  git_commands: 0;
+  network_commands: 0;
+  budget_schema?: 'ReviewBudget/v1';
+  budget_profiles?: readonly ('balanced' | 'unlimited')[];
 }

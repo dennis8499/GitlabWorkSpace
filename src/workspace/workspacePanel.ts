@@ -1,3 +1,4 @@
+import { readReviewerCapabilities } from './reviewerCapabilities';
 import * as vscode from 'vscode';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -6,7 +7,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { access, readFile, writeFile, mkdir, mkdtemp, unlink, rmdir, readdir, lstat, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { GitLabApiError, type GitLabClient } from '../api/gitLabClient';
+import { GitLabApiError, gitLabWriteFailureEffect, type GitLabClient } from '../api/gitLabClient';
+import { timeEntryTimestamp } from '../api/timeEntry';
+import { mergeAvailability } from '../api/actionAvailability';
 import { GitLabBudgetExceededError, GitLabRequestBudget } from '../api/gitLabRequestBudget';
 import { withReadObservation, type ReadObservation } from '../api/readObservation';
 import { readVerifiedMergeRequestDiff } from './mergeRequestDiffRead';
@@ -50,8 +53,10 @@ import { resolveSkillsContext } from './skillsContext';
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCards, resolveReviewerRepository } from '../webview/skillsGuideData';
 import { collectReviewerRepositories } from './reviewerRepositories';
 import { readReviewerBranches } from './reviewerBranches';
-import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript } from './reviewSessions';
+import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewAuth, reviewerAuthScope, defaultReviewRuntime, reviewRuntimeCandidates, resolveReviewRuntime } from './reviewSessions';
 import { isReviewerTool, type ReviewerToolId } from './reviewSessionProtocol';
+import { reviewerExecutionFromConfiguration, type ReviewerExecutionOverrides } from './reviewExecution';
+import { readInstalledReviewerBinding } from './installedReviewer';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
@@ -230,6 +235,8 @@ export class WorkspacePanel implements vscode.Disposable {
   private reviewWatcher?: vscode.FileSystemWatcher;
   private reviewWatcherRoot?: string;
   private reviewRefreshTimer?: NodeJS.Timeout;
+  private reviewAuthHostNonce?: string;
+  private reviewAuthTransition = false;
   private readonly workflowKitStatusReads = new Map<string, Promise<InstalledWorkflowKitState>>();
   private workflowKitReleases: WorkflowKitRelease[] = [];
   private busy = false;
@@ -283,6 +290,10 @@ export class WorkspacePanel implements vscode.Disposable {
     this.timer = new IssueTimeTracker(context.globalState);
     session.setBeforeTransition(async () => {
       this.assertAccountTransitionAllowed();
+      this.reviewAuthHostNonce = randomUUID();
+      this.reviewAuthTransition = true;
+      this.skillsContextCache = undefined;
+      await this.invalidateReviewAuthObservations();
       const pause = () => this.enqueueTimer(async () => {
         for (const entry of this.timer.list()) if (entry.phase === 'running') await this.timer.pause(entry.id);
       });
@@ -290,8 +301,17 @@ export class WorkspacePanel implements vscode.Disposable {
       else await pause();
       this.previewAbort?.abort(); this.previewGeneration++;
     });
+    session.setAfterTransition?.(async () => {
+      if (!this.reviewAuthTransition) return;
+      try { await this.invalidateReviewAuthObservations(); }
+      finally { this.reviewAuthTransition = false; }
+    });
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('gitlabWorkspace.reviewer.execution') || event.affectsConfiguration('gitlabWorkspace.reviewRuntimePath')) {
+        this.skillsContextCache = undefined;
+        this.sendSnapshot();
+      }
       if (!event.affectsConfiguration(`gitlabWorkspace.${PROJECT_ROOT_SETTING}`)) return;
       this.onWorkspaceFoldersChanged();
       void Promise.resolve(this.syncSidebarState?.()).catch(() => undefined);
@@ -1887,6 +1907,12 @@ export class WorkspacePanel implements vscode.Disposable {
     this.sendSnapshot();
   }
 
+  private async invalidateReviewAuthObservations(): Promise<void> {
+    const skills = this.getSkillsContext();
+    const roots = [skills.reviewRuntimeRoot, skills.releaseReviewRuntimeRoot].filter((root): root is string => !!root);
+    await invalidateReviewAuth(roots);
+  }
+
   private getSkillsContext(): SkillsContext {
     const current = this.workspaceMatch ?? { status: 'unverified' as const, repositories: [] };
     const workspaceFile = vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined;
@@ -1895,16 +1921,22 @@ export class WorkspacePanel implements vscode.Disposable {
       ? this.reviewerWorkspaceFolders.folders : openedFolders;
     const reviewRoot = vscode.workspace.getConfiguration?.('gitlabWorkspace').get<string>('reviewRuntimePath', '').trim()
       || process.env.MERGE_REVIEW_RUNTIME_DIR || undefined;
+    const reviewWorkspace = workspaceFile ? path.dirname(workspaceFile) : folders.length === 1 ? folders[0] : undefined;
     const reviewRuntimeRoot = reviewRoot ? path.resolve(reviewRoot)
-      : current.profile === 'group' && (workspaceFile || folders.length === 1)
-        ? path.join(workspaceFile ? path.dirname(workspaceFile) : folders[0], '.review-runtime') : undefined;
+      : reviewWorkspace ? defaultReviewRuntime(reviewWorkspace, 'merge-reviewer') : undefined;
     const releaseReviewRuntimeRoot = process.env.RELEASE_REVIEW_RUNTIME_DIR ? path.resolve(process.env.RELEASE_REVIEW_RUNTIME_DIR)
       : reviewRoot ? path.join(path.resolve(reviewRoot), 'release-reviewer')
-        : current.profile === 'group' && (workspaceFile || folders.length === 1)
-          ? path.join(workspaceFile ? path.dirname(workspaceFile) : folders[0], '.release-review-runtime') : undefined;
-    const reviewAuthScope = createHash('sha256').update(JSON.stringify([this.session.baseUrl,
-      this.currentUser?.id, this.session.connectionEpoch])).digest('hex');
-    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot, reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope,
+        : reviewWorkspace ? defaultReviewRuntime(reviewWorkspace, 'release-reviewer') : undefined;
+    const reviewAuthScope = reviewerAuthScope(this.reviewAuthHostNonce ??= randomUUID(), this.session.baseUrl,
+      this.session.activeAccountId, this.currentUser?.id, this.session.connectionEpoch);
+    let reviewerExecution: ReviewerExecutionOverrides | undefined, reviewerExecutionError: string | undefined;
+    try {
+      // Reviewer settings are workspace-local. Never inherit user/global model settings.
+      const configured = vscode.workspace.getConfiguration?.('gitlabWorkspace', vscode.workspace.workspaceFolders?.[0]?.uri)
+        .inspect?.<ReviewerExecutionOverrides>('reviewer.execution');
+      reviewerExecution = reviewerExecutionFromConfiguration(configured);
+    } catch { reviewerExecutionError = 'Reviewer 工作區執行設定無效，請檢查模式、模型識別碼與推理強度。'; }
+    const signature = JSON.stringify([this.projectContextSignature(), workspaceFile, this.skillsWorkflowKitStateRoot, reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope, reviewerExecution, reviewerExecutionError,
       folders, this.reviewerNativeRepositories ?? []]);
     const cached = this.skillsContextCache;
     if (cached?.signature === signature && cached.context === this.projectContext && cached.match === current &&
@@ -1924,12 +1956,12 @@ export class WorkspacePanel implements vscode.Disposable {
     const localRepositories = current.repositories.map(({ name, path: repoPath, remoteFingerprint }) => ({ name, path: repoPath, remoteFingerprint }));
     const revision = createHash('sha256').update(JSON.stringify([this.projectContextSignature(), this.projectContext?.revision,
       current.status, current.profile, localRepositories, installed, workspaceFile,
-      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope])).digest('hex');
+      reviewerRepositories.map(({ name, path: repoPath }) => ({ name, path: repoPath })), reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope, reviewerExecution, reviewerExecutionError])).digest('hex');
     const value = { ...resolveSkillsContext({ match, installed, revision }),
       reviewerRepositories, workspaceFile, workspaceRoot: workspaceFile ? path.dirname(workspaceFile)
         : vscode.workspace.workspaceFolders?.length === 1 ? vscode.workspace.workspaceFolders[0].uri.fsPath : undefined,
       workspaceRootAmbiguous: (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && !workspaceFile,
-      reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope };
+      reviewRuntimeRoot, releaseReviewRuntimeRoot, reviewAuthScope, reviewerExecution, reviewerExecutionError };
     this.skillsContextCache = { signature, context: this.projectContext, match: current, installed: this.skillsWorkflowKitState, projects: this.projects, value };
     return value;
   }
@@ -1960,9 +1992,15 @@ export class WorkspacePanel implements vscode.Disposable {
     const repositories = reviewer ? current.reviewerRepositories ?? [] : current.repositories;
     const selectedRepository = reviewer ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
     if (reviewer && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
+    const reviewerBinding = reviewer && current.root ? await readInstalledReviewerBinding(current.root, card.tool as ReviewerToolId) : undefined;
+    const reviewerCapabilities = reviewerBinding ? await readReviewerCapabilities(reviewerBinding,
+      await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')),
+      current.workspaceRoot ?? current.root!) : undefined;
+    if (reviewer && this.getSkillsContext().revision !== current.revision) throw new Error('工作區或 Skills 安裝狀態已變更，請重新確認提示詞。');
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
+      reviewerExecution: current.reviewerExecution, reviewerExecutionError: current.reviewerExecutionError, reviewerBinding, reviewerCapabilities,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
       workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
       workspaceRoot: vscode.workspace.workspaceFile?.scheme === 'file'
@@ -3631,27 +3669,45 @@ export class WorkspacePanel implements vscode.Disposable {
     if (!permissionFields.length) throw new Error('GitLab did not expose Issue permissions, so the time entry was not sent.');
     const permissions = await client.getIssuePermissions(entry.projectPath, entry.issueIid, permissionFields);
     if (permissions.updateIssue !== true && permissions.adminIssue !== true) throw new Error('GitLab reports that this account cannot log time on this Issue.');
-    const submitting = await this.enqueueTimer(() => this.timer.beginSubmit(id));
+    timeEntryTimestamp(entry.spentAt);
+    gitLabDuration(entry.elapsedSeconds);
+    const capabilities = this.session.issueCapabilities;
+    const useGraphql = capabilities?.timelogCreate === true && capabilities.timelogCreateDated === true && capabilities.timelogCreateSummary === true;
+    if (entry.spentAt && !useGraphql) throw new Error('此 GitLab 版本不支援指定日期的工時紀錄。');
+    let submitting: WorkspaceTimerEntry;
+    try { submitting = await this.enqueueTimer(() => this.timer.beginSubmit(id)); }
+    catch (error) { this.publishTimers(); throw error; }
     this.publishTimers();
+    let writeStarted = false;
     try {
-      const capabilities = this.session.issueCapabilities;
-      if (submitting.spentAt && !capabilities?.timelogCreateDated) throw new Error('GitLab does not support dated time entries.');
-      if (submitting.spentAt && submitting.summary.trim() && !capabilities?.timelogCreateSummary) throw new Error('This GitLab schema cannot store a summary with dated time entries.');
-      if (capabilities?.timelogCreate && issue.id && (!submitting.summary.trim() || capabilities.timelogCreateSummary === true)) {
-        const spentAt = submitting.spentAt ? new Date(`${submitting.spentAt}T12:00:00`).toISOString() : undefined;
+      const timestamp = timeEntryTimestamp(submitting.spentAt);
+      const duration = gitLabDuration(submitting.elapsedSeconds);
+      if (submitting.spentAt && (!useGraphql || !issue.id)) throw new Error('此 GitLab 版本不支援指定日期的工時紀錄。');
+      if (useGraphql && issue.id) {
         const scopedClient = client.withWriteScope?.({ projectId: issue.project_id, issueIid: issue.iid, resource: 'issues' }) ?? client;
-        await scopedClient.createIssueTimelog(issue.id, gitLabDuration(submitting.elapsedSeconds), submitting.summary, spentAt, capabilities.timelogCreateDated === true, capabilities.timelogCreateSummary === true);
-      } else if (submitting.spentAt) {
-        throw new Error('此 GitLab 版本不支援指定日期的工時紀錄。');
+        writeStarted = true;
+        await scopedClient.createIssueTimelog(issue.id, duration, submitting.summary, timestamp);
       } else {
-        await client.addSpentTime(entry.projectId, entry.issueIid, gitLabDuration(submitting.elapsedSeconds), submitting.summary);
+        writeStarted = true;
+        await client.addSpentTime(entry.projectId, entry.issueIid, duration, submitting.summary);
       }
-      await this.enqueueTimer(() => this.timer.finishSubmit(id, true));
+    } catch (error) {
+      const effect = writeStarted ? gitLabWriteFailureEffect(error) : 'none';
+      const message = effect === 'none' ? `工時未送出：${readableError(error)}`
+        : `工時送出結果尚未確認，請先到 GitLab 對帳；系統不會自動重送。${readableError(error)}`;
+      let persistenceWarning = '';
+      try { await this.enqueueTimer(() => this.timer.finishSubmit(id, effect, message)); }
+      catch { persistenceWarning = ' 工時狀態無法保存，重新啟動後請先核對。'; }
+      this.publishTimers();
+      this.noteOutcome({ status: 'failed', effect });
+      throw Object.assign(new Error(message + persistenceWarning, { cause: error }), { effect });
+    }
+    this.noteOutcome({ effect: 'applied' });
+    try {
+      await this.enqueueTimer(() => this.timer.finishSubmit(id, 'applied'));
       this.post({ type: 'message', message: '工時已送至 GitLab。' });
     } catch (error) {
-      await this.enqueueTimer(() => this.timer.finishSubmit(id, false));
-      this.noteOutcome({ effect: 'unknown' });
-      throw new Error(`工時送出結果尚未確認，請先到 GitLab 對帳；系統不會自動重送。${readableError(error)}`);
+      this.noteOutcome({ status: 'succeeded', effect: 'applied', refreshError: `工時已送至 GitLab，但本機狀態無法保存：${readableError(error)}` });
     } finally { this.publishTimers(); }
   }
 
@@ -3709,7 +3765,13 @@ export class WorkspacePanel implements vscode.Disposable {
       this.pendingMergeRequestRead = undefined;
       await this.context.globalState.update(this.selectedMergeRequestKey(), { projectId, iid });
     } catch (error) {
-      if (current()) throw error;
+      if (current()) {
+        const selected = this.selectedMergeRequest;
+        if (selected?.request.project_id === projectId && selected.request.iid === iid) {
+          this.selectedMergeRequest = { ...selected, mergeAvailability: { status: 'unknown', reason: '無法重新確認 MR 合併條件，請重試。' } };
+        }
+        throw error;
+      }
     } finally {
       this.setBusyOwner(busyOwner);
       if (current()) this.sendSnapshot();
@@ -3790,7 +3852,8 @@ export class WorkspacePanel implements vscode.Disposable {
           } });
         const result = verified.result;
         if (!isCurrent()) return;
-        this.selectedMergeRequest = { ...this.selectedMergeRequest!, request: verified.request, sourceSha: verified.request.diff_refs?.head_sha,
+        this.selectedMergeRequest = { ...this.selectedMergeRequest!, request: verified.request,
+          mergeAvailability: mergeAvailability(verified.request, verified.request.diff_refs?.head_sha), sourceSha: verified.request.diff_refs?.head_sha,
           targetSha: verified.request.diff_refs?.start_sha, diffVersionId: result.versionId, diffs: result.diffs, warnings: result.warnings,
           freshness: this.mergeRequestDiffIdentity(verified.request) === this.mergeRequestDiffIdentity(selected.request)
             ? this.selectedMergeRequest!.freshness : { state: 'not_checked' },
@@ -3833,7 +3896,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private getMergeRequestDetail(request: GitLabMergeRequest, previous?: MergeRequestDetail, sameDiff = false): MergeRequestDetail {
     const discussions = previous?.sections?.discussions;
     const expired = discussions?.updatedAt !== undefined && Date.now() - discussions.updatedAt >= 60_000;
-    return { request, diffVersionId: sameDiff ? previous?.diffVersionId : undefined,
+    return { request, mergeAvailability: mergeAvailability(request, request.diff_refs?.head_sha), diffVersionId: sameDiff ? previous?.diffVersionId : undefined,
       diffs: sameDiff && previous ? previous.diffs ?? [] : [], discussions: previous?.discussions ?? [], sections: {
       diffs: sameDiff && previous ? previous.sections?.diffs ?? { status: 'idle' } : { status: 'idle' },
       discussions: discussions && !expired ? discussions : { status: 'idle' }
@@ -3978,7 +4041,8 @@ export class WorkspacePanel implements vscode.Disposable {
       this.reviewWatcher.onDidCreate(refresh); this.reviewWatcher.onDidChange(refresh); this.reviewWatcher.onDidDelete(refresh);
     }
     try {
-      const sessions = await readReviewSessions(root, workspace, (skills.reviewerRepositories ?? []).map(repo => repo.path), tool);
+      const sessions = (await Promise.all(reviewRuntimeCandidates(root, workspace, tool).map(runtime =>
+        readReviewSessions(runtime, workspace, (skills.reviewerRepositories ?? []).map(repo => repo.path), tool)))).flat().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
       if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, tool, sessions });
     } catch (error) {
       if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'reviewSessions', revision, tool, sessions: [], error: readableError(error) });
@@ -3988,11 +4052,12 @@ export class WorkspacePanel implements vscode.Disposable {
   private async controlReviewSession(request: { revision: string; requestId: string; tool: ReviewerToolId }, action: 'cancel' | 'refresh' | 'resume' | 'report'): Promise<void> {
     if (!isReviewerTool(request.tool)) throw new Error('無效的審查工具。');
     const skills = this.getSkillsContext();
-    const root = request.tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
-    if (skills.revision !== request.revision || !root || !(skills.workspaceRoot ?? skills.root)) throw new Error('目前審查環境已變更，請重新讀取。');
+    const preferred = request.tool === 'merge-reviewer' ? skills.reviewRuntimeRoot : skills.releaseReviewRuntimeRoot;
+    if (skills.revision !== request.revision || !preferred || !(skills.workspaceRoot ?? skills.root)) throw new Error('目前審查環境已變更，請重新讀取。');
     const workspace = (skills.workspaceRoot ?? skills.root)!;
     const repositories = skills.reviewerRepositories ?? [];
     const paths = repositories.map(repo => repo.path);
+    const root = await resolveReviewRuntime(preferred, request.requestId, workspace, paths, request.tool);
     const job = await readReviewJob(root, request.requestId, workspace, paths, request.tool);
     if (action === 'cancel') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
@@ -4007,9 +4072,11 @@ export class WorkspacePanel implements vscode.Disposable {
     } else if (action === 'resume') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const script = reviewSessionScript(path.join(skills.root, '.agents', 'skills'), request.tool);
+      const binding = await readInstalledReviewerBinding(skills.root, request.tool);
       await vscode.env.clipboard.writeText(`使用 $${request.tool} 恢復同一份固定版本審查。\n` +
+        `目前已安裝入口：${JSON.stringify(binding)}。先核對工具身分與目前安裝 hashes，再由該 helper 驗證原 context 的相容性；保留原 capture 身分、固定 SHA 與執行政策，不重新 capture。不相容時停止。\n` +
         `先執行已安裝 helper：python ${JSON.stringify(script)} status --runtime-root ${JSON.stringify(root)} --request-id ${request.requestId}。\n` +
-        '依 status 回傳的草稿、artifact、diagnostics 與 remaining 繼續必要 step → check → finish；維持原 request_id，不重新 capture。' +
+        '依 status 回傳的草稿、artifact、diagnostics 與 remaining 繼續必要 step → finish；維持原 request_id，不重新 capture。' +
         'input-repair／draft-repair 須依 status/errors 實際指向修正操作檔、operation 欄位或草稿的讀取／JSON 錯誤，再沿用同一 request_id 與成功的 operation IDs 繼續；依 recoverable/terminal 與 job.state 判斷 exit 3。' +
         'owned evidence 損壞須遵守 helper 的終止判斷，不得從業務 Repo 補回或重新 capture 掩蓋。' +
         '已發布時依 review_outcome 區分發布成功與審查完整性；摘要缺失應明示未知，不推測報告內容。若 cleanup_pending，使用 finish 重試清理並回傳既有報告；其他已發布狀態回傳收據中的報告連結及原有審查缺口，不把發布成功視為審查完整。');
@@ -4017,12 +4084,17 @@ export class WorkspacePanel implements vscode.Disposable {
     } else {
       const cardId = request.tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
       const card = getSkillGuideCards(skills.mode === 'group' ? 'group' : 'repository').find(item => item.id === cardId)!;
+      const binding = skills.root ? await readInstalledReviewerBinding(skills.root, request.tool) : undefined;
+      const reviewerCapabilities = binding ? await readReviewerCapabilities(binding,
+        await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')), workspace) : undefined;
       const prompt = buildSkillGuidePrompt(card, {
         [`${cardId}.repo`]: job.inputs.project, [`${cardId}.base`]: job.inputs.base, [`${cardId}.head`]: job.inputs.head,
       }, { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
-        reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope });
-      await vscode.env.clipboard.writeText(prompt.replace('review_session.py start ', 'review_session.py start --refresh ') +
+        reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope,
+        reviewerExecution: skills.reviewerExecution, reviewerExecutionError: skills.reviewerExecutionError,
+        reviewerBinding: binding, reviewerCapabilities });
+      await vscode.env.clipboard.writeText(prompt.replace(' start ', ' start --refresh ') +
         '\n建立新的 request_id，保留既有審查的固定版本與報告。');
       this.post({ type: 'message', message: '已複製重新同步審查指令；貼入 Codex 執行後才會取得新版本。' });
     }
@@ -4173,17 +4245,49 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async mergeMergeRequest(projectId: number, iid: number, sha: string): Promise<void> {
+    const epoch = this.session.connectionEpoch, groupId = this.session.selectedGroup?.id;
+    const sameMergeScope = () => epoch === this.session.connectionEpoch && groupId === this.session.selectedGroup?.id;
+    const requireMergeScope = () => { if (!sameMergeScope()) throw new Error('帳號或 Group 已變更，請重新確認。'); };
     await this.resolveGroupProject(projectId);
+    requireMergeScope();
     requireIssueIid(iid);
     const client = await this.session.getClient();
-    const latest = await client.getMergeRequest(projectId, iid);
-    if (!sha || latest.diff_refs?.head_sha !== sha) throw new Error('MR head SHA 已變更，請重新整理後再合併。');
-    const target = await client.getRepositoryBranch(latest.target_project_id ?? projectId, latest.target_branch);
+    const updateAvailability = (request: GitLabMergeRequest | undefined, availability: import('../api/actionAvailability').ActionAvailability): void => {
+      if (!sameMergeScope()) return;
+      const selected = this.selectedMergeRequest;
+      if (!selected || selected.request.project_id !== projectId || selected.request.iid !== iid) return;
+      const next = request ?? selected.request;
+      const sameDiff = this.mergeRequestDiffIdentity(selected.request) === this.mergeRequestDiffIdentity(next);
+      this.selectedMergeRequest = { ...this.getMergeRequestDetail(next, selected, sameDiff), mergeAvailability: availability };
+      this.sendSnapshot();
+    };
+    const readLatest = async (): Promise<GitLabMergeRequest> => {
+      try { return await client.getMergeRequest(projectId, iid); }
+      catch (error) { updateAvailability(undefined, { status: 'unknown', reason: '無法重新確認 MR 合併條件，請重試。' }); throw error; }
+    };
+    const latest = await readLatest();
+    requireMergeScope();
+    const availability = mergeAvailability(latest, sha);
+    if (availability.status !== 'allowed') { updateAvailability(latest, availability); throw new Error(availability.reason ?? '合併條件尚未確認。'); }
+    let target: Awaited<ReturnType<typeof client.getRepositoryBranch>>;
+    try { target = await client.getRepositoryBranch(latest.target_project_id ?? projectId, latest.target_branch); }
+    catch (error) { updateAvailability(latest, { status: 'unknown', reason: '無法確認目標分支，請重新檢查。' }); throw error; }
+    requireMergeScope();
     const confirm = await vscode.window.showWarningMessage(
       `確認合併 ${latest.references?.full ?? `!${iid}`}？\n來源：${latest.source_branch}\n目標：${latest.target_branch}\n來源 SHA：${sha}\n目標最新 SHA：${target.commit.id}\nGitLab 專案規則仍會檢查 Pipeline 與合併權限。`,
       { modal: true }, '合併 MR'
     );
     if (confirm !== '合併 MR') { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+    requireMergeScope();
+    const confirmed = await readLatest();
+    requireMergeScope();
+    const confirmedAvailability = mergeAvailability(confirmed, sha);
+    if (confirmedAvailability.status !== 'allowed') { updateAvailability(confirmed, confirmedAvailability); throw new Error(confirmedAvailability.reason ?? '合併條件尚未確認。'); }
+    if (confirmed.source_branch !== latest.source_branch || confirmed.target_branch !== latest.target_branch ||
+        confirmed.source_project_id !== latest.source_project_id || confirmed.target_project_id !== latest.target_project_id) {
+      updateAvailability(confirmed, { status: 'unknown', reason: 'MR 來源或目標已變更，請重新整理後再合併。' });
+      throw new Error('MR 來源或目標已變更，請重新整理後再合併。');
+    }
     await client.mergeMergeRequest(projectId, iid, sha);
     this.post({ type: 'message', message: 'GitLab 已接受 MR 合併要求。' });
     this.noteOutcome({ effect: 'applied' });

@@ -8,7 +8,7 @@ import type { WorkspaceResponse } from '../../src/workspace/workspaceProtocol';
 
 test('an unassigned creation opens detail and a later issue selection wins a pending load', async () => {
   const issue = { id: 401, iid: 7, project_id: 42, title: 'New unassigned issue', description: '', state: 'opened', web_url: 'https://gitlab.example.test/group/project/-/issues/7', updated_at: '2026-09-24T00:00:00Z', assignees: [] };
-  const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project' };
+  const project = { id: 42, name: 'Project', path: 'project', path_with_namespace: 'group/project', web_url: 'https://gitlab.example.test/group/project', permissions: { group_access: { access_level: 50 } } };
   let releaseDiscussions: (() => void) | undefined;
   const discussionGate = new Promise<void>((resolve) => { releaseDiscussions = resolve; });
   let internalIssueNavigations = 0;
@@ -79,7 +79,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
     Object.assign(session.issueCapabilities!, { issuePermissionFields: [], issuePermissionSource: 'workItem', workItemScope: 'project', workItemPermissionFields: ['updateWorkItem', 'adminWorkItem', 'deleteWorkItem', 'createNote'] });
     Object.assign(client, { getWorkItemPermissions: async () => ({ updateWorkItem: true, adminWorkItem: false, deleteWorkItem: false, createNote: true }) });
     const readPermissions = (panels as unknown as { readIssuePermissions(client: GitLabClient, projectPath: string, iid: number): Promise<Record<string, boolean>> }).readIssuePermissions.bind(panels);
-    assert.deepEqual(await readPermissions(signalClient, 'group/project', 7), { updateIssue: true, adminIssue: false, deleteIssue: false, createNote: true });
+    assert.deepEqual(await readPermissions(signalClient, 'group/project', 7), { updateIssue: true, adminIssue: false, createNote: true });
     Object.assign(session.issueCapabilities!, originalCapabilities);
     delete session.issueCapabilities!.workItemScope;
     delete session.issueCapabilities!.workItemPermissionFields;
@@ -181,6 +181,7 @@ test('an unassigned creation opens detail and a later issue selection wins a pen
       nextLoad
     ]);
     assert.deepEqual(writes, []);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     let deletions = 0;
     client.deleteIssue = async () => { deletions++; };
     await host.handle({ type: 'invoke', issueId: nextIssue.id, action: 'delete', payload: {} });

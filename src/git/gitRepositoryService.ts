@@ -1623,11 +1623,14 @@ export class GitRepositoryService implements vscode.Disposable {
         common = await realpath(common);
         const configured = vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('reviewRuntimePath', '').trim()
           || process.env.MERGE_REVIEW_RUNTIME_DIR;
-        const roots = configured ? [path.resolve(configured)] : [
+        const roots = configured ? [path.resolve(configured), process.env.RELEASE_REVIEW_RUNTIME_DIR
+          ? path.resolve(process.env.RELEASE_REVIEW_RUNTIME_DIR) : path.join(path.resolve(configured), 'release-reviewer')] : [
+          ...(process.env.RELEASE_REVIEW_RUNTIME_DIR ? [path.resolve(process.env.RELEASE_REVIEW_RUNTIME_DIR)] : []),
           ...(vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file')
-            .map(folder => path.join(folder.uri.fsPath, '.review-runtime')),
+            .flatMap(folder => [path.join(folder.uri.fsPath, '.review-runtime'), path.join(folder.uri.fsPath, '.release-review-runtime')]),
           ...(vscode.workspace.workspaceFile?.scheme === 'file'
-            ? [path.join(path.dirname(vscode.workspace.workspaceFile.fsPath), '.review-runtime')] : []),
+            ? [path.join(path.dirname(vscode.workspace.workspaceFile.fsPath), '.review-runtime'),
+              path.join(path.dirname(vscode.workspace.workspaceFile.fsPath), '.release-review-runtime')] : []),
         ];
         reviewBoundary = { roots, common };
       }

@@ -13,3 +13,5 @@ resources/offline-tools/manifest.json
 resources/offline-tools/workflow-kit.tar.xz
 __pycache__/
 *.pyc
+.verification/
+/debug.log

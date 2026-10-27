@@ -92,6 +92,7 @@ export interface WorkspaceTimerEntry {
   phase: TimerPhase;
   summary: string;
   spentAt?: string;
+  lastError?: string;
   updatedAt: number;
 }
 
@@ -105,6 +106,7 @@ export type BranchFreshness =
 export interface MergeRequestDetail {
   diffVersionId?: number;
   request: GitLabMergeRequest;
+  mergeAvailability?: import('../api/actionAvailability').ActionAvailability;
   sourceProject?: GitLabProject;
   diffs: GitLabMergeRequestDiff[];
   discussions: GitLabIssueDiscussion[];
@@ -153,6 +155,8 @@ export interface SkillsContext {
   reviewRuntimeRoot?: string;
   releaseReviewRuntimeRoot?: string;
   reviewAuthScope?: string;
+  reviewerExecution?: import('./reviewExecution').ReviewerExecutionOverrides;
+  reviewerExecutionError?: string;
 }
 
 export interface WorkflowKitReleaseSummary {

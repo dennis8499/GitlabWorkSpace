@@ -9,6 +9,7 @@ import { reportLocalFeedback } from './notificationFeedback';
 import { BranchInput, type BranchReadStatus } from './BranchInput';
 import { ReviewSessions } from './ReviewSessions';
 import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
+import { REVIEWER_EFFORTS, resolveReviewerExecution } from '../workspace/reviewExecution';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -73,6 +74,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
   }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
   const promptContext = reviewer ? { ...context, repositories } : context;
+  let execution;
+  try { execution = reviewer ? resolveReviewerExecution(state.inputs, card.id, context.reviewerExecution) : undefined; } catch { /* Prompt diagnostics show invalid policy. */ }
   try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
   const reportedPromptError = useRef('');
@@ -153,6 +156,26 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
           <button class="secondary skills-branch-refresh" type="button" disabled={!repo || branchStatus === 'loading'}
             onClick={() => repo && onLoadBranches?.(repo)}>{branchStatus === 'error' ? '重試讀取分支' : '重新讀取分支'}</button>
         </div>}
+        {reviewer && <fieldset class="reviewer-execution-controls"><legend>審查執行</legend>
+          <label>執行方式<select aria-label="Reviewer 執行方式" value={state.inputs[`${card.id}.executionMode`] ?? ''}
+            onChange={event => { const value = event.currentTarget.value; onChange(current => ({ ...current,
+              inputs: { ...current.inputs, [`${card.id}.executionMode`]: value } })); }}>
+            <option value="">沿用工作區設定（{context.reviewerExecution?.mode === 'parallel' ? '平行 Agent' : '單一 Agent'}）</option><option value="single">單一 Agent</option><option value="parallel">平行 Agent（實驗，最多兩個）</option>
+          </select></label>
+          {execution?.mode === 'parallel' && <>
+            <label>子 Agent 模型<input aria-label="Reviewer 子 Agent 模型" type="text" maxLength={160}
+              value={state.inputs[`${card.id}.subagentModel`] ?? ''} placeholder="留白沿用工作區；inherit 沿用主 Agent"
+              onInput={event => { const value = event.currentTarget.value; onChange(current => ({ ...current,
+                inputs: { ...current.inputs, [`${card.id}.subagentModel`]: value } })); }} /></label>
+            <label>子 Agent 推理強度<select aria-label="Reviewer 子 Agent 推理強度" value={state.inputs[`${card.id}.subagentReasoningEffort`] ?? ''}
+              onChange={event => { const value = event.currentTarget.value; onChange(current => ({ ...current,
+                inputs: { ...current.inputs, [`${card.id}.subagentReasoningEffort`]: value } })); }}>
+              <option value="">沿用工作區設定</option>{REVIEWER_EFFORTS.map(effort => <option key={effort} value={effort}>{effort === 'default' ? '預設（沿用模型／主 Agent）' : effort}</option>)}
+            </select></label>
+            <p class="subtle">本次設定優先於 Reviewer 工作區設定。模型與強度由 Codex 啟動子 Agent 時核對；不支援時會明確回報，不自動更換模型。</p>
+          </>}
+          <p class="subtle">目前政策：{execution?.mode === 'parallel' ? `平行 Agent；模型 ${execution.subagent_model}；推理強度 ${execution.subagent_reasoning_effort}` : '單一 Agent，沿用目前 Codex 模型與推理強度'}。設定只影響這次審查。</p>
+        </fieldset>}
         {promptError && <p class="warning" role="alert">{promptError}</p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
           <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" disabled={!ready || copyPending} aria-label={`複製${card.title}提示詞`}

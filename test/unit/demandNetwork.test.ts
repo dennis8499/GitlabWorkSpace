@@ -111,18 +111,28 @@ test('preview then Issue details shares actual HTTP reads and 200 comments have 
     await f.session.cachedRead('project/1/details', client => client.getProject(1));
     await f.session.cachedRead('current-user', client => client.getCurrentUser());
     const before = f.calls.length;
-    await panels.showIssue(issue); await panels.handle({ type: 'loadSection', sections: ['activity'] });
+    await panels.showIssue(issue); await panels.handle({ type: 'loadSection', sections: ['activity', 'permissions'] });
     assert.equal(f.calls.filter(url => url.pathname.endsWith('/issues/1')).length, 1);
     assert.equal(f.calls.slice(before).some(url => /members|award_emoji/.test(url.pathname)), false);
     await Promise.all([panels.handle({ type: 'loadNoteReactions', noteId: 1 }), panels.handle({ type: 'loadNoteReactions', noteId: 1 }), panels.handle({ type: 'loadNoteReactions', noteId: 2 })]);
     assert.deepEqual(f.calls.filter(url => url.pathname.endsWith('/award_emoji')).map(url => url.pathname).sort(), [
       '/api/v4/projects/1/issues/1/notes/1/award_emoji', '/api/v4/projects/1/issues/1/notes/2/award_emoji']);
-    await panels.showIssue(issue); await panels.handle({ type: 'loadSection', sections: ['activity'] }); await panels.handle({ type: 'loadNoteReactions', noteId: 1 });
+    await panels.showIssue(issue); await panels.handle({ type: 'loadSection', sections: ['activity', 'permissions'] }); await panels.handle({ type: 'loadNoteReactions', noteId: 1 });
     assert.equal(f.calls.filter(url => url.pathname.endsWith('/award_emoji')).length, 2);
-    await panels.handle({ type: 'refresh' }); await tick();
+    await panels.handle({ type: 'refresh' }); await panels.handle({ type: 'loadSection', sections: ['permissions'] }); await tick();
     assert.equal(f.calls.filter(url => url.pathname.endsWith('/issues/1')).length, 2);
-    assert.equal(f.calls.filter(url => url.pathname.endsWith('/projects/1')).length, 2);
+    assert.equal(f.calls.filter(url => url.pathname.endsWith('/projects/1')).length, 5, 'each detail entry checks fresh Owner access in addition to cached project data');
   } finally { panels.dispose(); }
+});
+
+test('failed MR refresh makes a previously allowed merge unavailable until rechecked', async () => {
+  const f = networkFixture();
+  f.change({ user: { can_merge: true }, draft: false, has_conflicts: false, rebase_in_progress: false, detailed_merge_status: 'mergeable' });
+  await f.host.loadMergeRequest(1, 1);
+  assert.equal(f.host.selectedMergeRequest.mergeAvailability.status, 'allowed');
+  f.intercept(async url => url.pathname.endsWith('/merge_requests/1') ? new Response('{}', { status: 403 }) : undefined);
+  await assert.rejects(f.host.loadMergeRequest(1, 1, { force: true }));
+  assert.equal(f.host.selectedMergeRequest.mergeAvailability.status, 'unknown');
 });
 
 test('new Issue form performs zero option HTTP GETs until each section is explicitly requested', async () => {

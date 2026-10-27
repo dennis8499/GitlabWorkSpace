@@ -78,6 +78,32 @@ async function mount(t, profile, saved, features, initialSnapshot = snapshot(pro
     holdOperations: () => { holdOperations = true; }, get savedState() { return state; } };
 }
 
+for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} execution controls retain workspace defaults and copy explicit per-call model policy`, async t => {
+  const current = snapshot('group', ['merge-repo', 'release-review']);
+  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current);
+  view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
+  const card = tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 執行方式"]').value, '');
+  assert.match(view.document.querySelector('.reviewer-execution-controls').textContent, /workspace-model/);
+  await view.change('[aria-label="Reviewer 子 Agent 模型"]', 'custom/model-v2', 'input');
+  await view.change('[aria-label="Reviewer 子 Agent 推理強度"]', 'default');
+  await view.change(`[id="wiki-input-${card}.base"]`, 'main', 'input');
+  await view.change(`[id="wiki-input-${card}.head"]`, 'feature/review', 'input');
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /custom\/model-v2/);
+  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const copied = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
+  assert.ok(copied);
+  assert.equal(copied.inputs[`${card}.subagentModel`], 'custom/model-v2');
+  assert.equal(copied.inputs[`${card}.subagentReasoningEffort`], 'default');
+  assert.equal(view.requests.some(request => /provider|listModels/i.test(request.type)), false);
+  await view.change('[aria-label="Reviewer 執行方式"]', 'single');
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]'), null);
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /子 Agent 設定僅保存，未執行/);
+  await view.change('[aria-label="Reviewer 執行方式"]', 'parallel');
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]').value, 'custom/model-v2');
+});
+
 for (const profile of ['group', 'repository']) test(`${profile} retired development selections restore Query and three accessible tools`, async t => {
   const scope = profile === 'group' ? 'project:C:/工作區 with spaces:group' : 'project:C:/工作區 with spaces/service:repository';
   const saved = { mode: 'sa', skillsGuideByScope: { [scope]: { tool: 'megin',
@@ -155,10 +181,10 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   await change('[id="wiki-input-merge-repo.base"]','main','input');
   await change('[id="wiki-input-merge-repo.head"]','feature/review','input');
   assert.equal(document.querySelector('.wiki-copy-button').disabled,false);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/merge-reviewer-workspace-context\/v3/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/review_session\.py start/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/start → 必要 step → check → finish/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/300 秒/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/SKILL\.md 與 references\/session-workflow\.md/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/review_session\.py" start --workspace/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/必要 step → finish/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/ReviewExecutionPolicy\/v1/);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
@@ -278,6 +304,33 @@ test('both published reviewer cards distinguish publication from incomplete, com
     assert.match(card.textContent, /審查覆蓋：未知/);
     assert.match(card.textContent, /無法確認初次審查完整性/);
     assert.equal([...view.document.querySelectorAll('.review-session-list button')].some(item => item.textContent === '複製恢復審查指令'), false);
+  }
+  assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
+});
+
+test('review budget cards distinguish investigation, extension, wrap-up and authoritative final coverage locally', async t => {
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review']);
+  for (const tool of ['merge-reviewer', 'release-reviewer']) {
+    view.document.getElementById('skill-tool-' + tool).click(); await view.tick();
+    for (const [phase, label, complete] of [
+      ['within-budget', '預算內審查', null], ['extended-investigation', '延長追查', null],
+      ['wrap-up', '收尾', null], ['incomplete', '審查未完成', false], ['complete', '審查完成', true],
+    ]) {
+      await view.send({ type: 'reviewSessions', revision: 'group-revision', tool, sessions: [{ tool,
+        requestId: 'd'.repeat(32), repository: 'budget-service', repositoryPath: 'C:/service', base: 'main', head: 'topic',
+        state: complete === null ? 'reviewing' : 'published', phase: phase === 'wrap-up' ? 'wrap-up' : 'review',
+        updatedAt: '2026-10-26T00:00:00Z', fetchCount: 0, packCacheHits: 0,
+        budget: { profile: 'balanced', elapsedSeconds: 200, baseSeconds: 180, limitSeconds: 270,
+          remainingSeconds: 70, extensionUsed: true, phase },
+        ...(complete === null ? {} : { reviewOutcome: { reviewComplete: complete,
+          reviewStatus: complete ? 'complete' : 'incomplete', gaps: complete ? [] : ['因時間預算未完成必要 caller。'] } }),
+      }] });
+      const card = view.document.querySelector('.review-session-list article');
+      assert.match(card.textContent, new RegExp(label));
+      assert.match(card.textContent, /已用 3:20／時間目標 4:30/);
+      if (complete === false) assert.match(card.querySelector('.review-outcome').textContent, /未完整/);
+      if (complete === true) assert.equal(card.querySelector('.review-outcome').classList.contains('warning'), false);
+    }
   }
   assert.equal(view.requests.some(request => ['refresh', 'refreshMergeRequest', 'gitAction', 'openCodexTerminal'].includes(request.type)), false);
 });

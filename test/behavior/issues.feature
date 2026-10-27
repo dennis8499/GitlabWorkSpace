@@ -132,7 +132,7 @@ Feature: GitLab CE Issue work inside VS Code
   @automated @SCN-018
   Scenario: Restricted access and failed API calls retain a usable detail view
     Given the Issue Webview is ready with a read-only issue
-    Then editing and destructive controls are hidden
+    Then editing is hidden and destructive controls are disabled
     When GitLab rejects an action
     Then the error is visible and the issue remains open
 

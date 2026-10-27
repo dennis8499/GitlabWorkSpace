@@ -33,6 +33,25 @@ test('MR saved role is sent on readiness and role changes request the selected s
   assert.equal(button.getAttribute('aria-pressed'), 'true');
 });
 
+test('MR merge control follows Host availability and offers an explicit recheck', async t => {
+  const data = snapshot('reviewer');
+  const request = { id: 41, iid: 4, project_id: 1, title: 'MR', state: 'opened', source_branch: 'feature', target_branch: 'main',
+    web_url: 'https://gitlab.test/team/a/-/merge_requests/4', diff_refs: { head_sha: gitHead } };
+  data.mergeRequests = [request];
+  data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'idle' } },
+    freshness: { state: 'not_checked' }, sourceSha: gitHead, mergeAvailability: { status: 'unknown', reason: 'Permission not confirmed' } };
+  const view = await mount({ mode: 'reviewer' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '審查報告').click(); await view.tick();
+  const merge = () => [...document.querySelectorAll('button')].find(button => button.textContent === '合併 MR');
+  assert.equal(merge().disabled, true); assert.match(document.body.textContent, /Permission not confirmed/);
+  [...document.querySelectorAll('button')].find(button => button.textContent === '重新檢查合併條件').click(); await view.tick();
+  assert.equal(view.requests.filter(item => item.type === 'refreshMergeRequest').length, 1);
+  view.sendSnapshot({ ...data, selectedMergeRequest: { ...data.selectedMergeRequest, mergeAvailability: { status: 'allowed' } } }); await view.tick();
+  assert.equal(merge().disabled, false); merge().click(); await view.tick();
+  assert.equal(view.requests.filter(item => item.type === 'mergeMergeRequest').length, 1);
+});
+
 test('MR section reentry asks the Host to apply TTL once while snapshots and failed sections remain quiet', async t => {
   const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'TTL fixture', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead, base_sha: gitParent } };
   data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'error', error: 'Fixture error' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
@@ -2116,7 +2135,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   assert.equal(copy.type, 'copy');
   assert.match(copy.text, /\$release-reviewer/);
   assert.match(copy.text, /C:\/工作區 with spaces\/service/);
-  assert.match(copy.text, /固定合併前審查/);
+  assert.match(copy.text, /review_session\.py" start --workspace/);
   assert.equal(copy.text.includes('--include-json'), false);
   assert.match(copy.text, /Checklist/);
   assert.match(copy.text, /VSCode 工作區根目錄：C:\/workspace\/team/);
@@ -2126,7 +2145,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'merge-reviewer');
   await change('.wiki-guide-selector select', 'merge-repo');
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /merge-reviewer-workspace-context\/v3/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /ReviewExecutionPolicy\/v1/);
   await change('.skills-tool-selector select', 'release-reviewer');
 
   const groupB = snapshot('sa');
@@ -3190,7 +3209,7 @@ test('MR empty results appear only after a successful load and respect the curre
 test('MR reports publish as manual comments while approval and merge remain SHA based', async t => {
   const data=snapshot('reviewer'); const request={id:41,iid:4,project_id:1,title:'Review',state:'opened',source_branch:'feature',target_branch:'main',diff_refs:{head_sha:gitHead}};
   data.instance={version:'16.11.0',enterprise:true};
-  data.mergeRequests=[request]; data.selectedMergeRequest={request,diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};
+  data.mergeRequests=[request]; data.selectedMergeRequest={request,mergeAvailability:{status:'allowed'},diffs:[],discussions:[],sections:{diffs:{status:'ready'},discussions:{status:'ready'}},warnings:[],freshness:{state:'current',checkedAt:Date.now()},sourceSha:gitHead,targetSha:gitParent};
   const view=await mount({mode:'reviewer'},data); t.after(() => view.dom.window.close()); const document=view.dom.window.document;
   [...document.querySelectorAll('[role=tab]')].find(button => button.textContent==='審查報告').click(); await view.tick();
   const input=document.querySelector('.reviewer-detail textarea'); input.value='Merge Report: service\nStatic findings'; input.dispatchEvent(new view.dom.window.Event('input',{bubbles:true})); await view.tick();
@@ -3206,7 +3225,7 @@ test('CE and unconfirmed instances omit unsupported MR approvals while preservin
   for (const enterprise of [false, undefined]) {
     const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead } };
     data.instance = { version: '16.11.0', enterprise };
-    data.mergeRequests = [request]; data.selectedMergeRequest = { request, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
+    data.mergeRequests = [request]; data.selectedMergeRequest = { request, mergeAvailability: { status: 'allowed' }, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
     const view = await mount({ mode: 'reviewer', reviewerTab: 'report' }, data); t.after(() => view.dom.window.close());
     const buttons = [...view.dom.window.document.querySelectorAll('.reviewer-detail button')];
     assert.equal(buttons.some(item => item.textContent === '核准'), false);

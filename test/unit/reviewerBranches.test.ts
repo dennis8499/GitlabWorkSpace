@@ -9,12 +9,24 @@ import { readReviewerBranches } from '../../src/workspace/reviewerBranches';
 const clipboard: string[] = [];
 const vscode = {
   workspace: { workspaceFolders: [] as Array<{ uri: { scheme: string; fsPath: string } }>,
-    workspaceFile: undefined as { scheme: string; fsPath: string } | undefined },
+    workspaceFile: undefined as { scheme: string; fsPath: string } | undefined,
+    getConfiguration: () => ({ get: <T>(_key: string, fallback: T) => fallback }) },
   env: { clipboard: { writeText: async (text: string) => { clipboard.push(text); } } }
 };
 const moduleLoader = require('node:module') as { _load: (name: string, parent: unknown, main: boolean) => unknown };
 const originalLoad = moduleLoader._load;
-moduleLoader._load = (name, parent, main) => name === 'vscode' ? vscode : originalLoad(name, parent, main);
+moduleLoader._load = (name, parent, main) => {
+  if (name === 'vscode') return vscode;
+  if (name === './installedReviewer') return { readInstalledReviewerBinding: async (root: string, tool: string) => ({
+    schema: 'InstalledReviewerBinding/v1',tool,version:'0.22.0',script_path:path.join(root,'.agents/skills',tool,'scripts/review_session.py'),
+    script_sha256:'a'.repeat(64),skill_sha256:'b'.repeat(64),payload_sha256:'c'.repeat(64),payload_files:30 }) };
+  if (name === './pythonRuntime') return { resolvePythonRuntime: async () => ({executable:'python',args:[],env:{}}) };
+  if (name === './reviewerCapabilities') return { readReviewerCapabilities: async (binding: {tool:string;version:string;payload_sha256:string}, _python: unknown, workspace: string) => ({
+    schema:'ReviewCapabilities/v1',tool:binding.tool,skill_version:binding.version,prepare_evidence:true,
+    updates_schema:'ReviewUpdates/v1',shared_cache_schema:'ReviewerSharedCache/v2',payload_sha256:binding.payload_sha256,
+    runtime_root:path.join(path.dirname(workspace),'review-runtime'),git_commands:0,network_commands:0 }) };
+  return originalLoad(name,parent,main);
+};
 let WorkspacePanel: typeof import('../../src/workspace/workspacePanel').WorkspacePanel;
 try { ({ WorkspacePanel } = require('../../src/workspace/workspacePanel')); }
 finally { moduleLoader._load = originalLoad; }
@@ -153,7 +165,9 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   assert.ok(clipboard[0].includes(`Skills 專案根目錄：${root}`));
   for (const repo of context.reviewerRepositories) assert.ok(clipboard[0].includes(`- ${repo.name} → ${repo.path}`));
   assert.ok(clipboard[0].includes(`--workspace-file ${JSON.stringify(vscode.workspace.workspaceFile.fsPath)}`));
-  assert.match(clipboard[0], /start → 必要 step → check → finish/);
+  assert.match(clipboard[0], /start --prepare-evidence/);
+  assert.match(clipboard[0], /--updates-file/);
+  assert.doesNotMatch(clipboard[0], /--protocol round-v1/);
   request.inputs['release-review.repo'] = path.dirname(root);
   await assert.rejects(host.copySkillGuidePrompt(request), /VS Code 工作區/);
   assert.equal(clipboard.length, 1);

@@ -1,4 +1,7 @@
+import type { ReviewerCapabilities } from '../workspace/reviewSessionProtocol';
 import { withOutputStyle } from '../workspace/outputStyle';
+import { REVIEWER_EXECUTION_FIELDS, resolveReviewerExecution,
+  type ReviewerExecutionOverrides, type InstalledReviewerBinding } from '../workspace/reviewExecution';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
@@ -6,7 +9,8 @@ import {
 
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
-export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string };
+export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
+  reviewerExecution?: ReviewerExecutionOverrides; reviewerExecutionError?: string; reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -79,7 +83,8 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   for (const key of Object.keys(inputs)) {
     if (/^merge-(quick|group|mr)\./.test(key)) delete inputs[key];
     for (const prefix of ['release-review.', 'merge-repo.']) {
-      if (key.startsWith(prefix) && !['repo', 'base', 'head', ...(prefix === 'merge-repo.' ? ['confirmationRequired'] : [])].includes(key.slice(prefix.length))) delete inputs[key];
+      if (key.startsWith(prefix) && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS,
+        ...(prefix === 'merge-repo.' ? ['confirmationRequired'] : [])].includes(key.slice(prefix.length))) delete inputs[key];
     }
   }
   if (removedMode) inputs['merge-repo.confirmationRequired'] = 'true';
@@ -128,7 +133,8 @@ export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInpu
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
-  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head'].includes(key.slice(card.id.length + 1)))) return false;
+  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS].includes(key.slice(card.id.length + 1)))) return false;
+  try { resolveReviewerExecution(inputs, card.id); } catch { return false; }
   if (!getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
     const input = value(card, item.id, inputs);
@@ -159,31 +165,41 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   const selectedRepo = resolveReviewerRepository(input('repo'), context.repositories);
   const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
-  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
+  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
   const release = card.tool === 'release-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
+  if (context.reviewerExecutionError) throw new Error(context.reviewerExecutionError);
+  const execution = resolveReviewerExecution(inputs, card.id, context.reviewerExecution);
+  const prepared = context.reviewerCapabilities?.prepare_evidence === true;
+  const balanced = context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
+    context.reviewerCapabilities.budget_profiles?.includes('balanced') === true;
+  if (prepared && execution.mode !== 'single') throw new Error('目前安裝的 Reviewer 採單一 Agent，請選擇單一模式。');
+  const installedRoot = context.root ?? context.groupRoot;
+  const script = context.reviewerBinding?.script_path
+    ?? (installedRoot ? `${installedRoot.replace(/[\\/]$/, '')}/.agents/skills/${card.tool}/scripts/review_session.py` : 'review_session.py');
+  if (context.reviewerBinding && context.reviewerBinding.tool !== card.tool) throw new Error('已安裝 Reviewer 身分不符合所選工具。');
   return [
     `$${card.tool} 請依下列明確輸入執行${release ? '上版檢查' : '分支合併審查'}。`,
     '專案名稱：' + project, '基礎分支：' + quoted('base'), '比較分支：' + quoted('head'),
-    '使用目前工作區安裝的 Skill 與對應 helpers；依 start → 必要 step → check → finish 完成同一 request_id，status 恢復、cancel 取消。先讀原生審查規則；helper 只使用該 Skill 的 scripts/review_session.py，不混用其他 reviewer。',
-    '啟動 helper：review_session.py start --workspace ' + JSON.stringify(releaseWorkspace) +
+    (prepared ? '先讀上述已安裝 Skill 的 SKILL.md 與 references/fast-session.md；' : '先讀上述已安裝 Skill 的 SKILL.md 與 references/session-workflow.md；') + '審查準則、固定證據、報告與完成門檻以該 Skill 為準。依情境載入 Group、部署依賴或恢復文件。',
+    ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(context.reviewerBinding),
+      prepared ? 'helper 啟動前自動核對上述整套 payload SHA-256；不符時停止，請重新複製提示詞。'
+        : '沿用已安裝入口的既有 CLI；尚未宣告 capabilities 的入口不傳入新版選項。'] : []),
+    '執行政策：' + JSON.stringify(execution),
+    '政策優先序：本次輸入、Reviewer 工作區設定、single/inherit/default。只套用本次呼叫；模型由 Codex 宿主建立子 agent 時套用，實際設定未知則記 null。不另開模型服務或修改全域設定。',
+    ...(execution.mode === 'single' ? ['本次使用單一 agent；子 Agent 設定僅保存，未執行。'] : []),
+    ...(execution.mode === 'parallel' ? [
+      '任何 capture／fetch 以前，先按 spawn 工具本機說明核對模型、強度與 fork 能力；不可用或不支援時停止、保留請求並回報，不能默默替換。最多主 agent＋一名子 agent；主 agent 唯一擁有擷取、補查、草稿與發布。',
+      'inherit/default 不覆寫父模型與強度；指定模型加 default 時省略 effort，採該模型預設。明確指定 effort 才覆寫，並使用宿主允許覆寫的 fork 方式。'
+    ] : []),
+    '啟動 helper：python ' + JSON.stringify(script) + (prepared ? ' start --prepare-evidence --workspace ' : ' start --workspace ') + JSON.stringify(releaseWorkspace) +
       (context.workspaceFile ? ' --workspace-file ' + JSON.stringify(context.workspaceFile) : '') +
       ' --project ' + project + ' --base ' + quoted('base') + ' --head ' + quoted('head') +
       (runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '') +
-      (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') + '。',
-    '第一個 helper 呼叫立即凍結 base/head 與宣告工作區其他 Repo 的本機當前 HEAD；本機分支與 peer HEAD 不連線。後續只使用 owned context，保留本機未提交修改；預覽與複製不啟動擷取。',
-    '同一個 Skill agent 完成核心 Code Review；從 Code Diff 逐項完成必要覆蓋、parent 與最終版本對照，只延伸追查有固定 anchor 的必要契約、直接及間接 consumer。',
-    '保存 request_id、runtime_root、context_dir、draft_path 及 artifact。依返回格式批次 step；check 是不執行 Git 的草稿預檢，修正全部 authoring 缺口後再 finish。壓縮對話後以 status 恢復原 request，依 remaining 工作繼續；不重新 capture、不找其他任務的暫存或程序。取消用 cancel 同一 ID。',
-    'check/finish 的 exit 3 沿原 context 修稿，exit 2 停止；不能重跑完整驗證掩蓋清理失敗。finish 成功後保留發布收據，重試回傳既有報告。Skill 的固定證據、工程欄位、遮蔽及完成門檻全部適用。',
-    ...(release ? [
-      '結果沿用 ReleaseReviewDraft/v3 與 report_layout=engineering-review/v2；只列直接阻止上版的 P0／P1，保留 blocking_reason、scenario 與 technical_details.explanation、technical_details.impact_scope、technical_details.engineering_fix，保留 expected／actual。',
-      '固定合併前審查，以乾淨 merge-preview 為最終行為；必要預覽、consumer 或版本缺口保持檢查未完成。依固定 API、事件、DB、快取及設定功能鏈追查新增部署依賴；以 base_sha 整個入口 Repo 的原有使用為基準，保留基礎搜尋，其他 Repo 可用不代表入口服務已有權限。',
-      '逐類核對首次使用、部署定義、目標變更與新增權限，包含 DB／Table／欄位、FTP、SFTP、Redis、Kafka 與其他資源；實際環境及套用狀態標為未查證，不宣告已可上版。',
-      '新增部署依賴及 Checklist 放在範圍與限制；Checklist 初始待確認，人工填核對人、日期及開通／套用後驗證證據，不適用填理由，僅申請工單不算完成。只修改 release-checklist:start／end 內的核對紀錄，固定正文及歷史報告保留。報告標題為「# 上版檢查: {Repo}」，檔名前綴 release-review。',
-    ] : [
-      'merge-reviewer-workspace-context/v3 與 merge-reviewer-workspace-result/v3、report_layout=engineering-review/v1 沿用。新 finding 填齊 operation_scenario、technical_trigger、technical_explanation、impact_scope、engineering_fix，保留 pending_confirmations 及未完成判定。',
-      '遠端成功同步結果可共用 300 秒；相同同步中的請求共用結果，每份仍固定自己的版本、草稿及 ledger。需要新版本時另起 start --refresh。報告標題為「# 合併審查: {Repo}」，檔名前綴 merge-review。',
-    ]),
-    '只接受 Repo、基礎分支、比較分支；不接受 tag、commit、HEAD、直接比較或 JSON 選項。只輸出 Markdown 至所選 Repo/review-reports/，不發布 MR 留言；每次一份並保留歷史。renderer 直接產生審查結論、問題總攬、問題詳情（工程師參考）、範圍與限制、技術審查紀錄（工程師參考）五個 H2，無須發布後人工重排。比較資訊、固定版本與覆蓋放在技術審查紀錄。提供重要發現、必要缺口及本機報告連結。',
+      (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') +
+       (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
+      (balanced ? ' --budget-profile balanced' : '') + '。',
+    ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
+    prepared ? '沿 start → 必要 step → finish 完成同一 request_id；以 --updates-file 保存已讀證據上的判斷，再取得下一批內容。status 恢復、cancel 取消；check 僅供手動修稿。保留 helper 輸入骨架與 revision，必要語意判斷由 agent 明確結案。' : '沿 start → 必要 step → finish 完成同一 request_id；status 恢復、cancel 取消，check 供修稿。依已安裝 Skill 的既有草稿與批次操作完成審查。',
   ].join('\n');
 }

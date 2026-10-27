@@ -84,6 +84,7 @@ export interface IssueDetailData extends IssueRelationsData {
   startDateSupported?: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  deleteAvailability?: import('../api/actionAvailability').ActionAvailability;
   canMove: boolean;
   canClone: boolean;
   canComment: boolean;

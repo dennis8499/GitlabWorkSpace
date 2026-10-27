@@ -97,6 +97,7 @@ export class GitLabSession {
   private readonly accountStore: AccountStore;
   private initialization?: Promise<void>;
   private beforeTransition?: () => Promise<void>;
+  private afterTransition?: () => Promise<void>;
   private transitionQueue: Promise<void> = Promise.resolve();
   private activeWrites = 0;
 
@@ -110,6 +111,7 @@ export class GitLabSession {
   get hasActiveWrites(): boolean { return this.activeWrites > 0; }
   get isTransitioning(): boolean { return this.connectionTransition; }
   setBeforeTransition(handler: () => Promise<void>): void { this.beforeTransition = handler; }
+  setAfterTransition(handler: () => Promise<void>): void { this.afterTransition = handler; }
   initialize(options: { allowNetwork?: boolean } = {}): Promise<void> {
     if (this.accountStore.ready) return Promise.resolve();
     if (this.initialization) {
@@ -144,7 +146,14 @@ export class GitLabSession {
     const next = this.transitionQueue.then(async () => {
       if (this.activeWrites) throw new Error('GitLab 寫入尚未完成，請稍後再切換帳號或登出。');
       this.connectionTransition = true;
-      try { return await task(); } finally { this.connectionTransition = false; }
+      let failed = false;
+      try { return await task(); }
+      catch (error) { failed = true; throw error; }
+      finally {
+        try { await this.afterTransition?.(); }
+        catch (error) { if (!failed) throw error; }
+        finally { this.connectionTransition = false; }
+      }
     });
     this.transitionQueue = next.then(() => undefined, () => undefined);
     return next;

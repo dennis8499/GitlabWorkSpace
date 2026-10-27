@@ -49,6 +49,24 @@ export class GitLabApiError extends Error {
   }
 }
 
+/** GitLab rejected the write before applying it. */
+export class GitLabWriteRejectedError extends GitLabApiError {
+  readonly effect = 'none' as const;
+  constructor(message: string, status?: number) {
+    super(message, status);
+    this.name = 'GitLabWriteRejectedError';
+  }
+}
+
+export function gitLabWriteFailureEffect(error: unknown): 'none' | 'unknown' {
+  if (error && typeof error === 'object' && 'effect' in error) {
+    if (error.effect === 'none') return 'none';
+    if (error.effect === 'unknown') return 'unknown';
+  }
+  if (error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500 && error.status !== 408) return 'none';
+  return 'unknown';
+}
+
 /** Transport interruption cannot establish whether GitLab applied a write. Never retry automatically. */
 export class GitLabWriteUnknownError extends Error {
   readonly effect = 'unknown' as const;
@@ -519,7 +537,7 @@ export class GitLabClient {
   }
 
   getMergeRequest(projectId: number, iid: number): Promise<GitLabMergeRequest> {
-    return this.getJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}`);
+    return this.getJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}?include_rebase_in_progress=true`);
   }
 
   async listMergeRequestDiffs(projectId: number, iid: number): Promise<GitLabMergeRequestDiffResult> {
@@ -1002,14 +1020,23 @@ export class GitLabClient {
     throw new GitLabApiError('GitLab returned too many time entry pages to load safely.');
   }
 
-  async createIssueTimelog(issueId: number, duration: string, summary?: string, spentAt?: string, supportsSpentAt = true, supportsSummary = true): Promise<void> {
-    if (spentAt && !supportsSpentAt) throw new GitLabApiError('This GitLab schema does not support dated time entries.');
-    if (summary?.trim() && !supportsSummary) throw new GitLabApiError('This GitLab schema does not support time entry summaries.');
-    const data = await this.graphql<{ timelogCreate?: { errors: string[] } }>(
-      'mutation AddIssueTimelog($input: TimelogCreateInput!) { timelogCreate(input: $input) { errors } }',
-      { input: { issuableId: `gid://gitlab/Issue/${issueId}`, timeSpent: duration, ...(supportsSummary ? { summary: summary ?? '' } : {}), ...(spentAt && supportsSpentAt ? { spentAt } : {}) } }
+  async createIssueTimelog(issueId: number, duration: string, summary?: string, spentAt?: string, supportsSpentAt = true, supportsSummary = true): Promise<string> {
+    if (!supportsSpentAt || !supportsSummary) throw new GitLabWriteRejectedError('This GitLab schema does not support the required time entry fields.');
+    const timestamp = spentAt ?? new Date().toISOString();
+    const instant = Date.parse(timestamp);
+    if (!Number.isFinite(instant) || instant > Date.now()) throw new GitLabWriteRejectedError('工時日期無效或位於未來。');
+    const data = await this.graphql<{ timelogCreate?: { errors?: string[]; timelog?: { id?: string } | null } | null }>(
+      'mutation AddIssueTimelog($input: TimelogCreateInput!) { timelogCreate(input: $input) { timelog { id } errors } }',
+      { input: { issuableId: `gid://gitlab/Issue/${issueId}`, timeSpent: duration, summary: summary ?? '', spentAt: timestamp } }
     );
-    this.checkMutation(data.timelogCreate, 'GitLab could not log time.');
+    const result = data.timelogCreate;
+    if (result && Array.isArray(result.errors) && result.errors.length && result.timelog === null) {
+      throw new GitLabWriteRejectedError(result.errors.join('; '));
+    }
+    if (!result || !Array.isArray(result.errors) || result.errors.length || typeof result.timelog?.id !== 'string' || !result.timelog.id) {
+      throw new GitLabWriteUnknownError('GitLab 未確認工時是否已建立，請先對帳。');
+    }
+    return result.timelog.id;
   }
 
   async deleteIssueTimelog(timelogId: string): Promise<void> {
@@ -1214,7 +1241,14 @@ export class GitLabClient {
     // GraphQL execution may partially apply a mutation before returning errors,
     // including data:null. Only request errors with no data establish no execution.
     if (!readOnly && (result.data !== undefined || !result.errors?.length)) notifyWrite();
-    if (result.errors?.length || !result.data) throw new GitLabApiError(result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.', response.status);
+    if (result.errors?.length || !result.data) {
+      const message = result.errors?.[0]?.message ?? 'GitLab GraphQL request failed.';
+      if (!readOnly) {
+        if (result.data === undefined && result.errors?.length) throw new GitLabWriteRejectedError(message, response.status);
+        throw new GitLabWriteUnknownError(message);
+      }
+      throw new GitLabApiError(message, response.status);
+    }
     return result.data;
   }
 
@@ -1385,7 +1419,7 @@ export class GitLabClient {
       const timeout = setTimeout(onAbort, timeoutMs);
       try { return await Promise.race([writeRequestState.run(state, () => operation(controller.signal)), interrupted]); }
       catch (error) {
-        if (error instanceof GitLabWriteUnknownError || error instanceof Error && 'effect' in error && error.effect === 'none' || error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500) throw error;
+        if (error instanceof GitLabWriteUnknownError || error instanceof Error && 'effect' in error && error.effect === 'none' || error instanceof GitLabApiError && error.status !== undefined && error.status >= 400 && error.status < 500 && error.status !== 408) throw error;
         throw new GitLabWriteUnknownError(undefined, { cause: error });
       } finally {
         clearTimeout(timeout); signal?.removeEventListener('abort', onAbort);
