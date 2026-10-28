@@ -13,7 +13,7 @@ Extension 執行 `npm test`，WorkflowKit 執行 `python -X utf8 -B scripts/test
 正式 Release 發布後，Windows 可用隔離的 VS Code CLI 安裝 VSIX，再從實際安裝目錄執行線上下載、雙 profile 安裝及 Skills 可用性驗收：
 
 ```powershell
-python -X utf8 -B scripts/verify-installed-reviewers.py --vsix dist/gitlab-workspace-0.34.0.vsix --evidence-dir .verification/formal-release
+python -X utf8 -B scripts/verify-installed-reviewers.py --vsix dist/gitlab-workspace-0.36.0.vsix --evidence-dir .verification/formal-release
 ```
 
 這個命令會連線查詢正式 WorkflowKit Release；內網來源可加上 `--source gitea`。驗收不包含 Native UI。
