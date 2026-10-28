@@ -5,7 +5,7 @@ import type { WorkspaceMode } from './workspaceProtocol';
 import type { OperationSnapshot, WorkspaceOperationState } from './operations';
 import type { NotificationRequest } from '../notifications/notificationProtocol';
 
-export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openProjects' | 'openAnalysis' | 'openBmad' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications' | 'openSettings'
+export type QuickAction = 'openWorkspace' | 'openMyWork' | 'openWorkflow' | 'openProjects' | 'openAnalysis' | 'openBmad' | 'openReviewer' | 'openGit' | 'openAdmin' | 'openRepository' | 'openNotifications' | 'openSettings'
   | 'addAccount' | 'switchAccount' | 'logoutAccount' | 'removeAccount' | 'manageAccounts';
 
 export interface QuickActionsOperationContext {

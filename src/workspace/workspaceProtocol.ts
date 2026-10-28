@@ -13,13 +13,15 @@ import type { NotificationRequest, NotificationSnapshot } from '../notifications
 import type { RepositoryScanState, ScannedRepository } from '../git/repositoryScanProtocol';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
+import type { SopConfig, SopRecord, SopStage, SopClassification, SopCheck, SopType } from './sop';
+import type { GitLabPage, GitLabMergeRequestSummary } from '../api/types';
 
-export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
+export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git' | 'workflow';
 
 /** Older versions persisted modes that no longer have a workspace page. */
 export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
   switch (value) {
-    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': return value;
+    case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': case 'workflow': return value;
     default: return 'developer';
   }
 }
@@ -126,6 +128,10 @@ export interface InstalledWorkflowKitState {
   source?: ToolSource | 'bundled';
   workspaceContract?: number;
   installerApi?: number;
+  statusContract?: number;
+  integrity?: 'verified' | 'missing' | 'unknown' | 'unverified';
+  interfaceCompatibility?: 'compatible' | 'incompatible' | 'unknown';
+  updateAvailable?: boolean;
   status: 'installed' | 'missing' | 'update-available' | 'needs-cleanup' | 'checking' | 'installing' | 'error';
   message?: string;
   legacyPaths?: string[];
@@ -168,6 +174,7 @@ export interface WorkflowKitReleaseSummary {
   format: ToolArchiveFormat;
   entryRoot: string;
   available: boolean;
+  cached?: boolean;
   error?: string;
 }
 
@@ -297,6 +304,14 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'retryWorkspaceSection'; section: 'projects' | 'issues' | 'mergeRequests' | 'milestones' | 'boards'; connectedScope: string; mode?: 'next' | 'all' | 'history' | 'current' | 'cancel' }
   | { type: 'ensureWorkspaceSection'; section: 'milestones' | 'boards'; connectedScope: string }
   | { type: 'loadIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
+  | { type: 'loadSopPage'; requestId: string; connectedScope: string; cursor?: string; force?: boolean }
+  | { type: 'loadSopDetail'; requestId: string; connectedScope: string; projectId: number; issueIid: number }
+  | { type: 'loadSopRelationsPage'; requestId: string; connectedScope: string; projectId: number; issueIid: number; expectedUpdatedAt: string; kind: 'links' | 'mergeRequests'; cursor?: string }
+  | { type: 'saveSopConfig'; requestId: string; connectedScope: string; config: SopConfig }
+  | { type: 'saveSopFields'; requestId: string; connectedScope: string; projectId: number; issueIid: number; expectedUpdatedAt: string; fields: Record<string, string> }
+  | { type: 'transitionSop'; requestId: string; connectedScope: string; projectId: number; issueIid: number; expectedUpdatedAt: string; target: SopStage; fields: Record<string, string> }
+  | { type: 'createSopIssue'; requestId: string; connectedScope: string; creationId: string; projectId: number; kind: SopType; title: string; assigneeId: number; difficulty?: string; story?: { projectId: number; issueIid: number }; fields: Record<string, string> }
+  | { type: 'retrySopLink'; requestId: string; connectedScope: string; creationId: string }
   | { type: 'mutateIssueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; action: import('../issues/protocol').IssueRelationAction }
   | { type: 'openLocalWorkspace' }
   | { type: 'selectProjectFolder'; folderUri: string }
@@ -356,6 +371,11 @@ export type WorkspaceRequest = (NotificationRequest
 ) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
 
 export type WorkspaceResponse =
+  | { type: 'sopPage'; requestId: string; connectedScope: string; page?: GitLabPage<GitLabIssue>; config?: SopConfig; error?: string }
+  | { type: 'sopDetail'; requestId: string; connectedScope: string; issue?: GitLabIssue; record?: SopRecord; classification?: SopClassification; links?: GitLabIssue[]; linksComplete?: boolean; linksCursor?: string; linksError?: string; mergeRequests?: GitLabMergeRequestSummary[]; mergeRequestsComplete?: boolean; mergeRequestsCursor?: string; mergeRequestsError?: string; verifiedCommit?: boolean; checks?: Partial<Record<SopStage, SopCheck>>; error?: string }
+  | { type: 'sopRelationsPage'; requestId: string; connectedScope: string; projectId: number; issueIid: number; kind: 'links' | 'mergeRequests'; links?: GitLabIssue[]; mergeRequests?: GitLabMergeRequestSummary[]; nextCursor?: string; complete?: boolean; error?: string }
+  | { type: 'sopSaved'; requestId: string; connectedScope: string; error?: string }
+  | { type: 'sopCreated'; requestId: string; connectedScope: string; issue?: GitLabIssue; linked?: boolean; error?: string }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'openSettings' }

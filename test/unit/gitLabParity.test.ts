@@ -206,7 +206,7 @@ test('MR Host rechecks permission and SHA after confirmation before writing', as
     [mr, mr, 1]
   ] as const) {
     let reads = 0, writes = 0;
-    const client = { getMergeRequest: async () => reads++ === 0 ? first : second,
+    const client = { listMergeRequestClosingIssues: async () => [], getMergeRequest: async () => reads++ === 0 ? first : second,
       getRepositoryBranch: async () => ({ commit: { id: 'b'.repeat(40) } }), mergeMergeRequest: async () => { writes++; } };
     const host: any = Object.create(WorkspacePanel.prototype);
     Object.assign(host, { session: { getClient: async () => client }, resolveGroupProject: async () => undefined,
@@ -237,7 +237,7 @@ test('Issue Host rechecks owner access after confirmation before deleting', asyn
 
 test('an MR recheck that discovers changed permissions updates the displayed action state', async () => {
   let reads = 0, writes = 0, snapshots = 0;
-  const client = { getMergeRequest: async () => reads++ === 0 ? mr : { ...mr, user: { can_merge: false } },
+  const client = { listMergeRequestClosingIssues: async () => [], getMergeRequest: async () => reads++ === 0 ? mr : { ...mr, user: { can_merge: false } },
     getRepositoryBranch: async () => ({ commit: { id: 'b'.repeat(40) } }), mergeMergeRequest: async () => { writes++; } };
   const host: any = Object.create(WorkspacePanel.prototype);
   Object.assign(host, { session: { getClient: async () => client }, resolveGroupProject: async () => undefined,
@@ -250,7 +250,7 @@ test('an MR recheck that discovers changed permissions updates the displayed act
 
 test('account changes during MR confirmation do not send a merge request', async () => {
   let writes = 0;
-  const client = { getMergeRequest: async () => mr, getRepositoryBranch: async () => ({ commit: { id: 'b'.repeat(40) } }),
+  const client = { listMergeRequestClosingIssues: async () => [], getMergeRequest: async () => mr, getRepositoryBranch: async () => ({ commit: { id: 'b'.repeat(40) } }),
     mergeMergeRequest: async () => { writes++; } };
   const session = { connectionEpoch: 1, selectedGroup: { id: 1 }, getClient: async () => client };
   const host: any = Object.create(WorkspacePanel.prototype);

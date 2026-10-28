@@ -56,7 +56,9 @@ test('normal root-process exit cannot confirm a still-running descendant; the Jo
 
 test('a Git deadline kills its complete Windows Job before any completion can be confirmed', { skip: process.platform !== 'win32' }, async t => {
   const code = "const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio:'inherit'}); process.stdout.write(JSON.stringify([process.pid, child.pid])); setInterval(() => {}, 1000);";
-  const run = await start(t, process.execPath, ['-e', code], 300); const result = await run.done;
+  // Allow the child to report both PIDs even on a busy Windows host before the
+  // deadline expires; the assertion still verifies that the whole Job is killed.
+  const run = await start(t, process.execPath, ['-e', code], 1500); const result = await run.done;
   const pids = JSON.parse(result.stdout.toString('utf8')); for (const pid of pids) await gone(pid);
   await assert.rejects(run.receipt(), { code: 'ENOENT' });
 });

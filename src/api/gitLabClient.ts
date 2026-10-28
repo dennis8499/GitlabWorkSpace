@@ -278,6 +278,10 @@ export class GitLabClient {
     return this.getPage<GitLabIssue>(`groups/${encodeURIComponent(String(groupId))}/issues?scope=assigned_to_me&state=${state}&per_page=100`, cursor);
   }
 
+  listGroupIssuesPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabIssue>> {
+    return this.getPage<GitLabIssue>(`groups/${encodeURIComponent(String(groupId))}/issues?scope=all&state=all&per_page=100`, cursor);
+  }
+
   listGroupIssueBoardsPage(groupId: number, cursor?: string): Promise<GitLabPage<GitLabIssueBoard>> {
     return this.getPage<GitLabIssueBoard>(`groups/${encodeURIComponent(String(groupId))}/boards?per_page=100`, cursor);
   }
@@ -622,8 +626,17 @@ export class GitLabClient {
     return this.putJson<GitLabMergeRequest>(`${this.projectPath(projectId)}/merge_requests/${iid}/merge`, { sha });
   }
 
+  listMergeRequestClosingIssues(projectId: number, iid: number): Promise<GitLabIssue[]> {
+    return this.getPages<GitLabIssue>(`${this.projectPath(projectId)}/merge_requests/${iid}/closes_issues?per_page=100`);
+  }
+
   getRepositoryBranch(projectId: number, branch: string): Promise<{ name: string; commit: GitLabCommitSummary }> {
     return this.getJson(`${this.projectPath(projectId)}/repository/branches/${encodeURIComponent(branch)}`);
+  }
+
+  getRepositoryCommit(projectId: number, sha: string): Promise<GitLabCommitSummary> {
+    if (!/^[a-fA-F0-9]{7,64}$/.test(sha)) throw new GitLabApiError('Invalid commit SHA.');
+    return this.getJson(`${this.projectPath(projectId)}/repository/commits/${encodeURIComponent(sha)}`);
   }
 
   compareRepository(projectId: number, from: string, to: string): Promise<GitLabCompareResult> {
@@ -865,6 +878,10 @@ export class GitLabClient {
 
   listRelatedMergeRequests(projectId: number, issueIid: number): Promise<GitLabMergeRequestSummary[]> {
     return this.getPages<GitLabMergeRequestSummary>(`${this.issuePath(projectId, issueIid)}/related_merge_requests?per_page=100`);
+  }
+
+  listRelatedMergeRequestsPage(projectId: number, issueIid: number, cursor?: string): Promise<GitLabPage<GitLabMergeRequestSummary>> {
+    return this.getPage<GitLabMergeRequestSummary>(`${this.issuePath(projectId, issueIid)}/related_merge_requests?per_page=100`, cursor);
   }
 
   listIssueReactions(projectId: number, issueIid: number): Promise<GitLabEmojiReaction[]> {

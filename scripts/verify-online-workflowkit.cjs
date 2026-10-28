@@ -137,7 +137,9 @@ async function main() {
   }
   const restarted = new WorkflowKitReleaseManager(path.join(temporary, 'cache'),
     candidateDirectory ? async () => { throw new Error('Cached restart must not request transport'); } : fetcher);
-  assert.equal((await restarted.statusHelper()).version, release.version);
+  const helper = await restarted.statusHelper({ source, version: release.version });
+  if (release.descriptor.statusApi === 1) assert.equal(helper.version, release.version);
+  else assert.equal(helper, undefined);
   report.status = 'passed';
 }
 main().catch(error => { report.status = 'failed'; report.error = error.stack; process.exitCode = 1; }).finally(() => {

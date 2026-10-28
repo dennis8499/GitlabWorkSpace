@@ -1,0 +1,14 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-28T00:30:03.278Z",
+  "environment": "ce16",
+  "baseUrl": "http://127.0.0.1:8930",
+  "expectedGitLabVersion": "16.11.10",
+  "vscodeVersion": "1.143.1",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.35.0.vsix",
+    "sha256": "8aac1fc5bc29e61c61b1abec693aa7a1e9ed1aa133cbd4f75b9ca6fc07c303a9"
+  },
+  "status": "FAIL",
+  "error": "The Git panel has loaded all 3 fixture Repos and the workspace Repo before warm navigation. (\n    GWGitLab Workspace設定訊息中心 2Dennis · @dennis8499　⌄http://127.0.0.1:8930Dennis@dennis8499 · http://127.0.0.1:8930目前使用＋ 新增 GitLab 帳號管理帳號與連線        Issue正在載入 Issue…重試REPOSITORY選擇 RepoDetached HEADFetchPullPush分支Stash···Merge…Rebase…Stash 操作…Reset…Cherry-pick／Revert…跟隨 VS Code深色找不到本機 Git Repo開啟本機 Repo，或在專案頁掃描 Repo，即可開始版控。重新整理專案根目錄：C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\ce16\\demo · 請選擇目前 VS Code 專案資料夾。\n  \n\n)"
+}

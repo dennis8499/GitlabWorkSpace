@@ -87,6 +87,14 @@ async function fixture(t: test.TestContext) {
     checks: () => ({ runtime: runtimeChecks, kit: kitChecks }) };
 }
 
+async function waitForBmadRegistration(host: any) {
+  // Registration schedules a delayed reconciliation even when the fixture's
+  // watchers do not emit events. Wait for it before using a snapshot in a test.
+  const deadline = Date.now() + 10_000;
+  while ((host.bmad.registrationTimer || host.bmad.refreshTimer || host.bmad.pending) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(Date.now() < deadline, 'BMAD watcher registration must settle');
+}
+
 test('BMAD loads installed progress offline from the selected root and resolves configured roots canonically', async t => {
   const f = await fixture(t);
   // There is deliberately no GitLab account or selected Group.
@@ -117,7 +125,8 @@ test('copy works offline without launching and stale artifact revisions are reje
 });
 
 test('copy validates observed work and allows installation guidance before BMAD exists', async t => {
-  const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
+  const f = await fixture(t); await f.refresh(); await waitForBmadRegistration(f.host);
+  const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
   await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'skill', stepId: node.id, storyId: 'removed' }), /Story/);
   await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'skill', stepId: node.id, artifactId: 'removed' }), /紀錄/);
   await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'shell' }), /不支援/);
@@ -132,6 +141,8 @@ test('copy validates observed work and allows installation guidance before BMAD 
 test('openArtifact accepts only the selected snapshot step artifact path', async t => {
   const f = await fixture(t);
   await f.write(f.root, '_bmad-output/planning-artifacts/prd.md', '---\nstatus: final\n---\n');
+  await f.refresh();
+  await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-prd')!;
   const artifact = snapshot.steps.find(step => step.id === node.id)!.artifacts[0];
   await assert.rejects(f.host.openBmadArtifact(snapshot.revision, node.id, path.join(f.second, 'foreign.md')), /找不到/);

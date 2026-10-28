@@ -8,6 +8,8 @@ GitLab Workspace 版本記錄於 `package.json` 與鎖定檔；WorkflowKit 使�
 
 Extension 執行 `npm test`，WorkflowKit 執行 `python -X utf8 -B scripts/test.py`。兩個 checkout 都可獨立建置。
 
+在 GitlabWorkSpace Repo 執行 `python -X utf8 -B scripts/release.py`，即可核對版本、執行完整測試並準備 VSIX 與 `SHA256SUMS`。僅核對版本可加 `--check-only`；建立 tag 和 CI 發布仍是獨立步驟。
+
 正式 Release 發布後，Windows 可用隔離的 VS Code CLI 安裝 VSIX，再從實際安裝目錄執行線上下載、雙 profile 安裝及 Skills 可用性驗收：
 
 ```powershell
@@ -26,7 +28,7 @@ python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . ru
 python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . resume <run_id>
 ```
 
-先發行有變更的上游，再由 WorkflowKit 整合正式附件。上游更新不會自動要求 Extension 改版；只有 Extension 自身有變更時才單獨指定其版本。Megin 不屬於 WorkflowKit 上游。既有 Extension 的 `scripts/release.py` 會轉交新入口。
+先發行有變更的上游，再由 WorkflowKit 整合正式附件。上游更新不會自動要求 Extension 改版；只有 Extension 自身有變更時才單獨指定其版本。Megin 不屬於 WorkflowKit 上游。跨 Repo 協調器為選用工具。
 
 ## Gitea 備援
 

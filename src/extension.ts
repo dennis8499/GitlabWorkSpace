@@ -15,6 +15,7 @@ import { OperationReceiptFileStore } from './workspace/operationReceiptStore';
 const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openWorkspace: 'gitlabWorkspace.openWorkspace',
   openMyWork: 'gitlabWorkspace.openDeveloperMode',
+  openWorkflow: 'gitlabWorkspace.openWorkflowMode',
   openProjects: 'gitlabWorkspace.openCloneMode',
   openAnalysis: 'gitlabWorkspace.openSaMode',
   openBmad: 'gitlabWorkspace.openBmadMode',
@@ -100,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const operationId = metadata.operationId ?? randomUUID();
       const aliases: Record<string, string> = {
         openCloneMode: 'openProjects', openSaMode: 'openAnalysis', openBmadMode: 'openBmad', openDeveloperMode: 'openMyWork',
-        openReviewerMode: 'openReviewer', openGitMode: 'openGit', openRepository: 'openRepository',
+        openReviewerMode: 'openReviewer', openWorkflowMode: 'openWorkflow', openGitMode: 'openGit', openRepository: 'openRepository',
         cloneRepositories: 'clone', cloneAllRepositories: 'clone', cloneSelectedRepositories: 'clone', syncLocalDefaultBranches: 'syncRepos'
       };
       const task = () => getWorkspace().runCommandAction(metadata.action ?? aliases[action] ?? action, () => Promise.resolve(callback.apply(thisArg, args)), { ...metadata, operationId });
@@ -144,6 +145,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.openSaMode', () => getWorkspace().navigateTo('sa')),
     registerLoggedCommand('gitlabWorkspace.openBmadMode', () => getWorkspace().navigateTo('bmad')),
     registerLoggedCommand('gitlabWorkspace.openDeveloperMode', () => getWorkspace().navigateTo('developer')),
+    registerLoggedCommand('gitlabWorkspace.openWorkflowMode', () => getWorkspace().navigateTo('workflow')),
     registerLoggedCommand('gitlabWorkspace.openReviewerMode', () => getWorkspace().navigateTo('reviewer')),
     registerLoggedCommand('gitlabWorkspace.openGitMode', (repoId?: string) => getWorkspace().navigateTo('git', repoId)),
     registerLoggedCommand('gitlabWorkspace.openRepository', (repoId?: string) => getWorkspace().navigateTo('git', repoId))

@@ -51,6 +51,14 @@ export const workspaceActionKinds = {
   retryWorkspaceSection: 'read',
   ensureWorkspaceSection: 'read',
   loadIssueRelations: 'read',
+  loadSopPage: 'read',
+  loadSopDetail: 'read',
+  loadSopRelationsPage: 'read',
+  saveSopConfig: 'write',
+  saveSopFields: 'write',
+  transitionSop: 'write',
+  createSopIssue: 'write',
+  retrySopLink: 'write',
   selectProject: 'read',
   selectIssue: 'read',
   openIssue: 'read',
@@ -202,6 +210,7 @@ export const issueInvokeKinds = {
 export const quickActionKinds = {
   openWorkspace: 'read',
   openMyWork: 'read',
+  openWorkflow: 'read',
   openProjects: 'read',
   openAnalysis: 'read',
   openBmad: 'read',
@@ -223,6 +232,8 @@ export const operationLabels: Record<string, string> = {
   loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
   copyReviewRefresh: '複製重新同步指令', copyReviewResume: '恢復本機審查', openReviewReport: '開啟審查報告',
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
+  openWorkflow: '開啟 SOP 工作流程', loadSopPage: '載入 SOP 牌卡', loadSopDetail: '載入 SOP 詳情', loadSopRelationsPage: '載入 SOP 關聯', saveSopConfig: '儲存 SOP 設定',
+  saveSopFields: '儲存 SOP 資料', transitionSop: '變更 SOP 狀態', createSopIssue: '建立 SOP 牌卡', retrySopLink: '重試牌卡關聯',
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
   gitAction: '執行版控操作', issueRequest: '處理 Issue 操作',
   openWorkspace: '開啟工作台', openProjects: '開啟專案', openAnalysis: '開啟分析', openMyWork: '開啟我的工作', openReviewer: '開啟待審查', openGit: '開啟版控', openAdmin: '開啟 Log', openLogs: '開啟 Log', openRepository: '開啟 Repo', manageAccounts: '開啟帳號管理', openSettings: '開啟設定',
@@ -318,6 +329,9 @@ export function describeAction(value: { type: string }, context: ActionContext =
     if (nested.type === 'loadSection') slot += ':' + [...nested.sections].sort().join(',');
     if (nested.type === 'loadFormOptions') slot += ':' + nested.section + ':' + (nested.mode ?? 'first');
     if (nested.type === 'loadNoteReactions') slot += ':' + nested.noteId;
+  } else if (request.type === 'loadSopRelationsPage') {
+    resourceKey = 'issue:' + request.projectId + ':' + request.issueIid;
+    slot = 'sop-relations:' + request.kind;
   } else if ('iid' in request) {
     resourceKey = 'mr:' + request.projectId + ':' + request.iid;
     if (request.section) slot = resourceKey + ':' + request.section;

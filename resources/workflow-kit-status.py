@@ -28,7 +28,7 @@ from typing import Any
 PACKAGE = "gitlab-workspace-kit"
 BUNDLE_SCHEMA = "gitlab-workspace-kit/v1"
 INDEX_SCHEMA = "gitlab-workspace-kit-bundle/v1"
-VERSION = '0.32.0'
+VERSION = '1.0.0'
 KIT_EXTENSION_FILES = {}
 WIKI_CONFIG_FILES = {'.codex/config.toml': '[features]\n'
                        'hooks = true\n'
@@ -10376,6 +10376,390 @@ TRUSTED_PREDECESSORS = {'local_updates': [{'baseline_manifest_sha256': '491f28c1
                              '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494',
                              '.agents/skills/codebase-wiki/scripts/wiki-write.py': 'e2375b8085f6138b0aaec378732a9dd5635bb16261d833d593e8d93fc8ef3186',
                              '.agents/skills/codebase-wiki/scripts/wiki_transaction.py': 'd07c242a65f933334d428b394eef9b3c5abbc839ee4449ada41f54c38cf4c67d'},
+               'wikiInstalledVersionSha256': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e'},
+              {'agentBlockSha256': 'b03d76dc4cc2c42dc9cd881098d782d537188d9f860a5cb6ab48f07f297ad8cf',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {},
+               'files': {'.agents/skills/merge-reviewer/SKILL.md': '36adab3bca4d9b30fbeab7510e68b024dc7976777dd6937d2166c64055cdd0ea',
+                         '.agents/skills/merge-reviewer/VERSION': '06c53dd4f22b2e0038ca2bb9af32cc1ab7e69898d99cc3bfa22bd965f21aac8f',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'b5ed995d59e34d9d8f555a00f1dd30fc6593dda071f16e0eb8e58e4c5f3495f5',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/contract-boundaries.md': 'dac84f58c6305cf6825f6595e028e0af60feef9b9d95061b00b1b5877bb21529',
+                         '.agents/skills/merge-reviewer/references/report-style.md': '21bd5e766a972d18f76a5f64c20bb5e48ec830760b94a50d55109ff6d21e17ff',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': 'db76edd3e4d070480b49df4abcca2ce2ea35d2a2a6e30954e80ce3d2f0f99f6c',
+                         '.agents/skills/merge-reviewer/references/runtime-controls.md': '325d133901aa928ba720763a8c0cf9628ddcb64084204bb3a67a53a33c4c8221',
+                         '.agents/skills/merge-reviewer/references/session-workflow.md': 'd514812c8b8bb5b409e0891f7393d0d9ccfc406c1737f23121d03d1512780adc',
+                         '.agents/skills/merge-reviewer/references/usage.md': '026347de479db94587dd5c12608a72efba74a0e5fca91508806e1129801e4818',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': 'ff995f1e64a16534ff28637a8215d76ee1e13870be7b33e11219a8838a1b0ef6',
+                         '.agents/skills/merge-reviewer/scripts/contract_boundary.py': 'f864aceb8dc75fbc1fc58d7926f9c208adf5dcad11899dfb3339d4c7682ca0d1',
+                         '.agents/skills/merge-reviewer/scripts/git_network_lease.py': '1555269f41f711d443b8d107b960824c4836c140624bc461470d07f7a05fda1b',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'e448c5c8010131498559d8c646f6e6fc67a4c7d1ee773b578d8b2e7552118679',
+                         '.agents/skills/merge-reviewer/scripts/merge_parent_coverage.py': '0bd1c7201909e90a7a53c078e6b908cc9a08deaa1628c9943b44ace8f7dc48c5',
+                         '.agents/skills/merge-reviewer/scripts/report_receipt.py': 'd81e17396e5586071081f942a09ad08b16c2c6a8cdacb4735f3986f19b5d953e',
+                         '.agents/skills/merge-reviewer/scripts/review_coordinator.py': '223ea0c90f41aa3c922768a987e26e47b38a0b66f276b176cd101959727015cf',
+                         '.agents/skills/merge-reviewer/scripts/review_diagnostics.py': '5314c74dd38fe50d144c0be4f1adfe9e34da173b8654923726bbfbba0d58cad6',
+                         '.agents/skills/merge-reviewer/scripts/review_flow.py': '9a84ba6429f38fb75e8dcfb8c1b12d5a034192084057590db74d4eecd6ef45af',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': 'e3b13b89514216b6957b2d825b472a8b976fd7f5b1e392dc1a99fb63504e5da1',
+                         '.agents/skills/merge-reviewer/scripts/review_runtime.py': 'a39c46efa69c7a1803460782b5b94392b1e0ccc985afef2434b086f1f907d30c',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': 'baf3b999af6e6a71893761768000345d2f7d450731d64614f44a1556079197e8',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': '267ed29e90f284deeb2282393f10e9b97e48244b4df47155791a3d69fe39fabc',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': '2e58bea4fae685e5d3bc7e0cd848568ccfa6edfb844e792112dda7ac721a85f1',
+                         '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': '75c9c7bd8b88bb2deabc30b0f2e471fac5fde1462efb64f582d9080a6debe64f',
+                         '.agents/skills/release-reviewer/VERSION': 'a66780da23103beaf12432b418508966b31a2a3a787f9468a5b6cdaa8667c1ef',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': '54dcc5409d56c8505df85a9dc63767c5001170acdfd07d42de3a0781786bb105',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': '76dd51c1b4b876fa8c4fdf29ceba884eb2c30e0a315c891530d966c4c6573824',
+                         '.agents/skills/release-reviewer/references/group-review.md': '14d742125d915a130066231c715e3c7fa0834fd1fc85c596b0ef31312f9260fd',
+                         '.agents/skills/release-reviewer/references/report-style.md': 'ff3d8c097a8f4d10cad7646156728c9e0adea1ef4aa86075cc63c457181d651a',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'e1e6be58112764ea321bf4ff9c1e19e9aed370507e77f7bf974f43a6cc5afd38',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '860b4464c668099da9b876b4f2011a52aa0d961f18916b7c2efd70ae27b2be16',
+                         '.agents/skills/release-reviewer/references/review-rules.md': '194567763a2d75df6575ba007b5f5048b27e2830636be7e3549222a2b6f44a9d',
+                         '.agents/skills/release-reviewer/references/runtime-controls.md': 'b4b74ff5ce210e3638f5f74970641500f29ef8efc72ead8269fc422c7f7f8953',
+                         '.agents/skills/release-reviewer/references/session-workflow.md': '5bd96300ab6fa806101b534c4f5c2e97b20b785e16882f148206ceda7d040e07',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '40fe910d4c87c19e259e46fe63e33123a8bc9d7d0996eb1346ac28f84b522d88',
+                         '.agents/skills/release-reviewer/scripts/coverage_policy.py': 'cc036e79496c88e018befceb407205d75b7cb4bafda71911af2959842982b2d1',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '5fe9366fa52bfd17c17477001674f0575c732d4dc5a03a94a0e0e2ddc92dc34d',
+                         '.agents/skills/release-reviewer/scripts/frozen_evidence.py': '8dae6dcdfdbe0570808ea1d9463d9ec226595c5fb6b655738eb4141e4db1ae8a',
+                         '.agents/skills/release-reviewer/scripts/git_network_lease.py': '75542f73900c4039f273456a4f2cf02617ec33c3d839b96bee1dbad7af93a760',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': '5efbd08f682adf22b0d9712e51d384fd86faabc5dca9f4a59f59c6aa9efda973',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '9732c261fdcb476a965753730421a73029b72c4fc6cb5b6e70bcf33a010acd5a',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '0e8615cc5b32bccd742c687ec630e682882ad76cdc643d15fec83f500896a6b2',
+                         '.agents/skills/release-reviewer/scripts/merge_parent_coverage.py': '0bd1c7201909e90a7a53c078e6b908cc9a08deaa1628c9943b44ace8f7dc48c5',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': '63e487a689d002cc3185f63095b9f31c786d55d6237591695299b5fdb64da3c4',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '811edb5996bc6794c5ed1915000eab172b24f7953dfb106336e77149093af6f2',
+                         '.agents/skills/release-reviewer/scripts/review_coordinator.py': '6ed42471507e2e2c3591576d565f67ac3ef65092f85e3b5bf00272c6c6d15edc',
+                         '.agents/skills/release-reviewer/scripts/review_flow.py': 'd461fa14bc17f6bd1184b65d2290b1d9d5259510963876e215ba94efb450ce8f',
+                         '.agents/skills/release-reviewer/scripts/review_runtime.py': '71957e980353e8a7d8fefdeb61e35c2f4349c309bc6d194d5aefbea47419e8d7',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': 'fa93f1327c658df7d354104d9e504665ac0b8a2594533b9f19d289aa4e9d4f6a',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': 'f997f898e737ae0e7132f1cea835dff0dafc43f31e4805394d6cc25b83243642'},
+               'overlays': {'codebase-wiki': {'added': {},
+                                              'replaced': {'.agents/skills/codebase-wiki/SKILL.md': {'overlay_sha256': '80be38684e6f27d969dc548aa6bad997105f842bbf054d3af44ae2a439fbdf99',
+                                                                                                     'upstream_sha256': 'bc1ae5a640047f825e0d7d1fc0f907de7df85c6b174cd0d6d13f314ca0811c1a'}}}},
+               'payloadSha256': 'a02dbf62399d34af2828c4caef94ad59fa2a0ad53795cd4670302d078ff805d0',
+               'profile': 'group',
+               'profileHashes': {'group-instructions.md': '1f744c41872cf78cf3a4091a18c33a1861af39cd93b3e91b112800592f96064b',
+                                 'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                                 'profile.md': 'db5734e5cf5eaffbc6894d241e6cc4f687b84b577db95cbceefc4c4324b0ca88'},
+               'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer'],
+               'upstream': {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': '6e953a391962ae2ba3e70072b22a9df1cc2cf7c6a2dd756ac8fab24ddbd8bd6f',
+                                              'version': '0.6.4'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.19.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '74fcd02ff44b7d3c6e7a7cbe50bcc17f17ff63a8ca3d6c922de53d2ab6d3c32e',
+                                               'version': '0.19.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.8.0.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': 'b6ba140cd12db38fbe0ff2a43c142515197826b69891785f16e34e5012294a72',
+                                                 'version': '0.8.0'}},
+               'version': '0.32.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': '80be38684e6f27d969dc548aa6bad997105f842bbf054d3af44ae2a439fbdf99',
+                             '.agents/skills/codebase-wiki/VERSION': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '1d890697300c48bdf5315598d601a4917be93d02d5ae1e4a222130c8886c15a6',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c511f7c9fe41bcbfb20255c5089f5808f1e524e9e5d0d52a0a5e2caca89e7b22',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': '8537f718ed14cfa8e733ec2022d34a9f5c6f54fab3cb0397c10108a47b87cf1e',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '05a78a612556112b1ac98b4c22c638428ed5ae8323d8cdaed3c090f7de37d15e',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/resource-safety.md': 'e67d365a8306c21389a0dc137240a64645237a268333f52ea640f6660964a1a8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '2c8c158e24e2af487574060f4162159b0c41c9818b21770505012047fe94709e',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/bounded_process.py': '84feef0191e7e378eac207d8504aad69091aa78f2839a3f24fb155258b37dc4f',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': 'df5077d287ed3e396be63fa504e50f4d6d15280f4aa35ed06f3ecc2746a93014',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5e1693b489112b833407975051b9830a10579763ceb18176b582a45eaee7bfcf',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '5c0444c67b05e9ec5425c9e80927b6f056437ef03c4ab7537a840d33ee1602c8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': 'fee3b1f92ac266581f4bc0407a2d07e47956079ca4a7094481cd2d03b0d72f7e',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': 'fcdb274c443211d146a288a5633b77f5928e292d06d0e0886b7743eef1f878cf',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '9da30fa633dced602106d66440b141843cb492d83f5dce9fc5cb16071734f4ba',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '7eed7c8c7e9405b7a81cfaf16e556a1b0dadd548b9825ed934291ae4eb5098b0',
+                             '.agents/skills/codebase-wiki/scripts/offline-git.py': 'f43a6328e1b218b8d091088708b65977f248ff52cbbf5b2b583c083407ce5157',
+                             '.agents/skills/codebase-wiki/scripts/offline_git.py': 'f96c33c8c1e94328a8cb9be8478c7a8a781b6a863a690399c07bdf419f56cd49',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': '47f9551257028b918bb18fc6db98c85e2b54682561a650156f7a50870ad3d350',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': '77ced6490ed3a396ede128e82afbc867118d38ff962d36923bf3e61c4ee6e11b',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '53b2e09b18cda940301dcdbd82b68f127939113861ef76a58903af7e75e10dd4',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '187ec3f53e5c74e2ccfb7b553f41be42d2c5ad9929114107b5309584355ebf27',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': 'cfd751e857d93a5bb91d8f9f058ce02069fb035f9e752142989e25001ff25fe1',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494',
+                             '.agents/skills/codebase-wiki/scripts/wiki-write.py': 'e2375b8085f6138b0aaec378732a9dd5635bb16261d833d593e8d93fc8ef3186',
+                             '.agents/skills/codebase-wiki/scripts/wiki_transaction.py': 'd07c242a65f933334d428b394eef9b3c5abbc839ee4449ada41f54c38cf4c67d'},
+               'wikiInstalledVersionSha256': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e'},
+              {'agentBlockSha256': 'fc63afed6c0c02f320f84a92faf15cff58d934531812c9d303e1d1b31f8815f3',
+               'capabilities': ['adr',
+                                'archaeology',
+                                'audit',
+                                'business-analysis',
+                                'functional-exploration',
+                                'ingest',
+                                'lint',
+                                'merge-repo',
+                                'notebooklm-export',
+                                'query',
+                                'release-review',
+                                'synthesis',
+                                'system-analysis',
+                                'system-design'],
+               'extensionFiles': {},
+               'files': {'.agents/skills/merge-reviewer/SKILL.md': '36adab3bca4d9b30fbeab7510e68b024dc7976777dd6937d2166c64055cdd0ea',
+                         '.agents/skills/merge-reviewer/VERSION': '06c53dd4f22b2e0038ca2bb9af32cc1ab7e69898d99cc3bfa22bd965f21aac8f',
+                         '.agents/skills/merge-reviewer/agents/openai.yaml': 'b5ed995d59e34d9d8f555a00f1dd30fc6593dda071f16e0eb8e58e4c5f3495f5',
+                         '.agents/skills/merge-reviewer/references/claude-code-style.md': 'f730bd868052261947a6e4ae64abf9b419250f30d04c44637459abf8bcf6219e',
+                         '.agents/skills/merge-reviewer/references/contract-boundaries.md': 'dac84f58c6305cf6825f6595e028e0af60feef9b9d95061b00b1b5877bb21529',
+                         '.agents/skills/merge-reviewer/references/report-style.md': '21bd5e766a972d18f76a5f64c20bb5e48ec830760b94a50d55109ff6d21e17ff',
+                         '.agents/skills/merge-reviewer/references/review-rules.md': 'db76edd3e4d070480b49df4abcca2ce2ea35d2a2a6e30954e80ce3d2f0f99f6c',
+                         '.agents/skills/merge-reviewer/references/runtime-controls.md': '325d133901aa928ba720763a8c0cf9628ddcb64084204bb3a67a53a33c4c8221',
+                         '.agents/skills/merge-reviewer/references/session-workflow.md': 'd514812c8b8bb5b409e0891f7393d0d9ccfc406c1737f23121d03d1512780adc',
+                         '.agents/skills/merge-reviewer/references/usage.md': '026347de479db94587dd5c12608a72efba74a0e5fca91508806e1129801e4818',
+                         '.agents/skills/merge-reviewer/references/workspace-review.md': 'ff995f1e64a16534ff28637a8215d76ee1e13870be7b33e11219a8838a1b0ef6',
+                         '.agents/skills/merge-reviewer/scripts/contract_boundary.py': 'f864aceb8dc75fbc1fc58d7926f9c208adf5dcad11899dfb3339d4c7682ca0d1',
+                         '.agents/skills/merge-reviewer/scripts/git_network_lease.py': '1555269f41f711d443b8d107b960824c4836c140624bc461470d07f7a05fda1b',
+                         '.agents/skills/merge-reviewer/scripts/git_review_context.py': 'e448c5c8010131498559d8c646f6e6fc67a4c7d1ee773b578d8b2e7552118679',
+                         '.agents/skills/merge-reviewer/scripts/merge_parent_coverage.py': '0bd1c7201909e90a7a53c078e6b908cc9a08deaa1628c9943b44ace8f7dc48c5',
+                         '.agents/skills/merge-reviewer/scripts/report_receipt.py': 'd81e17396e5586071081f942a09ad08b16c2c6a8cdacb4735f3986f19b5d953e',
+                         '.agents/skills/merge-reviewer/scripts/review_coordinator.py': '223ea0c90f41aa3c922768a987e26e47b38a0b66f276b176cd101959727015cf',
+                         '.agents/skills/merge-reviewer/scripts/review_diagnostics.py': '5314c74dd38fe50d144c0be4f1adfe9e34da173b8654923726bbfbba0d58cad6',
+                         '.agents/skills/merge-reviewer/scripts/review_flow.py': '9a84ba6429f38fb75e8dcfb8c1b12d5a034192084057590db74d4eecd6ef45af',
+                         '.agents/skills/merge-reviewer/scripts/review_report.py': 'e3b13b89514216b6957b2d825b472a8b976fd7f5b1e392dc1a99fb63504e5da1',
+                         '.agents/skills/merge-reviewer/scripts/review_runtime.py': 'a39c46efa69c7a1803460782b5b94392b1e0ccc985afef2434b086f1f907d30c',
+                         '.agents/skills/merge-reviewer/scripts/review_session.py': 'baf3b999af6e6a71893761768000345d2f7d450731d64614f44a1556079197e8',
+                         '.agents/skills/merge-reviewer/scripts/review_workspace.py': '267ed29e90f284deeb2282393f10e9b97e48244b4df47155791a3d69fe39fabc',
+                         '.agents/skills/merge-reviewer/scripts/workspace_report.py': '2e58bea4fae685e5d3bc7e0cd848568ccfa6edfb844e792112dda7ac721a85f1',
+                         '.agents/skills/output-style/SKILL.md': 'e356f9440faadbd20f659a86ebe8ae986150edf065d3098a6c343e0303de4eaf',
+                         '.agents/skills/output-style/agents/openai.yaml': '9311f7948fcff9ee737b8c0360e198517afcdcda04bc483b072357bce751cbbb',
+                         '.agents/skills/output-style/references/examples.md': '997eb1deedd5719f733f980161e5e951cbaf69b5878fb855c54cd03ea6badabf',
+                         '.agents/skills/release-reviewer/SKILL.md': '75c9c7bd8b88bb2deabc30b0f2e471fac5fde1462efb64f582d9080a6debe64f',
+                         '.agents/skills/release-reviewer/VERSION': 'a66780da23103beaf12432b418508966b31a2a3a787f9468a5b6cdaa8667c1ef',
+                         '.agents/skills/release-reviewer/agents/openai.yaml': '54dcc5409d56c8505df85a9dc63767c5001170acdfd07d42de3a0781786bb105',
+                         '.agents/skills/release-reviewer/references/evidence-workflow.md': '76dd51c1b4b876fa8c4fdf29ceba884eb2c30e0a315c891530d966c4c6573824',
+                         '.agents/skills/release-reviewer/references/group-review.md': '14d742125d915a130066231c715e3c7fa0834fd1fc85c596b0ef31312f9260fd',
+                         '.agents/skills/release-reviewer/references/report-style.md': 'ff3d8c097a8f4d10cad7646156728c9e0adea1ef4aa86075cc63c457181d651a',
+                         '.agents/skills/release-reviewer/references/resource-checks.md': 'e1e6be58112764ea321bf4ff9c1e19e9aed370507e77f7bf974f43a6cc5afd38',
+                         '.agents/skills/release-reviewer/references/review-examples.md': '860b4464c668099da9b876b4f2011a52aa0d961f18916b7c2efd70ae27b2be16',
+                         '.agents/skills/release-reviewer/references/review-rules.md': '194567763a2d75df6575ba007b5f5048b27e2830636be7e3549222a2b6f44a9d',
+                         '.agents/skills/release-reviewer/references/runtime-controls.md': 'b4b74ff5ce210e3638f5f74970641500f29ef8efc72ead8269fc422c7f7f8953',
+                         '.agents/skills/release-reviewer/references/session-workflow.md': '5bd96300ab6fa806101b534c4f5c2e97b20b785e16882f148206ceda7d040e07',
+                         '.agents/skills/release-reviewer/scripts/chain_review.py': '40fe910d4c87c19e259e46fe63e33123a8bc9d7d0996eb1346ac28f84b522d88',
+                         '.agents/skills/release-reviewer/scripts/coverage_policy.py': 'cc036e79496c88e018befceb407205d75b7cb4bafda71911af2959842982b2d1',
+                         '.agents/skills/release-reviewer/scripts/evidence.py': '5fe9366fa52bfd17c17477001674f0575c732d4dc5a03a94a0e0e2ddc92dc34d',
+                         '.agents/skills/release-reviewer/scripts/frozen_evidence.py': '8dae6dcdfdbe0570808ea1d9463d9ec226595c5fb6b655738eb4141e4db1ae8a',
+                         '.agents/skills/release-reviewer/scripts/git_network_lease.py': '75542f73900c4039f273456a4f2cf02617ec33c3d839b96bee1dbad7af93a760',
+                         '.agents/skills/release-reviewer/scripts/git_review_context.py': '5efbd08f682adf22b0d9712e51d384fd86faabc5dca9f4a59f59c6aa9efda973',
+                         '.agents/skills/release-reviewer/scripts/git_support.py': '9732c261fdcb476a965753730421a73029b72c4fc6cb5b6e70bcf33a010acd5a',
+                         '.agents/skills/release-reviewer/scripts/group_context.py': '0e8615cc5b32bccd742c687ec630e682882ad76cdc643d15fec83f500896a6b2',
+                         '.agents/skills/release-reviewer/scripts/merge_parent_coverage.py': '0bd1c7201909e90a7a53c078e6b908cc9a08deaa1628c9943b44ace8f7dc48c5',
+                         '.agents/skills/release-reviewer/scripts/release_report.py': '63e487a689d002cc3185f63095b9f31c786d55d6237591695299b5fdb64da3c4',
+                         '.agents/skills/release-reviewer/scripts/resource_rules.py': '811edb5996bc6794c5ed1915000eab172b24f7953dfb106336e77149093af6f2',
+                         '.agents/skills/release-reviewer/scripts/review_coordinator.py': '6ed42471507e2e2c3591576d565f67ac3ef65092f85e3b5bf00272c6c6d15edc',
+                         '.agents/skills/release-reviewer/scripts/review_flow.py': 'd461fa14bc17f6bd1184b65d2290b1d9d5259510963876e215ba94efb450ce8f',
+                         '.agents/skills/release-reviewer/scripts/review_runtime.py': '71957e980353e8a7d8fefdeb61e35c2f4349c309bc6d194d5aefbea47419e8d7',
+                         '.agents/skills/release-reviewer/scripts/review_session.py': 'fa93f1327c658df7d354104d9e504665ac0b8a2594533b9f19d289aa4e9d4f6a',
+                         '.agents/skills/release-reviewer/scripts/review_worklist.py': 'f997f898e737ae0e7132f1cea835dff0dafc43f31e4805394d6cc25b83243642'},
+               'overlays': {},
+               'payloadSha256': '66d0a66b37916f1b8e7c1631e574ec4dbe957f776f80a108126213dc8502eec5',
+               'profile': 'repository',
+               'profileHashes': {'group-instructions.md': '250823e9f060e6a51abfbe45aea06ca4819770f91def7a6bed6d1bfd7e94c9ae',
+                                 'legacy-cleanup.md': 'cd9abd025fd748b71bfed3b1179834bac7a956280b62e7ff825810b0894e43ff',
+                                 'profile.md': '6f53af6020c9135783509589b82339bec313d43bf6fa91a54973180bee4868bf'},
+               'skills': ['codebase-wiki', 'merge-reviewer', 'output-style', 'release-reviewer'],
+               'upstream': {'codebase-wiki': {'asset': 'codebase-llm-wiki-codex.zip',
+                                              'repository': 'code-base-llm-wiki',
+                                              'sha256': '6e953a391962ae2ba3e70072b22a9df1cc2cf7c6a2dd756ac8fab24ddbd8bd6f',
+                                              'version': '0.6.4'},
+                            'merge-reviewer': {'asset': 'merge-reviewer-0.19.0.zip',
+                                               'repository': 'MergeReviewer',
+                                               'sha256': '74fcd02ff44b7d3c6e7a7cbe50bcc17f17ff63a8ca3d6c922de53d2ab6d3c32e',
+                                               'version': '0.19.0'},
+                            'release-reviewer': {'asset': 'release-reviewer-0.8.0.zip',
+                                                 'repository': 'ReleaseReviewer',
+                                                 'sha256': 'b6ba140cd12db38fbe0ff2a43c142515197826b69891785f16e34e5012294a72',
+                                                 'version': '0.8.0'}},
+               'version': '0.32.0',
+               'wikiFiles': {'.agents/skills/codebase-wiki/SKILL.md': 'bc1ae5a640047f825e0d7d1fc0f907de7df85c6b174cd0d6d13f314ca0811c1a',
+                             '.agents/skills/codebase-wiki/VERSION': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e',
+                             '.agents/skills/codebase-wiki/agents/openai.yaml': '9271764c5926e0b6bdbdb6dc3c85b993239457af0fd8afb1bf5d4eb5ff69f16f',
+                             '.agents/skills/codebase-wiki/assets/adr-template.md': '997ef0b94714ec9f4f55eb76c5b8f90f1b8a662e12f6e0d003c1ed8bf7abac76',
+                             '.agents/skills/codebase-wiki/assets/architecture-template.md': 'c7bd1fdc708579f1beb55f4e968a26c96f0ca25f774dec3631d154f037c674b9',
+                             '.agents/skills/codebase-wiki/assets/business-analysis-template.md': '86a7963e946e959d630543b47e2bb82b559b2db9e50ae48f53494cf600f29327',
+                             '.agents/skills/codebase-wiki/assets/business-glossary-template.md': 'f4b48fe6809653c37838769651564147e273435807b4184c031b1a84f2bcf693',
+                             '.agents/skills/codebase-wiki/assets/business-knowledge-gaps-template.md': '19690d3be358579851c5e7008b515a6a4bcacfa63e9e811dc62a0b3c3ce97368',
+                             '.agents/skills/codebase-wiki/assets/business-process-catalog-template.md': 'ea1a36e9e490dfddd250797b051ea7f0746c1a21c90f003e89855d1bfccbe3ba',
+                             '.agents/skills/codebase-wiki/assets/business-process-template.md': '36b670867a795cbd90f36c3b29abbabb84b34605797d38947fc368bd7092dd22',
+                             '.agents/skills/codebase-wiki/assets/business-requirement-template.md': '03ae424db04e0bac193a884e2a737b73c6c25190730738b104322bd88413cf2d',
+                             '.agents/skills/codebase-wiki/assets/business-rule-catalog-template.md': 'c7ec238c806cb7611399ad61454e64c704d1281a44f49c4ddcd6f0db1c5fed71',
+                             '.agents/skills/codebase-wiki/assets/business-rule-template.md': '45bacf4d50d664068cf69763e003e5a05c7a810112066cf4c63e3069bd986b5e',
+                             '.agents/skills/codebase-wiki/assets/code-audit-template.md': '84c7ae5ff76b51f4d2e69840675ceb345dea300a2c48948fcd0e8755610b10bb',
+                             '.agents/skills/codebase-wiki/assets/codebase-functional-coverage-template.md': '7dec8996286572c6605a3b64a46b731b0ca107bdfabf29658eb0ae85bf6d440f',
+                             '.agents/skills/codebase-wiki/assets/dependency-template.md': 'a8a0938561f73b2d4c219078f19f3e073892f8ba037b5ac8ac54877e465fef6c',
+                             '.agents/skills/codebase-wiki/assets/entity-template.md': 'b38ff6dfce628990811d5081266a7a0a75163ce9645d812dcc6647e037cf9e19',
+                             '.agents/skills/codebase-wiki/assets/functional-requirement-catalog-template.md': 'fc7d540a7813e8c0d0e333efece2cf38aa5441d6a8aee28b5e75bd8b57bee996',
+                             '.agents/skills/codebase-wiki/assets/index-template.md': '9e3cda87423d6b864a1c6a3fc17d6c62c3496df83f3cb559af350cdbed1a2ab7',
+                             '.agents/skills/codebase-wiki/assets/log-template.md': 'c972b51bd8960efbae76fd22b803c341f18ad5589eef336d828d1d37d531472e',
+                             '.agents/skills/codebase-wiki/assets/module-template.md': 'c8ecb53971969c398acfdac05d2cf23a4604654099751022d094ecd10316e05f',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-ba-template.md': 'da51bf158b7bc5ef570e0b46769f0b4eae054f37b3cd35302120882caffe2fb6',
+                             '.agents/skills/codebase-wiki/assets/notebooklm-sa-template.md': '502d11a4a0c6260cb6c544f2c139249ee28e962d02b13034108d20db82424934',
+                             '.agents/skills/codebase-wiki/assets/notebooklm.toml': '1d890697300c48bdf5315598d601a4917be93d02d5ae1e4a222130c8886c15a6',
+                             '.agents/skills/codebase-wiki/assets/overview-template.md': '19026e4f1788c0faac0fabe2efc61b5ab29ae24cfcb55582fdd748c548f6f283',
+                             '.agents/skills/codebase-wiki/assets/pattern-template.md': 'd67e94285fc7f12b2840194762358f8b105e9a1c3319a5624bcfbb619cfc9594',
+                             '.agents/skills/codebase-wiki/assets/project-function-catalog-template.md': '9b392f4f631ef00a32adc68ab793efc10eb0d880aa056ab606bad0e755ed34c1',
+                             '.agents/skills/codebase-wiki/assets/synthesis-template.md': '45bb257325b139ffe54f2094f13cd364dd5ee96a535434462b5a8d0b199aebbf',
+                             '.agents/skills/codebase-wiki/assets/system-analysis-template.md': 'd833d3dc752c8cc06a97f090e68a1f29cb70ead6723e76a7a8bb9f2367e70d9b',
+                             '.agents/skills/codebase-wiki/assets/system-design-template.md': '1df551536536936d95ba8e3bda0970d14461965c6cc9eb794cf4aac453fa34ac',
+                             '.agents/skills/codebase-wiki/assets/target-agents-block.md': '114651f7bbea36880b9530cdee8a73e8484928a400b840db0a10175f7d13b206',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/architecture/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/decisions/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/dependencies/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/entities/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/guides/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/index.md': 'f633e6f22f579e73f7594852d31f8183973a399f8f30e353fb83d45b0c0233ef',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/log.md': '8f4d65c7c434ca6882fbe0a499cf16447b45adf7e343d8e0a91ccef964a9e4d4',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/modules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/overview.md': '75bb18d2cd3c907f52ce3659ddd8c453dceb3308d99641e178facef42faa146b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/patterns/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/processes/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/requirements/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/rules/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/assets/wiki-starter/synthesis/.gitkeep': '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b',
+                             '.agents/skills/codebase-wiki/bin/tgrep-manifest.json': 'b7c3bcdf6cf6124ca5368082754a3b2c9dfc960cafc6975be3c57871a7706d89',
+                             '.agents/skills/codebase-wiki/bin/windows-x64/tgrep.exe': '9b90e4446e2cbf05e1da086547501e35d7b32f0f6d5f687548cf270b07fbd9d7',
+                             '.agents/skills/codebase-wiki/capabilities.json': '2339095ece6ea139a1a85329b587615f16bb86ca2f4636c3e61af1f9c67df1c9',
+                             '.agents/skills/codebase-wiki/references/adr-workflow.md': '24c21d699fc1463c9a285fa5db1fa159a7d89b2b9f3277b52433ffb948a9644d',
+                             '.agents/skills/codebase-wiki/references/analysis-document-standards.md': '3d3aa3b42cc18a29678dda813306d85450bb182570352ab6adc5af4047c98be8',
+                             '.agents/skills/codebase-wiki/references/business-analysis-workflow.md': '79514a0051b33024e14d571e692b12b1fbb787db3cbf854f570f3611245a4d52',
+                             '.agents/skills/codebase-wiki/references/code-archaeology-workflow.md': 'c511f7c9fe41bcbfb20255c5089f5808f1e524e9e5d0d52a0a5e2caca89e7b22',
+                             '.agents/skills/codebase-wiki/references/code-audit-workflow.md': '8537f718ed14cfa8e733ec2022d34a9f5c6f54fab3cb0397c10108a47b87cf1e',
+                             '.agents/skills/codebase-wiki/references/follow-up-actions.md': '5a2ba02d617b9564cdd3b086188984f0a28bfbcf05684108597eafa3afa70c82',
+                             '.agents/skills/codebase-wiki/references/framework-maintenance.md': 'bbe3f935e423e8cb1dc709f1c5545683964e4788719237b8fe0238985931799d',
+                             '.agents/skills/codebase-wiki/references/frontmatter-spec.md': 'bebaa7ed36e1bbccae6df6063ce1e6192b08940536b20d04fea5744aa617c334',
+                             '.agents/skills/codebase-wiki/references/functional-exploration-workflow.md': '6b1a3264df09daa33df9335be9c142dfe355230d8b91ae75f2417722cbe587a9',
+                             '.agents/skills/codebase-wiki/references/hooks-specification.md': '05a78a612556112b1ac98b4c22c638428ed5ae8323d8cdaed3c090f7de37d15e',
+                             '.agents/skills/codebase-wiki/references/ingest-workflow.md': 'a8037cf056dbcce983329bb43d8005498c98e63aaa5298df16f7f9b4837a6cfc',
+                             '.agents/skills/codebase-wiki/references/install-workflow.md': 'c1c32adbbd7abb85e26ad0d8d5df47e62b7e2cb611fc9db8d81e9f35363c20bb',
+                             '.agents/skills/codebase-wiki/references/intent-routing.md': '0f6f5edd0cec513f9c4c097fb3cafebe7697bf45afab8217f4c4b66962945f0a',
+                             '.agents/skills/codebase-wiki/references/lint-checklist.md': '6593186b1c0eace750576e3293f54e46ce2f324ffba1ad005f4859db297d253e',
+                             '.agents/skills/codebase-wiki/references/log-operations.md': '4df32921aa21afde949026615d619d7122bebdcf55304989467f920d0bc2b990',
+                             '.agents/skills/codebase-wiki/references/notebooklm-export-workflow.md': '5d950b688554e7302781388ec8a383c1e7ddee732926675401b05663ea862c69',
+                             '.agents/skills/codebase-wiki/references/page-types.md': '1c2cbd240a7d1eb31b3eb8c1b3cdcfbc87b89e1fa3711c398a47a7f2cb120f82',
+                             '.agents/skills/codebase-wiki/references/query-workflow.md': '3d449f609c21249258d70ecdb5c5f2ae80f359800016278dbcb3ebcf6c7886b8',
+                             '.agents/skills/codebase-wiki/references/resource-safety.md': 'e67d365a8306c21389a0dc137240a64645237a268333f52ea640f6660964a1a8',
+                             '.agents/skills/codebase-wiki/references/source-discovery-workflow.md': '2c8c158e24e2af487574060f4162159b0c41c9818b21770505012047fe94709e',
+                             '.agents/skills/codebase-wiki/references/synthesis-workflow.md': '239f0cff242c8bed7357688bbc0205646f5e5ee8876afc224ced807dd6d2af7b',
+                             '.agents/skills/codebase-wiki/references/system-analysis-workflow.md': 'e34d4bba47846b216dfcc3de824f3541316b70e8e608f8248a388370193f51ff',
+                             '.agents/skills/codebase-wiki/references/system-design-workflow.md': 'f7e4713da8689dc5509b1febe772b26e76613cbcae81e6c4f94d8a059f9843d3',
+                             '.agents/skills/codebase-wiki/scripts/bounded_process.py': '84feef0191e7e378eac207d8504aad69091aa78f2839a3f24fb155258b37dc4f',
+                             '.agents/skills/codebase-wiki/scripts/check-dual-entry-sync.py': 'a2a57b8207e434da32af330f839e6643896ca4481887f1ad1cd7259a39def799',
+                             '.agents/skills/codebase-wiki/scripts/check-stale.py': 'df5077d287ed3e396be63fa504e50f4d6d15280f4aa35ed06f3ecc2746a93014',
+                             '.agents/skills/codebase-wiki/scripts/explore-functions.py': '7ead7198cb5ccbdebdfef8ba4b429728e54a94e3201ce751497d827c8d201284',
+                             '.agents/skills/codebase-wiki/scripts/export-notebooklm.py': '481776008da5eefc5382604ac7022d51887f4491d2a9c8bc69ccec4f1d56a546',
+                             '.agents/skills/codebase-wiki/scripts/frontmatter.py': 'ff5ca82b5129f058e7818ac8c42c79b4809a445b1977013631048f76be30cdae',
+                             '.agents/skills/codebase-wiki/scripts/functional_inventory.py': '3d5774ce9a0031377ea7d8454f743d803bc42b895cfd7e2fb08d270703dbcb5b',
+                             '.agents/skills/codebase-wiki/scripts/hooks/common.py': '5e1693b489112b833407975051b9830a10579763ceb18176b582a45eaee7bfcf',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-log-reminder.py': '0584845d838a85f3664ed11383b359a9c7ba5c70b7c5d7c56f26f13d18b86813',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-session-init.py': '07c99828b6e7ed6fc2dd36d7ad00264016bca61a94c636d06856e1aa89b98486',
+                             '.agents/skills/codebase-wiki/scripts/hooks/wiki-write-guard.py': '5c0444c67b05e9ec5425c9e80927b6f056437ef03c4ab7537a840d33ee1602c8',
+                             '.agents/skills/codebase-wiki/scripts/ingest-coverage.py': 'fee3b1f92ac266581f4bc0407a2d07e47956079ca4a7094481cd2d03b0d72f7e',
+                             '.agents/skills/codebase-wiki/scripts/ingest_coverage.py': 'fcdb274c443211d146a288a5633b77f5928e292d06d0e0886b7743eef1f878cf',
+                             '.agents/skills/codebase-wiki/scripts/install-framework.py': '26d3f2d968f40e15448f7276353d0ffa3d6cf4616e5510170bcb7b5a2bf8f508',
+                             '.agents/skills/codebase-wiki/scripts/lint-wiki.py': '9da30fa633dced602106d66440b141843cb492d83f5dce9fc5cb16071734f4ba',
+                             '.agents/skills/codebase-wiki/scripts/notebooklm_exporter.py': '7eed7c8c7e9405b7a81cfaf16e556a1b0dadd548b9825ed934291ae4eb5098b0',
+                             '.agents/skills/codebase-wiki/scripts/offline-git.py': 'f43a6328e1b218b8d091088708b65977f248ff52cbbf5b2b583c083407ce5157',
+                             '.agents/skills/codebase-wiki/scripts/offline_git.py': 'f96c33c8c1e94328a8cb9be8478c7a8a781b6a863a690399c07bdf419f56cd49',
+                             '.agents/skills/codebase-wiki/scripts/parity-check.py': '0367b7ac6fb0070003369c7c6476a1816697e1339fa09e9f159545f01ac9d8b0',
+                             '.agents/skills/codebase-wiki/scripts/project_scanner.py': '47f9551257028b918bb18fc6db98c85e2b54682561a650156f7a50870ad3d350',
+                             '.agents/skills/codebase-wiki/scripts/rebuild-index.py': '77ced6490ed3a396ede128e82afbc867118d38ff962d36923bf3e61c4ee6e11b',
+                             '.agents/skills/codebase-wiki/scripts/scan-project.py': 'd293f69509e0a0c85a89d642b9ca568f5e19d9fbb354068a3716c3a4f3db5a8f',
+                             '.agents/skills/codebase-wiki/scripts/tgrep-search.py': '53b2e09b18cda940301dcdbd82b68f127939113861ef76a58903af7e75e10dd4',
+                             '.agents/skills/codebase-wiki/scripts/validate-code-audit.py': '73623260a02163a52705bc93a3c6f69d9eb442eaa24824f56bdf2068abf4968f',
+                             '.agents/skills/codebase-wiki/scripts/validate-frontmatter.py': '187ec3f53e5c74e2ccfb7b553f41be42d2c5ad9929114107b5309584355ebf27',
+                             '.agents/skills/codebase-wiki/scripts/validate-log.py': 'cfd751e857d93a5bb91d8f9f058ce02069fb035f9e752142989e25001ff25fe1',
+                             '.agents/skills/codebase-wiki/scripts/wiki-stats.py': '33453aadb08390378961dbe1b96368dcd9bf9caab7cc0ddbce38e5ecec820494',
+                             '.agents/skills/codebase-wiki/scripts/wiki-write.py': 'e2375b8085f6138b0aaec378732a9dd5635bb16261d833d593e8d93fc8ef3186',
+                             '.agents/skills/codebase-wiki/scripts/wiki_transaction.py': 'd07c242a65f933334d428b394eef9b3c5abbc839ee4449ada41f54c38cf4c67d'},
                'wikiInstalledVersionSha256': '20c121886eb4f762044c6507745f6494525432ac22b41f5a73a8e5bf15b8b90e'}],
  'schema': 'gitlab-workspace-kit-predecessors/v1'}
 SPECIAL_RULES = {'mergeRequestReview': 'branch-review-handoff-manual-comment',
@@ -10579,7 +10963,7 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
     if not isinstance(manifest, dict) or manifest.get("schema") != BUNDLE_SCHEMA or manifest.get("package") != PACKAGE:
         fail("組合包名稱或契約版本不支援。")
     if manifest.get("version") != expected_version or expected_version != VERSION:
-        fail(f"組合包版本與 GitLab Workspace {expected_version} 不相容；請下載相同版本的 VSIX 與 ZIP。")
+        fail(f"WorkflowKit 版本與安裝器 {expected_version} 不相容；請使用同一 Release 的 ZIP 與安裝器。")
     if manifest.get("workspaceContract") != WORKSPACE_CONTRACT:
         fail("組合包 workflow contract 與 GitLab Workspace 不相容。")
     expected_upstream = {
@@ -10587,7 +10971,7 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
         for key, source in UPSTREAM.items()
     }
     if manifest.get("upstream") != expected_upstream:
-        fail("組合包引用的上游 Skills 版本或 SHA-256 與此版工作台不符。")
+        fail("組合包引用的上游 Skills 版本或 SHA-256 與此版安裝器的固定來源不符。")
     expected_profile = {
         "name": "GitlabWorkSpace", "knowledgeRoot": "wiki/", "specialRules": SPECIAL_RULES,
         "files": PROFILE_HASHES,
@@ -10638,7 +11022,7 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
     for source in UPSTREAM.values():
         if digest(sources[source["asset"]]) != source["sha256"]:
             fail(f"上游來源 ZIP SHA-256 不符：{source['asset']}")
-    expected_outer = {manifest_path} | {name for name in entries if name.startswith(f"{ROOT}/payload/") or name.startswith(f"{ROOT}/framework/") or name.startswith(f"{ROOT}/sources/") or name.startswith(f"{ROOT}/repository-payload/")}
+    expected_outer = {manifest_path, f"{ROOT}/install.py", f"{ROOT}/README.md"} | {name for name in entries if name.startswith(f"{ROOT}/payload/") or name.startswith(f"{ROOT}/framework/") or name.startswith(f"{ROOT}/sources/") or name.startswith(f"{ROOT}/repository-payload/")}
     if set(entries) != expected_outer:
         fail("組合包包含不允許的額外檔案。")
     framework = {name[len(f"{ROOT}/framework/"):]: content for name, content in entries.items() if name.startswith(f"{ROOT}/framework/")}
@@ -10647,7 +11031,7 @@ def parse_manifest(entries: dict[str, bytes], expected_version: str) -> tuple[di
         fail("Codebase LLM Wiki framework 內容與固定 Release ZIP 不一致。")
     _verify_upstream_payload(payload, original_wiki, sources, skill_names, overlays)
     if manifest.get("profiles") != PROFILE_MANIFESTS or manifest.get("capabilities") != PROFILE_MANIFESTS["group"]["capabilities"]:
-        fail("Workflow profile metadata differs from this extension's reviewed profiles.")
+        fail("Workflow profile metadata differs from this release's reviewed profiles.")
     native = {name[len(f"{ROOT}/repository-payload/"):]: content for name, content in entries.items() if name.startswith(f"{ROOT}/repository-payload/")}
     profile = PROFILE_MANIFESTS["repository"]
     if {name: digest(content) for name, content in native.items()} != profile["files"]:
@@ -11833,6 +12217,178 @@ def _test_after_apply(count: int, total: int) -> None:
             fail(f"Test injection: simulated install failure after operation {count}.")
 
 
+def install(archive: Path, archive_format: str, group_root: Path, expected_version: str, source: str,
+           entry_root: str, archive_sha256: str, *, dry_run: bool = False, profile: str = "group") -> dict[str, Any]:
+    root = checked_root(group_root)
+    if profile not in ("group", "repository"):
+        fail("Unknown workflow profile.")
+    if profile == "repository":
+        probe = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", timeout=10, check=False)
+        if probe.returncode or not Path(probe.stdout.strip()).samefile(root):
+            fail("Native repository Skills require an actual Git repository root.")
+    if source not in ("gitea", "github", "bundled"):
+        fail("組合包來源無效。")
+    if archive_format not in ("zip", "tar.xz") or archive_format == "tar.xz" and entry_root != ROOT or archive_format == "zip" and entry_root not in ("", ROOT):
+        fail("組合包封裝格式或根目錄無效。")
+    if not re.fullmatch(r"[a-f0-9]{64}", archive_sha256) or digest_file(archive) != archive_sha256.lower():
+        fail("組合包 SHA-256 與套件索引不符。")
+    lock_path = assert_safe(root, INSTALL_LOCK, allow_missing=True)
+    preview = tempfile.TemporaryDirectory(prefix="workflow-kit-preview-") if dry_run else None
+    stage_parent = Path(preview.name) if preview else _mkdir_safe(root, ".gitlab-workspace/tool-installs")
+    with contextlib.ExitStack() as resources:
+        if preview:
+            resources.enter_context(preview)
+        else:
+            resources.enter_context(KitInstallLock(lock_path))
+            recover_incomplete(root)
+        existing_manifest_path = assert_safe(root, MARKER, allow_missing=True)
+        old_manifest: dict[str, Any] | None = None
+        if existing_manifest_path.exists():
+            try:
+                old_manifest = json.loads(read_regular(existing_manifest_path).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                fail("現有 GitLab Workspace 組合包紀錄無法讀取；請先保存並檢查。")
+            verify_installed(root, old_manifest)
+        ensure_no_legacy(root, old_manifest is not None)
+        wiki_path = assert_safe(root, "wiki", allow_missing=True)
+        if wiki_path.exists() and not wiki_path.is_dir():
+            fail("Group 的 wiki 路徑不是資料夾，無法安裝共用知識庫。")
+        has_wiki = wiki_path.is_dir()
+        stage = stage_path(stage_parent / f"kit-{uuid.uuid4().hex}")
+        stage.mkdir()
+        (stage / "owner.json").write_text(json.dumps({"package": PACKAGE, "group_root": str(root)}, ensure_ascii=False), encoding="utf-8")
+        (stage / ".gitignore").write_bytes(b"*\n")
+        journal_path = stage / "transaction.json"
+        try:
+            entries = extract_zip(archive) if archive_format == "zip" else extract_tar_xz(archive)
+            manifest, payload = parse_manifest(entries, expected_version)
+            profile_metadata = manifest["profiles"][profile]
+            if profile == "repository":
+                payload = {name[len(f"{ROOT}/repository-payload/"):]: content for name, content in entries.items() if name.startswith(f"{ROOT}/repository-payload/")}
+                manifest = {**manifest, "files": profile_metadata["files"], "payloadSha256": profile_metadata["payloadSha256"], "overlays": {}}
+            gitignore, gitignore_hash, gitignore_original = kit_gitignore(root, manifest["skills"], manifest["files"])
+            if (old_manifest and old_manifest.get("profile", "group") == profile and
+                    old_manifest.get("version") == expected_version and old_manifest.get("payloadSha256") == manifest["payloadSha256"] and
+                    old_manifest.get("gitignoreBlockSha256") == gitignore_hash and gitignore == gitignore_original and
+                    old_manifest.get("source") == source and old_manifest.get("archiveSha256") == archive_sha256):
+                shutil.rmtree(stage)
+                return {"ok": True, "package": PACKAGE, "version": expected_version, "status": "unchanged",
+                        "profile": profile, "source": source, "applied": False, "changed_paths": [], "skills": len(manifest["skills"]),
+                        "upstreamVersions": {name: value["version"] for name, value in manifest["upstream"].items()},
+                        "capabilities": profile_metadata["capabilities"]}
+            framework_prefix = f"{ROOT}/framework/"
+            framework = {name[len(framework_prefix):]: content for name, content in entries.items() if name.startswith(framework_prefix)}
+            _copy_extracted_payload(framework, stage / ROOT / "framework")
+            _, native_target = prepare_native_wiki(root, stage, entries, has_wiki)
+            _, native_state_sha = native_install_files(root, native_target, has_wiki)
+            candidate_payload = stage / "candidate" / "payload"
+            _copy_extracted_payload(payload, candidate_payload)
+            (candidate_payload / ".gitignore").write_bytes(gitignore)
+            installed_wiki_skill = candidate_payload / ".agents/skills/codebase-wiki"
+            if installed_wiki_skill.exists():
+                shutil.rmtree(installed_wiki_skill)
+            # Native Wiki upgrades retain obsolete files by default. Retire only
+            # the old kit-owned overlay files absent from this reviewed payload.
+            for relative, old_hash in (old_manifest or {}).get("files", {}).items():
+                if (relative.startswith(".agents/skills/codebase-wiki/")
+                        and relative not in payload and not relative.endswith("/install-state.json")):
+                    obsolete = assert_safe(native_target, relative, allow_missing=True)
+                    if obsolete.exists():
+                        if digest(read_regular(obsolete, FILE_LIMIT)) != old_hash:
+                            fail(f"Retired Wiki overlay changed in staging: {relative}")
+                        obsolete.unlink()
+            copy_safe_tree(native_target / ".agents/skills/codebase-wiki", installed_wiki_skill)
+            native_state = json.loads(read_regular(native_target / ".agents/skills/codebase-wiki/install-state.json").decode("utf-8"))
+            for relative in native_state.get("files", {}):
+                if relative.startswith(".agents/skills/codebase-wiki/") or relative == "wiki" or relative.startswith("wiki/"):
+                    continue
+                source_path = native_target / safe_relative(relative)
+                if not source_path.is_file():
+                    fail(f"Codebase LLM Wiki installer output is missing: {relative}")
+                target_path = candidate_payload / safe_relative(relative)
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, target_path)
+            native_state_sha = _apply_wiki_overlay(
+                candidate_payload, payload, manifest["overlays"].get("codebase-wiki", {"added": {}, "replaced": {}}), profile,
+            )
+            if not has_wiki:
+                copy_safe_tree(native_target / "wiki", candidate_payload / "wiki")
+            agent_candidate = candidate_payload / "AGENTS.md"
+            if not agent_candidate.exists():
+                agent_candidate.parent.mkdir(parents=True, exist_ok=True)
+                agent_candidate.write_text("", encoding="utf-8")
+            instructions = (candidate_payload / ".agents/gitlab-workspace-kit/group-instructions.md").read_text(encoding="utf-8").strip()
+            rendered = replace_managed_block(agent_candidate.read_text(encoding="utf-8"), instructions)
+            agent_candidate.write_text(rendered, encoding="utf-8", newline="")
+            actual_payload = digest_payload_tree(candidate_payload)
+            installed_files = {
+                relative: value for relative, value in actual_payload.items()
+                if relative.startswith((".agents/skills/", ".agents/gitlab-workspace-kit/"))
+            }
+            skill_dirs = sorted(path.name for path in (candidate_payload / ".agents/skills").iterdir() if path.is_dir())
+            if skill_dirs != sorted(manifest["skills"]):
+                fail("安裝暫存中的 Skills 與組合包 Manifest 不一致。")
+            native_block = managed_block(rendered)
+            expected_installed = {
+                "schema": "gitlab-workspace-kit-installed/v1",
+                "profile": profile,
+                "installedRoot": str(root),
+                "capabilities": profile_metadata["capabilities"],
+                "package": PACKAGE,
+                "version": expected_version,
+                "workspaceContract": WORKSPACE_CONTRACT,
+                "source": source,
+                "archiveSha256": archive_sha256.lower(),
+                "upstream": manifest["upstream"],
+                "overlays": manifest["overlays"],
+                "payloadSha256": manifest["payloadSha256"],
+                "skills": manifest["skills"],
+                "files": installed_files,
+                "agentBlockSha256": digest((native_block or "").encode("utf-8")),
+                "gitignoreBlockSha256": gitignore_hash,
+                "wikiInstallStateSha256": native_state_sha,
+            }
+            manifest_target = candidate_payload / "tool-manifest.json"
+            _atomic_json(manifest_target, expected_installed)
+            operations = build_operations(root, stage, candidate_payload, old_manifest, expected_installed,
+                                          gitignore_previous_sha256=digest(gitignore_original) if gitignore_original is not None else None)
+            changed = [o["path"] for o in operations if not o["hadPrevious"] or
+                       o.get("expectedPreviousSha256") != o["newSha256"]]
+            if dry_run or not changed:
+                shutil.rmtree(stage)
+                return {"ok": True, "package": PACKAGE, "version": expected_version,
+                        "status": "ready" if changed else "unchanged", "applied": False, "profile": profile,
+                        "upstreamVersions": {name: value["version"] for name, value in manifest["upstream"].items()},
+                        "capabilities": profile_metadata["capabilities"],
+                        "changed_paths": changed, "skills": len(manifest["skills"])}
+            journal = {"schema": "gitlab-workspace-kit-transaction/v1", "group_root": str(root),
+                       "id": stage.name, "payloadSha256": manifest["payloadSha256"],
+                       "previous_manifest": old_manifest, "installed_manifest": expected_installed,
+                       "phase": "prepared", "operations": operations}
+            _atomic_json(journal_path, journal)
+            _apply_operations(root, stage, operations, journal_path, journal)
+            journal["phase"] = "committed"
+            _atomic_json(journal_path, journal)
+            for child in stage.iterdir():
+                if child.name not in ("backups", "transaction.json", "owner.json", ".gitignore"):
+                    _remove_owned(child)
+            return {"ok": True, "package": PACKAGE, "version": expected_version, "source": source, "profile": profile,
+                    "upstreamVersions": {name: value["version"] for name, value in manifest["upstream"].items()},
+                    "capabilities": profile_metadata["capabilities"],
+                    "skills": len(manifest["skills"]), "wiki": "preserved" if has_wiki else "seeded",
+                    "status": "installed", "applied": True, "changed_paths": changed,
+                    "transaction": ".gitlab-workspace/tool-installs/" + stage.name + "/transaction.json"}
+        except Exception:
+            if journal_path.is_file():
+                try:
+                    journal = json.loads(journal_path.read_text(encoding="utf-8"))
+                    if journal.get("phase") != "committed":
+                        _recover_transaction(root, stage, journal)
+                except Exception as rollback_error:
+                    fail(f"套件安裝已停止；回復遇到問題，請保留並檢查 {stage}：{rollback_error}")
+            elif stage.exists():
+                shutil.rmtree(stage, ignore_errors=True)
+            raise
 
 
 def rollback(group_root: Path, journal_value: Path) -> dict[str, Any]:
@@ -12019,36 +12575,48 @@ def installed_capabilities(raw: dict[str, Any]) -> list[str]:
 def inspect_status(root_value: Path, expected_version: str) -> dict[str, Any]:
     root = checked_root(root_value)
     try:
-        lock_path = assert_safe(root, INSTALL_LOCK, allow_missing=True)
-        # A never-managed repository has no transaction to recover or metadata
-        # to serialize. Reading its status must not dirty the Git working tree.
-        state_paths = (lock_path, assert_safe(root, MARKER, allow_missing=True),
-                       assert_safe(root, ".gitlab-workspace/tool-installs", allow_missing=True))
-        if not any(path.exists() for path in state_paths):
-            old = legacy_paths(root, include_installed=True)
-            if old:
-                return {"ok": True, "status": "needs-cleanup", "message": "請依組合包 cleanup 文件人工移除舊工具，保留 Wiki 與工作紀錄。", "legacyPaths": old[:24]}
-            return {"ok": True, "status": "missing"}
-        with KitInstallLock(lock_path):
-            recover_incomplete(root)
-            raw = _preflight_existing_workflow(root)
-            if raw:
-                profile = raw.get("profile", "group")
-                metadata = {"version": raw["version"], "source": raw["source"], "profile": profile,
-                            "upstreamVersions": {name: item["version"] for name, item in raw["upstream"].items()},
-                            "capabilities": installed_capabilities(raw)}
-                status = "installed" if (raw["version"] == expected_version and
-                    raw.get("payloadSha256") == PROFILE_MANIFESTS[profile]["payloadSha256"] and
-                    raw.get("local_update") is None) else "update-available"
-                return {"ok": True, "status": status, **metadata}
-            old = legacy_paths(root, include_installed=True)
-            if old:
-                return {"ok": True, "status": "needs-cleanup", "message": "請依組合包 cleanup 文件人工移除舊工具，保留 Wiki 與工作紀錄。", "legacyPaths": old[:24]}
-            return {"ok": True, "status": "missing"}
+        # Status is strictly read-only: a crashed or concurrent transaction is
+        # resolved only by an explicit installer operation under its lock.
+        stage_parent = assert_safe(root, ".gitlab-workspace/tool-installs", allow_missing=True)
+        if stage_parent.exists():
+            if not stage_parent.is_dir():
+                fail("套件安裝暫存路徑不是資料夾。")
+            for stage in sorted(stage_parent.iterdir(), key=lambda item: item.name):
+                if not stage.name.startswith("kit-"):
+                    continue
+                stage = stage_path(stage)
+                if stage.is_symlink() or _is_reparse_point(stage, stage.lstat()) or not stage.is_dir() or not re.fullmatch(r"kit-[0-9a-f]{32}", stage.name):
+                    fail("找到不安全的套件安裝暫存路徑；請人工檢查。")
+                owner = json.loads(read_regular(assert_safe(stage, "owner.json")).decode("utf-8"))
+                if owner != {"package": PACKAGE, "group_root": str(root)}:
+                    fail("Transaction owner differs; preserving it.")
+                journal_path = assert_safe(stage, "transaction.json", allow_missing=True)
+                if not journal_path.exists():
+                    fail("發現未完成的套件交易；請執行安裝或修復以處理。")
+                journal = json.loads(read_regular(journal_path).decode("utf-8"))
+                if journal.get("phase") != "committed":
+                    reject_bmad_operations(journal.get("operations", []))
+                if (journal.get("schema") != "gitlab-workspace-kit-transaction/v1" or journal.get("group_root") != str(root)
+                        or journal.get("id") != stage.name or journal.get("phase") != "committed"):
+                    fail("發現未完成或無法確認的套件交易；請執行安裝或修復以處理。")
+        raw = _preflight_existing_workflow(root)
+        if raw:
+            profile = raw.get("profile", "group")
+            metadata = {"version": raw["version"], "source": raw["source"], "profile": profile,
+                        "workspaceContract": raw.get("workspaceContract"), "installerApi": 1,
+                        "statusContract": 1, "integrity": "verified",
+                        "upstreamVersions": {name: item["version"] for name, item in raw["upstream"].items()},
+                        "capabilities": installed_capabilities(raw)}
+            status = "installed" if (raw["version"] == expected_version and
+                raw.get("payloadSha256") == PROFILE_MANIFESTS[profile]["payloadSha256"] and
+                raw.get("local_update") is None) else "update-available"
+            return {"ok": True, "status": status, **metadata}
+        old = legacy_paths(root, include_installed=True)
+        if old:
+            return {"ok": True, "status": "needs-cleanup", "message": "請依組合包 cleanup 文件人工移除舊工具，保留 Wiki 與工作紀錄。", "legacyPaths": old[:24], "statusContract": 1, "integrity": "unknown"}
+        return {"ok": True, "status": "missing", "statusContract": 1, "integrity": "missing"}
     except (KitError, OSError, ValueError, TypeError, KeyError) as error:
-        return {"ok": True, "status": "error", "message": str(error) or "組合包安裝記錄無法驗證。"}
-
-
+        return {"ok": True, "status": "error", "statusContract": 1, "integrity": "unverified", "message": str(error) or "組合包安裝記錄無法驗證。"}
 
 
 def run():
@@ -12059,7 +12627,9 @@ def run():
     args = parser.parse_args()
     result = inspect_status(args.group_root, VERSION)
     if result.get("status") in ("installed", "update-available"):
-        result.update(workspaceContract=WORKSPACE_CONTRACT, installerApi=1)
+        if result.get("workspaceContract") is None:
+            result["workspaceContract"] = 1
+        result.setdefault("installerApi", 1)
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

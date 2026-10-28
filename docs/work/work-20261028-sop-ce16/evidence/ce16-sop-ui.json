@@ -1,0 +1,12 @@
+{
+  "schema": "GitLabWorkspaceSopUiEvidence/v1",
+  "status": "PASS",
+  "version": "16.11.10",
+  "group": "grp-sn-maint/gitlab-workspace-live-validation/demo",
+  "groupIssueRequests": 1,
+  "checks": [
+    "group issue page",
+    "unclassified issue",
+    "selected issue details"
+  ]
+}

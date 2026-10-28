@@ -1,0 +1,14 @@
+{
+  "schema": "GitLabWorkspaceLiveExtensionEvidence/v1",
+  "generatedAt": "2026-10-28T00:39:30.809Z",
+  "environment": "ce16",
+  "baseUrl": "http://127.0.0.1:8930",
+  "expectedGitLabVersion": "16.11.10",
+  "vscodeVersion": "1.143.1",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.35.0.vsix",
+    "sha256": "8aac1fc5bc29e61c61b1abec693aa7a1e9ed1aa133cbd4f75b9ca6fc07c303a9"
+  },
+  "status": "FAIL",
+  "error": "The selected Issue retains its unclassified status."
+}

@@ -19,7 +19,7 @@ const API: Record<RemoteToolSource, string> = {
 interface Asset { name: string; size: number; sha256: string; }
 export interface ReleaseDescriptor {
   schema: 'workflowkit-release/v1'; package: 'gitlab-workspace-kit'; version: string;
-  workspaceContract: number; installerApi: number; minimumExtensionVersion?: unknown;
+  workspaceContract: number; installerApi: number; statusApi?: number; minimumExtensionVersion?: unknown;
   profiles: string[]; skills: string[]; assets: { package: Asset; installer: Asset };
 }
 export interface WorkflowKitRelease extends WorkflowKitReleaseSummary {
@@ -40,7 +40,28 @@ export class WorkflowKitReleaseManager {
 
   async listReleases(): Promise<WorkflowKitRelease[]> { return [...this.releases]; }
 
-  async refresh(source: RemoteToolSource, signal?: AbortSignal): Promise<WorkflowKitRelease[]> {
+  /** Restore only complete, reverified assets from the explicitly selected source. */
+  async useCached(source: RemoteToolSource): Promise<WorkflowKitRelease[]> {
+    assertSource(source);
+    const results: WorkflowKitRelease[] = [];
+    for (const item of (await this.readCache()).filter(record => record.source === source)
+      .sort((a, b) => compareVersions(b.descriptor.version, a.descriptor.version))) {
+      const descriptor = item.descriptor;
+      if (descriptor.installerApi !== 1 || descriptor.workspaceContract !== 2) continue;
+      try {
+        await verifiedFile(this.assetPath(descriptor.assets.installer), descriptor.assets.installer);
+        await verifiedFile(this.assetPath(descriptor.assets.package), descriptor.assets.package);
+      } catch (error) { if (isMissing(error)) continue; throw releaseError(source, `v${descriptor.version}`, error); }
+      results.push({ id: `workflowkit:${source}:${descriptor.version}:${item.descriptorSha256}`, version: descriptor.version, source,
+        assetName: descriptor.assets.package.name, format: 'zip', entryRoot: 'workflow-kit', available: true, cached: true,
+        skillCount: descriptor.skills.length, descriptor, descriptorSha256: item.descriptorSha256, sha256: descriptor.assets.package.sha256,
+        assetUrls: { package: '', installer: '' } });
+    }
+    this.releases = [...this.releases.filter(item => item.source !== source), ...results];
+    return results;
+  }
+
+  async refresh(source: RemoteToolSource, signal?: AbortSignal, installedVersion?: string): Promise<WorkflowKitRelease[]> {
     assertSource(source);
     this.releases = this.releases.filter(item => item.source !== source);
     const candidates: ApiRelease[] = [];
@@ -58,9 +79,10 @@ export class WorkflowKitReleaseManager {
       if (nextPage === false || nextPage === undefined && items.length < pageSize) break;
     }
     candidates.sort((a, b) => compareVersions(b.tag_name.slice(1), a.tag_name.slice(1)));
-    const candidate = candidates[0];
-    if (!candidate) return [];
-    try {
+    if (!candidates.length) return [];
+    const results: WorkflowKitRelease[] = [];
+    let compatibleFound = false, installedFound = !installedVersion;
+    for (const [index, candidate] of candidates.slice(0, 100).entries()) try {
       if (!Array.isArray(candidate.assets)) throw new PackageIntegrityError('Release 附件清單無效。');
       const metadata = candidate.assets.find(asset => asset.name === 'release.json');
       if (!metadata) throw new PackageIntegrityError('Release 缺少 release.json 索引。');
@@ -75,27 +97,50 @@ export class WorkflowKitReleaseManager {
       }
       const descriptor = parseDescriptor(metadataValue);
       if (descriptor.version !== candidate.tag_name.slice(1)) throw new PackageIntegrityError('Release tag 與套件版本不符。');
-      if (descriptor.installerApi !== 1) throw new Error('此 Release 的安裝介面不受此工作台支援。');
       for (const asset of Object.values(descriptor.assets)) {
         const published = candidate.assets.find(item => item.name === asset.name);
         if (!published || published.size !== asset.size || published.digest && published.digest !== `sha256:${asset.sha256}`) throw new PackageIntegrityError('Release 缺少完整且摘要一致的附件。');
         assertAssetUrl(published.browser_download_url, source, candidate.tag_name, asset.name);
       }
+      const compatible = descriptor.installerApi === 1 && descriptor.workspaceContract === 2;
       const selected: WorkflowKitRelease = { id: `workflowkit:${source}:${descriptor.version}:${digest(bytes)}`, version: descriptor.version, source,
-        assetName: descriptor.assets.package.name, format: 'zip', entryRoot: 'workflow-kit', available: true,
+        assetName: descriptor.assets.package.name, format: 'zip', entryRoot: 'workflow-kit', available: compatible,
+        ...(!compatible ? { error: '此 Release 的工作台契約或安裝介面不受支援。' } : {}),
         skillCount: descriptor.skills.length, descriptor, descriptorSha256: digest(bytes), sha256: descriptor.assets.package.sha256,
         assetUrls: { package: candidate.assets.find(item => item.name === descriptor.assets.package.name)!.browser_download_url,
           installer: candidate.assets.find(item => item.name === descriptor.assets.installer.name)!.browser_download_url } };
-      this.releases = [...this.releases.filter(item => item.source !== source), selected];
-      return [selected];
+      if (index === 0 || compatible && !compatibleFound || descriptor.version === installedVersion) results.push(selected);
+      if (compatible) compatibleFound = true;
+      if (descriptor.version === installedVersion) installedFound = true;
+      if (compatibleFound && installedFound) break;
     } catch (error) {
       if (signal?.aborted) throw error;
-      throw releaseError(source, candidate.tag_name, error);
+      // A transport failure is not evidence that an older release is the
+      // latest compatible one. Let the caller offer the verified same-source cache.
+      if (!(error instanceof PackageIntegrityError)) throw releaseError(source, candidate.tag_name, error);
+      if (index === 0) {
+        const version = candidate.tag_name.slice(1);
+        const asset = { name: 'unavailable.zip', size: 1, sha256: '0'.repeat(64) };
+        const descriptor: ReleaseDescriptor = { schema: 'workflowkit-release/v1', package: 'gitlab-workspace-kit', version,
+          workspaceContract: 0, installerApi: 0, profiles: [], skills: [], assets: { package: asset, installer: { ...asset, name: 'unavailable.py' } } };
+        results.push({ id: `workflowkit:${source}:${version}:unavailable`, version, source, assetName: asset.name, format: 'zip', entryRoot: 'workflow-kit', available: false,
+          error: releaseError(source, candidate.tag_name, error).message, descriptor, descriptorSha256: '', sha256: '', assetUrls: { package: '', installer: '' } });
+      }
     }
+    this.releases = [...this.releases.filter(item => item.source !== source), ...results];
+    return results;
   }
 
   async prepareInstaller(id: string, beforeWrite: () => void = () => undefined, signal?: AbortSignal): Promise<string> {
-    const selected = this.selected(id);
+    return this.cacheInstaller(id, false, beforeWrite, signal);
+  }
+
+  async prepareStatusVerifier(id: string, beforeWrite: () => void = () => undefined, signal?: AbortSignal): Promise<string> {
+    return this.cacheInstaller(id, true, beforeWrite, signal);
+  }
+
+  private async cacheInstaller(id: string, statusOnly: boolean, beforeWrite: () => void, signal?: AbortSignal): Promise<string> {
+    const selected = this.selected(id, statusOnly);
     const filename = await this.cacheAsset(selected, selected.descriptor.assets.installer, beforeWrite, signal);
     const records = await this.readCache();
     const existing = records.find(item => item.source === selected.source && item.descriptor.version === selected.version);
@@ -125,9 +170,12 @@ export class WorkflowKitReleaseManager {
     beforeWrite(); return { ...selected, archivePath, installerPath };
   }
 
-  async statusHelper(): Promise<{ path: string; version: string } | undefined> {
-    for (const item of (await this.readCache()).sort((a, b) => compareVersions(b.descriptor.version, a.descriptor.version))) {
-      if (item.descriptor.installerApi !== 1) continue;
+  async statusHelper(identity: { source: RemoteToolSource; version: string }): Promise<{ path: string; version: string } | undefined> {
+    for (const item of await this.readCache()) {
+      // Never run a newer verifier, an unverified executable, or a historical
+      // installer whose status command may repair transactions as a side effect.
+      if (item.source !== identity.source || item.descriptor.version !== identity.version ||
+          item.descriptor.installerApi !== 1 || item.descriptor.statusApi !== 1) continue;
       const filename = this.assetPath(item.descriptor.assets.installer);
       try { await verifiedFile(filename, item.descriptor.assets.installer); return { path: filename, version: item.descriptor.version }; }
       catch (error) { if (!isMissing(error)) throw releaseError(item.source, `v${item.descriptor.version}`, error); }
@@ -135,10 +183,11 @@ export class WorkflowKitReleaseManager {
     return undefined;
   }
 
-  private selected(id: string): WorkflowKitRelease {
+  private selected(id: string, statusOnly = false): WorkflowKitRelease {
     if (typeof id !== 'string' || id.length > 256) throw new Error('Release 選擇無效。');
     const selected = this.releases.find(item => item.id === id);
     if (!selected) throw new Error('請先檢查最新正式版，再選擇安裝。');
+    if (!selected.available && !(statusOnly && selected.descriptor.installerApi === 1 && selected.descriptor.statusApi === 1 && selected.assetUrls.installer)) throw new Error(selected.error ?? '此 Release 不相容或驗證失敗。');
     return selected;
   }
   private assetPath(asset: Asset): string { return path.join(this.storagePath, 'workflow-kit-downloads', `${asset.sha256}${path.extname(asset.name)}`); }
