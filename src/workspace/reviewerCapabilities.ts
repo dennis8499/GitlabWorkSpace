@@ -6,19 +6,38 @@ import type { ReviewerToolId } from './reviewSessionProtocol';
 import type { ReviewerCapabilities } from './reviewSessionProtocol';
 export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
-const cache = new Map<string, Promise<ReviewerCapabilities>>();
+const cache = new Map<string, Promise<ReviewerCapabilities | undefined>>();
 
 /** Probe only the bound local helper. Its capabilities command never starts capture. */
 export function readReviewerCapabilities(binding: InstalledReviewerBinding, python: PythonRuntime,
-  workspace: string): Promise<ReviewerCapabilities> {
+  workspace: string): Promise<ReviewerCapabilities | undefined> {
   const key = JSON.stringify([binding.script_path, binding.payload_sha256, python.executable, python.args,
     workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR]);
   const existing = cache.get(key);
   if (existing) return existing;
   const task = (async () => {
-    const result = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
-      'capabilities', '--workspace', workspace], { env: python.env, encoding: 'utf8',
-      windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 });
+    const options = { env: python.env, encoding: 'utf8' as const,
+      windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
+    let result;
+    try {
+      result = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
+        'capabilities', '--workspace', workspace], options);
+    } catch (error) {
+      const failure = error as { code?: unknown; stderr?: unknown };
+      if (binding.tool !== 'release-reviewer' || failure.code !== 2 || typeof failure.stderr !== 'string'
+        || !/invalid choice:\s*['"]capabilities['"]/i.test(failure.stderr)) throw error;
+      // Older ReleaseReviewer sessions have no capabilities command. Verify
+      // their actual start interface before emitting any of its options.
+      const help = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
+        'start', '--help'], options).catch(() => { throw new Error('已安裝 ReleaseReviewer 不支援可恢復的審查流程，請更新工作流程包。'); });
+      const commands = /\{start,step,check,finish,status,cancel\}/.test(help.stdout);
+      const required = ['--workspace', '--workspace-file', '--project', '--base', '--head', '--runtime-root',
+        '--request-id', '--requests-file', '--auth-scope', '--refresh'];
+      if (!commands || required.some(flag => !help.stdout.includes(flag))) {
+        throw new Error('已安裝 ReleaseReviewer 的 session 介面不相容，請更新工作流程包。');
+      }
+      return undefined;
+    }
     const value = JSON.parse(result.stdout) as ReviewerCapabilities;
     if (value.schema !== 'ReviewCapabilities/v1' || value.tool !== binding.tool ||
       value.skill_version !== binding.version || value.payload_sha256 !== binding.payload_sha256 ||

@@ -171,8 +171,10 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   if (context.reviewerExecutionError) throw new Error(context.reviewerExecutionError);
   const execution = resolveReviewerExecution(inputs, card.id, context.reviewerExecution);
   const prepared = context.reviewerCapabilities?.prepare_evidence === true;
-  const balanced = context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
+  const balanced = !release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
     context.reviewerCapabilities.budget_profiles?.includes('balanced') === true;
+  const unlimited = release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
+    context.reviewerCapabilities.budget_profiles?.includes('unlimited') === true;
   if (prepared && execution.mode !== 'single') throw new Error('目前安裝的 Reviewer 採單一 Agent，請選擇單一模式。');
   const installedRoot = context.root ?? context.groupRoot;
   const script = context.reviewerBinding?.script_path
@@ -198,7 +200,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       (runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '') +
       (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') +
        (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
-      (balanced ? ' --budget-profile balanced' : '') + '。',
+      (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '') + '。',
     ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
     prepared ? '沿 start → 必要 step → finish 完成同一 request_id；以 --updates-file 保存已讀證據上的判斷，再取得下一批內容。status 恢復、cancel 取消；check 僅供手動修稿。保留 helper 輸入骨架與 revision，必要語意判斷由 agent 明確結案。' : '沿 start → 必要 step → finish 完成同一 request_id；status 恢復、cancel 取消，check 供修稿。依已安裝 Skill 的既有草稿與批次操作完成審查。',
   ].join('\n');

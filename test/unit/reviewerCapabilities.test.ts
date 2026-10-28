@@ -27,6 +27,23 @@ test('capability probe binds the actual helper, caches identical local reads and
   await assert.rejects(readReviewerCapabilities({ ...binding, payload_sha256: 'd'.repeat(64) }, python, root), /來源身分不相容/);
 });
 
+test('legacy release session is probed before fallback; cleanup-only versions are rejected', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'review-legacy-cap-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const binding = { schema: 'InstalledReviewerBinding/v1', tool: 'release-reviewer', version: '0.8.0',
+    script_path: path.join(root, 'review_session.py'), script_sha256: 'a'.repeat(64),
+    skill_sha256: 'b'.repeat(64), payload_sha256: 'c'.repeat(64), payload_files: 30 } as const;
+  const source = `const args=process.argv.slice(1); if(args.includes('capabilities')) { process.stderr.write("error: invalid choice: 'capabilities'"); process.exit(2); }
+    if(args.includes('start')) { process.stdout.write(process.env.LEGACY_HELP); process.exit(0); } process.exit(2);`;
+  const help = '{start,step,check,finish,status,cancel} --workspace --workspace-file --project --base --head ' +
+    '--runtime-root --request-id --requests-file --auth-scope --refresh';
+  const runtime = { executable: process.execPath, version: 'test transport', args: ['-e', source, '--'],
+    env: { ...process.env, LEGACY_HELP: help } };
+  assert.equal(await readReviewerCapabilities(binding, runtime, root), undefined);
+  await assert.rejects(readReviewerCapabilities({ ...binding, version: '0.3.1', payload_sha256: 'd'.repeat(64) },
+    { ...runtime, env: { ...runtime.env, LEGACY_HELP: '{cleanup}' } }, root), /session 介面不相容/);
+});
+
 test('prepared helper capability produces the supported session commands and retains single-agent execution', () => {
   const card = getSkillGuideCard('merge-reviewer');
   const context = { profile: 'repository' as const, root: 'C:/work/app', workspaceRoot: 'C:/work/app',
@@ -43,7 +60,7 @@ test('prepared helper capability produces the supported session commands and ret
   assert.throws(() => buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel' }, context), /單一模式/);
 });
 
-test('budget flags are emitted only when the installed entry explicitly supports them', () => {
+test('release review never receives a hard time budget, even when the installed entry supports one', () => {
   const card = getSkillGuideCard('release-reviewer');
   const context = { profile: 'repository' as const, root: 'C:/work/app', workspaceRoot: 'C:/work/app',
     repositories: [{ name: 'app', path: 'C:/work/app' }], reviewerCapabilities: {
@@ -52,8 +69,13 @@ test('budget flags are emitted only when the installed entry explicitly supports
       runtime_root: 'C:/runtime', git_commands: 0, network_commands: 0,
       budget_schema: 'ReviewBudget/v1', budget_profiles: ['balanced', 'unlimited'] } as const };
   const inputs = { 'release-review.repo': 'C:/work/app', 'release-review.base': 'main', 'release-review.head': 'feature' };
-  assert.match(buildSkillGuidePrompt(card, inputs, context), /--budget-profile balanced/);
+  assert.match(buildSkillGuidePrompt(card, inputs, context), /--budget-profile unlimited/);
+  assert.doesNotMatch(buildSkillGuidePrompt(card, inputs, context), /--budget-profile balanced|時間目標|到期保存/);
   assert.doesNotMatch(buildSkillGuidePrompt(card, inputs, { ...context, reviewerCapabilities: undefined }),
     /--budget-profile|--protocol|round-workflow|--execution-policy-json/);
   assert.match(buildSkillGuidePrompt(card, inputs, { ...context, reviewerCapabilities: undefined }), /start --workspace/);
+  const mergeCard = getSkillGuideCard('merge-reviewer');
+  const mergeInputs = { 'merge-repo.repo': 'C:/work/app', 'merge-repo.base': 'main', 'merge-repo.head': 'feature' };
+  const mergeContext = { ...context, reviewerCapabilities: { ...context.reviewerCapabilities, tool: 'merge-reviewer' as const } };
+  assert.match(buildSkillGuidePrompt(mergeCard, mergeInputs, mergeContext), /--budget-profile balanced/);
 });
