@@ -38,8 +38,6 @@ import { issueGraphEdge, issueGraphNodeKey, mapWithConcurrency, type IssueGraphN
 import { buildIssueDraftDescription, containsIssueDraftMarker, matchDraftProject, parseIssueDraftBundle } from './issueDrafts';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES, TOOL_SOURCE_KEY, compareVersions, PackageIntegrityError } from './workflowKitReleases';
 import { installedKitIdentity } from './workflowKitIntegration';
-import { assertExternalSopCreate, checkSopTransition, classifySop, directSopLinks, labelsForStage, normalizeSopConfig, readSopRecord, releaseItems, writeSopRecord, SOP_TYPES, type SopConfig, type SopRecord, type SopStage } from './sop';
-import { loadSopConfig, sopConfigKey } from './sopStore';
 import type {
   BranchFreshness, ConnectedScope, LoadedWorkspaceIdentity, DraftIssueResult, InstalledWorkflowKitState, IssueDetailTab, IssueDraft,
   CloneOperationState, SkillsContext, IssueNavigation, MergeRequestDetail, OperationRecoveryMetadata, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkspaceMode, WorkspaceRequest, WorkspaceResponse, WorkspaceSection, WorkspaceSectionState, WorkspaceSnapshot, WorkspaceTimerEntry
@@ -75,7 +73,7 @@ const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git', 'workflow']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
 
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 type ActionMetadata = Pick<WorkspaceRequest, 'operationId' | 'operationScope' | 'hostSessionId' | 'scopeEpoch'>;
@@ -266,7 +264,6 @@ export class WorkspacePanel implements vscode.Disposable {
   private timerQueue: Promise<unknown> = Promise.resolve();
   private issuePublishQueue: Promise<unknown> = Promise.resolve();
   private readonly issueRelationWritesInFlight = new Set<string>();
-  private readonly sopCreationsInFlight = new Set<string>();
   private selectedGitRepositoryId?: string;
   private gitPanelReady = false;
   private gitRepositoryListDirty = false;
@@ -864,7 +861,7 @@ export class WorkspacePanel implements vscode.Disposable {
 
   async runCommandAction<T>(action: string, task: () => Promise<T>, metadata: ActionMetadata & { repositoryId?: string } = {}): Promise<T | undefined> {
     let result: T | undefined;
-    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openBmad', 'openMyWork', 'openWorkflow', 'openReviewer', 'openGit', 'openAdmin', 'openRepository', 'openNotifications', 'openSettings', 'manageAccounts', 'logoutAccount'].includes(action);
+    const navigation = ['openWorkspace', 'openProjects', 'openAnalysis', 'openBmad', 'openMyWork', 'openReviewer', 'openGit', 'openAdmin', 'openRepository', 'openNotifications', 'openSettings', 'manageAccounts', 'logoutAccount'].includes(action);
     await this.runAction({ type: navigation ? 'perform' : action, ...(navigation ? { action } : {}), ...metadata }, async () => { result = await task(); });
     return result;
   }
@@ -1173,9 +1170,6 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'ensureWorkspaceSection':
         await this.ensureWorkspaceSection(request.section, request.connectedScope);
         break;
-      case 'loadSopPage': case 'loadSopDetail': case 'loadSopRelationsPage': case 'saveSopConfig': case 'saveSopFields': case 'transitionSop':
-        await this.handleSopRequest(request); break;
-      case 'createSopIssue': case 'retrySopLink': await this.createSopIssue(request); break;
       case 'loadIssueRelations': {
         const connectedScope = request.connectedScope;
         const generation = this.viewGeneration;
@@ -1608,7 +1602,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private isRemotePage(): boolean {
-    return this.activeMode === 'developer' || this.activeMode === 'reviewer' || this.activeMode === 'workflow' ||
+    return this.activeMode === 'developer' || this.activeMode === 'reviewer' ||
       this.activeMode === 'clone' && this.projectSource !== 'local' && !!this.session.baseUrl && !!this.session.selectedGroup;
   }
 
@@ -3586,7 +3580,6 @@ export class WorkspacePanel implements vscode.Disposable {
         if (setting.assigneeId !== undefined && !allowed.members.has(setting.assigneeId)) throw new Error('所選負責人不屬於此專案。');
         if (setting.milestoneId !== undefined && !allowed.milestones.has(setting.milestoneId)) throw new Error('所選 Milestone 已不存在或不屬於此專案。');
         if (setting.labels.some((label) => !allowed!.labels.has(label))) throw new Error('草稿包含此專案不存在的 Label。');
-        assertExternalSopCreate(setting.labels, loadSopConfig(this.context.globalState, this.session.baseUrl, group.id));
         const issue = await client.createIssue(project.id, { title: draft.title, description, assigneeId: setting.assigneeId, labels: setting.labels, milestoneId: setting.milestoneId });
         results.push({ draftId: draft.id, projectPath: project.path_with_namespace, issueIid: issue.iid, url: issue.web_url, state: 'created' });
       } catch (error) {
@@ -4260,33 +4253,6 @@ export class WorkspacePanel implements vscode.Disposable {
     requireMergeScope();
     requireIssueIid(iid);
     const client = await this.session.getClient();
-    const inspectClosing = async () => {
-      const closing = await client.listMergeRequestClosingIssues(projectId, iid);
-      if (!closing.length) return [];
-      const config = loadSopConfig(this.context.globalState, this.session.baseUrl, groupId);
-      const results: Array<{ issue: GitLabIssue; record: SopRecord; stage: SopStage }> = [];
-      for (const candidate of closing) {
-        if (!Number.isSafeInteger(candidate.project_id) || !Number.isSafeInteger(candidate.iid)) throw new Error('無法確認 MR 將結案的 Issue，請重新檢查。');
-        const issue = await client.getIssue(candidate.project_id, candidate.iid);
-        if (issue.state === 'closed') continue;
-        if (!SOP_TYPES.some(type => config.types[type].some(label => issue.labels?.includes(label)))) continue;
-        const classification = classifySop(issue, config);
-        if (classification.conflicts.length) throw new Error(`Issue #${issue.iid} 的 SOP Label 衝突，不能透過 MR 結案。`);
-        if (!classification.type) continue;
-        if (classification.type === 'User Story') throw new Error('User Story 必須由負責人在 SOP 頁面確認上版後結案。');
-        const record = readSopRecord(issue.description);
-        if (record.fields.closeMode === 'cancelled') throw new Error('取消的牌卡請在 SOP 頁面以例外途徑結案。');
-        const [rawLinks, related] = await Promise.all([client.listIssueLinks(issue.project_id, issue.iid), client.listRelatedMergeRequests(issue.project_id, issue.iid)]);
-        const links = await mapWithConcurrency(directSopLinks(rawLinks), 4, link => client.getIssue(link.project_id, link.iid));
-        if (!related.some(mr => mr.project_id === projectId && mr.iid === iid)) throw new Error(`Issue #${issue.iid} 尚未確認與此 MR 的關聯。`);
-        const mergedOnSuccess = related.map(mr => mr.project_id === projectId && mr.iid === iid ? { ...mr, state: 'merged' } : mr);
-        const verifiedCommit = await this.verifiedSopCommit(client, issue, record.fields.commitSha);
-        const check = checkSopTransition({ issue, config, record, target: 'Close', links, mergeRequests: mergedOnSuccess, verifiedCommit });
-        if (!check.ok || !classification.stage) throw new Error(`Issue #${issue.iid} 尚不能隨 MR 結案：${check.missing.join('、')}`);
-        results.push({ issue, record, stage: classification.stage });
-      }
-      return results;
-    };
     const updateAvailability = (request: GitLabMergeRequest | undefined, availability: import('../api/actionAvailability').ActionAvailability): void => {
       if (!sameMergeScope()) return;
       const selected = this.selectedMergeRequest;
@@ -4308,13 +4274,11 @@ export class WorkspacePanel implements vscode.Disposable {
     try { target = await client.getRepositoryBranch(latest.target_project_id ?? projectId, latest.target_branch); }
     catch (error) { updateAvailability(latest, { status: 'unknown', reason: '無法確認目標分支，請重新檢查。' }); throw error; }
     requireMergeScope();
-    const closing = await inspectClosing();
-    requireMergeScope();
     const confirm = await vscode.window.showWarningMessage(
-      `確認合併 ${latest.references?.full ?? `!${iid}`}？\n來源：${latest.source_branch}\n目標：${latest.target_branch}\n來源 SHA：${sha}\n目標最新 SHA：${target.commit.id}${closing.length ? `\n合併後將結案 ${closing.length} 張通過檢查的 SOP 牌卡。` : ''}\nGitLab 專案規則仍會檢查 Pipeline 與合併權限。`,
-      { modal: true }, closing.length ? '合併並結案' : '合併 MR'
+      `確認合併 ${latest.references?.full ?? `!${iid}`}？\n來源：${latest.source_branch}\n目標：${latest.target_branch}\n來源 SHA：${sha}\n目標最新 SHA：${target.commit.id}\nGitLab 專案規則仍會檢查 Pipeline 與合併權限。`,
+      { modal: true }, '合併 MR'
     );
-    if (confirm !== (closing.length ? '合併並結案' : '合併 MR')) { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
+    if (confirm !== '合併 MR') { this.noteOutcome({ status: 'cancelled', effect: 'none' }); return; }
     requireMergeScope();
     const confirmed = await readLatest();
     requireMergeScope();
@@ -4325,26 +4289,10 @@ export class WorkspacePanel implements vscode.Disposable {
       updateAvailability(confirmed, { status: 'unknown', reason: 'MR 來源或目標已變更，請重新整理後再合併。' });
       throw new Error('MR 來源或目標已變更，請重新整理後再合併。');
     }
-    const confirmedClosing = await inspectClosing();
-    if (confirmedClosing.map(item => `${item.issue.project_id}:${item.issue.iid}`).sort().join(',') !== closing.map(item => `${item.issue.project_id}:${item.issue.iid}`).sort().join(',')) throw new Error('MR 將結案的牌卡已變更，請重新確認。');
     requireMergeScope();
     await client.mergeMergeRequest(projectId, iid, sha);
     this.post({ type: 'message', message: 'GitLab 已接受 MR 合併要求。' });
     this.noteOutcome({ effect: 'applied' });
-    if (confirmedClosing.length) try {
-      const config = loadSopConfig(this.context.globalState, this.session.baseUrl, groupId);
-      for (const item of confirmedClosing) {
-        const issue = await client.getIssue(item.issue.project_id, item.issue.iid);
-        const managed = new Set([...Object.values(config.types).flat(), ...Object.values(config.stages).flat()]);
-        const selectedLabels = (labels: string[] | undefined) => (labels ?? []).filter(label => managed.has(label)).sort().join('\0');
-        if (issue.state !== 'closed' || !issue.updated_at || JSON.stringify(readSopRecord(issue.description)) !== JSON.stringify(item.record) ||
-            selectedLabels(issue.labels) !== selectedLabels(item.issue.labels)) throw new Error(`Issue #${issue.iid} 的結案狀態、Label 或紀錄尚未確認。`);
-        const record: SopRecord = { ...item.record, history: [...item.record.history, { from: item.stage, to: 'Close', by: this.currentUser?.username ?? 'unknown', at: new Date().toISOString(), reason: `MR !${iid} 合併結案` }] };
-        await client.updateIssueIfUnchanged(issue.project_id, issue.iid, issue.updated_at, { labels: labelsForStage(issue.labels ?? [], 'Close', config), description: writeSopRecord(issue.description, record) });
-      }
-    } catch (error) {
-      this.noteOutcome({ status: 'succeeded', effect: 'partial', refreshError: `MR 已送出合併，但 SOP 結案紀錄未完整同步：${readableError(error)}。請重新讀取並修正 Label。` });
-    }
     await this.reconcileAfterWrite(() => this.refreshMergeRequestData(projectId, iid, 'summary'));
   }
 
@@ -4387,241 +4335,6 @@ export class WorkspacePanel implements vscode.Disposable {
     if (entry && entries.length >= 250) throw new Error('待核對的 MR 寫入已達 250 筆，請先核對既有結果後再發布。');
     if (entry) entries.unshift(entry);
     await this.context.globalState.update(MR_WRITES_KEY, entries);
-  }
-
-  private async verifiedSopCommit(client: GitLabClient, issue: GitLabIssue, sha?: string): Promise<boolean> {
-    if (!sha || !/^[a-fA-F0-9]{7,64}$/.test(sha)) return false;
-    try {
-      const commit = await client.getRepositoryCommit(issue.project_id, sha);
-      const reference = new RegExp(`(?:^|[^A-Za-z0-9_./-])#${issue.iid}(?!\\d)`);
-      return commit.id.toLowerCase().startsWith(sha.toLowerCase()) && reference.test(commit.message ?? commit.title);
-    } catch { return false; }
-  }
-
-  private async createSopIssue(request: Extract<WorkspaceRequest, { type: 'createSopIssue' | 'retrySopLink' }>): Promise<void> {
-    const scope = request.connectedScope;
-    const current = () => scope === this.connectedScopeKey() && !!this.session.selectedGroup && !!this.session.baseUrl && !!this.currentUser;
-    const assertCurrent = () => { if (!current()) throw new Error('GitLab 帳號或 Group 已變更，請重新載入。'); };
-    let created: GitLabIssue | undefined;
-    const key = createHash('sha256').update(`${scope}:${request.creationId}`).digest('hex');
-    const receiptKey = `gitlabWorkspace.sop.creation.v1:${key}`;
-    if (!/^[A-Za-z0-9-]{8,100}$/.test(request.creationId)) throw new Error('建立操作識別碼無效。');
-    if (this.sopCreationsInFlight.has(key)) throw new Error('此牌卡的建立或關聯仍在處理中。');
-    this.sopCreationsInFlight.add(key);
-    try {
-      assertCurrent();
-      const group = this.session.selectedGroup!, config = loadSopConfig(this.context.globalState, this.session.baseUrl, group.id);
-      const client = await this.session.getClient();
-      type Receipt = { projectId: number; iid?: number; story?: { projectId: number; issueIid: number }; intent?: string };
-      let receipt = this.context.globalState.get<Receipt>(receiptKey);
-      if (request.type === 'createSopIssue') {
-        if (!Number.isSafeInteger(request.projectId) || request.projectId <= 0 || !Number.isSafeInteger(request.assigneeId) || request.assigneeId <= 0 ||
-            !['User Story', 'Task', 'Change', 'Bug'].includes(request.kind) || typeof request.title !== 'string' || !request.title.trim() || request.title.length > 1024 ||
-            request.story && (!Number.isSafeInteger(request.story.projectId) || request.story.projectId <= 0 || !Number.isSafeInteger(request.story.issueIid) || request.story.issueIid <= 0) ||
-            !request.fields || typeof request.fields !== 'object' || Array.isArray(request.fields) || Object.keys(request.fields).length > 80 ||
-            Object.entries(request.fields).some(([name, value]) => !/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) || typeof value !== 'string' || value.length > 12000)) throw new Error('建立牌卡資料無效。');
-        const intent = createHash('sha256').update(JSON.stringify({ projectId: request.projectId, kind: request.kind, title: request.title.trim(), assigneeId: request.assigneeId,
-          difficulty: request.difficulty, story: request.story, fields: request.fields })).digest('hex');
-        if (receipt && receipt.intent !== intent) throw new Error('此建立識別碼已用於其他牌卡，請重新開始。');
-        if (receipt && !receipt.iid) throw new Error('上次建立結果尚未確認；請先在 GitLab 核對，勿重複建立。');
-        if (!receipt) {
-          const project = await client.getProject(request.projectId);
-          if (!project.path_with_namespace.startsWith(`${group.full_path}/`)) throw new Error('執行專案不屬於目前 Group。');
-          const [members, labels] = await Promise.all([client.listProjectMembers(project.id), client.listProjectLabels(project.id)]);
-          if (!members.some(member => member.id === request.assigneeId)) throw new Error('負責人不屬於所選專案。');
-          const typeLabel = config.types[request.kind].find(name => labels.some(label => label.name === name));
-          if (!typeLabel) throw new Error('請先設定所選專案可用的類型 Label。');
-          if (request.kind !== 'User Story') {
-            if (!request.difficulty || !config.difficulties.includes(request.difficulty) || !labels.some(label => label.name === request.difficulty)) throw new Error('請先設定並選擇專案可用的難度 Label。');
-            if (!request.story && request.kind !== 'Bug') throw new Error('請選擇直接關聯的 User Story。');
-            if (!request.story && request.kind === 'Bug' && (!request.fields.bugSource?.trim() || !request.fields.bugFunction?.trim())) throw new Error('沒有對應 User Story 的 Bug 必須填寫問題來源與影響功能。');
-            if (request.kind === 'Change' && ['originalRequirement', 'changeDetails', 'changeReason', 'changeImpact'].some(name => !request.fields[name]?.trim())) throw new Error('Change 必須填寫原需求、異動內容、原因與影響。');
-          } else if (request.story) throw new Error('User Story 不可指定為執行牌卡。');
-          if (request.story) {
-            const parentProject = await client.getProject(request.story.projectId);
-            if (!parentProject.path_with_namespace.startsWith(`${group.full_path}/`)) throw new Error('User Story 不屬於目前 Group。');
-            const parent = await client.getIssue(request.story.projectId, request.story.issueIid);
-            const classification = classifySop(parent, config);
-            if (classification.type !== 'User Story' || classification.conflicts.length) throw new Error('所選 Issue 並非可辨識的 User Story。');
-          }
-          assertCurrent();
-          const record: SopRecord = { schema: 'gitlab-workspace-sop/v1', fields: request.fields, history: [] };
-          // Persist the intent before the write. An interrupted response can no
-          // longer cause the same operation to create a second Issue.
-          await this.context.globalState.update(receiptKey, { projectId: project.id, story: request.story, intent } satisfies Receipt);
-          assertCurrent();
-          created = await client.createIssue(project.id, { title: request.title.trim(), assigneeId: request.assigneeId,
-            labels: [typeLabel, ...(request.kind !== 'User Story' && request.difficulty ? [request.difficulty] : [])],
-            description: writeSopRecord(`<!-- gitlab-workspace-sop-create:${request.creationId} -->`, record) });
-          receipt = { projectId: created.project_id, iid: created.iid, story: request.story, intent };
-          await this.context.globalState.update(receiptKey, receipt);
-        }
-      }
-      if (!receipt) throw new Error('找不到此建立操作的紀錄，請在 GitLab 確認牌卡後手動補上關聯。');
-      if (!receipt.iid) throw new Error('上次建立結果尚未確認；請先在 GitLab 核對，勿重複建立。');
-      created ??= await client.getIssue(receipt.projectId, receipt.iid);
-      if (receipt.story) {
-        assertCurrent();
-        const links = await client.listIssueLinks(receipt.projectId, receipt.iid);
-        if (!directSopLinks(links).some(link => link.project_id === receipt!.story!.projectId && link.iid === receipt!.story!.issueIid)) {
-          await client.addIssueLink(receipt.projectId, receipt.iid, receipt.story.projectId, receipt.story.issueIid, 'relates_to');
-        }
-      }
-      assertCurrent();
-      this.issueGraphStale = true;
-      this.post({ type: 'sopCreated', requestId: request.requestId, connectedScope: scope, issue: created, linked: true });
-      if (request.type === 'createSopIssue' && (request.kind === 'Change' || request.kind === 'Bug') && request.story) this.post({ type: 'message', message: '已建立關聯；請由 User Story 負責人重新檢查需求與上版狀態。' });
-    } catch (error) {
-      if (current()) this.post({ type: 'sopCreated', requestId: request.requestId, connectedScope: scope, issue: created, linked: false, error: readableError(error) });
-      if (created) this.noteOutcome({ status: 'failed', effect: 'partial', error: `牌卡已建立，但關聯或建立收據尚未完成：${readableError(error)}` });
-      throw error;
-    } finally { this.sopCreationsInFlight.delete(key); }
-  }
-
-  private async handleSopRequest(request: Extract<WorkspaceRequest, { type: 'loadSopPage' | 'loadSopDetail' | 'loadSopRelationsPage' | 'saveSopConfig' | 'saveSopFields' | 'transitionSop' }>): Promise<void> {
-    const scope = request.connectedScope;
-    const current = () => scope === this.connectedScopeKey() && !!this.session.selectedGroup && !!this.session.baseUrl && !!this.currentUser;
-    const assertCurrent = () => { if (!current()) throw new Error('GitLab 帳號或 Group 已變更，請重新載入。'); };
-    let budget: GitLabRequestBudget | undefined;
-    try {
-      assertCurrent();
-      const group = this.session.selectedGroup!, baseUrl = this.session.baseUrl!;
-      let config = loadSopConfig(this.context.globalState, baseUrl, group.id);
-      if (request.type === 'loadSopPage') {
-        if (request.cursor && (typeof request.cursor !== 'string' || request.cursor.length > 4096)) throw new Error('分頁位置無效。');
-        const pageKey = `group/${group.id}/sop/issues/pages/${request.cursor ? createHash('sha256').update(request.cursor).digest('hex') : 'first'}`;
-        const page = await this.session.cachedRead(pageKey, client => client.listGroupIssuesPage(group.id, request.cursor), { force: request.force === true, reason: 'demand' });
-        assertCurrent();
-        this.post({ type: 'sopPage', requestId: request.requestId, connectedScope: scope, page, config });
-        return;
-      }
-      if (request.type === 'saveSopConfig') {
-        config = normalizeSopConfig(request.config);
-        assertCurrent();
-        await this.context.globalState.update(sopConfigKey(baseUrl, group.id), config);
-        assertCurrent(); this.post({ type: 'sopSaved', requestId: request.requestId, connectedScope: scope });
-        return;
-      }
-      if (!Number.isSafeInteger(request.projectId) || request.projectId <= 0 || !Number.isSafeInteger(request.issueIid) || request.issueIid <= 0) throw new Error('Issue 身分無效。');
-      const baseClient = await this.session.getClient();
-      budget = new GitLabRequestBudget({ requests: 100, bytes: 32 * 1024 * 1024, timeoutMs: 60_000 });
-      const client = baseClient.withRequestBudget(budget);
-      const project = await client.getProject(request.projectId);
-      if (!project.path_with_namespace.startsWith(`${group.full_path}/`)) throw new Error('Issue 不屬於目前 Group。');
-      const issue = await client.getIssue(request.projectId, request.issueIid);
-      assertCurrent();
-      const record = readSopRecord(issue.description);
-      const classification = classifySop(issue, config);
-      if (request.type === 'loadSopRelationsPage') {
-        if (!request.expectedUpdatedAt || issue.updated_at !== request.expectedUpdatedAt) throw new Error('Issue 已變更，請重新載入關聯。');
-        if (!['links', 'mergeRequests'].includes(request.kind) || request.cursor !== undefined && (typeof request.cursor !== 'string' || !request.cursor || request.cursor.length > 4096)) throw new Error('關聯分頁位置無效。');
-        if (request.kind === 'links') {
-          const page = await client.listIssueLinksPage(request.projectId, request.issueIid, request.cursor);
-          const links = directSopLinks(page.items);
-          if ((await client.getIssue(request.projectId, request.issueIid)).updated_at !== request.expectedUpdatedAt) throw new Error('Issue 已變更，請重新載入關聯。');
-          assertCurrent(); this.post({ type: 'sopRelationsPage', requestId: request.requestId, connectedScope: scope, projectId: request.projectId, issueIid: request.issueIid,
-            kind: request.kind, links, nextCursor: page.nextCursor, complete: page.complete });
-        } else {
-          const page = await client.listRelatedMergeRequestsPage(request.projectId, request.issueIid, request.cursor);
-          if ((await client.getIssue(request.projectId, request.issueIid)).updated_at !== request.expectedUpdatedAt) throw new Error('Issue 已變更，請重新載入關聯。');
-          assertCurrent(); this.post({ type: 'sopRelationsPage', requestId: request.requestId, connectedScope: scope, projectId: request.projectId, issueIid: request.issueIid,
-            kind: request.kind, mergeRequests: page.items, nextCursor: page.nextCursor, complete: page.complete });
-        }
-        return;
-      }
-      if (request.type === 'loadSopDetail') {
-        const [linkResult, mrResult] = await Promise.allSettled([client.listIssueLinksPage(request.projectId, request.issueIid), client.listRelatedMergeRequestsPage(request.projectId, request.issueIid)]);
-        let links: GitLabIssue[] = [], linksError: string | undefined;
-        const linkPage = linkResult.status === 'fulfilled' ? linkResult.value : undefined;
-        if (linkPage) { try { links = directSopLinks(linkPage.items); } catch (error) { linksError = readableError(error); } }
-        else linksError = readableError(linkResult.status === 'rejected' ? linkResult.reason : 'Linked Items 無法讀取。');
-        const mrPage = mrResult.status === 'fulfilled' ? mrResult.value : undefined;
-        const mergeRequests = mrPage?.items ?? [];
-        const mergeRequestsError = mrResult.status === 'rejected' ? readableError(mrResult.reason) : undefined;
-        const verifiedCommit = await this.verifiedSopCommit(client, issue, record.fields.commitSha);
-        if (!issue.updated_at || (await client.getIssue(request.projectId, request.issueIid)).updated_at !== issue.updated_at) throw new Error('Issue 已變更，請重新載入詳情。');
-        assertCurrent();
-        const checks: Partial<Record<SopStage, ReturnType<typeof checkSopTransition>>> = {};
-        for (const target of ['Open', 'Doing', 'Pending', '驗收', 'To Be Deployed', 'Close'] as SopStage[]) {
-          checks[target] = checkSopTransition({ issue, config, record, target, links: linkPage?.complete && !linksError ? links : undefined,
-            mergeRequests: mrPage?.complete ? mergeRequests : undefined, verifiedCommit, actorId: this.currentUser?.id });
-          if (!linkPage?.complete || linksError || !mrPage?.complete) checks[target] = { ok: false, missing: [...checks[target]!.missing, '請先完整載入 Linked Items 與相關 MR。'] };
-        }
-        this.post({ type: 'sopDetail', requestId: request.requestId, connectedScope: scope, issue, record, classification, links, linksComplete: !!linkPage?.complete && !linksError, linksCursor: linksError ? undefined : linkPage?.nextCursor, linksError,
-          mergeRequests, mergeRequestsComplete: !!mrPage?.complete, mergeRequestsCursor: mrPage?.nextCursor, mergeRequestsError, verifiedCommit, checks });
-        return;
-      }
-      if (!request.expectedUpdatedAt || issue.updated_at !== request.expectedUpdatedAt) throw new Error('Issue 已變更，請重新載入後再儲存。');
-      if (!request.fields || typeof request.fields !== 'object' || Array.isArray(request.fields) || Object.keys(request.fields).length > 80 ||
-          Object.entries(request.fields).some(([key, value]) => !/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(key) || typeof value !== 'string' || value.length > 12000)) throw new Error('SOP 欄位格式無效。');
-      const fields = { ...record.fields, ...request.fields };
-      if (classification.type === 'User Story' && classification.stage && classification.stage !== 'Open') {
-        for (const key of ['background', 'scenario', 'goal', 'scope', 'acceptanceCriteria']) {
-          if (record.fields[key]?.trim() && fields[key] !== record.fields[key]) throw new Error('已開始執行的 User Story 原需求不可覆寫，請建立 Change。');
-        }
-      }
-      const nextRecord: SopRecord = { ...record, fields };
-      const writeClient = client.withWriteScope?.({ projectId: request.projectId, issueIid: request.issueIid, resource: 'issues' }) ?? client;
-      if (request.type === 'saveSopFields') {
-        assertCurrent();
-        await writeClient.updateIssueIfUnchanged(request.projectId, request.issueIid, request.expectedUpdatedAt, { description: writeSopRecord(issue.description, nextRecord) });
-      } else {
-        if (!['Open', 'Doing', 'Pending', '驗收', 'To Be Deployed', 'Close'].includes(request.target)) throw new Error('SOP 目標狀態無效。');
-        const [rawLinks, mergeRequests] = await Promise.all([client.listIssueLinks(request.projectId, request.issueIid), client.listRelatedMergeRequests(request.projectId, request.issueIid)]);
-        const links = await mapWithConcurrency(directSopLinks(rawLinks), 4, link => client.getIssue(link.project_id, link.iid));
-        assertCurrent();
-        const verifiedCommit = await this.verifiedSopCommit(client, issue, fields.commitSha);
-        const check = checkSopTransition({ issue, config, record: nextRecord, target: request.target, links, mergeRequests, verifiedCommit, actorId: this.currentUser!.id });
-        if (!check.ok) throw new Error(`尚不能轉換：${check.missing.join('、')}`);
-        let writeConfig = config;
-        if (request.target !== 'Open' && request.target !== 'Close') {
-          const labels = await client.listProjectLabels(issue.project_id);
-          const stage = request.target as keyof SopConfig['stages'];
-          const selected = config.stages[stage].find(name => labels.some(label => label.name === name));
-          if (!selected) throw new Error('所選狀態 Label 不存在於此專案，請先修正 SOP 設定。');
-          writeConfig = { ...config, stages: { ...config.stages, [stage]: [selected, ...config.stages[stage].filter(name => name !== selected)] } };
-        }
-        if (classification.type === 'User Story' && (request.target === 'To Be Deployed' || request.target === 'Close')) {
-          const reviewLinks = request.target === 'To Be Deployed' ? releaseItems(links, config, fields.releaseItemIds).items : links;
-          await mapWithConcurrency(reviewLinks.filter(link => link.state === 'closed'), 4, async child => {
-            const kind = classifySop(child, config);
-            if (!kind.type && !kind.conflicts.length) return;
-            if (kind.conflicts.length || !kind.type) throw new Error(`關聯 Issue #${child.iid} 的 SOP 類型或狀態未確認。`);
-            if (kind.type === 'User Story') return;
-            const [childLinks, childMrs] = await Promise.all([client.listIssueLinks(child.project_id, child.iid), client.listRelatedMergeRequests(child.project_id, child.iid)]);
-            const direct = await mapWithConcurrency(directSopLinks(childLinks), 4, link => client.getIssue(link.project_id, link.iid));
-            if (!direct.some(link => link.project_id === issue.project_id && link.iid === issue.iid)) throw new Error(`關聯 Issue #${child.iid} 未直接連回此 User Story。`);
-            const candidate = { ...child, state: 'opened', labels: labelsForStage(child.labels ?? [], '驗收', config) };
-            const childRecord = readSopRecord(child.description);
-            const childCommit = await this.verifiedSopCommit(client, child, childRecord.fields.commitSha);
-            const verified = checkSopTransition({ issue: candidate, config, record: childRecord, target: 'Close', links: direct, mergeRequests: childMrs, verifiedCommit: childCommit });
-            if (!verified.ok) throw new Error(`關聯 Issue #${child.iid} 尚未確認：${verified.missing.join('、')}`);
-          });
-        }
-        if (!classification.stage) throw new Error('狀態衝突，請先修正 Label。');
-        if (request.target === 'Pending' && (classification.stage === 'Doing' || classification.stage === '驗收')) nextRecord.pendingFrom = classification.stage;
-        if (classification.stage === 'Pending' && request.target !== 'Pending') { delete nextRecord.pendingFrom; delete nextRecord.fields.pendingFrom; }
-        nextRecord.history = [...record.history, { from: classification.stage, to: request.target, by: this.currentUser!.username,
-          at: new Date().toISOString(), ...(fields.transitionReason ? { reason: fields.transitionReason } : {}) }];
-        assertCurrent();
-        await writeClient.updateIssueIfUnchanged(request.projectId, request.issueIid, request.expectedUpdatedAt, {
-          labels: labelsForStage(issue.labels ?? [], request.target, writeConfig), description: writeSopRecord(issue.description, nextRecord),
-          ...(request.target === 'Close' ? { stateEvent: 'close' as const } : classification.stage === 'Close' ? { stateEvent: 'reopen' as const } : {})
-        });
-        if (classification.type !== 'User Story' && classification.stage === 'Close' && request.target === 'Open') this.post({ type: 'message', message: '牌卡已重新開啟；請由相關 User Story 負責人重新檢查上版狀態。' });
-      }
-      assertCurrent(); this.issueGraphStale = true;
-      this.post({ type: 'sopSaved', requestId: request.requestId, connectedScope: scope });
-    } catch (error) {
-      if (current()) {
-        const message = readableError(error);
-        if (request.type === 'loadSopPage') this.post({ type: 'sopPage', requestId: request.requestId, connectedScope: scope, error: message });
-        else if (request.type === 'loadSopDetail') this.post({ type: 'sopDetail', requestId: request.requestId, connectedScope: scope, error: message });
-        else if (request.type === 'loadSopRelationsPage') this.post({ type: 'sopRelationsPage', requestId: request.requestId, connectedScope: scope, projectId: request.projectId, issueIid: request.issueIid, kind: request.kind, error: message });
-        else this.post({ type: 'sopSaved', requestId: request.requestId, connectedScope: scope, error: message });
-      }
-      if (!['loadSopPage', 'loadSopDetail', 'loadSopRelationsPage'].includes(request.type)) throw error;
-    } finally { budget?.dispose(); }
   }
 
   private workflowKitSource(): ToolSource {

@@ -41,7 +41,6 @@ const destinations: Array<{
   icon: string;
 }> = [
   { id: 'openMyWork', mode: 'developer', label: '我的工作', icon: '◷' },
-  { id: 'openWorkflow', mode: 'workflow', label: 'SOP 工作流程', icon: '☷' },
   { id: 'openProjects', mode: 'clone', label: '專案', icon: '▣' },
   { id: 'openAnalysis', mode: 'sa', label: '分析', icon: '⌕' },
   { id: 'openBmad', mode: 'bmad', label: 'BMAD 開發流程', icon: '◇' },

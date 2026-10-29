@@ -11,6 +11,7 @@ test('accepts only the navigation initialization and supported destinations', ()
 });
 
 test('rejects unknown commands and malformed webview messages', () => {
+  assert.equal(isQuickActionsRequest({ type: 'perform', action: 'openWorkflow' }), false);
   assert.equal(isQuickActionsRequest({ type: 'perform', action: 'disconnect' }), false);
   assert.equal(isQuickActionsRequest({ type: 'perform', action: 'connect' }), false);
   assert.equal(isQuickActionsRequest({ type: 'perform', action: 'selectGroup' }), false);

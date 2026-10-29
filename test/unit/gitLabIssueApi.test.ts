@@ -56,28 +56,6 @@ test('loads discussions and related issues with pagination', async () => {
   assert.ok(paths.every((path) => path.includes('/projects/42/issues/7/')));
 });
 
-test('SOP reads all Group issues with explicit pagination and retrieves commit and merge-closing evidence', async () => {
-  const paths: string[] = [];
-  const fetcher: FetchLike = async input => {
-    const url = new URL(String(input)); paths.push(url.pathname + url.search);
-    if (url.pathname.endsWith('/repository/commits/abcdef0')) return new Response(JSON.stringify({ id: 'abcdef0123456789', short_id: 'abcdef0', title: '#7 work', message: '#7 work' }));
-    const next = url.searchParams.get('page') !== '2';
-    return new Response(JSON.stringify([issue]), { headers: next ? { 'X-Next-Page': '2' } : {} });
-  };
-  const client = new GitLabClient('https://gitlab.example.test', token, fetcher);
-  const first = await client.listGroupIssuesPage(3);
-  assert.equal(first.complete, false); assert.ok(first.nextCursor);
-  assert.equal((await client.listGroupIssuesPage(3, first.nextCursor)).complete, true);
-  assert.match(paths[0], /groups\/3\/issues\?scope=all&state=all&per_page=100/);
-  assert.equal((await client.listMergeRequestClosingIssues(42, 9)).length, 2);
-  assert.match(paths[2], /merge_requests\/9\/closes_issues\?per_page=100/);
-  const related = await client.listRelatedMergeRequestsPage(42, 7);
-  assert.equal(related.complete, false); assert.ok(related.nextCursor);
-  assert.equal((await client.listRelatedMergeRequestsPage(42, 7, related.nextCursor)).complete, true);
-  assert.equal((await client.getRepositoryCommit(42, 'abcdef0')).id, 'abcdef0123456789');
-  assert.throws(() => client.getRepositoryCommit(42, '../bad'), /Invalid commit SHA/);
-});
-
 test('handles a successful issue deletion with no JSON response', async () => {
   const fetcher: FetchLike = async () => new Response(null, { status: 204 });
   const client = new GitLabClient('https://gitlab.example.test', token, fetcher);

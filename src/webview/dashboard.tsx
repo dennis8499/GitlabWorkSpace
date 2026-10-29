@@ -21,7 +21,6 @@ import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, ty
 import { SkillsGuide } from './SkillsGuide';
 import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
-import { SopPage, type SopUiState } from './SopPage';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { NotificationDrawer } from './NotificationDrawer';
@@ -46,7 +45,6 @@ import './motion.css';
 interface DraftChoice { assigneeId?: number; labels: string[]; milestoneId?: number; }
 interface SavedState {
   bmadUiByRoot?: Record<string, BmadPanelState>;
-  sopUiByScope?: Record<string, SopUiState>;
   gitUi?: GitPanelUiState;
   issueNavigation?: IssueNavigation | null;
   reviewerTab?: 'changes' | 'discussion' | 'report';
@@ -143,7 +141,6 @@ const initialScopedState = initial?.scopeKey ? initial.scopedData?.[initial.scop
 const defaultGraphCamera: GraphCamera = { x: 0, y: 0, scale: 1 };
 const modes: Array<{ id: WorkspaceMode; name: string; short: string; icon: string }> = [
   { id: 'developer', name: '我的工作', short: '我的工作', icon: '◎' },
-  { id: 'workflow', name: 'SOP 工作流程', short: 'SOP 工作流程', icon: '☷' },
   { id: 'clone', name: '專案', short: '專案', icon: '▣' },
   { id: 'sa', name: 'Skills 功能指引', short: '分析', icon: '⌕' },
   { id: 'bmad', name: 'BMAD 開發流程', short: 'BMAD 開發', icon: '◇' },
@@ -1122,7 +1119,7 @@ function App() {
   const reviewerRepo = resolveReviewerRepository(skillsGuide.inputs[`${reviewerCardId}.repo`] ?? '', reviewerRepositories);
   const currentSkillBranches = reviewerRepo?.path === skillBranches?.repo && snapshot.skillsContext?.revision === skillBranches?.revision ? skillBranches : undefined;
   const blockingWork = blockingWrite || (!snapshot.operationSnapshot && !!snapshot.busy);
-  const remotePage = mode === 'developer' || mode === 'reviewer' || mode === 'workflow' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
+  const remotePage = mode === 'developer' || mode === 'reviewer' || mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && !!snapshot.group;
   const projectRoot = snapshot.projectContext?.root ?? snapshot.skillsContext?.root ?? snapshot.groupRoot;
   const workspaceStatus = mode === 'developer' && selectedIssueProject && selectedIssue
     ? `目前 Issue：${issueKey(selectedIssue.project_id, selectedIssue.iid)}`
@@ -1210,10 +1207,6 @@ function App() {
                   <p class="clone-action-hint" role="status" aria-live="polite">{snapshot.busy ? '工作台正在處理作業，詳細進度顯示於上方。' : !snapshot.cloneRoot || snapshot.cloneRootError ? snapshot.cloneRootError ?? '請先選擇下載資料夾，或在 VS Code 開啟本機工作區。' : selectedProjectIds.length ? '操作前會確認本機目錄；同步只更新已存在 Repo 的預設分支。' : '勾選專案後可下載或同步預設分支。'}</p>
                 </div>
               </div></div>
-            : mode === 'workflow' ? <SopPage key={snapshot.connectedScope ?? 'disconnected'} snapshot={snapshot} post={post}
-              initialState={snapshot.connectedScope ? vscode.getState()?.sopUiByScope?.[snapshot.connectedScope] : undefined}
-              onShowDetail={() => setMobilePanel('detail')} onShowList={() => setMobilePanel('list')}
-              onUiStateChange={state => { const scope = snapshot.connectedScope; if (scope) { const previous = vscode.getState(); vscode.setState({ ...emptySaved(), ...previous, sopUiByScope: { ...previous?.sopUiByScope, [scope]: state } }); } }} />
             : mode === 'bmad' ? <BmadPanel snapshot={snapshot.bmad}
               state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
               key={projectRoot ?? 'none'}

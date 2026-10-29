@@ -7,7 +7,6 @@
     "onCommand:gitlabWorkspace.openSaMode",
     "onCommand:gitlabWorkspace.openBmadMode",
     "onCommand:gitlabWorkspace.openDeveloperMode",
-    "onCommand:gitlabWorkspace.openWorkflowMode",
     "onCommand:gitlabWorkspace.openReviewerMode",
     "onCommand:gitlabWorkspace.openGitMode",
     "onCommand:gitlabWorkspace.openRepository",
@@ -57,10 +56,6 @@
       {
         "command": "gitlabWorkspace.openDeveloperMode",
         "title": "GitLab Workspace: 我的工作"
-      },
-      {
-        "command": "gitlabWorkspace.openWorkflowMode",
-        "title": "GitLab Workspace: SOP 工作流程"
       },
       {
         "command": "gitlabWorkspace.openReviewerMode",

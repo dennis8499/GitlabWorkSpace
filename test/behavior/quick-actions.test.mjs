@@ -115,7 +115,7 @@ test('renders workspace navigation and keeps destinations available before conne
   t.after(() => view.dom.window.close());
 
   assert.deepEqual(view.requests.map(requestShape), [{ type: 'ready' }]);
-  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '☷SOP 工作流程', '▣專案', '⌕分析', '◇BMAD 開發流程', '⑂待審查', '⑂版控', '⚙設定']);
+  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '◇BMAD 開發流程', '⑂待審查', '⑂版控', '⚙設定']);
   assert.equal(view.buttons().every((button) => !button.disabled), true);
   assert.equal(view.buttons()[0].classList.contains('workspace-link'), true);
   assert.equal(view.buttons().every((button) => button.type === 'button'), true);
@@ -125,11 +125,11 @@ test('renders workspace navigation and keeps destinations available before conne
   assert.match(view.requests.at(-1).operationId, /^[a-z0-9-]+$/i);
   assert.equal(typeof view.requests.at(-1).operationScope, 'string');
   view.finish(view.requests.at(-1));
-  view.buttons()[5].click();
+  view.buttons()[4].click();
   assert.deepEqual(requestShape(view.requests.at(-1)), { type: 'perform', action: 'openBmad' }, 'BMAD navigation is available while signed out');
   view.finish(view.requests.at(-1));
   const settings = view.dom.window.document.querySelector('.workspace-shortcuts > .settings-link');
-  assert.equal(settings, view.buttons()[8]);
+  assert.equal(settings, view.buttons()[7]);
   assert.equal(settings.getAttribute('aria-haspopup'), 'dialog');
   settings.focus(); settings.click();
   assert.equal(view.dom.window.document.activeElement, settings);
@@ -153,17 +153,17 @@ test('shows connection scope, progress and the shared unread message-center entr
 
   assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, 'team/dotnet');
   assert.equal(view.buttons()[0].classList.contains('active'), true);
-  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', 'SOP 工作流程', '專案', '分析', 'BMAD 開發流程', '待審查', '版控', '設定']);
-  assert.equal(view.buttons()[7].getAttribute('aria-current'), 'page');
+  assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', 'BMAD 開發流程', '待審查', '版控', '設定']);
+  assert.equal(view.buttons()[6].getAttribute('aria-current'), 'page');
 
-  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openWorkflow', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].entries()) {
+  for (const [index, action] of ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].entries()) {
     view.buttons()[index].click();
     view.finish(view.requests.at(-1));
   }
-  assert.deepEqual(view.requests.filter(request => request.type === 'perform').map(requestShape), ['openWorkspace', 'openMyWork', 'openWorkflow', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].map((action) => ({ type: 'perform', action })));
-  assert.equal(view.buttons()[7].getAttribute('aria-current'), 'page', 'opening settings retains the selected workspace destination');
-  assert.equal(view.buttons()[8].classList.contains('active'), false);
-  assert.equal(view.buttons()[8].hasAttribute('aria-current'), false);
+  assert.deepEqual(view.requests.filter(request => request.type === 'perform').map(requestShape), ['openWorkspace', 'openMyWork', 'openProjects', 'openAnalysis', 'openBmad', 'openReviewer', 'openGit', 'openSettings'].map((action) => ({ type: 'perform', action })));
+  assert.equal(view.buttons()[6].getAttribute('aria-current'), 'page', 'opening settings retains the selected workspace destination');
+  assert.equal(view.buttons()[7].classList.contains('active'), false);
+  assert.equal(view.buttons()[7].hasAttribute('aria-current'), false);
 
   assert.equal(view.repoButtons().length, 1);
   assert.match(view.repoButtons()[0].textContent, /project.*main.*origin\/main/s);
@@ -188,11 +188,11 @@ test('shows connection scope, progress and the shared unread message-center entr
   assert.equal(view.repoButtons().length, 0);
   assert.match(view.dom.window.document.querySelector('.git-availability').textContent, /找不到符合的 Repo/);
 
-  view.buttons()[3].click();
+  view.buttons()[2].click();
   const projectRequest = view.requests.at(-1);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(view.buttons().every((button) => !button.disabled), true, 'navigation remains available while another destination opens');
-  assert.equal(view.buttons()[3].getAttribute('aria-busy'), 'true');
+  assert.equal(view.buttons()[2].getAttribute('aria-busy'), 'true');
   assert.match(view.dom.window.document.querySelector('.action-message').textContent, /正在|處理/);
 
   view.finish(projectRequest);

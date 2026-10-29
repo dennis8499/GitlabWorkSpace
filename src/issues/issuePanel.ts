@@ -14,8 +14,6 @@ import type { IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, Iss
 import type { IssueDetailTab, IssueNavigation, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import { operationResource, type OperationTracker, type WorkspaceOperationState } from '../workspace/operations';
 import { describeAction } from '../workspace/actionPolicy';
-import { assertExternalSopCreate, assertExternalSopUpdate, SOP_TYPES } from '../workspace/sop';
-import { loadSopConfig } from '../workspace/sopStore';
 
 interface IssueActionContext {
   request: IssuePanelRequest;
@@ -1111,7 +1109,6 @@ export class IssuePanels implements vscode.Disposable {
       if (!project) throw new Error('Project is outside the selected group.');
       if (!this.session.issueCapabilities?.createPermission || !await client.canCreateIssue(project.path_with_namespace)) throw new Error('You cannot create issues in this project.');
       const input = createInput(request.input);
-      assertExternalSopCreate(input.labels, loadSopConfig(this.context.globalState, this.session.baseUrl, group?.id));
       const created = await this.write(() => client.createIssue(projectId, input));
       const startDate = optionalDate(request.input.startDate);
       if (startDate) {
@@ -1234,10 +1231,6 @@ export class IssuePanels implements vscode.Disposable {
     if (request.type === 'update') {
       if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
       const input = updateInput(request.input);
-      const currentIssue = await client.getIssue(projectId, iid);
-      const sopConfig = loadSopConfig(this.context.globalState, this.session.baseUrl, this.session.selectedGroup?.id);
-      if (currentIssue.issue_type !== 'task' && SOP_TYPES.some(type => sopConfig.types[type].some(label => currentIssue.labels?.includes(label))) && (!request.expectedUpdatedAt || currentIssue.updated_at !== request.expectedUpdatedAt)) throw new Error('Issue 已變更，請重新載入後再儲存。');
-      assertExternalSopUpdate(currentIssue, input, sopConfig);
       await this.write(() => client.updateIssueIfUnchanged(projectId, iid, request.expectedUpdatedAt, input));
       const currentDate = this.lastSnapshot?.type === 'detailData' ? this.lastSnapshot.data.startDate : undefined;
       if (input.startDate !== undefined && input.startDate !== currentDate) {
@@ -1260,7 +1253,6 @@ export class IssuePanels implements vscode.Disposable {
     switch (request.action) {
       case 'close': case 'reopen':
         if (!snapshot?.canEdit) throw new Error('GitLab does not report permission to edit this Issue.');
-        assertExternalSopUpdate(await client.getIssue(projectId, iid), { stateEvent: request.action as 'close' | 'reopen' }, loadSopConfig(this.context.globalState, this.session.baseUrl, this.session.selectedGroup?.id));
         await this.write(() => client.updateIssueIfUnchanged(projectId, iid, issue.updated_at, { stateEvent: request.action as 'close' | 'reopen' })); break;
       case 'subscribe': await this.write(() => client.subscribeToIssue(projectId, iid)); break;
       case 'unsubscribe': await this.write(() => client.unsubscribeFromIssue(projectId, iid)); break;
