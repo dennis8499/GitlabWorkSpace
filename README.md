@@ -40,13 +40,14 @@
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
-## 0.37.0 更新
+## 0.37.1 更新
 
 - 「我的工作 → 建立 Issue」新增 `User Story`、`Task`、`Change`、`Bug` 四種 SOP 內建描述範本，並保留 GitLab 專案範本。
 - 移除已退役的 SOP 工作流程頁；SOP 流程改由 Issue 建立範本協助填寫。
 - VSIX 排除工作區根目錄的 `GitLab_Issue_Board_使用_SOP.md`。
+- 調整 Windows runner 的主機請求速率測試容差，避免排程計時誤差造成誤判。
 
-完整變更與驗證範圍見 [0.37.0 發布說明](docs/releases/v0.37.0.md)。
+完整變更與驗證範圍見 [0.37.1 發布說明](docs/releases/v0.37.1.md)。
 
 ## 0.36.0 更新
 

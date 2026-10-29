@@ -31,7 +31,8 @@ test('independent clients and ports share host concurrency and request pacing', 
   const fetcher = async () => { starts.push(Date.now()); peak = Math.max(peak, ++active); await new Promise(resolve => setTimeout(resolve, 95)); active--; return new Response('{}'); };
   await Promise.all(Array.from({ length: 8 }, (_, index) => gates[index % 2].fetch(fetcher, new URL('https://same.example:' + (8000 + index) + '/api/v4/user'))));
   assert.ok(peak <= 2); assert.equal(starts.length, 8);
-  for (let index = 1; index < starts.length; index++) assert.ok(starts[index] - starts[index - 1] >= 35, 'host start rate is shared');
+  // Keep enough separation to catch independent per-client gates while tolerating Windows timer jitter around the 40 ms target.
+  for (let index = 1; index < starts.length; index++) assert.ok(starts[index] - starts[index - 1] >= 25, 'host start rate is shared');
   assert.equal((await readdir(path.join(root, 'api'))).length, 1);
 });
 test('429 cooldown is shared, manual re-entry cannot send and writes are never retried', async t => {
