@@ -5,9 +5,9 @@ import test from 'node:test';
 const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
 const helper = await readFile(new URL('./release_ci.py', import.meta.url), 'utf8');
 
-test('[BDD-REL-003] retains all four platform cells and builds once per validation', () => {
+test('[BDD-REL-003] retains all three Windows cells and builds once per validation', () => {
   const cells = [...workflow.matchAll(/^\s+- cell: (\S+)$/gm)].map(match => match[1]);
-  assert.deepEqual(cells, ['linux-py3.11-stable', 'windows-py3.11-1.90.0', 'windows-py3.11-stable', 'windows-py3.14-stable']);
+  assert.deepEqual(cells, ['windows-py3.11-1.90.0', 'windows-py3.11-stable', 'windows-py3.14-stable']);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm run check:release/);
   assert.match(workflow, /VSCODE_TEST_VERSION/);
@@ -31,13 +31,13 @@ test('keeps validation read-only and grants write only to guarded tag promotion'
   }
 });
 
-test('runs Xvfb only on Linux and the full suite directly on Windows', () => {
+test('runs the full suite directly on every Windows matrix cell', () => {
   const steps = workflow.split(/\r?\n\s+- name:/).slice(1);
-  const linux = steps.find(step => /run: xvfb-run -a npm test/.test(step));
-  const windows = steps.find(step => /run: npm test(?:\r?\n|$)/.test(step));
-  assert.match(linux, /if: runner\.os == 'Linux'/);
-  assert.match(windows, /if: runner\.os == 'Windows'/);
-  assert.doesNotMatch(windows, /xvfb-run/);
+  const tests = steps.filter(step => /run: npm test(?:\r?\n|$)/.test(step));
+  assert.equal(tests.length, 1);
+  assert.match(tests[0], /if: runner\.os == 'Windows'/);
+  assert.doesNotMatch(workflow, /ubuntu-latest|linux-py|xvfb-run/);
+  assert.match(workflow, /runs-on: windows-2022/);
 });
 
 test('promotes exact proof-bound artifacts with complete fallback and bounded retention', () => {
