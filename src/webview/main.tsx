@@ -5,6 +5,7 @@ import DOMPurify from 'dompurify';
 import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { GitLabIssue, GitLabMetadata, GitLabProject } from '../api/types';
 import type { IssueAction, IssueDetailData, IssueDetailSection, IssueDetailSectionStatus, IssueFormOptions, IssueFormOptionSection, IssueReadState, IssuePanelRequest, IssuePanelResponse, IssueRelationAction, IssueRelationsData, IssuePageResult } from '../issues/protocol';
+import { builtInIssueTemplates } from '../issues/builtInIssueTemplates';
 import type { IssueNavigation, WorkspaceRequest, WorkspaceSnapshot, WorkspaceResponse } from '../workspace/workspaceProtocol';
 import type { ActionController } from '../workspace/actionController';
 import { finishDomainAction, useDomainActions } from './domainActions';
@@ -139,18 +140,35 @@ function IssueFields({ form, setForm, options, projectId, baseUrl, images, onIma
   return <div class="form-grid">
     <label class="field field-wide"><span>標題 *</span><input value={form.title} maxLength={1024} required onInput={(event) => change('title', event.currentTarget.value)} onBlur={onSearch} placeholder="簡要描述工作內容" /></label>
     {similar.length > 0 && <div class="field-wide hint"><strong>相似 Issue · 已載入 {similar.length} 筆{similarPage?.complete === false ? '，尚有更多結果' : ''}</strong>{similar.map((issue) => <button type="button" class="text-link" onClick={() => onLink(issue.web_url)}>#{issue.iid} {issue.title}</button>)}{similarPage?.complete === false && <button type="button" onClick={onSearchMore}>載入更多相似 Issue</button>}</div>}
-    {templateEnabled && templatesState && templatesState.status !== 'ready' && <div class="field-wide toolbar">
-      <button type="button" disabled={!projectId || templatesState.status === 'loading'} onClick={() => requestOptions('templates')}>
-        {templatesState.status === 'loading' ? '正在載入描述範本…' : templatesState.status === 'error' ? '重試載入描述範本' : '使用描述範本'}
-      </button>
-      {templatesState.error && <span class="warning" role="alert">{templatesState.error}</span>}
-    </div>}
-    {templateEnabled && (!templatesState || templatesState.status === 'ready') && options.templates.length > 0 && <label class="field field-wide"><span>描述範本</span><select onChange={(event) => {
-      const template = options.templates.find((item) => item.name === event.currentTarget.value);
-      if (onTemplate) onTemplate(template);
-      else if (template) change('description', template.content);
-    }}><option value="">選擇描述範本</option>{options.templates.map((item) => <option value={item.name}>{item.name}</option>)}</select></label>}
-    {templateEnabled && templatesState?.status === 'ready' && !options.templates.length && <p class="field-wide muted" role="status">目前沒有描述範本。</p>}
+    {templateEnabled && <>
+      <label class="field field-wide"><span>描述範本</span><select disabled={!projectId} onChange={(event) => {
+        const selected = event.currentTarget.value;
+        if (selected.startsWith('sop:')) {
+          const template = builtInIssueTemplates.find(item => item.id === selected.slice('sop:'.length));
+          if (template) change('description', template.content);
+          return;
+        }
+        if (selected.startsWith('gitlab:')) {
+          const key = selected.slice('gitlab:'.length);
+          const template = options.templates.find(item => (item.key ?? item.name) === key);
+          if (template) {
+            if (onTemplate) onTemplate(template);
+            else change('description', template.content);
+          }
+        }
+      }}>
+        <option value="">選擇描述範本</option>
+        <optgroup label="SOP 內建範本">{builtInIssueTemplates.map(template => <option value={`sop:${template.id}`}>{template.name}</option>)}</optgroup>
+        {(!templatesState || templatesState.status === 'ready') && options.templates.length > 0 && <optgroup label="GitLab 專案範本">{options.templates.map(item => <option value={`gitlab:${item.key ?? item.name}`}>{item.name}</option>)}</optgroup>}
+      </select></label>
+      {templatesState && templatesState.status !== 'ready' && <div class="field-wide toolbar">
+        <button type="button" disabled={!projectId || templatesState.status === 'loading'} onClick={() => requestOptions('templates')}>
+          {templatesState.status === 'loading' ? '正在載入 GitLab 專案範本…' : templatesState.status === 'error' ? '重試載入 GitLab 專案範本' : '載入 GitLab 專案範本'}
+        </button>
+        {templatesState.error && <span class="warning" role="alert">{templatesState.error}</span>}
+      </div>}
+      {templatesState?.status === 'ready' && !options.templates.length && <p class="field-wide muted" role="status">此專案目前沒有 GitLab 描述範本，可使用 SOP 內建範本。</p>}
+    </>}
     <label class="field field-wide"><span>描述 · 支援 GitLab Markdown 與 quick actions</span><textarea rows={editing ? 12 : 8} value={form.description} onInput={(event) => change('description', event.currentTarget.value)} placeholder="填寫背景、操作步驟、驗收條件或 /quick_actions" /></label>
     <div class="field-wide toolbar"><button type="button" onClick={onPreview} disabled={!form.description.trim()}>預覽 Markdown</button><button type="button" onClick={onUpload} disabled={!projectId}>上傳附件</button></div>
     {previewHtml && <div class="field-wide preview"><span class="eyebrow">預覽</span><Markdown html={previewHtml} baseUrl={baseUrl} images={images} onImage={onImage} onLink={onLink} /></div>}

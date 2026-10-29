@@ -114,7 +114,7 @@ When('I fill the template and every project metadata field', async function () {
     await this.tick();
   };
   await this.input('input[placeholder="簡要描述工作內容"]', 'Complete issue');
-  await choose(select('描述範本'), 'Bug');
+  await choose(select('描述範本'), 'gitlab:Bug');
   await choose(select('負責人'), '9');
   await choose(select('里程碑'), '4');
   await choose(select('標籤'), 'bug');

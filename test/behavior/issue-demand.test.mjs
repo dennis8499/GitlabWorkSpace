@@ -51,7 +51,7 @@ test('creation demands fields and templates independently and preserves every pr
   }
   assert.equal(v.document.querySelector('input[required]').value, 'Saved title');
   await v.input(v.select('負責人'), '9', 'change'); await v.input(v.select('里程碑'), '4', 'change'); await v.input(v.select('標籤'), 'bug', 'change');
-  v.button('使用描述範本').click(); await v.tick();
+  v.button('載入 GitLab 專案範本').click(); await v.tick();
   assert.deepEqual(v.requests.filter(r => r.type === 'loadFormOptions').map(r => r.section), ['members', 'milestones', 'labels', 'templates']);
   const chooseProject = () => v.select('專案 *');
   await v.input(chooseProject(), '2', 'change');
@@ -72,6 +72,69 @@ test('creation demands fields and templates independently and preserves every pr
   assert.equal(v.select('負責人').value, '9'); assert.equal(v.select('標籤').value, 'bug');
   v.button('重試載入負責人').click(); await v.tick();
   assert.equal(v.requests.findLast(r => r.type === 'loadFormOptions').section, 'members');
+});
+
+test('SOP templates remain available when GitLab templates fail and preserve other create fields', async t => {
+  const v = await mount(t);
+  const ready = readyOptions();
+  const failedOptions = { ...ready, templates: [], states: { ...ready.states, templates: { status: 'error', error: 'offline' } } };
+  await v.send({ type: 'createData', projects: [project], selectedProjectId: 1, options: failedOptions, canCreateIssue: true, canSetStartDate: true });
+
+  const templateSelect = v.select('描述範本');
+  const sopGroup = templateSelect.querySelector('optgroup[label="SOP 內建範本"]');
+  assert.deepEqual(Array.from(sopGroup.querySelectorAll('option')).map(option => option.textContent), ['User Story', 'Task', 'Change', 'Bug']);
+  assert.equal(templateSelect.querySelector('optgroup[label="GitLab 專案範本"]'), null);
+  assert.ok(v.button('重試載入 GitLab 專案範本'));
+
+  await v.input(v.document.querySelector('input[required]'), 'Keep title');
+  await v.input(v.document.querySelector('textarea'), 'Old description');
+  const details = v.document.querySelector('.issue-more-fields'); details.open = true; details.dispatchEvent(new v.dom.window.Event('toggle')); await v.tick();
+  await v.input(v.select('負責人'), '9', 'change');
+  await v.input(v.select('里程碑'), '4', 'change');
+  await v.input(v.select('標籤'), 'bug', 'change');
+  const dueDate = [...v.document.querySelectorAll('label')].find(label => label.querySelector('span')?.textContent === '到期日').querySelector('input');
+  await v.input(dueDate, '2026-11-01');
+
+  for (const [id, heading] of [
+    ['user-story', '## 需求背景'],
+    ['task', '## 工作內容與處理目標'],
+    ['change', '## 原需求內容'],
+    ['bug', '## 問題描述']
+  ]) {
+    await v.input(v.select('描述範本'), `sop:${id}`, 'change');
+    assert.match(v.document.querySelector('textarea').value, new RegExp(heading));
+  }
+  assert.doesNotMatch(v.document.querySelector('textarea').value, /Old description/);
+  assert.equal(v.document.querySelector('input[required]').value, 'Keep title');
+  assert.equal(v.select('負責人').value, '9');
+  assert.equal(v.select('里程碑').value, '4');
+  assert.equal(v.select('標籤').value, 'bug');
+  assert.equal(dueDate.value, '2026-11-01');
+  assert.equal(v.requests.some(request => request.type === 'loadFormOptions' && request.section === 'templates'), false);
+
+  const remoteOptions = { ...ready, templates: [{ name: 'Bug', content: 'GitLab bug template' }], states: { ...ready.states, templates: { status: 'ready' } } };
+  await v.send({ type: 'projectData', projectId: 1, options: remoteOptions, preserveDraft: true, canCreateIssue: true, canSetStartDate: true });
+  const updatedSelect = v.select('描述範本');
+  assert.deepEqual(Array.from(updatedSelect.querySelectorAll('optgroup')).map(group => group.label), ['SOP 內建範本', 'GitLab 專案範本']);
+  assert.equal(updatedSelect.querySelector('optgroup[label="SOP 內建範本"] option[value="sop:bug"]').textContent, 'Bug');
+  assert.equal(updatedSelect.querySelector('optgroup[label="GitLab 專案範本"] option[value="gitlab:Bug"]').textContent, 'Bug');
+  await v.input(updatedSelect, 'gitlab:Bug', 'change');
+  assert.equal(v.document.querySelector('textarea').value, 'GitLab bug template');
+  assert.equal(v.document.querySelector('input[required]').value, 'Keep title');
+  assert.equal(v.select('負責人').value, '9');
+  assert.equal(v.select('里程碑').value, '4');
+  assert.equal(v.select('標籤').value, 'bug');
+  assert.equal(dueDate.value, '2026-11-01');
+
+  await v.input(v.select('描述範本'), 'sop:bug', 'change');
+  v.button('建立 Issue').click(); await v.tick();
+  const created = v.requests.findLast(request => request.type === 'create');
+  assert.equal(created.input.title, 'Keep title');
+  assert.match(created.input.description, /## 問題描述/);
+  assert.equal(created.input.assigneeId, 9);
+  assert.equal(created.input.milestoneId, 4);
+  assert.deepEqual(Array.from(created.input.labels), ['bug']);
+  assert.equal(created.input.dueDate, '2026-11-01');
 });
 
 test('two requested comment reaction patches merge in either order without reading the other 198 comments', async t => {

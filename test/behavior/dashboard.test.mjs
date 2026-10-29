@@ -492,15 +492,15 @@ test('responsiveness: lazy templates respect the latest selection and preserve e
   view.send({ type: 'issueResponse', revision: 1, response: { type: 'createData', projects: data.projects, selectedProjectId: 1,
     options: { members: [], labels: [], milestones: [], templates: [{ key: 'a.md', name: 'A', content: '', loaded: false }, { name: 'B', content: 'Inline template' }] }, canCreateIssue: true, canSetStartDate: false } }); await view.tick();
   const document = view.dom.window.document, select = document.querySelector('.issue-embed .field-wide select');
-  select.value = 'A'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  select.value = 'gitlab:a.md'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
   const request = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'loadTemplate').request;
   const description = document.querySelector('.issue-embed textarea[rows="8"]');
   description.value = 'New manual description'; description.dispatchEvent(new view.dom.window.Event('input', { bubbles: true }));
   view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: request.requestId, result: { name: 'A', content: 'Late template' } } }); await view.tick();
   assert.equal(description.value, 'New manual description');
-  select.value = 'A'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  select.value = 'gitlab:a.md'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
   const second = view.requests.findLast(request => request.type === 'issueRequest' && request.request.type === 'loadTemplate').request;
-  select.value = 'B'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
+  select.value = 'gitlab:B'; select.dispatchEvent(new view.dom.window.Event('change', { bubbles: true })); await view.tick();
   view.send({ type: 'issueResponse', revision: 1, response: { type: 'reply', requestId: second.requestId, result: { name: 'A', content: 'Obsolete selection' } } }); await view.tick();
   assert.equal(description.value, 'Inline template');
 });
