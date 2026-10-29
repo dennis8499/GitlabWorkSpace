@@ -1,5 +1,6 @@
 .gitignore
 **/*.log
+GitLab_Issue_Board_使用_SOP.md
 .verification/**
 .github/**
 .gitlab-workspace-validation/**
