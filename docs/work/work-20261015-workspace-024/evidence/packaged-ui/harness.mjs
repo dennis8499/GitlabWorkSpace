@@ -45,11 +45,11 @@ function createFixture() {
     history: Array.from({ length: 10 }, (_, index) => ({ hash: (index + 10).toString(16).padStart(40, '0'),
       parents: index === 9 ? [] : [(index + 11).toString(16).padStart(40, '0')], subject: `Fixture commit ${index + 1}`,
       author: 'Fixture User', date: '2026-10-13T00:00:00Z' })), configuredPullStrategy: 'merge' }));
-  const features = ['megin-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+  const features = ['retired-spec-export', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
     'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
-    'megin-workflow', 'megin-resume', 'merge-repo', 'release-review'];
+    'retired-workflow', 'retired-resume', 'merge-repo', 'release-review'];
   const installed = { status: 'installed', version: '0.24.0', profile: 'group', source: 'bundled', capabilities: features,
-    upstreamVersions: { 'codebase-wiki': '0.6.0', megin: '0.8.0', 'merge-reviewer': '0.12.0', 'release-reviewer': '0.3.0' } };
+    upstreamVersions: { 'codebase-wiki': '0.6.0', retired: '0.8.0', 'merge-reviewer': '0.12.0', 'release-reviewer': '0.3.0' } };
   const local = Object.fromEntries(projects.map(project => [project.id, { state: 'ready', path: repositories[project.id - 1].path }]));
   const matched = projects.map(project => ({ name: project.name, path: repositories[project.id - 1].path, projectId: project.id, matched: true, defaultBranch: 'main' }));
   return { repositories, snapshot: { connected: true, baseUrl: 'https://gitlab.invalid', currentUser: { id: 7, name: 'Fixture User', username: 'fixture-user' },
@@ -59,7 +59,7 @@ function createFixture() {
     groupRepositories: matched, groupRepositoryScanStatus: 'ready', groupMilestones: [], groupIssueBoards: [],
     issues: projects.map(project => ({ id: 100 + project.id, iid: 1, project_id: project.id, title: `Review ${project.name}`, state: 'opened', labels: ['fixture'],
       description: 'Fixed, isolated UI fixture.', web_url: `${project.web_url}/-/issues/1`, assignees: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }] })),
-    mergeRequests: [], projectMembers: [], timers: [], timerVersion: 0, deliveryRecords: [], meginWorkItems: [],
+    mergeRequests: [], projectMembers: [], timers: [], timerVersion: 0, deliveryRecords: [], retiredWorkItems: [],
     workflowKit: installed, workflowKitInstallTarget: { root: 'C:/fixture/team', profile: 'group', manual: false, state: installed },
     workflowKitPackages: [{ id: 'bundled-0.24.0', version: '0.24.0', source: 'bundled', assetName: 'workflow-kit.tar.xz', format: 'tar.xz', entryRoot: 'workflow-kit', available: true }],
     workflowKitSource: 'bundled', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
@@ -228,10 +228,10 @@ async function smoke(browser, files) {
       const tab=desktop.dashboard.locator('#skill-tool-codebase-wiki');
       if (await tab.count()) {
         await tab.click(); await tab.focus(); await tab.press('ArrowRight');
-        assert.equal(await desktop.dashboard.locator('#skill-tool-megin').getAttribute('aria-selected'),'true');
+        assert.equal(await desktop.dashboard.locator('#skill-tool-retired').getAttribute('aria-selected'),'true');
       } else {
         const select=desktop.dashboard.locator('select[aria-label="Skills 工具"]'); await select.selectOption('codebase-wiki'); await select.focus();
-        await select.press('ArrowDown'); await select.press('Enter'); assert.equal(await select.inputValue(),'megin');
+        await select.press('ArrowDown'); await select.press('Enter'); assert.equal(await select.inputValue(),'retired');
       }
     });
     await check('settings keyboard focus remains in dialog and Escape restores trigger', async () => {

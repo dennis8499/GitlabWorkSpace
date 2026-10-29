@@ -14,7 +14,7 @@
 | 完整 Issue、工時、GitLab 遠端 Git、MR、SSH 和原生確認流程 | BLOCKED | 請查看逐項[功能矩陣](feature-matrix.md)；未操作項目沒有標為通過 |
 | VS Code 1.140.0 | PASS | 真實 Extension Host 測試使用 1.140.0 |
 | VS Code 最低版本 1.90.0 | BLOCKED | 測試環境沒有該版；一般測試下載受網路 EACCES 限制並使用快取 1.139.0 |
-| Megin 人工核准 | BLOCKED | 需取得真實 Work ID、acceptance version 及 Megin 使用者回覆 |
+| retired 人工核准 | BLOCKED | 需取得真實 Work ID、acceptance version 及 retired 使用者回覆 |
 
 效能絕對門檻通過，但基線比較與部分指定工作流程尚未驗收，因此整體驗收狀態為 BLOCKED，不能宣稱所有功能均已通過。
 

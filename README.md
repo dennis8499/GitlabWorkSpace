@@ -132,7 +132,7 @@ BMAD 6.12.4 開發流程工作台提供功能表單、繁體中文提示詞、�
 
 ## 0.25.0 更新
 
-移除 Megin 整合、Issue 開發任務與開發規格匯出。預設入口改為查詢 Wiki；升級會交易式移除未修改且可驗證歸屬的舊整合，歷史資料保留。Megin 獨立發版支援仍由共用發版工具提供。
+預設入口改為查詢 Wiki；升級採交易式更新與回復，並保留歷史資料。
 
 MergeReviewer 開始前建立自足的固定證據快照；後續分支更新不改變本次結論，報告明列適用 SHA，證據不足保留待人工確認與人工核對欄位。全部非互動操作通知改由訊息中心呈現。新增 Output Style Skill：依一般問答、原理分析、教學與正式文件切換；已安裝時優先，未安裝時沿用各工具原風格，必要報告欄位與證據契約保留。
 
@@ -140,7 +140,7 @@ MergeReviewer 開始前建立自足的固定證據快照；後續分支更新不
 
 ## 0.24.4 更新
 
-整合 MergeReviewer 0.13.0 與 ReleaseReviewer 0.4.0 的正式安裝包。同步批次證據操作、六欄 Merge Report 與固定版本行段引用，以及 Release Report 的工作清單和草稿修正重試。沿用 v3 審查契約、Wiki 0.6.1 與 Megin 0.8.1，新增正式 0.24.3 的雙 profile 升級與交易回復驗證。
+整合 MergeReviewer 0.13.0 與 ReleaseReviewer 0.4.0 的正式安裝包。同步批次證據操作、六欄 Merge Report 與固定版本行段引用，以及 Release Report 的工作清單和草稿修正重試。沿用 v3 審查契約與 Wiki 0.6.1，新增正式 0.24.3 的雙 profile 升級與交易回復驗證。
 
 ## 0.24.3 更新
 
@@ -148,7 +148,7 @@ MergeReviewer 開始前建立自足的固定證據快照；後續分支更新不
 
 ## 0.24.2 更新
 
-同步 Wiki 0.6.1、Megin 0.8.1、MergeReviewer 0.12.2 與 ReleaseReviewer 0.3.1 的正式安裝包。十六個 Skills 使用更新的 Concise 輸出、意圖路由與按需載入指引；Group Wiki 入口同步更新。加入正式 0.24.1 的雙 profile 升級與回復驗證。
+同步 Wiki 0.6.1、MergeReviewer 0.12.2 與 ReleaseReviewer 0.3.1 的正式安裝包。Skills 使用更新的 Concise 輸出、意圖路由與按需載入指引；Group Wiki 入口同步更新。加入正式 0.24.1 的雙 profile 升級與回復驗證。
 
 ## 0.24.1 更新
 
@@ -158,9 +158,9 @@ MergeReviewer 開始前建立自足的固定證據快照；後續分支更新不
 
 ## 0.24.0 更新
 
-整合 Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0；兩個 Reviewer 使用正式 Release ZIP，固定已提交的來源 commit、內容 SHA-256 及乾淨狀態。四工具共 16 個 Skills、17 項工作台功能。
+整合 Wiki 0.6.0、MergeReviewer 0.12.0、ReleaseReviewer 0.3.0；兩個 Reviewer 使用正式 Release ZIP，固定已提交的來源 commit、內容 SHA-256 及乾淨狀態。工作台提供 Wiki 與兩種 Reviewer 的功能指引。
 
-MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Markdown Merge Report；待審查頁可帶入分支候選，完成後由使用者作一般留言發布。舊快速／未提交／MR 專用報告流程已移除。舊 Megin 工作保留原套件續作，完成後再更新。
+MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Markdown Merge Report；待審查頁可帶入分支候選，完成後由使用者作一般留言發布。舊快速／未提交／MR 專用報告流程已移除。
 
 操作立即顯示處理狀態、階段、結果與錯誤；同一資源的重複操作會合併或阻擋。本機環境先載入，Issue 與 MR 資料依頁面需要讀取；暖切頁不重新全量掃描。詳見[本機驗證紀錄](docs/work/work-20261015-workspace-024/README.md)及[正式發版來源與驗證](docs/work/work-20261015-workspace-024/release.md)。
 
@@ -210,7 +210,7 @@ GitLab Workspace v0.34.0 搭配獨立發行的 WorkflowKit；首版整合 Wiki 0
 
 WorkflowKit 1.0.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4、0.25.0、0.26.0、0.27.0、0.28.0、0.28.1、0.29.0、0.30.0、0.30.1、0.31.0、0.32.0 升級與交易回復；未知或被修改的受管理安裝保留內容並阻擋覆寫。BMAD 已改由使用者管理，其本機變更不阻擋其他 Skills 的更新；工作紀錄、鎖、Wiki、報告及既有產物保留。
 
-舊工作流程包可透過受信任摘要升級並交易回復；既有 BMAD 與 Megin 工作紀錄均保留。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
+舊工作流程包可透過受信任摘要升級並交易回復；個人資料與既有工作紀錄均保留。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
 
 HTTP 網址也可使用，但 HTTP 不會加密傳輸 Token；請只在可信任的網路環境連線。詳細步驟與安全說明見[使用指南](docs/user-guide.md)。
 

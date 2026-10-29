@@ -53,7 +53,7 @@
   },
   "pendingScope": [
     "GitLab CE16/CE19 authenticated live validation: GLW_CE16_TOKEN and GLW_CE19_TOKEN unavailable",
-    "Megin real-work human approval/acceptance",
+    "retired real-work human approval/acceptance",
     "Codex /hooks trust in a real session",
     "VS Code 1.90.0 and Linux runtime validation"
   ],

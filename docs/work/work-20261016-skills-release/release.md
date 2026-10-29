@@ -7,11 +7,11 @@
 | 專案 | 版本 | 固定提交 | 正式 ZIP SHA-256 |
 | --- | --- | --- | --- |
 | code-base-llm-wiki | 0.6.1 | `670448aed308d92b8154bb0aaf88989b9374ef1b` | `d9b10390028d70a26b473737de582c4b2cf2286d019c03f3d0673f81602bf8ce` |
-| Megin | 0.8.1 | `dbed74202828bb979788bfa8f191c6d94168fb1b` | `2cd73766cd19de5ad26d6437ee50d5c9f3a37f6e67b7193c440e5c3b8d303395` |
+| retired | 0.8.1 | `dbed74202828bb979788bfa8f191c6d94168fb1b` | `2cd73766cd19de5ad26d6437ee50d5c9f3a37f6e67b7193c440e5c3b8d303395` |
 | MergeReviewer | 0.13.0 | `749973780c0804f8c9d822fba2dbfbf2fc5a7275` | `d79281b8279ad440b7b7c758323f600ca6ca6b8df6ef3d2bded13191ed0de96a` |
 | ReleaseReviewer | 0.4.0 | `1c319fec3a3db228326d31d792bb2a2adf3287a2` | `03e07e2d02b7327bcb98a48428fc2c28185d99c74eb90d9c061c5f7ce9c1afd9` |
 
-兩個 Reviewer ZIP 使用公開 Release 附件的原始位元組；來源提交為乾淨狀態，逐檔內容與已提交 Skill 一致。Wiki 0.6.1、Megin 0.8.1 的版本及完整來源紀錄沿用 0.24.3。
+兩個 Reviewer ZIP 使用公開 Release 附件的原始位元組；來源提交為乾淨狀態，逐檔內容與已提交 Skill 一致。Wiki 0.6.1、retired 0.8.1 的版本及完整來源紀錄沿用 0.24.3。
 
 ## 整合行為
 
@@ -23,7 +23,7 @@
 
 0.24.3 原始安裝器與正式 VSIX 的內附安裝器逐位元組一致。可信夾具保留正式組合包 ZIP 的完整 manifest／payload；ZIP SHA-256 為 `ef28ff14041ae386dfebc5895f1a33099b231401d36a239e96634dac3bc8127f`。
 
-Group／repository 測試先安裝真正舊版，加入個人 Wiki、Skills、工作紀錄、歷史報告及指引，再升級並回復，逐檔核對原始位元組。既有歷史升級與進行中 Megin 工作保護持續驗證。
+Group／repository 測試先安裝真正舊版，加入個人 Wiki、Skills、工作紀錄、歷史報告及指引，再升級並回復，逐檔核對原始位元組。既有歷史升級與進行中 retired 工作保護持續驗證。
 
 ## 驗證與發布
 

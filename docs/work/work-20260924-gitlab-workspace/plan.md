@@ -35,8 +35,8 @@
 - `npm.cmd run test:extension`
 - `npm.cmd test`
 - `npm.cmd run package`
-- `python "C:/Users/denni/.codex/skills/megin/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate review`
-- `python "C:/Users/denni/.codex/skills/megin/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate acceptance`
+- `python "C:/Users/denni/.codex/skills/retired/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate review`
+- `python "C:/Users/denni/.codex/skills/retired/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate acceptance`
 - 人工驗收 SCN-006；通過後建立 feature commit，再以 `git merge --no-ff feature/gitlab-workspace` 整合到 `main`。
 
 知識範圍：檢查既有專案知識；目前沒有既有程式架構、套件或測試知識可更新，預期 `no-change`。VSIX 交付位置：`dist/gitlab-workspace-0.1.0.vsix`。基線：`main` / `7c5fe23963323f5206ef1ae94c761390ff107633`。功能分支：`feature/gitlab-workspace`。

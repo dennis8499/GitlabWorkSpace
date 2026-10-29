@@ -187,7 +187,7 @@
         "out/test/unit/issueRelations.test.js",
         "out/test/unit/issueResponsiveness.test.js",
         "out/test/unit/localRepositoryLayout.test.js",
-        "out/test/unit/meginRemoval.test.js",
+        "out/test/unit/retiredRemoval.test.js",
         "out/test/unit/mergeRequests.test.js",
         "out/test/unit/mergeReviewPrompt.test.js",
         "out/test/unit/mergeReviewReport.test.js",

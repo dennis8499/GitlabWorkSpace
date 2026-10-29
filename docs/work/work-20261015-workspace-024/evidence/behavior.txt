@@ -32,7 +32,7 @@
 ✔ blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready (217.8156ms)
 ✔ four Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening (1338.6974ms)
 ✔ release guide retains multiple field inputs dispatched before the next repaint (296.9828ms)
-✔ Megin navigates to Issue work while native branch review stays in analysis (420.8596ms)
+✔ retired navigates to Issue work while native branch review stays in analysis (420.8596ms)
 ✔ copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes (856.3668ms)
 ✔ unresolved project locations open the common root settings and disable downloads (249.969ms)
 ✔ mixed workspaces use the common root for downloads, sync and settings (375.5441ms)
@@ -67,10 +67,10 @@
 ✔ group native branch review uses three inputs and separate Codex opening (794.2654ms)
 ✔ repository native branch review uses three inputs and separate Codex opening (604.6752ms)
 ✔ copy feedback blocks duplicate clicks, allows retry and ignores obsolete environment receipts (682.4891ms)
-✔ group Export Megin Spec unifies generation and existing specs with durable drafts (748.2044ms)
-✔ repository Export Megin Spec unifies generation and existing specs with durable drafts (730.4267ms)
-✔ group legacy development draft reopens in Export Megin Spec without another draft's path (249.5931ms)
-✔ repository legacy development draft reopens in Export Megin Spec without another draft's path (250.2603ms)
+✔ group Export retired Spec unifies generation and existing specs with durable drafts (748.2044ms)
+✔ repository Export retired Spec unifies generation and existing specs with durable drafts (730.4267ms)
+✔ group legacy development draft reopens in Export retired Spec without another draft's path (249.5931ms)
+✔ repository legacy development draft reopens in Export retired Spec without another draft's path (250.2603ms)
 ℹ tests 72
 ℹ suites 0
 ℹ pass 72

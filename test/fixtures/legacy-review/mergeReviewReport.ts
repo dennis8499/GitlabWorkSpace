@@ -11,7 +11,7 @@ export interface MergeReviewReportMetadata extends MergeReviewIdentity {
   comparisonBaseSha: string; mode: 'merge' | 'direct'; repoPath: string; reviewComplete: boolean;
   groupRoot: string; contextSchema: 'merge-reviewer-workspace-context/v2'; scope: 'group' | 'repo';
   task: MergeReviewTask; taskSha256: string; bindingSha256: string;
-  megin_binding?: Record<string, unknown>;
+  external_binding?: Record<string, unknown>;
 }
 export interface MergeReviewTask extends MergeReviewIdentity {
   schema: 'MergeReviewTask/v2'; groupRoot: string; repoPath: string;

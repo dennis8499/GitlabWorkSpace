@@ -165,7 +165,7 @@
   },
   "minimumVSCode190Status": "BLOCKED",
   "sshIntegrationStatus": "BLOCKED",
-  "meginHumanApprovalStatus": "BLOCKED",
+  "retiredHumanApprovalStatus": "BLOCKED",
   "measuredArtifact": {
     "sha256": "cf5282c1e15529b119729a4dcbc9a68f473b7790170a1f9b938a7a06b166fd01",
     "extensionPayloadFiles": 89,

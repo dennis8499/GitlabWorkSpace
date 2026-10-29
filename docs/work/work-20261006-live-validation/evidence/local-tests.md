@@ -1,6 +1,6 @@
 # 本機驗證與封裝
 
-完整 `npm test` 結束碼為 0：153 個單元測試、22 個 Webview 行為測試、Issue 30 個 Cucumber 情境／140 步、連線 10 個情境／35 步，以及 release／工具安裝器／Workflow Kit／Group Workflow／Megin 與 Merge Reviewer 測試通過。Extension Host 測試有 6 項通過、2 項因未提供 GitLab 憑證而 BLOCKED。新增的負載規劃、benchmark comparison、重跑去重和清理邊界 8 項 Node 測試另行通過。
+完整 `npm test` 結束碼為 0：153 個單元測試、22 個 Webview 行為測試、Issue 30 個 Cucumber 情境／140 步、連線 10 個情境／35 步，以及 release／工具安裝器／Workflow Kit／Group Workflow／retired 與 Merge Reviewer 測試通過。Extension Host 測試有 6 項通過、2 項因未提供 GitLab 憑證而 BLOCKED。新增的負載規劃、benchmark comparison、重跑去重和清理邊界 8 項 Node 測試另行通過。
 
 `npm run typecheck:webview`、TypeScript 編譯、`npm run benchmark:performance`、`npm run verify:package` 均通過。完整測試使用快取的 VS Code 1.139.0；網路封鎖使測試套件無法下載 VS Code 1.90.0。修正版封裝版由本機 VS Code 1.140.0 Extension Host 載入，離線 Git GUI 7 項通過；真實 GitLab 情境 1 項因缺少 Token 而 BLOCKED。這個實測驗證了功能操作，但 Commit／Push 原生 modal 使用測試介面代答，不能視為原生確認流程通過。
 

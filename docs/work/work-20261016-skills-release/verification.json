@@ -40,8 +40,8 @@
       "archiveSha256": "d9b10390028d70a26b473737de582c4b2cf2286d019c03f3d0673f81602bf8ce",
       "treeSha256": "7c9cdf649d4c29b7340e3d147a5c2165b8c30f8361229a15b128703a895366c2"
     },
-    "megin": {
-      "repository": "Megin",
+    "retired": {
+      "repository": "retired",
       "version": "0.8.1",
       "commit": "dbed74202828bb979788bfa8f191c6d94168fb1b",
       "dirty": false,

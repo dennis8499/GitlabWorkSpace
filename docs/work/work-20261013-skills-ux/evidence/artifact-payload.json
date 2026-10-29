@@ -40,7 +40,7 @@
     "extension/out/src/workspace/deliveryGate.js": "4424137b34e09e752321128bd9f4584afd1af0bd2c46a9b478ab961924171145",
     "extension/out/src/workspace/issueDrafts.js": "0d0ae0f4c6c6e45f4de2df849aac47fd3640d4a8dcdde4761731599775c89408",
     "extension/out/src/workspace/issueGraph.js": "500fe13ca9e110b110962e50d73fa78c27048db4fead692d434c6caa0ab2a1d3",
-    "extension/out/src/workspace/meginHandoff.js": "b88058a222146bf3b1747e6f1a0d4dbadfe6aa2a250155cadf0d87bb0a53c040",
+    "extension/out/src/workspace/retiredHandoff.js": "b88058a222146bf3b1747e6f1a0d4dbadfe6aa2a250155cadf0d87bb0a53c040",
     "extension/out/src/workspace/mergeReviewReport.js": "abead409b0f9c0f764a801aa75603196984930d9fc09b5dfd0a4f0506cf328e4",
     "extension/out/src/workspace/pythonRuntime.js": "b65292c738cff8a40a111f766c523f39eda8981c543854da5ac185e064895321",
     "extension/out/src/workspace/quickActionsProtocol.js": "fd23ea94e4e374bd9bb6a7e8290605cd06505ffcc014e7a21056ff1003ca7eb2",

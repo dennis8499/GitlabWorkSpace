@@ -1,5 +1,5 @@
 {
-  "schema": "megin-quality-contract/v1",
+  "schema": "retired-quality-contract/v1",
   "work_id": "work-20260924-gitlab-workspace",
   "plan_version": "plan-v1",
   "allowed_paths": [

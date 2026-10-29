@@ -1,5 +1,5 @@
 {
-  "schema": "megin-quality-evidence/v1",
+  "schema": "retired-quality-evidence/v1",
   "work_id": "work-20260924-gitlab-workspace",
   "plan_version": "plan-v1",
   "snapshot": "43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7",

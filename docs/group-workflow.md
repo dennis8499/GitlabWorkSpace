@@ -16,7 +16,7 @@ WorkflowKit 與 Extension 各自編版，以契約與能力判斷相容性。相
 
 整合包的唯一安裝文件位於 [WorkflowKit README](https://github.com/dennis8499/WorkflowKit#下載與安裝)。下載 Release ZIP 後解壓縮，執行 `python install.py --target <資料夾>`；可使用 `--dry-run` 預檢，並以安裝器的 `rollback` 命令回復保留的交易。
 
-受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。BMAD 由其官方 CLI 安裝；Megin 保持獨立使用。
+受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。BMAD 由其官方 CLI 安裝。
 
 ## 此工作區的分類
 

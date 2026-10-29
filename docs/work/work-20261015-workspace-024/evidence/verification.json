@@ -28,7 +28,7 @@
         "status": "PASS"
       },
       {
-        "tool": "megin",
+        "tool": "retired",
         "version": "0.8.0",
         "files": 58,
         "sourceDirty": false,
@@ -62,9 +62,9 @@
         "functional-exploration",
         "ingest",
         "lint",
-        "megin-resume",
-        "megin-spec-export",
-        "megin-workflow",
+        "retired-resume",
+        "retired-spec-export",
+        "retired-workflow",
         "merge-repo",
         "notebooklm-export",
         "query",
@@ -81,9 +81,9 @@
         "functional-exploration",
         "ingest",
         "lint",
-        "megin-resume",
-        "megin-spec-export",
-        "megin-workflow",
+        "retired-resume",
+        "retired-spec-export",
+        "retired-workflow",
         "merge-repo",
         "notebooklm-export",
         "query",
@@ -98,7 +98,7 @@
     "group": 17,
     "repository": 17,
     "skills": 16,
-    "meginSkills": 13
+    "retiredSkills": 13
   },
   "tests": {
     "unit": {
@@ -121,12 +121,12 @@
         "profiles": 11,
         "releaseReviewer": 7,
         "nativeGroup": 3,
-        "meginSpec": 5,
-        "historicalMegin": 88,
+        "retiredSpec": 5,
+        "historicalretired": 88,
         "historicalDelivery": 27,
         "nativeBranches": 2
       },
-      "execution": "Main chain passed through 88 historical Megin cases; after correcting a test fixture reference, the remaining 27 historical delivery and 2 native branch cases passed in separate runs."
+      "execution": "Main chain passed through 88 historical retired cases; after correcting a test fixture reference, the remaining 27 historical delivery and 2 native branch cases passed in separate runs."
     },
     "extensionHost": {
       "version": "1.90.0",

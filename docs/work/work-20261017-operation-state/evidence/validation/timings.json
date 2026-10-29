@@ -176,7 +176,7 @@
         "out/test/unit/issueGraph.test.js",
         "out/test/unit/issuePanelFlow.test.js",
         "out/test/unit/issueRelations.test.js",
-        "out/test/unit/meginHandoff.test.js",
+        "out/test/unit/retiredHandoff.test.js",
         "out/test/unit/mergeRequests.test.js",
         "out/test/unit/mergeReviewPrompt.test.js",
         "out/test/unit/mergeReviewReport.test.js",
@@ -358,18 +358,18 @@
       "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-group_workflow.log"
     },
     {
-      "id": "release-megin_discovery",
+      "id": "release-retired_discovery",
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "scripts/run-python.mjs",
-        "test/release/megin_discovery_test.py"
+        "test/release/retired_discovery_test.py"
       ],
       "startedAt": "2026-10-16T17:34:15.745Z",
       "finishedAt": "2026-10-16T17:34:16.953Z",
       "seconds": 1.208,
       "exitCode": 0,
       "signal": null,
-      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-megin_discovery.log"
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-retired_discovery.log"
     },
     {
       "id": "release-workflow_kit_installer",
@@ -442,18 +442,18 @@
       "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-workflow_kit_sources.log"
     },
     {
-      "id": "release-megin-overlay",
+      "id": "release-retired-overlay",
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "scripts/run-python.mjs",
-        "test/overlays/megin/run_tests.py"
+        "test/overlays/retired/run_tests.py"
       ],
       "startedAt": "2026-10-16T17:26:35.857Z",
       "finishedAt": "2026-10-16T17:34:48.782Z",
       "seconds": 492.925,
       "exitCode": 0,
       "signal": null,
-      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-megin-overlay.log"
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-retired-overlay.log"
     },
     {
       "id": "release-release_manager",
@@ -470,18 +470,18 @@
       "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-release_manager.log"
     },
     {
-      "id": "release-megin_spec_export",
+      "id": "release-retired_spec_export",
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "scripts/run-python.mjs",
-        "test/release/megin_spec_export_test.py"
+        "test/release/retired_spec_export_test.py"
       ],
       "startedAt": "2026-10-16T17:34:16.955Z",
       "finishedAt": "2026-10-16T17:35:14.148Z",
       "seconds": 57.193,
       "exitCode": 0,
       "signal": null,
-      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-megin_spec_export.log"
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-17-operation-state-delivery\\release-retired_spec_export.log"
     },
     {
       "id": "package",

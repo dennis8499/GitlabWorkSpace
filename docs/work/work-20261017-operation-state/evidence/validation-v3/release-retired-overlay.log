@@ -1,4 +1,4 @@
-Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/overlays/megin/run_tests.py"]
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/overlays/retired/run_tests.py"]
 test_group_root_alias_is_resolved_before_evidence_containment (test_gitlab_delivery.GitLabDeliveryTests.test_group_root_alias_is_resolved_before_evidence_containment) ... ok
 test_group_root_alias_supports_contract_snapshot_and_completed_delivery (test_gitlab_delivery.GitLabDeliveryTests.test_group_root_alias_supports_contract_snapshot_and_completed_delivery) ... ok
 test_index_or_evidence_drift_stops_without_commit (test_gitlab_delivery.GitLabDeliveryTests.test_index_or_evidence_drift_stops_without_commit) ... ok

@@ -1,0 +1,11 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/retired_removal_test.py"]
+test_failed_and_interrupted_deletion_restore_the_verified_predecessor (__main__.retiredRemovalTests.test_failed_and_interrupted_deletion_restore_the_verified_predecessor) ... ok
+test_file_appearing_after_retirement_preflight_is_preserved (__main__.retiredRemovalTests.test_file_appearing_after_retirement_preflight_is_preserved) ... ok
+test_independent_skill_does_not_block_fresh_install_and_payload_has_no_retired_paths (__main__.retiredRemovalTests.test_independent_skill_does_not_block_fresh_install_and_payload_has_no_retired_paths) ... ok
+test_modified_retired_skill_blocks_and_recreated_path_blocks_rollback (__main__.retiredRemovalTests.test_modified_retired_skill_blocks_and_recreated_path_blocks_rollback) ... ok
+test_retirement_preserves_work_and_locks_and_rolls_back_both_profiles (__main__.retiredRemovalTests.test_retirement_preserves_work_and_locks_and_rolls_back_both_profiles) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 94.493s
+
+OK

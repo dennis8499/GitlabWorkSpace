@@ -190,7 +190,7 @@
       "status": "PASS"
     },
     {
-      "path": "out/src/workspace/meginHandoff.js",
+      "path": "out/src/workspace/retiredHandoff.js",
       "sha256": "b88058a222146bf3b1747e6f1a0d4dbadfe6aa2a250155cadf0d87bb0a53c040",
       "status": "PASS"
     },
@@ -330,9 +330,9 @@
         "functional-exploration",
         "ingest",
         "lint",
-        "megin-resume",
-        "megin-spec-export",
-        "megin-workflow",
+        "retired-resume",
+        "retired-spec-export",
+        "retired-workflow",
         "merge-repo",
         "notebooklm-export",
         "query",
@@ -352,9 +352,9 @@
         "functional-exploration",
         "ingest",
         "lint",
-        "megin-resume",
-        "megin-spec-export",
-        "megin-workflow",
+        "retired-resume",
+        "retired-spec-export",
+        "retired-workflow",
         "merge-repo",
         "notebooklm-export",
         "query",
@@ -374,7 +374,7 @@
       "sourceKind": "local-snapshot",
       "treeSha256": "fb31354e894331c64ecfb74f7bb55a8a6c82a985a645337b9b1a9a8902909b81"
     },
-    "megin": {
+    "retired": {
       "archiveSha256": "81c530799f72c661bfe56e1c04dedaeb0c4534d5f387363821f85c95ff137ed8",
       "commit": "f7a8899020d95af1e3881ab5501cd1cd5861473d",
       "dirty": false,

@@ -1,10 +1,10 @@
 # Skills 整合與 0.18.0 發行
 
-本次整合保留 Megin 十二個協作 Skills，`group` 與 `repository` profile 各提供十五個 Skills。repository 每次操作一個本機 Repo，免登入及 Group；Group 保留共享 Wiki、跨 Repo 協調、鎖與 GitLab MR 交付。
+本次整合保留 retired 十二個協作 Skills，`group` 與 `repository` profile 各提供十五個 Skills。repository 每次操作一個本機 Repo，免登入及 Group；Group 保留共享 Wiki、跨 Repo 協調、鎖與 GitLab MR 交付。
 
 | 來源 | 版本 |
 | --- | --- |
-| Megin | 0.6.0 |
+| retired | 0.6.0 |
 | Codebase LLM Wiki | 0.5.0 |
 | MergeReviewer | 0.9.0 |
 | ReleaseReviewer | 0.1.0（沿用既有 Release） |

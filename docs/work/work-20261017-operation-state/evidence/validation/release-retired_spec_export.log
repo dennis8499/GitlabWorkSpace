@@ -1,0 +1,11 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","test/release/retired_spec_export_test.py"]
+test_apply_rejects_source_drift_and_changed_check_identity (__main__.retiredSpecExportTests.test_apply_rejects_source_drift_and_changed_check_identity) ... ok
+test_both_profiles_export_an_independent_file_without_changing_wiki (__main__.retiredSpecExportTests.test_both_profiles_export_an_independent_file_without_changing_wiki) ... ok
+test_both_profiles_reject_producer_paths_without_changing_existing_delivery (__main__.retiredSpecExportTests.test_both_profiles_reject_producer_paths_without_changing_existing_delivery) ... ok
+test_draft_and_unanswered_decisions_cannot_export (__main__.retiredSpecExportTests.test_draft_and_unanswered_decisions_cannot_export) ... ok
+test_failed_structure_or_review_checks_preserve_existing_output (__main__.retiredSpecExportTests.test_failed_structure_or_review_checks_preserve_existing_output) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 56.441s
+
+OK

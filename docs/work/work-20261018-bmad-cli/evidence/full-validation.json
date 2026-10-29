@@ -181,7 +181,7 @@
         "out/test/unit/issuePanelFlow.test.js",
         "out/test/unit/issueRelations.test.js",
         "out/test/unit/issueResponsiveness.test.js",
-        "out/test/unit/meginRemoval.test.js",
+        "out/test/unit/retiredRemoval.test.js",
         "out/test/unit/mergeRequests.test.js",
         "out/test/unit/mergeReviewPrompt.test.js",
         "out/test/unit/mergeReviewReport.test.js",
@@ -385,18 +385,18 @@
       "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-18T13-14-14.823Z-22860\\release-bmad_workflow_kit.log"
     },
     {
-      "id": "release-megin_removal",
+      "id": "release-retired_removal",
       "command": [
         "C:\\Program Files\\nodejs\\node.exe",
         "scripts/run-python.mjs",
-        "test/release/megin_removal_test.py"
+        "test/release/retired_removal_test.py"
       ],
       "startedAt": "2026-10-18T13:17:42.074Z",
       "finishedAt": "2026-10-18T13:19:16.297Z",
       "seconds": 94.223,
       "exitCode": 0,
       "signal": null,
-      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-18T13-14-14.823Z-22860\\release-megin_removal.log"
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-18T13-14-14.823Z-22860\\release-retired_removal.log"
     },
     {
       "id": "release-release_manager",

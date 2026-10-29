@@ -1,6 +1,6 @@
 # GitlabWorkSpace 0.24.0 正式發版來源與驗證
 
-日期：2026-10-15（Asia/Taipei）。VSIX 與工作流程包共用版本 0.24.0；Wiki 0.6.0、Megin 0.8.0 維持既有固定來源。
+日期：2026-10-15（Asia/Taipei）。VSIX 與工作流程包共用版本 0.24.0；Wiki 0.6.0、retired 0.8.0 維持既有固定來源。
 
 ## Reviewer 正式來源
 

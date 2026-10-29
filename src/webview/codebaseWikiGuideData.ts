@@ -143,10 +143,14 @@ export function createDefaultWikiGuideInputs(): WikiGuideInputValues {
     .map((item) => [`${card.id}.${item.id}`, item.defaultValue])));
 }
 
-/** Restore supported inputs without reactivating retired development tasks. */
+/** Restore inputs only for guide cards that are still available. */
 
 export function migrateWikiGuideInputs(inputs: WikiGuideInputValues): WikiGuideInputValues {
-  return Object.fromEntries(Object.entries(inputs).filter(([key]) => !/^(?:megin-[^.]+|development-spec)\./.test(key)));
+  const supportedOwners = new Set([...wikiGuideCards.map(card => card.id), 'merge-repo', 'release-review']);
+  return Object.fromEntries(Object.entries(inputs).filter(([key]) => {
+    const separator = key.indexOf('.');
+    return separator > 0 && supportedOwners.has(key.slice(0, separator));
+  }));
 }
 
 export function getWikiGuideFields(card: WikiGuideCard, inputs: WikiGuideInputValues): readonly WikiGuideField[] {

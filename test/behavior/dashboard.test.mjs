@@ -3399,12 +3399,12 @@ function setSkillsContext(state, mode = 'repository', matching = {}) {
   const root = mode === 'group' ? state.groupRoot : state.workflowKitInstallTarget.root;
   setProjectContext(state, root, state.workflowKitInstallTarget.manual);
   const repositories = [{ name: 'alpha', path: 'C:/local/repo', matched: true }, { name: 'beta', path: 'C:/local/other', matched: true }];
-  const features = ['query', 'megin-workflow', 'megin-resume', 'merge-repo', 'merge-quick', 'release-review',
+  const features = ['query', 'merge-repo', 'merge-quick', 'release-review',
     ...(mode === 'group' ? ['merge-group', 'merge-mr'] : [])];
   state.skillsContext = { mode, root, revision: `revision-${root}`, groupMatch: { status: mode === 'group' ? 'matched' : 'mismatched',
     root: mode === 'group' ? root : undefined, repositories, ...matching }, repositories: mode === 'group' ? repositories : repositories.filter(repo => repo.path === root),
     installed: { status: 'installed', profile: mode, version: '0.17.0', capabilities: features,
-      upstreamVersions: { 'codebase-wiki': '0.4.0', megin: '0.4.0', 'merge-reviewer': '0.7.0', 'release-reviewer': '0.1.0' } },
+      upstreamVersions: { 'codebase-wiki': '0.4.0', 'merge-reviewer': '0.7.0', 'release-reviewer': '0.1.0' } },
     availableFeatures: features };
   return state.skillsContext;
 }

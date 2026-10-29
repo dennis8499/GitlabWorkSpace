@@ -1,6 +1,6 @@
 # GitlabWorkSpace 0.24.1 發版來源與驗證
 
-日期：2026-10-15（Asia/Taipei）。VSIX 與工作流程包共用版本 0.24.1；Wiki 0.6.0、Megin 0.8.0、ReleaseReviewer 0.3.0 沿用原固定來源。
+日期：2026-10-15（Asia/Taipei）。VSIX 與工作流程包共用版本 0.24.1；Wiki 0.6.0、retired 0.8.0、ReleaseReviewer 0.3.0 沿用原固定來源。
 
 ## MergeReviewer 正式來源
 

@@ -1,6 +1,6 @@
 
 > gitlab-workspace@0.24.0 test:release
-> node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_transactions_test.py && node scripts/run-python.mjs test/release/workflow_kit_profiles_test.py && node scripts/run-python.mjs test/release/release_reviewer_integration_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/release/megin_spec_export_test.py && node scripts/run-python.mjs test/overlays/megin/run_tests.py && node scripts/run-python.mjs test/overlays/delivery-evidence/run_tests.py && node scripts/run-python.mjs test/release/local_review_targets_test.py
+> node --test scripts/python-runtime.test.mjs scripts/release-policy.test.mjs scripts/release-workflow.test.mjs scripts/live-fixture-plan.test.mjs scripts/live-benchmark-comparison.test.mjs scripts/live-validation-state.test.mjs scripts/live-test-paths.test.mjs && node scripts/run-python.mjs scripts/build-workflow-kit.py && node scripts/run-python.mjs test/release/tool_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_installer_test.py && node scripts/run-python.mjs test/release/workflow_kit_transactions_test.py && node scripts/run-python.mjs test/release/workflow_kit_profiles_test.py && node scripts/run-python.mjs test/release/release_reviewer_integration_test.py && node scripts/run-python.mjs test/release/group_workflow_test.py && node scripts/run-python.mjs test/release/retired_spec_export_test.py && node scripts/run-python.mjs test/overlays/retired/run_tests.py && node scripts/run-python.mjs test/overlays/delivery-evidence/run_tests.py && node scripts/run-python.mjs test/release/local_review_targets_test.py
 
 ✔ compares 10 cold sessions and 300 warm/search samples within the 10 percent budget (8.1663ms)
 ✔ fails when a latency or memory sample regresses by more than 10 percent (0.9779ms)
@@ -62,7 +62,7 @@ test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollba
 test_local_directories_git_roots_subdirectories_and_worktrees_install_and_rollback) ... ok
 test_manifest_pins_all_sources_and_the_workspace_profile (__main__.WorkflowKitInstallerTests.test_manifest_pins_all_sou
 rces_and_the_workspace_profile) ... ok
-test_megin_lock_and_approved_work_block_install_and_update (__main__.WorkflowKitInstallerTests.test_megin_lock_and_appr
+test_retired_lock_and_approved_work_block_install_and_update (__main__.WorkflowKitInstallerTests.test_retired_lock_and_appr
 oved_work_block_install_and_update) ... ok
 test_modified_install_and_legacy_tools_block_updates_with_repair_paths (__main__.WorkflowKitInstallerTests.test_modifie
 d_install_and_legacy_tools_block_updates_with_repair_paths) ... ok
@@ -178,15 +178,15 @@ re_routes_fail_without_changing_repositories) ... ok
 Ran 3 tests in 19.027s
 
 OK
-test_apply_rejects_source_drift_and_changed_check_identity (__main__.MeginSpecExportTests.test_apply_rejects_source_dri
+test_apply_rejects_source_drift_and_changed_check_identity (__main__.retiredSpecExportTests.test_apply_rejects_source_dri
 ft_and_changed_check_identity) ... ok
-test_both_profiles_export_an_independent_file_without_changing_wiki (__main__.MeginSpecExportTests.test_both_profiles_e
+test_both_profiles_export_an_independent_file_without_changing_wiki (__main__.retiredSpecExportTests.test_both_profiles_e
 xport_an_independent_file_without_changing_wiki) ... ok
-test_both_profiles_reject_producer_paths_without_changing_existing_delivery (__main__.MeginSpecExportTests.test_both_pr
+test_both_profiles_reject_producer_paths_without_changing_existing_delivery (__main__.retiredSpecExportTests.test_both_pr
 ofiles_reject_producer_paths_without_changing_existing_delivery) ... ok
-test_draft_and_unanswered_decisions_cannot_export (__main__.MeginSpecExportTests.test_draft_and_unanswered_decisions_ca
+test_draft_and_unanswered_decisions_cannot_export (__main__.retiredSpecExportTests.test_draft_and_unanswered_decisions_ca
 nnot_export) ... ok
-test_failed_structure_or_review_checks_preserve_existing_output (__main__.MeginSpecExportTests.test_failed_structure_or
+test_failed_structure_or_review_checks_preserve_existing_output (__main__.retiredSpecExportTests.test_failed_structure_or
 _review_checks_preserve_existing_output) ... ok
 
 ----------------------------------------------------------------------

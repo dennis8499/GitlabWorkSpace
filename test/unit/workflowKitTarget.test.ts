@@ -87,7 +87,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
         installed.set(args[2], profile);
         return { ok: true, package: 'gitlab-workspace-kit', version: bundle.version, profile };
       }
-      return installed.has(args[1]) ? { ok: true, status: 'installed', workspaceContract: 2, installerApi: 1, version: bundle.version, profile: installed.get(args[1]), capabilities: ['query', 'megin-resume'] }
+      return installed.has(args[1]) ? { ok: true, status: 'installed', workspaceContract: 2, installerApi: 1, version: bundle.version, profile: installed.get(args[1]), capabilities: ['query', 'retired-feature'] }
         : { ok: true, status: 'missing' };
     }
   });
@@ -479,7 +479,7 @@ test('copying rechecks compatibility and rejects stale context and retired featu
   host.runWorkflowKitHelper = async () => ({ ok: true, status: 'update-available', version: '0.16.0', profile: 'repository', capabilities: ['query'] });
   await host.refreshWorkflowKit(); const revision = host.getSkillsContext().revision;
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /整合介面尚未受此工作台支援/);
-  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'megin-resume', inputs: { 'megin-resume.workId': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
+  await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'retired-feature', inputs: { 'retired-feature.id': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
 });
 
 test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {

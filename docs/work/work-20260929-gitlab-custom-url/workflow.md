@@ -1,6 +1,6 @@
-# Megin work status
+# retired work status
 
-- schema: `megin-skills-workflow/v1`
+- schema: `retired-skills-workflow/v1`
 - work_id: `work-20260929-gitlab-custom-url`
 - plan_version: `plan-1`
 - requirements_revision: `req-1`

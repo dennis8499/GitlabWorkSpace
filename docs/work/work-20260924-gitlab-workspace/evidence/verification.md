@@ -8,7 +8,7 @@
 
 確認目前位於 `feature/gitlab-workspace`；`HEAD` 與 `main` 均為 `7c5fe23963323f5206ef1ae94c761390ff107633`。產品變更尚未 stage。驗證前後的產品快照一致，SHA-256 為 `43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7`，共 25 個受控路徑。
 
-Command: python C:/Users/denni/.codex/skills/megin/scripts/quality_gate.py snapshot --repo . --work-id work-20260924-gitlab-workspace
+Command: python C:/Users/denni/.codex/skills/retired/scripts/quality_gate.py snapshot --repo . --work-id work-20260924-gitlab-workspace
 Exit code: 0
 Result: branch `feature/gitlab-workspace`; base/head `7c5fe23963323f5206ef1ae94c761390ff107633`; path_count 25; product_sha256 `43da5d8561d34f205ae7f552ff82448e85a95d90260308a0f66b8063f49e77c7`。
 

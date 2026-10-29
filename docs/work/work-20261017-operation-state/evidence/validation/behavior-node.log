@@ -41,7 +41,7 @@ Command: ["C:\\Program Files\\nodejs\\node.exe","--test","test/behavior/quick-ac
 ✔ blocks Wiki prompt copying until the VS Code Group workspace, Repo scan, and workflow kit are ready (265.292ms)
 ✔ four Skills tools preserve legacy Wiki drafts and isolate release inputs across Groups and reopening (1358.0705ms)
 ✔ release guide retains multiple field inputs dispatched before the next repaint (279.4246ms)
-✔ Megin navigates to Issue work while native branch review stays in analysis (436.9036ms)
+✔ retired navigates to Issue work while native branch review stays in analysis (436.9036ms)
 ✔ copies the loaded Issue Markdown for read-only accounts and ignores replies after navigation changes (863.7897ms)
 ✔ unresolved project locations open the common root settings and disable downloads (234.6228ms)
 ✔ mixed workspaces use the common root for downloads, sync and settings (387.202ms)
@@ -93,10 +93,10 @@ Command: ["C:\\Program Files\\nodejs\\node.exe","--test","test/behavior/quick-ac
 ✔ group native branch review uses three inputs and separate Codex opening (850.3814ms)
 ✔ repository native branch review uses three inputs and separate Codex opening (588.7814ms)
 ✔ copy feedback blocks duplicate clicks, allows retry and ignores obsolete environment receipts (793.1491ms)
-✔ group Export Megin Spec unifies generation and existing specs with durable drafts (744.8882ms)
-✔ repository Export Megin Spec unifies generation and existing specs with durable drafts (702.3115ms)
-✔ group legacy development draft reopens in Export Megin Spec without another draft's path (249.3626ms)
-✔ repository legacy development draft reopens in Export Megin Spec without another draft's path (235.1961ms)
+✔ group Export retired Spec unifies generation and existing specs with durable drafts (744.8882ms)
+✔ repository Export retired Spec unifies generation and existing specs with durable drafts (702.3115ms)
+✔ group legacy development draft reopens in Export retired Spec without another draft's path (249.3626ms)
+✔ repository legacy development draft reopens in Export retired Spec without another draft's path (235.1961ms)
 ℹ tests 96
 ℹ suites 0
 ℹ pass 96

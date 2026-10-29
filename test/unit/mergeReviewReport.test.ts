@@ -51,7 +51,7 @@ test('binds authoritative Group and actual Repo without parent inference', () =>
 test('protects completeness, scope, priorities, task, context and receipt metadata', () => {
   for (const patch of [{ reviewComplete: true }, { scope: 'repo' }, { priorityCounts: { P0: 0, P1: 0 } },
     { contextSha256: 'e'.repeat(64) }, { task: { ...task, targetSha: 'f'.repeat(40) } },
-    { megin_binding: { schema: 'megin-mr-binding/v3', receipt_sha256: '0'.repeat(64) } }]) {
+    { external_binding: { schema: 'unsupported-review-binding/v1', receipt_sha256: '0'.repeat(64) } }]) {
     assert.throws(() => parseMergeReviewReport(JSON.stringify({ report_body: body, report_metadata: { ...metadata, ...patch } })), /摘要/);
   }
   assert.throws(() => parseMergeReviewReport(JSON.stringify({ report_body: body,

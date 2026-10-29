@@ -4,17 +4,17 @@
 
 ## 來源與修正
 
-Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同步同層本機來源。共 16 個 Skills，十三個原生 Megin Skills 與其他上游 Skill 原文未修改。兩種 profile 的整合包內容與修正前相同；這是本機整合驗證，不代表上游已發布這些版本。
+Wiki 0.6.0、retired 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同步同層本機來源。共 16 個 Skills，十三個原生 retired Skills 與其他上游 Skill 原文未修改。兩種 profile 的整合包內容與修正前相同；這是本機整合驗證，不代表上游已發布這些版本。
 
 - Group quick 以已驗證的 capability 判定，不再搜尋過時 CLI 字串。
 - Rebase 草稿依固定來源識別；背景更新保留使用者排序、動作與訊息，來源變更才重設並提示。
-- Megin 區分預設續作、明確新建與指定 Work ID；切換 Issue 重設選擇。
+- retired 區分預設續作、明確新建與指定 Work ID；切換 Issue 重設選擇。
 - 窄視窗實際切頁會重設清單／預覽狀態；普通資料更新保留預覽。
 - MergeReviewer 的既有卡片可選 branch、staged、uncommitted；單 Repo 不擴及上層 Group，本機目標不需要 remote。
-- Skills 狀態列使用實際模式與工作位置；Megin 文案對齊本機 feature commits。
+- Skills 狀態列使用實際模式與工作位置；retired 文案對齊本機 feature commits。
 - Repo 清單改為輕量原生 Git 狀態；展開側欄或開啟版控才讀取詳細 refs／Stash／復原點，共用快取並拒絕過期回應。
 - 原生 Diff 使用唯讀 FileSystemProvider 保存原始 bytes；最後分頁關閉即釋放，包含開啟／關閉通知先後競態。
-- 更新舊 Wiki 選單、Megin BDD 與 MR v2 測試資料，未放寬 production 契約驗證。
+- 更新舊 Wiki 選單、retired BDD 與 MR v2 測試資料，未放寬 production 契約驗證。
 
 ## 功能矩陣
 
@@ -23,7 +23,7 @@ Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同�
 | 帳號、Group、Repo 對應與切換 | 單元與介面回歸通過 | CE16／CE19 連線及權限尚未重跑 |
 | 無 Group 操作、本機 Repo、Skills | 介面與雙 profile 測試通過 | 不宣稱無 Group 的 GitLab Issue／MR 功能 |
 | Wiki 選單、獨立規格匯出 | 功能 ID、輸入及匯出回歸通過 | 未逐一執行所有 AI 分析任務 |
-| Megin 新建、續作與交付提示 | 介面及 helper 回歸通過 | 真實需求的計畫核准與人工驗收未執行 |
+| retired 新建、續作與交付提示 | 介面及 helper 回歸通過 | 真實需求的計畫核准與人工驗收未執行 |
 | Group quick、MR 固定身分及 SHA | 真實套件／控制器回歸通過 | GitLab 實際報告發布與合併尚未重跑 |
 | staged／uncommitted 審查 | 六項真實 helper fixtures 通過 | fixtures 無外部 remote 或服務 |
 | Repo 延遲載入、快取、重試、生命週期 | 單元、介面與封裝指令量驗證通過 | 指令量 harness 不代表實機延遲 |
@@ -60,6 +60,6 @@ Wiki 0.6.0、Megin 0.8.0、MergeReviewer 0.11.0、ReleaseReviewer 0.2.0 已同�
 - 原生 Diff 關閉事件的追加案例在完整單元階段之後加入，另以[四項 provider 回歸](evidence/native-diff-unit.txt)全部通過；沒有把重複測試加總為唯一測試數。
 - [機器可讀驗證彙總](evidence/verification.json) 綁定最終 VSIX、組合包、測試數及尚未驗證範圍。
 
-[GitLab CE16／CE19 preflight](evidence/gitlab-preflight.txt) 因程序未設定 `GLW_CE16_TOKEN`／`GLW_CE19_TOKEN` 而阻擋；未讀取使用者憑證或建立正式 GitLab 資料。Megin 人工核准與 Codex Hook 信任須由真實工作 session 驗證，不能用自動測試代替。
+[GitLab CE16／CE19 preflight](evidence/gitlab-preflight.txt) 因程序未設定 `GLW_CE16_TOKEN`／`GLW_CE19_TOKEN` 而阻擋；未讀取使用者憑證或建立正式 GitLab 資料。retired 人工核准與 Codex Hook 信任須由真實工作 session 驗證，不能用自動測試代替。
 
 本輪實機為 Windows、Node 24.21.0、Python 3.14.7、VS Code 1.141.0；未重跑最低 VS Code 1.90.0 或 Linux CI 矩陣。

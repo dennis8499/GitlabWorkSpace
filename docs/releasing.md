@@ -28,7 +28,7 @@ python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . ru
 python -X utf8 -B Skills/WorkflowKit/scripts/release_manager.py --workspace . resume <run_id>
 ```
 
-先發行有變更的上游，再由 WorkflowKit 整合正式附件。上游更新不會自動要求 Extension 改版；只有 Extension 自身有變更時才單獨指定其版本。Megin 不屬於 WorkflowKit 上游。跨 Repo 協調器為選用工具。
+先發行有變更的上游，再由 WorkflowKit 整合正式附件。上游更新不會自動要求 Extension 改版；只有 Extension 自身有變更時才單獨指定其版本。跨 Repo 協調器為選用工具。
 
 ## Gitea 備援
 

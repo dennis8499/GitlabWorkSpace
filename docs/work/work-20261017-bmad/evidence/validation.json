@@ -79,7 +79,7 @@
       "passed": 3
     },
     {
-      "id": "release-megin_removal",
+      "id": "release-retired_removal",
       "passed": 5
     }
   ],
@@ -210,7 +210,7 @@
       "exitCode": 0
     },
     {
-      "id": "release-megin_removal",
+      "id": "release-retired_removal",
       "seconds": 88.13,
       "exitCode": 0
     },

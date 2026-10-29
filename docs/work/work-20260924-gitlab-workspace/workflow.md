@@ -1,6 +1,6 @@
-# Megin 工作流程：GitLab Workspace VS Code 擴充套件
+# retired 工作流程：GitLab Workspace VS Code 擴充套件
 
-- schema: megin-skills-workflow/v1
+- schema: retired-skills-workflow/v1
 - work_id: work-20260924-gitlab-workspace
 - repository: C:/Users/denni/OneDrive/Desktop/Project/GitlabWorkSpace
 - base_branch: main
@@ -44,8 +44,8 @@
 - `npm.cmd run package`
 - `npm.cmd audit --json`（目前網路限制使線上端點失敗；離線快取檢查為 0 個已知弱點）
 - `npm.cmd audit --offline --json`
-- `python "C:/Users/denni/.codex/skills/megin/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate review`
-- `python "C:/Users/denni/.codex/skills/megin/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate acceptance`
+- `python "C:/Users/denni/.codex/skills/retired/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate review`
+- `python "C:/Users/denni/.codex/skills/retired/scripts/quality_gate.py" check --repo . --work-id work-20260924-gitlab-workspace --gate acceptance`
 
 ## 分支與交付狀態
 

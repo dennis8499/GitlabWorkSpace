@@ -104,16 +104,14 @@ for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} executi
   assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]').value, 'custom/model-v2');
 });
 
-for (const profile of ['group', 'repository']) test(`${profile} retired development selections restore Query and three accessible tools`, async t => {
+for (const profile of ['group', 'repository']) test(`${profile} unknown saved selections restore Query and preserve current inputs`, async t => {
   const scope = profile === 'group' ? 'project:C:/工作區 with spaces:group' : 'project:C:/工作區 with spaces/service:repository';
-  const saved = { mode: 'sa', skillsGuideByScope: { [scope]: { tool: 'megin',
-    selections: { megin: 'megin-resume', 'codebase-wiki': 'synthesis' },
-    inputs: { 'megin-resume.workId': 'work-20261017-old', 'query.question': 'saved question' } } } };
+  const saved = { mode: 'sa', skillsGuideByScope: { [scope]: { tool: 'unknown-tool',
+    selections: { 'unknown-tool': 'unknown-card', 'codebase-wiki': 'synthesis' },
+    inputs: { 'unknown-card.id': 'old value', 'query.question': 'saved question' } } } };
   const view = await mount(t, profile, saved, ['query']);
   const { document, dom } = view;
   assert.equal(document.querySelector('.wiki-guide-card h2').textContent, '查詢 Wiki');
-  assert.equal(document.getElementById('skill-tool-megin'), null);
-  assert.equal(document.getElementById('skill-feature-megin-spec-export'), null);
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, 'saved question');
   const tabs = [...document.querySelectorAll('.skills-tool-tabs [role="tab"]')];
   assert.equal(tabs.length, 3);
@@ -125,7 +123,6 @@ for (const profile of ['group', 'repository']) test(`${profile} retired developm
   assert.equal(document.getElementById('skill-tool-codebase-wiki').getAttribute('aria-selected'), 'true');
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   assert.equal(view.requests.at(-1).featureId, 'query');
-  assert.equal(view.requests.some(request => /Delivery|Megin/.test(request.type)), false);
 });
 
 test('Skills prompt validation publishes one fixed notice per error transition and preserves its starting scope', async t => {

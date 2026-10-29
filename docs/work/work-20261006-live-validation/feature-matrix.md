@@ -20,18 +20,18 @@
 | SSH Clone／Push | BLOCKED | BLOCKED | 測試用 SSH 認證未提供 |
 | SHA 漂移保護與遠端寫入結果不明恢復 | BLOCKED | BLOCKED | 離線／單元案例通過；CE 實機遠端操作尚未驗收 |
 | 原生 Workbench 確認與取消 modal | BLOCKED | BLOCKED | 本機 Git GUI 驗收未顯示可互動原生確認 modal |
-| Workflow Kit 安裝／更新／失敗回復 | BLOCKED | BLOCKED | 安裝器／回復測試 PASS；封裝 VS Code 的完整 UI 流程及 Megin 核准未完成 |
+| Workflow Kit 安裝／更新／失敗回復 | BLOCKED | BLOCKED | 安裝器／回復測試 PASS；封裝 VS Code 的完整 UI 流程及 retired 核准未完成 |
 | Codex 終端機、14 個 Skills、13 個分析入口 | BLOCKED | BLOCKED | 目標工作區中的逐項操作尚未執行 |
 | VS Code 1.140.0 | PASS | PASS | 實機 runner 使用 1.140.0 |
 | VS Code 最低 1.90.0 | BLOCKED | BLOCKED | 環境無 1.90.0；一般測試因網路限制使用快取 1.139.0 |
 | 實機效能絕對門檻 | PASS | PASS | 每版 10 次冷啟動及 300 次暖切頁／搜尋；完整數據見[效能報告](evidence/performance.md) |
 | 與基線相比延遲／記憶體退步不超過 10% | BLOCKED | BLOCKED | 基線 VSIX 的同負載探測得到 0 Repo，沒有可比樣本；不得推定通過 |
-| Megin 需要的人工核准 | BLOCKED | BLOCKED | 等待具體驗收資料後由真實 Megin 使用者回覆 |
+| retired 需要的人工核准 | BLOCKED | BLOCKED | 等待具體驗收資料後由真實 retired 使用者回覆 |
 
 ## 已完成的離線回歸
 
 - 新增讀取快取取消競態、scope 更新競態、精確 fixture 數量、Issue rerun 去重、429 backoff、manifest／owner cleanup 邊界測試，並修正 Windows 路徑大小寫差異造成的誤拒絕。
-- npm.cmd test 完整執行並 exit 0；包含 22 個 Webview 行為測試、30 個主要 Cucumber 情境／140 步、10 個 UI 情境／35 步、release／workflow／installer／Megin 測試及 6 個 Extension Host case 通過。兩個需要額外環境的即時 case 為 pending。
+- npm.cmd test 完整執行並 exit 0；包含 22 個 Webview 行為測試、30 個主要 Cucumber 情境／140 步、10 個 UI 情境／35 步、release／workflow／installer／retired 測試及 6 個 Extension Host case 通過。兩個需要額外環境的即時 case 為 pending。
 - 封裝 VSIX 驗證為 91 個檔案；最終 SHA-256 為 436f5aedc1ef84022c5ac01e6877bda8cd947742b5d44258492b520342d0fc9b。最終包的 CE16／CE19 smoke 均通過。
 
 以上是目前證據的界線；整體功能驗收仍為 BLOCKED，直到尚未完成的實機矩陣項目有實際操作和證據。

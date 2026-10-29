@@ -7,21 +7,21 @@
 | 工具 | 版本 | 封包範圍檔案數 | Git commit | 凍結時狀態 | 核對 |
 |---|---|---:|---|---|---|
 | codebase-wiki | 0.6.0 | 105 | `3276ac08a76a` | 乾淨 | PASS |
-| megin | 0.8.0 | 58 | `f7a8899020d9` | 乾淨 | PASS |
+| retired | 0.8.0 | 58 | `f7a8899020d9` | 乾淨 | PASS |
 | merge-reviewer | 0.12.0 | 12 | `4b20381c054a` | 有未提交修改 | PASS |
 | release-reviewer | 0.3.0 | 14 | `b333e22187db` | 有未提交修改 | PASS |
 
-完整逐檔與 archive／tree SHA-256 見[來源快照](../../../resources/offline-tools/source-snapshots.json)及[唯讀核對結果](evidence/sources.json)。包含兩個 Reviewer 的未提交內容；這些快照不宣稱是上游正式 Release。Group 僅保留 Wiki 必要覆寫，Megin 十三個 Skills、MergeReviewer 與 ReleaseReviewer 保留原生內容。兩種 profile 都有 16 個 Skills、17 個功能入口，已比對 UI 與封包清單。
+完整逐檔與 archive／tree SHA-256 見[來源快照](../../../resources/offline-tools/source-snapshots.json)及[唯讀核對結果](evidence/sources.json)。包含兩個 Reviewer 的未提交內容；這些快照不宣稱是上游正式 Release。Group 僅保留 Wiki 必要覆寫，retired 十三個 Skills、MergeReviewer 與 ReleaseReviewer 保留原生內容。兩種 profile 都有 16 個 Skills、17 個功能入口，已比對 UI 與封包清單。
 
 `npm.cmd run check:kit-sources` 比對本機四來源、固定 ZIP、43 個整合檔案及功能清單。CI 使用 `node scripts/run-python.mjs scripts/workflow-kit-sources.py --archives-only`，以固定 ZIP 與 SHA 獨立建置。檢查程式禁止寫入 Python bytecode。
 
 MergeReviewer 僅接受一個 Repo 與明確 base／head 分支，輸出所選 Repo 的原生 v3 Markdown Merge Report。MR 瀏覽、討論、核准與合併保留；「前往分支審查」只交接可確認的分支資料，fork／映射不明須補齊。舊表單顯示遷移說明並要求確認，舊報告保留閱讀，報告可作一般留言發布。
 
-凍結 0.23.0 的 Group／Repo 安裝均通過升級與逐位元組回復。進行中 Megin 工作沿用原套件、版本與指紋，完成前阻擋更新；更新只替換已辨識的受管理檔案。
+凍結 0.23.0 的 Group／Repo 安裝均通過升級與逐位元組回復。進行中 retired 工作沿用原套件、版本與指紋，完成前阻擋更新；更新只替換已辨識的受管理檔案。
 
 ## 操作體驗
 
-Wiki 依閱讀探索、知識維護、分析文件、規格與匯出導覽；Megin 提供開始／續作及十三個 Skills 對應流程。Group 開發導向「我的工作」，單 Repo 提供需求表單。兩個 Reviewer 使用實際 Repo／分支候選與手動分支輸入。ReleaseReviewer 說明工作區根目錄報告、直接阻擋與人工 Checklist。
+Wiki 依閱讀探索、知識維護、分析文件、規格與匯出導覽；retired 提供開始／續作及十三個 Skills 對應流程。Group 開發導向「我的工作」，單 Repo 提供需求表單。兩個 Reviewer 使用實際 Repo／分支候選與手動分支輸入。ReleaseReviewer 說明工作區根目錄報告、直接阻擋與人工 Checklist。
 
 提示詞預覽與複製使用相同建構器和環境資料，包含已儲存 `.code-workspace` 邊界。複製與 Codex 啟動維持獨立操作；局部等待、實際階段、結果及錯誤透過 `operationChanged` 更新。安全取消沿用既有操作，其他頁面仍可瀏覽。桌面左右配置，窄版上下排列，沿用主題與鍵盤焦點。
 
@@ -37,7 +37,7 @@ Wiki 依閱讀探索、知識維護、分析文件、規格與匯出導覽；Meg
 | 發行政策／runner、舊工具安裝 | 26、18 | [主流程](evidence/release-main-run.txt) |
 | 安裝／交易／profile | 12、20、11 | [主流程](evidence/release-main-run.txt) |
 | ReleaseReviewer／原生 Group／Spec 匯出 | 7、3、5 | [主流程](evidence/release-main-run.txt) |
-| 舊 Megin／舊交付／原生分支 | 88、27、2 | [主流程](evidence/release-main-run.txt)、[舊交付](evidence/delivery-history.txt)、[分支](evidence/local-branches.txt) |
+| 舊 retired／舊交付／原生分支 | 88、27、2 | [主流程](evidence/release-main-run.txt)、[舊交付](evidence/delivery-history.txt)、[分支](evidence/local-branches.txt) |
 | Extension Host（VS Code 1.90.0） | 13 通過、2 個選用 live 案例未啟用 | [Host](evidence/extension-host.txt) |
 | 最終封裝 UI | 8／8、零 runtime error | [最終 UI](evidence/packaged-ui/final/revision.json) |
 
