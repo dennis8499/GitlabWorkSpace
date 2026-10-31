@@ -1,20 +1,30 @@
 import path from 'node:path';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
-import { BMAD_CAPABILITY_GUIDES, BMAD_INSTALL_COMMAND } from './bmadGuide';
+import { BMAD_CAPABILITY_GUIDES } from './bmadGuide';
 
 /** Constructs text for the clipboard. Commands are never sent to a shell. */
 export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCommandRequest): string {
   if (!request || typeof request !== 'object' || Array.isArray(request) || request.revision !== snapshot.revision) {
     throw new Error('BMAD 狀態已變更，請重新確認指令。');
   }
-  const keys = new Set(['revision', 'command', 'skill', 'stepId', 'artifactId', 'storyId']);
-  if (Object.keys(request).some(key => !keys.has(key)) || Object.values(request).some(value => value !== undefined && (typeof value !== 'string' || value.length > 8000))) {
+  const keys = new Set(['revision', 'command', 'skill', 'stepId', 'artifactId', 'storyId', 'requirement']);
+  if (Object.keys(request).some(key => !keys.has(key)) || Object.values(request).some(value => value !== undefined && (typeof value !== 'string' || value.length > 8000 || value.includes('\0')))) {
     throw new Error('BMAD 指令格式無效。');
   }
-  if (request.command === 'install' || request.command === 'codex') {
-    if (request.skill || request.stepId || request.artifactId || request.storyId) throw new Error('此指令不接受工作參數。');
-    return request.command === 'install' ? BMAD_INSTALL_COMMAND : 'codex';
+  if (request.command === 'task') {
+    if (request.skill || request.stepId || request.artifactId || request.storyId || !request.requirement?.trim()) throw new Error('請填寫本次需求。');
+    if (!snapshot.root || !path.isAbsolute(snapshot.root) || snapshot.installation.state !== 'ready' ||
+        snapshot.compatibility === 'unsupported' || snapshot.observation.state === 'error' || !snapshot.codex.skills.includes('bmad-help')) {
+      throw new Error('BMAD 或 $bmad-help 尚未準備完成，請重新偵測。');
+    }
+    return ['$bmad-help', `工作根目錄：${snapshot.root}`, `BMAD 預設產出位置：${path.join(snapshot.root, '_bmad-output')}`,
+      '請依以下需求與目前專案狀態，自行判斷適合的 BMAD 能力與流程，並在此工作根目錄處理：', request.requirement.trim()].join('\n\n');
   }
+  if (request.command === 'codex') {
+    if (request.skill || request.stepId || request.artifactId || request.storyId || request.requirement) throw new Error('此指令不接受工作參數。');
+    return 'codex';
+  }
+  if (request.requirement !== undefined) throw new Error('此指令不接受需求文字。');
   if (request.command !== 'skill') throw new Error('不支援此 BMAD 指令。');
   const node = request.stepId ? snapshot.nodes.find(item => item.id === request.stepId)
     : snapshot.nodes.find(item => item.skill === request.skill);

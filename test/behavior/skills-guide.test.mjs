@@ -78,6 +78,27 @@ async function mount(t, profile, saved, features, initialSnapshot = snapshot(pro
     holdOperations: () => { holdOperations = true; }, get savedState() { return state; } };
 }
 
+for (const profile of ['group', 'repository']) test(`${profile} visualization requires its declared capability and a topic`, async t => {
+  const current = snapshot(profile, ['query']);
+  const view = await mount(t, profile, undefined, ['query'], current);
+  view.document.getElementById('skill-feature-visualize').click(); await view.tick();
+  assert.match(view.document.querySelector('.wiki-guide-card').textContent, /Node\.js 18\+/);
+  await view.change('[id="wiki-input-visualize.topic"]', '付款流程', 'input');
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, true);
+  const updated = JSON.parse(JSON.stringify(current));
+  updated.workflowKit.capabilities.push('visualize');
+  updated.skillsContext.availableFeatures.push('visualize');
+  await view.sendSnapshot(updated);
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+  assert.equal(view.document.querySelector('[id="wiki-input-visualize.type"]').options.length, 10);
+  await view.change('[id="wiki-input-visualize.type"]', '循序圖');
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /sequence/);
+  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const request = view.requests.findLast(item => item.type === 'copySkillGuidePrompt');
+  assert.equal(request.featureId, 'visualize');
+  assert.equal(request.inputs['visualize.topic'], '付款流程');
+});
+
 for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} execution controls retain workspace defaults and copy explicit per-call model policy`, async t => {
   const current = snapshot('group', ['merge-repo', 'release-review']);
   current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };

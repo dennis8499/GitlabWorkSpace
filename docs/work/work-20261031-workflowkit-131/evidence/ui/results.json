@@ -1,0 +1,35 @@
+{
+  "scope": "Built Webview in Chromium with an isolated mock host; not native VS Code.",
+  "results": [
+    {
+      "name": "bmad-ready-1440",
+      "width": 1440,
+      "status": "PASS"
+    },
+    {
+      "name": "bmad-external-missing-uv-800",
+      "width": 800,
+      "status": "PASS"
+    },
+    {
+      "name": "bmad-kit-error-800",
+      "width": 800,
+      "status": "PASS"
+    },
+    {
+      "name": "wiki-visualize-1440",
+      "width": 1440,
+      "status": "PASS"
+    },
+    {
+      "name": "wiki-visualize-800",
+      "width": 800,
+      "status": "PASS"
+    },
+    {
+      "name": "workflowkit-settings-1440",
+      "width": 1440,
+      "status": "PASS"
+    }
+  ]
+}

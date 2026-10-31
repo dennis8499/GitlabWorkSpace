@@ -18,7 +18,7 @@ test('unknown saved tools and inputs restore to Query without mixing supported i
   assert.throws(() => buildWikiGuidePrompt(id, saved.inputs), /未知/);
   assert.deepEqual(skillGuideTools.map(tool => tool.id), ['codebase-wiki', 'merge-reviewer', 'release-reviewer']);
   for (const profile of ['group', 'repository'] as const) {
-    assert.equal(getSkillGuideCards(profile).length, 14);
+    assert.equal(getSkillGuideCards(profile).length, 15);
   }
 });
 

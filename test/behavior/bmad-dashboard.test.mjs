@@ -36,27 +36,52 @@ async function mount(t, initial = bmadWorkspaceSnapshot(), saved = { mode: 'bmad
   return { dom, document, requests, tick, sendSnapshot, click, button, get saved() { return state; } };
 }
 
-test('dashboard offers external CLI onboarding before GitLab login without an integrated installer', async t => {
+test('dashboard directs BMAD installation to WorkflowKit before GitLab login', async t => {
   const data = bmadWorkspaceSnapshot();
   Object.assign(data.bmad, { version: undefined, compatibility: 'unknown', catalogSource: 'guidance', currentCandidates: [], stories: [], recommendations: [] });
   data.bmad.steps.forEach(step => { step.artifacts = []; step.status = 'not-observed'; });
-  data.bmad.installation = { state: 'missing', reason: '請在 CLI 初始化 BMAD。' };
+  data.bmad.installation = { state: 'missing', reason: '請在設定安裝 WorkflowKit。' };
   data.bmad.codex = { state: 'missing', skills: [], reason: '尚未偵測 Codex Skills。' };
   const view = await mount(t, data);
   assert.ok(view.document.querySelector('.page[data-mode="bmad"] .bmad-panel'));
   assert.equal(view.document.querySelector('.bmad-panel h1').textContent, 'BMAD 使用指南');
   assert.equal(view.document.querySelector('#bmad-tab-start').getAttribute('aria-selected'), 'true');
   assert.equal(view.document.querySelector('.page .empty-state'), null);
-  assert.equal(view.document.querySelector('form.bmad-prompt-form, .tool-drawer'), null);
-  await view.click('複製安裝指令');
-  assert.deepEqual(requestShape(view.requests.findLast(item => item.type === 'copyBmadCommand')),
-    { type: 'copyBmadCommand', command: 'install', revision: data.bmad.revision });
+  assert.ok(view.document.querySelector('.bmad-prompt-form'));
+  assert.equal(view.button('複製 BMAD 提示詞').disabled, true);
+  assert.doesNotMatch(view.document.querySelector('.bmad-panel').textContent, /npx bmad-method|官方安裝教學/);
   await view.click('開啟終端機');
   assert.deepEqual(requestShape(view.requests.findLast(item => item.type === 'openBmadTerminal')),
     { type: 'openBmadTerminal', revision: data.bmad.revision });
-  await view.click('官方安裝教學 ↗');
-  assert.match(view.requests.findLast(item => item.type === 'openExternal').url, /\/blob\/v6\.12\.4\/docs\/start\/install-bmad\.md$/);
+  await view.click('開啟 WorkflowKit 設定');
+  assert.ok(view.document.querySelector('.tool-drawer'));
   assert.equal(view.requests.some(item => ['connect', 'installWorkflowKit', 'copyBmadPrompt', 'openCodexTerminal'].includes(item.type)), false);
+});
+
+test('task drafts and copy requests stay associated with the selected root', async t => {
+  const rootA = 'C:/專案/服務 A', rootB = 'C:/專案/服務 B';
+  const view = await mount(t, bmadWorkspaceSnapshot(rootA));
+  await view.click('開始使用');
+  let input = view.document.querySelector('#bmad-requirement');
+  input.value = '第一個需求\n檢查畫面'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  await view.click('複製 BMAD 提示詞');
+  assert.deepEqual(requestShape(view.requests.findLast(item => item.type === 'copyBmadCommand')),
+    { type: 'copyBmadCommand', command: 'task', requirement: '第一個需求\n檢查畫面', revision: bmadUiSnapshot(rootA).revision });
+  await view.sendSnapshot(bmadWorkspaceSnapshot(rootB)); await view.click('開始使用');
+  input = view.document.querySelector('#bmad-requirement'); assert.equal(input.value, '');
+  input.value = '第二個需求'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  await view.sendSnapshot(bmadWorkspaceSnapshot(rootA));
+  assert.equal(view.document.querySelector('#bmad-requirement').value, '第一個需求\n檢查畫面');
+  assert.equal(view.saved.bmadUiByRoot[rootB].requirement, '第二個需求');
+});
+
+test('settings shows the observed external BMAD version without claiming kit ownership', async t => {
+  const data = bmadWorkspaceSnapshot();
+  const installed = { status: 'installed', version: '1.3.1', bmadMode: 'external', integrity: 'verified', interfaceCompatibility: 'compatible' };
+  data.workflowKit = installed; data.workflowKitInstallTarget.state = installed;
+  const view = await mount(t, data);
+  await view.click('開始使用'); await view.click('開啟 WorkflowKit 設定');
+  assert.match(view.document.querySelector('.tool-drawer').textContent, /外部安裝（保留，由使用者管理）.*v6\.12\.4/s);
 });
 
 test('dashboard sends native command identity and exact revision while leaving observed progress unchanged', async t => {

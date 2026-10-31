@@ -24,10 +24,14 @@ test('all executable guide prompts route optional output style once and preserve
 
 test('both Analysis profiles expose the frozen analysis capabilities while BMAD has its own page', () => {
   const snapshot = JSON.parse(readFileSync(path.join(__dirname, '../../../test/fixtures/workflowkit-release-1.0.0/capabilities.json'), 'utf8'));
+  const current = JSON.parse(readFileSync(path.join(__dirname, '../../../test/fixtures/workflowkit-release-1.3.1/capabilities.json'), 'utf8'));
   for (const profile of ['group', 'repository'] as const) {
     assert.equal(snapshot.capabilities[profile].includes('bmad-workflow'), false);
     assert.equal(snapshot.capabilities[profile].length, 14);
-    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(), snapshot.capabilities[profile]);
+    assert.deepEqual(getSkillGuideCards(profile).filter(card => card.id !== 'visualize').map(card => card.id).sort(), snapshot.capabilities[profile]);
+    assert.ok(current.capabilities[profile].includes('bmad-workflow'));
+    assert.deepEqual(getSkillGuideCards(profile).map(card => card.id).sort(),
+      current.capabilities[profile].filter((capability: string) => capability !== 'bmad-workflow'));
   }
 });
 

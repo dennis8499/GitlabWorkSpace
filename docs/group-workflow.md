@@ -15,7 +15,11 @@ WorkflowKit 與 Extension 各自編版，以契約與能力判斷相容性。相
 
 整合包的唯一安裝文件位於 [WorkflowKit README](https://github.com/dennis8499/WorkflowKit#下載與安裝)。下載 Release ZIP 後解壓縮，執行 `python install.py --target <資料夾>`；可使用 `--dry-run` 預檢，並以安裝器的 `rollback` 命令回復保留的交易。
 
-受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。BMAD 由其官方 CLI 安裝。
+受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。WorkflowKit 1.3.1 內建 BMAD；若根目錄已有外部 BMAD runtime 或 Skill，安裝器保留原內容並略過內建元件。設定會區分內建、外部及來源未確認。缺少 uv 不阻擋安裝，使用 BMAD 前需準備 uv。
+
+## BMAD 需求與進度
+
+在 BMAD 頁面輸入需求並複製提示詞，在相同共用根目錄啟動 Codex 後貼上，由 BMAD 判斷工作流程。Group 共用一份 runtime；需要處理子 Repo 時在需求中說明目標。預設產出位於共用根目錄的 `_bmad-output/`。進度依已儲存的原生產物顯示，複製提示詞不會更改進度。切換共用根目錄時，下載、Skills 與 BMAD 一起切換，既有資料留在原位置。
 
 ## 此工作區的分類
 

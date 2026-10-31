@@ -54,6 +54,10 @@
 .bmad-text-button { border: 0; background: transparent; color: var(--bmad-link); padding: 3px 0; text-align: left; font-size: 11px !important; }
 .bmad-text-button:hover { text-decoration: underline; }
 .bmad-prerequisites { border: 1px solid var(--bmad-border); padding: 14px 16px; border-radius: 6px; margin-bottom: 20px; }
+.bmad-prompt-form { display: grid; gap: 9px; margin-bottom: 20px; }
+.bmad-prompt-form label { font-weight: 600; }
+.bmad-prompt-form textarea { width: 100%; min-height: 110px; resize: vertical; box-sizing: border-box; }
+.bmad-prompt-form p { color: var(--bmad-muted); font-size: 12px; overflow-wrap: anywhere; }
 .bmad-prerequisites > p { font-size: 12px; margin-top: 5px; color: var(--bmad-muted); }
 .bmad-tool-checks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0; list-style: none; margin: 12px 0; }
 .bmad-tool-checks li { background: var(--bmad-surface); border: 1px solid var(--bmad-border); border-radius: 4px; padding: 9px 11px; min-width: 0; }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inspectBmadEnvironment } from '../../src/workspace/bmadEnvironment';
 
-test('environment probes report Node requirements, missing tools and CLI failure independently', async () => {
+test('environment probes report missing uv and CLI failure independently', async () => {
   const calls: string[] = [];
   const value = await inspectBmadEnvironment('/project', { platform: 'linux', environment: { PATH: '/tools' }, realpath: async file => file,
     exists: async file => !file.endsWith('/uv'), probe: async file => {
@@ -10,8 +10,8 @@ test('environment probes report Node requirements, missing tools and CLI failure
       return file.endsWith('/node') ? 'v20.11.1' : '10.0.0';
     } });
   assert.equal(value.root, '/project');
-  assert.deepEqual(value.tools.map(tool => [tool.id, tool.state]), [['node', 'unsupported'], ['npm', 'ready'], ['codex', 'error'], ['uv', 'missing']]);
-  assert.deepEqual(calls.sort(), ['/tools/codex', '/tools/node', '/tools/npm']);
+  assert.deepEqual(value.tools.map(tool => [tool.id, tool.state]), [['codex', 'error'], ['uv', 'missing']]);
+  assert.deepEqual(calls.sort(), ['/tools/codex']);
 });
 
 test('Windows command wrappers are discovered without invoking a command shell', async () => {
@@ -20,7 +20,7 @@ test('Windows command wrappers are discovered without invoking a command shell',
     exists: async file => /(?:node\.exe|npm\.cmd|codex\.cmd|uv\.exe)$/.test(file), probe: async file => {
       calls.push(file); return file.endsWith('node.exe') ? 'v20.12.0' : 'uv 0.9.2';
     } });
-  assert.deepEqual(value.tools.map(tool => tool.state), ['ready', 'found', 'found', 'ready']);
+  assert.deepEqual(value.tools.map(tool => tool.state), ['found', 'ready']);
   assert.ok(calls.every(file => file.endsWith('.exe')));
   assert.ok(calls.every(file => file.startsWith('C:\\tools\\')));
 });

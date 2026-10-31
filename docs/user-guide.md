@@ -35,7 +35,7 @@ VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊
 - **專案**：查看遠端專案與本機狀態。下載、更新與 Skills 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
 - **分析**：使用 Wiki、MergeReviewer、ReleaseReviewer 三個工具分頁，預設「查詢 Wiki」。工具、功能和輸入依目前專案保存；提示詞帶入實際本機 Repo 與套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。
 - **待審查**：查看指派給自己的 Merge Request，詳情分為 **變更、討論、審查報告**。分支狀態與下一步操作顯示在主要區域；完整 SHA 位於技術詳情。
-- **BMAD 開發流程**：提供 Codex 的 BMAD 安裝教學、需求對應能力與精簡進度摘要；可免登入 GitLab、免安裝工作流程包使用。
+- **BMAD 開發流程**：透過 WorkflowKit 安裝 BMAD，輸入需求後複製提示詞，並查看能力參考與產物進度；可免登入 GitLab 使用。
 - **版控**：開啟所有由 VS Code 內建 Git 偵測到的本機 Repo。左側檢視分支、標籤、Stash 與復原點，中央顯示提交圖或 Diff，右側檢視工作中變更、提交內容並撰寫 Commit；此頁不需要 GitLab 連線或選取 Group。
 
 **後臺管理**入口位於右上方 **設定 → 開啟後臺管理**；登出後仍可查看本機各帳號的操作紀錄，篩選、查看詳情與匯出 JSONL。
@@ -93,12 +93,12 @@ Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支
 
 先在 **設定 → 工作區與 Skills** 確認共用專案根目錄，再開啟 **BMAD 開發流程**。頁首顯示實際安裝版本、Codex Skills、監看狀態與最後更新時間；**重新偵測** 會重新核對本機環境。教學固定依 [BMAD v6.12.4](https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v6.12.4)，其他 v6 版本標示相容性未驗證。
 
-**開始使用** 會列出 Node.js、npm、Codex CLI 與 uv 的檢查結果。Node.js 最低為 20.12；Build 等能力需要 [uv](https://docs.astral.sh/uv/getting-started/installation/)。Windows 的 `.cmd` 啟動器僅確認存在，仍需在終端驗證可執行。
+**開始使用** 顯示 Codex CLI 與 uv 的檢查結果。使用 BMAD 前請準備 [uv](https://docs.astral.sh/uv/getting-started/installation/)；WorkflowKit 安裝不需要 Node.js。Windows 的 `.cmd` 啟動器僅確認存在，仍需在終端驗證可執行。
 
-1. 按 **開啟專案終端**，確認終端位於頁首所示根目錄。
-2. 自行執行 `npx bmad-method@6.12.4 install --modules bmm --tools codex`，依官方安裝器完成設定。
-3. 從相同目錄執行 `codex`，在 Codex 對話輸入 `$bmad-help`，確認能力可用並詢問下一步。重新安裝或變更設定時，從該目錄再次執行安裝指令；詳見[固定版本安裝指南](https://github.com/bmad-code-org/BMAD-METHOD/blob/v6.12.4/docs/start/install-bmad.md)。
-4. 既有專案若缺少可靠代理指引，可視需要使用 `$bmad-project-context`。
+1. 開啟 WorkflowKit 設定，檢查並安裝或更新整合包。根目錄已有外部 BMAD 時會保留原安裝，畫面顯示管理模式。
+2. 在 **開始使用** 輸入需求，按 **複製 BMAD 提示詞**。
+3. 在頁首所示根目錄啟動 `codex` 並貼上提示詞，由 BMAD 判斷適合的能力與流程；Group 中的子 Repo 由需求文字指定。
+4. 儲存的產物預設放在共用根目錄的 `_bmad-output/`，回到 **目前進度** 查看。
 
 **我想做什麼** 依工作需求推薦能力，說明輸入、Codex 原生指令、預期產物與下一步。小功能或修錯可以直接使用 `$bmad-build`；需要跨多次實作時再使用 `$bmad-spec` 與 Story Breakdown，大型產品才視需要加入 PRD、UX、架構與 Sprint。完整能力目錄可展開參考。
 
@@ -120,7 +120,7 @@ VS Code 設定 `gitlabWorkspace.projectRoot` 留白使用所選專案資料夾�
 
 確認安裝位置與顯示的最新正式版後按 **下載並安裝／更新**。同一 Release 的安裝工具與 ZIP 都會核對大小及 SHA-256，並驗證逐檔內容。安裝期間固定目標位置並阻擋重複操作；安裝前整體預檢 Skills、Wiki 設定、管理區塊與紀錄，再以暫存及回復日誌套用。已驗證的安裝工具保存於 Extension 儲存區，供後續本機狀態檢查使用。
 
-安裝／更新會在目標根目錄的 `.gitignore` 加入工作流程包管理區塊，忽略包內 Skills、輔助檔案與安裝紀錄，並保留原有忽略規則。同版本重新安裝也會補上此區塊。BMAD 的檔案與忽略規則由使用者及官方 CLI 管理。個人 Skills、Wiki、工作紀錄與審查報告仍可納入版控；`AGENTS.md`、`Codex.md` 與 `.codex` 設定也保留原有版控行為。已被 Git 追蹤的檔案不會因新增忽略規則而自動取消追蹤。
+安裝／更新會在目標根目錄的 `.gitignore` 加入工作流程包管理區塊，忽略包內 Skills、輔助檔案與安裝紀錄，並保留原有忽略規則。同版本重新安裝也會補上此區塊。WorkflowKit 管理內建 BMAD；既有外部 BMAD 保留由使用者管理。個人 Skills、Wiki、工作紀錄與審查報告仍可納入版控；`AGENTS.md`、`Codex.md` 與 `.codex` 設定也保留原有版控行為。已被 Git 追蹤的檔案不會因新增忽略規則而自動取消追蹤。
 
 升級依舊安裝紀錄驗證後移除已撤下的受管理整合；工作紀錄、鎖、既有產物與其他獨立 Skills 保留。新版不再提供舊工作續作或交付。
 

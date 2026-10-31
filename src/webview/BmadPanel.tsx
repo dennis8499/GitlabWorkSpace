@@ -3,12 +3,15 @@ import { useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { BmadCatalogNode, BmadCommandRequest, BmadPanelState, BmadProgressStatus, BmadWorkflowSnapshot } from '../workspace/bmadProtocol';
 import type { BmadEnvironmentCheck } from '../workspace/bmadEnvironmentProtocol';
-import { BMAD_CAPABILITY_GUIDES, BMAD_CODEX_COMMAND, BMAD_DOCUMENTATION_LINKS, BMAD_GUIDANCE_VERSION, BMAD_INSTALL_COMMAND, BMAD_TASK_GUIDES } from '../workspace/bmadGuide';
+import type { InstalledWorkflowKitState } from '../workspace/workspaceProtocol';
+import { bmadKitTaskIssue } from '../workspace/bmadKit';
+import { BMAD_CAPABILITY_GUIDES, BMAD_CODEX_COMMAND, BMAD_DOCUMENTATION_LINKS, BMAD_GUIDANCE_VERSION, BMAD_TASK_GUIDES } from '../workspace/bmadGuide';
 import './bmad-panel.css';
 
 export interface BmadPanelProps {
   snapshot?: BmadWorkflowSnapshot;
   environment?: BmadEnvironmentCheck;
+  kit?: InstalledWorkflowKitState;
   state?: BmadPanelState;
   onChange?: (state: BmadPanelState) => void;
   onRefresh: () => void;
@@ -16,6 +19,7 @@ export interface BmadPanelProps {
   onOpenTerminal: () => void;
   onOpenDocumentation: (url: string) => void;
   onOpenArtifact: (stepId: string, path: string) => void;
+  onOpenSettings: () => void;
 }
 
 type Section = 'start' | 'capabilities' | 'progress';
@@ -40,7 +44,7 @@ const nodeTitle = (node: BmadCatalogNode): string => node.action === 'status' &&
 const nativeCommand = (skill: string, action?: string): string => `$${skill}${action ? ` ${action}` : ''}`;
 
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
-export function BmadPanel({ snapshot, environment, state, onChange, onRefresh, onCopyCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact }: BmadPanelProps) {
+export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
   const ui = state ?? localState;
   const catalogRef = useRef<HTMLDivElement>(null);
@@ -63,7 +67,7 @@ export function BmadPanel({ snapshot, environment, state, onChange, onRefresh, o
   const hasProgress = snapshot.currentCandidates.length > 0 || snapshot.stories.length > 0 || artifacts.length > 0;
   const ready = snapshot.installation.state === 'ready' && snapshot.codex.state === 'ready';
   const selectedSection = sections.some(item => item.id === ui.selectedSection) ? ui.selectedSection!
-    : hasProgress ? 'progress' : ready ? 'capabilities' : 'start';
+    : hasProgress ? 'progress' : 'start';
   const selectedTask = BMAD_TASK_GUIDES.find(task => task.id === ui.selectedTaskId) ?? BMAD_TASK_GUIDES[0];
   const selected = ui.selectedStepId ? nodesById.get(ui.selectedStepId) : undefined;
   const selectedGuide = selected ? BMAD_CAPABILITY_GUIDES[selected.skill] : undefined;
@@ -109,15 +113,19 @@ export function BmadPanel({ snapshot, environment, state, onChange, onRefresh, o
   };
   const observationTime = snapshot.observation.lastSuccessfulAt ?? snapshot.observedAt;
   const environmentMatches = !!environment && !!snapshot.root && environment.root === snapshot.root;
+  const kitIssue = bmadKitTaskIssue(kit);
+  const taskReady = !!snapshot.root && snapshot.installation.state === 'ready' && snapshot.compatibility !== 'unsupported'
+    && snapshot.codex.skills.includes('bmad-help') && snapshot.observation.state !== 'error' && !kitIssue;
 
   return <div class="bmad-panel">
     <header class="bmad-page-heading"><div><div class="bmad-eyebrow">BMAD METHOD · CODEX</div>
-      <h1>BMAD 使用指南</h1><p>先選要完成的工作，再把原生指令貼到 Codex。專案狀態會隨儲存的產物更新。</p></div>
+      <h1>BMAD 使用指南</h1><p>描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。</p></div>
       <div class="bmad-heading-actions"><button type="button" class="secondary" onClick={onOpenTerminal} disabled={!snapshot.root}>開啟終端機</button>
         <button type="button" class="secondary" onClick={onRefresh}>重新偵測</button></div></header>
     <div class="bmad-project-context"><span class={`bmad-installation bmad-installation-${snapshot.installation.state}`}>{installationLabels[snapshot.installation.state]}</span>
       <span class="bmad-project-path" title={snapshot.root}>{snapshot.root ?? '請先在 VS Code 開啟或選擇專案資料夾'}</span>
       <span class={`bmad-codex-state bmad-codex-${snapshot.codex.state}`}>{snapshot.codex.state === 'ready' ? 'Codex Skills 已偵測' : snapshot.codex.state === 'partial' ? 'Codex Skills 部分缺少' : snapshot.codex.state === 'missing' ? '未偵測 Codex Skills' : 'Codex Skills 狀態未明'}</span>
+      <span>{kit?.bmadMode === 'bundled' ? 'WorkflowKit 內建 BMAD' : kit?.bmadMode === 'external' ? '外部 BMAD（由使用者管理）' : 'BMAD 管理來源未確認'}</span>
       <span class="bmad-version">專案 {snapshot.version ?? '未偵測'} · 教學 {snapshot.guidanceVersion ?? BMAD_GUIDANCE_VERSION}</span></div>
     {(snapshot.compatibility !== 'verified' || snapshot.installation.state !== 'ready') && <p class="bmad-environment-notice" role="status">{snapshot.compatibility === 'unverified'
       ? `專案版本尚未經本頁驗證；教學以 ${BMAD_GUIDANCE_VERSION} 為準，能力與狀態依實際安裝內容顯示。`
@@ -143,27 +151,26 @@ export function BmadPanel({ snapshot, environment, state, onChange, onRefresh, o
       }}>{section.label}</button>)}</nav>
 
     {selectedSection === 'start' && <section id="bmad-section-start" class="bmad-section" role="tabpanel" aria-labelledby="bmad-tab-start">
-      <div class="bmad-section-heading"><div><h2>在自己的專案初始化 BMAD</h2><p>安裝由你在終端機執行。完成後回來重新偵測即可。</p></div>
-        <button type="button" class="bmad-text-button" onClick={() => openDocumentation('install')}>官方安裝教學 ↗</button></div>
-      <div class="bmad-prerequisites"><h3>先確認環境</h3><p>需要 Node.js 20.12 以上、npm、Codex CLI 與 uv。BMAD 透過 uv 取得適合的 Python 環境。</p>
+      <div class="bmad-section-heading"><div><h2>描述這次需求</h2><p>在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。</p></div>
+        <button type="button" class="secondary" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></div>
+      {kit?.bmadMode === 'external' && <p class="bmad-environment-notice">偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。</p>}
+      {kitIssue && <p class="bmad-environment-notice" role="status">{kitIssue} {kit?.message}</p>}
+      <div class="bmad-prompt-form"><label for="bmad-requirement">本次需求</label>
+        <textarea id="bmad-requirement" rows={5} maxLength={8000} value={ui.requirement ?? ''}
+          placeholder="例如：請分析並完成結帳流程的退款功能，確認畫面與測試。" onInput={event => change({ requirement: event.currentTarget.value })} />
+        <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
+        <div class="bmad-inline-actions"><button type="button" class="primary" disabled={!taskReady || !(ui.requirement ?? '').trim()}
+          onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
+          <button type="button" class="secondary" disabled={!snapshot.root} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
+        <p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。</p>
+        {!taskReady && <p class="bmad-environment-notice" role="status">請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。</p>}
+      </div>
+      <div class="bmad-prerequisites"><h3>執行環境</h3><p>使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。</p>
         {environmentMatches && environment ? <><ul class="bmad-tool-checks">{environment.tools.map(tool => <li key={tool.id} class={`bmad-tool-${tool.state}`}>
           <strong>{tool.label}</strong><span>{tool.state === 'ready' ? '已驗證' : tool.state === 'found' ? '已找到指令' : tool.state === 'missing' ? '找不到指令' : tool.state === 'unsupported' ? '版本不支援' : '檢查失敗'}{tool.version ? ` · ${tool.version}` : ''}</span><p>{tool.reason}</p></li>)}</ul>
           <p class="bmad-muted">環境檢查：<time dateTime={environment.checkedAt}>{timeLabel(environment.checkedAt) ?? environment.checkedAt}</time>。找到指令不代表已完成執行驗證。</p></>
           : <p class="bmad-muted" role="status">{snapshot.root ? '尚未取得這個專案的環境檢查，請重新偵測。' : '選擇專案後可檢查本機環境。'}</p>}
         <button type="button" class="bmad-text-button" onClick={() => openDocumentation('uv')}>uv 安裝方式 ↗</button></div>
-      <ol class="bmad-setup-steps"><li><span class="bmad-setup-number">01</span><div><h3>在目標專案開啟終端機</h3><p>使用上方「開啟終端機」，確認目前目錄就是要使用 BMAD 的專案。</p><code class="bmad-root-path">{snapshot.root ?? '尚未選擇專案資料夾'}</code></div></li>
-        <li><span class="bmad-setup-number">02</span><div><h3>執行官方 CLI，安裝並初始化 Codex Skills</h3><p>以下固定使用 {BMAD_GUIDANCE_VERSION} 的 bmm 模組與 Codex；依 CLI 引導完成專案設定。</p>
-          <div class="bmad-command-line"><code>{BMAD_INSTALL_COMMAND}</code><button type="button" class="secondary" onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'install' })}>複製安裝指令</button></div>
-          <p class="bmad-muted">Windows PowerShell 若封鎖 npx.ps1，請以 <code>npx.cmd</code> 取代 npx；啟動 Codex 遇到相同情況時使用 <code>codex.cmd</code>。</p>
-          <p class="bmad-muted">若 CLI 詢問安裝目錄，確認為目前專案。此命令也可用於補齊 Codex Skills；依 CLI 提示處理既有設定。</p></div></li>
-        <li><span class="bmad-setup-number">03</span><div><h3>在同一專案啟動 Codex</h3><div class="bmad-command-line"><code>{BMAD_CODEX_COMMAND}</code>
-          <button type="button" class="secondary" disabled={!snapshot.root} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
-          <p>安裝完成後開啟新的 Codex 對話，再將下方的 <code>$bmad-help</code> 貼到對話中。</p></div></li>
-        <li><span class="bmad-setup-number">04</span><div><h3>回到本頁確認安裝與下一步</h3><p>{snapshot.installation.reason} {snapshot.codex.reason}</p>
-          <div class="bmad-inline-actions"><button type="button" class="primary" onClick={onRefresh}>重新偵測安裝</button><button type="button" class="secondary" onClick={() => change({ selectedSection: 'capabilities' })}>選擇工作能力</button></div></div></li></ol>
-      <div class="bmad-start-help"><h3>第一次使用，先讓 BMAD 幫你定位</h3><ul class="bmad-command-list">{commandCard('bmad-help')}</ul>
-        <p class="bmad-muted">已有程式庫時，可再整理代理指引。</p><ul class="bmad-command-list">{commandCard('bmad-project-context')}</ul>
-        <button type="button" class="bmad-text-button" onClick={() => openDocumentation('existing')}>既有程式庫教學 ↗</button></div>
     </section>}
 
     {selectedSection === 'capabilities' && <section id="bmad-section-capabilities" class="bmad-section" role="tabpanel" aria-labelledby="bmad-tab-capabilities">
@@ -176,7 +183,7 @@ export function BmadPanel({ snapshot, environment, state, onChange, onRefresh, o
         {selectedTask.id === 'product' && <p class="bmad-route">PRD → 架構 → Epic／Story → Sprint → Build</p>}
         <p class="bmad-command-context">在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。</p>
         <ol class="bmad-command-list">{selectedTask.steps.map(step => commandCard(step.skill, step.action))}</ol>
-        {!ready && <p class="bmad-environment-notice">指令可先複製作為參考；使用前請到「開始使用」補齊缺少的能力，再重新偵測。</p>}</section>
+        {!ready && <p class="bmad-environment-notice">指令可先複製作為參考；使用前請檢查 WorkflowKit 或外部 BMAD，再重新偵測。</p>}</section>
       <div class="bmad-help-inline"><span>不確定選哪一項？先用 <code>$bmad-help</code> 詢問。</span>
         <button type="button" class="secondary" onClick={() => copyGuidance('bmad-help', findNode('bmad-help'))}>複製 Help 指令</button></div>
       <div class="bmad-catalog"><button type="button" class="bmad-catalog-toggle" aria-expanded={!!ui.showCatalog} aria-controls="bmad-catalog-content"

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES } from '../../src/workspace/workflowKitReleases';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
+import { readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
+import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
+import { readReviewerCapabilities } from '../../src/workspace/reviewerCapabilities';
+import { resolvePythonRuntime } from '../../src/workspace/pythonRuntime';
 
 suite('Online workflow kit installation', () => {
   test('the shared root setting defaults to the opened folder and supports workspace overrides', async () => {
@@ -25,8 +29,8 @@ suite('Online workflow kit installation', () => {
     }
   });
 
-  test('downloads an independent release and follows shared root changes', async function () {
-    this.timeout(120_000);
+  for (const kitVersion of ['1.0.0', '1.3.1']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
+    this.timeout(240_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
     // Wiki's native installer adds its own staging tree; avoid Windows MAX_PATH in the fixture.
@@ -61,7 +65,7 @@ suite('Online workflow kit installation', () => {
       assert.ok(nativeRepository, 'VS Code Git must register the actual Repo');
       const extensionRoot = path.resolve(__dirname, '../../..');
       const packageJSON = JSON.parse(await readFile(path.join(extensionRoot, 'package.json'), 'utf8'));
-      const fixture = path.join(extensionRoot, 'test/fixtures/workflowkit-release-1.0.0');
+      const fixture = path.join(extensionRoot, `test/fixtures/workflowkit-release-${kitVersion}`);
       const kitIndex = JSON.parse(await readFile(path.join(fixture, 'release.json'), 'utf8'));
       const expectedSkills = [...kitIndex.skills].sort();
       assert.notEqual(kitIndex.version, packageJSON.version);
@@ -113,7 +117,21 @@ suite('Online workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.equal((await readdir(root)).includes('_bmad'), false, 'The workflow kit cannot initialize BMAD');
+      assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1');
+      if (kitVersion === '1.3.1') {
+        assert.equal(host.workflowKitState.bmadMode, 'bundled');
+        assert.ok(host.workflowKitState.capabilities.includes('visualize'));
+        const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
+        const bmad = await readBmadWorkflow({ root, bundledCatalog: catalog });
+        assert.equal(bmad.installation.state, 'ready');
+        assert.ok(bmad.codex.skills.includes('bmad-help'));
+        const python = await resolvePythonRuntime('python');
+        for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
+          const binding = await readInstalledReviewerBinding(root, tool);
+          assert.equal(binding.version, tool === 'merge-reviewer' ? '0.20.3' : '0.10.1');
+          assert.equal(await readReviewerCapabilities(binding, python, root), undefined);
+        }
+      }
       assert.equal(host.getSkillsContext().mode, 'unavailable', 'settings classification does not fabricate full Skills discovery');
       await host.refreshWorkflowKit(false);
       const skills = host.getSkillsContext();
@@ -122,6 +140,11 @@ suite('Online workflow kit installation', () => {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);
+        const existingBmad = kitVersion === '1.3.1' && profile === 'group';
+        if (existingBmad) {
+          await mkdir(path.join(externalRoot, '_bmad'), { recursive: true });
+          await writeFile(path.join(externalRoot, '_bmad', 'config.toml'), '# user BMAD\n');
+        }
         await configuration.update(setting, externalRoot, configurationTarget);
         await host.refreshWorkflowKit(false);
         assert.equal(host.workflowKitInstallTarget.profile, profile);
@@ -129,8 +152,15 @@ suite('Online workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.root, externalRoot);
         assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
-        assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(), expectedSkills);
-        assert.equal((await readdir(externalRoot)).includes('_bmad'), false, 'Neither profile installs the BMAD runtime');
+        assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(),
+          existingBmad ? expectedSkills.filter((name: string) => !name.startsWith('bmad-')) : expectedSkills);
+        assert.equal((await readdir(externalRoot)).includes('_bmad'), kitVersion === '1.3.1');
+        if (existingBmad) {
+          assert.equal(host.workflowKitState.bmadMode, 'external');
+          assert.ok(!host.workflowKitState.capabilities.includes('bmad-workflow'));
+          assert.ok(host.workflowKitState.capabilities.includes('visualize'));
+          assert.equal(await readFile(path.join(externalRoot, '_bmad', 'config.toml'), 'utf8'), '# user BMAD\n');
+        }
         assert.equal(host.getSkillsContext().root, externalRoot);
         assert.equal(host.getSkillsContext().installed.profile, profile);
         assert.notEqual(host.getSkillsContext().revision, skills.revision);

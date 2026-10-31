@@ -2,6 +2,10 @@
 
 Group 與 repository profile 均提供以下 Wiki 能力；開發規格與專用匯出入口已撤下。
 
+## 繪製圖表
+
+WorkflowKit 1.3.1 的 Wiki 支援架構、流程、循序、資料流、生命週期、實體關係、類別、樹狀、時間軸及瀑布圖。在 Skills 指引填寫主題、選擇類型並視需要指定範圍，複製提示詞到 Codex。Group 圖表使用共用 Wiki，來源引用採 `Repo/path`。圖表與 Synthesis 頁面僅在來源及全部發布檢查通過後一併寫入，既有結果與人工 notes 保留。發布需要 Node.js 18+ 與本機瀏覽器；安裝 WorkflowKit 不需 Node.js。
+
 ## 查詢後續處理
 
 從分析選單選「查詢 Wiki」。先得到有引用依據的唯讀回答；有必要時才提供最多三個

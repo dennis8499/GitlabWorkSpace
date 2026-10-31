@@ -21,9 +21,10 @@ import { cloneProjects, createScopedGitEnvironment, prepareOperationLayout, proj
 import { resolveLocalRepositoryLayout } from './localRepositoryLayout';
 import { groupRepositoryPath, inspectWorkflowKitInstallRoot, localRepositoryStateAsync, resolveWorkflowKitInstallRoot, sameLocalPath, sameRealLocalPathAsync, scanLocalGroupRepositories, type LocalGroupRepository, type WorkspaceRootResolution } from './workspacePaths';
 import { resolvePythonRuntime } from './pythonRuntime';
-import { workflowKitFailure } from './workflowKitResult';
+import { workflowKitFailure, workflowKitWarnings } from './workflowKitResult';
 import { BmadWorkflowController } from './bmadWorkflowController';
 import { buildBmadCommand } from './bmadCommand';
+import { bmadKitTaskIssue } from './bmadKit';
 import { inspectBmadEnvironment } from './bmadEnvironment';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 import type { BmadCommandRequest } from './bmadProtocol';
@@ -210,6 +211,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private developerView: 'list' | 'graph' = 'list';
   private currentUser?: GitLabUser;
   private workflowKitState: InstalledWorkflowKitState = { status: 'missing' };
+  private workflowKitInstallWarnings?: { root: string; version: string; warnings: string[] };
   private workflowKitStateRoot?: string;
   private skillsWorkflowKitState: InstalledWorkflowKitState = { status: 'missing' };
   private skillsWorkflowKitStateRoot?: string;
@@ -1047,7 +1049,7 @@ export class WorkspacePanel implements vscode.Disposable {
         break;
       case 'refreshBmad': await this.refreshBmadWorkflow(true); break;
       case 'copyBmadCommand': await this.copyBmadCommand({ revision: request.revision, command: request.command, skill: request.skill,
-        stepId: request.stepId, artifactId: request.artifactId, storyId: request.storyId }); break;
+        stepId: request.stepId, artifactId: request.artifactId, storyId: request.storyId, requirement: request.requirement }); break;
       case 'openBmadTerminal': await this.openBmadTerminal(request.revision); break;
       case 'openBmadArtifact': await this.openBmadArtifact(request.revision, request.stepId, request.path); break;
       case 'publishNotification':
@@ -3137,6 +3139,7 @@ export class WorkspacePanel implements vscode.Disposable {
   private async refreshBmadWorkflow(recheckEnvironment = false): Promise<void> {
     if (this.disposed || this.activeMode !== 'bmad' || !this.webviewReady || this.panel?.visible === false) return;
     const signature = this.projectContextSignature();
+    await this.refreshWorkflowKitInstallState();
     const context = await this.resolveProjectContext();
     if (this.disposed || signature !== this.projectContextSignature() || this.activeMode !== 'bmad' || !this.webviewReady) return;
     this.projectContext = context;
@@ -3189,7 +3192,13 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private async copyBmadCommand(request: BmadCommandRequest): Promise<void> {
-    const snapshot = await this.requireBmadSnapshot(request.revision, !request.artifactId && !request.storyId);
+    const snapshot = await this.requireBmadSnapshot(request.revision, request.command !== 'task' && !request.artifactId && !request.storyId);
+    if (request.command === 'task') {
+      const installed = this.workflowKitStateRoot && snapshot.root && sameLocalPath(this.workflowKitStateRoot, snapshot.root)
+        ? this.workflowKitState : undefined;
+      const issue = bmadKitTaskIssue(installed);
+      if (issue) throw new Error(issue);
+    }
     await vscode.env.clipboard.writeText(buildBmadCommand(snapshot, request));
     this.noteOutcome({ effect: 'applied' });
   }
@@ -4478,6 +4487,8 @@ export class WorkspacePanel implements vscode.Disposable {
           profile: response.profile === 'group' || response.profile === 'repository' ? response.profile : undefined,
           upstreamVersions: response.upstreamVersions && typeof response.upstreamVersions === 'object' ? response.upstreamVersions as Record<string, string> : undefined,
           capabilities: Array.isArray(response.capabilities) ? response.capabilities.filter((item): item is string => typeof item === 'string') : [],
+          bmadMode: response.bmadMode === 'bundled' || response.bmadMode === 'external' ? response.bmadMode : undefined,
+          warnings: workflowKitWarnings(response.warnings),
 
           workspaceContract: typeof response.workspaceContract === 'number' ? response.workspaceContract : undefined,
           installerApi: typeof response.installerApi === 'number' ? response.installerApi : undefined,
@@ -4592,7 +4603,11 @@ export class WorkspacePanel implements vscode.Disposable {
       context.root && !target.error ? this.readWorkflowKitState(context.root) : Promise.resolve<InstalledWorkflowKitState>({ status: 'missing' })]);
     if (!current()) return;
     const latestCompatible = packages.find(item => item.source === this.workflowKitSource() && item.available);
-    const state: InstalledWorkflowKitState = { ...checkedState, updateAvailable: checkedState.version && latestCompatible
+    const installWarnings = this.workflowKitInstallWarnings;
+    const state: InstalledWorkflowKitState = { ...checkedState,
+      warnings: installWarnings && context.root && sameLocalPath(installWarnings.root, context.root) && installWarnings.version === checkedState.version
+        ? [...new Set([...(checkedState.warnings ?? []), ...installWarnings.warnings])] : checkedState.warnings,
+      updateAvailable: checkedState.version && latestCompatible
       ? compareVersions(latestCompatible.version, checkedState.version) > 0 : undefined };
     this.workflowKitReleases = packages;
     this.workflowKitState = this.skillsWorkflowKitState = state;
@@ -4603,6 +4618,7 @@ export class WorkspacePanel implements vscode.Disposable {
     this.workflowKitInstallTarget = { ...target, state };
     if (!current()) return;
     if (publish) this.sendSnapshot();
+    if (context.root && state.bmadMode) void this.refreshBmadEnvironment(context.root);
   }
 
   private async selectWorkflowKitInstallRoot(): Promise<void> {
@@ -4674,6 +4690,9 @@ export class WorkspacePanel implements vscode.Disposable {
           this.runWorkflowKitHelper(['install', selected.archivePath, root, selected.version, selected.source,
             '--format', selected.format, '--entry-root', selected.entryRoot, '--archive-sha256', selected.sha256, '--profile', profile], undefined, beforeLaunch, selected.installerPath));
         if (result.package !== 'gitlab-workspace-kit' || result.version !== selected.version || result.profile !== profile) throw new Error('安裝工具回傳的套件資訊不符。');
+        const warnings = workflowKitWarnings(result.warnings);
+        this.workflowKitInstallWarnings = { root, version: selected.version, warnings };
+        if (warnings.length) this.post({ type: 'message', message: `WorkflowKit 安裝成功：${warnings.join(' ')}` });
       } catch (error) {
         const source = selected.source === 'github' ? 'GitHub' : selected.source === 'gitea' ? 'Gitea' : 'WorkflowKit';
         throw new Error(`${source} Release v${selected.version}：${readableError(error)}`, { cause: error });
@@ -4687,6 +4706,7 @@ export class WorkspacePanel implements vscode.Disposable {
     } finally {
       this.workflowKitInstallation = undefined;
       await this.reconcileAfterWrite(() => this.refreshWorkflowKitInstallState());
+      if (this.activeMode === 'bmad') await this.refreshBmadWorkflow(true);
     }
   }
 

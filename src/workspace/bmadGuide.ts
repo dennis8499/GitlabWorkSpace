@@ -1,11 +1,9 @@
-/** Versioned teaching content only. BMAD itself is installed and run by the user. */
+/** Versioned guidance; installation is managed by WorkflowKit. */
 export const BMAD_GUIDANCE_VERSION = '6.12.4';
-export const BMAD_INSTALL_COMMAND = 'npx bmad-method@6.12.4 install --modules bmm --tools codex';
 export const BMAD_CODEX_COMMAND = 'codex';
 
 const source = 'https://github.com/bmad-code-org/BMAD-METHOD/blob/v6.12.4/docs';
 export const BMAD_DOCUMENTATION_LINKS = [
-  { id: 'install', title: '官方安裝教學', url: `${source}/start/install-bmad.md` },
   { id: 'planning', title: '選擇規劃路徑', url: `${source}/plan/choose-a-planning-path.md` },
   { id: 'existing', title: '在既有程式庫開始', url: `${source}/existing-codebases/start-in-an-existing-codebase.md` },
   { id: 'skills', title: 'Skills 與代理參考', url: `${source}/reference/skills-and-agents.md` },

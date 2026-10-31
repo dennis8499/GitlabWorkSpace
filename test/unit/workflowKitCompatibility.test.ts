@@ -8,7 +8,8 @@ test('compatible installations remain usable across independent versions and ava
   for (const version of ['0.32.0', '1.0.0', '1.1.0']) {
     const installed: InstalledWorkflowKitState = { status: 'update-available', version, profile: 'repository', workspaceContract: 2, installerApi: 1, capabilities: ['query'] };
     assert.deepEqual(resolveSkillsContext({ match, installed, revision: 'fixture' }).availableFeatures, ['query']);
-    for (const incompatible of [{ ...installed, workspaceContract: 3 }, { ...installed, profile: 'group' as const }, { ...installed, status: 'error' as const }]) {
+    for (const incompatible of [{ ...installed, workspaceContract: 3 }, { ...installed, profile: 'group' as const }, { ...installed, status: 'error' as const },
+      { ...installed, integrity: 'unverified' as const }]) {
       assert.deepEqual(resolveSkillsContext({ match, installed: incompatible, revision: 'fixture' }).availableFeatures, []);
     }
     const unsupported = resolveSkillsContext({ match, installed: { ...installed, workspaceContract: 3 }, revision: 'fixture' });

@@ -40,11 +40,12 @@ export interface BmadWorkflowSnapshot {
   observedAt?: string; watchRootArtifacts?: boolean;
 }
 export interface BmadCommandRequest {
-  revision: string; command: 'install' | 'codex' | 'skill';
+  revision: string; command: 'task' | 'codex' | 'skill';
   skill?: string; stepId?: string; artifactId?: string; storyId?: string;
+  requirement?: string;
 }
 export interface BmadPanelState {
   selectedSection?: 'start' | 'capabilities' | 'progress'; selectedTaskId?: string;
   selectedStepId?: string; expandedPhases?: string[];
-  showCatalog?: boolean;
+  showCatalog?: boolean; requirement?: string;
 }

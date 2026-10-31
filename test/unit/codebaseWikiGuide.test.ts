@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, wikiGuideCards
+  buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, wikiGuideCards, WIKI_DIAGRAM_TYPES
 } from '../../src/webview/codebaseWikiGuideData';
 
 test('defines the complete offline Codebase LLM Wiki guide and working default selections', () => {
-  assert.equal(wikiGuideCards.length, 13);
+  assert.equal(wikiGuideCards.length, 14);
   assert.deepEqual(wikiGuideCards.map((card) => card.id), [
-    'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'business-analysis',
+    'install', 'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr', 'synthesis', 'visualize', 'business-analysis',
     'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ]);
 
@@ -19,6 +19,25 @@ test('defines the complete offline Codebase LLM Wiki guide and working default s
   assert.equal(wikiGuideCards.find((card) => card.id === 'install')!.fields.length, 0);
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'install')!, defaults), false);
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'notebooklm-export')!, defaults), true);
+});
+
+test('visualization prompts cover the ten supported types and preserve evidence and publishing gates', () => {
+  const card = wikiGuideCards.find(item => item.id === 'visualize')!;
+  const defaults = createDefaultWikiGuideInputs();
+  assert.equal(defaults['visualize.type'], '架構圖');
+  assert.equal(canCopyWikiPrompt(card, defaults), false);
+  assert.equal(WIKI_DIAGRAM_TYPES.length, 10);
+  for (const type of WIKI_DIAGRAM_TYPES) {
+    const inputs = { ...defaults, 'visualize.topic': '付款流程', 'visualize.type': type.label, 'visualize.scope': 'service/src' };
+    assert.equal(canCopyWikiPrompt(card, inputs), true);
+    const group = buildWikiGuidePrompt('visualize', inputs, { profile: 'group', repositories: [] });
+    assert.ok(group.includes(type.value));
+    assert.match(group, /Repo\/path/);
+    assert.match(group, /validate、deliver、check 與 browser-check/);
+    assert.match(group, /保留既有圖表/);
+  }
+  assert.equal(canCopyWikiPrompt(card, { ...defaults, 'visualize.topic': '付款', 'visualize.type': 'invalid' }), false);
+  assert.match(buildWikiGuidePrompt('visualize', { ...defaults, 'visualize.topic': '付款' }, { profile: 'repository', root: '/project', repositories: [] }), /目前 Repo 的 Wiki/);
 });
 
 test('builds prompts from required values while retaining Unicode, spaced paths, and multiline questions', () => {

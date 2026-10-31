@@ -24,17 +24,18 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
         'capabilities', '--workspace', workspace], options);
     } catch (error) {
       const failure = error as { code?: unknown; stderr?: unknown };
-      if (binding.tool !== 'release-reviewer' || failure.code !== 2 || typeof failure.stderr !== 'string'
+      if (failure.code !== 2 || typeof failure.stderr !== 'string'
         || !/invalid choice:\s*['"]capabilities['"]/i.test(failure.stderr)) throw error;
-      // Older ReleaseReviewer sessions have no capabilities command. Verify
+      // Earlier MergeReviewer and ReleaseReviewer sessions have no capabilities command. Verify
       // their actual start interface before emitting any of its options.
+      const label = binding.tool === 'merge-reviewer' ? 'MergeReviewer' : 'ReleaseReviewer';
       const help = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
-        'start', '--help'], options).catch(() => { throw new Error('已安裝 ReleaseReviewer 不支援可恢復的審查流程，請更新工作流程包。'); });
+        'start', '--help'], options).catch(() => { throw new Error(`已安裝 ${label} 不支援可恢復的審查流程，請更新工作流程包。`); });
       const commands = /\{start,step,check,finish,status,cancel\}/.test(help.stdout);
       const required = ['--workspace', '--workspace-file', '--project', '--base', '--head', '--runtime-root',
         '--request-id', '--requests-file', '--auth-scope', '--refresh'];
       if (!commands || required.some(flag => !help.stdout.includes(flag))) {
-        throw new Error('已安裝 ReleaseReviewer 的 session 介面不相容，請更新工作流程包。');
+        throw new Error(`已安裝 ${label} 的 session 介面不相容，請更新工作流程包。`);
       }
       return undefined;
     }

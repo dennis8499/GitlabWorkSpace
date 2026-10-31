@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import path from 'node:path';
 import { buildBmadCommand } from '../../src/workspace/bmadCommand';
+import { bmadKitTaskIssue } from '../../src/workspace/bmadKit';
 import type { BmadCatalogNode, BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
 
 function fixture(): BmadWorkflowSnapshot {
@@ -9,7 +10,7 @@ function fixture(): BmadWorkflowSnapshot {
     description: '', action: '', args: '', phase: 'ship', required: true, precededBy: [], followedBy: [], outputLocation: '', outputs: [] };
   const root = path.resolve('command-fixture');
   return { root, revision: 'one', guidanceVersion: '6.12.4', compatibility: 'verified',
-    installation: { state: 'ready', reason: '' }, codex: { state: 'ready', skills: ['bmad-build'], reason: '' },
+    installation: { state: 'ready', reason: '' }, codex: { state: 'ready', skills: ['bmad-build', 'bmad-help'], reason: '' },
     observation: { state: 'watching' }, catalogSource: 'installed', nodes: [node], phases: [], edges: [],
     steps: [{ id: node.id, status: 'draft', summary: '', artifacts: [{ id: 'work', path: path.join(root, 'spec-task.md'),
       relativePath: 'spec-task.md', fingerprint: 'hash', status: 'draft', reason: '' }] }],
@@ -18,12 +19,39 @@ function fixture(): BmadWorkflowSnapshot {
     currentCandidates: [], recommendations: [], watchDirectories: [], diagnostics: [] };
 }
 
-test('onboarding commands can be copied before installing BMAD or Workflow Kit', () => {
+test('reference commands can be copied before installation, but task prompts require a ready BMAD', () => {
   const snapshot = fixture(); snapshot.installation = { state: 'missing', reason: '未安裝' }; snapshot.root = undefined;
-  assert.equal(buildBmadCommand(snapshot, { revision: 'one', command: 'install' }), 'npx bmad-method@6.12.4 install --modules bmm --tools codex');
+  assert.throws(() => buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement: '修復問題' }), /尚未準備完成/);
   assert.equal(buildBmadCommand(snapshot, { revision: 'one', command: 'codex' }), 'codex');
   assert.equal(buildBmadCommand(snapshot, { revision: 'one', command: 'skill', skill: 'bmad-build' }), '$bmad-build');
   assert.equal(buildBmadCommand(snapshot, { revision: 'one', command: 'skill', skill: 'bmad-project-context' }), '$bmad-project-context', 'Teaching remains available when the module is not installed');
+});
+
+test('task prompts retain multiline requirements and the verified project root without advancing progress', () => {
+  const snapshot = fixture(), before = JSON.stringify(snapshot);
+  const requirement = '檢查付款流程\n完成畫面與測試';
+  const prompt = buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement });
+  assert.match(prompt, /^\$bmad-help/);
+  assert.ok(prompt.includes(snapshot.root!));
+  assert.ok(prompt.includes(path.join(snapshot.root!, '_bmad-output')));
+  assert.ok(prompt.includes(requirement));
+  assert.equal(JSON.stringify(snapshot), before);
+  assert.throws(() => buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement: '   ' }), /請填寫/);
+  assert.throws(() => buildBmadCommand(snapshot, { revision: 'old', command: 'task', requirement }), /已變更/);
+  assert.throws(() => buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement: 'x\0y' }), /格式無效/);
+  snapshot.codex.skills = ['bmad-build'];
+  assert.throws(() => buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement }), /尚未準備完成/);
+});
+
+test('bundled tasks require a verified kit while independently observed external installations remain usable', () => {
+  const bundled = { status: 'installed', bmadMode: 'bundled', integrity: 'verified', interfaceCompatibility: 'compatible',
+    capabilities: ['bmad-workflow'] } as const;
+  assert.equal(bmadKitTaskIssue({ ...bundled, capabilities: [...bundled.capabilities] }), undefined);
+  assert.match(bmadKitTaskIssue({ ...bundled, integrity: 'unverified', capabilities: [...bundled.capabilities] })!, /尚未通過驗證/);
+  assert.match(bmadKitTaskIssue({ ...bundled, capabilities: [] })!, /尚未通過驗證/);
+  assert.match(bmadKitTaskIssue({ status: 'error' })!, /尚未確認/);
+  assert.equal(bmadKitTaskIssue({ status: 'installed', bmadMode: 'external', capabilities: [] }), undefined);
+  assert.equal(bmadKitTaskIssue({ status: 'missing' }), undefined);
 });
 
 test('an ambiguous or orphan spec Story cannot invent a native story identifier', () => {

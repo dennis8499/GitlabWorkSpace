@@ -27,21 +27,23 @@ test('capability probe binds the actual helper, caches identical local reads and
   await assert.rejects(readReviewerCapabilities({ ...binding, payload_sha256: 'd'.repeat(64) }, python, root), /來源身分不相容/);
 });
 
-test('legacy release session is probed before fallback; cleanup-only versions are rejected', async t => {
+test('legacy reviewer sessions are probed before fallback; cleanup-only versions are rejected', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'review-legacy-cap-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const binding = { schema: 'InstalledReviewerBinding/v1', tool: 'release-reviewer', version: '0.8.0',
-    script_path: path.join(root, 'review_session.py'), script_sha256: 'a'.repeat(64),
-    skill_sha256: 'b'.repeat(64), payload_sha256: 'c'.repeat(64), payload_files: 30 } as const;
   const source = `const args=process.argv.slice(1); if(args.includes('capabilities')) { process.stderr.write("error: invalid choice: 'capabilities'"); process.exit(2); }
     if(args.includes('start')) { process.stdout.write(process.env.LEGACY_HELP); process.exit(0); } process.exit(2);`;
   const help = '{start,step,check,finish,status,cancel} --workspace --workspace-file --project --base --head ' +
     '--runtime-root --request-id --requests-file --auth-scope --refresh';
   const runtime = { executable: process.execPath, version: 'test transport', args: ['-e', source, '--'],
     env: { ...process.env, LEGACY_HELP: help } };
-  assert.equal(await readReviewerCapabilities(binding, runtime, root), undefined);
-  await assert.rejects(readReviewerCapabilities({ ...binding, version: '0.3.1', payload_sha256: 'd'.repeat(64) },
-    { ...runtime, env: { ...runtime.env, LEGACY_HELP: '{cleanup}' } }, root), /session 介面不相容/);
+  for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
+    const binding = { schema: 'InstalledReviewerBinding/v1', tool, version: '0.8.0',
+      script_path: path.join(root, tool, 'review_session.py'), script_sha256: 'a'.repeat(64),
+      skill_sha256: 'b'.repeat(64), payload_sha256: 'c'.repeat(64), payload_files: 30 } as const;
+    assert.equal(await readReviewerCapabilities(binding, runtime, root), undefined);
+    await assert.rejects(readReviewerCapabilities({ ...binding, version: '0.3.1', payload_sha256: 'd'.repeat(64) },
+      { ...runtime, env: { ...runtime.env, LEGACY_HELP: '{cleanup}' } }, root), /session 介面不相容/);
+  }
 });
 
 test('prepared helper capability produces the supported session commands and retains single-agent execution', () => {

@@ -33,8 +33,8 @@ export async function inspectBmadEnvironment(root?: string, options: Environment
     const result = await run(filename, ['--version'], { windowsHide: true, timeout: 4000, maxBuffer: 16_384, env: environment });
     return result.stdout.trim();
   });
-  const tools = await Promise.all((['node', 'npm', 'codex', 'uv'] as const).map(async (id): Promise<BmadEnvironmentTool> => {
-    const label = id === 'node' ? 'Node.js' : id === 'codex' ? 'Codex CLI' : id;
+  const tools = await Promise.all((['codex', 'uv'] as const).map(async (id): Promise<BmadEnvironmentTool> => {
+    const label = id === 'codex' ? 'Codex CLI' : id;
     let filename: string | undefined;
     for (const directory of directories) {
       for (const extension of windows ? ['.exe', '.cmd', '.bat'] : ['']) {
@@ -52,8 +52,7 @@ export async function inspectBmadEnvironment(root?: string, options: Environment
     try {
       const output = await probe(filename), match = /(?:^|\s)v?(\d+\.\d+(?:\.\d+)?)(?:\b|$)/.exec(output);
       if (!match) return { id, label, state: 'error', reason: '已找到工具，但無法辨識 --version 結果。' };
-      const version = match[1], [major, minor] = version.split('.').map(Number);
-      if (id === 'node' && (major < 20 || major === 20 && minor < 12)) return { id, label, version, state: 'unsupported', reason: 'BMAD 安裝器需要 Node.js 20.12 或更新版本。' };
+      const version = match[1];
       return { id, label, version, state: 'ready', reason: '版本檢查成功。' };
     } catch { return { id, label, state: 'error', reason: '已找到工具，但 --version 檢查失敗；請在終端確認。' }; }
   }));

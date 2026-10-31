@@ -36,6 +36,7 @@ async function mount(t, options = {}) {
   let saved = options.state;
   let props = { snapshot: options.snapshot ?? bmadUiSnapshot(), ...options,
     onRefresh: () => calls.push(['refresh']), onOpenTerminal: () => calls.push(['terminal']),
+    onOpenSettings: () => calls.push(['settings']),
     onCopyCommand: request => calls.push(['copy', copy(request)]),
     onOpenDocumentation: url => calls.push(['documentation', url]),
     onOpenArtifact: (id, path) => calls.push(['open', id, path]),
@@ -51,20 +52,19 @@ async function mount(t, options = {}) {
   return { dom, document, calls, button, click, task, tick, render, get saved() { return saved; } };
 }
 
-test('first use teaches the pinned external CLI and native Codex skills without running an installer', async t => {
+test('first use directs installation to WorkflowKit and never offers an independent BMAD installer', async t => {
   const data = withoutProgress(); data.root = undefined; data.version = undefined; data.compatibility = 'unknown';
   data.installation = { state: 'missing', reason: '尚未選擇專案。' };
   data.codex = { state: 'missing', skills: [], reason: '尚未偵測 Codex Skills。' }; data.catalogSource = 'guidance';
   const view = await mount(t, { snapshot: data });
   assert.equal(view.document.querySelector('#bmad-tab-start').getAttribute('aria-selected'), 'true');
-  assert.match(view.document.querySelector('.bmad-setup-steps').textContent, /npx bmad-method@6\.12\.4 install --modules bmm --tools codex/);
+  assert.doesNotMatch(view.document.querySelector('.bmad-panel').textContent, /npx bmad-method|官方安裝教學/);
   assert.equal(view.button('開啟終端機').disabled, true);
-  assert.equal(view.document.querySelector('form, textarea, input'), null);
+  assert.ok(view.document.querySelector('#bmad-requirement'));
+  assert.equal(view.button('複製 BMAD 提示詞').disabled, true);
   assert.equal(view.button('確認這份產物已完成'), undefined);
-  await view.click('複製安裝指令');
-  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'install' }]);
-  await view.click('複製 $bmad-help');
-  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'skill', skill: 'bmad-help', stepId: 'help' }]);
+  await view.click('開啟 WorkflowKit 設定');
+  assert.deepEqual(view.calls.at(-1), ['settings']);
   assert.equal(view.calls.some(call => call[0] === 'terminal'), false, 'copying cannot launch or install anything');
   assert.equal(view.document.querySelector('.tool-drawer'), null);
 });
@@ -72,7 +72,8 @@ test('first use teaches the pinned external CLI and native Codex skills without 
 test('initial section follows artifacts, ready environment, and explicit saved selection', async t => {
   const active = await mount(t); assert.equal(active.document.querySelector('#bmad-tab-progress').getAttribute('aria-selected'), 'true');
   const empty = await mount(t, { snapshot: withoutProgress() });
-  assert.equal(empty.document.querySelector('#bmad-tab-capabilities').getAttribute('aria-selected'), 'true');
+  assert.equal(empty.document.querySelector('#bmad-tab-start').getAttribute('aria-selected'), 'true');
+  await empty.click('我想做什麼');
   assert.equal(empty.document.querySelector('.bmad-catalog-toggle').getAttribute('aria-expanded'), 'false');
   assert.equal(empty.document.querySelector('#bmad-catalog-content'), null);
   const saved = await mount(t, { state: { selectedSection: 'start' } });
@@ -81,6 +82,7 @@ test('initial section follows artifacts, ready environment, and explicit saved s
 
 test('task guidance distinguishes direct Build, separate Spec, full planning, review and testing', async t => {
   const view = await mount(t, { snapshot: withoutProgress(), controlled: true });
+  await view.click('我想做什麼');
   assert.match(view.document.querySelector('.bmad-task-note').textContent, /不必先跑完整 PRD 或 Sprint/);
   const commands = () => [...view.document.querySelectorAll('.bmad-task-detail .bmad-command-line code')].map(item => item.textContent);
   assert.deepEqual(commands(), ['$bmad-build']);
@@ -97,8 +99,9 @@ test('task guidance distinguishes direct Build, separate Spec, full planning, re
   assert.equal(view.saved.selectedTaskId, 'continue');
 });
 
-test('capability cards provide concrete next steps and first-use guidance covers PowerShell launchers', async t => {
+test('capability cards provide concrete next steps without prescribing installation commands', async t => {
   const view = await mount(t, { snapshot: withoutProgress() });
+  await view.click('我想做什麼');
   const nextSteps = () => [...view.document.querySelectorAll('.bmad-task-detail .bmad-command-card')].map(card => {
     const fact = [...card.querySelectorAll('.bmad-capability-facts > div')].find(item => item.querySelector('dt')?.textContent === '下一步');
     assert.ok(fact?.querySelector('dd')?.textContent.trim(), 'each capability explains its next step');
@@ -112,7 +115,7 @@ test('capability cards provide concrete next steps and first-use guidance covers
     if (task === 'tests') assert.match(steps[0], /執行測試.*驗收條件/);
   }
   await view.click('開始使用');
-  assert.match(view.document.querySelector('.bmad-setup-steps').textContent, /PowerShell.*npx\.ps1.*npx\.cmd.*codex\.cmd/);
+  assert.doesNotMatch(view.document.querySelector('.bmad-panel').textContent, /npx\.ps1|npx\.cmd/);
   assert.deepEqual(view.calls, [], 'reading alternatives does not execute any command');
 });
 
@@ -134,15 +137,31 @@ test('environment checks display actual tool evidence and pinned documentation l
   const data = withoutProgress(), environment = bmadEnvironmentSnapshot(data.root);
   environment.tools.find(tool => tool.id === 'uv').state = 'missing'; environment.tools.find(tool => tool.id === 'uv').reason = 'PATH 找不到 uv。';
   const view = await mount(t, { snapshot: data, environment, state: { selectedSection: 'start' } });
-  assert.equal(view.document.querySelectorAll('.bmad-tool-checks li').length, 4);
+  assert.equal(view.document.querySelectorAll('.bmad-tool-checks li').length, 2);
   assert.match(view.document.querySelector('.bmad-tool-missing').textContent, /PATH 找不到 uv/);
   assert.match(view.document.querySelector('.bmad-tool-found').textContent, /已找到指令/);
-  assert.match(view.document.querySelector('.bmad-prerequisites').textContent, /20\.12/);
+  assert.match(view.document.querySelector('.bmad-prerequisites').textContent, /不需要 Node\.js/);
   await view.click('開啟終端機'); assert.deepEqual(view.calls.at(-1), ['terminal']);
-  await view.click('官方安裝教學 ↗'); assert.match(view.calls.at(-1)[1], /\/blob\/v6\.12\.4\/docs\/start\/install-bmad\.md$/);
   await view.click('查看最新 Release ↗'); assert.equal(view.calls.at(-1)[1], 'https://github.com/bmad-code-org/BMAD-METHOD/releases/latest');
   await view.render({ environment: bmadEnvironmentSnapshot('C:/another-project') });
   assert.equal(view.document.querySelector('.bmad-tool-checks'), null, 'checks from a previous project cannot appear as current evidence');
+});
+
+test('task input copies only ready requirements and distinguishes externally managed BMAD', async t => {
+  const data = withoutProgress();
+  const view = await mount(t, { snapshot: data, controlled: true, kit: { status: 'installed', bmadMode: 'external' } });
+  assert.match(view.document.querySelector('.bmad-panel').textContent, /外部 BMAD.*保留/);
+  const input = view.document.querySelector('#bmad-requirement');
+  input.value = '檢查付款流程\n完成畫面'; input.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  assert.equal(view.button('複製 BMAD 提示詞').disabled, false);
+  await view.click('複製 BMAD 提示詞');
+  assert.deepEqual(view.calls.at(-1), ['copy', { revision: data.revision, command: 'task', requirement: '檢查付款流程\n完成畫面' }]);
+  assert.equal(view.saved.requirement, '檢查付款流程\n完成畫面');
+  await view.render({ kit: { status: 'installed', bmadMode: 'bundled', integrity: 'unverified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] } });
+  assert.equal(view.button('複製 BMAD 提示詞').disabled, true);
+  await view.render({ kit: { status: 'error', message: '驗證失敗' } });
+  assert.equal(view.button('複製 BMAD 提示詞').disabled, true);
+  assert.match(view.document.querySelector('.bmad-panel').textContent, /驗證失敗/);
 });
 
 test('compact progress keeps parallel positions and exact native work identity without manual completion', async t => {

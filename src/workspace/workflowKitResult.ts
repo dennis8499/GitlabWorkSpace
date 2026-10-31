@@ -9,3 +9,9 @@ export function workflowKitFailure(output: string): Error | undefined {
   }
   return undefined;
 }
+
+/** Installer warnings are informational and do not turn a successful install into a failure. */
+export function workflowKitWarnings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string =>
+    typeof item === 'string' && !!item.trim() && item.length <= 2000).slice(0, 20) : [];
+}

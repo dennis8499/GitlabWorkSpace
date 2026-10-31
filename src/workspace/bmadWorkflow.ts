@@ -268,8 +268,8 @@ async function readCodexSkills(root: string, nodes: BmadCatalogNode[], reader: R
   return !absent.length && !invalid
     ? { state: 'ready', skills, reason: '已偵測此專案的 Codex BMAD skills。' }
     : { state: skills.length || integrationPresent || invalid ? 'partial' : 'missing', skills,
-      reason: skills.length || integrationPresent || invalid ? `Codex 整合尚未完整${absent.length ? `，缺少 ${absent.join('、')}` : ''}；請重新執行官方 CLI 選擇 Codex。`
-        : foundDirectory ? '尚未在 .agents/skills 偵測到 BMAD；請使用官方 CLI 選擇 Codex。' : '尚未偵測到 Codex BMAD skills；請使用官方 CLI 選擇 Codex。' };
+      reason: skills.length || integrationPresent || invalid ? `Codex 整合尚未完整${absent.length ? `，缺少 ${absent.join('、')}` : ''}；請檢查 WorkflowKit 或既有外部 BMAD。`
+        : foundDirectory ? '尚未在 .agents/skills 偵測到 BMAD；請在設定安裝 WorkflowKit。' : '尚未偵測到 Codex BMAD skills；請在設定安裝 WorkflowKit。' };
 }
 
 export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promise<BmadWorkflowSnapshot> {
@@ -278,7 +278,7 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
   try { nodes = parseBmadCatalog(options.bundledCatalog); } catch (error) { diagnostics.push({ code: 'guidance-catalog-invalid', message: (error as Error).message }); }
   const snapshot: BmadWorkflowSnapshot = { root: options.root ? path.resolve(options.root) : undefined, revision: '',
     guidanceVersion: BMAD_GUIDANCE_VERSION, compatibility: 'unknown',
-    installation: { state: 'missing', reason: options.root ? '此根目錄尚未偵測到 BMAD；請自行使用官方 CLI 安裝。' : '請先選擇專案根目錄。' },
+    installation: { state: 'missing', reason: options.root ? '此根目錄尚未偵測到 BMAD；請在設定安裝 WorkflowKit。' : '請先選擇專案根目錄。' },
     codex: { state: 'unknown', skills: [], reason: options.root ? '正在核對專案中的 Codex skills。' : '選擇專案後偵測 Codex 整合。' },
     observation: { state: 'paused' },
     catalogSource: 'guidance', nodes, phases: [], edges: [], steps: [], stories: [], currentCandidates: [], recommendations: [], watchDirectories: [], diagnostics };
@@ -307,23 +307,23 @@ export async function readBmadWorkflow(options: ReadBmadWorkflowOptions): Promis
         snapshot.installation = snapshot.compatibility === 'unsupported'
           ? { state: 'unsupported', reason: `偵測 BMAD ${snapshot.version}；本頁教學與觀察器依 ${BMAD_GUIDANCE_VERSION}，此主要版本尚未支援。` }
           : snapshot.compatibility === 'unknown'
-            ? { state: 'partial', reason: '已偵測 BMAD manifest，但缺少可識別的版本；請以官方 CLI 檢查安裝。' }
-            : { state: 'ready', reason: snapshot.compatibility === 'verified' ? `已偵測 BMAD ${snapshot.version}，由使用者自行管理。` : `已偵測 BMAD ${snapshot.version}；依相容格式觀察，此版本尚未核實。` };
+            ? { state: 'partial', reason: '已偵測 BMAD manifest，但缺少可識別的版本；請檢查安裝。' }
+            : { state: 'ready', reason: snapshot.compatibility === 'verified' ? `已偵測 BMAD ${snapshot.version}。` : `已偵測 BMAD ${snapshot.version}；依相容格式觀察，此版本尚未核實。` };
       } catch (error) { snapshot.installation = { state: 'error', reason: 'BMAD 安裝 manifest 無法判讀。' }; reader.diagnostic('manifest-invalid', (error as Error).message, manifestFile); }
     } else if (diagnostics.some(item => item.path === manifestFile)) snapshot.installation = { state: 'error', reason: 'BMAD 安裝 manifest 無法讀取。' };
-    else if (runtimePresent) snapshot.installation = { state: 'partial', reason: '已偵測 _bmad，但安裝 manifest 尚未完整；請完成官方 CLI 安裝。' };
+    else if (runtimePresent) snapshot.installation = { state: 'partial', reason: '已偵測 _bmad，但安裝 manifest 尚未完整；請檢查 WorkflowKit 或既有外部 BMAD。' };
     if (snapshot.installation.state === 'ready') {
       const catalogFile = path.join(root, '_bmad', '_config', 'bmad-help.csv');
       const catalog = await reader.read(catalogFile);
       if (catalog) {
         try { const installed = parseBmadCatalog(catalog.content); if (!installed.length) throw new Error('已安裝 catalog 沒有能力。'); snapshot.nodes = installed; snapshot.catalogSource = 'installed'; }
         catch (error) { snapshot.installation = { state: 'error', reason: '已安裝 catalog 無法判讀；目前顯示教學目錄。' }; reader.diagnostic('catalog-invalid', (error as Error).message, catalogFile); }
-      } else snapshot.installation = { state: 'partial', reason: 'BMAD 安裝缺少能力目錄；請完成官方 CLI 安裝。' };
+      } else snapshot.installation = { state: 'partial', reason: 'BMAD 安裝缺少能力目錄；請檢查 WorkflowKit 或既有外部 BMAD。' };
       const requiredRuntime = ['_bmad/config.toml', '_bmad/scripts/resolve_config.py', '_bmad/scripts/render_skill.py'];
       const absent: string[] = [];
       for (const name of requiredRuntime) if (!(await reader.read(path.join(root, name)))?.content.trim()) absent.push(name);
       if (absent.length && snapshot.installation.state === 'ready') {
-        snapshot.installation = { state: 'partial', reason: `BMAD 安裝尚未完整，缺少 ${absent.join('、')}；請完成官方 CLI 安裝。` };
+        snapshot.installation = { state: 'partial', reason: `BMAD 安裝尚未完整，缺少 ${absent.join('、')}；請檢查 WorkflowKit 或既有外部 BMAD。` };
         reader.diagnostic('installation-incomplete', snapshot.installation.reason);
       }
       if (snapshot.installation.state === 'ready') await readProgress(snapshot, options, reader);

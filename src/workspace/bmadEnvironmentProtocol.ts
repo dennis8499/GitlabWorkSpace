@@ -1,5 +1,5 @@
 export interface BmadEnvironmentTool {
-  id: 'node' | 'npm' | 'codex' | 'uv';
+  id: 'codex' | 'uv';
   label: string;
   state: 'ready' | 'found' | 'missing' | 'unsupported' | 'error';
   version?: string;

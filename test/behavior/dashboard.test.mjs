@@ -1811,7 +1811,7 @@ test('shows one selected Wiki feature and builds prompts from the actual local R
   assert.equal(document.querySelector('.wiki-guide-intro'), null);
   assert.deepEqual([...document.querySelectorAll('.skills-feature-navigation button')].map(button => button.id.replace('skill-feature-','')).sort(), [
     'ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
-    'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
+    'synthesis', 'visualize', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology'
   ].sort());
 
   assert.equal(selectedSkillFeature(document), 'query');

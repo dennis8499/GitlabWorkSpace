@@ -16,7 +16,7 @@ import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getS
 
 const wikiGroups = [
   { title: '閱讀與探索', ids: ['query', 'functional-exploration', 'audit', 'archaeology'] },
-  { title: '知識維護', ids: ['ingest', 'lint', 'adr', 'synthesis'] },
+  { title: '知識維護', ids: ['ingest', 'lint', 'adr', 'synthesis', 'visualize'] },
   { title: '分析文件', ids: ['business-analysis', 'system-analysis', 'system-design'] },
   { title: '匯出', ids: ['notebooklm-export'] }
 ];

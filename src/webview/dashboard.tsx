@@ -1211,6 +1211,8 @@ function App() {
               state={bmadUiByRoot[projectRoot ?? 'none'] ?? {}} onChange={state => setBmadUiByRoot(current => ({ ...current, [projectRoot ?? 'none']: state }))}
               key={projectRoot ?? 'none'}
               environment={snapshot.bmadEnvironment}
+              kit={snapshot.workflowKit}
+              onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
               onRefresh={() => post({ type: 'refreshBmad' })}
               onCopyCommand={request => post({ type: 'copyBmadCommand', ...request })}
               onOpenTerminal={() => snapshot.bmad && post({ type: 'openBmadTerminal', revision: snapshot.bmad.revision })}
@@ -1500,7 +1502,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
     </> : <p>連線後顯示 GitLab 版本與各項功能支援狀態。</p>}</section>
     <section class="tool-settings"><h3>WorkflowKit 工作流程整合包</h3>
     <label class="field">下載來源<select disabled={kitBusy} value={source} onChange={(event) => onSource(event.currentTarget.value as ToolSource)}><option value="github">GitHub Release</option><option value="gitea">內網 Gitea 備援</option></select></label>
-    <p class="source-lines">包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer 與 Output Style。依目前專案使用適用的 Skills 流程。</p>
+    <p class="source-lines">包含 Codebase LLM Wiki、MergeReviewer、ReleaseReviewer、Output Style 與 BMAD。依目前專案使用適用的 Skills 流程。</p>
     <div class="button-row"><button class="secondary small" type="button" disabled={!policy.allowed || operationBusy || kitBusy} onClick={onRefresh}>檢查最新正式版</button><button class="quiet small" type="button" disabled={kitBusy} onClick={() => onOpenDownload(source)}>開啟 {source === 'gitea' ? 'Gitea' : 'GitHub'} Release</button></div>
     {(() => {
       const target = snapshot.workflowKitInstallTarget;
@@ -1511,13 +1513,19 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       const comparison = selected && installed.version ? compareVersions(selected.version, installed.version) : 1;
       const update = comparison > 0;
       const downgrade = comparison < 0;
+      const bmadEnvironment = target?.root && snapshot.bmadEnvironment?.root === target.root ? snapshot.bmadEnvironment : undefined;
+      const bmadVersion = installed.upstreamVersions?.['bmad-method'] ??
+        (target?.root && snapshot.bmad?.root === target.root ? snapshot.bmad.version : undefined);
       return <section class="tool-card"><div class="panel-title"><strong>WorkflowKit</strong><span class="pill">{status[installed.status] ?? installed.status}</span></div>
         <p>{installed.version ? `目前版本 v${installed.version}` : '尚未安裝'}</p>
         <p>{latest ? latest.cached ? `已驗證快取 v${latest.version}（線上最新版未確認）` : `最新正式版 v${latest.version}` : '請檢查最新正式版。'}</p>
-        <p>{compatible ? `${compatible.cached ? '快取相容版本' : '最新相容版本'} v${compatible.version} · ${compatible.skillCount ?? 4} 個 Skills` : latest ? '沒有找到相容版本。' : ''}</p>
+        <p>{compatible ? `${compatible.cached ? '快取相容版本' : '最新相容版本'} v${compatible.version}${compatible.skillCount === undefined ? '' : ` · ${compatible.skillCount} 個 Skills`}` : latest ? '沒有找到相容版本。' : ''}</p>
         {latest?.error && <p class="warning">{latest.error}</p>}
         {latest && !latest.available && compatible && <label class="field">選擇相容版本<select value={selected?.id ?? ''} onChange={event => setSelectedKitId(event.currentTarget.value)}><option value="">請選擇</option><option value={compatible.id}>v{compatible.version}</option></select></label>}
         <p class="subtle">安裝完整性：{installed.integrity === 'verified' ? '已驗證' : installed.integrity === 'missing' ? '尚未安裝' : '未確認'}；介面：{installed.interfaceCompatibility === 'compatible' ? '相容' : installed.interfaceCompatibility === 'incompatible' ? '不相容' : '未確認'}。</p>
+        {installed.version && <p class="subtle">BMAD：{installed.bmadMode === 'bundled' ? 'WorkflowKit 內建' : installed.bmadMode === 'external' ? '外部安裝（保留，由使用者管理）' : '管理來源未確認'}{bmadVersion ? ` · v${bmadVersion}` : ' · 版本未確認'}；{installed.updateAvailable ? '有可用更新' : '未確認有可用更新'}。</p>}
+        {installed.bmadMode && <p class="subtle">執行環境：{bmadEnvironment ? bmadEnvironment.tools.map(tool => `${tool.label} ${tool.state === 'ready' ? '已驗證' : tool.state === 'found' ? '已找到' : tool.state === 'missing' ? '未找到' : '待確認'}`).join('；') : '尚在檢查或尚未檢查'}。</p>}
+        {installed.warnings?.map(warning => <p class="warning" role="status" key={warning}>安裝時提醒：{warning}</p>)}
         {downgrade && <p class="subtle">已安裝版本較新，請選擇提供該版本的來源。</p>}
         <p class="workflow-kit-skills-root">目前 Skills 工作位置：{target?.root ?? '尚未選擇'} · {status[installed.status] ?? installed.status}</p>
         <p class="workflow-kit-profile">適用流程：{target?.profile === 'repository' ? 'Repository（單一 Repo）' : target?.profile === 'group' ? 'Group（共用 Wiki）' : '尚未辨識'}</p>

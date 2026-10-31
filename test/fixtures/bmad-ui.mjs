@@ -46,8 +46,6 @@ export function bmadUiSnapshot(root = 'C:/專案/服務 A') {
 
 export function bmadEnvironmentSnapshot(root = 'C:/專案/服務 A') {
   return { root, checkedAt: '2026-10-18T09:00:00Z', tools: [
-    { id: 'node', label: 'Node.js', state: 'ready', version: '24.21.0', reason: '符合 Node.js 20.12 以上。' },
-    { id: 'npm', label: 'npm', state: 'found', reason: '已在 PATH 找到 npm.cmd。' },
     { id: 'codex', label: 'Codex CLI', state: 'found', reason: '已在 PATH 找到 codex.cmd。' },
     { id: 'uv', label: 'uv', state: 'ready', version: '0.11.0', reason: 'uv 可執行。' }
   ] };

@@ -34,11 +34,20 @@
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
 - 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由同一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
-- 「BMAD 開發流程」提供 Codex 的安裝教學、依需求選能力及精簡進度摘要。使用者自行透過官方 CLI 安裝 BMAD；頁面提供終端機／Codex 原生指令複製，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。教學依 BMAD 6.12.4，完整目錄可展開參考。
+- 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求並複製提示詞到 Codex，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
 - 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.37.2 更新
+
+- 對齊 WorkflowKit 1.3.1，將 BMAD 安裝整合至套件管理；輸入需求後複製提示詞到 Codex，由 BMAD 選擇流程，外部 BMAD 與既有產物保留。
+- WorkflowKit 設定顯示 BMAD 管理模式、版本、安裝完整性、介面相容性、更新及環境提醒；共用根目錄切換同步套用至 Skills 與 BMAD。
+- Wiki Skills 指引新增圖表功能，支援架構、流程、循序、資料流、生命週期、實體關係、類別、樹狀、時間軸及瀑布圖。
+- 依 WorkflowKit 1.3.1 的實際介面回歸驗證 MergeReviewer 0.20.3 與 ReleaseReviewer 0.10.1。
+
+完整變更、驗證結果與畫面截圖見 [0.37.2 發布說明](docs/releases/v0.37.2.md)及[驗證紀錄](docs/work/work-20261031-workflowkit-131/verification.md)。
 
 ## 0.37.1 更新
 
@@ -180,7 +189,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 - Python 3.11+；檢查及安裝工具時需要，可在 VS Code 設定 `gitlabWorkspace.pythonPath` 指定直譯器路徑。
-- BMAD 教學、指令複製及產物監看可免登入 GitLab、免安裝工作流程包使用。自行安裝 BMAD 需要 Node.js 20.12+ 與 npm；執行能力需要 Codex CLI，Build 等能力另需 [uv](https://docs.astral.sh/uv/getting-started/installation/)。
+- WorkflowKit 安裝及 BMAD 使用不需登入 GitLab；安裝需要 Python 3.11+，執行 BMAD 需要 Codex CLI 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)，不需要 Node.js。Wiki 圖表發布另需 Node.js 18+ 與本機瀏覽器。
 - 進度依據已儲存的 BMAD 原生產物，顯示來源、原生狀態與更新時間；缺少完成訊號時保留狀態未明。複製指令或開啟終端不會推進進度；外部 Codex 是否正在執行不在觀察範圍。Group 模式沿用共同安裝與輸出根目錄。
 
 ## 安裝
@@ -198,7 +207,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
 4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。
 5. 在 VS Code 開啟本機專案資料夾，再進入 **設定 → 工作區與 Skills** 選擇共用專案根目錄。Git 根目錄使用 repository profile，一般資料夾使用 Group profile；本機根目錄不由 GitLab 帳號或遠端 Group 決定。在 WorkflowKit 區塊選擇 GitHub 或內網 Gitea，按「檢查最新正式版」，再按「下載並安裝」。安裝前會檢查安裝介面、附件摘要及舊工具安裝歸屬。
-6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 知識維護或分支審查功能。
+6. 開啟 **Skills 功能指引**，預設為 **查詢 Wiki**。提示詞會帶入目前專案根目錄、本機實際 Repo 名稱與完整路徑及套件版本；複製後自行在相同根目錄啟動 Codex CLI，再貼上執行。也可選擇 Wiki 圖表、知識維護或分支審查功能。BMAD 頁面則輸入需求、複製提示詞，並在相同根目錄啟動 Codex；預設產物位於 `_bmad-output/`。
 7. 從 **我的工作** 點選 Issue 預覽，再按 **開啟 Issue 詳情**，使用內容與討論、關聯與子工作、工時三個分頁。Git 操作由版控處理，MR 審查使用固定來源與目標 SHA。
 8. 需要保存新知識時，從 **Skills 功能指引** 選擇 Ingest 或 Synthesis，請 Codex 依實際來源更新 Wiki、index／log 與人工 notes。既有工作及交付紀錄保留，但不再提供續作或交付任務入口。
 
@@ -213,11 +222,11 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-GitLab Workspace v0.34.0 搭配獨立發行的 WorkflowKit；首版整合 Wiki 0.6.4、MergeReviewer 0.19.0、ReleaseReviewer 0.8.0 與 Output Style，共 4 個 Skills。兩種 profile 均提供十四項分析指引及獨立的 BMAD 教學與進度頁；查詢預設使用 Wiki，BMAD 由使用者另行安裝及選用。來源快照保存實際 commit、dirty 狀態及 SHA-256；本機候選包明確標記 local-snapshot，正式發版仍須核對上游正式附件、來源提交與內容摘要。
+WorkflowKit 1.3.1 包含 Wiki 0.7.1、MergeReviewer 0.20.3、ReleaseReviewer 0.10.1、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
-WorkflowKit 1.0.0 支援固定摘要驗證過的 0.13.2、0.14.0、0.15.0、0.16.0、0.17.0、0.18.0、0.23.0、0.24.0、0.24.1、0.24.2、0.24.3、0.24.4、0.25.0、0.26.0、0.27.0、0.28.0、0.28.1、0.29.0、0.30.0、0.30.1、0.31.0、0.32.0 升級與交易回復；未知或被修改的受管理安裝保留內容並阻擋覆寫。BMAD 已改由使用者管理，其本機變更不阻擋其他 Skills 的更新；工作紀錄、鎖、Wiki、報告及既有產物保留。
+WorkflowKit 依受信任的安裝紀錄升級與交易回復；未知或被修改的受管理檔案會阻擋覆寫。外部 BMAD、工作紀錄、Wiki、報告及既有產物保留。
 
 舊工作流程包可透過受信任摘要升級並交易回復；個人資料與既有工作紀錄均保留。安裝器提供 `install --dry-run` 與保留交易的 `rollback`，操作見 [Group 工作流程](docs/group-workflow.md)。
 

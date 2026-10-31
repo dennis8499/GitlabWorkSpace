@@ -39,6 +39,14 @@ export const DEFAULT_WIKI_GUIDE_CARD_ID = 'query';
 
 const field = (id: string, label: string, options: Partial<Omit<WikiGuideField, 'id' | 'label'>> = {}): WikiGuideField => ({ id, label, ...options });
 
+export const WIKI_DIAGRAM_TYPES = [
+  { label: '架構圖', value: 'architecture' }, { label: '流程圖', value: 'workflow' },
+  { label: '循序圖', value: 'sequence' }, { label: '資料流圖', value: 'dataflow' },
+  { label: '生命週期圖', value: 'lifecycle' }, { label: '實體關係圖', value: 'erd' },
+  { label: '類別圖', value: 'class' }, { label: '樹狀圖', value: 'tree' },
+  { label: '時間軸', value: 'timeline' }, { label: '瀑布圖', value: 'waterfall' }
+] as const;
+
 export const wikiGuideCards: readonly WikiGuideCard[] = [
   {
     id: 'install', title: '安裝／設定',
@@ -99,6 +107,17 @@ export const wikiGuideCards: readonly WikiGuideCard[] = [
     output: '具來源依據的 synthesis 頁面，以及同步後的索引與異動記錄。',
     behavior: '建立或更新 Wiki 文件；保留使用者撰寫的 notes。',
     fields: [field('topic', '分析主題', { required: true, placeholder: '例如付款重試與冪等性' })]
+  },
+  {
+    id: 'visualize', title: '繪製圖表',
+    description: '依 Wiki 與程式來源繪製架構、流程或其他圖表。',
+    output: 'Wiki 中的 HTML 圖表與對應 Synthesis 頁面，保留來源與未確認缺口。',
+    behavior: '需要 Node.js 18+ 與本機瀏覽器；完成內容、交付及瀏覽器檢查後才一併發布。安裝 WorkflowKit 不需要 Node.js。',
+    fields: [
+      field('topic', '圖表主題', { required: true, placeholder: '例如付款服務與退款流程' }),
+      field('type', '圖表類型', { kind: 'select', defaultValue: '架構圖', options: WIKI_DIAGRAM_TYPES.map(item => item.label) }),
+      field('scope', '範圍或來源（選填）', { kind: 'textarea', rows: 2, placeholder: '例如服務名稱、Repo 或相關檔案路徑' })
+    ]
   },
   {
     id: 'business-analysis', title: 'BA 業務分析文件',
@@ -246,6 +265,16 @@ function buildWikiGuideTaskPrompt(cardId: string, inputs: WikiGuideInputValues, 
       return `請使用 $codebase-wiki 建立一份 ADR，決策標題為「${promptValue(card, 'title', inputs)}」。依現有決策紀錄格式寫入 wiki/decisions/，說明背景、決策及其後果，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'synthesis':
       return `請使用 $codebase-wiki 將主題「${promptValue(card, 'topic', inputs)}」整理成持續維護的 Synthesis 頁面，寫入 wiki/synthesis/。以目前 Wiki 和可查證來源為依據，保留人工 notes，並同步 wiki/index.md 與 wiki/log.md。`;
+    case 'visualize': {
+      const type = WIKI_DIAGRAM_TYPES.find(item => item.label === inputValue(card, 'type', inputs));
+      if (!type) throw new Error('請選擇支援的圖表類型。');
+      return [
+        `請使用 $codebase-wiki 的 visualize 流程繪製「${promptValue(card, 'topic', inputs)}」，圖表類型為 ${type.value}（${type.label}）。`,
+        `範圍或來源：${inputValue(card, 'scope', inputs).trim() || '依主題選取必要的 Wiki 與程式來源'}`,
+        context?.profile === 'group' ? '使用 Group 共用 Wiki，程式來源以 Repo/path 引用。' : '使用目前 Repo 的 Wiki 與相對來源路徑。',
+        '依已安裝 Skill 驗證固定圖表工具與來源，以證據支持元件和關係，未確認事項列為 Gap。通過 validate、deliver、check 與 browser-check 後，將 HTML 圖表與 Synthesis 頁面一起發布；保留既有圖表及人工 notes。若環境或檢查失敗，保留原有結果並回報原因。'
+      ].join('\n\n');
+    }
     case 'business-analysis':
       return `請使用 $codebase-wiki，以目前 Wiki 與可查證來源產出「${promptValue(card, 'scope', inputs)}」的標準 BA 業務分析文件；依 Business Analysis 標準建立功能涵蓋、BA IDs 與 gaps，保留人工 notes，寫入 wiki/synthesis/，並同步 wiki/index.md 與 wiki/log.md。`;
     case 'system-analysis':

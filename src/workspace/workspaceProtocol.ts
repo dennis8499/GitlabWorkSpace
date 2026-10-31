@@ -123,6 +123,8 @@ export interface InstalledWorkflowKitState {
   profile?: 'group' | 'repository';
   upstreamVersions?: Record<string, string>;
   capabilities?: string[];
+  bmadMode?: 'bundled' | 'external';
+  warnings?: string[];
   version?: string;
   source?: ToolSource | 'bundled';
   workspaceContract?: number;

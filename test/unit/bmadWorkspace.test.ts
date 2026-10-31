@@ -65,12 +65,16 @@ async function fixture(t: test.TestContext) {
   vscode.workspace.isTrusted = true;
   vscode.workspace.workspaceFolders = [{ uri: uri(root), name: '專案' }];
   let features = ['bmad-workflow']; let runtimeReason: string | undefined; let runtimeChecks = 0, kitChecks = 0;
+  let kitState: import('../../src/workspace/workspaceProtocol').InstalledWorkflowKitState = { status: 'missing' };
   const outcomes: unknown[] = [], errors: unknown[] = [];
   const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
     disposed: false, activeMode: 'bmad', webviewReady: true, panel: { visible: true },
     context: { workspaceState: memory(), extensionUri: uri(extensionRoot) }, session: { connectionEpoch: 0 },
     bmadRuntimeReason: undefined, sendSnapshot: () => undefined, post: (message: unknown) => errors.push(message),
-    refreshWorkflowKit: async () => { kitChecks++; }, noteOutcome: (outcome: unknown) => outcomes.push(outcome),
+    refreshWorkflowKitInstallState: async () => {
+      kitChecks++; host.projectContext = await host.resolveProjectContext();
+      host.workflowKitStateRoot = host.projectContext.root; host.workflowKitState = kitState;
+    }, noteOutcome: (outcome: unknown) => outcomes.push(outcome),
     refreshBmadEnvironment: async () => undefined,
     getSkillsContext: () => ({ root: host.projectContext?.root, availableFeatures: features }),
     checkBmadRuntime: async () => { runtimeChecks++; host.bmadRuntimeReason = runtimeReason; }
@@ -84,6 +88,7 @@ async function fixture(t: test.TestContext) {
   const refresh = async (): Promise<BmadWorkflowSnapshot> => { await host.refreshBmadWorkflow(); assert.ok(host.bmad?.snapshot); return host.bmad.snapshot; };
   return { host, root, second, write, refresh, outcomes, errors,
     setFeatures: (value: string[]) => { features = value; }, setRuntimeReason: (value?: string) => { runtimeReason = value; },
+    setKitState: (value: typeof kitState) => { kitState = value; },
     checks: () => ({ runtime: runtimeChecks, kit: kitChecks }) };
 }
 
@@ -118,13 +123,14 @@ test('copy works offline without launching and stale artifact revisions are reje
   await f.host.copyBmadCommand(request);
   assert.equal(copied.length, 1); assert.match(copied[0], /\$bmad-prd/); assert.equal(terminals.length, 0);
   assert.equal(copied[0], buildBmadCommand(snapshot, request), 'Clipboard matches the native command generator');
-  assert.deepEqual(f.checks(), { runtime: 0, kit: 0 }, 'Copying and observation never invoke tool checks');
+  assert.equal(f.checks().runtime, 0);
+  assert.ok(f.checks().kit > 0, 'Copying rechecks the selected WorkflowKit state');
   await f.write(f.root, '_bmad-output/planning-artifacts/prd.md', '---\nstatus: final\n---\n');
   await assert.rejects(f.host.copyBmadCommand(request), /已變更/);
   await assert.rejects(f.host.copyBmadCommand({ ...request, revision: (await f.refresh()).revision, stepId: 'invalid-step' }), /找不到/);
 });
 
-test('copy validates observed work and allows installation guidance before BMAD exists', async t => {
+test('copy validates observed work and rejects the retired installation command', async t => {
   const f = await fixture(t); await f.refresh(); await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-build')!;
   await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'skill', stepId: node.id, storyId: 'removed' }), /Story/);
@@ -133,9 +139,23 @@ test('copy validates observed work and allows installation guidance before BMAD 
   assert.equal(copied.length, 0);
   await fs.unlink(path.join(f.root, '_bmad', '_config', 'manifest.yaml'));
   const missing = await f.refresh();
-  await f.host.copyBmadCommand({ revision: missing.revision, command: 'install' });
-  assert.equal(copied.length, 1); assert.match(copied[0], /^npx bmad-method@6\.12\.4 install/);
-  assert.deepEqual(f.checks(), { runtime: 0, kit: 0 });
+  await assert.rejects(f.host.copyBmadCommand({ revision: missing.revision, command: 'install' }), /不支援/);
+  assert.equal(copied.length, 0);
+  assert.equal(f.checks().runtime, 0);
+});
+
+test('task copy rechecks bundled integrity and writes a root-bound prompt', async t => {
+  const f = await fixture(t);
+  f.setKitState({ status: 'installed', bmadMode: 'bundled', integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
+  await f.refresh(); await waitForBmadRegistration(f.host);
+  const snapshot = await f.refresh();
+  await f.host.copyBmadCommand({ revision: snapshot.revision, command: 'task', requirement: '完成付款功能' });
+  assert.match(copied[0], /\$bmad-help/);
+  assert.ok(copied[0].includes(f.root));
+  assert.ok(copied[0].includes('完成付款功能'));
+  f.setKitState({ status: 'installed', bmadMode: 'bundled', integrity: 'unverified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
+  await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'task', requirement: '再檢查' }), /尚未通過驗證/);
+  assert.equal(copied.length, 1);
 });
 
 test('openArtifact accepts only the selected snapshot step artifact path', async t => {
@@ -161,14 +181,14 @@ test('root changes during snapshot verification block copy and artifact actions'
   assert.equal(copied.length, 0); assert.equal(opened.length, 0);
 });
 
-test('installation recovery guidance and the project terminal remain available after a config read error', async t => {
+test('Codex guidance and the project terminal remain available after a config read error', async t => {
   const f = await fixture(t); await f.refresh();
   await f.write(f.root, '_bmad/config.toml', '[unfinished');
   const snapshot = await f.refresh();
   assert.equal(snapshot.observation.state, 'error');
-  await f.host.copyBmadCommand({ revision: snapshot.revision, command: 'install' });
+  await f.host.copyBmadCommand({ revision: snapshot.revision, command: 'codex' });
   await f.host.openBmadTerminal(snapshot.revision);
-  assert.match(copied[0], /^npx bmad-method/); assert.equal(terminals[0].cwd, f.root);
+  assert.equal(copied[0], 'codex'); assert.equal(terminals[0].cwd, f.root);
 });
 
 test('the BMAD terminal opens at the selected root without installing a kit or sending commands', async t => {
@@ -177,7 +197,7 @@ test('the BMAD terminal opens at the selected root without installing a kit or s
   const snapshot = await f.refresh(); f.setFeatures([]);
   await f.host.openBmadTerminal(snapshot.revision);
   assert.deepEqual(terminals, [{ name: 'BMAD 專案終端', cwd: snapshot.root }]);
-  assert.deepEqual(f.checks(), { runtime: 0, kit: 0 });
+  assert.equal(f.checks().runtime, 0); assert.ok(f.checks().kit > 0);
   configuredRoots.set(uri(f.root).toString(), '../second');
   await assert.rejects(f.host.openBmadTerminal(snapshot.revision), /已變更/);
   assert.equal(terminals.length, 1);
