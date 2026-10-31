@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/users/sign_in",
+    "status": 200,
+    "authenticated": false,
+    "bodyBytes": 11100
+  },
+  {
+    "path": "/api/v4/version",
+    "status": 401,
+    "authenticated": false,
+    "error": "HttpResponseException"
+  },
+  {
+    "path": "/api/v4/projects?per_page=1",
+    "status": 200,
+    "authenticated": false,
+    "bodyBytes": 2
+  },
+  {
+    "path": "/api/v4/projects/grp-sn-maint%2Fgitlab-workspace-live-validation%2Fdemo%2Fservice",
+    "status": 404,
+    "authenticated": false,
+    "error": "HttpResponseException"
+  }
+]

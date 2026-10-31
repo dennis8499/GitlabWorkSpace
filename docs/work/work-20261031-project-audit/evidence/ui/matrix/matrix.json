@@ -1,0 +1,3122 @@
+{
+  "schema": "GitLabWorkspaceUiAuditMatrix/v1",
+  "scope": "VSIX dashboard in headless Chromium with isolated fake host, not native VS Code; light/high-contrast colours approximated",
+  "browser": "156.0.8078.74",
+  "artifact": {
+    "path": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\dist\\gitlab-workspace-0.37.3.vsix",
+    "sha256": "e6f523de4d9f0cb2e104ab176fb5c74779eb8ee8be4b15864b76fdec2968bbf3"
+  },
+  "cases": [
+    {
+      "width": 1440,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 34,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/team/s"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": []
+      },
+      "searchFocus": {
+        "before": {
+          "focused": false,
+          "focusVisible": false,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        },
+        "after": {
+          "focused": true,
+          "focusVisible": true,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        }
+      },
+      "graphFocus": {
+        "before": {
+          "focused": false,
+          "focusVisible": false,
+          "selected": false,
+          "node": {
+            "outline": "rgb(255, 255, 255) none 3px",
+            "stroke": "none",
+            "strokeWidth": "1px",
+            "filter": "none",
+            "opacity": "1"
+          },
+          "core": {
+            "outline": "rgb(255, 255, 255) none 3px",
+            "stroke": "rgb(170, 170, 170)",
+            "strokeWidth": "2px",
+            "filter": "none",
+            "opacity": "1"
+          }
+        },
+        "after": {
+          "focused": false,
+          "focusVisible": false,
+          "selected": false,
+          "node": {
+            "outline": "rgb(255, 255, 255) none 3px",
+            "stroke": "none",
+            "strokeWidth": "1px",
+            "filter": "none",
+            "opacity": "1"
+          },
+          "core": {
+            "outline": "rgb(255, 255, 255) none 3px",
+            "stroke": "rgb(170, 170, 170)",
+            "strokeWidth": "2px",
+            "filter": "none",
+            "opacity": "1"
+          }
+        },
+        "accessibilityNodes": [
+          {
+            "ignored": false,
+            "role": "button",
+            "name": "符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬"
+          },
+          {
+            "ignored": false,
+            "role": "button",
+            "name": "符合篩選的主要 Issue，fixture/team/service-02 #1，Review service-02，沒有 Group Board 歸屬"
+          },
+          {
+            "ignored": false,
+            "role": "button",
+            "name": "符合篩選的主要 Issue，fixture/team/service-03 #1，Review service-03，沒有 Group Board 歸屬"
+          }
+        ]
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": [
+          {
+            "nodeId": "94",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "103",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "112",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "121",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "130",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "139",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "148",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "157",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "166",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "175",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "184",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "193",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "202",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "211",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "220",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "229",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "238",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "247",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "256",
+            "role": "checkbox"
+          },
+          {
+            "nodeId": "265",
+            "role": "checkbox"
+          }
+        ]
+      },
+      "searchFocus": {
+        "before": {
+          "focused": false,
+          "focusVisible": false,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        },
+        "after": {
+          "focused": true,
+          "focusVisible": true,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        }
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "sa",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "sa-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 24,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": []
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "bmad",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "bmad-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": []
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "reviewer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "reviewer-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 30,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change servic"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": []
+      },
+      "searchFocus": {
+        "before": {
+          "focused": false,
+          "focusVisible": false,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        },
+        "after": {
+          "focused": true,
+          "focusVisible": true,
+          "input": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(204, 204, 204)",
+            "border": "0px none rgb(204, 204, 204)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          },
+          "parent": {
+            "outlineStyle": "none",
+            "outlineWidth": "3px",
+            "outlineColor": "rgb(170, 170, 170)",
+            "border": "0px none rgb(170, 170, 170)",
+            "boxShadow": "none",
+            "background": "rgba(0, 0, 0, 0)"
+          }
+        }
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-1440-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 49,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\nEXPLORER\n工作中變更\n1\n本機分支\n2\nmain\nHEAD\n···\nfeature/sampl"
+      },
+      "accessibilityTree": {
+        "source": "Chrome CDP Accessibility.getFullAXTree; not screen-reader testing",
+        "unnamedControls": []
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "sa",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "sa-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 25,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n查看詳情\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "bmad",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "bmad-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "reviewer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "reviewer-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 31,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n查看詳情\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-800-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 38,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n0 已暫存 "
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-430-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 430,
+        "scrollWidth": 430,
+        "bodyClientWidth": 430,
+        "bodyScrollWidth": 430,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -184.109375,
+              "right": 199.890625
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -184.109375,
+              "right": 199.890625
+            }
+          }
+        ],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-430-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 430,
+        "scrollWidth": 430,
+        "bodyClientWidth": 430,
+        "bodyScrollWidth": 430,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -184.109375,
+              "right": 199.890625
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -184.109375,
+              "right": 199.890625
+            }
+          }
+        ],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-430-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 430,
+        "scrollWidth": 430,
+        "bodyClientWidth": 430,
+        "bodyScrollWidth": 430,
+        "overflow": false,
+        "visibleControls": 32,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -28.546875,
+              "right": 355.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -28.546875,
+              "right": 355.453125
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\n變更與提交\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 639,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-639-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 639,
+        "scrollWidth": 639,
+        "bodyClientWidth": 639,
+        "bodyScrollWidth": 639,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 639,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-639-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 639,
+        "scrollWidth": 639,
+        "bodyClientWidth": 639,
+        "bodyScrollWidth": 639,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 639,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-639-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 639,
+        "scrollWidth": 639,
+        "bodyClientWidth": 639,
+        "bodyScrollWidth": 639,
+        "overflow": false,
+        "visibleControls": 32,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -62.546875,
+              "right": 355.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -62.546875,
+              "right": 355.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Merge…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Rebase…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Stash 操作…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Reset…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Cherry-pick／Revert…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\n變更與提交\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-640-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 640,
+        "scrollWidth": 640,
+        "bodyClientWidth": 640,
+        "bodyScrollWidth": 640,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-640-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 640,
+        "scrollWidth": 640,
+        "bodyClientWidth": 640,
+        "bodyScrollWidth": 640,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-640-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 640,
+        "scrollWidth": 640,
+        "bodyClientWidth": 640,
+        "bodyScrollWidth": 640,
+        "overflow": false,
+        "visibleControls": 32,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -62.546875,
+              "right": 355.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -62.546875,
+              "right": 355.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Merge…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Rebase…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Stash 操作…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Reset…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "Cherry-pick／Revert…",
+            "rect": {
+              "left": -50.625,
+              "right": 122.375
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\n變更與提交\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 959,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-959-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 959,
+        "scrollWidth": 959,
+        "bodyClientWidth": 959,
+        "bodyScrollWidth": 959,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 959,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-959-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 959,
+        "scrollWidth": 959,
+        "bodyClientWidth": 959,
+        "bodyScrollWidth": 959,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 959,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-959-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 959,
+        "scrollWidth": 959,
+        "bodyClientWidth": 959,
+        "bodyScrollWidth": 959,
+        "overflow": false,
+        "visibleControls": 38,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n0 已暫存 "
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "developer-960-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 960,
+        "scrollWidth": 960,
+        "bodyClientWidth": 960,
+        "bodyScrollWidth": 960,
+        "overflow": false,
+        "visibleControls": 34,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/team/s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "clone-960-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 960,
+        "scrollWidth": 960,
+        "bodyClientWidth": 960,
+        "bodyScrollWidth": 960,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 1,
+      "name": "git-960-dark-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 960,
+        "scrollWidth": 960,
+        "bodyClientWidth": 960,
+        "bodyScrollWidth": 960,
+        "overflow": false,
+        "visibleControls": 38,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n0 已暫存 "
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "developer",
+      "theme": "light",
+      "zoom": 1,
+      "name": "developer-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "clone",
+      "theme": "light",
+      "zoom": 1,
+      "name": "clone-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "sa",
+      "theme": "light",
+      "zoom": 1,
+      "name": "sa-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 25,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n查看詳情\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "bmad",
+      "theme": "light",
+      "zoom": 1,
+      "name": "bmad-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "reviewer",
+      "theme": "light",
+      "zoom": 1,
+      "name": "reviewer-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 31,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n查看詳情\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "git",
+      "theme": "light",
+      "zoom": 1,
+      "name": "git-800-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 38,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n0 已暫存 "
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "developer",
+      "theme": "light",
+      "zoom": 1,
+      "name": "developer-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 34,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/team/s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "clone",
+      "theme": "light",
+      "zoom": 1,
+      "name": "clone-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "sa",
+      "theme": "light",
+      "zoom": 1,
+      "name": "sa-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 24,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "bmad",
+      "theme": "light",
+      "zoom": 1,
+      "name": "bmad-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "reviewer",
+      "theme": "light",
+      "zoom": 1,
+      "name": "reviewer-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 30,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change servic"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "git",
+      "theme": "light",
+      "zoom": 1,
+      "name": "git-1440-light-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 49,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\nEXPLORER\n工作中變更\n1\n本機分支\n2\nmain\nHEAD\n···\nfeature/sampl"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "developer",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "developer-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 35,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n查看預覽\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/t"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "clone",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "clone-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "sa",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "sa-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 25,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n查看詳情\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "bmad",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "bmad-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "reviewer",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "reviewer-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 31,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n查看詳情\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "mode": "git",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "git-800-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 800,
+        "scrollWidth": 800,
+        "bodyClientWidth": 800,
+        "bodyScrollWidth": 800,
+        "overflow": false,
+        "visibleControls": 38,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [
+          {
+            "tag": "BUTTON",
+            "label": "＋ 新增 GitLab 帳號",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          },
+          {
+            "tag": "BUTTON",
+            "label": "管理帳號與連線",
+            "rect": {
+              "left": -30.546875,
+              "right": 387.453125
+            }
+          }
+        ],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n0 已暫存 "
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "developer",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "developer-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 34,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/team/s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "clone",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "clone-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "sa",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "sa-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 24,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "sa",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n本機工作區\nSkills 功能指引\n更新資料\nGroup 工作區可以準備提示詞\n\n專案根目錄：C:/fixture/team\n\n工作流程包 1.0.0\n整包安裝／更新\n\n已安裝 Output Style 時優先依情境調整輸出；未安裝時沿用各 Skill 原本風格。可用 $output-style style=explanatory 指定詳解。\n\nWiki\n0.6.0\nMergeReviewer\n0.12.1\nReleaseReviewer\n0.3.0\n閱讀與探索\n查詢 Wiki\n專案功能探索\n程式健檢\n程式碼考古\n知識維護\n建立／更新 Wiki（Ingest）\nWiki 品質與索引維護\nADR 決策紀錄\n保存分析（Synthesis）\n繪製圖表\n分析文件\nBA 業務分析文件\nSA 系統分析文件\nSD 系統設計文件\n匯出\nNotebookLM 匯出\nCODEBASE LLM WIKI\n查詢 Wiki\n\n優先查閱 Wiki，再視需要回溯原始程式碼核對答案。\n\n預期產出：附有來源依據的解答，並標示過時內容或未確認的資訊缺口。\n\n執行方式：先唯讀回答並預覽有價值的後續建議；選擇已預覽動作即授權完成更新／保存。\n\n想了解的問題（必填）\n檢視提示詞預覽\n複製提示詞\n\n請填妥必要欄位後再複製。\n\n下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。\n\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "bmad",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "bmad-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 4,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "bmad",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\n正在讀取 BMAD 專案狀態…\n專案根目錄：C:/fixture/team"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "reviewer",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "reviewer-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 30,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "reviewer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n待審查\n更新資料\n全部\n指定我為 Reviewer\n指派給我\n⌕\n20\n!1　Change service-01\nfixture/team/service-01 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-02\nfixture/team/service-02 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-03\nfixture/team/service-03 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-04\nfixture/team/service-04 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-05\nfixture/team/service-05 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-06\nfixture/team/service-06 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-07\nfixture/team/service-07 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-08\nfixture/team/service-08 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change service-09\nfixture/team/service-09 · Fixture User\nfeature/sample → main\nPipeline：未設定\n!1　Change servic"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "git",
+      "theme": "highcontrast",
+      "zoom": 1,
+      "name": "git-1440-highcontrast-zoom1",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "overflow": false,
+        "visibleControls": 49,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\nEXPLORER\n工作中變更\n1\n本機分支\n2\nmain\nHEAD\n···\nfeature/sampl"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "developer",
+      "theme": "dark",
+      "zoom": 2,
+      "name": "developer-1440-dark-zoom2",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 720,
+        "bodyScrollWidth": 720,
+        "overflow": false,
+        "visibleControls": 34,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "developer",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n我的工作\n更新資料\n⌕\n清單\n圖譜\n＋ 新增議題\n載入看板\n全部 Repo\nfixture/team/service-01\nfixture/team/service-02\nfixture/team/service-03\nfixture/team/service-04\nfixture/team/service-05\nfixture/team/service-06\nfixture/team/service-07\nfixture/team/service-08\nfixture/team/service-09\nfixture/team/service-10\nfixture/team/service-11\nfixture/team/service-12\nfixture/team/service-13\nfixture/team/service-14\nfixture/team/service-15\nfixture/team/service-16\nfixture/team/service-17\nfixture/team/service-18\nfixture/team/service-19\nfixture/team/service-20\n全部 Labels\nfixture\n載入里程碑\n指派給我的 Issue\n20\nReview service-01\nfixture/team/service-01 #1\nfixture\nReview service-02\nfixture/team/service-02 #1\nfixture\nReview service-03\nfixture/team/service-03 #1\nfixture\nReview service-04\nfixture/team/service-04 #1\nfixture\nReview service-05\nfixture/team/service-05 #1\nfixture\nReview service-06\nfixture/team/service-06 #1\nfixture\nReview service-07\nfixture/team/s"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "clone",
+      "theme": "dark",
+      "zoom": 2,
+      "name": "clone-1440-dark-zoom2",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 720,
+        "bodyScrollWidth": 720,
+        "overflow": false,
+        "visibleControls": 59,
+        "approximateMissingNames": [
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          },
+          {
+            "tag": "INPUT",
+            "outerHTML": "<input type=\"checkbox\">"
+          }
+        ],
+        "outOfViewportControls": [],
+        "mode": "clone",
+        "textExcerpt": "GW\nGitLab Workspace\nGroup\nfixture/team\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nFIXTURE/TEAM\n專案\n更新資料\nGitLab 專案\n本機 Repo\n一鍵掃描 Repo\n⌕\n20 個 Repo\n全選\nfixture/team/service-01\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01\nfixture/team/service-02\n預設分支：main　·　本機：C:/fixture/team/service-02\n1 個本機副本\n開啟版控 · service-02\nfixture/team/service-03\n預設分支：main　·　本機：C:/fixture/team/service-03\n1 個本機副本\n開啟版控 · service-03\nfixture/team/service-04\n預設分支：main　·　本機：C:/fixture/team/service-04\n1 個本機副本\n開啟版控 · service-04\nfixture/team/service-05\n預設分支：main　·　本機：C:/fixture/team/service-05\n1 個本機副本\n開啟版控 · service-05\nfixture/team/service-06\n預設分支：main　·　本機：C:/fixture/team/service-06\n1 個本機副本\n開啟版控 · service-06\nfixture/team/service-07\n預設分支：main　·　本機：C:/fixture/team/service-07\n1 個本機副本\n開啟版控 · service-07\nfixture/team/service-08\n預設分支：main　·　本機：C:/fixture/team/service-08\n1 個本機副本\n開啟版控 · service-08\nfixture/team/service-09\n預設分支：main　·　本機：C:/fixture/team/service-09\n1 個本機副本\n開啟版控 · service-09\nfixture/team/service-10\n預設分支"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "mode": "git",
+      "theme": "dark",
+      "zoom": 2,
+      "name": "git-1440-dark-zoom2",
+      "status": "PASS",
+      "metrics": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "bodyClientWidth": 720,
+        "bodyScrollWidth": 720,
+        "overflow": false,
+        "visibleControls": 32,
+        "approximateMissingNames": [],
+        "outOfViewportControls": [],
+        "mode": "git",
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nREPOSITORY\n選擇 Repo\nservice-01 · C:/fixture/team/service-01\nservice-02 · C:/fixture/team/service-02\nservice-03 · C:/fixture/team/service-03\nservice-04 · C:/fixture/team/service-04\nservice-05 · C:/fixture/team/service-05\nservice-06 · C:/fixture/team/service-06\nservice-07 · C:/fixture/team/service-07\nservice-08 · C:/fixture/team/service-08\nservice-09 · C:/fixture/team/service-09\nservice-10 · C:/fixture/team/service-10\nservice-11 · C:/fixture/team/service-11\nservice-12 · C:/fixture/team/service-12\nservice-13 · C:/fixture/team/service-13\nservice-14 · C:/fixture/team/service-14\nservice-15 · C:/fixture/team/service-15\nservice-16 · C:/fixture/team/service-16\nservice-17 · C:/fixture/team/service-17\nservice-18 · C:/fixture/team/service-18\nservice-19 · C:/fixture/team/service-19\nservice-20 · C:/fixture/team/service-20\nmain\nfeature/sample\n↑0 ↓0\nFetch\nPull\nPush\n分支\nStash\n···\n跟隨 VS Code\n深色\n分支導覽\n變更與提交\nCOMMIT GRAPH\n提交歷史\n圖譜 / 提交訊息\n作者\n提交\n工作中變更\n"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    }
+  ],
+  "overlays": [
+    {
+      "width": 430,
+      "panel": "issue-detail",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 430,
+        "scrollWidth": 430,
+        "overflow": false,
+        "dialog": false,
+        "focusInDialog": false
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "panel": "settings",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 430,
+        "scrollWidth": 430,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "panel": "account-form",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 430,
+        "scrollWidth": 430,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 430,
+      "panel": "notifications",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 430,
+        "scrollWidth": 430,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "panel": "issue-detail",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 640,
+        "scrollWidth": 640,
+        "overflow": false,
+        "dialog": false,
+        "focusInDialog": false
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "panel": "settings",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 640,
+        "scrollWidth": 640,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "panel": "account-form",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 640,
+        "scrollWidth": 640,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 640,
+      "panel": "notifications",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 640,
+        "scrollWidth": 640,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "panel": "issue-detail",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "dialog": false,
+        "focusInDialog": false
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "panel": "settings",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "panel": "account-form",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 800,
+      "panel": "notifications",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "panel": "issue-detail",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 960,
+        "scrollWidth": 960,
+        "overflow": false,
+        "dialog": false,
+        "focusInDialog": false
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "panel": "settings",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 960,
+        "scrollWidth": 960,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "panel": "account-form",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 960,
+        "scrollWidth": 960,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 960,
+      "panel": "notifications",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 960,
+        "scrollWidth": 960,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "panel": "issue-detail",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "dialog": false,
+        "focusInDialog": false
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "panel": "settings",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "panel": "account-form",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "width": 1440,
+      "panel": "notifications",
+      "status": "PASS",
+      "layout": {
+        "bodyWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "dialog": true,
+        "focusInDialog": true
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    }
+  ],
+  "listBoundaries": [
+    {
+      "mode": "clone",
+      "count": 200,
+      "status": "PASS",
+      "renderedAtTop": 200,
+      "countLabel": "200 個 Repo",
+      "renderedAtBottom": 200,
+      "lastItemVisible": true,
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "mode": "clone",
+      "count": 201,
+      "status": "FAIL",
+      "renderedAtTop": 201,
+      "countLabel": "201 個 Repo",
+      "renderedAtBottom": 201,
+      "lastItemVisible": true,
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "mode": "developer",
+      "count": 200,
+      "status": "PASS",
+      "renderedAtTop": 200,
+      "countLabel": null,
+      "renderedAtBottom": 200,
+      "lastItemVisible": true,
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "mode": "developer",
+      "count": 201,
+      "status": "FAIL",
+      "renderedAtTop": 201,
+      "countLabel": null,
+      "renderedAtBottom": 201,
+      "lastItemVisible": true,
+      "errors": [],
+      "blockedNetworkRequests": []
+    }
+  ]
+}

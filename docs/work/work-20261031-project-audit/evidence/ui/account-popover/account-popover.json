@@ -1,0 +1,147 @@
+{
+  "scope": "Actual packaged UI, fake Host, headless Chromium; dashboard width excludes the 300px fake sidebar",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "cases": [
+    {
+      "width": 430,
+      "viewport": 430,
+      "popover": {
+        "left": 12,
+        "right": 418,
+        "top": 100,
+        "bottom": 232,
+        "width": 406
+      },
+      "buttons": [
+        {
+          "label": "＋ 新增 GitLab 帳號",
+          "rect": {
+            "left": 23,
+            "right": 407,
+            "top": 144,
+            "bottom": 175,
+            "width": 384
+          }
+        },
+        {
+          "label": "管理帳號與連線",
+          "rect": {
+            "left": 23,
+            "right": 407,
+            "top": 191,
+            "bottom": 221,
+            "width": 384
+          }
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    },
+    {
+      "width": 640,
+      "viewport": 640,
+      "popover": {
+        "left": 188,
+        "right": 628,
+        "top": 100,
+        "bottom": 232,
+        "width": 440
+      },
+      "buttons": [
+        {
+          "label": "＋ 新增 GitLab 帳號",
+          "rect": {
+            "left": 199,
+            "right": 617,
+            "top": 144,
+            "bottom": 175,
+            "width": 418
+          }
+        },
+        {
+          "label": "管理帳號與連線",
+          "rect": {
+            "left": 199,
+            "right": 617,
+            "top": 191,
+            "bottom": 221,
+            "width": 418
+          }
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    },
+    {
+      "width": 800,
+      "viewport": 800,
+      "popover": {
+        "left": 120.515625,
+        "right": 560.515625,
+        "top": 87.5,
+        "bottom": 219.5,
+        "width": 440
+      },
+      "buttons": [
+        {
+          "label": "＋ 新增 GitLab 帳號",
+          "rect": {
+            "left": 131.515625,
+            "right": 549.515625,
+            "top": 131.5,
+            "bottom": 162.5,
+            "width": 418
+          }
+        },
+        {
+          "label": "管理帳號與連線",
+          "rect": {
+            "left": 131.515625,
+            "right": 549.515625,
+            "top": 178.5,
+            "bottom": 208.5,
+            "width": 418
+          }
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    },
+    {
+      "width": 1440,
+      "viewport": 1440,
+      "popover": {
+        "left": 980,
+        "right": 1420,
+        "top": 49.5,
+        "bottom": 181.5,
+        "width": 440
+      },
+      "buttons": [
+        {
+          "label": "＋ 新增 GitLab 帳號",
+          "rect": {
+            "left": 991,
+            "right": 1409,
+            "top": 93.5,
+            "bottom": 124.5,
+            "width": 418
+          }
+        },
+        {
+          "label": "管理帳號與連線",
+          "rect": {
+            "left": 991,
+            "right": 1409,
+            "top": 140.5,
+            "bottom": 170.5,
+            "width": 418
+          }
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    }
+  ]
+}

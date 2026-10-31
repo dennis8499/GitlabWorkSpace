@@ -1,0 +1,41 @@
+{
+  "schema": "GitLabWorkspaceOfflineNativeResourceProbe/v1",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "artifact": "dist\\gitlab-workspace-0.37.3.vsix",
+  "method": "Offline, installed VSIX in isolated profile; command return is not rendered readiness",
+  "rounds": [
+    {
+      "round": 1,
+      "long": false,
+      "pid": 25948,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": false,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 9584.09,
+      "startupToActiveTabMs": null,
+      "workspaceCommandDurationMs": 83.59769999999935,
+      "events": "evidence\\performance-native-smoke\\events-01.jsonl",
+      "samples": "evidence\\performance-native-smoke\\samples-01.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    }
+  ],
+  "limits": [
+    "No GitLab account, data, timer or graph activity",
+    "Worker threads are not separately attributable by process counters",
+    "I/O counters are process operations, not actual disk bytes",
+    "Initial extraction precedes all measured rounds"
+  ],
+  "isolatedProfileCleanup": "preserved after cleanup failure: [WinError 145] 目錄不是空的。: 'C:\\\\Users\\\\denni\\\\OneDrive\\\\Desktop\\\\新增資料夾\\\\GitlabWorkSpace\\\\docs\\\\work\\\\work-20261031-project-audit\\\\evidence\\\\performance-native-smoke\\\\run-20261031-211354\\\\user-1\\\\User\\\\workspaceStorage\\\\abc9c1cba504c245cc6f521189359f72\\\\chatEditingSessions'"
+}

@@ -1,0 +1,20 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-extension-tests.mjs","--preflight-file","C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-project-audit\\evidence\\validation\\extension-host.json","--forbid-only","--fail-zero"]
+Extension Host isolation removed inherited keys: ELECTRON_RUN_AS_NODE, VSCODE_CODE_CACHE_PATH, VSCODE_CRASH_REPORTER_PROCESS_TYPE, VSCODE_CWD, VSCODE_ESM_ENTRYPOINT, VSCODE_HANDLES_UNCAUGHT_ERRORS, VSCODE_IPC_HOOK, VSCODE_NLS_CONFIG, VSCODE_NODE_COMPILE_CACHE_KIND, VSCODE_NODE_COMPILE_CACHE_ROOT, VSCODE_PID
+
+Error: EPERM: operation not permitted, chdir 'C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace' -> 'C:\Users\denni\AppData\Local\Programs\Microsoft VS Code'
+    at wrappedChdir (node:internal/bootstrap/switches/does_own_process_state:128:14)
+    at process.chdir (node:internal/worker:115:5)
+    at W2 (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/mainImpl.js:196:2948)
+    at file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/mainImpl.js:196:3011
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/main.js:27:62380 {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'chdir',
+  path: 'C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace',
+  dest: 'C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code'
+}
+[10760:1031/204025.166:FATAL:electron\shell\browser\win\install_dir_access.cc:52] Sandboxed processes cannot read C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2c33b50b16: its ACL has an entry for an AppContainer package SID but none for ALL APPLICATION PACKAGES, so Windows denies the sandbox token access. Grant it with: icacls "C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2c33b50b16" /grant *S-1-15-2-1:(OI)(CI)(RX)
+Exit code:   2147483651
+Extension Host failed; isolated logs retained at C:\Users\denni\AppData\Local\Packages\sandbox.{d45f1333-ebfd-454a-9283-3da00500dc18}\AC\Temp\gitlab-workspace-host-tests-gyoUqP

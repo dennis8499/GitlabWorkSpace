@@ -1,0 +1,81 @@
+{
+  "schema": "GitLabWorkspaceProductionHelperAudit/v1",
+  "generatedAt": "2026-10-31T13:31:26.165Z",
+  "commit": "164e0f9a5a8beb7581814532f8b84af7a6d495fd",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "rounds": 5,
+  "system": {
+    "platform": "win32",
+    "release": "10.0.26300",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) Ultra 7 258V",
+    "logicalCpus": 8,
+    "totalMemoryBytes": 33880793088,
+    "node": "v24.21.0"
+  },
+  "methodology": "Production helpers executed in isolated Node processes with synthetic data. No real GitLab, VS Code Extension Host, renderer, Git or file-system repositories. Medians across only five rounds are descriptive, not p95. Cache runs each contain 1000 iterations.",
+  "workloads": [
+    {
+      "repos": 50,
+      "issues": 100,
+      "nodes": 50,
+      "namingProductionMedianOfRunMediansMs": 0.22,
+      "patchBuildMedianOfRunMediansMs": 0.12,
+      "peakSampledHeapBytesMedian": 10163600,
+      "peakSampledHeapDeltaBytesMedian": 4090944,
+      "fullGraphTransportBytes": 770422,
+      "incrementalGraphTransportBytes": 19538,
+      "transportReductionPercent": 97.46,
+      "mountedIssueRowsAtMidScroll": 100
+    },
+    {
+      "repos": 500,
+      "issues": 1000,
+      "nodes": 500,
+      "namingProductionMedianOfRunMediansMs": 1.24,
+      "patchBuildMedianOfRunMediansMs": 1.028,
+      "peakSampledHeapBytesMedian": 41522472,
+      "peakSampledHeapDeltaBytesMedian": 34741800,
+      "fullGraphTransportBytes": 7952812,
+      "incrementalGraphTransportBytes": 19538,
+      "transportReductionPercent": 99.75,
+      "mountedIssueRowsAtMidScroll": 32
+    },
+    {
+      "repos": 2000,
+      "issues": 10000,
+      "nodes": 2000,
+      "namingProductionMedianOfRunMediansMs": 4.73,
+      "patchBuildMedianOfRunMediansMs": 4.392,
+      "peakSampledHeapBytesMedian": 42338664,
+      "peakSampledHeapDeltaBytesMedian": 34622832,
+      "fullGraphTransportBytes": 33513202,
+      "incrementalGraphTransportBytes": 19538,
+      "transportReductionPercent": 99.94,
+      "mountedIssueRowsAtMidScroll": 32
+    }
+  ],
+  "cache": {
+    "coldP95MsMedianAcrossRuns": 0.699,
+    "warmP95MsMedianAcrossRuns": 0.031,
+    "coldApiRequestsPerRead": 1,
+    "warmNetworkBytes": 0
+  },
+  "capabilityProbe": {
+    "sourceFixture": "v16.11.10-ee",
+    "targetedTypesPerInitialProbe": 13,
+    "legacyRequestBytes": 316,
+    "targetedProbeBatches": 3,
+    "targetedTypesRequested": 24,
+    "targetedRequestBytesByBatch": [
+      1466,
+      1182,
+      752
+    ],
+    "targetedRequestBytesTotal": 3400,
+    "fullSchemaResponseBytes": null,
+    "targetedResponseBytes": null,
+    "responseReductionPercent": null,
+    "measurementLimit": "The pinned fixture is a minimal capability contract, not a full schema export. An authenticated CE 16.11.10 instance is required to measure response transfer reduction; request bytes alone are not a substitute."
+  }
+}

@@ -1,0 +1,657 @@
+{
+  "schema": "GitLabWorkspaceLargeListPerformanceSummary/v1",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "browser": "156.0.8078.74",
+  "scope": "Actual VSIX dashboard assets in Chromium with mock Host and synthetic data; no VS Code or GitLab.",
+  "method": "Fresh context per round. Search uses scripted DOM input to matching narrowed or restored visible rows and two animation frames; scroll uses the actual outer page scrollTop to two animation frames. Heap is shared renderer V8 heap after GC, not process memory. Runtime/CDP automation overhead and fixture scale are not production server measurements.",
+  "interpretation": "Intra-run samples are correlated; p95 is withheld for fewer than 20 samples. GC heap is V8 heap in the shared test renderer, not process working set. Navigation and two-RAF timing are not network latency or actual keyboard input latency.",
+  "cases": [
+    {
+      "mode": "clone",
+      "count": 200,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        200,
+        200,
+        200
+      ],
+      "totalDomNodes": [
+        1527,
+        1527,
+        1527
+      ],
+      "listClientHeight": [
+        11800,
+        11800,
+        11800
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 36.29999998211861,
+        "p95Ms": null,
+        "maxMs": 36.5
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 50.400000005960464,
+        "maxMs": 50.69999998807907
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 50.30000001192093,
+        "maxMs": 50.599999994039536
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.30000001192093,
+        "p95Ms": 33.599999994039536,
+        "maxMs": 33.69999998807907
+      },
+      "heapAfterNavigationGcBytes": [
+        6473376,
+        6473172,
+        6473372
+      ],
+      "heapAfterInteractionsGcBytes": [
+        7092304,
+        7092888,
+        7093088
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 378,
+          "Nodes": 3325,
+          "LayoutDuration": 0.068356,
+          "RecalcStyleDuration": 0.029602,
+          "ScriptDuration": 0.007547,
+          "TaskDuration": 0.417739
+        },
+        {
+          "JSEventListeners": 378,
+          "Nodes": 3325,
+          "LayoutDuration": 0.088872,
+          "RecalcStyleDuration": 0.037516,
+          "ScriptDuration": 0.007449,
+          "TaskDuration": 0.503003
+        },
+        {
+          "JSEventListeners": 378,
+          "Nodes": 3325,
+          "LayoutDuration": 0.078698,
+          "RecalcStyleDuration": 0.03562,
+          "ScriptDuration": 0.00766,
+          "TaskDuration": 0.464902
+        }
+      ]
+    },
+    {
+      "mode": "clone",
+      "count": 201,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        201,
+        201,
+        201
+      ],
+      "totalDomNodes": [
+        1534,
+        1534,
+        1534
+      ],
+      "listClientHeight": [
+        11859,
+        11859,
+        11859
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 37.29999998211861,
+        "p95Ms": null,
+        "maxMs": 42.5
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 49.900000005960464,
+        "p95Ms": 50.29999998211861,
+        "maxMs": 50.400000005960464
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 50.099999994039536,
+        "p95Ms": 51.79999998211861,
+        "maxMs": 66.80000001192093
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.30000001192093,
+        "p95Ms": 33.80000001192093,
+        "maxMs": 35
+      },
+      "heapAfterNavigationGcBytes": [
+        6589720,
+        6585268,
+        6589640
+      ],
+      "heapAfterInteractionsGcBytes": [
+        7236120,
+        7241008,
+        7235972
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 379,
+          "Nodes": 3338,
+          "LayoutDuration": 0.080093,
+          "RecalcStyleDuration": 0.052718,
+          "ScriptDuration": 0.013043,
+          "TaskDuration": 0.524782
+        },
+        {
+          "JSEventListeners": 379,
+          "Nodes": 3338,
+          "LayoutDuration": 0.082065,
+          "RecalcStyleDuration": 0.060511,
+          "ScriptDuration": 0.013797,
+          "TaskDuration": 0.544706
+        },
+        {
+          "JSEventListeners": 379,
+          "Nodes": 3338,
+          "LayoutDuration": 0.07558,
+          "RecalcStyleDuration": 0.052108,
+          "ScriptDuration": 0.014576,
+          "TaskDuration": 0.517986
+        }
+      ]
+    },
+    {
+      "mode": "clone",
+      "count": 2000,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        2000,
+        2000,
+        2000
+      ],
+      "totalDomNodes": [
+        14127,
+        14127,
+        14127
+      ],
+      "listClientHeight": [
+        118000,
+        118000,
+        118000
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 231.80000001192093,
+        "p95Ms": null,
+        "maxMs": 278.39999997615814
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 49.80000001192093,
+        "p95Ms": 50.599999994039536,
+        "maxMs": 52.400000005960464
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 216.59999999403954,
+        "p95Ms": 285.7000000178814,
+        "maxMs": 301.10000002384186
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.30000001192093,
+        "p95Ms": 33.80000001192093,
+        "maxMs": 34.5
+      },
+      "heapAfterNavigationGcBytes": [
+        10677436,
+        10677436,
+        10675964
+      ],
+      "heapAfterInteractionsGcBytes": [
+        11148308,
+        11148944,
+        11147848
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 2178,
+          "Nodes": 26725,
+          "LayoutDuration": 0.779588,
+          "RecalcStyleDuration": 0.605639,
+          "ScriptDuration": 0.062698,
+          "TaskDuration": 3.456544
+        },
+        {
+          "JSEventListeners": 2178,
+          "Nodes": 26725,
+          "LayoutDuration": 0.68281,
+          "RecalcStyleDuration": 0.538704,
+          "ScriptDuration": 0.060722,
+          "TaskDuration": 3.02548
+        },
+        {
+          "JSEventListeners": 2178,
+          "Nodes": 26725,
+          "LayoutDuration": 0.646507,
+          "RecalcStyleDuration": 0.493657,
+          "ScriptDuration": 0.062891,
+          "TaskDuration": 2.894945
+        }
+      ]
+    },
+    {
+      "mode": "developer",
+      "count": 200,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        200,
+        200,
+        200
+      ],
+      "totalDomNodes": [
+        1302,
+        1302,
+        1302
+      ],
+      "listClientHeight": [
+        17638,
+        17638,
+        17638
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 24.30000001192093,
+        "p95Ms": null,
+        "maxMs": 26.200000017881393
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 50.400000005960464,
+        "maxMs": 50.900000005960464
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 51,
+        "maxMs": 51.099999994039536
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.30000001192093,
+        "p95Ms": 33.70000001788139,
+        "maxMs": 33.900000005960464
+      },
+      "heapAfterNavigationGcBytes": [
+        6408380,
+        6408176,
+        6408216
+      ],
+      "heapAfterInteractionsGcBytes": [
+        7055532,
+        7052848,
+        7052936
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 354,
+          "Nodes": 2969,
+          "LayoutDuration": 0.046459,
+          "RecalcStyleDuration": 0.022819,
+          "ScriptDuration": 0.006904,
+          "TaskDuration": 0.313311
+        },
+        {
+          "JSEventListeners": 354,
+          "Nodes": 2969,
+          "LayoutDuration": 0.041324,
+          "RecalcStyleDuration": 0.023111,
+          "ScriptDuration": 0.007052,
+          "TaskDuration": 0.298237
+        },
+        {
+          "JSEventListeners": 354,
+          "Nodes": 2969,
+          "LayoutDuration": 0.046044,
+          "RecalcStyleDuration": 0.023599,
+          "ScriptDuration": 0.00718,
+          "TaskDuration": 0.319818
+        }
+      ]
+    },
+    {
+      "mode": "developer",
+      "count": 201,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        201,
+        201,
+        201
+      ],
+      "totalDomNodes": [
+        1308,
+        1308,
+        1308
+      ],
+      "listClientHeight": [
+        17726,
+        17726,
+        17726
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 24.30000001192093,
+        "p95Ms": null,
+        "maxMs": 24.599999994039536
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 50.29999998211861,
+        "maxMs": 50.80000001192093
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 50,
+        "p95Ms": 50.69999998807907,
+        "maxMs": 50.900000005960464
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.39999997615814,
+        "p95Ms": 33.79999998211861,
+        "maxMs": 34.400000005960464
+      },
+      "heapAfterNavigationGcBytes": [
+        6524336,
+        6524364,
+        6522400
+      ],
+      "heapAfterInteractionsGcBytes": [
+        7187400,
+        7187420,
+        7187528
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 355,
+          "Nodes": 2980,
+          "LayoutDuration": 0.054736,
+          "RecalcStyleDuration": 0.045287,
+          "ScriptDuration": 0.014131,
+          "TaskDuration": 0.422055
+        },
+        {
+          "JSEventListeners": 355,
+          "Nodes": 2980,
+          "LayoutDuration": 0.052883,
+          "RecalcStyleDuration": 0.042475,
+          "ScriptDuration": 0.012813,
+          "TaskDuration": 0.392711
+        },
+        {
+          "JSEventListeners": 355,
+          "Nodes": 2980,
+          "LayoutDuration": 0.055687,
+          "RecalcStyleDuration": 0.045489,
+          "ScriptDuration": 0.01383,
+          "TaskDuration": 0.408428
+        }
+      ]
+    },
+    {
+      "mode": "developer",
+      "count": 2000,
+      "rounds": 3,
+      "passed": 3,
+      "errors": [],
+      "mountedRows": [
+        2000,
+        2000,
+        2000
+      ],
+      "totalDomNodes": [
+        12102,
+        12102,
+        12102
+      ],
+      "listClientHeight": [
+        176375,
+        176375,
+        176375
+      ],
+      "pageClientHeight": [
+        808,
+        808,
+        808
+      ],
+      "navigationMs": {
+        "n": 3,
+        "p50Ms": 125.09999999403954,
+        "p95Ms": null,
+        "maxMs": 160.40000000596046
+      },
+      "searchNarrowMs": {
+        "n": 30,
+        "p50Ms": 49.89999997615814,
+        "p95Ms": 50.400000005960464,
+        "maxMs": 50.400000005960464
+      },
+      "searchResetMs": {
+        "n": 30,
+        "p50Ms": 166.40000000596046,
+        "p95Ms": 216.5,
+        "maxMs": 234.69999998807907
+      },
+      "pageScrollMs": {
+        "n": 90,
+        "p50Ms": 33.39999997615814,
+        "p95Ms": 33.69999998807907,
+        "maxMs": 33.900000005960464
+      },
+      "heapAfterNavigationGcBytes": [
+        10132080,
+        10131988,
+        10131884
+      ],
+      "heapAfterInteractionsGcBytes": [
+        10664560,
+        10667212,
+        10590420
+      ],
+      "longTaskCount": [
+        0,
+        0,
+        0
+      ],
+      "maxLongTaskMs": [
+        0,
+        0,
+        0
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 2154,
+          "Nodes": 22769,
+          "LayoutDuration": 0.393125,
+          "RecalcStyleDuration": 0.389808,
+          "ScriptDuration": 0.050046,
+          "TaskDuration": 2.004213
+        },
+        {
+          "JSEventListeners": 2154,
+          "Nodes": 22769,
+          "LayoutDuration": 0.412404,
+          "RecalcStyleDuration": 0.39478,
+          "ScriptDuration": 0.055249,
+          "TaskDuration": 2.079776
+        },
+        {
+          "JSEventListeners": 2154,
+          "Nodes": 22769,
+          "LayoutDuration": 0.488593,
+          "RecalcStyleDuration": 0.486833,
+          "ScriptDuration": 0.057303,
+          "TaskDuration": 2.478987
+        }
+      ]
+    },
+    {
+      "mode": "developer",
+      "count": 10000,
+      "rounds": 1,
+      "passed": 1,
+      "errors": [],
+      "mountedRows": [
+        10000
+      ],
+      "totalDomNodes": [
+        60102
+      ],
+      "listClientHeight": [
+        881875
+      ],
+      "pageClientHeight": [
+        808
+      ],
+      "navigationMs": {
+        "n": 1,
+        "p50Ms": 642.9000000059605,
+        "p95Ms": null,
+        "maxMs": 642.9000000059605
+      },
+      "searchNarrowMs": {
+        "n": 3,
+        "p50Ms": 73.90000000596046,
+        "p95Ms": null,
+        "maxMs": 83.30000001192093
+      },
+      "searchResetMs": {
+        "n": 3,
+        "p50Ms": 935.6999999880791,
+        "p95Ms": null,
+        "maxMs": 983.4000000059605
+      },
+      "pageScrollMs": {
+        "n": 30,
+        "p50Ms": 33.30000001192093,
+        "p95Ms": 33.70000001788139,
+        "maxMs": 37.69999998807907
+      },
+      "heapAfterNavigationGcBytes": [
+        26337276
+      ],
+      "heapAfterInteractionsGcBytes": [
+        26325224
+      ],
+      "longTaskCount": [
+        1
+      ],
+      "maxLongTaskMs": [
+        60
+      ],
+      "rendererMetrics": [
+        {
+          "JSEventListeners": 10154,
+          "Nodes": 110769,
+          "LayoutDuration": 1.00969,
+          "RecalcStyleDuration": 0.949312,
+          "ScriptDuration": 0.156241,
+          "TaskDuration": 5.150488
+        }
+      ]
+    }
+  ]
+}

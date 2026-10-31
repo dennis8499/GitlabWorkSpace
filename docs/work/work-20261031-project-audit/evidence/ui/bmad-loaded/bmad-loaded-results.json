@@ -1,0 +1,535 @@
+{
+  "scope": "Final packaged VSIX Webview with fixed BMAD fixture and isolated fake host in headless Chromium; themes approximated, not native VS Code",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "results": [
+    {
+      "name": "ready-start-800-dark",
+      "width": 800,
+      "theme": "dark",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-800-dark",
+      "width": 800,
+      "theme": "dark",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-800-dark",
+      "width": 800,
+      "theme": "dark",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-800-dark",
+      "width": 800,
+      "theme": "dark",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-800-dark",
+      "width": 800,
+      "theme": "dark",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-start-800-light",
+      "width": 800,
+      "theme": "light",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-800-light",
+      "width": 800,
+      "theme": "light",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-800-light",
+      "width": 800,
+      "theme": "light",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-800-light",
+      "width": 800,
+      "theme": "light",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-800-light",
+      "width": 800,
+      "theme": "light",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-start-800-highcontrast",
+      "width": 800,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-800-highcontrast",
+      "width": 800,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-800-highcontrast",
+      "width": 800,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-800-highcontrast",
+      "width": 800,
+      "theme": "highcontrast",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-800-highcontrast",
+      "width": 800,
+      "theme": "highcontrast",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 800,
+        "scrollWidth": 800,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-start-1440-dark",
+      "width": 1440,
+      "theme": "dark",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-1440-dark",
+      "width": 1440,
+      "theme": "dark",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-1440-dark",
+      "width": 1440,
+      "theme": "dark",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-1440-dark",
+      "width": 1440,
+      "theme": "dark",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-1440-dark",
+      "width": 1440,
+      "theme": "dark",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-start-1440-light",
+      "width": 1440,
+      "theme": "light",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-1440-light",
+      "width": 1440,
+      "theme": "light",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-1440-light",
+      "width": 1440,
+      "theme": "light",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-1440-light",
+      "width": 1440,
+      "theme": "light",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-1440-light",
+      "width": 1440,
+      "theme": "light",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-start-1440-highcontrast",
+      "width": 1440,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-capabilities-1440-highcontrast",
+      "width": 1440,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "capabilities",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n你現在想完成什麼？\n\n選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。\n\n官方路徑選擇 ↗\n修 Bug 或完成明確變更\n已有具體目標，想在程式庫完成一項功能或修正。\n規劃新產品或大型功能\n需求跨多個功能、需要一致的架構與可交付的工作拆分。\n把現有資料整理成規格\n已有筆記、討論、PRD 或參考資料，需要可交接的工作規格。\n設計介面與使用者體驗\n畫面、互動或使用者流程是本次需求的重點。\n先研究再做決定\n需要比較技術、理解市場、領域、競品或使用者。\n檢查程式或文件\n交付前檢查程式變更、規格、架構或其他成果。\n補上 API 與端到端測試\n功能已經實作，需要建立可執行的自動化驗證。\n續作或調整進行中的工作\n接續既有 Story、整理 Sprint 進度，或處理重大變更。\n修 Bug 或完成明確變更\n\n直接向 Build 說明需求即可；它會完成自己的規劃與檢視，不必先跑完整 PRD 或 Sprint。\n\n在 Codex 對話貼上指令，再用自己的話說明本次需求。每次開始另一項能力時，建議開啟新的對話並提供相關文件。\n\n實作變更\n已偵測 Codex Skill\n\n從明確需求、Bug 或 Story 開始，依序釐清、規劃、實作、檢視並呈現成果。\n\n$bmad-build\n複製指令\n準備什麼\n需求、Issue、Story，或要續作的工作文件路徑。\n會得到什麼\n實作程式、驗證結果與帶有原生狀態的工作記錄。\n下一步\n先核對實作與驗證結果；獨立 Code Review 為選用，必要時使用 $bmad-code-review。\n不確定選哪一項？先用 $bmad-help 詢問。\n複製 Help 指令\n展開完整能力目錄\n16 項能力\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "ready-progress-1440-highcontrast",
+      "width": 1440,
+      "theme": "highcontrast",
+      "state": "ready",
+      "section": "progress",
+      "status": "PASS",
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nWorkflowKit 內建 BMAD\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n從專案產物看目前位置\n\n顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。\n\n實作變更\n購物車結帳\n\n開發進行中。\n\n複製工作指令\n審查程式變更\n收據寄送\n\n等待程式碼審查。\n\n複製工作指令\n依現有證據建議\n決定架構\n接續確認整體架構。\n展開工作與產物 2 個工作項目 · 1 份產物\n\n複製指令與瀏覽教學不會變更進度。沒有完成標記、來源衝突或讀取失敗時，保留未明狀態。\n\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "external-missing-uv-start-1440-highcontrast",
+      "width": 1440,
+      "theme": "highcontrast",
+      "state": "external-missing-uv",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": true,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\n外部 BMAD（由使用者管理）\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\n偵測到外部 BMAD，WorkflowKit 保留原有內容，不管理此安裝。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n找不到指令\n\n目前 PATH 找不到 uv。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    },
+    {
+      "name": "kit-error-start-1440-highcontrast",
+      "width": 1440,
+      "theme": "highcontrast",
+      "state": "kit-error",
+      "section": "start",
+      "status": "PASS",
+      "copyPromptEnabled": false,
+      "layout": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false,
+        "loadingVisible": false,
+        "textExcerpt": "GW\nGitLab Workspace\n設定\n訊息中心 0\nFixture User · @fixture-user　⌄\nBMAD METHOD · CODEX\nBMAD 使用指南\n\n描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。\n\n開啟終端機\n重新偵測\n已初始化\nC:/專案/服務 A\nCodex Skills 已偵測\nBMAD 管理來源未確認\n專案 6.12.4 · 教學 6.12.4\n專案狀態\n\n2 項目前工作 · 1 份已觀察產物\n\n購物車結帳（實作中）、收據寄送（待審查）\n\n正在監看檔案\n上次成功更新 2026/10/18 17:00:00\n開始使用\n我想做什麼\n目前進度\n描述這次需求\n\n在共用專案根目錄使用 WorkflowKit；BMAD 依需求判斷適合的能力與下一步。\n\n開啟 WorkflowKit 設定\n\nWorkflowKit 狀態尚未確認，請重新檢查安裝。 無法驗證 WorkflowKit 安裝內容。\n\n本次需求\n\n工作根目錄：C:/專案/服務 A；預設產出放在此目錄的 _bmad-output/。\n\n複製 BMAD 提示詞\n複製 Codex 指令\n\n在相同根目錄啟動 codex，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。\n\n請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。\n\n執行環境\n\n使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。\n\nCodex CLI\n已找到指令\n\n已在 PATH 找到 codex.cmd。\n\nuv\n已驗證 · 0.11.0\n\nuv 可執行。\n\n環境檢查：2026/10/18 17:00:00。找到指令不代表已完成執行驗證。\n\nuv 安裝方式 ↗\n教學依據 BMAD 6.12.4 穩定版\n版本依據 ↗\n查看最新 Release ↗\n專案根目錄：C:/專案/服務 A"
+      },
+      "errors": [],
+      "blockedNetworkRequests": []
+    }
+  ]
+}

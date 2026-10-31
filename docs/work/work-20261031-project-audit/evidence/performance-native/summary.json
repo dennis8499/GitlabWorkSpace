@@ -1,0 +1,270 @@
+{
+  "schema": "GitLabWorkspaceOfflineNativeResourceProbe/v1",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "artifact": "dist\\gitlab-workspace-0.37.3.vsix",
+  "method": "Offline, installed VSIX in isolated profile; command return is not rendered readiness",
+  "rounds": [
+    {
+      "round": 1,
+      "long": false,
+      "pid": 6816,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 7700.8,
+      "startupToActiveTabMs": 7701.8,
+      "workspaceCommandDurationMs": 50.04120000000057,
+      "events": "evidence\\performance-native\\events-01.jsonl",
+      "samples": "evidence\\performance-native\\samples-01.jsonl",
+      "receiptSnapshots": {
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 2,
+      "long": false,
+      "pid": 17612,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5803.42,
+      "startupToActiveTabMs": 5858.42,
+      "workspaceCommandDurationMs": 18.884900000000016,
+      "events": "evidence\\performance-native\\events-02.jsonl",
+      "samples": "evidence\\performance-native\\samples-02.jsonl",
+      "receiptSnapshots": {
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 3,
+      "long": false,
+      "pid": 21420,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5648.15,
+      "startupToActiveTabMs": 5702.15,
+      "workspaceCommandDurationMs": 14.889500000000226,
+      "events": "evidence\\performance-native\\events-03.jsonl",
+      "samples": "evidence\\performance-native\\samples-03.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 4,
+      "long": false,
+      "pid": 20404,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5618.9,
+      "startupToActiveTabMs": 5683.9,
+      "workspaceCommandDurationMs": 21.521700000000237,
+      "events": "evidence\\performance-native\\events-04.jsonl",
+      "samples": "evidence\\performance-native\\samples-04.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 5,
+      "long": false,
+      "pid": 27796,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5394.62,
+      "startupToActiveTabMs": 5454.62,
+      "workspaceCommandDurationMs": 15.321599999999762,
+      "events": "evidence\\performance-native\\events-05.jsonl",
+      "samples": "evidence\\performance-native\\samples-05.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 6,
+      "long": false,
+      "pid": 11020,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5577.85,
+      "startupToActiveTabMs": 5638.85,
+      "workspaceCommandDurationMs": 12.271200000000135,
+      "events": "evidence\\performance-native\\events-06.jsonl",
+      "samples": "evidence\\performance-native\\samples-06.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 7,
+      "long": false,
+      "pid": 18200,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5036.69,
+      "startupToActiveTabMs": 5090.69,
+      "workspaceCommandDurationMs": 34.20970000000034,
+      "events": "evidence\\performance-native\\events-07.jsonl",
+      "samples": "evidence\\performance-native\\samples-07.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 8,
+      "long": false,
+      "pid": 19584,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 6154.4,
+      "startupToActiveTabMs": 6155.4,
+      "workspaceCommandDurationMs": 106.90200000000004,
+      "events": "evidence\\performance-native\\events-08.jsonl",
+      "samples": "evidence\\performance-native\\samples-08.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 9,
+      "long": false,
+      "pid": 33856,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5694.96,
+      "startupToActiveTabMs": 5747.96,
+      "workspaceCommandDurationMs": 18.11310000000003,
+      "events": "evidence\\performance-native\\events-09.jsonl",
+      "samples": "evidence\\performance-native\\samples-09.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        }
+      }
+    },
+    {
+      "round": 10,
+      "long": true,
+      "pid": 31272,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 5121.4,
+      "startupToActiveTabMs": 5184.4,
+      "workspaceCommandDurationMs": 18.24180000000024,
+      "events": "evidence\\performance-native\\events-10.jsonl",
+      "samples": "evidence\\performance-native\\samples-10.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "idle-start": {
+          "exists": true,
+          "files": 30,
+          "bytes": 11222
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 30,
+          "bytes": 11222
+        }
+      }
+    }
+  ],
+  "limits": [
+    "No GitLab account, data, timer or graph activity",
+    "Worker threads are not separately attributable by process counters",
+    "I/O counters are process operations, not actual disk bytes",
+    "Initial extraction precedes all measured rounds"
+  ],
+  "isolatedProfileCleanup": "complete"
+}

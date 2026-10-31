@@ -1,0 +1,308 @@
+{
+  "originalTargetId": "31212360F1F46DA7E385E8254AAE137E",
+  "targetEvents": [
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "16A3774F08E860976738F4A9BD838824",
+          "type": "page",
+          "title": "[Extension Development Host] Native Graph Worker Probe - local-git-gui (Workspace) - Visual Studio Code",
+          "url": "vscode-file://vscode-app/c:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+          "attached": true,
+          "canAccessOpener": false,
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "31212360F1F46DA7E385E8254AAE137E",
+          "type": "iframe",
+          "title": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=c0d138f0-6ccd-4447-b5e9-8b50bef9279d&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=93cf0210-3340-4033-8705-9f234201c6ea",
+          "url": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=c0d138f0-6ccd-4447-b5e9-8b50bef9279d&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=93cf0210-3340-4033-8705-9f234201c6ea",
+          "attached": true,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "5FCD1F2107E175EF024AC80F5876DEF8",
+          "type": "service_worker",
+          "title": "Service Worker vscode-webview://030oj5e6bf1bvsr1e0d6g02njvfi6pci78rooobm1ue9c2luqr9j/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+          "url": "vscode-webview://030oj5e6bf1bvsr1e0d6g02njvfi6pci78rooobm1ue9c2luqr9j/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+          "attached": true,
+          "canAccessOpener": false,
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "69BF50F8930105AEF42B4C6CB40FDB62",
+          "type": "service_worker",
+          "title": "Service Worker vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+          "url": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+          "attached": true,
+          "canAccessOpener": false,
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "D0D60DAFCFB2514E9E3C6AA1CEFE97A7",
+          "type": "worker",
+          "title": "LanguageDetectionWorker",
+          "url": "blob:vscode-file://vscode-app/a41c428a-d8d8-4d2b-bc0b-c34d77027b54",
+          "attached": true,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "DCA9AA5039D0DC3AE9AFA1C4A055B878",
+          "type": "worker",
+          "title": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/602c9dcf-c584-42fe-8a1a-534816400601",
+          "url": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/602c9dcf-c584-42fe-8a1a-534816400601",
+          "attached": true,
+          "parentId": "31212360F1F46DA7E385E8254AAE137E",
+          "canAccessOpener": false,
+          "parentFrameId": "B1024534C33F3C7243995A1D7E6F3DFF",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "F7528879155373C3FB4FDA9C62DB704A",
+          "type": "worker",
+          "title": "editorWorkerService",
+          "url": "blob:vscode-file://vscode-app/2d2cda85-8c22-449d-92db-2c5f1d44b780",
+          "attached": true,
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.588Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "DCA9AA5039D0DC3AE9AFA1C4A055B878",
+          "type": "worker",
+          "title": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/602c9dcf-c584-42fe-8a1a-534816400601",
+          "url": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/602c9dcf-c584-42fe-8a1a-534816400601",
+          "attached": false,
+          "parentId": "31212360F1F46DA7E385E8254AAE137E",
+          "canAccessOpener": false,
+          "parentFrameId": "B1024534C33F3C7243995A1D7E6F3DFF",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.603Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "31212360F1F46DA7E385E8254AAE137E",
+          "type": "iframe",
+          "title": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=c0d138f0-6ccd-4447-b5e9-8b50bef9279d&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=93cf0210-3340-4033-8705-9f234201c6ea",
+          "url": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=c0d138f0-6ccd-4447-b5e9-8b50bef9279d&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=93cf0210-3340-4033-8705-9f234201c6ea",
+          "attached": false,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.604Z"
+    },
+    {
+      "method": "Target.targetDestroyed",
+      "params": {
+        "targetId": "31212360F1F46DA7E385E8254AAE137E"
+      },
+      "observedAt": "2026-10-31T13:01:55.605Z"
+    },
+    {
+      "method": "Target.targetDestroyed",
+      "params": {
+        "targetId": "DCA9AA5039D0DC3AE9AFA1C4A055B878"
+      },
+      "observedAt": "2026-10-31T13:01:55.610Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "E53F59EB174749181FC3AAABD521FF61",
+          "type": "iframe",
+          "title": "",
+          "url": "",
+          "attached": false,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.717Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "E53F59EB174749181FC3AAABD521FF61",
+          "type": "iframe",
+          "title": "",
+          "url": "",
+          "attached": true,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.718Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "E53F59EB174749181FC3AAABD521FF61",
+          "type": "iframe",
+          "title": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=3d72bfef-4641-4e96-8284-935b5b2ae370&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=42b56060-7db9-49dd-a4a4-0ee531f7e231",
+          "url": "vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/index.html?id=3d72bfef-4641-4e96-8284-935b5b2ae370&parentId=1&origin=c3085b78-1411-4cef-b3d9-ff8b62182de3&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=42b56060-7db9-49dd-a4a4-0ee531f7e231",
+          "attached": true,
+          "parentId": "16A3774F08E860976738F4A9BD838824",
+          "canAccessOpener": false,
+          "parentFrameId": "16A3774F08E860976738F4A9BD838824",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.735Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "0027B608CB7BAF60FCB5FA548C1083CF",
+          "type": "worker",
+          "title": "",
+          "url": "",
+          "attached": false,
+          "parentId": "E53F59EB174749181FC3AAABD521FF61",
+          "canAccessOpener": false,
+          "parentFrameId": "F404A90EF8DBB6E47F862EEBC279F17C",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.848Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "0027B608CB7BAF60FCB5FA548C1083CF",
+          "type": "worker",
+          "title": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/fced2810-fc72-4b24-ada6-e5f8207aaf1f",
+          "url": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/fced2810-fc72-4b24-ada6-e5f8207aaf1f",
+          "attached": true,
+          "parentId": "E53F59EB174749181FC3AAABD521FF61",
+          "canAccessOpener": false,
+          "parentFrameId": "F404A90EF8DBB6E47F862EEBC279F17C",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.851Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "0027B608CB7BAF60FCB5FA548C1083CF",
+          "type": "worker",
+          "title": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/fced2810-fc72-4b24-ada6-e5f8207aaf1f",
+          "url": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/fced2810-fc72-4b24-ada6-e5f8207aaf1f",
+          "attached": false,
+          "parentId": "E53F59EB174749181FC3AAABD521FF61",
+          "canAccessOpener": false,
+          "parentFrameId": "F404A90EF8DBB6E47F862EEBC279F17C",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.863Z"
+    },
+    {
+      "method": "Target.targetDestroyed",
+      "params": {
+        "targetId": "0027B608CB7BAF60FCB5FA548C1083CF"
+      },
+      "observedAt": "2026-10-31T13:01:55.864Z"
+    },
+    {
+      "method": "Target.targetCreated",
+      "params": {
+        "targetInfo": {
+          "targetId": "E543AF405C56E2FD0689845F20011157",
+          "type": "worker",
+          "title": "",
+          "url": "",
+          "attached": false,
+          "parentId": "E53F59EB174749181FC3AAABD521FF61",
+          "canAccessOpener": false,
+          "parentFrameId": "F404A90EF8DBB6E47F862EEBC279F17C",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.866Z"
+    },
+    {
+      "method": "Target.targetInfoChanged",
+      "params": {
+        "targetInfo": {
+          "targetId": "E543AF405C56E2FD0689845F20011157",
+          "type": "worker",
+          "title": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/80a35dfb-8fc6-4302-9e07-45a7edd2db77",
+          "url": "blob:vscode-webview://04tbk72hdgsvlnmuun12nndgl7rt55kb1553ec0bt1afp8k8mngo/80a35dfb-8fc6-4302-9e07-45a7edd2db77",
+          "attached": true,
+          "parentId": "E53F59EB174749181FC3AAABD521FF61",
+          "canAccessOpener": false,
+          "parentFrameId": "F404A90EF8DBB6E47F862EEBC279F17C",
+          "browserContextId": "AD0AB731F13D3A9F45C6FB21AE5326FA"
+        }
+      },
+      "observedAt": "2026-10-31T13:01:55.869Z"
+    }
+  ]
+}

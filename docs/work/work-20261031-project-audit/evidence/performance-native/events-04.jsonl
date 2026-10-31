@@ -1,0 +1,5 @@
+{"event":"probe-activated","at":1793452583753,"hostPid":3936}
+{"event":"extension-activated","at":1793452584119,"hostPid":3936,"memory":{"rss":235470848,"heapTotal":67829760,"heapUsed":49470132,"external":9103053,"arrayBuffers":0}}
+{"event":"workspace-command-returned","at":1793452584142,"elapsedMs":21.521700000000237,"hostPid":3936,"memory":{"rss":235847680,"heapTotal":68091904,"heapUsed":49855012,"external":9104787,"arrayBuffers":0},"tabs":[]}
+{"event":"workspace-tab-active","at":1793452584207,"hostPid":3936,"memory":{"rss":236163072,"heapTotal":68354048,"heapUsed":50002796,"external":9106623,"arrayBuffers":0}}
+{"event":"probe-complete","at":1793452584208}

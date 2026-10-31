@@ -1,0 +1,107 @@
+{
+  "scope": "Actual VSIX Webview with mock host in headless Chromium. Screencast frames and trace are not native VS Code.",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "events": [
+    {
+      "action": "normal motion open and close settings",
+      "status": "PASS",
+      "elapsedMs": 1479,
+      "data": {
+        "animation": "overlay-enter"
+      }
+    },
+    {
+      "action": "rapidly reopen and close settings",
+      "status": "PASS",
+      "elapsedMs": 1710,
+      "data": null
+    },
+    {
+      "action": "page and item transition",
+      "status": "PASS",
+      "elapsedMs": 2321,
+      "data": null
+    },
+    {
+      "action": "change reduced motion while running",
+      "status": "PASS",
+      "elapsedMs": 669,
+      "data": {
+        "animation": "none"
+      }
+    }
+  ],
+  "frames": [
+    {
+      "name": "frame-000.jpg",
+      "timestamp": 1793452343.826254
+    },
+    {
+      "name": "frame-001.jpg",
+      "timestamp": 1793452344.526327
+    },
+    {
+      "name": "frame-002.jpg",
+      "timestamp": 1793452344.659701
+    },
+    {
+      "name": "frame-003.jpg",
+      "timestamp": 1793452345.259713
+    },
+    {
+      "name": "frame-004.jpg",
+      "timestamp": 1793452345.426372
+    },
+    {
+      "name": "frame-005.jpg",
+      "timestamp": 1793452345.559684
+    },
+    {
+      "name": "frame-006.jpg",
+      "timestamp": 1793452345.843071
+    },
+    {
+      "name": "frame-007.jpg",
+      "timestamp": 1793452345.97646
+    },
+    {
+      "name": "frame-008.jpg",
+      "timestamp": 1793452346.159771
+    },
+    {
+      "name": "frame-009.jpg",
+      "timestamp": 1793452346.359814
+    },
+    {
+      "name": "frame-010.jpg",
+      "timestamp": 1793452346.493137
+    },
+    {
+      "name": "frame-011.jpg",
+      "timestamp": 1793452346.726489
+    },
+    {
+      "name": "frame-012.jpg",
+      "timestamp": 1793452347.343181
+    },
+    {
+      "name": "frame-013.jpg",
+      "timestamp": 1793452347.476509
+    },
+    {
+      "name": "frame-014.jpg",
+      "timestamp": 1793452348.209885
+    },
+    {
+      "name": "frame-015.jpg",
+      "timestamp": 1793452348.343248
+    },
+    {
+      "name": "frame-016.jpg",
+      "timestamp": 1793452348.743256
+    }
+  ],
+  "runtimeErrors": [],
+  "blockedNetworkRequests": []
+}

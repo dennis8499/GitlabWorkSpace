@@ -1,0 +1,50 @@
+{
+  "description": "Synthetic operation receipt storage; two identifiers per operation, sequential writes, cold store per checkpoint.",
+  "node": "v24.21.0",
+  "sampleDirectory": "receipt-sample-1793453491494-18988",
+  "measurements": [
+    {
+      "operations": 0,
+      "files": 0,
+      "bytes": 0,
+      "lookups": 100,
+      "hits": 0,
+      "lookupP50Ms": 0.165,
+      "lookupP95Ms": 0.543,
+      "lookupMaxMs": 2.512
+    },
+    {
+      "operations": 1000,
+      "files": 256,
+      "bytes": 557120,
+      "lookups": 100,
+      "hits": 100,
+      "lookupP50Ms": 0.946,
+      "lookupP95Ms": 2.073,
+      "lookupMaxMs": 3.902,
+      "batchWriteMs": 955.49
+    },
+    {
+      "operations": 5000,
+      "files": 256,
+      "bytes": 2821120,
+      "lookups": 100,
+      "hits": 100,
+      "lookupP50Ms": 1.071,
+      "lookupP95Ms": 2.519,
+      "lookupMaxMs": 4.076,
+      "batchWriteMs": 5783.077
+    },
+    {
+      "operations": 10000,
+      "files": 256,
+      "bytes": 5651120,
+      "lookups": 100,
+      "hits": 100,
+      "lookupP50Ms": 1.422,
+      "lookupP95Ms": 2.364,
+      "lookupMaxMs": 3.122,
+      "batchWriteMs": 8456.314
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"animate":true,"sampleCount":60,"workers":1,"taskDurationSeconds":0.149165,"usedHeapStart":4638600,"usedHeapEnd":3626380,"errors":[]}
+{"animate":false,"sampleCount":60,"workers":1,"taskDurationSeconds":0.023155999999999996,"usedHeapStart":4581084,"usedHeapEnd":3550268,"errors":[]}

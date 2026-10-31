@@ -1,0 +1,37 @@
+{
+  "powershell": "7.6.9",
+  "dotnet": "10.0.14",
+  "longPathsEnabled": 0,
+  "records": [
+    {
+      "requestedLength": 227,
+      "actualLength": 227,
+      "success": true,
+      "exception": null
+    },
+    {
+      "requestedLength": 259,
+      "actualLength": 259,
+      "success": true,
+      "exception": null
+    },
+    {
+      "requestedLength": 260,
+      "actualLength": 260,
+      "success": true,
+      "exception": null
+    },
+    {
+      "requestedLength": 268,
+      "actualLength": 268,
+      "success": true,
+      "exception": null
+    },
+    {
+      "requestedLength": 280,
+      "actualLength": 280,
+      "success": true,
+      "exception": null
+    }
+  ]
+}

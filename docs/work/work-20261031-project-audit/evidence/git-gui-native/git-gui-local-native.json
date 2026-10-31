@@ -1,0 +1,21 @@
+{
+  "schema": "GitLabWorkspaceLocalNativeGitGuiEvidence/v1",
+  "generatedAt": "2026-10-31T13:02:59.710Z",
+  "mode": "local-only-native-confirmation",
+  "dialogStyle": "custom",
+  "vscodeVersion": "1.144.0",
+  "status": "BLOCKED",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.37.3.vsix",
+    "sha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142"
+  },
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\workspaces\\local-git-gui\\run-1793451735584-13420\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "gitTrace": {
+    "file": "native-vscode-git-trace2.jsonl",
+    "scope": "spawned-vscode-only"
+  },
+  "error": "Push confirmation was not exposed as a visible Workbench dialog with its action button. Diagnostics={\"title\":\"GitLab Workspace - service - Visual Studio Code\",\"visibleLayers\":[],\"bodyTextEnd\":\"File\\nEdit\\nSelection\\nView\\nGo\\nRun\\nTerminal\\nHelp\\nservice\\nOpen in Agents\\nSign In\\nExplorer\\nservice\\nREADME.md\\nservice.ts\\nOutline\\nTimeline\\nGitLab Workspace\\nChat\\nBuild with Agent\\n\\nAI responses may be inaccurate\\n\\nGenerate Agent Instructions to onboard AI onto your codebase.\\n\\nAgent\\nModels\\nLocal\\nDefault permissions\\n validation/native-gui/mvwev65r\\n 0 \\n 0\"}",
+  "extensionInstallOutput": "Installing extensions...\nExtension 'gitlab-workspace-0.37.3.vsix' was successfully installed.\nlocal-dev.gitlab-workspace@0.37.3",
+  "processOutput": "\r\n\r\nDevTools listening on ws://127.0.0.1:9393/devtools/browser/e6054d05-853a-4fe8-9e5a-478195e9bd7e\r\nWarning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.\nWarning: 'disable-hardware-acceleration' is not in the list of known options, but still passed to Electron/Chromium.\n[main 2026-10-31T13:02:18.726Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\2c33b50b16\\resources\\app\\node-compile-cache\\main, active: C:\\Users\\denni\\AppData\\Local\\Programs\\Microsoft VS Code\\2c33b50b16\\resources\\app\\node-compile-cache\\main\\v24.22.1-x64-60e4fe36)\n[main 2026-10-31T13:02:18.856Z] StorageMainService: creating application shared storage\n[main 2026-10-31T13:02:18.960Z] Error: Error mutex already exists\n    at Zs.installMutex (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/mainImpl.js:164:30373)\n[main 2026-10-31T13:02:19.015Z] [shared storage] Creating shared storage database at 'c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-13420-1793451736463\\system-profile\\.vscode-shared\\sharedStorage\\state.vscdb' (wasCreated: true)\n[main 2026-10-31T13:02:19.016Z] [shared storage] Initializing fallback application storage (path: c:\\Users\\denni\\AppData\\Local\\Temp\\gitlab-workspace-vscode-test\\live-native-git-gui-13420-1793451736463\\User\\globalStorage\\state.vscdb)\n[main 2026-10-31T13:02:19.030Z] [shared storage] Fallback application storage initialized with 3 items\n[main 2026-10-31T13:02:21.040Z] update#disable - updates are disabled by user preference\n[main 2026-10-31T13:02:21.041Z] update#setState disabled\n[main 2026-10-31T13:02:21.071Z] AgentHostProcessManager: agent host started\n[11008:1031/210221.472:ERROR:electron\\shell\\browser\\api\\electron_api_app.cc:1386] Failed to begin Jump List transaction.\r\n[main 2026-10-31T13:02:21.473Z] updateWindowsJumpList#setJumpList unexpected result: error\n[main 2026-10-31T13:02:23.122Z] [AgentHost:stderr] (node:21312) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.\n(Use `Code --trace-deprecation ...` to show where the warning was created)\n\nUnknown channel: agentHostClientByokLm\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\nUnknown channel: agentHostClientProxy\n"
+}

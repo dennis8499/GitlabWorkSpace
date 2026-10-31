@@ -1,0 +1,40 @@
+﻿{
+    "powershell":  "5.1.26100.9711",
+    "dotnet":  "4.0.30319.42000",
+    "longPathsEnabled":  0,
+    "records":  [
+                    {
+                        "requestedLength":  227,
+                        "actualLength":  227,
+                        "success":  true,
+                        "exception":  null
+                    },
+                    {
+                        "requestedLength":  259,
+                        "actualLength":  259,
+                        "success":  true,
+                        "exception":  null
+                    },
+                    {
+                        "requestedLength":  260,
+                        "actualLength":  260,
+                        "success":  false,
+                        "exception":  "System.IO.DirectoryNotFoundException",
+                        "message":  "Could not find a part of the path \u0027C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-project-audit\\evidence\\path-length-probe\\ps51\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\u0027."
+                    },
+                    {
+                        "requestedLength":  268,
+                        "actualLength":  268,
+                        "success":  false,
+                        "exception":  "System.IO.DirectoryNotFoundException",
+                        "message":  "Could not find a part of the path \u0027C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-project-audit\\evidence\\path-length-probe\\ps51\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\u0027."
+                    },
+                    {
+                        "requestedLength":  280,
+                        "actualLength":  280,
+                        "success":  false,
+                        "exception":  "System.IO.DirectoryNotFoundException",
+                        "message":  "Could not find a part of the path \u0027C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-project-audit\\evidence\\path-length-probe\\ps51\\xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\u0027."
+                    }
+                ]
+}

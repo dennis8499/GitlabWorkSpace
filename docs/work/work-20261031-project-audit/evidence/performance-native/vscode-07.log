@@ -1,0 +1,21 @@
+
+
+DevTools listening on ws://127.0.0.1:54421/devtools/browser/24a9ef6f-e579-4230-a057-a50573b647de
+Warning: 'remote-debugging-port' is not in the list of known options, but still passed to Electron/Chromium.
+[main 2026-10-31T13:16:39.862Z] [node-compile-cache] main: packaged cache enabled (status: enabled, configured: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2c33b50b16\resources\app\node-compile-cache\main, active: C:\Users\denni\AppData\Local\Programs\Microsoft VS Code\2c33b50b16\resources\app\node-compile-cache\main\v24.22.1-x64-60e4fe36)
+[main 2026-10-31T13:16:40.003Z] StorageMainService: creating application shared storage
+[main 2026-10-31T13:16:40.096Z] Error: Error mutex already exists
+    at Zs.installMutex (file:///C:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/mainImpl.js:164:30373)
+[main 2026-10-31T13:16:40.110Z] [shared storage] Creating shared storage database at 'c:\Users\denni\.vscode-shared\sharedStorage\state.vscdb' (wasCreated: false)
+[main 2026-10-31T13:16:40.111Z] [shared storage] Initializing fallback application storage (path: c:\Users\denni\AppData\Local\Temp\glw-audit-native-zojehk9k\user-7\User\globalStorage\state.vscdb)
+[main 2026-10-31T13:16:40.155Z] [shared storage] Fallback application storage initialized with 3 items
+[main 2026-10-31T13:16:41.526Z] update#disable - updates are disabled by user preference
+[main 2026-10-31T13:16:41.526Z] update#setState disabled
+[main 2026-10-31T13:16:41.556Z] AgentHostProcessManager: agent host started
+[main 2026-10-31T13:16:43.212Z] [AgentHost:stderr] (node:30780) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+
+Unknown channel: agentHostClientByokLm
+Unknown channel: agentHostClientProxy
+Unknown channel: agentHostClientProxy
+[main 2026-10-31T13:16:44.836Z] Extension host with pid 20380 exited with code: 0, signal: unknown.

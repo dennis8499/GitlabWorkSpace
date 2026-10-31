@@ -1,0 +1,12 @@
+{
+  "vsix": "C:\\Users\\denni\\OneDrive\\Desktop\\\u65b0\u589e\u8cc7\u6599\u593e\\GitlabWorkSpace\\dist\\gitlab-workspace-0.37.3.vsix",
+  "vsixSha256": "e6f523de4d9f0cb2e104ab176fb5c74779eb8ee8be4b15864b76fdec2968bbf3",
+  "assets": {
+    "extension/resources/issue-webview/dashboard.html": "ba89d3d5e1f93ab274210feade3f1087fe0cd36ee8e5b5c3f11d6ddf0e65c957",
+    "extension/resources/issue-webview/dashboard.js": "5165f190fe2320badb5933d261b8ee81cf074a1af90d4a073708e7aa6cffeb51",
+    "extension/resources/issue-webview/dashboard.css": "8f4ac8f8e476834fe1ea49e594cb59738f4745e1016ec58abd1cbbaf15e63fcb",
+    "extension/resources/sidebar-webview/sidebar.html": "f4ae691604871e424d3a94ead1e5fb874d3af49c576fd8218fd6caae665b5bdf",
+    "extension/resources/sidebar-webview/sidebar.js": "fa98418ea0cf8ec5b96ce386fe7904668cd146398ae87d4e4283b2636b86aa78",
+    "extension/resources/sidebar-webview/sidebar.css": "40d830a7d19d1d3710d88efb6ece8d84a2dfd6d1a48bcfb2bb2daacbc06e5fb3"
+  }
+}

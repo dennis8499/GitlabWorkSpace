@@ -1,0 +1,110 @@
+{
+  "schema": "GitLabWorkspaceLargeListPerformanceAudit/v1",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "browser": "156.0.8078.74",
+  "scope": "Actual VSIX dashboard assets in Chromium with mock Host and synthetic data; no VS Code or GitLab.",
+  "method": "Fresh context per round. Search uses scripted DOM input to matching narrowed or restored visible rows and two animation frames; scroll uses the actual outer page scrollTop to two animation frames. Heap is shared renderer V8 heap after GC, not process memory. Runtime/CDP automation overhead and fixture scale are not production server measurements.",
+  "cases": [
+    {
+      "mode": "clone",
+      "count": 200,
+      "run": 1,
+      "status": "PASS",
+      "mountWallMs": 669.953,
+      "navigateFeedbackMs": 34.099999994039536,
+      "cssControl": null,
+      "dom": {
+        "rowsMounted": 200,
+        "totalDomNodes": 1527,
+        "listClientHeight": 11800,
+        "listScrollHeight": 11800,
+        "pageClientHeight": 808,
+        "pageScrollHeight": 12146
+      },
+      "navigationLongTasks": [],
+      "heapAfterNavigation": {
+        "checkpoint": "after-navigation-gc",
+        "usedSize": 6473192,
+        "totalSize": 6860800,
+        "embedderHeapUsedSize": 5093976,
+        "backingStorageSize": 484859
+      },
+      "searchNarrowMs": [
+        39,
+        49.69999998807907,
+        49.69999998807907,
+        50.10000002384186,
+        49.69999998807907,
+        50.10000002384186,
+        49.900000005960464,
+        50.099999994039536,
+        49.599999994039536,
+        50.10000002384186
+      ],
+      "searchResetMs": [
+        50.10000002384186,
+        50.30000001192093,
+        50,
+        50.099999994039536,
+        50.099999994039536,
+        50.099999994039536,
+        50,
+        50.099999994039536,
+        50.099999994039536,
+        50.099999994039536
+      ],
+      "pageScrollMs": [
+        33.400000005960464,
+        33.19999998807907,
+        33.19999998807907,
+        33.400000005960464,
+        33.599999994039536,
+        33.400000005960464,
+        33.20000001788139,
+        33.29999998211861,
+        33.20000001788139,
+        33.39999997615814,
+        33.30000001192093,
+        33.30000001192093,
+        33.39999997615814,
+        33.30000001192093,
+        33.30000001192093,
+        33.39999997615814,
+        33.30000001192093,
+        33.30000001192093,
+        33.5,
+        33.19999998807907,
+        33.400000005960464,
+        33.79999998211861,
+        32.80000001192093,
+        33.30000001192093,
+        33.39999997615814,
+        33.400000005960464,
+        33.30000001192093,
+        33.29999998211861,
+        33.70000001788139,
+        33
+      ],
+      "interactionLongTasks": [],
+      "longTasks": [],
+      "heapAfterInteractions": {
+        "checkpoint": "after-interactions-gc",
+        "usedSize": 7093364,
+        "totalSize": 7528448,
+        "embedderHeapUsedSize": 4909368,
+        "backingStorageSize": 485190
+      },
+      "rendererMetrics": {
+        "JSEventListeners": 378,
+        "Nodes": 3325,
+        "LayoutDuration": 0.097265,
+        "RecalcStyleDuration": 0.037017,
+        "ScriptDuration": 0.008695,
+        "TaskDuration": 0.516279
+      },
+      "errors": [],
+      "blockedNetworkRequests": [],
+      "elapsedWallMs": 3926.359
+    }
+  ]
+}
