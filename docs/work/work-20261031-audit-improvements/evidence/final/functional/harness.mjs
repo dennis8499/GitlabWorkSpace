@@ -1,0 +1,871 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yauzl from 'yauzl';
+import { chromium } from 'playwright-core';
+
+// This exercises actual packaged Webview assets against an isolated, fixed mock
+// host. It does not run VS Code, an Extension Host, Git, Codex or a GitLab server.
+const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, values) => {
+  if (value.startsWith('--')) pairs.push([value.slice(2), values[index + 1]]);
+  return pairs;
+}, []));
+if (!args.artifact || !args.label || !args.output) throw new Error('Usage: node scripts/validate-packaged-ui.mjs --artifact <VSIX> --label baseline|revision --output <directory> [--baseline <JSON>] [--browser <Chrome executable>]');
+if (!['baseline', 'revision'].includes(args.label)) throw new Error('label must be baseline or revision');
+const feedbackSamples = Number(args['feedback-samples'] ?? 100);
+if (!Number.isSafeInteger(feedbackSamples) || feedbackSamples < 1 || feedbackSamples > 10000) throw new Error('feedback-samples must be a positive integer no greater than 10000');
+if (args['feedback-only'] !== 'true' && (feedbackSamples < 100 || args['feedback-actions'])) throw new Error('Formal runs require every feedback action and at least 100 samples; use --feedback-only true for diagnostics');
+const artifactPath = path.resolve(args.artifact), output = path.resolve(args.output);
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const percentile = (values, fraction = .95) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
+const round = value => Number(value.toFixed(3));
+const expectedAssets = ['issue-webview/dashboard.html', 'issue-webview/dashboard.js', 'issue-webview/dashboard.css',
+  'sidebar-webview/sidebar.html', 'sidebar-webview/sidebar.js', 'sidebar-webview/sidebar.css'];
+const actions = { clone: 'openProjects', sa: 'openAnalysis', reviewer: 'openReviewer', git: 'openGit', developer: 'openMyWork' };
+const measurement = { rounds: 10, samplesPerRound: 30, repoCount: 20, dashboardWidth: 1440, sidebarWidth: 300, height: 900,
+  methodVersion: 'browser-capture-readiness/v2',
+  latency: 'Browser-owned readiness observer starts at UI postMessage/input capture; matching rendered DOM followed by two requestAnimationFrame callbacks; driver evaluation only awaits the existing completion promise; excludes Playwright input delivery',
+  readiness: 'Navigation matches actual page data-mode; search matches input value and visible repository identities. Five-second timeout; observers and pending animation frames are cleaned up on completion, timeout or supersession.',
+  memory: 'Runtime.getHeapUsage after HeapProfiler.collectGarbage at primed, navigation-complete and search-complete checkpoints; parent plus both same-origin Webviews',
+  scope: 'VSIX packaged assets + isolated mock host UI; no real GitLab, VS Code Extension Host, Git operations or Codex',
+  comparisonLimitPercent: 10,
+  firstFeedback: { samplesPerAction: feedbackSamples, limitP95Ms: 100, mockAcknowledgementDelayMs: 160, mockCompletionDelayMs: 220,
+    timing: 'DOM click capture before the UI handler to matching selection, disabled control or visible progress followed by one requestAnimationFrame; scripted DOM activation, excludes native input delivery',
+    completion: 'Separately measured event-to-mock-host completion. Artificial host delay is not network or Git performance.' } };
+
+function createFixture() {
+  const group = { id: 1, name: 'Fixture', full_path: 'fixture/team', web_url: 'https://gitlab.invalid/groups/fixture/team' };
+  const projects = Array.from({ length: 20 }, (_, index) => {
+    const name = `service-${String(index + 1).padStart(2, '0')}`;
+    return { id: index + 1, name, path: name, path_with_namespace: `fixture/team/${name}`, default_branch: 'main',
+      web_url: `https://gitlab.invalid/fixture/team/${name}`, http_url_to_repo: `https://gitlab.invalid/fixture/team/${name}.git` };
+  });
+  const repositories = projects.map(project => ({ id: `repo-${project.id}`, name: project.name, path: `C:/fixture/team/${project.name}`,
+    revision: 1, branch: 'main', tracking: 'origin/main', headCommit: 'a'.repeat(40), ahead: 0, behind: 0,
+    stagedCount: 0, unstagedCount: 1, conflictCount: 0,
+    branches: [{ name: 'main', kind: 'local', current: true, commit: 'a'.repeat(40) },
+      { name: 'feature/sample', kind: 'local', current: false, commit: 'b'.repeat(40) },
+      { name: 'origin/main', kind: 'remote', current: false, commit: 'a'.repeat(40) }],
+    stashes: [], recoveryRefs: [], remotes: ['origin'], changes: [{ path: 'src/fixture.ts', section: 'unstaged', kind: '修改' }], historyHasMore: false,
+    history: Array.from({ length: 10 }, (_, index) => ({ hash: (index + 10).toString(16).padStart(40, '0'),
+      parents: index === 9 ? [] : [(index + 11).toString(16).padStart(40, '0')], subject: `Fixture commit ${index + 1}`,
+      author: 'Fixture User', date: '2026-10-13T00:00:00Z' })), configuredPullStrategy: 'merge' }));
+  const features = ['ingest', 'query', 'functional-exploration', 'lint', 'audit', 'adr',
+    'synthesis', 'business-analysis', 'system-analysis', 'system-design', 'notebooklm-export', 'archaeology',
+    'merge-repo', 'release-review'];
+  const installed = { status: 'installed', version: '1.0.0', profile: 'group', source: 'github', workspaceContract: 2, installerApi: 1, capabilities: features,
+    upstreamVersions: { 'codebase-wiki': '0.6.0', 'merge-reviewer': '0.12.1', 'release-reviewer': '0.3.0' } };
+  const local = Object.fromEntries(projects.map(project => [project.id, { state: 'ready', path: repositories[project.id - 1].path }]));
+  const matched = projects.map(project => ({ name: project.name, path: repositories[project.id - 1].path, projectId: project.id, matched: true, defaultBranch: 'main' }));
+  return { repositories, snapshot: { connected: true, baseUrl: 'https://gitlab.invalid', currentUser: { id: 7, name: 'Fixture User', username: 'fixture-user' },
+    group, groups: [group], projects, activeMode: 'developer', instanceUserScope: 'fixture-instance-user', connectedScope: 'fixture-group',
+    groupRoot: 'C:/fixture/team', cloneRoot: 'C:/fixture/team', localRepositories: local, projectLocalRepositories: local,
+    localWorkspaceRepositories: repositories.map((repository, index) => ({ name: repository.name, path: repository.path, repositoryId: repository.id, projectIds: [index + 1] })),
+    groupRepositories: matched, groupRepositoryScanStatus: 'ready', groupMilestones: [], groupIssueBoards: [],
+    issues: projects.map(project => ({ id: 100 + project.id, iid: 1, project_id: project.id, title: `Review ${project.name}`, state: 'opened', labels: ['fixture'],
+      description: 'Fixed, isolated UI fixture.', web_url: `${project.web_url}/-/issues/1`, assignees: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }] })),
+    mergeRequests: projects.map(project => ({ id: 200 + project.id, iid: 1, project_id: project.id, title: `Change ${project.name}`, state: 'opened',
+      source_branch: 'feature/sample', target_branch: 'main', sha: 'b'.repeat(40), author: { id: 7, name: 'Fixture User', username: 'fixture-user' },
+      reviewers: [{ id: 7, name: 'Fixture User', username: 'fixture-user' }], assignees: [], web_url: `${project.web_url}/-/merge_requests/1` })),
+    projectMembers: [], timers: [], timerVersion: 0,
+    operationScope: 'fixture-operation-scope', scopeEpoch: 1,
+    workflowKit: installed, workflowKitInstallTarget: { root: 'C:/fixture/team', profile: 'group', manual: false, state: installed },
+    workflowKitReleases: [{ id: 'workflowkit:github:1.0.0:fixture', version: '1.0.0', source: 'github', assetName: 'gitlab-workspace-kit-1.0.0.zip', format: 'zip', entryRoot: 'workflow-kit', available: true }],
+    workflowKitSource: 'github', workflowKitPolicy: { allowed: true, requireGroupEnvironment: true, mode: 'group', settingTarget: 'workspace' },
+    skillsContext: { mode: 'group', root: 'C:/fixture/team', revision: 'fixture-revision', installed, availableFeatures: features,
+      groupMatch: { status: 'matched', root: 'C:/fixture/team', repositories: matched }, repositories: matched },
+    accounts: [], tools: [], busy: false } };
+}
+const fixture = createFixture();
+const hostTheme = `:root { --vscode-font-family: 'Segoe UI', sans-serif; --vscode-font-size: 13px; --vscode-editor-font-family: Consolas, monospace;
+ --vscode-foreground:#cccccc; --vscode-editor-background:#1e1e1e; --vscode-sideBar-background:#252526; --vscode-editorWidget-background:#252526;
+ --vscode-panel-border:#454545; --vscode-widget-border:#454545; --vscode-focusBorder:#007fd4; --vscode-descriptionForeground:#aaaaaa;
+ --vscode-button-background:#0e639c; --vscode-button-foreground:#ffffff; --vscode-button-hoverBackground:#1177bb;
+ --vscode-button-secondaryBackground:#3a3d41; --vscode-button-secondaryForeground:#ffffff; --vscode-button-secondaryHoverBackground:#45494e;
+ --vscode-input-background:#3c3c3c; --vscode-input-foreground:#cccccc; --vscode-input-border:#454545;
+ --vscode-dropdown-background:#3c3c3c; --vscode-dropdown-foreground:#cccccc; --vscode-dropdown-border:#454545;
+ --vscode-list-hoverBackground:#2a2d2e; --vscode-list-activeSelectionBackground:#094771; --vscode-list-activeSelectionForeground:#ffffff;
+ --vscode-textLink-foreground:#3794ff; --vscode-errorForeground:#f48771; --vscode-editorWarning-foreground:#cca700;
+ --vscode-badge-background:#4d4d4d; --vscode-badge-foreground:#ffffff; }
+ body { font-family:var(--vscode-font-family); font-size:13px; }
+ body.vscode-high-contrast { --vscode-foreground:#ffffff; --vscode-editor-background:#000000; --vscode-sideBar-background:#000000;
+ --vscode-editorWidget-background:#000000; --vscode-panel-border:#ffffff; --vscode-widget-border:#ffffff; --vscode-focusBorder:#f38518;
+ --vscode-input-background:#000000; --vscode-input-foreground:#ffffff; --vscode-input-border:#ffffff; --vscode-descriptionForeground:#ffffff; }`;
+
+async function extractAssets(temp) {
+  const files = {};
+  await new Promise((resolve, reject) => yauzl.open(artifactPath, { lazyEntries: true }, (error, zip) => {
+    if (error) return reject(error);
+    zip.on('error', reject); zip.on('end', resolve);
+    zip.on('entry', entry => {
+      const key = entry.fileName.replace(/^extension\/resources\//, '');
+      if (!expectedAssets.includes(key)) { zip.readEntry(); return; }
+      zip.openReadStream(entry, (error, stream) => {
+        if (error) return reject(error);
+        const chunks = []; stream.on('data', chunk => chunks.push(chunk)); stream.on('error', reject);
+        stream.on('end', () => { files[key] = Buffer.concat(chunks); zip.readEntry(); });
+      });
+    }); zip.readEntry();
+  }));
+  for (const key of expectedAssets) {
+    assert.ok(files[key], `Missing packaged asset ${key}`);
+    const target = path.join(temp, key); await mkdir(path.dirname(target), { recursive: true }); await writeFile(target, files[key]);
+  }
+  return files;
+}
+
+// Serialized by Playwright into the parent fixture page. Child Webviews execute
+// only their packaged JS; this function substitutes the extension-side bridge.
+function installHost(data) {
+  const { fixture, actions } = data;
+  const host = window.__host = { fixture, activeMode: 'developer', requests: [], stored: {}, navigation: undefined, search: undefined, unexpected: [],
+    sessionId: 'packaged-ui-host', revision: 0, operations: new Map(), pendingTasks: new Set(), readiness: {}, acknowledgementDelayMs: 0, completionDelayMs: 0, completed: 0 };
+  const frameWindow = name => document.getElementById(name)?.contentWindow;
+  const send = (name, data) => frameWindow(name)?.dispatchEvent(new MessageEvent('message', { data }));
+  const beginReadiness = (kind, expected, started) => {
+    host.readiness[kind]?.cancel?.();
+    const entry = { expected, started };
+    let resolve, reject, observer, timeout, firstFrame, secondFrame, settled = false;
+    entry.promise = new Promise((complete, fail) => { resolve = complete; reject = fail; });
+    // Some setup/first-feedback actions do not consume the warm timing. Keep
+    // their timeout observable to waitFor without creating an unhandled rejection.
+    void entry.promise.catch(() => {});
+    host.readiness[kind] = entry;
+    const cancelFrames = () => {
+      if (firstFrame !== undefined) cancelAnimationFrame(firstFrame);
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame);
+      firstFrame = secondFrame = undefined;
+    };
+    const finish = error => {
+      if (settled) return;
+      settled = true; observer?.disconnect(); observer = undefined;
+      clearTimeout(timeout); cancelFrames(); entry.cancel = undefined;
+      if (error) reject(error); else resolve(performance.now() - started);
+    };
+    entry.cancel = () => finish(new Error(`Superseded readiness sample for ${kind} ${expected}`));
+    const doc = frameWindow(kind === 'navigation' ? 'dashboard' : 'sidebar')?.document;
+    if (!doc) { finish(new Error(`Missing document for ${kind} ${expected}`)); return entry; }
+    const expectedRepositories = kind === 'search' ? fixture.repositories.filter(repo =>
+      `${repo.name} ${repo.path} ${repo.branch ?? ''}`.toLocaleLowerCase().includes(expected.trim().toLocaleLowerCase())) : undefined;
+    const matches = () => {
+      if (kind === 'navigation') return doc.querySelector('.page')?.dataset.mode === expected;
+      if (doc.querySelector('.repo-search input')?.value !== expected) return false;
+      const shown = [...doc.querySelectorAll('.repo-link')];
+      return shown.length === expectedRepositories.length && shown.every((element, index) => element.title === expectedRepositories[index].path);
+    };
+    const check = () => {
+      if (settled) return;
+      if (!matches()) { cancelFrames(); return; }
+      if (firstFrame !== undefined || secondFrame !== undefined) return;
+      firstFrame = requestAnimationFrame(() => {
+        firstFrame = undefined;
+        if (!matches()) { check(); return; }
+        secondFrame = requestAnimationFrame(() => {
+          secondFrame = undefined;
+          if (!matches()) { check(); return; }
+          finish();
+        });
+      });
+    };
+    observer = new MutationObserver(check);
+    observer.observe(doc, { subtree: true, childList: true, characterData: true, attributes: true,
+      attributeFilter: kind === 'navigation' ? ['data-mode'] : ['title'] });
+    timeout = setTimeout(() => finish(new Error(`Timed out awaiting ${kind} ${expected}`)), 5000);
+    check();
+    return entry;
+  };
+  host.captureSearch = (query, started = performance.now()) => {
+    host.search = { query, started }; beginReadiness('search', query, started);
+  };
+  const operationSnapshot = requestedIds => ({ sessionId: host.sessionId, revision: host.revision, operations: [...host.operations.values()],
+    ...(requestedIds ? { requestedIds, missingIds: requestedIds.filter(id => !host.operations.has(id)) } : {}) });
+  const sidebarState = () => ({ connected: true, groupLabel: fixture.snapshot.group.full_path, activeMode: host.activeMode,
+    gitAvailable: true, accounts: [], repositories: fixture.repositories, selectedRepositoryId: fixture.repositories[0].id,
+    operationScope: fixture.snapshot.operationScope, scopeEpoch: fixture.snapshot.scopeEpoch, operationSnapshot: operationSnapshot() });
+  host.publish = () => { send('dashboard', { type: 'snapshot', snapshot: { ...fixture.snapshot, activeMode: host.activeMode,
+    operations: [...host.operations.values()], operationSnapshot: operationSnapshot() } }); send('sidebar', { type: 'state', state: sidebarState() }); };
+  const publishOperation = operation => {
+    operation = { ...operation, hostSessionId: host.sessionId, revision: ++host.revision };
+    host.operations.set(operation.requestId, operation);
+    for (const surface of ['dashboard', 'sidebar']) send(surface, { type: 'operationChanged', operation });
+    const finished = [...host.operations.values()].filter(value => value.finishedAt !== undefined);
+    for (const entry of finished.slice(0, Math.max(0, finished.length - 30))) host.operations.delete(entry.requestId);
+  };
+  host.navigate = (mode, started = performance.now()) => {
+    const existing = host.readiness.navigation;
+    if (!existing || existing.expected !== mode || existing.started !== started) beginReadiness('navigation', mode, started);
+    host.navigation = { mode, started }; host.activeMode = mode; host.publish();
+  };
+  const perform = (surface, message, receivedAt) => {
+    if (surface === 'sidebar' && message.type === 'perform') {
+      const mode = Object.keys(actions).find(mode => actions[mode] === message.action);
+      if (mode) host.navigate(mode, receivedAt);
+      else if (message.action === 'openWorkspace') host.navigate(host.activeMode, receivedAt);
+      else if (message.action === 'openRepository') host.navigate('git', receivedAt);
+      else if (message.action === 'manageAccounts' || message.action === 'addAccount') send('dashboard', { type: 'openAccountManager', intent: { id: `intent-${host.completed}`, startLogin: message.action === 'addAccount' } });
+      else if (message.action === 'openNotifications') send('dashboard', { type: 'openNotifications' });
+      else host.unexpected.push(message);
+    } else if (surface === 'sidebar' && message.type === 'repositoryDetails') {
+      const repository = fixture.repositories.find(repo => repo.id === message.repositoryId);
+      send('sidebar', { type: 'repositoryDetails', repositoryId: message.repositoryId, requestId: message.requestId,
+        details: { id: repository.id, revision: repository.revision, branches: repository.branches, stashes: repository.stashes, recoveryRefs: repository.recoveryRefs } });
+    } else if (message.type === 'setMode') host.navigate(message.mode, receivedAt);
+    else if (message.type === 'selectIssue') {
+      const issue = fixture.snapshot.issues.find(value => value.project_id === message.projectId && value.iid === message.issueIid);
+      fixture.snapshot.selectedIssue = { issue, project: fixture.snapshot.projects.find(project => project.id === message.projectId) };
+      fixture.snapshot.issuePreview = { status: 'ready', projectId: message.projectId, issueIid: message.issueIid };
+      host.publish();
+    } else if (message.type === 'selectMergeRequest' || message.type === 'refreshMergeRequest') {
+      const request = fixture.snapshot.mergeRequests.find(value => value.project_id === message.projectId && value.iid === message.iid);
+      fixture.snapshot.selectedMergeRequest = { request, diffs: [], discussions: [], warnings: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } },
+        freshness: { state: 'current', sourceSha: 'b'.repeat(40), targetSha: 'a'.repeat(40), checkedAt: 1 }, sourceSha: 'b'.repeat(40), targetSha: 'a'.repeat(40) };
+      host.publish();
+    } else if (message.type === 'refresh' || message.type === 'refreshWorkflowKit') host.publish();
+    else if (message.type === 'submitAccountLogin') send('dashboard', { type: 'accountLoginResult', requestId: message.requestId, error: '固定測試：未連線外部 GitLab。' });
+    else if (message.type === 'openAccountManager' || message.type === 'addAccount') send('dashboard', { type: 'openAccountManager', intent: { id: `intent-${host.completed}`, startLogin: message.type === 'addAccount' } });
+    else if (message.type === 'gitAction') {
+      const repository = fixture.repositories.find(repo => repo.id === message.repoId) ?? fixture.repositories[0];
+      send('dashboard', { type: 'gitSnapshot', requestId: message.requestId, snapshot: repository });
+      send('dashboard', { type: 'gitActionResult', requestId: message.requestId, write: !['open', 'refresh', 'readCommit', 'readDiff', 'history'].includes(message.action.type), effect: 'none' });
+    }
+  };
+  host.receive = (surface, message) => {
+    const receivedAt = performance.now();
+    const navigationMode = message.type === 'setMode' ? message.mode : surface === 'sidebar' && message.type === 'perform'
+      ? Object.keys(actions).find(mode => actions[mode] === message.action) ?? (message.action === 'openWorkspace' ? host.activeMode : message.action === 'openRepository' ? 'git' : undefined)
+      : undefined;
+    if (navigationMode) beginReadiness('navigation', navigationMode, receivedAt);
+    host.requests.push({ surface, type: message.type, action: message.action?.type ?? message.action, operationId: message.operationId });
+    if (message.type === 'ready') { host.publish(); send(surface, { type: 'operationsSnapshot', snapshot: operationSnapshot() }); return; }
+    if (message.type === 'reconcileOperations') { send(surface, { type: 'operationsSnapshot', snapshot: operationSnapshot(message.pendingIds) }); return; }
+    if (message.type === 'gitReady') { send('dashboard', { type: 'gitRepositories', available: true, revision: 1, repositories: fixture.repositories }); return; }
+    if (message.type === 'issueRequest' && message.request?.type === 'ready') return;
+    if (['gitAcknowledgeResult', 'openLogs', 'setIssueGraphVisibility', 'cancelRepositoryDetails', 'markNotificationsRead', 'markAllNotificationsRead'].includes(message.type)) return;
+    if (message.type === 'setMode') { perform(surface, message, receivedAt); return; }
+    const action = message.type === 'perform' ? message.action : message.type;
+    const write = message.type === 'submitAccountLogin' || message.type === 'gitAction' && !['open', 'refresh', 'readCommit', 'readDiff', 'history'].includes(message.action.type);
+    const resourceKey = message.type === 'gitAction' ? `git:${message.repoId}`
+      : message.type === 'repositoryDetails' ? `git:${message.repositoryId}:details`
+      : message.type === 'submitAccountLogin' ? 'connection'
+      : message.type === 'refreshWorkflowKit' ? 'skills'
+      : message.type === 'selectIssue' ? `issue:${message.projectId}:${message.issueIid}`
+      : message.type === 'selectMergeRequest' || message.type === 'refreshMergeRequest' ? `mr:${message.projectId}:${message.iid}`
+      : action;
+    const operation = { requestId: message.operationId ?? `mock-${++host.completed}`, scopeRevision: message.operationScope ?? fixture.snapshot.operationScope,
+      resourceKey, action,
+      correlationId: message.requestId, label: action, phase: '模擬 Host 處理中…', status: 'running', startedAt: Date.now(), kind: write ? 'write' : 'read', effect: 'none' };
+    if (host.probe && !host.probe.operationId) host.probe.operationId = operation.requestId;
+    const task = new Promise(resolve => {
+      const acknowledge = () => {
+        publishOperation(operation);
+        if (surface === 'sidebar' && message.type === 'perform') send(surface, { type: 'state', state: { ...sidebarState(), busyAction: message.action } });
+        if (message.type === 'refresh') send('dashboard', { type: 'busy', value: true, label: '模擬 Host 更新中…' });
+        if (message.type === 'refreshWorkflowKit') { fixture.snapshot.workflowKit.status = 'checking'; host.publish(); }
+      };
+      const complete = () => {
+        if (message.type === 'refreshWorkflowKit') fixture.snapshot.workflowKit.status = 'installed';
+        perform(surface, message, receivedAt);
+        publishOperation({ ...operation, status: message.type === 'submitAccountLogin' ? 'failed' : 'succeeded',
+          phase: message.type === 'submitAccountLogin' ? '固定測試：驗證失敗' : '已完成',
+          ...(message.type === 'submitAccountLogin' ? { error: '固定測試：未連線外部 GitLab。' } : {}), finishedAt: Date.now() });
+        if (message.type === 'refresh') send('dashboard', { type: 'busy', value: false });
+        if (surface === 'sidebar' && message.type === 'perform') send(surface, { type: 'state', state: sidebarState() });
+        host.completed++; host.lastCompletedAt = performance.now();
+        if (host.probe?.operationId === operation.requestId) host.probe.completedAt = performance.now();
+        resolve();
+      };
+      if (host.acknowledgementDelayMs) setTimeout(acknowledge, host.acknowledgementDelayMs); else acknowledge();
+      if (host.completionDelayMs) setTimeout(complete, host.completionDelayMs); else complete();
+    });
+    host.pendingTasks.add(task); void task.finally(() => host.pendingTasks.delete(task));
+  };
+  host.idle = async () => { while (host.pendingTasks.size) await Promise.all([...host.pendingTasks]); };
+  host.waitFor = async (kind, expected) => {
+    const entry = host.readiness[kind];
+    if (!entry || entry.expected !== expected) throw new Error(`No captured readiness sample for ${kind} ${expected}`);
+    return entry.promise;
+  };
+}
+
+async function mount(browser, files, width = 1440, highContrast = false, reducedMotion = 'reduce') {
+  const context = await browser.newContext({ viewport: { width: width + 300, height: 900 }, reducedMotion });
+  const page = await context.newPage(); page.setDefaultTimeout(8000);
+  const network = [], errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url()); const key = url.pathname.slice(1);
+    if (url.origin === 'https://packaged-ui.test' && key === '') {
+      await route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body style="margin:0;display:flex;height:900px"><iframe id="sidebar" title="sidebar" style="border:0;width:300px;height:900px;flex:none"></iframe><iframe id="dashboard" title="dashboard" style="border:0;flex:none;height:900px"></iframe></body></html>' });
+    } else if (url.origin === 'https://packaged-ui.test' && files[key]) {
+      let body = files[key];
+      if (key.endsWith('.html')) {
+        const surface = key.startsWith('sidebar') ? 'sidebar' : 'dashboard';
+        const bridge = `<style>${hostTheme}</style><script>window.acquireVsCodeApi=()=>({postMessage:message=>parent.__host.receive('${surface}',message),getState:()=>parent.__host.stored['${surface}']??{mode:'developer'},setState:value=>{parent.__host.stored['${surface}']=value;}});document.addEventListener('input',event=>{if(event.target.matches('.repo-search input'))parent.__host.captureSearch(event.target.value,parent.performance.now());},true);</script>`;
+        body = body.toString().replace('<head>', `<head>${bridge}`).replace('<body>', `<body class="${highContrast ? 'vscode-high-contrast' : 'vscode-dark'}">`);
+      }
+      await route.fulfill({ contentType: key.endsWith('.js') ? 'text/javascript' : key.endsWith('.css') ? 'text/css' : 'text/html', body });
+    } else { network.push(route.request().url()); await route.abort('blockedbyclient'); }
+  });
+  await page.goto('https://packaged-ui.test/'); await page.evaluate(installHost, { fixture, actions });
+  await page.evaluate(width => { const dashboard = document.getElementById('dashboard'); dashboard.style.width = `${width}px`;
+    dashboard.src = '/issue-webview/dashboard.html'; document.getElementById('sidebar').src = '/sidebar-webview/sidebar.html'; }, width);
+  const dashboard = page.frameLocator('#dashboard'), sidebar = page.frameLocator('#sidebar');
+  await dashboard.locator('.app-shell').waitFor(); await sidebar.locator('.repo-link').first().waitFor();
+  const cdp = await context.newCDPSession(page);
+  return { context, page, dashboard, sidebar, cdp, network, errors };
+}
+async function navigate(view, mode) {
+  const names = { developer: '我的工作', clone: '專案', sa: '分析', reviewer: '待審查', git: '版控' };
+  await view.sidebar.locator('.workspace-shortcuts').getByRole('button', { name: names[mode], exact: true }).click();
+  return view.page.evaluate(mode => window.__host.waitFor('navigation', mode), mode);
+}
+async function heap(view, checkpoint) {
+  await view.cdp.send('HeapProfiler.collectGarbage');
+  const value = await view.cdp.send('Runtime.getHeapUsage');
+  return { checkpoint, usedSize: value.usedSize, totalSize: value.totalSize,
+    embedderHeapUsedSize: value.embedderHeapUsedSize ?? null, backingStorageSize: value.backingStorageSize ?? null };
+}
+
+async function benchmark(browser, files) {
+  const rounds = [];
+  for (let index = 0; index < measurement.rounds; index++) {
+    const view = await mount(browser, files);
+    try {
+      for (const mode of Object.keys(actions)) await navigate(view, mode);
+      const memory = [await heap(view, 'primed')], warm = [], search = [];
+      for (let sample = 0; sample < measurement.samplesPerRound; sample++) warm.push(round(await navigate(view, Object.keys(actions)[sample % 5])));
+      memory.push(await heap(view, 'after-navigation'));
+      const queries = ['service-01', 'service-1', 'missing', 'fixture/team/service-20', 'main', ''];
+      for (let sample = 0; sample < measurement.samplesPerRound; sample++) {
+        const query = queries[sample % queries.length];
+        await view.sidebar.locator('.repo-search input').fill(query);
+        search.push(round(await view.page.evaluate(query => window.__host.waitFor('search', query), query)));
+      }
+      memory.push(await heap(view, 'after-search'));
+      const requests = await view.page.evaluate(() => ({ count: window.__host.requests.length, unexpected: window.__host.unexpected }));
+      assert.equal(view.errors.length, 0, view.errors.join('; ')); assert.equal(view.network.length, 0, 'Unexpected requests were blocked');
+      rounds.push({ round: index + 1, warmNavigationMs: { samples: warm, p95: round(percentile(warm)) },
+        repoSearchMs: { samples: search, p95: round(percentile(search)) }, rendererHeap: memory, mockedRequests: requests,
+        blockedNetworkRequests: view.network, runtimeErrors: view.errors });
+      console.log(`${args.label} round ${index + 1}/10: navigation p95=${round(percentile(warm))}ms search p95=${round(percentile(search))}ms renderer retained=${Math.max(...memory.map(value => value.usedSize))} bytes`);
+    } finally { await view.context.close(); }
+  }
+  return rounds;
+}
+
+async function firstFeedbackBenchmark(browser, files) {
+  const cases = [
+    { name: 'navigation', mode: 'developer', surface: 'sidebar' },
+    { name: 'issue-selection', mode: 'developer', surface: 'dashboard' },
+    { name: 'mr-selection', mode: 'reviewer', surface: 'dashboard' },
+    { name: 'refresh', mode: 'developer', surface: 'dashboard' },
+    { name: 'skills-check', mode: 'sa', surface: 'dashboard' },
+    { name: 'account-submit', mode: 'developer', surface: 'dashboard' },
+    { name: 'git-read', mode: 'git', surface: 'dashboard' },
+    { name: 'git-write', mode: 'git', surface: 'dashboard' }
+  ].filter(entry => !args['feedback-actions'] || args['feedback-actions'].split(',').includes(entry.name));
+  const results = [];
+  for (const entry of cases) {
+    const view = await mount(browser, files), samples = [];
+    let error;
+    try {
+      await navigate(view, entry.mode);
+      await view.page.evaluate(() => window.__host.idle());
+      if (entry.name === 'skills-check' || entry.name === 'account-submit') {
+        await view.dashboard.locator('.settings-trigger').click();
+      }
+      if (entry.name === 'account-submit') {
+        await view.dashboard.locator('#settings-tab-accounts').click();
+        await view.dashboard.locator('.accounts-heading button').click();
+        await view.dashboard.locator('.account-login input[name="baseUrl"]').fill('https://gitlab.invalid');
+        await view.dashboard.locator('.account-login button[type="submit"]').click();
+        await view.dashboard.locator('.account-login input[name="token"]').waitFor();
+      }
+      if (entry.name === 'git-read' || entry.name === 'git-write') {
+        await view.dashboard.locator('.git-refresh').waitFor({ state: 'visible' });
+        await view.dashboard.locator('.git-refresh').waitFor();
+      }
+      await view.page.evaluate(delays => {
+        window.__host.acknowledgementDelayMs = delays.mockAcknowledgementDelayMs;
+        window.__host.completionDelayMs = delays.mockCompletionDelayMs;
+      }, measurement.firstFeedback);
+      for (let index = 0; index < measurement.firstFeedback.samplesPerAction; index++) {
+        if (entry.name === 'account-submit') await view.dashboard.locator('.account-login input[name="token"]').fill('fixed-isolated-ui-fixture-token');
+        const sample = await view.page.evaluate(async ({ entry, index, diagnostics }) => {
+          const host = window.__host;
+          await host.idle();
+          const doc = document.getElementById(entry.surface).contentDocument;
+          const dashboard = document.getElementById('dashboard').contentDocument;
+          const visible = element => {
+            if (!element || !element.getClientRects().length) return false;
+            const rect = element.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return false;
+            const style = element.ownerDocument.defaultView.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+            const target = element.ownerDocument.elementFromPoint(Math.max(0, Math.min(innerWidth - 1, rect.left + rect.width / 2)),
+              Math.max(0, Math.min(innerHeight - 1, rect.top + rect.height / 2)));
+            return !!target && (element.contains(target) || target.contains(element));
+          };
+          const textButton = (root, text) => [...root.querySelectorAll('button')].find(button => button.textContent.trim() === text);
+          let target, destination;
+          if (entry.name === 'navigation') {
+            destination = ['clone', 'sa', 'reviewer', 'git', 'developer'][index % 5];
+            const names = { developer: '我的工作', clone: '專案', sa: '分析', reviewer: '待審查', git: '版控' };
+            target = [...doc.querySelectorAll('.workspace-shortcuts button')]
+              .find(button => button.querySelector('span:last-child')?.textContent.trim() === names[destination]);
+          } else if (entry.name === 'issue-selection' || entry.name === 'mr-selection') {
+            target = [...doc.querySelectorAll('.work-list .work-row')].find(row => !row.classList.contains('selected'));
+          } else if (entry.name === 'refresh') target = textButton(doc.querySelector('.heading-actions'), '更新資料');
+          else if (entry.name === 'skills-check') target = textButton(doc.querySelector('.tool-drawer'), '重新檢查安裝');
+          else if (entry.name === 'account-submit') target = doc.querySelector('.account-login button[type="submit"]');
+          else if (entry.name === 'git-read') target = doc.querySelector('.git-refresh');
+          else if (entry.name === 'git-write') target = doc.querySelector('button[aria-label="暫存 src/fixture.ts"]');
+          target?.scrollIntoView({ block: 'center' });
+          if (!target || target.disabled || !visible(target)) throw new Error(`No enabled visible control for ${entry.name}, sample ${index + 1}`);
+          const probe = host.probe = { started: 0, operationId: undefined, completedAt: undefined };
+          doc.addEventListener('click', () => { probe.started = performance.now(); }, { capture: true, once: true });
+          target.click();
+          if (!probe.started) throw new Error(`No click captured for ${entry.name}`);
+          const progress = () => [...doc.querySelectorAll('.operation-status.queued, .operation-status.running, .action-message, .git-status-message .spinner, .account-login [role="status"]')]
+            .some(element => visible(element) && (element.matches('.spinner') || !!element.textContent.trim()));
+          const observations = [];
+          const inspectFeedback = () => ({ elapsed: performance.now() - probe.started, operationId: probe.operationId, completedAt: probe.completedAt,
+            target: { disabled: target.disabled, busy: target.getAttribute('aria-busy'), connected: target.isConnected },
+            progress: [...doc.querySelectorAll('.operation-status, .action-message, .git-status-message, .account-login [role="status"]')].map(element => {
+              const rect = element.getBoundingClientRect(); return { class: element.className, text: element.textContent.slice(0, 150), visible: visible(element), rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } };
+            }), statusbar: doc.querySelector('.statusbar')?.textContent, operation: host.operations.get(probe.operationId) });
+          const ready = () => {
+            if (target.disabled || target.getAttribute('aria-busy') === 'true') return true;
+            if (entry.name === 'navigation' && dashboard.querySelector('.page')?.dataset.mode === destination) return true;
+            if ((entry.name === 'issue-selection' || entry.name === 'mr-selection') && target.classList.contains('selected')) return true;
+            if (entry.name === 'skills-check' && [...doc.querySelectorAll('.tool-drawer [role="status"], .tool-drawer .tool-card .pill')].some(element => visible(element) && /檢查中|正在/.test(element.textContent))) return true;
+            return progress();
+          };
+          while (!ready()) {
+            if (diagnostics && observations.length < 50) observations.push(inspectFeedback());
+            if (performance.now() - probe.started > 2000) throw new Error(`No visible feedback for ${entry.name}, sample ${index + 1}${diagnostics ? '; diagnostics=' + JSON.stringify({ observations, latest: inspectFeedback(), requests: host.requests.slice(-8) }) : ''}`);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+          }
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          const firstFeedbackMs = performance.now() - probe.started;
+          await host.idle();
+          if (!probe.operationId || probe.completedAt === undefined) throw new Error(`No matching mock-host completion for ${entry.name}; requests=${JSON.stringify(host.requests.slice(-4))}; probe=${JSON.stringify(probe)}`);
+          if (entry.name === 'navigation' && host.activeMode !== destination) throw new Error(`Navigation probe selected ${host.activeMode} instead of ${destination}`);
+          const mockCompletionMs = probe.completedAt - probe.started;
+          host.probe = undefined;
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          return { firstFeedbackMs, mockCompletionMs };
+        }, { entry, index, diagnostics: args.diagnostics === 'true' });
+        samples.push({ firstFeedbackMs: round(sample.firstFeedbackMs), mockCompletionMs: round(sample.mockCompletionMs) });
+      }
+      assert.equal(view.errors.length, 0, view.errors.join('; '));
+      assert.equal(view.network.length, 0, 'First-feedback probe must not contact external services');
+    } catch (failure) { error = failure.message; }
+    finally { await view.context.close(); }
+    const firstFeedbackP95Ms = samples.length ? round(percentile(samples.map(sample => sample.firstFeedbackMs))) : null;
+    const result = { action: entry.name, status: error ? 'ERROR' : firstFeedbackP95Ms <= measurement.firstFeedback.limitP95Ms ? 'PASS' : 'FAIL',
+      sampleCount: samples.length, requiredSamples: measurement.firstFeedback.samplesPerAction, firstFeedbackP95Ms,
+      mockCompletionP95Ms: samples.length ? round(percentile(samples.map(sample => sample.mockCompletionMs))) : null,
+      samples, ...(error ? { error } : {}), blockedNetworkRequests: view.network, runtimeErrors: view.errors };
+    results.push(result);
+    console.log(`${args.label} first feedback ${entry.name}: ${result.status}, ${samples.length} samples, p95=${firstFeedbackP95Ms}ms${error ? ` (${error})` : ''}`);
+  }
+  return { status: results.every(result => result.status === 'PASS') ? 'PASS' : 'FAIL', cases: results,
+    scope: 'Actual packaged UI handlers, isolated delayed mock host. Writes and login use fixed fake responses and do not change repositories or contact GitLab.' };
+}
+
+async function smoke(browser, files) {
+  const checks = [], screenshots = [], blockedNetworkRequests = [], runtimeErrors = [];
+  const check = async (name, operation) => { try { const detail = await operation(); checks.push({ name, status: 'PASS', detail: detail ?? null }); }
+    catch (error) { checks.push({ name, status: 'FAIL', error: error.message }); } };
+  const shot = async (view, name) => { const filename = `${args.label}-${name}.png`; await view.dashboard.locator('body').screenshot({ path: path.join(output, filename) }); screenshots.push(filename); };
+  const desktop = await mount(browser, files);
+  try {
+    await navigate(desktop, 'sa'); await shot(desktop, '1440-skills');
+    await check('1440x900 Skills tools keyboard navigation', async () => {
+      const tab=desktop.dashboard.locator('#skill-tool-codebase-wiki');
+      if (await tab.count()) {
+        await tab.click(); await tab.focus(); await tab.press('ArrowRight');
+        assert.equal(await desktop.dashboard.locator('#skill-tool-merge-reviewer').getAttribute('aria-selected'),'true');
+      } else {
+        const select=desktop.dashboard.locator('select[aria-label="Skills 工具"]'); await select.selectOption('codebase-wiki'); await select.focus();
+        await select.press('ArrowDown'); await select.press('Enter'); assert.equal(await select.inputValue(),'merge-reviewer');
+      }
+    });
+    await check('settings keyboard focus remains in dialog and Escape restores trigger', async () => {
+      await desktop.dashboard.locator('.settings-trigger').click(); const dialog = desktop.dashboard.locator('.tool-drawer'); await dialog.waitFor();
+      for (let index = 0; index < 20; index++) { await desktop.page.keyboard.press('Tab');
+        assert.ok(await dialog.evaluate(element => element.contains(element.ownerDocument.activeElement)), `focus escaped after Tab ${index + 1}`); }
+      await shot(desktop, '1440-settings'); await desktop.page.keyboard.press('Escape'); await dialog.waitFor({ state: 'detached' });
+      await desktop.page.waitForFunction(() => document.getElementById('dashboard').contentDocument.activeElement?.classList.contains('settings-trigger'));
+      assert.ok(await desktop.dashboard.locator('.settings-trigger').evaluate(element => element === element.ownerDocument.activeElement));
+    });
+    await check('sidebar disclosure supports keyboard and fixed local branch details', async () => {
+      const disclosure = desktop.sidebar.locator('.repo-disclosure').first(); await disclosure.focus(); await disclosure.press('Enter');
+      await desktop.sidebar.locator('.repo-details').first().locator('.ref-link').filter({ hasText: 'feature/sample' }).waitFor();
+      assert.equal(await disclosure.getAttribute('aria-expanded'), 'true'); await disclosure.press('Enter'); assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');
+    });
+    await check('1440x900 packaged UI has no horizontal body overflow', async () => assert.ok(await desktop.dashboard.locator('body').evaluate(element => element.scrollWidth <= element.clientWidth)));
+    await check('Repo names label their checkboxes and activate exactly once', async () => {
+      await navigate(desktop, 'clone');
+      const name = fixture.snapshot.projects[0].path_with_namespace;
+      const row = desktop.dashboard.locator('.repo-row').first(), box = row.getByRole('checkbox', { name, exact: true });
+      assert.equal(await box.count(), 1); assert.equal(await box.isChecked(), false);
+      await row.locator('label').click(); assert.equal(await box.isChecked(), true);
+      await box.focus(); await desktop.page.keyboard.press('Space'); assert.equal(await box.isChecked(), false);
+    });
+    await check('Repo, Issue and MR search controls have a visible focus indicator', async () => {
+      for (const [mode, name] of [['clone','搜尋 Repo'], ['developer','搜尋 Issue'], ['reviewer','搜尋 MR']]) {
+        await navigate(desktop, mode);
+        const input = desktop.dashboard.getByLabel(name, { exact: true });
+        await input.focus();
+        const style = await input.evaluate(element => ({ visible: element.matches(':focus-visible'),
+          outline: getComputedStyle(element).outlineStyle, width: getComputedStyle(element).outlineWidth }));
+        assert.ok(style.visible && style.outline !== 'none' && parseFloat(style.width) >= 1, `${name}: ${JSON.stringify(style)}`);
+      }
+    });
+    await check('SVG Issue nodes support keyboard focus, visible focus and selection', async () => {
+      await desktop.page.evaluate(() => {
+        const snapshot = window.__host.fixture.snapshot;
+        const nodes = snapshot.issues.slice(0, 2).map(issue => ({ id:`project:${issue.project_id}:issue:${issue.iid}`,
+          sourceIds:[],kind:'issue',namespacePath:`fixture/team/service-${String(issue.project_id).padStart(2,'0')}`,
+          projectId:issue.project_id,iid:String(issue.iid),title:issue.title,state:'opened',labels:[],assignees:[],
+          boardIds:[],assignedToMe:true,isRoot:true,relationsStatus:'ready' }));
+        snapshot.issueGraph = { connectedScope:snapshot.connectedScope,status:'ready',roots:nodes.map(node=>node.id),
+          nodes,edges:[],boardIssueIds:{},boardStatus:{},errors:[],updatedAt:Date.now() };
+        snapshot.issueGraphVersion = 1; window.__host.publish();
+      });
+      await navigate(desktop, 'developer');
+      await desktop.dashboard.locator('.developer-view-switch button').filter({hasText:'圖譜'}).click();
+      const first = desktop.dashboard.locator('.graph-node').first(); await first.waitFor(); await first.focus();
+      assert.equal(await first.getAttribute('tabindex'), '0');
+      assert.equal(await first.evaluate(element => element === element.ownerDocument.activeElement), true);
+      assert.equal(await first.locator('.graph-node-focus-ring').evaluate(element => getComputedStyle(element).visibility), 'visible');
+      await desktop.page.keyboard.press('Enter'); assert.equal(await first.getAttribute('aria-pressed'), 'true');
+      await desktop.page.keyboard.press('Tab');
+      assert.equal(await desktop.dashboard.locator('.graph-node').nth(1).evaluate(element => element === element.ownerDocument.activeElement), true);
+    });
+  } finally { blockedNetworkRequests.push(...desktop.network); runtimeErrors.push(...desktop.errors); await desktop.context.close(); }
+  for (const [mode, count] of [['clone', 2000], ['developer', 10000]]) {
+    await check(`${count} ${mode} rows remain bounded and keyboard can reach the last item`, async () => {
+      const projects = fixture.snapshot.projects, issues = fixture.snapshot.issues;
+      fixture.snapshot.projects = mode === 'clone' ? Array.from({length:count}, (_, index) => ({...projects[0], id:index+1,
+        name:`scale-${index+1}`, path:`scale-${index+1}`, path_with_namespace:`fixture/team/scale-${index+1}`})) : projects;
+      fixture.snapshot.issues = mode === 'developer' ? Array.from({length:count}, (_, index) => ({...issues[0],
+        id:10000+index, project_id:1, iid:index+1, title:`Scale issue ${index+1}`})) : issues;
+      let view;
+      try {
+        view = await mount(browser, files, 1440, false, 'reduce'); await navigate(view, mode);
+        const list = view.dashboard.locator(mode === 'clone' ? '.repo-list' : '.work-list');
+        const row = mode === 'clone' ? '.repo-row' : '.work-row';
+        await view.page.waitForTimeout(250);
+        const mounted = await list.locator(row).count();
+        assert.ok(mounted <= 60, `mounted ${mounted} of ${count} rows`);
+        const first = list.locator(row).first();
+        await (mode === 'clone' ? first.locator('input') : first).focus();
+        await view.page.keyboard.press('End');
+        const last = list.locator(`[data-virtual-index="${count - 1}"] ${row}`); await last.waitFor({timeout:5000});
+        assert.equal(await last.evaluate(element => element.contains(element.ownerDocument.activeElement) || element === element.ownerDocument.activeElement), true);
+        assert.ok(await list.evaluate(element => element.scrollTop > 0));
+        assert.equal(view.errors.length,0); assert.equal(view.network.length,0);
+        return {mounted, total:count};
+      } finally {
+        if (view) { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
+        fixture.snapshot.projects = projects; fixture.snapshot.issues = issues;
+      }
+    });
+  }
+  for (const highContrast of [false, true]) {
+    const view = await mount(browser, files, 800, highContrast);
+    try {
+      await check(`800x900${highContrast ? ' high contrast' : ''} preview survives refresh and projects remain visible after sidebar navigation`, async () => {
+        await view.dashboard.locator('.mobile-switch').click();
+        await view.page.evaluate(() => window.__host.publish());
+        assert.equal(await view.dashboard.locator('.workbench').getAttribute('data-mobile-panel'), 'detail');
+        await navigate(view, 'clone');
+        assert.equal(await view.dashboard.locator('.workbench').getAttribute('data-mobile-panel'), 'list');
+        assert.ok(await view.dashboard.locator('.clone-submit').isVisible());
+      });
+      await shot(view, highContrast ? '800-highcontrast-projects' : '800-projects');
+      await navigate(view, 'sa'); await shot(view, highContrast ? '800-highcontrast-skills' : '800-skills');
+      await check(`800x900${highContrast ? ' high contrast' : ''} Skills controls fit and retain keyboard focus`, async () => {
+        assert.ok(await view.dashboard.locator('body').evaluate(element => element.scrollWidth <= element.clientWidth));
+        const selector = view.dashboard.locator('#skill-tool-codebase-wiki, select[aria-label="Skills 工具"]'); await selector.focus();
+        assert.ok(await selector.evaluate(element => element === element.ownerDocument.activeElement));
+      });
+    } finally { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
+  }
+  for (const preference of ['no-preference', 'reduce']) {
+    const view = await mount(browser, files, 800, false, preference);
+    try {
+      await check(`motion ${preference}: stable snapshots, exit focus and mobile preview`, async () => {
+        const trigger = view.dashboard.locator('.settings-trigger');
+        await trigger.click();
+        const overlay = view.dashboard.locator('.drawer-scrim'), dialog = view.dashboard.locator('.tool-drawer');
+        await dialog.waitFor(); await view.page.evaluate(() => window.__host.idle());
+        if (args.label === 'baseline' && await overlay.getAttribute('data-presence') === null) return { preference, motion: 'Not available in the immutable baseline artifact.' };
+        if (preference === 'reduce') assert.equal(await overlay.evaluate(element => getComputedStyle(element).animationName), 'none');
+        await view.page.waitForFunction(() => document.getElementById('dashboard').contentDocument.querySelector('.drawer-scrim')?.dataset.presence === 'entered');
+        const requests = await view.page.evaluate(() => window.__host.requests.length);
+        await view.page.evaluate(async () => { for (let index = 0; index < 5; index++) window.__host.publish(); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
+        assert.equal(await view.page.evaluate(() => window.__host.requests.length), requests, 'snapshots must not repeat reads or animations');
+        const exit = await dialog.locator('.drawer-heading > button').evaluate(async button => {
+          button.click(); await new Promise(resolve => requestAnimationFrame(resolve));
+          const overlay = button.ownerDocument.querySelector('.drawer-scrim');
+          return { phase: overlay?.dataset.presence, focusInDialog: !!overlay?.contains(button.ownerDocument.activeElement), animation: overlay && getComputedStyle(overlay).animationName };
+        });
+        if (preference === 'no-preference') {
+          assert.equal(exit.phase, 'exiting'); assert.equal(exit.focusInDialog, true); assert.equal(exit.animation, 'overlay-exit');
+          await view.page.keyboard.press('Tab'); assert.ok(await dialog.evaluate(element => element.contains(element.ownerDocument.activeElement)));
+        }
+        await dialog.waitFor({ state: 'detached' });
+        assert.ok(await trigger.evaluate(element => element === element.ownerDocument.activeElement));
+        await view.dashboard.locator('.work-row').first().click();
+        assert.ok(await view.dashboard.locator('.issue-detail').evaluate(element => element === element.ownerDocument.activeElement));
+        await view.dashboard.locator('.mobile-switch').click();
+        assert.ok(await view.dashboard.locator('.work-row').first().evaluate(element => element === element.ownerDocument.activeElement));
+        await shot(view, `800-motion-${preference}`);
+        return { preference, exit, snapshots: 5, extraRequests: 0 };
+      });
+    } finally { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
+  }
+  return { status: checks.some(check => check.status === 'FAIL') || blockedNetworkRequests.length || runtimeErrors.length ? 'FAIL' : 'PASS', checks, screenshots, blockedNetworkRequests, runtimeErrors,
+    limits: 'Automated layout/keyboard checks and screenshot capture; screenshots still require human visual review. High contrast emulates VS Code body class and theme tokens, not OS assistive technology.' };
+}
+
+function collect(rounds) {
+  return { warmNavigationP95Ms: round(percentile(rounds.flatMap(value => value.warmNavigationMs.samples))),
+    repoSearchP95Ms: round(percentile(rounds.flatMap(value => value.repoSearchMs.samples))),
+    rendererRetainedHeapP95Bytes: percentile(rounds.flatMap(value => value.rendererHeap.map(sample => sample.usedSize))),
+    rendererRetainedHeapMaxBytes: Math.max(...rounds.flatMap(value => value.rendererHeap.map(sample => sample.usedSize))) };
+}
+function compare(current, baseline) {
+  const identity = current.fixtureSha256 === baseline.fixtureSha256 && current.harnessSha256 === baseline.harnessSha256 &&
+    current.browserVersion === baseline.browserVersion && JSON.stringify(current.measurement) === JSON.stringify(baseline.measurement) &&
+    current.artifact.sha256 !== baseline.artifact.sha256;
+  const complete = result => result.rounds?.length === 10 && result.rounds.every(value => value.warmNavigationMs.samples.length === 30 && value.repoSearchMs.samples.length === 30)
+    && result.firstFeedback?.cases.length === 8 && result.firstFeedback.cases.every(value => value.sampleCount >= 100 && value.sampleCount === result.measurement.firstFeedback.samplesPerAction);
+  if (!identity || !complete(current) || !complete(baseline)) return { status: 'BLOCKED', reason: 'Comparison requires distinct artifacts, identical harness/fixture/browser/method and complete 10 × 30 samples.' };
+  const metrics = Object.fromEntries(Object.entries(current.metrics).map(([name, value]) => {
+    const old = baseline.metrics[name], change = round((value / old - 1) * 100);
+    return [name, { baseline: old, revision: value, increasePercent: change, limitPercent: 10, status: change <= 10 ? 'PASS' : 'FAIL' }];
+  }));
+  return { status: Object.values(metrics).some(value => value.status === 'FAIL') ? 'FAIL' : 'PASS', metrics,
+    note: 'Observed comparison only. Frame scheduling, GC, machine load and instrumentation add noise; a threshold failure is reported as measured and must not be rewritten as a pass.' };
+}
+
+// Appended to the packaged UI harness by run-packaged-probe.py.
+await mkdir(output, { recursive: true });
+const temp = await mkdtemp(path.join(os.tmpdir(), 'glw-fix-functional-'));
+const results = [];
+let browser;
+const run = async (name, action) => {
+  const entry = { name, status: 'RUNNING' }; results.push(entry);
+  try { entry.detail = await action(); entry.status = 'PASS'; }
+  catch (error) { entry.status = 'FAIL'; entry.error = error.stack ?? String(error); }
+  await writeFile(path.join(output, 'functional.json'), JSON.stringify({
+    artifactSha256: sha256(await readFile(artifactPath)), browser: browser.version(),
+    scope: 'Packaged VSIX Webview, synthetic data and mock Host in Chromium; not native VS Code or GitLab.', cases: results
+  }, null, 2) + '\n');
+  console.log(`${entry.status} ${name}${entry.error ? ': ' + entry.error.split('\n')[0] : ''}`);
+};
+try {
+  const files = await extractAssets(temp);
+  browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+  const originalProjects = fixture.snapshot.projects, originalIssues = fixture.snapshot.issues;
+  await run('Repo full accessible names and label/keyboard toggle', async () => {
+    const view = await mount(browser, files, 430, false, 'reduce');
+    try {
+      await navigate(view, 'clone');
+      const row = view.dashboard.locator('.repo-row').first();
+      const name = originalProjects[0].path_with_namespace;
+      const checkbox = row.getByRole('checkbox', { name, exact: true });
+      const frameTree = await view.cdp.send('Page.getFrameTree');
+      const flatten = tree => [tree.frame, ...(tree.childFrames ?? []).flatMap(flatten)];
+      const dashboardFrame = flatten(frameTree.frameTree).find(frame => frame.url.includes('/issue-webview/dashboard.html'));
+      assert.ok(dashboardFrame, 'dashboard frame is available to the Chrome accessibility tree');
+      const checkedInAx = async () => {
+        const tree = await view.cdp.send('Accessibility.getFullAXTree', {frameId:dashboardFrame.id});
+        const matching = tree.nodes.filter(node => !node.ignored && node.role?.value === 'checkbox' && node.name?.value === name);
+        assert.equal(matching.length,1,`Chrome accessibility tree must contain checkbox ${name}`);
+        return matching[0].properties?.find(property => property.name === 'checked')?.value?.value;
+      };
+      assert.equal(await checkbox.count(), 1);
+      assert.equal(await checkbox.isChecked(), false);
+      assert.equal(String(await checkedInAx()), 'false');
+      await row.locator('label').click();
+      assert.equal(await checkbox.isChecked(), true);
+      assert.equal(String(await checkedInAx()), 'true');
+      await checkbox.focus(); await view.page.keyboard.press('Space');
+      assert.equal(await checkbox.isChecked(), false);
+      assert.equal(String(await checkedInAx()), 'false');
+      assert.equal(view.errors.length, 0); assert.equal(view.network.length, 0);
+      return { name, labelClick: 'checked', space: 'unchecked' };
+    } finally { await view.context.close(); }
+  });
+  await run('SVG keyboard focus, selection, stable update and removal', async () => {
+    const view = await mount(browser, files, 1440, false, 'no-preference');
+    try {
+      await view.page.evaluate(() => {
+        const snapshot = window.__host.fixture.snapshot;
+        const nodes = snapshot.issues.slice(0, 3).map(issue => ({ id:`project:${issue.project_id}:issue:${issue.iid}`,
+          sourceIds:[], kind:'issue', namespacePath:`fixture/team/service-${String(issue.project_id).padStart(2,'0')}`,
+          projectId:issue.project_id, iid:String(issue.iid), title:issue.title, state:'opened', labels:[], assignees:[],
+          boardIds:[], assignedToMe:true, isRoot:true, relationsStatus:'ready' }));
+        snapshot.issueGraph = { connectedScope:snapshot.connectedScope, status:'ready', roots:nodes.map(node => node.id),
+          nodes, edges:[], boardIssueIds:{}, boardStatus:{}, errors:[], updatedAt:Date.now() };
+        snapshot.issueGraphVersion = 1; window.__host.publish();
+      });
+      await view.dashboard.locator('.developer-view-switch button').filter({hasText:'圖譜'}).click();
+      const nodes = view.dashboard.locator('.graph-node'); await nodes.first().waitFor();
+      const first = nodes.first(); await first.focus();
+      assert.equal(await first.evaluate(e => e === e.ownerDocument.activeElement), true);
+      assert.equal(await first.getAttribute('tabindex'), '0');
+      assert.equal(await first.locator('.graph-node-focus-ring').evaluate(e => getComputedStyle(e).visibility), 'visible');
+      await view.page.keyboard.press('Tab');
+      assert.equal(await nodes.nth(1).evaluate(e => e === e.ownerDocument.activeElement), true);
+      await view.page.keyboard.press('Shift+Tab');
+      assert.equal(await first.evaluate(e => e === e.ownerDocument.activeElement), true);
+      await view.page.keyboard.press('Enter');
+      assert.equal(await first.getAttribute('aria-pressed'), 'true');
+      await view.page.evaluate(() => {
+        const snapshot = window.__host.fixture.snapshot;
+        snapshot.issueGraph = {...snapshot.issueGraph, nodes:[...snapshot.issueGraph.nodes]};
+        snapshot.issueGraphVersion++; window.__host.publish();
+      });
+      assert.equal(await first.evaluate(e => e === e.ownerDocument.activeElement), true, 'stable node must retain focus');
+      await view.page.keyboard.press('Tab'); await view.page.keyboard.press('Space');
+      assert.equal(await nodes.nth(1).getAttribute('aria-pressed'), 'true');
+      await view.page.evaluate(() => {
+        const snapshot = window.__host.fixture.snapshot, graph = snapshot.issueGraph;
+        const remaining = graph.nodes.filter((_, index) => index !== 1);
+        snapshot.issueGraph = {...graph, nodes:remaining, roots:remaining.map(node => node.id)};
+        snapshot.issueGraphVersion++; window.__host.publish();
+      });
+      await view.page.waitForTimeout(100);
+      const afterRemoval = await view.dashboard.locator('body').evaluate(body => ({
+        active: body.ownerDocument.activeElement?.outerHTML.slice(0, 400), nodes: body.querySelectorAll('.graph-node').length,
+        toolbarFocused: body.querySelector('.issue-graph-toolbar button') === body.ownerDocument.activeElement
+      }));
+      assert.equal(afterRemoval.toolbarFocused, true, `removed focused node must return focus to the graph toolbar: ${JSON.stringify(afterRemoval)}`);
+      await nodes.first().focus();
+      await view.page.evaluate(() => {
+        const snapshot=window.__host.fixture.snapshot, issue=snapshot.issues[0];
+        snapshot.issues=Array.from({length:501},(_,index)=>({...issue,id:20000+index,project_id:1,iid:index+1,title:`Canvas Issue ${index+1}`}));
+        const large=snapshot.issues.map(item=>({id:`project:1:issue:${item.iid}`,sourceIds:[],kind:'issue',namespacePath:'fixture/team/service-01',
+          projectId:1,iid:String(item.iid),title:item.title,state:'opened',labels:[],assignees:[],boardIds:[],assignedToMe:true,isRoot:true,relationsStatus:'ready'}));
+        snapshot.issueGraph={...snapshot.issueGraph,nodes:large,roots:large.map(item=>item.id),edges:[]};
+        snapshot.issueGraphVersion++;window.__host.publish();
+      });
+      const canvas=view.dashboard.locator('.issue-graph-canvas');await canvas.waitFor({timeout:10000});
+      assert.equal(await view.dashboard.locator('.issue-graph-toolbar button').first().evaluate(e=>e===e.ownerDocument.activeElement),true,
+        'switching from a focused SVG node to Canvas must return focus to the toolbar');
+      await canvas.focus();await view.page.keyboard.press('End');
+      await view.dashboard.locator('.graph-selected-detail h2').filter({hasText:'Canvas Issue 501'}).waitFor();
+      await view.page.emulateMedia({reducedMotion:'reduce'});
+      await view.dashboard.locator('.graph-animation-toggle input:disabled').waitFor();
+      assert.match(await view.dashboard.locator('.graph-animation-toggle').innerText(),/系統已減少動態效果/);
+      await view.page.emulateMedia({reducedMotion:'no-preference'});
+      await view.dashboard.locator('.graph-animation-toggle input:not(:disabled)').waitFor();
+      assert.equal(view.errors.length, 0); assert.equal(view.network.length, 0);
+      await view.page.screenshot({path:path.join(output,'graph-after-removal.png')});
+      return { tab: true, shiftTab: true, enter: true, space: true, focusPreserved: true, focusReturned: true, svgToCanvas: true, canvasEnd: true, reducedMotion: true };
+    } finally { await view.context.close(); }
+  });
+  for (const mode of ['clone', 'developer']) await run(`${mode}: bounded rows, pinned focus, deletion and empty fallback`, async () => {
+    const count = 300;
+    fixture.snapshot.projects = mode === 'clone' ? Array.from({length:count}, (_, i) => ({...originalProjects[0], id:i+1,
+      name:`scale-${i+1}`, path:`scale-${i+1}`, path_with_namespace:`fixture/team/scale-${i+1}`})) : originalProjects;
+    fixture.snapshot.issues = mode === 'developer' ? Array.from({length:count}, (_, i) => ({...originalIssues[0],
+      id:10000+i, project_id:1, iid:i+1, title:`Scale issue ${i+1}`})) : originalIssues;
+    let view;
+    try {
+      view = await mount(browser, files, 1440, false, 'reduce'); await navigate(view, mode);
+      const list = view.dashboard.locator(mode === 'clone' ? '.repo-list' : '.work-list');
+      const rowSelector = mode === 'clone' ? '.repo-row' : '.work-row';
+      await view.page.waitForTimeout(300);
+      const initialCount = await list.locator(rowSelector).count();
+      assert.ok(initialCount <= 60, `mounted ${initialCount} rows`);
+      const first = list.locator(rowSelector).first();
+      const focused = mode === 'clone' ? first.locator('input') : first;
+      await focused.focus();
+      await list.evaluate(e => { e.scrollTop = e.scrollHeight; }); await view.page.waitForTimeout(300);
+      assert.equal(await focused.evaluate(e => e === e.ownerDocument.activeElement), true, 'scrolling must retain focus');
+      assert.ok(await list.locator(rowSelector).count() <= 61, 'only the focused row may be pinned');
+      await view.page.evaluate(mode => {
+        const snapshot = window.__host.fixture.snapshot;
+        if (mode === 'clone') snapshot.projects = snapshot.projects.slice(1);
+        else snapshot.issues = snapshot.issues.slice(1);
+        window.__host.publish();
+      }, mode);
+      await view.page.waitForTimeout(300);
+      const afterRemoval = await list.evaluate(e => ({ activeIndex:e.ownerDocument.activeElement?.closest('[data-virtual-index]')?.dataset.virtualIndex,
+        activeText:e.ownerDocument.activeElement?.closest('.repo-row, .work-row')?.textContent, scrollTop:e.scrollTop }));
+      assert.equal(afterRemoval.activeIndex, '0', JSON.stringify(afterRemoval));
+      assert.match(afterRemoval.activeText, mode === 'clone' ? /scale-2/ : /Scale issue 2/);
+      await view.page.evaluate(mode => {
+        const snapshot = window.__host.fixture.snapshot;
+        if (mode === 'clone') snapshot.projects = []; else snapshot.issues = [];
+        window.__host.publish();
+      }, mode);
+      await view.page.waitForTimeout(300);
+      const search = view.dashboard.getByLabel(mode === 'clone' ? '搜尋 Repo' : '搜尋 Issue', {exact:true});
+      assert.equal(await search.evaluate(e => e === e.ownerDocument.activeElement), true, 'empty list must return focus to search');
+      assert.equal(view.errors.length, 0); assert.equal(view.network.length, 0);
+      return { initialCount, pinnedFocus: true, afterRemoval, emptyFallback: true };
+    } finally {
+      await view?.context.close(); fixture.snapshot.projects = originalProjects; fixture.snapshot.issues = originalIssues;
+    }
+  });
+  for (const mode of ['clone','developer']) await run(`${mode}: 200/201 boundary and stable scroll anchor`, async () => {
+    fixture.snapshot.projects=mode==='clone'?Array.from({length:200},(_,index)=>({...originalProjects[0],id:index+1,
+      name:`scale-${index+1}`,path:`scale-${index+1}`,path_with_namespace:`fixture/group/scale-${index+1}`})):originalProjects;
+    fixture.snapshot.issues=mode==='developer'?Array.from({length:200},(_,index)=>({...originalIssues[0],id:10000+index,
+      project_id:1,iid:index+1,title:`Scale issue ${index+1}`})):originalIssues;
+    let view;
+    try {
+      view=await mount(browser,files,1440,false,'reduce');await navigate(view,mode);
+      const list=view.dashboard.locator(mode==='clone'?'.repo-list':'.work-list');
+      const rows=list.locator('.virtual-list-row');
+      assert.equal(await rows.count(),200);
+      await list.evaluate(element=>{element.scrollTop=element.scrollHeight*.42;});await view.page.waitForTimeout(250);
+      const anchor=()=>list.evaluate(element=>{
+        const top=element.getBoundingClientRect().top;
+        const row=[...element.querySelectorAll('.virtual-list-row')].find(item=>item.getBoundingClientRect().bottom>top+1);
+        return {key:row?.getAttribute('data-virtual-key'),offset:row?.getBoundingClientRect().top-top,scrollTop:element.scrollTop};
+      });
+      const before=await anchor();
+      await view.page.evaluate(mode=>{
+        const snapshot=window.__host.fixture.snapshot;
+        if(mode==='clone')snapshot.projects=[...snapshot.projects,{...snapshot.projects[0],id:201,name:'scale-201',path:'scale-201',path_with_namespace:'fixture/group/scale-201'}];
+        else snapshot.issues=[...snapshot.issues,{...snapshot.issues[0],id:10200,iid:201,title:'Scale issue 201'}];
+        window.__host.publish();
+      },mode);
+      await view.page.waitForTimeout(400);
+      const windowed=await anchor();
+      assert.ok(await rows.count()<=60,`201 rows mounted ${await rows.count()}`);
+      assert.equal(windowed.key,before.key,JSON.stringify({before,windowed}));
+      assert.ok(Math.abs(windowed.offset-before.offset)<4,JSON.stringify({before,windowed}));
+      await view.page.evaluate(mode=>{
+        const snapshot=window.__host.fixture.snapshot;
+        if(mode==='clone')snapshot.projects=snapshot.projects.slice(0,200);else snapshot.issues=snapshot.issues.slice(0,200);
+        window.__host.publish();
+      },mode);
+      await view.page.waitForTimeout(400);
+      const restored=await anchor();
+      assert.equal(await rows.count(),200);
+      assert.equal(restored.key,before.key,JSON.stringify({before,restored}));
+      assert.ok(Math.abs(restored.offset-before.offset)<4,JSON.stringify({before,restored}));
+      assert.equal(view.errors.length,0);assert.equal(view.network.length,0);
+      return {before,windowed,restored};
+    } finally {await view?.context.close();fixture.snapshot.projects=originalProjects;fixture.snapshot.issues=originalIssues;}
+  });
+} finally {
+  await browser?.close();
+  assert.ok(path.resolve(temp).startsWith(path.resolve(os.tmpdir()) + path.sep));
+  await rm(temp, { recursive:true, force:true });
+}
+if (results.some(entry => entry.status !== 'PASS')) process.exitCode = 1;

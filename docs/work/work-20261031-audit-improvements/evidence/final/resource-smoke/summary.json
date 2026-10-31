@@ -1,0 +1,162 @@
+[
+  {
+    "case": "timer-1-animation-1",
+    "status": "PASS",
+    "secondsRequested": 5,
+    "samples": 5,
+    "sampleErrors": 0,
+    "exitCode": 0,
+    "groups": {
+      "unclassified": {
+        "workingSetPeak": 150142976,
+        "privateBytesPeak": 136167424,
+        "handlesPeak": 565,
+        "threadsPeak": 34,
+        "countPeak": 4,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 149557248,
+        "workingSetLastMinuteMedian": 149557248,
+        "privateBytesFirstMinuteMedian": 136167424,
+        "privateBytesLastMinuteMedian": 136167424,
+        "oneCoreCpuP95Percent": 1.5792378037760402,
+        "stableProcessIoDelta": {
+          "readOps": 20,
+          "writeOps": 23,
+          "otherOps": 27,
+          "readBytes": 5319,
+          "writeBytes": 7117,
+          "otherBytes": 162
+        }
+      },
+      "browser": {
+        "workingSetPeak": 147464192,
+        "privateBytesPeak": 54734848,
+        "handlesPeak": 1229,
+        "threadsPeak": 54,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 147464192,
+        "workingSetLastMinuteMedian": 147464192,
+        "privateBytesFirstMinuteMedian": 54734848,
+        "privateBytesLastMinuteMedian": 54734848,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 155,
+          "writeOps": 47,
+          "otherOps": 0,
+          "readBytes": 22302,
+          "writeBytes": 7687,
+          "otherBytes": 0
+        }
+      },
+      "GPU": {
+        "workingSetPeak": 227840000,
+        "privateBytesPeak": 197664768,
+        "handlesPeak": 469,
+        "threadsPeak": 31,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 203464704,
+        "workingSetLastMinuteMedian": 203464704,
+        "privateBytesFirstMinuteMedian": 173117440,
+        "privateBytesLastMinuteMedian": 173117440,
+        "oneCoreCpuP95Percent": 17.130813940363335,
+        "stableProcessIoDelta": {
+          "readOps": 526,
+          "writeOps": 443,
+          "otherOps": 28,
+          "readBytes": 576752,
+          "writeBytes": 49616,
+          "otherBytes": 0
+        }
+      },
+      "network.mojom.NetworkService": {
+        "workingSetPeak": 39923712,
+        "privateBytesPeak": 14028800,
+        "handlesPeak": 404,
+        "threadsPeak": 28,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 39923712,
+        "workingSetLastMinuteMedian": 39923712,
+        "privateBytesFirstMinuteMedian": 14028800,
+        "privateBytesLastMinuteMedian": 14028800,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 31,
+          "writeOps": 144,
+          "otherOps": 0,
+          "readBytes": 2048,
+          "writeBytes": 9216,
+          "otherBytes": 0
+        }
+      },
+      "storage.mojom.StorageService": {
+        "workingSetPeak": 19382272,
+        "privateBytesPeak": 8331264,
+        "handlesPeak": 158,
+        "threadsPeak": 14,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 19382272,
+        "workingSetLastMinuteMedian": 19382272,
+        "privateBytesFirstMinuteMedian": 8331264,
+        "privateBytesLastMinuteMedian": 8331264,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 0,
+          "writeOps": 0,
+          "otherOps": 0,
+          "readBytes": 0,
+          "writeBytes": 0,
+          "otherBytes": 0
+        }
+      },
+      "renderer": {
+        "workingSetPeak": 421912576,
+        "privateBytesPeak": 298528768,
+        "handlesPeak": 923,
+        "threadsPeak": 66,
+        "countPeak": 3,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 418353152,
+        "workingSetLastMinuteMedian": 418353152,
+        "privateBytesFirstMinuteMedian": 294518784,
+        "privateBytesLastMinuteMedian": 294518784,
+        "oneCoreCpuP95Percent": 50.535609720833286,
+        "stableProcessIoDelta": {
+          "readOps": 453,
+          "writeOps": 552,
+          "otherOps": 0,
+          "readBytes": 50736,
+          "writeBytes": 584112,
+          "otherBytes": 0
+        }
+      }
+    },
+    "browserSamples": 5,
+    "workerCounts": [
+      1
+    ],
+    "timerTicks": 9,
+    "mainThreadTaskSeconds": 0.116705
+  }
+]

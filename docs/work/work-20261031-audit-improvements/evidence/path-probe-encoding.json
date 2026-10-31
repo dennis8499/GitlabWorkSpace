@@ -1,0 +1,35 @@
+{
+  "scope": "Same isolated local bare repository and ls-remote command; no remote Git writes. The diagnostic supervisor is a copy with exception logging only.",
+  "platform": "win32",
+  "node": "v24.21.0",
+  "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "supervisor": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\resources\\windows-git-supervisor.ps1",
+  "cases": [
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 1,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: 找不到路徑 'C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-080db835-f917-4cc9-9108-d20316fed5a5.json.tmp-080db835-f917-4cc9-9108-d20316fed5a5' 的一部分。\r\n",
+      "stderrBase64": "QVVESVRfQ1NIQVJQIFN5c3RlbS5JTy5EaXJlY3RvcnlOb3RGb3VuZEV4Y2VwdGlvbjogp+Sko6jsuPSufCAnQzpcVXNlcnNcZGVubmlcT25lRHJpdmVcRGVza3RvcFy3c7xXuOquxqeoXEdpdGxhYldvcmtTcGFjZVxkb2NzXHdvcmtcd29yay0yMDI2MTAzMS1hdWRpdC1pbXByb3ZlbWVudHNcZXZpZGVuY2VccFwyNjAtMDEtZHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eFxleGVjdXRpb24tMDgwZGI4MzUtZjkxNy00Y2M5LTkxMDgtZDIwMzE2ZmVkNWE1Lmpzb24udG1wLTA4MGRiODM1LWY5MTctNGNjOS05MTA4LWQyMDMxNmZlZDVhNScgqrqkQLOhpMChQw0K",
+      "receipt": null,
+      "elapsedMs": 737,
+      "relativeReceipt": "p\\260-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-080db835-f917-4cc9-9108-d20316fed5a5.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 1,
+      "instrumented": false,
+      "code": 125,
+      "stdout": "",
+      "stderr": "",
+      "stderrBase64": "",
+      "receipt": null,
+      "elapsedMs": 717,
+      "relativeReceipt": "p\\260-01-pxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-423351b2-4f21-4440-9130-8dbc9b828ee7.json"
+    }
+  ]
+}

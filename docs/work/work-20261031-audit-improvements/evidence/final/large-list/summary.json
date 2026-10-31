@@ -1,0 +1,140 @@
+[
+  {
+    "mode": "clone",
+    "count": 2000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51.1,
+    "p95Ms": 52.2,
+    "mounted": [
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18
+    ]
+  },
+  {
+    "mode": "clone",
+    "count": 2000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51.1,
+    "p95Ms": 52.2,
+    "mounted": [
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18,
+      18
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 2000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51,
+    "p95Ms": 52,
+    "mounted": [
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 2000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51,
+    "p95Ms": 52.1,
+    "mounted": [
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 10000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51.5,
+    "p95Ms": 52.5,
+    "mounted": [
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 10000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 51.6,
+    "p95Ms": 52.5,
+    "mounted": [
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17,
+      17
+    ]
+  }
+]

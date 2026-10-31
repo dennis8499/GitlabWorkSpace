@@ -1,0 +1,140 @@
+[
+  {
+    "mode": "clone",
+    "count": 2000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 48,
+    "p95Ms": 49,
+    "mounted": [
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000
+    ]
+  },
+  {
+    "mode": "clone",
+    "count": 2000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 165.4,
+    "p95Ms": 246.8,
+    "mounted": [
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 2000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 47.4,
+    "p95Ms": 48.6,
+    "mounted": [
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 2000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 181.3,
+    "p95Ms": 281.3,
+    "mounted": [
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000,
+      2000
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 10000,
+    "kind": "narrow",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 61.1,
+    "p95Ms": 85.6,
+    "mounted": [
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000
+    ]
+  },
+  {
+    "mode": "developer",
+    "count": 10000,
+    "kind": "restore",
+    "requiredSamples": 300,
+    "attemptedSamples": 300,
+    "failures": 0,
+    "failurePercent": 0,
+    "p50Ms": 805.2,
+    "p95Ms": 1064.4,
+    "mounted": [
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000,
+      10000
+    ]
+  }
+]

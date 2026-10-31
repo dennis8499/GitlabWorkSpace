@@ -1,0 +1,532 @@
+{
+  "baseline": {
+    "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+    "harnessSha256": "31a531e17bd3d64e8fa92314e5613e066a10b57a8e81e9fda19ef0199bff45bb",
+    "fixtureSha256": "746448c2385f1d421dcf16bc1dd23561537f91de8072e04e81256349cf60e6d4",
+    "browserVersion": "156.0.8078.74",
+    "reportedMetrics": {
+      "warmNavigationP95Ms": 27.3,
+      "repoSearchP95Ms": 34.9,
+      "rendererRetainedHeapP95Bytes": 7674428,
+      "rendererRetainedHeapMaxBytes": 7674480
+    },
+    "navigation": {
+      "all": {
+        "samples": 300,
+        "p50Ms": 25.3,
+        "p95Ms": 27.3,
+        "minMs": 5.5,
+        "maxMs": 27.9
+      },
+      "rounds": [
+        {
+          "samples": 30,
+          "p50Ms": 23.0,
+          "p95Ms": 25.8,
+          "minMs": 10.6,
+          "maxMs": 26.1
+        },
+        {
+          "samples": 30,
+          "p50Ms": 24.2,
+          "p95Ms": 25.7,
+          "minMs": 20.3,
+          "maxMs": 25.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 24.05,
+          "p95Ms": 25.7,
+          "minMs": 14.5,
+          "maxMs": 26.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.95,
+          "p95Ms": 27.2,
+          "minMs": 5.5,
+          "maxMs": 27.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.6,
+          "p95Ms": 27.2,
+          "minMs": 22.4,
+          "maxMs": 27.8
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.85,
+          "p95Ms": 27.1,
+          "minMs": 22.6,
+          "maxMs": 27.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.0,
+          "p95Ms": 26.7,
+          "minMs": 22.8,
+          "maxMs": 26.8
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.5,
+          "p95Ms": 27.9,
+          "minMs": 18.9,
+          "maxMs": 27.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.9,
+          "p95Ms": 27.5,
+          "minMs": 21.5,
+          "maxMs": 27.7
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.95,
+          "p95Ms": 27.4,
+          "minMs": 16.9,
+          "maxMs": 27.6
+        }
+      ]
+    },
+    "search": {
+      "all": {
+        "samples": 300,
+        "p50Ms": 27.3,
+        "p95Ms": 34.9,
+        "minMs": 16.2,
+        "maxMs": 45.7
+      },
+      "rounds": [
+        {
+          "samples": 30,
+          "p50Ms": 25.95,
+          "p95Ms": 39.5,
+          "minMs": 16.3,
+          "maxMs": 41.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.25,
+          "p95Ms": 38.4,
+          "minMs": 17.2,
+          "maxMs": 39
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.2,
+          "p95Ms": 37.5,
+          "minMs": 16.2,
+          "maxMs": 45.7
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.55,
+          "p95Ms": 28.6,
+          "minMs": 24.8,
+          "maxMs": 28.7
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.0,
+          "p95Ms": 35.2,
+          "minMs": 18.6,
+          "maxMs": 37.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.9,
+          "p95Ms": 31.3,
+          "minMs": 21.3,
+          "maxMs": 32.2
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.55,
+          "p95Ms": 34.3,
+          "minMs": 18.5,
+          "maxMs": 34.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.7,
+          "p95Ms": 28.6,
+          "minMs": 23.1,
+          "maxMs": 28.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.4,
+          "p95Ms": 29,
+          "minMs": 19.8,
+          "maxMs": 31.8
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.95,
+          "p95Ms": 28.8,
+          "minMs": 24,
+          "maxMs": 30.4
+        }
+      ]
+    },
+    "firstFeedback": {
+      "navigation": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.05,
+        "p95Ms": 32.1,
+        "minMs": 3.7,
+        "maxMs": 32.8,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "issue-selection": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.2,
+        "p95Ms": 32,
+        "minMs": 13.5,
+        "maxMs": 32.6,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "mr-selection": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 9.7,
+        "p95Ms": 22.5,
+        "minMs": 2,
+        "maxMs": 32.4,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "refresh": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.2,
+        "p95Ms": 31.8,
+        "minMs": 12.2,
+        "maxMs": 32.3,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "skills-check": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.3,
+        "p95Ms": 32.1,
+        "minMs": 22.5,
+        "maxMs": 32.3,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "account-submit": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 25.9,
+        "p95Ms": 27.4,
+        "minMs": 16.1,
+        "maxMs": 31.7,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "git-read": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.25,
+        "p95Ms": 32,
+        "minMs": 19.4,
+        "maxMs": 32.1,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "git-write": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.35,
+        "p95Ms": 32.2,
+        "minMs": 22.7,
+        "maxMs": 32.4,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      }
+    },
+    "smokeStatus": "FAIL"
+  },
+  "revision": {
+    "artifactSha256": "6b9d190ae05ffad8718b229af8b016bde2bf4c08f57a7ddf3a19de3b9e90eecf",
+    "harnessSha256": "31a531e17bd3d64e8fa92314e5613e066a10b57a8e81e9fda19ef0199bff45bb",
+    "fixtureSha256": "746448c2385f1d421dcf16bc1dd23561537f91de8072e04e81256349cf60e6d4",
+    "browserVersion": "156.0.8078.74",
+    "reportedMetrics": {
+      "warmNavigationP95Ms": 27.3,
+      "repoSearchP95Ms": 32.6,
+      "rendererRetainedHeapP95Bytes": 7705732,
+      "rendererRetainedHeapMaxBytes": 7705752
+    },
+    "navigation": {
+      "all": {
+        "samples": 300,
+        "p50Ms": 25.4,
+        "p95Ms": 27.3,
+        "minMs": 5.6,
+        "maxMs": 27.7
+      },
+      "rounds": [
+        {
+          "samples": 30,
+          "p50Ms": 24.9,
+          "p95Ms": 27.1,
+          "minMs": 6.2,
+          "maxMs": 27.3
+        },
+        {
+          "samples": 30,
+          "p50Ms": 23.9,
+          "p95Ms": 26.9,
+          "minMs": 19.4,
+          "maxMs": 26.9
+        },
+        {
+          "samples": 30,
+          "p50Ms": 23.4,
+          "p95Ms": 26.5,
+          "minMs": 16.8,
+          "maxMs": 27.2
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.5,
+          "p95Ms": 26.9,
+          "minMs": 22.9,
+          "maxMs": 27.5
+        },
+        {
+          "samples": 30,
+          "p50Ms": 24.75,
+          "p95Ms": 26.8,
+          "minMs": 18.2,
+          "maxMs": 27
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.3,
+          "p95Ms": 27.5,
+          "minMs": 22.7,
+          "maxMs": 27.6
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.25,
+          "p95Ms": 27.4,
+          "minMs": 24.4,
+          "maxMs": 27.5
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.55,
+          "p95Ms": 27.4,
+          "minMs": 21.6,
+          "maxMs": 27.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.2,
+          "p95Ms": 27.6,
+          "minMs": 24.2,
+          "maxMs": 27.7
+        },
+        {
+          "samples": 30,
+          "p50Ms": 25.3,
+          "p95Ms": 27.1,
+          "minMs": 5.6,
+          "maxMs": 27.2
+        }
+      ]
+    },
+    "search": {
+      "all": {
+        "samples": 300,
+        "p50Ms": 27.8,
+        "p95Ms": 32.6,
+        "minMs": 16.5,
+        "maxMs": 45.4
+      },
+      "rounds": [
+        {
+          "samples": 30,
+          "p50Ms": 26.8,
+          "p95Ms": 36.7,
+          "minMs": 16.5,
+          "maxMs": 38.8
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.6,
+          "p95Ms": 35.7,
+          "minMs": 17,
+          "maxMs": 40.3
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.75,
+          "p95Ms": 32.2,
+          "minMs": 18.6,
+          "maxMs": 34.1
+        },
+        {
+          "samples": 30,
+          "p50Ms": 28.0,
+          "p95Ms": 34,
+          "minMs": 17.8,
+          "maxMs": 36.5
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.95,
+          "p95Ms": 29.1,
+          "minMs": 20.1,
+          "maxMs": 29.1
+        },
+        {
+          "samples": 30,
+          "p50Ms": 28.4,
+          "p95Ms": 29.4,
+          "minMs": 25,
+          "maxMs": 29.8
+        },
+        {
+          "samples": 30,
+          "p50Ms": 27.35,
+          "p95Ms": 35.7,
+          "minMs": 18.4,
+          "maxMs": 45.4
+        },
+        {
+          "samples": 30,
+          "p50Ms": 26.8,
+          "p95Ms": 31.7,
+          "minMs": 20.4,
+          "maxMs": 32.2
+        },
+        {
+          "samples": 30,
+          "p50Ms": 28.1,
+          "p95Ms": 29.2,
+          "minMs": 26.1,
+          "maxMs": 29.3
+        },
+        {
+          "samples": 30,
+          "p50Ms": 28.0,
+          "p95Ms": 29.5,
+          "minMs": 16.8,
+          "maxMs": 29.9
+        }
+      ]
+    },
+    "firstFeedback": {
+      "navigation": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.2,
+        "p95Ms": 32.2,
+        "minMs": 2.4,
+        "maxMs": 32.5,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "issue-selection": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.4,
+        "p95Ms": 32,
+        "minMs": 13.8,
+        "maxMs": 32.6,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "mr-selection": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 14.1,
+        "p95Ms": 32,
+        "minMs": 1.8,
+        "maxMs": 32.5,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "refresh": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.3,
+        "p95Ms": 31.8,
+        "minMs": 16.5,
+        "maxMs": 32.2,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "skills-check": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.4,
+        "p95Ms": 32.2,
+        "minMs": 16.5,
+        "maxMs": 32.8,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "account-submit": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 26.0,
+        "p95Ms": 27.2,
+        "minMs": 17.6,
+        "maxMs": 28.1,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "git-read": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.3,
+        "p95Ms": 32,
+        "minMs": 22.5,
+        "maxMs": 32.3,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      },
+      "git-write": {
+        "status": "PASS",
+        "samples": 100,
+        "p50Ms": 31.2,
+        "p95Ms": 32,
+        "minMs": 11.9,
+        "maxMs": 32.3,
+        "missingSamples": 0,
+        "runtimeErrors": [],
+        "blockedNetworkRequests": []
+      }
+    },
+    "smokeStatus": "PASS"
+  }
+}

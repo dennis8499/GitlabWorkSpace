@@ -1,0 +1,77 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/run-python.mjs","scripts/verify-vsix.py"]
+Traceback (most recent call last):
+  File "C:\Python314\Lib\pathlib\__init__.py", line 1011, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+FileNotFoundError: [WinError 3] 系統找不到指定的路徑。: 'C:\\Users\\denni\\AppData\\Local\\Packages\\sandbox.{4a90f89c-3c21-485f-8b73-44b4ccd8f74f}\\AC\\Temp\\gitlab-workspace-bmad-vsix-2z8tqx55\\extension\\resources\\bmad'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Python314\Lib\pathlib\__init__.py", line 1011, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+FileNotFoundError: [WinError 3] 系統找不到指定的路徑。: 'C:\\Users\\denni\\AppData\\Local\\Packages\\sandbox.{4a90f89c-3c21-485f-8b73-44b4ccd8f74f}\\AC\\Temp\\gitlab-workspace-bmad-vsix-2z8tqx55\\extension\\resources'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\scripts\verify-vsix.py", line 27, in verify_bmad_parsers
+    target.parent.mkdir(parents=True, exist_ok=True)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\pathlib\__init__.py", line 1015, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\pathlib\__init__.py", line 1015, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\pathlib\__init__.py", line 1011, in mkdir
+    os.mkdir(self, mode)
+    ~~~~~~~~^^^^^^^^^^^^
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\denni\\AppData\\Local\\Packages\\sandbox.{4a90f89c-3c21-485f-8b73-44b4ccd8f74f}\\AC\\Temp\\gitlab-workspace-bmad-vsix-2z8tqx55\\extension'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Python314\Lib\shutil.py", line 707, in _rmtree_unsafe
+    os.rmdir(path)
+    ~~~~~~~~^^^^^^
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\denni\\AppData\\Local\\Packages\\sandbox.{4a90f89c-3c21-485f-8b73-44b4ccd8f74f}\\AC\\Temp\\gitlab-workspace-bmad-vsix-2z8tqx55'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\scripts\verify-vsix.py", line 81, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\scripts\verify-vsix.py", line 73, in main
+    verify_bmad_parsers(archive)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\scripts\verify-vsix.py", line 18, in verify_bmad_parsers
+    with tempfile.TemporaryDirectory(prefix='gitlab-workspace-bmad-vsix-') as temporary:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\tempfile.py", line 972, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\tempfile.py", line 976, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\tempfile.py", line 956, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\shutil.py", line 711, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\tempfile.py", line 928, in onexc
+    _resetperms(path)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Python314\Lib\tempfile.py", line 283, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\tempfile.py", line 272, in _dont_follow_symlinks
+    func(path, *args, follow_symlinks=False)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\denni\\AppData\\Local\\Packages\\sandbox.{4a90f89c-3c21-485f-8b73-44b4ccd8f74f}\\AC\\Temp\\gitlab-workspace-bmad-vsix-2z8tqx55'

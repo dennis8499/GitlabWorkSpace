@@ -1,0 +1,23 @@
+{
+  "scope": "Production Git service with the existing simulated Git fixture; the remote reference changes during staging while state.refs is empty.",
+  "actualRemote": "origin/new",
+  "before": [
+    {
+      "name": "origin/old",
+      "kind": "remote",
+      "current": false,
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "after": [
+    {
+      "name": "origin/old",
+      "kind": "remote",
+      "current": false,
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "branchReadsBefore": 1,
+  "branchReadsAfter": 1,
+  "referenceEpoch": 2
+}

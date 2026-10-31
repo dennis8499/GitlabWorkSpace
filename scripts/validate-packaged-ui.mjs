@@ -509,7 +509,75 @@ async function smoke(browser, files) {
       assert.equal(await disclosure.getAttribute('aria-expanded'), 'true'); await disclosure.press('Enter'); assert.equal(await disclosure.getAttribute('aria-expanded'), 'false');
     });
     await check('1440x900 packaged UI has no horizontal body overflow', async () => assert.ok(await desktop.dashboard.locator('body').evaluate(element => element.scrollWidth <= element.clientWidth)));
+    await check('Repo names label their checkboxes and activate exactly once', async () => {
+      await navigate(desktop, 'clone');
+      const name = fixture.snapshot.projects[0].path_with_namespace;
+      const row = desktop.dashboard.locator('.repo-row').first(), box = row.getByRole('checkbox', { name, exact: true });
+      assert.equal(await box.count(), 1); assert.equal(await box.isChecked(), false);
+      await row.locator('label').click(); assert.equal(await box.isChecked(), true);
+      await box.focus(); await desktop.page.keyboard.press('Space'); assert.equal(await box.isChecked(), false);
+    });
+    await check('Repo, Issue and MR search controls have a visible focus indicator', async () => {
+      for (const [mode, name] of [['clone','搜尋 Repo'], ['developer','搜尋 Issue'], ['reviewer','搜尋 MR']]) {
+        await navigate(desktop, mode);
+        const input = desktop.dashboard.getByLabel(name, { exact: true });
+        await input.focus();
+        const style = await input.evaluate(element => ({ visible: element.matches(':focus-visible'),
+          outline: getComputedStyle(element).outlineStyle, width: getComputedStyle(element).outlineWidth }));
+        assert.ok(style.visible && style.outline !== 'none' && parseFloat(style.width) >= 1, `${name}: ${JSON.stringify(style)}`);
+      }
+    });
+    await check('SVG Issue nodes support keyboard focus, visible focus and selection', async () => {
+      await desktop.page.evaluate(() => {
+        const snapshot = window.__host.fixture.snapshot;
+        const nodes = snapshot.issues.slice(0, 2).map(issue => ({ id:`project:${issue.project_id}:issue:${issue.iid}`,
+          sourceIds:[],kind:'issue',namespacePath:`fixture/team/service-${String(issue.project_id).padStart(2,'0')}`,
+          projectId:issue.project_id,iid:String(issue.iid),title:issue.title,state:'opened',labels:[],assignees:[],
+          boardIds:[],assignedToMe:true,isRoot:true,relationsStatus:'ready' }));
+        snapshot.issueGraph = { connectedScope:snapshot.connectedScope,status:'ready',roots:nodes.map(node=>node.id),
+          nodes,edges:[],boardIssueIds:{},boardStatus:{},errors:[],updatedAt:Date.now() };
+        snapshot.issueGraphVersion = 1; window.__host.publish();
+      });
+      await navigate(desktop, 'developer');
+      await desktop.dashboard.locator('.developer-view-switch button').filter({hasText:'圖譜'}).click();
+      const first = desktop.dashboard.locator('.graph-node').first(); await first.waitFor(); await first.focus();
+      assert.equal(await first.getAttribute('tabindex'), '0');
+      assert.equal(await first.evaluate(element => element === element.ownerDocument.activeElement), true);
+      assert.equal(await first.locator('.graph-node-focus-ring').evaluate(element => getComputedStyle(element).visibility), 'visible');
+      await desktop.page.keyboard.press('Enter'); assert.equal(await first.getAttribute('aria-pressed'), 'true');
+      await desktop.page.keyboard.press('Tab');
+      assert.equal(await desktop.dashboard.locator('.graph-node').nth(1).evaluate(element => element === element.ownerDocument.activeElement), true);
+    });
   } finally { blockedNetworkRequests.push(...desktop.network); runtimeErrors.push(...desktop.errors); await desktop.context.close(); }
+  for (const [mode, count] of [['clone', 2000], ['developer', 10000]]) {
+    await check(`${count} ${mode} rows remain bounded and keyboard can reach the last item`, async () => {
+      const projects = fixture.snapshot.projects, issues = fixture.snapshot.issues;
+      fixture.snapshot.projects = mode === 'clone' ? Array.from({length:count}, (_, index) => ({...projects[0], id:index+1,
+        name:`scale-${index+1}`, path:`scale-${index+1}`, path_with_namespace:`fixture/team/scale-${index+1}`})) : projects;
+      fixture.snapshot.issues = mode === 'developer' ? Array.from({length:count}, (_, index) => ({...issues[0],
+        id:10000+index, project_id:1, iid:index+1, title:`Scale issue ${index+1}`})) : issues;
+      let view;
+      try {
+        view = await mount(browser, files, 1440, false, 'reduce'); await navigate(view, mode);
+        const list = view.dashboard.locator(mode === 'clone' ? '.repo-list' : '.work-list');
+        const row = mode === 'clone' ? '.repo-row' : '.work-row';
+        await view.page.waitForTimeout(250);
+        const mounted = await list.locator(row).count();
+        assert.ok(mounted <= 60, `mounted ${mounted} of ${count} rows`);
+        const first = list.locator(row).first();
+        await (mode === 'clone' ? first.locator('input') : first).focus();
+        await view.page.keyboard.press('End');
+        const last = list.locator(`[data-virtual-index="${count - 1}"] ${row}`); await last.waitFor({timeout:5000});
+        assert.equal(await last.evaluate(element => element.contains(element.ownerDocument.activeElement) || element === element.ownerDocument.activeElement), true);
+        assert.ok(await list.evaluate(element => element.scrollTop > 0));
+        assert.equal(view.errors.length,0); assert.equal(view.network.length,0);
+        return {mounted, total:count};
+      } finally {
+        if (view) { blockedNetworkRequests.push(...view.network); runtimeErrors.push(...view.errors); await view.context.close(); }
+        fixture.snapshot.projects = projects; fixture.snapshot.issues = issues;
+      }
+    });
+  }
   for (const highContrast of [false, true]) {
     const view = await mount(browser, files, 800, highContrast);
     try {

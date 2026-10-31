@@ -1,0 +1,158 @@
+{
+  "scope": "Packaged VSIX dashboard; fake graph data and host, real headless Chromium; not native VS Code. Diagnostic intervention modifies only the isolated DOM.",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "6f9430eec716b33820bb77e9110abc7701346ca0f5715c3b09c7912232e8261b",
+  "before": {
+    "focused": false,
+    "focusVisible": false,
+    "selected": false,
+    "hasFocus": true,
+    "numericTabIndex": 0,
+    "lowercaseTabindex": "0",
+    "camelCaseTabIndex": null,
+    "active": "<button type=\"button\" class=\"active\" aria-pressed=\"true\">圖譜</button>",
+    "node": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "none",
+      "strokeWidth": "1px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "core": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "rgb(170, 170, 170)",
+      "strokeWidth": "2px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "outerHTML": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-node-focus-ring\" r=\"20\" aria-hidden=\"true\"></circle><circle class=\"graph-node-core\" r=\"10\" fill=\"#777982\"></circle><text class=\"graph-node-caption  \" text-anchor=\"middle\" y=\"30\">#1 Review service-01</te"
+  },
+  "immediately": {
+    "focused": true,
+    "focusVisible": false,
+    "selected": false,
+    "hasFocus": true,
+    "numericTabIndex": 0,
+    "lowercaseTabindex": "0",
+    "camelCaseTabIndex": null,
+    "active": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-no",
+    "node": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "none",
+      "strokeWidth": "1px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "core": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "rgb(170, 170, 170)",
+      "strokeWidth": "2px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "outerHTML": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-node-focus-ring\" r=\"20\" aria-hidden=\"true\"></circle><circle class=\"graph-node-core\" r=\"10\" fill=\"#777982\"></circle><text class=\"graph-node-caption  \" text-anchor=\"middle\" y=\"30\">#1 Review service-01</te"
+  },
+  "settled": {
+    "focused": true,
+    "focusVisible": false,
+    "selected": false,
+    "hasFocus": true,
+    "numericTabIndex": 0,
+    "lowercaseTabindex": "0",
+    "camelCaseTabIndex": null,
+    "active": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-no",
+    "node": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "none",
+      "strokeWidth": "1px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "core": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "rgb(170, 170, 170)",
+      "strokeWidth": "2px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "outerHTML": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-node-focus-ring\" r=\"20\" aria-hidden=\"true\"></circle><circle class=\"graph-node-core\" r=\"10\" fill=\"#777982\"></circle><text class=\"graph-node-caption  \" text-anchor=\"middle\" y=\"30\">#1 Review service-01</te"
+  },
+  "keyboard": {
+    "focused": true,
+    "focusVisible": true,
+    "selected": false,
+    "hasFocus": true,
+    "numericTabIndex": 0,
+    "lowercaseTabindex": "0",
+    "camelCaseTabIndex": null,
+    "active": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-no",
+    "node": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "none",
+      "strokeWidth": "1px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "core": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "rgb(170, 170, 170)",
+      "strokeWidth": "2px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "outerHTML": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-node-focus-ring\" r=\"20\" aria-hidden=\"true\"></circle><circle class=\"graph-node-core\" r=\"10\" fill=\"#777982\"></circle><text class=\"graph-node-caption  \" text-anchor=\"middle\" y=\"30\">#1 Review service-01</te"
+  },
+  "tabs": [
+    {
+      "tag": "BUTTON",
+      "role": null,
+      "aria": "放大圖譜",
+      "class": "quiet small graph-zoom-button"
+    },
+    {
+      "tag": "BUTTON",
+      "role": null,
+      "aria": "符合畫面",
+      "class": "quiet small"
+    },
+    {
+      "tag": "BUTTON",
+      "role": null,
+      "aria": null,
+      "class": "quiet small"
+    },
+    {
+      "tag": "g",
+      "role": "button",
+      "aria": "符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬",
+      "class": "graph-node primary boardless no-board assigned  root-match  "
+    }
+  ],
+  "diagnosticLowercaseTabindex": {
+    "focused": true,
+    "focusVisible": true,
+    "selected": false,
+    "hasFocus": true,
+    "numericTabIndex": 0,
+    "lowercaseTabindex": "0",
+    "camelCaseTabIndex": null,
+    "active": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-no",
+    "node": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "none",
+      "strokeWidth": "1px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "core": {
+      "outline": "rgb(255, 255, 255) none 3px",
+      "stroke": "rgb(170, 170, 170)",
+      "strokeWidth": "2px",
+      "filter": "none",
+      "opacity": "1"
+    },
+    "outerHTML": "<g class=\"graph-node primary boardless no-board assigned  root-match  \" role=\"button\" tabindex=\"0\" aria-pressed=\"false\" aria-label=\"符合篩選的主要 Issue，fixture/team/service-01 #1，Review service-01，沒有 Group Board 歸屬\" transform=\"translate(565.5 236.5)\"><title>Review service-01</title><circle class=\"graph-node-focus-ring\" r=\"20\" aria-hidden=\"true\"></circle><circle class=\"graph-node-core\" r=\"10\" fill=\"#777982\"></circle><text class=\"graph-node-caption  \" text-anchor=\"middle\" y=\"30\">#1 Review service-01</te"
+  },
+  "errors": [],
+  "blocked": []
+}

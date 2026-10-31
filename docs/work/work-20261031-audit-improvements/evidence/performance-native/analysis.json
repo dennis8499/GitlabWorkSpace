@@ -1,0 +1,238 @@
+{
+  "schema": "GitLabWorkspaceOfflineNativeResourceSummary/v1",
+  "artifactSha256": "62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017",
+  "startupToCommandReturnedMs": {
+    "samples": [
+      12621.04
+    ],
+    "median": 12621.04,
+    "min": 12621.04,
+    "max": 12621.04
+  },
+  "startupToActiveTabMs": {
+    "samples": [
+      12621.04
+    ],
+    "median": 12621.04,
+    "min": 12621.04,
+    "max": 12621.04
+  },
+  "startupLimit": "command return, not first visible paint or interactive readiness",
+  "rounds": 1,
+  "reopenCommandCount": 30,
+  "idleComplete": true,
+  "idleSeconds": 600.5080001354218,
+  "idleSamples": 592,
+  "samplingIntervalMedianSeconds": 1.0124883651733398,
+  "idleByProcessKind": {
+    "GPU": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 263389184,
+      "workingSetLastMinuteMedian": 263741440,
+      "workingSetPeak": 282402816,
+      "privateBytesFirstMinuteMedian": 143450112,
+      "privateBytesLastMinuteMedian": 143515648,
+      "privateBytesPeak": 162889728,
+      "handlesPeak": 497,
+      "threadsPeak": 30,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 0.0,
+      "ioFirst": {
+        "readOps": 4337,
+        "writeOps": 3384,
+        "readBytes": 8019807,
+        "writeBytes": 1063504
+      },
+      "ioLast": {
+        "readOps": 4347,
+        "writeOps": 3386,
+        "readBytes": 8020927,
+        "writeBytes": 1063728
+      }
+    },
+    "browser": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 211574784,
+      "workingSetLastMinuteMedian": 210550784,
+      "workingSetPeak": 218882048,
+      "privateBytesFirstMinuteMedian": 106876928,
+      "privateBytesLastMinuteMedian": 105422848,
+      "privateBytesPeak": 113913856,
+      "handlesPeak": 1134,
+      "threadsPeak": 57,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 1.5388459031421236,
+      "ioFirst": {
+        "readOps": 21444,
+        "writeOps": 18667,
+        "readBytes": 71671581,
+        "writeBytes": 26342456
+      },
+      "ioLast": {
+        "readOps": 22347,
+        "writeOps": 19792,
+        "readBytes": 71893119,
+        "writeBytes": 26669130
+      }
+    },
+    "extensionHost": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 223772672,
+      "workingSetLastMinuteMedian": 219533312,
+      "workingSetPeak": 252637184,
+      "privateBytesFirstMinuteMedian": 148123648,
+      "privateBytesLastMinuteMedian": 143691776,
+      "privateBytesPeak": 177930240,
+      "handlesPeak": 396,
+      "threadsPeak": 28,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 0.0,
+      "ioFirst": {
+        "readOps": 6281,
+        "writeOps": 8800,
+        "readBytes": 27228855,
+        "writeBytes": 1857386
+      },
+      "ioLast": {
+        "readOps": 6636,
+        "writeOps": 9922,
+        "readBytes": 27271447,
+        "writeBytes": 2036091
+      }
+    },
+    "network.mojom.NetworkService": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 127021056,
+      "workingSetLastMinuteMedian": 126951424,
+      "workingSetPeak": 127238144,
+      "privateBytesFirstMinuteMedian": 13148160,
+      "privateBytesLastMinuteMedian": 12886016,
+      "privateBytesPeak": 13479936,
+      "handlesPeak": 362,
+      "threadsPeak": 24,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 0.0,
+      "ioFirst": {
+        "readOps": 1192,
+        "writeOps": 523,
+        "readBytes": 1391686,
+        "writeBytes": 801048
+      },
+      "ioLast": {
+        "readOps": 1304,
+        "writeOps": 619,
+        "readBytes": 1428368,
+        "writeBytes": 826301
+      }
+    },
+    "node.mojom.NodeService": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 546054144,
+      "workingSetLastMinuteMedian": 538853376,
+      "workingSetPeak": 666693632,
+      "privateBytesFirstMinuteMedian": 359727104,
+      "privateBytesLastMinuteMedian": 350892032,
+      "privateBytesPeak": 516227072,
+      "handlesPeak": 1025,
+      "threadsPeak": 86,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 0.0,
+      "ioFirst": {
+        "readOps": 3563,
+        "writeOps": 1225,
+        "readBytes": 98913329,
+        "writeBytes": 1292234
+      },
+      "ioLast": {
+        "readOps": 3854,
+        "writeOps": 1963,
+        "readBytes": 98947763,
+        "writeBytes": 1410170
+      }
+    },
+    "renderer": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 581627904,
+      "workingSetLastMinuteMedian": 561328128,
+      "workingSetPeak": 704442368,
+      "privateBytesFirstMinuteMedian": 405757952,
+      "privateBytesLastMinuteMedian": 384024576,
+      "privateBytesPeak": 534323200,
+      "handlesPeak": 814,
+      "threadsPeak": 40,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 1.5437805332798764,
+      "ioFirst": {
+        "readOps": 23122,
+        "writeOps": 29065,
+        "readBytes": 9015912,
+        "writeBytes": 12822656
+      },
+      "ioLast": {
+        "readOps": 25232,
+        "writeOps": 30011,
+        "readBytes": 9370520,
+        "writeBytes": 12936160
+      }
+    },
+    "unclassified": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 328126464,
+      "workingSetLastMinuteMedian": 328609792,
+      "workingSetPeak": 329224192,
+      "privateBytesFirstMinuteMedian": 127414272,
+      "privateBytesLastMinuteMedian": 127496192,
+      "privateBytesPeak": 128954368,
+      "handlesPeak": 664,
+      "threadsPeak": 48,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 0.0,
+      "ioFirst": {
+        "readOps": 43,
+        "writeOps": 23,
+        "readBytes": 397153,
+        "writeBytes": 1441
+      },
+      "ioLast": {
+        "readOps": 44,
+        "writeOps": 24,
+        "readBytes": 397189,
+        "writeBytes": 1453
+      }
+    },
+    "all": {
+      "samples": 592,
+      "workingSetFirstMinuteMedian": 2280591360,
+      "workingSetLastMinuteMedian": 2249166848,
+      "workingSetPeak": 2581397504,
+      "privateBytesFirstMinuteMedian": 1303527424,
+      "privateBytesLastMinuteMedian": 1267507200,
+      "privateBytesPeak": 1647661056,
+      "handlesPeak": 4892,
+      "threadsPeak": 308,
+      "cpuPercentOneCoreMedian": 0.0,
+      "cpuPercentOneCoreP95": 3.0887572319105914,
+      "ioFirst": {
+        "readOps": 59982,
+        "writeOps": 61687,
+        "readBytes": 216638323,
+        "writeBytes": 44180725
+      },
+      "ioLast": {
+        "readOps": 63764,
+        "writeOps": 65717,
+        "readBytes": 217329333,
+        "writeBytes": 44943033
+      }
+    }
+  },
+  "limitations": [
+    "CPU percentage uses one logical core as 100%; newly appearing/exiting PIDs omitted from each delta.",
+    "Sum of process working sets can double-count shared pages. I/O counters are process transfers, not physical disk traffic.",
+    "This is an isolated offline empty workspace without timer or graph; it is not live GitLab load.",
+    "The test extension logs its own host memory every 10 seconds; its CPU and file I/O are included in host totals. No uninstrumented VS Code baseline was measured.",
+    "Classification is based on CDP SystemInfo process IDs, host probe PID, and Git executable names; other processes remain unclassified.",
+    "Idle phase starts when the final open command returns, not when rendering completes."
+  ],
+  "rawSampleErrors": []
+}

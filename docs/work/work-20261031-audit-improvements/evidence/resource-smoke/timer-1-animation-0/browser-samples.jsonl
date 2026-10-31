@@ -1,0 +1,5 @@
+{"index":0,"at":1793460582083,"workers":1,"timerTicks":5,"Timestamp":185841.830275,"Documents":4,"Frames":3,"Nodes":1135,"ScriptDuration":0,"TaskDuration":0.000025,"JSHeapUsedSize":24393764}
+{"index":1,"at":1793460583090,"workers":1,"timerTicks":6,"Timestamp":185842.837303,"Documents":4,"Frames":3,"Nodes":1135,"ScriptDuration":0.000045,"TaskDuration":0.00181,"JSHeapUsedSize":24461260}
+{"index":2,"at":1793460584107,"workers":1,"timerTicks":7,"Timestamp":185843.854667,"Documents":4,"Frames":3,"Nodes":1135,"ScriptDuration":0.000114,"TaskDuration":0.004017,"JSHeapUsedSize":24471632}
+{"index":3,"at":1793460585117,"workers":1,"timerTicks":8,"Timestamp":185844.864556,"Documents":4,"Frames":3,"Nodes":1135,"ScriptDuration":0.000139,"TaskDuration":0.005885,"JSHeapUsedSize":24481080}
+{"index":4,"at":1793460586126,"workers":1,"timerTicks":9,"Timestamp":185845.873073,"Documents":4,"Frames":3,"Nodes":1135,"ScriptDuration":0.000163,"TaskDuration":0.007445,"JSHeapUsedSize":24490764}

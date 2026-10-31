@@ -1,0 +1,163 @@
+[
+  {
+    "case": "timer-0-animation-1",
+    "status": "PASS",
+    "secondsRequested": 600,
+    "samples": 600,
+    "sampleErrors": 0,
+    "classificationFallbackSamples": 0,
+    "exitCode": 0,
+    "groups": {
+      "unclassified": {
+        "workingSetPeak": 159444992,
+        "privateBytesPeak": 130142208,
+        "handlesPeak": 569,
+        "threadsPeak": 34,
+        "countPeak": 5,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 146284544.0,
+        "workingSetLastMinuteMedian": 148342784.0,
+        "privateBytesFirstMinuteMedian": 129343488.0,
+        "privateBytesLastMinuteMedian": 129499136.0,
+        "oneCoreCpuP95Percent": 1.5626695190980886,
+        "stableProcessIoDelta": {
+          "readOps": 2546,
+          "writeOps": 3150,
+          "otherOps": 5924,
+          "readBytes": 994181,
+          "writeBytes": 487516,
+          "otherBytes": 37328
+        }
+      },
+      "browser": {
+        "workingSetPeak": 148566016,
+        "privateBytesPeak": 53174272,
+        "handlesPeak": 1246,
+        "threadsPeak": 54,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 147292160.0,
+        "workingSetLastMinuteMedian": 147132416.0,
+        "privateBytesFirstMinuteMedian": 52858880.0,
+        "privateBytesLastMinuteMedian": 49815552.0,
+        "oneCoreCpuP95Percent": 1.5616957514707621,
+        "stableProcessIoDelta": {
+          "readOps": 5265,
+          "writeOps": 4090,
+          "otherOps": 1846,
+          "readBytes": 913909,
+          "writeBytes": 1269540,
+          "otherBytes": 62044
+        }
+      },
+      "GPU": {
+        "workingSetPeak": 201498624,
+        "privateBytesPeak": 171233280,
+        "handlesPeak": 470,
+        "threadsPeak": 32,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 153698304.0,
+        "workingSetLastMinuteMedian": 153231360.0,
+        "privateBytesFirstMinuteMedian": 123117568.0,
+        "privateBytesLastMinuteMedian": 121823232.0,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 378,
+          "writeOps": 326,
+          "otherOps": 14,
+          "readBytes": 399336,
+          "writeBytes": 36512,
+          "otherBytes": 0
+        }
+      },
+      "network.mojom.NetworkService": {
+        "workingSetPeak": 39247872,
+        "privateBytesPeak": 13221888,
+        "handlesPeak": 395,
+        "threadsPeak": 27,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 39239680.0,
+        "workingSetLastMinuteMedian": 39059456.0,
+        "privateBytesFirstMinuteMedian": 13193216.0,
+        "privateBytesLastMinuteMedian": 12427264.0,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 119,
+          "writeOps": 72,
+          "otherOps": 370,
+          "readBytes": 21888,
+          "writeBytes": 64466,
+          "otherBytes": 10085
+        }
+      },
+      "storage.mojom.StorageService": {
+        "workingSetPeak": 19607552,
+        "privateBytesPeak": 8417280,
+        "handlesPeak": 158,
+        "threadsPeak": 14,
+        "countPeak": 1,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 19404800.0,
+        "workingSetLastMinuteMedian": 19570688.0,
+        "privateBytesFirstMinuteMedian": 8318976.0,
+        "privateBytesLastMinuteMedian": 8253440.0,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 27,
+          "writeOps": 27,
+          "otherOps": 0,
+          "readBytes": 3024,
+          "writeBytes": 2819,
+          "otherBytes": 0
+        }
+      },
+      "renderer": {
+        "workingSetPeak": 394829824,
+        "privateBytesPeak": 271679488,
+        "handlesPeak": 900,
+        "threadsPeak": 64,
+        "countPeak": 3,
+        "workingSetMissingSamples": 0,
+        "privateBytesMissingSamples": 0,
+        "handlesMissingSamples": 0,
+        "threadsMissingSamples": 0,
+        "workingSetFirstMinuteMedian": 253509632.0,
+        "workingSetLastMinuteMedian": 246026240.0,
+        "privateBytesFirstMinuteMedian": 126377984.0,
+        "privateBytesLastMinuteMedian": 117223424.0,
+        "oneCoreCpuP95Percent": 0.0,
+        "stableProcessIoDelta": {
+          "readOps": 1604,
+          "writeOps": 2194,
+          "otherOps": 0,
+          "readBytes": 179648,
+          "writeBytes": 755312,
+          "otherBytes": 0
+        }
+      }
+    },
+    "browserSamples": 600,
+    "workerCounts": [
+      1
+    ],
+    "timerTicks": 0,
+    "mainThreadTaskSeconds": 0.347535
+  }
+]

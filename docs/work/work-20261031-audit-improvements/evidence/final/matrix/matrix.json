@@ -1,0 +1,5146 @@
+{
+  "artifactSha256": "62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017",
+  "browser": "156.0.8078.74",
+  "scope": "Packaged Webview, synthetic data and mock Host; CSS zoom and emulated themes, not native VS Code or screen-reader testing.",
+  "cases": [
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 274,
+          "width": 231.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-dark-1-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 213.5,
+          "width": 206.71875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 267,
+          "width": 328.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 782,
+          "width": 48.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-dark-2-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 628,
+          "width": 48.421875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 719,
+          "width": 242.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 274,
+          "width": 231.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 259,
+          "scrollWidth": 259,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-light-1-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 213.5,
+          "width": 206.71875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 267,
+          "width": 328.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 782,
+          "width": 48.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 158,
+          "scrollWidth": 158,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-light-2-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 628,
+          "width": 48.421875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 719,
+          "width": 242.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 275,
+          "width": 229.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 257,
+          "scrollWidth": 257,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 257,
+          "scrollWidth": 257,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 257,
+          "scrollWidth": 257,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-highcontrast-1-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 213.5,
+          "width": 206.71875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 268,
+          "width": 326.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 430,
+        "bodyScrollWidth": 430,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 784,
+          "width": 44.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ],
+      "screenshot": "430-highcontrast-2-clone.png"
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 628,
+          "width": 48.421875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 430,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 721,
+          "width": 238.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 215,
+        "bodyScrollWidth": 215,
+        "docWidth": 430,
+        "docScrollWidth": 430
+      }
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 239,
+          "width": 440.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 406.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 215,
+          "width": 537.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 702,
+          "width": 257.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 225.546875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 609,
+          "width": 451.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 239,
+          "width": 440.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 468,
+          "scrollWidth": 468,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 406.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 215,
+          "width": 537.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 702,
+          "width": 257.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 232,
+          "scrollWidth": 232,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 225.546875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 609,
+          "width": 451.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 240,
+          "width": 438.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 466,
+          "scrollWidth": 466,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 466,
+          "scrollWidth": 466,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 466,
+          "scrollWidth": 466,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 406.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 216,
+          "width": 535.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 639,
+        "bodyScrollWidth": 639,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 704,
+          "width": 253.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 230,
+          "scrollWidth": 230,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 230,
+          "scrollWidth": 230,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 230,
+          "scrollWidth": 230,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 225.546875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 639,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 611,
+          "width": 447.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 639,
+        "docScrollWidth": 639
+      }
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 239,
+          "width": 441.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 407.484375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 215,
+          "width": 538.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 702,
+          "width": 258.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 226.4375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 609,
+          "width": 452.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 239,
+          "width": 441.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 469,
+          "scrollWidth": 469,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 407.484375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 40,
+          "y": 215,
+          "width": 538.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 702,
+          "width": 258.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 156,
+          "scrollWidth": 156,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 226.4375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 79,
+          "y": 609,
+          "width": 452.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 240,
+          "width": 439.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 467,
+          "scrollWidth": 467,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 467,
+          "scrollWidth": 467,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 467,
+          "scrollWidth": 467,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 29,
+          "y": 178.5,
+          "width": 407.484375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 41,
+          "y": 216,
+          "width": 536.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 640,
+        "bodyScrollWidth": 640,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 704,
+          "width": 254.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 231,
+          "scrollWidth": 231,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 231,
+          "scrollWidth": 231,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 231,
+          "scrollWidth": 231,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 57,
+          "y": 518,
+          "width": 226.4375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 640,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 81,
+          "y": 611,
+          "width": 448.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 320,
+        "bodyScrollWidth": 320,
+        "docWidth": 640,
+        "docScrollWidth": 640
+      }
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 434.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 350.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 531.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 750,
+          "width": 243.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 541.5,
+          "width": 75.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 657,
+          "width": 437.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 434.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 462,
+          "scrollWidth": 462,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 350.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 531.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 750,
+          "width": 243.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 225,
+          "scrollWidth": 225,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 541.5,
+          "width": 75.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 657,
+          "width": 437.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 254,
+          "width": 432.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 460,
+          "scrollWidth": 460,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 460,
+          "scrollWidth": 460,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 460,
+          "scrollWidth": 460,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 350.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 230,
+          "width": 529.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 641,
+        "bodyScrollWidth": 641,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 752,
+          "width": 239.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 223,
+          "scrollWidth": 223,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 223,
+          "scrollWidth": 223,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 223,
+          "scrollWidth": 223,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 541.5,
+          "width": 75.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 641,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 659,
+          "width": 433.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 321,
+        "bodyScrollWidth": 321,
+        "docWidth": 641,
+        "docScrollWidth": 641
+      }
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 593.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 509.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 690.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 587,
+          "width": 402.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 234.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 574,
+          "width": 596.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 593.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 509.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 690.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 587,
+          "width": 402.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 228,
+          "scrollWidth": 228,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 234.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 574,
+          "width": 596.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 254,
+          "width": 591.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 619,
+          "scrollWidth": 619,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 619,
+          "scrollWidth": 619,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 619,
+          "scrollWidth": 619,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 509.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 230,
+          "width": 688.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 800,
+        "bodyScrollWidth": 800,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 589,
+          "width": 398.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 226,
+          "scrollWidth": 226,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 226,
+          "scrollWidth": 226,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 226,
+          "scrollWidth": 226,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 234.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 800,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 576,
+          "width": 592.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 400,
+        "bodyScrollWidth": 400,
+        "docWidth": 800,
+        "docScrollWidth": 800
+      }
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 752.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 668.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 849.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 587,
+          "width": 561.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 393.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 539,
+          "width": 755.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 253,
+          "width": 752.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 780,
+          "scrollWidth": 780,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 668.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 44,
+          "y": 229,
+          "width": 849.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 587,
+          "width": 561.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 308,
+          "scrollWidth": 308,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 393.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 87,
+          "y": 539,
+          "width": 755.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 254,
+          "width": 750.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 778,
+          "scrollWidth": 778,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 778,
+          "scrollWidth": 778,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 778,
+          "scrollWidth": 778,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 43,
+          "y": 189.5,
+          "width": 668.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 45,
+          "y": 230,
+          "width": 847.140625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 959,
+        "bodyScrollWidth": 959,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 589,
+          "width": 557.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 306,
+          "scrollWidth": 306,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 306,
+          "scrollWidth": 306,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 306,
+          "scrollWidth": 306,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 85,
+          "y": 458.5,
+          "width": 393.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 959,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 89,
+          "y": 541,
+          "width": 751.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 959,
+        "docScrollWidth": 959
+      }
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 737.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 645.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 212,
+          "width": 277.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 571,
+          "width": 530.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 346.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 558,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 737.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 765,
+          "scrollWidth": 765,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 645.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 212,
+          "width": 277.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 571,
+          "width": 530.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 292,
+          "scrollWidth": 292,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 346.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 558,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 220,
+          "width": 735.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 763,
+          "scrollWidth": 763,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 763,
+          "scrollWidth": 763,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 763,
+          "scrollWidth": 763,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 645.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 213,
+          "width": 275.515625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 960,
+        "bodyScrollWidth": 960,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 573,
+          "width": 526.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 290,
+          "scrollWidth": 290,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 290,
+          "scrollWidth": 290,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 290,
+          "scrollWidth": 290,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 346.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 960,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 560,
+          "width": 451.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 480,
+        "bodyScrollWidth": 480,
+        "docWidth": 960,
+        "docScrollWidth": 960
+      }
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 738.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 646.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 212,
+          "width": 277.90625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 571,
+          "width": 531.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 347.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 558,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 738.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 766,
+          "scrollWidth": 766,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 646.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 212,
+          "width": 277.90625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 571,
+          "width": 531.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 293,
+          "scrollWidth": 293,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 347.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 558,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 220,
+          "width": 736.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 764,
+          "scrollWidth": 764,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 764,
+          "scrollWidth": 764,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 764,
+          "scrollWidth": 764,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 646.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 213,
+          "width": 275.90625,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 961,
+        "bodyScrollWidth": 961,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 573,
+          "width": 527.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 291,
+          "scrollWidth": 291,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 291,
+          "scrollWidth": 291,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 291,
+          "scrollWidth": 291,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 442.5,
+          "width": 347.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 961,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 560,
+          "width": 451.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 481,
+        "bodyScrollWidth": 481,
+        "docWidth": 961,
+        "docScrollWidth": 961
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 1217.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 1125.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 195,
+          "width": 462.96875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 466,
+          "width": 1010.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 337.5,
+          "width": 826.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "screenshot": "1440-dark-2-developer.png"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 453,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 219,
+          "width": 1217.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 1125.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 52,
+          "y": 195,
+          "width": 462.96875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 466,
+          "width": 1010.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 532,
+          "scrollWidth": 532,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 337.5,
+          "width": 826.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "screenshot": "1440-light-2-developer.png"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 103,
+          "y": 453,
+          "width": 455.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 220,
+          "width": 1215.109375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 1243,
+          "scrollWidth": 1243,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 1243,
+          "scrollWidth": 1243,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 1243,
+          "scrollWidth": 1243,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 51,
+          "y": 155.5,
+          "width": 1125.4375,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 1,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 53,
+          "y": 196,
+          "width": 460.96875,
+          "height": 27
+        }
+      },
+      "layout": {
+        "bodyWidth": 1440,
+        "bodyScrollWidth": 1440,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "clone",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 468,
+          "width": 1006.234375,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "names": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 530,
+          "scrollWidth": 530,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 530,
+          "scrollWidth": 530,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 530,
+          "scrollWidth": 530,
+          "whiteSpace": "normal",
+          "overflowWrap": "anywhere"
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "developer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 101,
+          "y": 337.5,
+          "width": 826.875,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      },
+      "screenshot": "1440-highcontrast-2-developer.png"
+    },
+    {
+      "width": 1440,
+      "theme": "highcontrast",
+      "zoom": 2,
+      "mode": "reviewer",
+      "status": "PASS",
+      "focus": {
+        "visible": true,
+        "outlineStyle": "solid",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 105,
+          "y": 455,
+          "width": 451.28125,
+          "height": 55
+        }
+      },
+      "layout": {
+        "bodyWidth": 720,
+        "bodyScrollWidth": 720,
+        "docWidth": 1440,
+        "docScrollWidth": 1440
+      }
+    }
+  ]
+}

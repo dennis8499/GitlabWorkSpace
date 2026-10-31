@@ -1,0 +1,17 @@
+{
+  "installedVsCodeVersion": "1.144.0",
+  "gitExtensionSha256": "4201182f6e0247a58866c2e061ee541315d8d25ac7d4078bcb1b7074c1dfd441",
+  "warningOccurrences": 1,
+  "warningLocatedInRefsGetter": false,
+  "getterReturnsEmptyArray": true,
+  "getBranchesDelegatesWithoutThisWarning": true,
+  "sourceStateRefsLines": [
+    865,
+    897
+  ],
+  "officialSources": {
+    "vscode190": "https://raw.githubusercontent.com/microsoft/vscode/1.90.0/extensions/git/src/api/api1.ts",
+    "vscode190Types": "https://raw.githubusercontent.com/microsoft/vscode/1.90.0/extensions/git/src/api/git.d.ts",
+    "vscode190Repository": "https://raw.githubusercontent.com/microsoft/vscode/1.90.0/extensions/git/src/repository.ts"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "scope": "Packaged Webview in headless Chromium with mock Host, real IssueTimeTracker in the test process and simulated file-backed Memento. Graph Worker is real; no VS Code Extension Host or GitLab.",
+  "animation": false,
+  "timer": false,
+  "seconds": 600,
+  "preliminarySwitches": 30,
+  "errors": [],
+  "adapterErrors": [],
+  "blocked": []
+}

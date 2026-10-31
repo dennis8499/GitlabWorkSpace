@@ -1,0 +1,169 @@
+{
+  "artifactSha256": "f061d5e4d54a8ba9ecedd10bbe58b5b8dbe6e77a3ce9fa904b10f51d2716192d",
+  "browser": "156.0.8078.74",
+  "scope": "Packaged VSIX Webview, synthetic data and mock Host in Chromium; not native VS Code or GitLab.",
+  "cases": [
+    {
+      "name": "MR 200/201 boundary, scrolling and full-data keyboard navigation",
+      "status": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: {\"before\":{\"key\":\"1:85\",\"offset\":-0.25,\"scrollTop\":8500},\"windowed\":{\"key\":\"1:85\",\"offset\":-16,\"scrollTop\":8500}}\n    at file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/docs/work/work-20261031-audit-improvements/evidence/revision2/virtual-consumers/harness.mjs:706:14\n    at async run (file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/docs/work/work-20261031-audit-improvements/evidence/revision2/virtual-consumers/harness.mjs:668:24)\n    at async file:///C:/Users/denni/OneDrive/Desktop/%E6%96%B0%E5%A2%9E%E8%B3%87%E6%96%99%E5%A4%BE/GitlabWorkSpace/docs/work/work-20261031-audit-improvements/evidence/revision2/virtual-consumers/harness.mjs:686:3"
+    },
+    {
+      "name": "clone: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 16974
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "fixture/team/scale-299預設分支：main　·　本機：尚未 Clone尚未 Clone"
+        }
+      }
+    },
+    {
+      "name": "developer: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 26926
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "Scale issue 299fixture/team/service-01 #299fixture"
+        }
+      }
+    },
+    {
+      "name": "reviewer: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 32640
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "!299　MR scale 299fixture/team/service-01 · Fixture Userfeature/sample → mainPipeline：未設定"
+        }
+      }
+    },
+    {
+      "name": "clone: wrapped variable heights after resize, zoom and hide/restore",
+      "status": "PASS",
+      "detail": {
+        "resized": {
+          "rows": 21,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 20304,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "restored": {
+          "rows": 21,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 20436,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "end": {
+          "rows": 12,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 22020,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "lastReached": true
+      }
+    },
+    {
+      "name": "developer: wrapped variable heights after resize, zoom and hide/restore",
+      "status": "PASS",
+      "detail": {
+        "resized": {
+          "rows": 24,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 28816,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "restored": {
+          "rows": 24,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 28816,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "end": {
+          "rows": 14,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 29613,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "lastReached": true
+      }
+    },
+    {
+      "name": "MR Diff expansion and scroll survive virtual unmount and hidden tab",
+      "status": "PASS",
+      "detail": {
+        "expandedAfterRemount": true,
+        "before": {
+          "key": "src/file-150.ts",
+          "offset": -1.5,
+          "scrollTop": 6887
+        },
+        "after": {
+          "key": "src/file-150.ts",
+          "offset": -1.5,
+          "scrollTop": 6887
+        },
+        "mounted": 29
+      }
+    },
+    {
+      "name": "Clone operation results retain scroll after stable-ID update",
+      "status": "PASS",
+      "detail": {
+        "before": {
+          "key": "152",
+          "offset": -10,
+          "scrollTop": 4133
+        },
+        "after": {
+          "key": "152",
+          "offset": -10,
+          "scrollTop": 4133
+        },
+        "mounted": 25
+      }
+    }
+  ]
+}

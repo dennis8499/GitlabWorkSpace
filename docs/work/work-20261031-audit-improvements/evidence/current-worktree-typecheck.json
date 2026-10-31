@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-31T18:36:44.890Z",
+  "scope": "Current working tree, including unrelated concurrent changes; type checks only.",
+  "checks": [
+    {
+      "config": "tsconfig.json",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "config": "tsconfig.webview.json",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

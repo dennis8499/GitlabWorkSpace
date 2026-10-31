@@ -1,0 +1,71 @@
+{
+  "scope": "Working-tree source graph, synthetic data and isolated Chromium; not native VS Code or GitLab. Selection and zoom wait for two animation frames.",
+  "browser": "156.0.8078.74",
+  "scriptSha256": "795a4a455e28723c376978538a1965e0bbf3f4e4aa62d92977bb7a2fe0bf8576",
+  "summary": [
+    {
+      "count": 200,
+      "rounds": 10,
+      "selectionSamples": 300,
+      "selectionP50Ms": 48.7,
+      "selectionP95Ms": 76.8,
+      "zoomSamples": 150,
+      "zoomP50Ms": 39.7,
+      "zoomP95Ms": 47.6,
+      "frameGapP95Ms": 36.2,
+      "longTasks": 10,
+      "maxLongTaskMs": 84,
+      "workers": [
+        0
+      ]
+    },
+    {
+      "count": 500,
+      "rounds": 10,
+      "selectionSamples": 300,
+      "selectionP50Ms": 83.9,
+      "selectionP95Ms": 144.8,
+      "zoomSamples": 150,
+      "zoomP50Ms": 80.4,
+      "zoomP95Ms": 95.1,
+      "frameGapP95Ms": 88.5,
+      "longTasks": 238,
+      "maxLongTaskMs": 104,
+      "workers": [
+        0
+      ]
+    },
+    {
+      "count": 501,
+      "rounds": 10,
+      "selectionSamples": 300,
+      "selectionP50Ms": 35.4,
+      "selectionP95Ms": 36.2,
+      "zoomSamples": 150,
+      "zoomP50Ms": 35.4,
+      "zoomP95Ms": 36.1,
+      "frameGapP95Ms": 18.2,
+      "longTasks": 10,
+      "maxLongTaskMs": 68,
+      "workers": [
+        1
+      ]
+    },
+    {
+      "count": 2000,
+      "rounds": 10,
+      "selectionSamples": 300,
+      "selectionP50Ms": 35.3,
+      "selectionP95Ms": 36.1,
+      "zoomSamples": 150,
+      "zoomP50Ms": 35.5,
+      "zoomP95Ms": 36.2,
+      "frameGapP95Ms": 18.2,
+      "longTasks": 10,
+      "maxLongTaskMs": 63,
+      "workers": [
+        1
+      ]
+    }
+  ]
+}

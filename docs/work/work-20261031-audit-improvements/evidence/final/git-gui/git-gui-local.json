@@ -1,0 +1,1008 @@
+{
+  "schema": "GitLabWorkspaceLocalGitGuiEvidence/v1",
+  "generatedAt": "2026-10-31T17:27:32.838Z",
+  "mode": "local-only",
+  "vscodeVersion": "1.144.0",
+  "testedArtifact": {
+    "vsix": "dist/gitlab-workspace-0.37.3.vsix",
+    "sha256": "62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017"
+  },
+  "repository": "C:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service",
+  "remoteKind": "isolated-local-bare-repository",
+  "status": "PASS",
+  "gitDiscoveryMs": 847.86,
+  "gitDetailsStaleRetries": 0,
+  "initialGitState": {
+    "repositories": [
+      {
+        "id": "5ec3f3eb972fcc8578829b3eab084250",
+        "name": "service",
+        "path": "c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service",
+        "branch": "main",
+        "headCommit": "7a254cbb2fcc1a10544738b5e090b77bb487cb21",
+        "tracking": "origin/main",
+        "ahead": 0,
+        "behind": 0,
+        "stagedCount": 0,
+        "unstagedCount": 0,
+        "conflictCount": 0,
+        "busy": false,
+        "revision": 5
+      }
+    ],
+    "available": true,
+    "revision": 1
+  },
+  "remoteBranchNames": [
+    "origin/main"
+  ],
+  "interactiveConfirmationUI": "BLOCKED: Commit/Push decisions used the Extension Host test adapter because the isolated VS Code modal was unavailable.",
+  "warningPrompts": [
+    {
+      "message": "Commit 已暫存的變更 至 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service？\n暫存檔案：\nservice.ts",
+      "modal": true,
+      "items": [
+        "Commit"
+      ],
+      "result": "Commit"
+    },
+    {
+      "message": "Push 26b6cf507159 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（建立新遠端分支）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n7a254cb Add minimal validation fixture\n26b6cf5 GUI validation local-git-gui-1793467252783",
+      "modal": true,
+      "items": [
+        "Push"
+      ],
+      "result": "Push"
+    },
+    {
+      "message": "刪除 Stash stash@{0} · On validation/local-git-gui-1793467252783/mvwo50jp: GUI stash A local-git-gui-1793467252783？",
+      "modal": true,
+      "items": [
+        "刪除 Stash"
+      ],
+      "result": "刪除 Stash"
+    },
+    {
+      "message": "將變更 service.ts 存入復原 Stash，並還原目前檔案？",
+      "modal": true,
+      "items": [
+        "備份並還原"
+      ],
+      "result": "備份並還原"
+    },
+    {
+      "message": "從 origin/main 更新 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n遠端目標：6933d866a91b\n整合方式：Merge",
+      "modal": true,
+      "items": [
+        "Pull"
+      ],
+      "result": "Pull"
+    },
+    {
+      "message": "將 validation/local-git-gui-1793467252783/mvwo50jp Rebase 到 validation/rebase-base-local-git-gui-1793467252783。新的提交 SHA 會取代原提交（目前 HEAD：5106f6c42997）。",
+      "modal": true,
+      "items": [
+        "開始互動式 Rebase"
+      ],
+      "result": "開始互動式 Rebase"
+    },
+    {
+      "message": "Amend 最近一次 Commit 至 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service？\n原提交：a76c527be6f9\n這會改寫目前分支歷史。\n暫存檔案：\ngui-amend-local-git-gui-1793467252783.txt",
+      "modal": true,
+      "items": [
+        "Amend Commit"
+      ],
+      "result": "Amend Commit"
+    },
+    {
+      "message": "Force Push 1d2febff3027 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（遠端目前 26b6cf507159）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n6933d86 Prepare remote Pull local-git-gui-1793467252783\n795083d Merge remote-tracking branch 'refs/remotes/origin/main' into validation/local-git-gui-1793467252783/mvwo50jp\n40967c2 GUI rebase 1 local-git-gui-1793467252783\n0c299f7 GUI rebase reworded local-git-gui-1793467252783\n1d2febf GUI amend local-git-gui-1793467252783\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+      "modal": true,
+      "items": [
+        "Force Push"
+      ],
+      "result": "Force Push"
+    },
+    {
+      "message": "Revert 提交 525cfae0eb8f？",
+      "modal": true,
+      "items": [
+        "Revert"
+      ],
+      "result": "Revert"
+    },
+    {
+      "message": "Cherry-pick 525cfae0eb8f 到目前分支？",
+      "modal": true,
+      "items": [
+        "Cherry-pick"
+      ],
+      "result": "Cherry-pick"
+    },
+    {
+      "message": "Force Push dbf382f8b719 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（遠端目前 1d2febff3027）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n151f679 GUI merge source local-git-gui-1793467252783\n1fae8c8 GUI merge local local-git-gui-1793467252783\nac5d639 Merge branch 'validation/merge-source-local-git-gui-1793467252783' into validation/local-git-gui-1793467252783/mvwo50jp\n525cfae GUI pick target local-git-gui-1793467252783\n7d1688a Revert \"GUI pick target local-git-gui-1793467252783\"\ndbf382f GUI pick target local-git-gui-1793467252783\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+      "modal": true,
+      "items": [
+        "Force Push"
+      ],
+      "result": "Force Push"
+    }
+  ],
+  "actionTrace": [
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "branch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "branch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stagePatch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashSave"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashSave"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashApply"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashApply"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stashDrop"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "discard"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "discard"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "fetch"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "fetch"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "pull"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "pull"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "rebasePreview"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "rebase"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "rebase"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "continue"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "continue"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "stageFile"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "commit"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "commit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "merge"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "merge"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readDiff"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "revert"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "revert"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "cherryPick"
+    },
+    {
+      "phase": "complete",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "cherryPick"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "readCommit"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "a9e92c5cf21f47d5822b2f2b47d0f942",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "a9e92c5cf21f47d5822b2f2b47d0f942",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "a9e92c5cf21f47d5822b2f2b47d0f942",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "a9e92c5cf21f47d5822b2f2b47d0f942",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "a9e92c5cf21f47d5822b2f2b47d0f942",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "ee0d16393fd0be024d704c59780ae578",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "6637268dc6a9f5d613498fd2466229b6",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "open"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push"
+    },
+    {
+      "phase": "error",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "push",
+      "error": "Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。"
+    },
+    {
+      "phase": "start",
+      "repositoryId": "5ec3f3eb972fcc8578829b3eab084250",
+      "action": "refresh"
+    }
+  ],
+  "idleChecks": [
+    {
+      "phase": "open",
+      "idleMs": 60007,
+      "before": {
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 4
+      },
+      "after": {
+        "commands": 7,
+        "auxiliaryCommands": 1,
+        "nativeApiCalls": 5,
+        "nativeStatusEvents": 4
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 38,
+        "after": 38,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "select-file",
+      "idleMs": 60013,
+      "before": {
+        "commands": 18,
+        "auxiliaryCommands": 4,
+        "nativeApiCalls": 17,
+        "nativeStatusEvents": 10
+      },
+      "after": {
+        "commands": 18,
+        "auxiliaryCommands": 4,
+        "nativeApiCalls": 17,
+        "nativeStatusEvents": 10
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 79,
+        "after": 79,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "stage",
+      "idleMs": 60007,
+      "before": {
+        "commands": 28,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 17
+      },
+      "after": {
+        "commands": 28,
+        "auxiliaryCommands": 8,
+        "nativeApiCalls": 23,
+        "nativeStatusEvents": 17
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 107,
+        "after": 107,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "commit",
+      "idleMs": 60008,
+      "before": {
+        "commands": 33,
+        "auxiliaryCommands": 9,
+        "nativeApiCalls": 30,
+        "nativeStatusEvents": 21
+      },
+      "after": {
+        "commands": 33,
+        "auxiliaryCommands": 9,
+        "nativeApiCalls": 30,
+        "nativeStatusEvents": 21
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 129,
+        "after": 129,
+        "backgroundDelta": 0
+      }
+    },
+    {
+      "phase": "hidden",
+      "idleMs": 60016,
+      "before": {
+        "commands": 233,
+        "auxiliaryCommands": 50,
+        "nativeApiCalls": 203,
+        "nativeStatusEvents": 93
+      },
+      "after": {
+        "commands": 233,
+        "auxiliaryCommands": 50,
+        "nativeApiCalls": 203,
+        "nativeStatusEvents": 93
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      },
+      "vscodeGitLog": {
+        "before": 618,
+        "after": 618,
+        "backgroundDelta": 0
+      }
+    }
+  ],
+  "externalChangeChecks": [
+    {
+      "phase": "external-worktree",
+      "idleMs": 1266,
+      "before": {
+        "commands": 12,
+        "auxiliaryCommands": 2,
+        "nativeApiCalls": 12,
+        "nativeStatusEvents": 8
+      },
+      "after": {
+        "commands": 12,
+        "auxiliaryCommands": 2,
+        "nativeApiCalls": 12,
+        "nativeStatusEvents": 9
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-stash-worktree",
+      "idleMs": 1259,
+      "before": {
+        "commands": 42,
+        "auxiliaryCommands": 10,
+        "nativeApiCalls": 36,
+        "nativeStatusEvents": 23
+      },
+      "after": {
+        "commands": 42,
+        "auxiliaryCommands": 10,
+        "nativeApiCalls": 36,
+        "nativeStatusEvents": 24
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-stash-worktree",
+      "idleMs": 1266,
+      "before": {
+        "commands": 53,
+        "auxiliaryCommands": 12,
+        "nativeApiCalls": 47,
+        "nativeStatusEvents": 27
+      },
+      "after": {
+        "commands": 53,
+        "auxiliaryCommands": 12,
+        "nativeApiCalls": 47,
+        "nativeStatusEvents": 27
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-rebase-history",
+      "idleMs": 2363,
+      "before": {
+        "commands": 98,
+        "auxiliaryCommands": 21,
+        "nativeApiCalls": 89,
+        "nativeStatusEvents": 43
+      },
+      "after": {
+        "commands": 98,
+        "auxiliaryCommands": 21,
+        "nativeApiCalls": 89,
+        "nativeStatusEvents": 44
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-amend-worktree",
+      "idleMs": 1257,
+      "before": {
+        "commands": 126,
+        "auxiliaryCommands": 25,
+        "nativeApiCalls": 109,
+        "nativeStatusEvents": 52
+      },
+      "after": {
+        "commands": 126,
+        "auxiliaryCommands": 25,
+        "nativeApiCalls": 109,
+        "nativeStatusEvents": 52
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-merge-history",
+      "idleMs": 1978,
+      "before": {
+        "commands": 150,
+        "auxiliaryCommands": 29,
+        "nativeApiCalls": 129,
+        "nativeStatusEvents": 62
+      },
+      "after": {
+        "commands": 150,
+        "auxiliaryCommands": 29,
+        "nativeApiCalls": 129,
+        "nativeStatusEvents": 63
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-pick-history",
+      "idleMs": 1454,
+      "before": {
+        "commands": 167,
+        "auxiliaryCommands": 35,
+        "nativeApiCalls": 141,
+        "nativeStatusEvents": 66
+      },
+      "after": {
+        "commands": 167,
+        "auxiliaryCommands": 35,
+        "nativeApiCalls": 141,
+        "nativeStatusEvents": 67
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    },
+    {
+      "phase": "external-detached-head",
+      "idleMs": 1343,
+      "before": {
+        "commands": 195,
+        "auxiliaryCommands": 42,
+        "nativeApiCalls": 163,
+        "nativeStatusEvents": 74
+      },
+      "after": {
+        "commands": 195,
+        "auxiliaryCommands": 42,
+        "nativeApiCalls": 163,
+        "nativeStatusEvents": 74
+      },
+      "extensionDelta": {
+        "commands": 0,
+        "auxiliaryCommands": 0,
+        "nativeApiCalls": 0
+      }
+    }
+  ],
+  "compatibility": {
+    "tags": "PASS",
+    "detachedHead": "PASS",
+    "emptyRepo": "PASS",
+    "rapidRepoSwitching": "PASS",
+    "worktree": "PASS",
+    "submodule": "PASS",
+    "hiddenRestoredDraft": "PASS"
+  },
+  "gitGui": {
+    "branch": "validation/local-git-gui-1793467252783/mvwo50jp",
+    "previousBranch": "main",
+    "stagedPartialLines": 1,
+    "stagedWholeFileLines": 2,
+    "indexAfterPartial": "1\t0\tservice.ts",
+    "indexAfterWholeFile": "2\t0\tservice.ts",
+    "commitMessage": "GUI validation local-git-gui-1793467252783",
+    "committed": true,
+    "commitConfirmation": "test-adapter",
+    "pushConfirmation": "test-adapter",
+    "upstream": "origin/validation/local-git-gui-1793467252783/mvwo50jp",
+    "pushedWithUpstream": true,
+    "historyRows": 3,
+    "warningPrompts": [
+      {
+        "message": "Commit 已暫存的變更 至 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service？\n暫存檔案：\nservice.ts",
+        "modal": true,
+        "items": [
+          "Commit"
+        ],
+        "result": "Commit"
+      },
+      {
+        "message": "Push 26b6cf507159 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（建立新遠端分支）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n7a254cb Add minimal validation fixture\n26b6cf5 GUI validation local-git-gui-1793467252783",
+        "modal": true,
+        "items": [
+          "Push"
+        ],
+        "result": "Push"
+      },
+      {
+        "message": "刪除 Stash stash@{0} · On validation/local-git-gui-1793467252783/mvwo50jp: GUI stash A local-git-gui-1793467252783？",
+        "modal": true,
+        "items": [
+          "刪除 Stash"
+        ],
+        "result": "刪除 Stash"
+      },
+      {
+        "message": "將變更 service.ts 存入復原 Stash，並還原目前檔案？",
+        "modal": true,
+        "items": [
+          "備份並還原"
+        ],
+        "result": "備份並還原"
+      },
+      {
+        "message": "從 origin/main 更新 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n遠端目標：6933d866a91b\n整合方式：Merge",
+        "modal": true,
+        "items": [
+          "Pull"
+        ],
+        "result": "Pull"
+      },
+      {
+        "message": "將 validation/local-git-gui-1793467252783/mvwo50jp Rebase 到 validation/rebase-base-local-git-gui-1793467252783。新的提交 SHA 會取代原提交（目前 HEAD：5106f6c42997）。",
+        "modal": true,
+        "items": [
+          "開始互動式 Rebase"
+        ],
+        "result": "開始互動式 Rebase"
+      },
+      {
+        "message": "Amend 最近一次 Commit 至 c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service？\n原提交：a76c527be6f9\n這會改寫目前分支歷史。\n暫存檔案：\ngui-amend-local-git-gui-1793467252783.txt",
+        "modal": true,
+        "items": [
+          "Amend Commit"
+        ],
+        "result": "Amend Commit"
+      },
+      {
+        "message": "Force Push 1d2febff3027 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（遠端目前 26b6cf507159）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n6933d86 Prepare remote Pull local-git-gui-1793467252783\n795083d Merge remote-tracking branch 'refs/remotes/origin/main' into validation/local-git-gui-1793467252783/mvwo50jp\n40967c2 GUI rebase 1 local-git-gui-1793467252783\n0c299f7 GUI rebase reworded local-git-gui-1793467252783\n1d2febf GUI amend local-git-gui-1793467252783\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+        "modal": true,
+        "items": [
+          "Force Push"
+        ],
+        "result": "Force Push"
+      },
+      {
+        "message": "Revert 提交 525cfae0eb8f？",
+        "modal": true,
+        "items": [
+          "Revert"
+        ],
+        "result": "Revert"
+      },
+      {
+        "message": "Cherry-pick 525cfae0eb8f 到目前分支？",
+        "modal": true,
+        "items": [
+          "Cherry-pick"
+        ],
+        "result": "Cherry-pick"
+      },
+      {
+        "message": "Force Push dbf382f8b719 至 origin:validation/local-git-gui-1793467252783/mvwo50jp（遠端目前 1d2febff3027）\nRepo：c:\\Users\\denni\\AppData\\Local\\Temp\\glw-audit-gui-12b98723\\workspaces\\local-git-gui\\run-1793467251837-17576\\demo\\service\n將傳送的提交：\n151f679 GUI merge source local-git-gui-1793467252783\n1fae8c8 GUI merge local local-git-gui-1793467252783\nac5d639 Merge branch 'validation/merge-source-local-git-gui-1793467252783' into validation/local-git-gui-1793467252783/mvwo50jp\n525cfae GUI pick target local-git-gui-1793467252783\n7d1688a Revert \"GUI pick target local-git-gui-1793467252783\"\ndbf382f GUI pick target local-git-gui-1793467252783\nForce Push 會移除遠端分支上的提交：\n沒有額外提交。",
+        "modal": true,
+        "items": [
+          "Force Push"
+        ],
+        "result": "Force Push"
+      }
+    ],
+    "confirmationDialogs": [],
+    "advancedActions": {
+      "stashA": "On validation/local-git-gui-1793467252783/mvwo50jp: GUI stash A local-git-gui-1793467252783",
+      "stashPopLeavesOlderEntry": "On validation/local-git-gui-1793467252783/mvwo50jp: GUI stash A local-git-gui-1793467252783",
+      "stashDropAndDiscardRecovery": "On validation/local-git-gui-1793467252783/mvwo50jp: GitLab Workspace 復原點 2026-10-31T17:25:33.916Z",
+      "fetchRemoteMain": "6933d866a91b4e7dcc4708ef299713d2f868a969",
+      "pulledRemoteFile": "remote-fetch-local-git-gui-1793467252783.txt",
+      "pullMergeHead": "dbf382f8b719d19df903366ef7a9c17279500c77 7d1688a2404c320ed8167dd1df1a7a691b961100 GUI pick target local-git-gui-1793467252783",
+      "interactiveRebase": {
+        "actions": [
+          "pick",
+          "reword",
+          "edit",
+          "squash",
+          "fixup",
+          "drop"
+        ],
+        "pauseAndContinue": true,
+        "resultingSubjects": [
+          "GUI rebase squashed local-git-gui-1793467252783",
+          "GUI rebase reworded local-git-gui-1793467252783",
+          "GUI rebase 1 local-git-gui-1793467252783"
+        ]
+      },
+      "amend": {
+        "previousHead": "a76c527be6f9c0ca7fae47dbecde765f951c55f7",
+        "newHead": "1d2febff3027002c2e48e6ba950ad75c039b7477",
+        "message": "GUI amend local-git-gui-1793467252783",
+        "parent": "0c299f7c323816b29e641954fe04f31cbf52342d"
+      },
+      "forceWithLease": {
+        "pushedSha": "1d2febff3027002c2e48e6ba950ad75c039b7477",
+        "unknownOutcome": {
+          "ui": {
+            "progress": "結果待確認，請先核對 Repo…",
+            "writeBlocked": true,
+            "readAllowed": true
+          },
+          "terminalStatus": "failed",
+          "effect": "unknown",
+          "branch": "validation/local-git-gui-1793467252783/mvwo50jp",
+          "localHeadBefore": "dbf382f8b719d19df903366ef7a9c17279500c77",
+          "remoteShaBefore": "1d2febff3027002c2e48e6ba950ad75c039b7477",
+          "raceCommit": "f2219eaa23c2972a03bb039809697319676bd214",
+          "rejectedRemoteSha": "f2219eaa23c2972a03bb039809697319676bd214",
+          "rejectedLocalHead": "dbf382f8b719d19df903366ef7a9c17279500c77",
+          "rejectedRaceMessage": "訊息中心本次 VS Code 工作階段 · 28 筆未讀關閉全部未讀全部已讀清除全部錯誤版控操作未讀上午1:27:31Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。Push 結果未能確認；遠端分支 SHA 已變更。請先 Fetch 並檢查遠端狀態，再決定是否重試。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除錯誤版控操作未讀上午1:26:16版控畫面已離開。版控畫面已離開。移除資訊執行版控操作未讀上午1:26:08已完成已完成移除資訊執行版控操作未讀上午1:26:06已完成已完成移除資訊執行版控操作未讀上午1:26:01已完成已完成移除資訊執行版控操作未讀上午1:25:56已完成已完成移除資訊執行版控操作未讀上午1:25:53已完成已完成移除資訊執行版控操作未讀上午1:25:51已完成已完成移除資訊執行版控操作未讀上午1:25:48已完成已完成移除資訊執行版控操作未讀上午1:25:46已完成已完成移除資訊執行版控操作未讀上午1:25:40已完成已完成移除資訊執行版控操作未讀上午1:25:38已完成已完成移除資訊執行版控操作未讀上午1:25:35已完成已完成移除資訊執行版控操作未讀上午1:25:33已完成已完成移除資訊執行版控操作未讀上午1:25:32已完成已完成移除資訊執行版控操作未讀上午1:25:30已完成已完成移除資訊執行版控操作未讀上午1:25:27已完成已完成移除資訊執行版控操作未讀上午1:25:21已完成已完成移除資訊執行版控操作未讀上午1:24:13已完成已完成移除資訊執行版控操作未讀上午1:23:11已完成已完成移除資訊執行版控操作未讀上午1:23:10已完成已完成移除資訊執行版控操作未讀上午1:23:10已完成已完成移除資訊執行版控操作未讀上午1:22:05已完成已完成移除",
+          "refreshAllowedWithoutResend": true,
+          "writeLockRetained": true,
+          "pushStartsUnchanged": true,
+          "confirmationValidation": "separate-standalone-native-run"
+        }
+      },
+      "merge": {
+        "branch": "validation/merge-source-local-git-gui-1793467252783",
+        "head": "ac5d63957f8871eda94ba10f25e847f6f2946f02",
+        "parents": [
+          "1fae8c8647c55d373a424703cf8691e1020c3fe7",
+          "151f679ca6c0297c76b7b17b5ddf69c6f2ed22f8"
+        ],
+        "parentDiff": {
+          "selectedParent": "151f679ca6c0297c76b7b17b5ddf69c6f2ed22f8",
+          "file": "gui-merge-local-local-git-gui-1793467252783.txt"
+        }
+      },
+      "revertAndCherryPick": {
+        "sourceCommit": "525cfae0eb8fb0df481e543ad5ce634663113c5e",
+        "file": "gui-pick-local-git-gui-1793467252783.txt",
+        "revertAndReplay": true
+      }
+    }
+  },
+  "sourceRepository": "isolated generated Git seed",
+  "isolatedRemote": "local bare Repo",
+  "coldStartMs": 310.73
+}

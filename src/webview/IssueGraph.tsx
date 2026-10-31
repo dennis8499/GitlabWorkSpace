@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from 'd3-force';
 import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { GitLabIssueBoard, GitLabProject } from '../api/types';
 import type { IssueRelationAction, IssueRelationsData } from '../issues/protocol';
 import type { IssueGraphEdge, IssueGraphNode } from '../workspace/issueGraph';
@@ -58,9 +58,11 @@ const NODE_R = 10;
 export function IssueGraphView(props: IssueGraphProps) {
   const largeGraph = props.nodes.length > 500;
   const viewportRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement | HTMLCanvasElement>(null);
   const sceneRef = useRef<SVGGElement>(null);
   const nodeElementsRef = useRef(new Map<string, SVGGElement>());
+  const focusedNodeRef = useRef<string>();
   const edgeElementsRef = useRef(new Map<string, SVGLineElement>());
   const positionsRef = useRef<Record<string, GraphPosition>>(props.initialPositions);
   const onPositionsChangeRef = useRef(props.onPositionsChange);
@@ -97,6 +99,15 @@ export function IssueGraphView(props: IssueGraphProps) {
   const rootCount = props.nodes.filter((node) => node.isRoot).length;
   const contextCount = props.nodes.length - rootCount;
   const nodeLayoutKey = props.nodes.map((node) => `${node.id}:${node.isRoot ? 'root' : 'context'}`).join('|');
+  useLayoutEffect(() => {
+    const focusedId = focusedNodeRef.current;
+    if (!focusedId || (!largeGraph && nodeById.has(focusedId))) return;
+    focusedNodeRef.current = undefined;
+    // Do not take focus away if the user already moved it to another control.
+    if (document.activeElement === document.body || document.activeElement === document.documentElement) {
+      toolbarRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    }
+  }, [nodeLayoutKey, largeGraph]);
   const edgeKey = props.edges.map((edge) => edge.id).join('|');
   const adjacentIds = useMemo(() => {
     const ids = new Set<string>();
@@ -530,7 +541,7 @@ export function IssueGraphView(props: IssueGraphProps) {
 
   return <section class="issue-graph-workspace" aria-label="Issue 關聯圖譜">
     <div class={`issue-graph-main${largeGraph ? ' large-graph' : ''}`}>
-      <div class="issue-graph-toolbar" aria-label="圖譜工具">
+      <div ref={toolbarRef} class="issue-graph-toolbar" aria-label="圖譜工具">
         <span class="graph-tally">{boardCountLabel}</span>
         <span class="graph-zoom">{Math.round(zoom * 100)}%</span>
         <button class="quiet small graph-zoom-button" type="button" onClick={() => zoomBy(0.8)} aria-label="縮小圖譜">−</button>
@@ -576,14 +587,22 @@ export function IssueGraphView(props: IssueGraphProps) {
                 ref={(element) => { if (element) nodeElementsRef.current.set(node.id, element); else nodeElementsRef.current.delete(node.id); }}
                 class={`graph-node ${matchingRoot ? 'primary' : 'context'} ${node.boardIds.length ? '' : 'boardless'} ${node.boardIds.length ? '' : hasBoardLoading ? 'board-loading' : hasBoardFailure ? 'board-error' : 'no-board'} ${node.assignedToMe ? 'assigned' : 'unassigned'} ${node.state === 'closed' ? 'closed' : ''} ${matchingRoot ? 'root-match' : ''} ${selectedNode ? 'selected' : ''} ${props.selectedId && !adjacentIds.has(node.id) ? 'dimmed' : ''}`}
                 role="button"
-                tabIndex={0}
+                tabindex={0}
                 aria-pressed={selectedNode}
                 aria-label={`${matchingRoot ? '符合篩選的主要 Issue' : `關聯${kindName(node.kind)}${node.isRoot ? ' · 不符合篩選' : ''}`}，${projectById.get(node.projectId ?? 0)?.path_with_namespace ?? node.namespacePath} #${node.iid}，${node.title}${node.boardIds.length ? `，${node.boardIds.map((id) => boardById.get(id)?.name ?? `Board #${id}`).join('、')}` : `，${hasBoardLoading ? 'Board 歸屬載入中' : hasBoardFailure ? 'Board 歸屬讀取失敗' : '沒有 Group Board 歸屬'}`}`}
                 onPointerDown={(event) => startNodeDrag(event as unknown as PointerEvent, node.id)}
+                onFocus={() => { focusedNodeRef.current = node.id; }}
+                onBlur={(event) => {
+                  const clear = () => { if (focusedNodeRef.current === node.id) focusedNodeRef.current = undefined; };
+                  // A removed focused SVG node blurs to no related target. Keep
+                  // its identity through the layout effect that restores focus.
+                  if (event.relatedTarget) clear(); else queueMicrotask(clear);
+                }}
                 onClick={() => props.onSelect(node.id)}
                 onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onSelect(node.id); } }}
               >
                 <title>{node.title}</title>
+                <circle class="graph-node-focus-ring" r={NODE_R + 10} aria-hidden="true" />
                 {boardColors.length <= 1
                   ? <circle class="graph-node-core" r={NODE_R} fill={boardColors[0] ?? '#777982'} />
                   : boardColors.map((color, index) => <path class="graph-node-sector" d={pieSector(boardColors.length, index, NODE_R)} fill={color} key={`${node.id}:board:${node.boardIds[index]}`} />)}

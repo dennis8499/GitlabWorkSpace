@@ -1,0 +1,56 @@
+{
+  "artifactSha256": "9a109d29a27c7ead32bbb34475b73a0d6f23c34f1fc81f6d220623d21c2167fb",
+  "browser": "156.0.8078.74",
+  "scope": "Packaged VSIX Webview, synthetic data and mock Host in Chromium; not native VS Code or GitLab.",
+  "cases": [
+    {
+      "name": "Repo full accessible names and label/keyboard toggle",
+      "status": "PASS",
+      "detail": {
+        "name": "fixture/team/service-01",
+        "labelClick": "checked",
+        "space": "unchecked"
+      }
+    },
+    {
+      "name": "SVG keyboard focus, selection, stable update and removal",
+      "status": "PASS",
+      "detail": {
+        "tab": true,
+        "shiftTab": true,
+        "enter": true,
+        "space": true,
+        "focusPreserved": true,
+        "focusReturned": true
+      }
+    },
+    {
+      "name": "clone: bounded rows, pinned focus, deletion and empty fallback",
+      "status": "PASS",
+      "detail": {
+        "initialCount": 18,
+        "pinnedFocus": true,
+        "afterRemoval": {
+          "activeIndex": "0",
+          "activeText": "fixture/team/scale-2預設分支：main　·　本機：C:/fixture/team/service-021 個本機副本開啟版控 · service-02",
+          "scrollTop": 0
+        },
+        "emptyFallback": true
+      }
+    },
+    {
+      "name": "developer: bounded rows, pinned focus, deletion and empty fallback",
+      "status": "PASS",
+      "detail": {
+        "initialCount": 17,
+        "pinnedFocus": true,
+        "afterRemoval": {
+          "activeIndex": "0",
+          "activeText": "Scale issue 2fixture/team/service-01 #2fixture",
+          "scrollTop": 0
+        },
+        "emptyFallback": true
+      }
+    }
+  ]
+}

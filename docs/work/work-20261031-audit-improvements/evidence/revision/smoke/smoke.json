@@ -1,0 +1,118 @@
+{
+  "artifactSha256": "6b9d190ae05ffad8718b229af8b016bde2bf4c08f57a7ddf3a19de3b9e90eecf",
+  "browser": "156.0.8078.74",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "1440x900 Skills tools keyboard navigation",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "settings keyboard focus remains in dialog and Escape restores trigger",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "sidebar disclosure supports keyboard and fixed local branch details",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "1440x900 packaged UI has no horizontal body overflow",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "Repo names label their checkboxes and activate exactly once",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "Repo, Issue and MR search controls have a visible focus indicator",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "SVG Issue nodes support keyboard focus, visible focus and selection",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "2000 clone rows remain bounded and keyboard can reach the last item",
+      "status": "PASS",
+      "detail": {
+        "mounted": 18,
+        "total": 2000
+      }
+    },
+    {
+      "name": "10000 developer rows remain bounded and keyboard can reach the last item",
+      "status": "PASS",
+      "detail": {
+        "mounted": 17,
+        "total": 10000
+      }
+    },
+    {
+      "name": "800x900 preview survives refresh and projects remain visible after sidebar navigation",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "800x900 Skills controls fit and retain keyboard focus",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "800x900 high contrast preview survives refresh and projects remain visible after sidebar navigation",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "800x900 high contrast Skills controls fit and retain keyboard focus",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "name": "motion no-preference: stable snapshots, exit focus and mobile preview",
+      "status": "PASS",
+      "detail": {
+        "preference": "no-preference",
+        "exit": {
+          "phase": "exiting",
+          "focusInDialog": true,
+          "animation": "overlay-exit"
+        },
+        "snapshots": 5,
+        "extraRequests": 0
+      }
+    },
+    {
+      "name": "motion reduce: stable snapshots, exit focus and mobile preview",
+      "status": "PASS",
+      "detail": {
+        "preference": "reduce",
+        "exit": {
+          "focusInDialog": false,
+          "animation": null
+        },
+        "snapshots": 5,
+        "extraRequests": 0
+      }
+    }
+  ],
+  "screenshots": [
+    "revision-1440-skills.png",
+    "revision-1440-settings.png",
+    "revision-800-projects.png",
+    "revision-800-skills.png",
+    "revision-800-highcontrast-projects.png",
+    "revision-800-highcontrast-skills.png",
+    "revision-800-motion-no-preference.png",
+    "revision-800-motion-reduce.png"
+  ],
+  "blockedNetworkRequests": [],
+  "runtimeErrors": [],
+  "limits": "Automated layout/keyboard checks and screenshot capture; screenshots still require human visual review. High contrast emulates VS Code body class and theme tokens, not OS assistive technology."
+}

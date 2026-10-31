@@ -1,0 +1,109 @@
+{
+  "scope": "Actual packaged VSIX dashboard, fixed long remote-only Repo names, mock host, headless Chromium",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "cases": [
+    {
+      "width": 430,
+      "rows": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 259,
+          "scrollWidth": 406,
+          "truncated": true,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-1\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 259,
+          "scrollWidth": 406,
+          "truncated": true,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-2\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 259,
+          "scrollWidth": 406,
+          "truncated": true,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-3\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    },
+    {
+      "width": 800,
+      "rows": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-1\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-2\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 621,
+          "scrollWidth": 621,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-3\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    },
+    {
+      "width": 1440,
+      "rows": [
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-1",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-1\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-2",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-2\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        },
+        {
+          "text": "organisation/very-long-group-name/platform/customer-service-3",
+          "clientWidth": 1245,
+          "scrollWidth": 1245,
+          "truncated": false,
+          "titleAttribute": null,
+          "checkboxAriaLabel": null,
+          "rowText": "organisation/very-long-group-name/platform/customer-service-3\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone"
+        }
+      ],
+      "errors": [],
+      "blocked": []
+    }
+  ]
+}

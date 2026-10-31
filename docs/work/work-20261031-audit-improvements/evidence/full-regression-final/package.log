@@ -1,0 +1,46 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","scripts/package-extension.mjs","--prepared"]
+Executing prepublish script 'npm run vscode:prepublish'...
+npm notice run gitlab-workspace@0.37.3 vscode:prepublish
+npm notice run node scripts/run-validation.mjs prepublish
+ WARNING  LICENSE, LICENSE.md, or LICENSE.txt not found
+ WARNING  This extension consists of 391 files, out of which 264 are JavaScript files. For performance reasons, you should bundle your extension: https://aka.ms/vscode-bundle-extension. You should also exclude unnecessary files by adding them to your .vscodeignore: https://aka.ms/vscode-vscodeignore.
+
+ INFO  Files included in the VSIX:
+gitlab-workspace-0.37.3.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ package.json [11.27 KB]
+   ├─ readme.md [29.18 KB]
+   ├─ docs/
+   │  ├─ demand-loading-and-motion.md [2.06 KB]
+   │  ├─ group-workflow.md [2.48 KB]
+   │  ├─ network-policy.md [12.31 KB]
+   │  ├─ releasing.md [2.32 KB]
+   │  ├─ troubleshooting.md [6.36 KB]
+   │  ├─ user-guide.md [33.63 KB]
+   │  ├─ wiki-workflows.md [2.52 KB]
+   │  ├─ windows-acceptance.md [5.69 KB]
+   │  └─ releases/ (14 files) [12.36 KB]
+   ├─ node_modules/
+   │  ├─ @iarna/ (20 files) [96.72 KB]
+   │  └─ yaml/ (233 files) [670.21 KB]
+   ├─ out/
+   │  └─ src/ (97 files) [1.25 MB]
+   └─ resources/
+      ├─ git-askpass.js [1.66 KB]
+      ├─ git-askpass.sh [0.11 KB]
+      ├─ git-rebase-editor.cjs [1.12 KB]
+      ├─ git-ssh-askpass.sh [0.11 KB]
+      ├─ gitlab-workspace.svg [0.33 KB]
+      ├─ windows-git-supervisor.ps1 [16.64 KB]
+      ├─ workflow-kit-status.py [732.45 KB]
+      ├─ bmad/ (2 files) [7.84 KB]
+      ├─ issue-webview/ (3 files) [527.8 KB]
+      └─ sidebar-webview/ (3 files) [65.96 KB]
+
+=> Run vsce ls --tree to see all included files.
+
+ DONE  Packaged: C:\Users\denni\OneDrive\Desktop\新增資料夾\GitlabWorkSpace\.audit-isolated-source-164e0f9\dist\gitlab-workspace-0.37.3.vsix (391 files, 954.91 KB)
+Optimized dist\gitlab-workspace-0.37.3.vsix with per-file STORE/DEFLATE-9 selection (965555 bytes)
+Wrote deterministic SHA256SUMS for 1 release assets.

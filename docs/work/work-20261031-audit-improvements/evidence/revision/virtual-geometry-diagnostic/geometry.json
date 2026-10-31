@@ -1,0 +1,685 @@
+{
+  "artifactSha256": "6b9d190ae05ffad8718b229af8b016bde2bf4c08f57a7ddf3a19de3b9e90eecf",
+  "phases": [
+    {
+      "name": "before",
+      "data": {
+        "clientWidth": 751,
+        "clientHeight": 336,
+        "scrollTop": 13664,
+        "scrollHeight": 27288,
+        "zoom": "1",
+        "rows": [
+          {
+            "index": "140",
+            "topStyle": "12762.8px",
+            "offsetHeight": 68,
+            "offsetTop": 12763,
+            "rect": {
+              "x": 17,
+              "y": -574.1875,
+              "width": 751,
+              "height": 68.1875,
+              "top": -574.1875,
+              "right": 768,
+              "bottom": -506,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word 141fixture/team/service-01 #141"
+          },
+          {
+            "index": "141",
+            "topStyle": "12831px",
+            "offsetHeight": 88,
+            "offsetTop": 12831,
+            "rect": {
+              "x": 17,
+              "y": -506,
+              "width": 751,
+              "height": 88.1875,
+              "top": -506,
+              "right": 768,
+              "bottom": -417.8125,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word 142fixture/team/service-01 #14"
+          },
+          {
+            "index": "142",
+            "topStyle": "12919.2px",
+            "offsetHeight": 88,
+            "offsetTop": 12919,
+            "rect": {
+              "x": 17,
+              "y": -417.8125,
+              "width": 751,
+              "height": 88.1875,
+              "top": -417.8125,
+              "right": 768,
+              "bottom": -329.625,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word word 143fixture/team/service-0"
+          },
+          {
+            "index": "143",
+            "topStyle": "13007.4px",
+            "offsetHeight": 88,
+            "offsetTop": 13007,
+            "rect": {
+              "x": 17,
+              "y": -329.625,
+              "width": 751,
+              "height": 88.1875,
+              "top": -329.625,
+              "right": 768,
+              "bottom": -241.4375,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word word word 144fixture/team/serv"
+          },
+          {
+            "index": "144",
+            "topStyle": "13095.6px",
+            "offsetHeight": 88,
+            "offsetTop": 13096,
+            "rect": {
+              "x": 17,
+              "y": -241.4375,
+              "width": 751,
+              "height": 88.1875,
+              "top": -241.4375,
+              "right": 768,
+              "bottom": -153.25,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word word word word 145fixture/team"
+          },
+          {
+            "index": "145",
+            "topStyle": "13183.8px",
+            "offsetHeight": 68,
+            "offsetTop": 13184,
+            "rect": {
+              "x": 17,
+              "y": -153.25,
+              "width": 751,
+              "height": 68.1875,
+              "top": -153.25,
+              "right": 768,
+              "bottom": -85.0625,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word 146fixture/team/service-01 #146"
+          },
+          {
+            "index": "146",
+            "topStyle": "13251.9px",
+            "offsetHeight": 88,
+            "offsetTop": 13252,
+            "rect": {
+              "x": 17,
+              "y": -85.0625,
+              "width": 751,
+              "height": 88.1875,
+              "top": -85.0625,
+              "right": 768,
+              "bottom": 3.125,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word 147fixture/team/service-01 #14"
+          },
+          {
+            "index": "147",
+            "topStyle": "13340.1px",
+            "offsetHeight": 88,
+            "offsetTop": 13340,
+            "rect": {
+              "x": 17,
+              "y": 3.125,
+              "width": 751,
+              "height": 88.1875,
+              "top": 3.125,
+              "right": 768,
+              "bottom": 91.3125,
+              "left": 17
+            },
+            "text": "Issue with a long variable length title word word word 148fixture/team/service-0"
+          }
+        ],
+        "observations": [
+          {
+            "time": 1133.199999988079,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          }
+        ]
+      }
+    },
+    {
+      "name": "after-100",
+      "data": {
+        "clientWidth": 182,
+        "clientHeight": 300,
+        "scrollTop": 14105.5,
+        "scrollHeight": 27988,
+        "zoom": "1",
+        "rows": [
+          {
+            "index": "140",
+            "topStyle": "12880px",
+            "offsetHeight": 86,
+            "offsetTop": 12880,
+            "rect": {
+              "x": 26,
+              "y": -1405,
+              "width": 363,
+              "height": 172.78125,
+              "top": -1405,
+              "right": 389,
+              "bottom": -1232.21875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 141fixture/team/service-01 #141"
+          },
+          {
+            "index": "141",
+            "topStyle": "12966.4px",
+            "offsetHeight": 106,
+            "offsetTop": 12966,
+            "rect": {
+              "x": 26,
+              "y": -1232.21875,
+              "width": 363,
+              "height": 211.78125,
+              "top": -1232.21875,
+              "right": 389,
+              "bottom": -1020.4375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 142fixture/team/service-01 #14"
+          },
+          {
+            "index": "142",
+            "topStyle": "13072.3px",
+            "offsetHeight": 148,
+            "offsetTop": 13072,
+            "rect": {
+              "x": 26,
+              "y": -1020.4375,
+              "width": 363,
+              "height": 295.171875,
+              "top": -1020.4375,
+              "right": 389,
+              "bottom": -725.265625,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 143fixture/team/service-0"
+          },
+          {
+            "index": "143",
+            "topStyle": "13219.9px",
+            "offsetHeight": 171,
+            "offsetTop": 13220,
+            "rect": {
+              "x": 26,
+              "y": -725.28125,
+              "width": 363,
+              "height": 342.171875,
+              "top": -725.28125,
+              "right": 389,
+              "bottom": -383.109375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word 144fixture/team/serv"
+          },
+          {
+            "index": "144",
+            "topStyle": "13390.9px",
+            "offsetHeight": 195,
+            "offsetTop": 13391,
+            "rect": {
+              "x": 26,
+              "y": -383.125,
+              "width": 363,
+              "height": 389.171875,
+              "top": -383.125,
+              "right": 389,
+              "bottom": 6.046875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word word 145fixture/team"
+          },
+          {
+            "index": "145",
+            "topStyle": "13585.5px",
+            "offsetHeight": 86,
+            "offsetTop": 13586,
+            "rect": {
+              "x": 26,
+              "y": 6.03125,
+              "width": 363,
+              "height": 172.78125,
+              "top": 6.03125,
+              "right": 389,
+              "bottom": 178.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 146fixture/team/service-01 #146"
+          },
+          {
+            "index": "146",
+            "topStyle": "13677.5px",
+            "offsetHeight": 106,
+            "offsetTop": 13678,
+            "rect": {
+              "x": 26,
+              "y": 190.03125,
+              "width": 363,
+              "height": 211.78125,
+              "top": 190.03125,
+              "right": 389,
+              "bottom": 401.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 147fixture/team/service-01 #14"
+          },
+          {
+            "index": "147",
+            "topStyle": "13769.5px",
+            "offsetHeight": 148,
+            "offsetTop": 13770,
+            "rect": {
+              "x": 26,
+              "y": 374.03125,
+              "width": 363,
+              "height": 295.171875,
+              "top": 374.03125,
+              "right": 389,
+              "bottom": 669.203125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 148fixture/team/service-0"
+          }
+        ],
+        "observations": [
+          {
+            "time": 1133.199999988079,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1159.3999999761581,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1216.2999999821186,
+            "index": "140",
+            "borderBox": 0,
+            "contentHeight": 0,
+            "offsetHeight": 0,
+            "rectHeight": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "after-900",
+      "data": {
+        "clientWidth": 182,
+        "clientHeight": 300,
+        "scrollTop": 14105.5,
+        "scrollHeight": 27988,
+        "zoom": "1",
+        "rows": [
+          {
+            "index": "140",
+            "topStyle": "12880px",
+            "offsetHeight": 86,
+            "offsetTop": 12880,
+            "rect": {
+              "x": 26,
+              "y": -1405,
+              "width": 363,
+              "height": 172.78125,
+              "top": -1405,
+              "right": 389,
+              "bottom": -1232.21875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 141fixture/team/service-01 #141"
+          },
+          {
+            "index": "141",
+            "topStyle": "12966.4px",
+            "offsetHeight": 106,
+            "offsetTop": 12966,
+            "rect": {
+              "x": 26,
+              "y": -1232.21875,
+              "width": 363,
+              "height": 211.78125,
+              "top": -1232.21875,
+              "right": 389,
+              "bottom": -1020.4375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 142fixture/team/service-01 #14"
+          },
+          {
+            "index": "142",
+            "topStyle": "13072.3px",
+            "offsetHeight": 148,
+            "offsetTop": 13072,
+            "rect": {
+              "x": 26,
+              "y": -1020.4375,
+              "width": 363,
+              "height": 295.171875,
+              "top": -1020.4375,
+              "right": 389,
+              "bottom": -725.265625,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 143fixture/team/service-0"
+          },
+          {
+            "index": "143",
+            "topStyle": "13219.9px",
+            "offsetHeight": 171,
+            "offsetTop": 13220,
+            "rect": {
+              "x": 26,
+              "y": -725.28125,
+              "width": 363,
+              "height": 342.171875,
+              "top": -725.28125,
+              "right": 389,
+              "bottom": -383.109375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word 144fixture/team/serv"
+          },
+          {
+            "index": "144",
+            "topStyle": "13390.9px",
+            "offsetHeight": 195,
+            "offsetTop": 13391,
+            "rect": {
+              "x": 26,
+              "y": -383.125,
+              "width": 363,
+              "height": 389.171875,
+              "top": -383.125,
+              "right": 389,
+              "bottom": 6.046875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word word 145fixture/team"
+          },
+          {
+            "index": "145",
+            "topStyle": "13585.5px",
+            "offsetHeight": 86,
+            "offsetTop": 13586,
+            "rect": {
+              "x": 26,
+              "y": 6.03125,
+              "width": 363,
+              "height": 172.78125,
+              "top": 6.03125,
+              "right": 389,
+              "bottom": 178.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 146fixture/team/service-01 #146"
+          },
+          {
+            "index": "146",
+            "topStyle": "13677.5px",
+            "offsetHeight": 106,
+            "offsetTop": 13678,
+            "rect": {
+              "x": 26,
+              "y": 190.03125,
+              "width": 363,
+              "height": 211.78125,
+              "top": 190.03125,
+              "right": 389,
+              "bottom": 401.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 147fixture/team/service-01 #14"
+          },
+          {
+            "index": "147",
+            "topStyle": "13769.5px",
+            "offsetHeight": 148,
+            "offsetTop": 13770,
+            "rect": {
+              "x": 26,
+              "y": 374.03125,
+              "width": 363,
+              "height": 295.171875,
+              "top": 374.03125,
+              "right": 389,
+              "bottom": 669.203125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 148fixture/team/service-0"
+          }
+        ],
+        "observations": [
+          {
+            "time": 1133.199999988079,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1159.3999999761581,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1216.2999999821186,
+            "index": "140",
+            "borderBox": 0,
+            "contentHeight": 0,
+            "offsetHeight": 0,
+            "rectHeight": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "after-3000",
+      "data": {
+        "clientWidth": 182,
+        "clientHeight": 300,
+        "scrollTop": 14105.5,
+        "scrollHeight": 27988,
+        "zoom": "1",
+        "rows": [
+          {
+            "index": "140",
+            "topStyle": "12880px",
+            "offsetHeight": 86,
+            "offsetTop": 12880,
+            "rect": {
+              "x": 26,
+              "y": -1405,
+              "width": 363,
+              "height": 172.78125,
+              "top": -1405,
+              "right": 389,
+              "bottom": -1232.21875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 141fixture/team/service-01 #141"
+          },
+          {
+            "index": "141",
+            "topStyle": "12966.4px",
+            "offsetHeight": 106,
+            "offsetTop": 12966,
+            "rect": {
+              "x": 26,
+              "y": -1232.21875,
+              "width": 363,
+              "height": 211.78125,
+              "top": -1232.21875,
+              "right": 389,
+              "bottom": -1020.4375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 142fixture/team/service-01 #14"
+          },
+          {
+            "index": "142",
+            "topStyle": "13072.3px",
+            "offsetHeight": 148,
+            "offsetTop": 13072,
+            "rect": {
+              "x": 26,
+              "y": -1020.4375,
+              "width": 363,
+              "height": 295.171875,
+              "top": -1020.4375,
+              "right": 389,
+              "bottom": -725.265625,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 143fixture/team/service-0"
+          },
+          {
+            "index": "143",
+            "topStyle": "13219.9px",
+            "offsetHeight": 171,
+            "offsetTop": 13220,
+            "rect": {
+              "x": 26,
+              "y": -725.28125,
+              "width": 363,
+              "height": 342.171875,
+              "top": -725.28125,
+              "right": 389,
+              "bottom": -383.109375,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word 144fixture/team/serv"
+          },
+          {
+            "index": "144",
+            "topStyle": "13390.9px",
+            "offsetHeight": 195,
+            "offsetTop": 13391,
+            "rect": {
+              "x": 26,
+              "y": -383.125,
+              "width": 363,
+              "height": 389.171875,
+              "top": -383.125,
+              "right": 389,
+              "bottom": 6.046875,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word word word 145fixture/team"
+          },
+          {
+            "index": "145",
+            "topStyle": "13585.5px",
+            "offsetHeight": 86,
+            "offsetTop": 13586,
+            "rect": {
+              "x": 26,
+              "y": 6.03125,
+              "width": 363,
+              "height": 172.78125,
+              "top": 6.03125,
+              "right": 389,
+              "bottom": 178.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word 146fixture/team/service-01 #146"
+          },
+          {
+            "index": "146",
+            "topStyle": "13677.5px",
+            "offsetHeight": 106,
+            "offsetTop": 13678,
+            "rect": {
+              "x": 26,
+              "y": 190.03125,
+              "width": 363,
+              "height": 211.78125,
+              "top": 190.03125,
+              "right": 389,
+              "bottom": 401.8125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word 147fixture/team/service-01 #14"
+          },
+          {
+            "index": "147",
+            "topStyle": "13769.5px",
+            "offsetHeight": 148,
+            "offsetTop": 13770,
+            "rect": {
+              "x": 26,
+              "y": 374.03125,
+              "width": 363,
+              "height": 295.171875,
+              "top": 374.03125,
+              "right": 389,
+              "bottom": 669.203125,
+              "left": 26
+            },
+            "text": "Issue with a long variable length title word word word 148fixture/team/service-0"
+          }
+        ],
+        "observations": [
+          {
+            "time": 1133.199999988079,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1159.3999999761581,
+            "index": "140",
+            "borderBox": 68.1875,
+            "contentHeight": 68.1875,
+            "offsetHeight": 68,
+            "rectHeight": 68.1875
+          },
+          {
+            "time": 1216.2999999821186,
+            "index": "140",
+            "borderBox": 0,
+            "contentHeight": 0,
+            "offsetHeight": 0,
+            "rectHeight": 0
+          }
+        ]
+      }
+    }
+  ]
+}

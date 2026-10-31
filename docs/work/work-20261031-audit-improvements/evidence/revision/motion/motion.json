@@ -1,0 +1,240 @@
+{
+  "scope": "Actual VSIX Webview with mock host in headless Chromium. Screencast frames and trace are not native VS Code.",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "6b9d190ae05ffad8718b229af8b016bde2bf4c08f57a7ddf3a19de3b9e90eecf",
+  "events": [
+    {
+      "action": "normal motion open and close settings",
+      "status": "PASS",
+      "elapsedMs": 1595,
+      "data": {
+        "animation": "overlay-enter"
+      }
+    },
+    {
+      "action": "rapidly reopen and close settings",
+      "status": "PASS",
+      "elapsedMs": 1632,
+      "data": null
+    },
+    {
+      "action": "interrupt an exiting drawer with a new open request",
+      "status": "PASS",
+      "elapsedMs": 1178,
+      "data": {
+        "phase": "entered",
+        "method": "programmatic click while exit scrim is present"
+      }
+    },
+    {
+      "action": "page and item transition",
+      "status": "PASS",
+      "elapsedMs": 2358,
+      "data": null
+    },
+    {
+      "action": "change reduced motion while running",
+      "status": "PASS",
+      "elapsedMs": 691,
+      "data": {
+        "animation": "none"
+      }
+    }
+  ],
+  "frames": [
+    {
+      "name": "frame-000.jpg",
+      "timestamp": 1793460504.649885
+    },
+    {
+      "name": "frame-001.jpg",
+      "timestamp": 1793460504.716607
+    },
+    {
+      "name": "frame-002.jpg",
+      "timestamp": 1793460504.78324
+    },
+    {
+      "name": "frame-003.jpg",
+      "timestamp": 1793460505.483286
+    },
+    {
+      "name": "frame-004.jpg",
+      "timestamp": 1793460505.550022
+    },
+    {
+      "name": "frame-005.jpg",
+      "timestamp": 1793460505.616598
+    },
+    {
+      "name": "frame-006.jpg",
+      "timestamp": 1793460506.166783
+    },
+    {
+      "name": "frame-007.jpg",
+      "timestamp": 1793460506.233439
+    },
+    {
+      "name": "frame-008.jpg",
+      "timestamp": 1793460506.30007
+    },
+    {
+      "name": "frame-009.jpg",
+      "timestamp": 1793460506.416713
+    },
+    {
+      "name": "frame-010.jpg",
+      "timestamp": 1793460506.48341
+    },
+    {
+      "name": "frame-011.jpg",
+      "timestamp": 1793460506.550044
+    },
+    {
+      "name": "frame-012.jpg",
+      "timestamp": 1793460506.616732
+    },
+    {
+      "name": "frame-013.jpg",
+      "timestamp": 1793460506.750144
+    },
+    {
+      "name": "frame-014.jpg",
+      "timestamp": 1793460506.816715
+    },
+    {
+      "name": "frame-015.jpg",
+      "timestamp": 1793460506.883446
+    },
+    {
+      "name": "frame-016.jpg",
+      "timestamp": 1793460507.000177
+    },
+    {
+      "name": "frame-017.jpg",
+      "timestamp": 1793460507.066719
+    },
+    {
+      "name": "frame-018.jpg",
+      "timestamp": 1793460507.133421
+    },
+    {
+      "name": "frame-019.jpg",
+      "timestamp": 1793460507.266705
+    },
+    {
+      "name": "frame-020.jpg",
+      "timestamp": 1793460507.333441
+    },
+    {
+      "name": "frame-021.jpg",
+      "timestamp": 1793460507.400076
+    },
+    {
+      "name": "frame-022.jpg",
+      "timestamp": 1793460507.566732
+    },
+    {
+      "name": "frame-023.jpg",
+      "timestamp": 1793460507.633473
+    },
+    {
+      "name": "frame-024.jpg",
+      "timestamp": 1793460507.70013
+    },
+    {
+      "name": "frame-025.jpg",
+      "timestamp": 1793460507.833471
+    },
+    {
+      "name": "frame-026.jpg",
+      "timestamp": 1793460507.900085
+    },
+    {
+      "name": "frame-027.jpg",
+      "timestamp": 1793460507.966769
+    },
+    {
+      "name": "frame-028.jpg",
+      "timestamp": 1793460508.133441
+    },
+    {
+      "name": "frame-029.jpg",
+      "timestamp": 1793460508.200156
+    },
+    {
+      "name": "frame-030.jpg",
+      "timestamp": 1793460508.266787
+    },
+    {
+      "name": "frame-031.jpg",
+      "timestamp": 1793460508.700159
+    },
+    {
+      "name": "frame-032.jpg",
+      "timestamp": 1793460508.766794
+    },
+    {
+      "name": "frame-033.jpg",
+      "timestamp": 1793460508.833511
+    },
+    {
+      "name": "frame-034.jpg",
+      "timestamp": 1793460508.966819
+    },
+    {
+      "name": "frame-035.jpg",
+      "timestamp": 1793460509.033475
+    },
+    {
+      "name": "frame-036.jpg",
+      "timestamp": 1793460509.10019
+    },
+    {
+      "name": "frame-037.jpg",
+      "timestamp": 1793460509.400242
+    },
+    {
+      "name": "frame-038.jpg",
+      "timestamp": 1793460509.466854
+    },
+    {
+      "name": "frame-039.jpg",
+      "timestamp": 1793460509.533538
+    },
+    {
+      "name": "frame-040.jpg",
+      "timestamp": 1793460509.85015
+    },
+    {
+      "name": "frame-041.jpg",
+      "timestamp": 1793460510.300236
+    },
+    {
+      "name": "frame-042.jpg",
+      "timestamp": 1793460510.366977
+    },
+    {
+      "name": "frame-043.jpg",
+      "timestamp": 1793460510.433569
+    },
+    {
+      "name": "frame-044.jpg",
+      "timestamp": 1793460510.767018
+    },
+    {
+      "name": "frame-045.jpg",
+      "timestamp": 1793460510.833681
+    },
+    {
+      "name": "frame-046.jpg",
+      "timestamp": 1793460510.900317
+    },
+    {
+      "name": "frame-047.jpg",
+      "timestamp": 1793460511.933672
+    }
+  ],
+  "runtimeErrors": [],
+  "blockedNetworkRequests": []
+}

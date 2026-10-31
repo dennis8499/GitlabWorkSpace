@@ -1,0 +1,52 @@
+{
+  "targetInfos": [
+    {
+      "targetId": "7668D996F5384866262541187CC449C6",
+      "type": "service_worker",
+      "title": "Service Worker vscode-webview://0f52mceiajdeudbrj6i5i2cnorcbkp7i1mkqu7nu2aoe5d3r8is6/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "url": "vscode-webview://0f52mceiajdeudbrj6i5i2cnorcbkp7i1mkqu7nu2aoe5d3r8is6/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "98BE4E92E32660BC59F0BF8D4771E87B"
+    },
+    {
+      "targetId": "10BBAFDF1577C1883AD42B0C4335FD63",
+      "type": "service_worker",
+      "title": "Service Worker vscode-webview://1n72m2f6tb9400jdtg09api6bhn72h6ndiodii8nlaeoqh1as5mb/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "url": "vscode-webview://1n72m2f6tb9400jdtg09api6bhn72h6ndiodii8nlaeoqh1as5mb/service-worker.js?v=6&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&remoteAuthority=&platform=electron",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "98BE4E92E32660BC59F0BF8D4771E87B"
+    },
+    {
+      "targetId": "6E7271AF16528A0258CB6B82562FFAE8",
+      "type": "worker",
+      "title": "editorWorkerService",
+      "url": "blob:vscode-file://vscode-app/8d34fded-ccb9-4935-8127-9d05faacc590",
+      "attached": true,
+      "canAccessOpener": false,
+      "parentFrameId": "16D7B3CA5EEC173D150A880E39FA34FB",
+      "browserContextId": "98BE4E92E32660BC59F0BF8D4771E87B"
+    },
+    {
+      "targetId": "16D7B3CA5EEC173D150A880E39FA34FB",
+      "type": "page",
+      "title": "[Extension Development Host] Native Graph Worker Probe - local-git-gui (Workspace) - Visual Studio Code",
+      "url": "vscode-file://vscode-app/c:/Users/denni/AppData/Local/Programs/Microsoft%20VS%20Code/2c33b50b16/resources/app/out/vs/code/electron-browser/workbench/workbench.html",
+      "attached": true,
+      "canAccessOpener": false,
+      "browserContextId": "98BE4E92E32660BC59F0BF8D4771E87B"
+    },
+    {
+      "targetId": "F905DDD3AFF80769D37A02F6B09DB016",
+      "type": "iframe",
+      "title": "vscode-webview://1n72m2f6tb9400jdtg09api6bhn72h6ndiodii8nlaeoqh1as5mb/index.html?id=18e922de-7d02-4b87-9fbe-48c27d42144e&parentId=1&origin=838243de-e59b-4ce0-b39f-3d413fe27d84&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=5a726ca6-4de1-42ab-9fc5-3886124893a7",
+      "url": "vscode-webview://1n72m2f6tb9400jdtg09api6bhn72h6ndiodii8nlaeoqh1as5mb/index.html?id=18e922de-7d02-4b87-9fbe-48c27d42144e&parentId=1&origin=838243de-e59b-4ce0-b39f-3d413fe27d84&swVersion=6&extensionId=nullExtensionDescription&platform=electron&vscode-resource-base-authority=vscode-resource.vscode-cdn.net&parentOrigin=vscode-file%3A%2F%2Fvscode-app&mountId=5a726ca6-4de1-42ab-9fc5-3886124893a7",
+      "attached": true,
+      "parentId": "16D7B3CA5EEC173D150A880E39FA34FB",
+      "canAccessOpener": false,
+      "parentFrameId": "16D7B3CA5EEC173D150A880E39FA34FB",
+      "browserContextId": "98BE4E92E32660BC59F0BF8D4771E87B"
+    }
+  ]
+}

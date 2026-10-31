@@ -1,0 +1,117 @@
+{
+  "schema": "gitlab-workspace-validation/v1",
+  "mode": "package",
+  "workers": 2,
+  "seconds": 16.639,
+  "nodeVersion": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64",
+  "status": "failed",
+  "success": false,
+  "error": "verify-package failed; see C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\verify-package.log",
+  "stages": [
+    {
+      "id": "clean-compiled",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/clean-compiled.mjs"
+      ],
+      "startedAt": "2026-10-31T14:53:47.040Z",
+      "finishedAt": "2026-10-31T14:53:47.240Z",
+      "seconds": 0.2,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\clean-compiled.log"
+    },
+    {
+      "id": "compile",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "."
+      ],
+      "startedAt": "2026-10-31T14:53:47.242Z",
+      "finishedAt": "2026-10-31T14:53:48.450Z",
+      "seconds": 1.208,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\compile.log"
+    },
+    {
+      "id": "typecheck-webview",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "tsconfig.webview.json"
+      ],
+      "startedAt": "2026-10-31T14:53:48.453Z",
+      "finishedAt": "2026-10-31T14:53:49.558Z",
+      "seconds": 1.105,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\typecheck-webview.log"
+    },
+    {
+      "id": "build-dashboard",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.dashboard.config.mjs"
+      ],
+      "startedAt": "2026-10-31T14:53:49.560Z",
+      "finishedAt": "2026-10-31T14:53:51.406Z",
+      "seconds": 1.845,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\build-dashboard.log"
+    },
+    {
+      "id": "build-sidebar",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.sidebar.config.mjs"
+      ],
+      "startedAt": "2026-10-31T14:53:51.408Z",
+      "finishedAt": "2026-10-31T14:53:51.993Z",
+      "seconds": 0.586,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\build-sidebar.log"
+    },
+    {
+      "id": "package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/package-extension.mjs",
+        "--prepared"
+      ],
+      "startedAt": "2026-10-31T14:53:52.661Z",
+      "finishedAt": "2026-10-31T14:54:03.023Z",
+      "seconds": 10.362,
+      "exitCode": 0,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\package.log"
+    },
+    {
+      "id": "verify-package",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/run-python.mjs",
+        "scripts/verify-vsix.py"
+      ],
+      "startedAt": "2026-10-31T14:54:03.025Z",
+      "finishedAt": "2026-10-31T14:54:03.676Z",
+      "seconds": 0.651,
+      "exitCode": 1,
+      "signal": null,
+      "log": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\.gitlab-workspace-validation\\runs\\2026-10-31T14-53-47.031Z-7840\\verify-package.log"
+    }
+  ]
+}

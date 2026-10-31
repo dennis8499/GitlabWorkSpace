@@ -1,0 +1,30 @@
+{
+  "baseCommit": "164e0f9a5a8beb7581814532f8b84af7a6d495fd",
+  "overlays": [
+    {
+      "path": "src/webview/IssueGraph.tsx",
+      "sha256": "c2671cc081e9d3bfc94f337cc092d2eaa061821f3f3635d531ea347ccdb8c953"
+    },
+    {
+      "path": "src/webview/VirtualRows.tsx",
+      "sha256": "3216b0976c3674b96dcdff437f61ee44e1a2264efa17f4552f80185a29f544f2"
+    },
+    {
+      "path": "src/webview/dashboard.css",
+      "sha256": "7344151b7494bf6fa53e8ce206d61bceed156c9ae215d43cf6c43b362d18f8d1"
+    },
+    {
+      "path": "src/webview/dashboard.tsx",
+      "sha256": "76efe5a63a1fd553334b000b93ade7ce2a8715dab7209f0c0b5142687865d165"
+    },
+    {
+      "path": "test/behavior/dashboard.test.mjs",
+      "sha256": "de2d25637f398cf5fe3f0cf4bde4e8078364f816a53dd07dbddf97888849bc59"
+    },
+    {
+      "path": "scripts/validate-packaged-ui.mjs",
+      "sha256": "31a531e17bd3d64e8fa92314e5613e066a10b57a8e81e9fda19ef0199bff45bb"
+    }
+  ],
+  "scope": "Recorded base commit plus audit-improvement overlays; concurrent unrelated working-tree edits are not included."
+}

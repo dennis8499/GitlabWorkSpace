@@ -1,0 +1,24 @@
+{
+  "schema": "GitLabWorkspaceGraphWorkerSmoke/v1",
+  "checkedAt": "2026-10-31T15:44:26.024Z",
+  "browser": "156.0.8078.74",
+  "scriptSha256": "795a4a455e28723c376978538a1965e0bbf3f4e4aa62d92977bb7a2fe0bf8576",
+  "workerPolicy": "worker-src blob:",
+  "checks": [
+    "inline Blob constructor",
+    "real layout replies",
+    "inactive pause",
+    "resume",
+    "hidden pause",
+    "visibility resume",
+    "terminate on unmount"
+  ],
+  "workerUrls": [
+    "blob:http://127.0.0.1:52191/96bb7cc6-42bb-4d80-8184-f58d31bdcea3",
+    "blob:http://127.0.0.1:52191/b80a5430-7a41-4347-af17-cf6da7d1d155"
+  ],
+  "workerReplies": 2,
+  "workerErrors": [],
+  "terminatedWorkers": 2,
+  "errors": []
+}

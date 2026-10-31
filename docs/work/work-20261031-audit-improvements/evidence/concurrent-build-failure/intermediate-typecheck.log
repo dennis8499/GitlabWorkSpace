@@ -1,0 +1,3 @@
+Command: ["C:\\Program Files\\nodejs\\node.exe","node_modules/typescript/bin/tsc","-p","tsconfig.webview.json"]
+src/webview/VirtualRows.tsx(43,54): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLDivElement | null'.
+  Property 'align' is missing in type 'HTMLElement' but required in type 'HTMLDivElement'.

@@ -2642,6 +2642,8 @@ test('opens the Issue graph on demand, applies shared filters with one-hop conte
   view.sendSnapshot(graphSnapshot);
   await view.tick();
   assert.equal(document.querySelectorAll('.graph-node').length, 3);
+  assert.equal(document.querySelector('.graph-node').getAttribute('tabindex'), '0');
+  assert.equal(document.querySelector('.graph-node-focus-ring')?.getAttribute('aria-hidden'), 'true');
   assert.equal(document.querySelectorAll('.graph-edge').length, 2);
 
   const labelFilter = document.querySelector('select[aria-label="Issue Label"]');
@@ -3024,6 +3026,37 @@ test('restores a Group-scoped Milestone filter and resets it after the selected 
   assert.equal(view.savedState.scopedData['team-scope'].issueMilestoneFilter, 'all');
   assert.equal(view.dom.window.document.querySelectorAll('.work-row').length, 3);
 
+});
+
+test('Repo path labels its checkbox and clicking the name toggles only that project', async t => {
+  const data = snapshot('clone');
+  const view = await mount({ mode: 'clone', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const row = document.querySelector('.repo-row');
+  const checkbox = row.querySelector('input[type="checkbox"]');
+  const label = row.querySelector('label');
+  assert.equal(label.control, checkbox);
+  assert.equal(label.textContent, data.projects[0].path_with_namespace);
+  label.click(); await view.tick();
+  assert.equal(checkbox.checked, true);
+  assert.deepEqual(view.savedState.selectedProjectIds, [data.projects[0].id]);
+  label.click(); await view.tick();
+  assert.equal(checkbox.checked, false);
+  assert.deepEqual(view.savedState.selectedProjectIds, []);
+});
+
+test('focus follows a removed Issue and returns to search when the list becomes empty', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer', scopeKey: 'team-scope' }, data);
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  document.querySelectorAll('.work-list .work-row')[1].focus();
+  const remaining = [data.issues[0], data.issues[2]];
+  view.sendSnapshot({ ...data, issues: remaining }); await view.tick();
+  assert.match(document.activeElement.textContent, new RegExp(remaining[1].title));
+  view.sendSnapshot({ ...data, issues: [] }); await view.tick();
+  assert.equal(document.activeElement, document.querySelector('input[aria-label="搜尋 Issue"]'));
 });
 
 test('selects only visible Repo search results, preserves hidden selections, and reports partial selection', async (t) => {

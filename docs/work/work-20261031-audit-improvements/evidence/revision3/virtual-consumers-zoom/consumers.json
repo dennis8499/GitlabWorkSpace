@@ -1,0 +1,212 @@
+{
+  "artifactSha256": "f08906aaf4274bacc0f281f3f450ab50f5e67bbf619b3c03919a48b21760384d",
+  "browser": "156.0.8078.74",
+  "scope": "Packaged VSIX Webview, synthetic data and mock Host in Chromium; not native VS Code or GitLab.",
+  "cases": [
+    {
+      "name": "MR 200/201 boundary, scrolling and full-data keyboard navigation",
+      "status": "PASS",
+      "detail": {
+        "before": {
+          "key": "1:85",
+          "offset": -0.25,
+          "scrollTop": 8500
+        },
+        "windowed": {
+          "key": "1:85",
+          "offset": -0.25,
+          "scrollTop": 8500
+        },
+        "restored": {
+          "key": "1:85",
+          "offset": -0.25,
+          "scrollTop": 8500
+        },
+        "mounted": 16,
+        "wheelDelta": 300,
+        "keyboard": "End, ArrowUp, Home, ArrowDown and Enter selected the last MR"
+      }
+    },
+    {
+      "name": "clone: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 16974
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "fixture/team/scale-299預設分支：main　·　本機：尚未 Clone尚未 Clone"
+        }
+      }
+    },
+    {
+      "name": "developer: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 26926
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "Scale issue 299fixture/team/service-01 #299fixture"
+        }
+      }
+    },
+    {
+      "name": "reviewer: operate last item and recover focus when it is removed",
+      "status": "PASS",
+      "detail": {
+        "wheelReachedEnd": true,
+        "scrollbar": {
+          "status": "BLOCKED",
+          "position": {
+            "top": 0,
+            "max": 32640
+          },
+          "reason": "Headless Chromium also failed to drag a standalone native scrollbar; see scrollbar-diagnostic."
+        },
+        "lastActivated": true,
+        "focusAfterRemoval": {
+          "index": "298",
+          "text": "!299　MR scale 299fixture/team/service-01 · Fixture Userfeature/sample → mainPipeline：未設定"
+        }
+      }
+    },
+    {
+      "name": "clone: wrapped variable heights after resize, zoom and hide/restore",
+      "status": "PASS",
+      "detail": {
+        "resized": {
+          "rows": 21,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 20304,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "restored": {
+          "rows": 21,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 20436,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "end": {
+          "rows": 12,
+          "overlaps": [],
+          "clientHeight": 94,
+          "scrollHeight": 22020,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "lastReached": true,
+        "zoomBoundary": {
+          "before": {
+            "key": "82",
+            "offset": -328,
+            "scrollTop": 16254
+          },
+          "after": {
+            "key": "82",
+            "offset": -328,
+            "scrollTop": 16254
+          }
+        }
+      }
+    },
+    {
+      "name": "developer: wrapped variable heights after resize, zoom and hide/restore",
+      "status": "PASS",
+      "detail": {
+        "resized": {
+          "rows": 24,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 28816,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "restored": {
+          "rows": 24,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 28816,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "end": {
+          "rows": 14,
+          "overlaps": [],
+          "clientHeight": 300,
+          "scrollHeight": 29613,
+          "documentWidth": 430,
+          "viewportWidth": 430
+        },
+        "lastReached": true,
+        "zoomBoundary": {
+          "before": {
+            "key": "1:86",
+            "offset": -2.28125,
+            "scrollTop": 12013.5
+          },
+          "after": {
+            "key": "1:86",
+            "offset": -2.28125,
+            "scrollTop": 12013.5
+          }
+        }
+      }
+    },
+    {
+      "name": "MR Diff expansion and scroll survive virtual unmount and hidden tab",
+      "status": "PASS",
+      "detail": {
+        "expandedAfterRemount": true,
+        "before": {
+          "key": "src/file-150.ts",
+          "offset": -1.5,
+          "scrollTop": 6887
+        },
+        "after": {
+          "key": "src/file-150.ts",
+          "offset": -1.5,
+          "scrollTop": 6887
+        },
+        "mounted": 29
+      }
+    },
+    {
+      "name": "Clone operation results retain scroll after stable-ID update",
+      "status": "PASS",
+      "detail": {
+        "before": {
+          "key": "152",
+          "offset": -10,
+          "scrollTop": 4133
+        },
+        "after": {
+          "key": "152",
+          "offset": -10,
+          "scrollTop": 4133
+        },
+        "mounted": 25
+      }
+    }
+  ]
+}

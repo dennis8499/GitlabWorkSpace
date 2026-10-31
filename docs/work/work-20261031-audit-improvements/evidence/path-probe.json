@@ -1,0 +1,647 @@
+{
+  "scope": "Same isolated local bare repository and ls-remote command; no remote Git writes. The diagnostic supervisor is a copy with exception logging only.",
+  "platform": "win32",
+  "node": "v24.21.0",
+  "git": "C:\\Program Files\\Git\\cmd\\git.exe",
+  "supervisor": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\resources\\windows-git-supervisor.ps1",
+  "cases": [
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 1,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "08a7ef4f-b41e-4b3f-82a5-9b54496f1da3",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 722,
+      "relativeReceipt": "p\\212-01-dxxx\\execution-08a7ef4f-b41e-4b3f-82a5-9b54496f1da3.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 2,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "9f168764-fcfc-4377-a0a5-6f02274594de",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 674,
+      "relativeReceipt": "p\\212-02-dxxx\\execution-9f168764-fcfc-4377-a0a5-6f02274594de.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 3,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "ee15b0e8-f36c-470c-af54-c871ff9152a9",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 603,
+      "relativeReceipt": "p\\212-03-dxxx\\execution-ee15b0e8-f36c-470c-af54-c871ff9152a9.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 4,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "39f7edb5-3360-455e-9bbb-ba7c4ec128f9",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 692,
+      "relativeReceipt": "p\\212-04-dxxx\\execution-39f7edb5-3360-455e-9bbb-ba7c4ec128f9.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 5,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "b9f2a5b1-fe83-48d2-87ae-210f9d6d209b",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 648,
+      "relativeReceipt": "p\\212-05-dxxx\\execution-b9f2a5b1-fe83-48d2-87ae-210f9d6d209b.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 6,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "efaf64a7-8b85-4176-9bd3-08b954bc9144",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 676,
+      "relativeReceipt": "p\\212-06-dxxx\\execution-efaf64a7-8b85-4176-9bd3-08b954bc9144.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 7,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "e8165487-af6d-40db-858b-89e50e0f7554",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 700,
+      "relativeReceipt": "p\\212-07-dxxx\\execution-e8165487-af6d-40db-858b-89e50e0f7554.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 8,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "1600d92c-bbef-4827-82bc-7a365d9824ec",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 670,
+      "relativeReceipt": "p\\212-08-dxxx\\execution-1600d92c-bbef-4827-82bc-7a365d9824ec.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 9,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "c25330bc-c276-4257-80fc-88f860bd3ad7",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 720,
+      "relativeReceipt": "p\\212-09-dxxx\\execution-c25330bc-c276-4257-80fc-88f860bd3ad7.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 10,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "e59d4c03-bd8f-45be-b405-095770e09a71",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 727,
+      "relativeReceipt": "p\\212-10-dxxx\\execution-e59d4c03-bd8f-45be-b405-095770e09a71.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 1,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "38febe76-9aa0-48e3-890d-396554817955",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 722,
+      "relativeReceipt": "p\\259-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-38febe76-9aa0-48e3-890d-396554817955.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 2,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "8118a1d2-a845-4af1-8e66-5cd896c16eba",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 784,
+      "relativeReceipt": "p\\259-02-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-8118a1d2-a845-4af1-8e66-5cd896c16eba.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 3,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "54319d2a-a86d-4548-a53c-5c78d37f4264",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 746,
+      "relativeReceipt": "p\\259-03-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-54319d2a-a86d-4548-a53c-5c78d37f4264.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 4,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "7ba6609d-e47a-4d8a-8546-2564edffa0e5",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 730,
+      "relativeReceipt": "p\\259-04-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-7ba6609d-e47a-4d8a-8546-2564edffa0e5.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 5,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "0a26f38f-517e-485c-980d-2c1d66fa4497",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 707,
+      "relativeReceipt": "p\\259-05-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-0a26f38f-517e-485c-980d-2c1d66fa4497.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 6,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "ec8c5f6f-18c5-44d0-b968-b28bde01c07a",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 745,
+      "relativeReceipt": "p\\259-06-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-ec8c5f6f-18c5-44d0-b968-b28bde01c07a.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 7,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "26c8e95b-9ecb-408f-a1cb-fcd48d16a93e",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 710,
+      "relativeReceipt": "p\\259-07-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-26c8e95b-9ecb-408f-a1cb-fcd48d16a93e.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 8,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "2a854d05-9e1e-4744-944c-0b434203dc08",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 940,
+      "relativeReceipt": "p\\259-08-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-2a854d05-9e1e-4744-944c-0b434203dc08.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 9,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "e0dc1a59-f734-461d-9c43-5014083dabfa",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 1194,
+      "relativeReceipt": "p\\259-09-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-e0dc1a59-f734-461d-9c43-5014083dabfa.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 10,
+      "instrumented": true,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "185e6630-fb4f-4b0e-b13d-3492398a9204",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 845,
+      "relativeReceipt": "p\\259-10-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-185e6630-fb4f-4b0e-b13d-3492398a9204.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 1,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-c8026a2d-b335-4c10-8e17-e4fae3d5bf1a.json.tmp-c8026a2d-b335-4c10-8e17-e4fae3d5bf1a' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 835,
+      "relativeReceipt": "p\\260-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-c8026a2d-b335-4c10-8e17-e4fae3d5bf1a.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 2,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-02-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-1253265d-12b2-4385-b952-7131a541b1d4.json.tmp-1253265d-12b2-4385-b952-7131a541b1d4' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 786,
+      "relativeReceipt": "p\\260-02-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-1253265d-12b2-4385-b952-7131a541b1d4.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 3,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-03-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-59b8356d-4a22-4e89-bbf1-1a03c4a5c3ad.json.tmp-59b8356d-4a22-4e89-bbf1-1a03c4a5c3ad' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 808,
+      "relativeReceipt": "p\\260-03-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-59b8356d-4a22-4e89-bbf1-1a03c4a5c3ad.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 4,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-04-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-3f135bb3-d21c-4c79-a3cc-24188e24a50b.json.tmp-3f135bb3-d21c-4c79-a3cc-24188e24a50b' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 707,
+      "relativeReceipt": "p\\260-04-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-3f135bb3-d21c-4c79-a3cc-24188e24a50b.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 5,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-05-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-0d970424-3687-4c8c-a7cc-bd3e82d4c69a.json.tmp-0d970424-3687-4c8c-a7cc-bd3e82d4c69a' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 702,
+      "relativeReceipt": "p\\260-05-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-0d970424-3687-4c8c-a7cc-bd3e82d4c69a.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 6,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-06-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-81d5a9c7-3fbb-4cd3-b8ca-a5b6dd4bcdd4.json.tmp-81d5a9c7-3fbb-4cd3-b8ca-a5b6dd4bcdd4' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 741,
+      "relativeReceipt": "p\\260-06-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-81d5a9c7-3fbb-4cd3-b8ca-a5b6dd4bcdd4.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 7,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-07-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-9bf013fe-705c-4fbe-a499-9edba64df945.json.tmp-9bf013fe-705c-4fbe-a499-9edba64df945' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 730,
+      "relativeReceipt": "p\\260-07-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-9bf013fe-705c-4fbe-a499-9edba64df945.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 8,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-08-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-e011f216-92cd-4dfd-8c2f-8c143d1b41a7.json.tmp-e011f216-92cd-4dfd-8c2f-8c143d1b41a7' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 694,
+      "relativeReceipt": "p\\260-08-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-e011f216-92cd-4dfd-8c2f-8c143d1b41a7.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 9,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-09-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-5f9b2909-ba4e-4309-b27b-b9608b259f4a.json.tmp-5f9b2909-ba4e-4309-b27b-b9608b259f4a' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 696,
+      "relativeReceipt": "p\\260-09-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-5f9b2909-ba4e-4309-b27b-b9608b259f4a.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 10,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\260-10-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-f26484d7-2d3a-4d67-bb7a-022ce2c1ddc1.json.tmp-f26484d7-2d3a-4d67-bb7a-022ce2c1ddc1' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 737,
+      "relativeReceipt": "p\\260-10-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-f26484d7-2d3a-4d67-bb7a-022ce2c1ddc1.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 1,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-5f0bbf4b-6c39-4caf-b99a-6470fb49857b.json.tmp-5f0bbf4b-6c39-4caf-b99a-6470fb49857b' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 711,
+      "relativeReceipt": "p\\268-01-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-5f0bbf4b-6c39-4caf-b99a-6470fb49857b.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 2,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-02-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-febe4393-6f82-47fe-8ceb-a47cc6ffcfc1.json.tmp-febe4393-6f82-47fe-8ceb-a47cc6ffcfc1' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 859,
+      "relativeReceipt": "p\\268-02-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-febe4393-6f82-47fe-8ceb-a47cc6ffcfc1.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 3,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-03-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d137b1d3-acaa-4ed4-99f8-046a2ec026af.json.tmp-d137b1d3-acaa-4ed4-99f8-046a2ec026af' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 724,
+      "relativeReceipt": "p\\268-03-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d137b1d3-acaa-4ed4-99f8-046a2ec026af.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 4,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-04-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-0dc18076-f696-4e85-8f5d-09c6991692e5.json.tmp-0dc18076-f696-4e85-8f5d-09c6991692e5' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 699,
+      "relativeReceipt": "p\\268-04-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-0dc18076-f696-4e85-8f5d-09c6991692e5.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 5,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-05-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d0924773-8bca-4597-ba3e-826d65f58e9b.json.tmp-d0924773-8bca-4597-ba3e-826d65f58e9b' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 728,
+      "relativeReceipt": "p\\268-05-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d0924773-8bca-4597-ba3e-826d65f58e9b.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 6,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-06-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d1770042-938c-4f66-94a9-e4ba10b45194.json.tmp-d1770042-938c-4f66-94a9-e4ba10b45194' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 729,
+      "relativeReceipt": "p\\268-06-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-d1770042-938c-4f66-94a9-e4ba10b45194.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 7,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-07-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-13ea7ef9-a460-40cd-a9eb-2fe8f757f6bc.json.tmp-13ea7ef9-a460-40cd-a9eb-2fe8f757f6bc' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 690,
+      "relativeReceipt": "p\\268-07-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-13ea7ef9-a460-40cd-a9eb-2fe8f757f6bc.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 8,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-08-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-ee6e9454-82a8-443d-aafc-b8dbf70fca92.json.tmp-ee6e9454-82a8-443d-aafc-b8dbf70fca92' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 696,
+      "relativeReceipt": "p\\268-08-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-ee6e9454-82a8-443d-aafc-b8dbf70fca92.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 9,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-09-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-6f0028be-a1b5-4fcd-a850-f46b6872a5fc.json.tmp-6f0028be-a1b5-4fcd-a850-f46b6872a5fc' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 687,
+      "relativeReceipt": "p\\268-09-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-6f0028be-a1b5-4fcd-a850-f46b6872a5fc.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 10,
+      "instrumented": true,
+      "code": 125,
+      "stdout": "",
+      "stderr": "AUDIT_CSHARP System.IO.DirectoryNotFoundException: �䤣����| 'C:\\Users\\denni\\OneDrive\\Desktop\\�s�W��Ƨ�\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\p\\268-10-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-b6316794-1224-4437-89a5-4366e8480977.json.tmp-b6316794-1224-4437-89a5-4366e8480977' ���@�����C\r\n",
+      "receipt": null,
+      "elapsedMs": 792,
+      "relativeReceipt": "p\\268-10-dxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-b6316794-1224-4437-89a5-4366e8480977.json"
+    },
+    {
+      "targetTemporaryLength": 212,
+      "actualTemporaryLength": 212,
+      "round": 1,
+      "instrumented": false,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "fa582750-e2ed-40dc-b1e4-c81b86387fea",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 1046,
+      "relativeReceipt": "p\\212-01-pxxx\\execution-fa582750-e2ed-40dc-b1e4-c81b86387fea.json"
+    },
+    {
+      "targetTemporaryLength": 259,
+      "actualTemporaryLength": 259,
+      "round": 1,
+      "instrumented": false,
+      "code": 0,
+      "stdout": "",
+      "stderr": "",
+      "receipt": {
+        "schema": "GitLabWorkspaceGitExecution/v1",
+        "nonce": "e7d475d1-94df-4991-9162-d25f5ee0e139",
+        "exitCode": 0,
+        "processTreeConfirmed": true
+      },
+      "elapsedMs": 717,
+      "relativeReceipt": "p\\259-01-pxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-e7d475d1-94df-4991-9162-d25f5ee0e139.json"
+    },
+    {
+      "targetTemporaryLength": 260,
+      "actualTemporaryLength": 260,
+      "round": 1,
+      "instrumented": false,
+      "code": 125,
+      "stdout": "",
+      "stderr": "",
+      "receipt": null,
+      "elapsedMs": 786,
+      "relativeReceipt": "p\\260-01-pxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-3c8745f2-8963-434f-81e8-73a2dcb29606.json"
+    },
+    {
+      "targetTemporaryLength": 268,
+      "actualTemporaryLength": 268,
+      "round": 1,
+      "instrumented": false,
+      "code": 125,
+      "stdout": "",
+      "stderr": "",
+      "receipt": null,
+      "elapsedMs": 741,
+      "relativeReceipt": "p\\268-01-pxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\execution-27a46f5f-6d5b-4db3-b83f-a25ae99b02ee.json"
+    }
+  ]
+}

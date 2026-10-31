@@ -1,0 +1,1807 @@
+{
+  "scope": "Actual VSIX in Chromium mock host, real viewport and hit testing; no VS Code or GitLab",
+  "browser": "156.0.8078.74",
+  "artifactSha256": "259138475105addb82648f4d7a24fdc8eaf3bf2975e66c7b35378fa0b686f142",
+  "cases": [
+    {
+      "mode": "clone",
+      "count": 200,
+      "status": "PASS",
+      "initial": {
+        "rows": 200,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0200\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11800,
+            "scrollHeight": 11800,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 12058,
+              "height": 11800
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 11967,
+            "scrollHeight": 11967,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12176,
+              "height": 11969
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 11969,
+            "scrollHeight": 11969,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12176,
+              "height": 11969
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12096,
+            "scrollHeight": 12096,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 12176,
+              "height": 12096
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12146,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 200,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0200\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11800,
+            "scrollHeight": 11800,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 12058,
+              "height": 11800
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 11967,
+            "scrollHeight": 11967,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12176,
+              "height": 11969
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 11969,
+            "scrollHeight": 11969,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12176,
+              "height": 11969
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12096,
+            "scrollHeight": 12096,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 12176,
+              "height": 12096
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12146,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 200,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0200\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11800,
+            "scrollHeight": 11800,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -11080,
+              "bottom": 720,
+              "height": 11800
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 11967,
+            "scrollHeight": 11967,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11131,
+              "bottom": 838,
+              "height": 11969
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 11969,
+            "scrollHeight": 11969,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11131,
+              "bottom": 838,
+              "height": 11969
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12096,
+            "scrollHeight": 12096,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11258,
+              "bottom": 838,
+              "height": 12096
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12146,
+            "scrollTop": 11338,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 661,
+          "bottom": 720,
+          "left": 25,
+          "right": 1400
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<span class=\"repo-details\"><strong>fixture/team/scale-0200</strong><small>預設分支：main　·　本機：尚未 Clone</small></span>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "NOT_EXPECTED"
+    },
+    {
+      "mode": "clone",
+      "count": 201,
+      "status": "PASS",
+      "initial": {
+        "rows": 201,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0201\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11859,
+            "scrollHeight": 11859,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 12117,
+              "height": 11859
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 12026,
+            "scrollHeight": 12026,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12235,
+              "height": 12028
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 12028,
+            "scrollHeight": 12028,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12235,
+              "height": 12028
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12155,
+            "scrollHeight": 12155,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 12235,
+              "height": 12155
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12205,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 201,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0201\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11859,
+            "scrollHeight": 11859,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 12117,
+              "height": 11859
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 12026,
+            "scrollHeight": 12026,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12235,
+              "height": 12028
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 12028,
+            "scrollHeight": 12028,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 12235,
+              "height": 12028
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12155,
+            "scrollHeight": 12155,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 12235,
+              "height": 12155
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12205,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 201,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-0201\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 11859,
+            "scrollHeight": 11859,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -11139,
+              "bottom": 720,
+              "height": 11859
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 12026,
+            "scrollHeight": 12026,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11190,
+              "bottom": 838,
+              "height": 12028
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 12028,
+            "scrollHeight": 12028,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11190,
+              "bottom": 838,
+              "height": 12028
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 12155,
+            "scrollHeight": 12155,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -11317,
+              "bottom": 838,
+              "height": 12155
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 12205,
+            "scrollTop": 11397,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 661,
+          "bottom": 720,
+          "left": 25,
+          "right": 1400
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<span class=\"repo-details\"><strong>fixture/team/scale-0201</strong><small>預設分支：main　·　本機：尚未 Clone</small></span>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "FAIL_ALL_ROWS_MOUNTED"
+    },
+    {
+      "mode": "clone",
+      "count": 2000,
+      "status": "PASS",
+      "initial": {
+        "rows": 2000,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-2000\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 118000,
+            "scrollHeight": 118000,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 118258,
+              "height": 118000
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 118167,
+            "scrollHeight": 118167,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 118376,
+              "height": 118169
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 118169,
+            "scrollHeight": 118169,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 118376,
+              "height": 118169
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 118296,
+            "scrollHeight": 118296,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 118376,
+              "height": 118296
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 118346,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 2000,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-2000\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 118000,
+            "scrollHeight": 118000,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 258,
+              "bottom": 118258,
+              "height": 118000
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 118167,
+            "scrollHeight": 118167,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 118376,
+              "height": 118169
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 118169,
+            "scrollHeight": 118169,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 207,
+              "bottom": 118376,
+              "height": 118169
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 118296,
+            "scrollHeight": 118296,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 118376,
+              "height": 118296
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 118346,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 2000,
+        "first": "fixture/team/scale-0001\n預設分支：main　·　本機：C:/fixture/team/service-01\n1 個本機副本\n開啟版控 · service-01",
+        "last": "fixture/team/scale-2000\n預設分支：main　·　本機：尚未 Clone\n尚未 Clone",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "repo-list",
+            "clientHeight": 118000,
+            "scrollHeight": 118000,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -117280,
+              "bottom": 720,
+              "height": 118000
+            }
+          },
+          {
+            "class": "list-column clone-list-column",
+            "clientHeight": 118167,
+            "scrollHeight": 118167,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -117331,
+              "bottom": 838,
+              "height": 118169
+            }
+          },
+          {
+            "class": "mode-content clone-mode-content",
+            "clientHeight": 118169,
+            "scrollHeight": 118169,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -117331,
+              "bottom": 838,
+              "height": 118169
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 118296,
+            "scrollHeight": 118296,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -117458,
+              "bottom": 838,
+              "height": 118296
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 118346,
+            "scrollTop": 117538,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "app-shell",
+            "clientHeight": 900,
+            "scrollHeight": 900,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 0,
+              "bottom": 900,
+              "height": 900
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 661,
+          "bottom": 720,
+          "left": 25,
+          "right": 1400
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<span class=\"repo-details\"><strong>fixture/team/scale-2000</strong><small>預設分支：main　·　本機：尚未 Clone</small></span>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "FAIL_ALL_ROWS_MOUNTED"
+    },
+    {
+      "mode": "developer",
+      "count": 200,
+      "status": "PASS",
+      "initial": {
+        "rows": 200,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 200\nfixture/team/scale-0001 #200\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17638,
+            "scrollHeight": 17638,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 17930.5,
+              "height": 17637.5
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17678,
+            "scrollHeight": 17678,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 17931.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17680,
+            "scrollHeight": 17680,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 17931.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17791,
+            "scrollHeight": 17791,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 17931.5,
+              "height": 17790.5
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17852,
+            "scrollHeight": 17852,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 17931.5,
+              "height": 17851.5
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17902,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 200,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 200\nfixture/team/scale-0001 #200\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17638,
+            "scrollHeight": 17638,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 17930.5,
+              "height": 17637.5
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17678,
+            "scrollHeight": 17678,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 17931.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17680,
+            "scrollHeight": 17680,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 17931.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17791,
+            "scrollHeight": 17791,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 17931.5,
+              "height": 17790.5
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17852,
+            "scrollHeight": 17852,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 17931.5,
+              "height": 17851.5
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17902,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 200,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 200\nfixture/team/scale-0001 #200\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17638,
+            "scrollHeight": 17638,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -16801,
+              "bottom": 836.5,
+              "height": 17637.5
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17678,
+            "scrollHeight": 17678,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": -16842,
+              "bottom": 837.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17680,
+            "scrollHeight": 17680,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -16842,
+              "bottom": 837.5,
+              "height": 17679.5
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17791,
+            "scrollHeight": 17791,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -16953,
+              "bottom": 837.5,
+              "height": 17790.5
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17852,
+            "scrollHeight": 17852,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -17014,
+              "bottom": 837.5,
+              "height": 17851.5
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17902,
+            "scrollTop": 17094,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 748.3125,
+          "bottom": 836.5,
+          "left": 25,
+          "right": 579.765625
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<button type=\"button\" class=\"work-row \"><span class=\"row-title\">Scale issue 200</span><span class=\"row-meta\">fixture/team/scale-0001 #200</span><span class=\"label-list\"><span class=\"label-chip\">fixture</span></span></button>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "NOT_EXPECTED"
+    },
+    {
+      "mode": "developer",
+      "count": 201,
+      "status": "PASS",
+      "initial": {
+        "rows": 201,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 201\nfixture/team/scale-0001 #201\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17726,
+            "scrollHeight": 17726,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 18018.6875,
+              "height": 17725.6875
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17766,
+            "scrollHeight": 17766,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 18019.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17768,
+            "scrollHeight": 17768,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 18019.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17879,
+            "scrollHeight": 17879,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 18019.6875,
+              "height": 17878.6875
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17940,
+            "scrollHeight": 17940,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 18019.6875,
+              "height": 17939.6875
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17990,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 201,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 201\nfixture/team/scale-0001 #201\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17726,
+            "scrollHeight": 17726,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 18018.6875,
+              "height": 17725.6875
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17766,
+            "scrollHeight": 17766,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 18019.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17768,
+            "scrollHeight": 17768,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 18019.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17879,
+            "scrollHeight": 17879,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 18019.6875,
+              "height": 17878.6875
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17940,
+            "scrollHeight": 17940,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 18019.6875,
+              "height": 17939.6875
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17990,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 201,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 201\nfixture/team/scale-0001 #201\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 17726,
+            "scrollHeight": 17726,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -16889,
+              "bottom": 836.6875,
+              "height": 17725.6875
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 17766,
+            "scrollHeight": 17766,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": -16930,
+              "bottom": 837.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 17768,
+            "scrollHeight": 17768,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -16930,
+              "bottom": 837.6875,
+              "height": 17767.6875
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 17879,
+            "scrollHeight": 17879,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -17041,
+              "bottom": 837.6875,
+              "height": 17878.6875
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 17940,
+            "scrollHeight": 17940,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -17102,
+              "bottom": 837.6875,
+              "height": 17939.6875
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 17990,
+            "scrollTop": 17182,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 748.5,
+          "bottom": 836.6875,
+          "left": 25,
+          "right": 579.765625
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<button type=\"button\" class=\"work-row \"><span class=\"row-title\">Scale issue 201</span><span class=\"row-meta\">fixture/team/scale-0001 #201</span><span class=\"label-list\"><span class=\"label-chip\">fixture</span></span></button>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "FAIL_ALL_ROWS_MOUNTED"
+    },
+    {
+      "mode": "developer",
+      "count": 2000,
+      "status": "PASS",
+      "initial": {
+        "rows": 2000,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 2000\nfixture/team/scale-0001 #2000\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 176375,
+            "scrollHeight": 176375,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 176668,
+              "height": 176375
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 176415,
+            "scrollHeight": 176415,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 176669,
+              "height": 176417
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 176417,
+            "scrollHeight": 176417,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 176669,
+              "height": 176417
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 176528,
+            "scrollHeight": 176528,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 176669,
+              "height": 176528
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 176589,
+            "scrollHeight": 176589,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 176669,
+              "height": 176589
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 176639,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "afterDirectScroll": {
+        "rows": 2000,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 2000\nfixture/team/scale-0001 #2000\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 176375,
+            "scrollHeight": 176375,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 293,
+              "bottom": 176668,
+              "height": 176375
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 176415,
+            "scrollHeight": 176415,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 252,
+              "bottom": 176669,
+              "height": 176417
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 176417,
+            "scrollHeight": 176417,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 252,
+              "bottom": 176669,
+              "height": 176417
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 176528,
+            "scrollHeight": 176528,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 141,
+              "bottom": 176669,
+              "height": 176528
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 176589,
+            "scrollHeight": 176589,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": 80,
+              "bottom": 176669,
+              "height": 176589
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 176639,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "lastInDom": 1,
+      "afterScrollIntoView": {
+        "rows": 2000,
+        "first": "Scale issue 1\nfixture/team/scale-0001 #1\nfixture",
+        "last": "Scale issue 2000\nfixture/team/scale-0001 #2000\nfixture",
+        "firstVirtualRow": "0",
+        "chain": [
+          {
+            "class": "work-list",
+            "clientHeight": 176375,
+            "scrollHeight": 176375,
+            "scrollTop": 0,
+            "overflowY": "auto",
+            "rect": {
+              "top": -175538,
+              "bottom": 837,
+              "height": 176375
+            }
+          },
+          {
+            "class": "list-column",
+            "clientHeight": 176415,
+            "scrollHeight": 176415,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": -175579,
+              "bottom": 838,
+              "height": 176417
+            }
+          },
+          {
+            "class": "mode-content",
+            "clientHeight": 176417,
+            "scrollHeight": 176417,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -175579,
+              "bottom": 838,
+              "height": 176417
+            }
+          },
+          {
+            "class": "developer-view-shell list",
+            "clientHeight": 176528,
+            "scrollHeight": 176528,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -175690,
+              "bottom": 838,
+              "height": 176528
+            }
+          },
+          {
+            "class": "workspace-tasks",
+            "clientHeight": 176589,
+            "scrollHeight": 176589,
+            "scrollTop": 0,
+            "overflowY": "visible",
+            "rect": {
+              "top": -175751,
+              "bottom": 838,
+              "height": 176589
+            }
+          },
+          {
+            "class": "page",
+            "clientHeight": 808,
+            "scrollHeight": 176639,
+            "scrollTop": 175831,
+            "overflowY": "auto",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          },
+          {
+            "class": "workbench",
+            "clientHeight": 808,
+            "scrollHeight": 808,
+            "scrollTop": 0,
+            "overflowY": "hidden",
+            "rect": {
+              "top": 60,
+              "bottom": 868,
+              "height": 808
+            }
+          }
+        ]
+      },
+      "position": {
+        "rect": {
+          "top": 748.8125,
+          "bottom": 837,
+          "left": 25,
+          "right": 579.765625
+        },
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "hit": "<button type=\"button\" class=\"work-row \"><span class=\"row-title\">Scale issue 2000</span><span class=\"row-meta\">fixture/team/scale-0001 #2000</span><span class=\"label-list\"><span class=\"label-chip\">fixture</span></span></button>",
+        "hitWithin": true
+      },
+      "clicked": true,
+      "errors": [],
+      "blocked": [],
+      "virtualizationStatus": "FAIL_ALL_ROWS_MOUNTED"
+    }
+  ]
+}

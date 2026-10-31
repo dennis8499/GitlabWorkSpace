@@ -1,0 +1,43 @@
+{
+  "scope": "Real isolated local Git repository and production historyPage, with a simulated VS Code Git state.refs getter; no GitLab.",
+  "repository": "C:\\Users\\denni\\OneDrive\\Desktop\\新增資料夾\\GitlabWorkSpace\\docs\\work\\work-20261031-audit-improvements\\evidence\\refs-repository",
+  "head": {
+    "code": 128,
+    "stdout": "",
+    "stderr": "fatal: Needed a single revision"
+  },
+  "actualLog": {
+    "code": 0,
+    "stdout": "842a606844f7f329bec68ba2dfb7bc8cddae8b63",
+    "stderr": ""
+  },
+  "syntheticCommit": "842a606844f7f329bec68ba2dfb7bc8cddae8b63",
+  "emptyRefs": {
+    "history": [],
+    "gitCalls": 0
+  },
+  "controlRefs": {
+    "history": [
+      {
+        "hash": "842a606844f7f329bec68ba2dfb7bc8cddae8b63",
+        "parents": [],
+        "author": "Fixture",
+        "date": "2026-10-31T23:08:59+08:00",
+        "subject": "synthetic remote history"
+      }
+    ],
+    "gitCalls": [
+      [
+        "log",
+        "--topo-order",
+        "--all",
+        "--date=iso-strict",
+        "--format=%H%x00%P%x00%an%x00%aI%x00%s",
+        "-n",
+        "201"
+      ]
+    ]
+  },
+  "officialVscode190": "https://raw.githubusercontent.com/microsoft/vscode/1.90.0/extensions/git/src/api/api1.ts",
+  "runtimeNote": "The locally installed Git extension getter warns and returns [] for state.refs; this probe does not launch VS Code."
+}

@@ -68,6 +68,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .issue-embed { flex: 1; min-width: 0; min-height: 0; width: 100%; }
 .page pre { max-width: 100%; overflow: auto; }
 .workspace-tasks { display: flex; min-height: min-content; flex: 1 0 auto; flex-direction: column; }
+.page[data-mode="clone"] .workspace-tasks,
+.page[data-mode="developer"] .workspace-tasks,
+.page[data-mode="reviewer"] .workspace-tasks { min-height: 0; flex: 1 1 0; }
 .git-mode-host { display: flex; min-width: 0; min-height: 0; flex: 1 1 auto; }
 .git-mode-host[hidden] { display: none !important; }
 .issue-workspace-layout { display: grid; grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 14px; min-width: 0; }
@@ -91,6 +94,9 @@ h2 { font-size: 15px; margin: 0; font-weight: 600; }
 h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .mode-content { display: grid; grid-template-columns: minmax(min(100%, 290px), .9fr) minmax(min(100%, 380px), 1.3fr); gap: 16px; flex: 1 0 auto; min-height: 400px; }
 .mode-content.clone-mode-content { display: flex; min-height: 0; flex-direction: column; }
+.page[data-mode="clone"] .mode-content,
+.page[data-mode="developer"] .mode-content,
+.page[data-mode="reviewer"] .mode-content { min-height: 0; flex: 1 1 0; grid-template-rows: minmax(0, 1fr); }
 .wiki-guide { min-width: 0; }
 .wiki-guide-selector { max-width: 560px; margin-bottom: 14px; }
 .wiki-guide-description, .wiki-guide-output, .wiki-guide-behavior { margin: 0; color: var(--muted); line-height: 1.55; }
@@ -126,7 +132,7 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .wiki-prompt-preview { max-height: 240px; margin: 9px 0 0; overflow: auto; }
 .wiki-copy-button { align-self: flex-start; }
 .list-column, .detail-column { min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-.list-column { display: flex; flex-direction: column; overflow: hidden; }
+.list-column { display: flex; min-height: 0; flex-direction: column; overflow: hidden; }
 .clone-list-column { min-height: 0; flex: 1; overflow: visible; }
 .detail-column { min-height: 0; padding: 17px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .toolbar { justify-content: space-between; padding: 11px 12px; border-bottom: 1px solid var(--border); }
@@ -134,16 +140,19 @@ h3 { font-size: 13px; margin: 0; font-weight: 600; }
 .filter-row select { min-width: 0; width: 100%; }
 .search { display: flex; align-items: center; flex: 1; gap: 7px; min-width: 0; color: var(--muted); }
 .search input { width: 100%; border: 0; padding: 5px 0; background: transparent; outline: none; }
-.search input:focus-visible { outline: none; }
+.search input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .repo-select-all { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; }
 .repo-select-all input { accent-color: var(--accent); }
-.repo-list, .work-list { overflow: auto; flex: 1; }
-.repo-list { min-height: 0; }
+.repo-list, .work-list { overflow: auto; flex: 1; min-height: 0; }
 .repo-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.repo-row:not(.local-repo-row) { flex-wrap: wrap; }
 .repo-row:hover, .work-row:hover { background: var(--vscode-list-hoverBackground); }
 .repo-row input, .repo-picks input, .draft-card-head input, .check-inline input { accent-color: var(--accent); }
 .repo-details { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
 .repo-details strong, .repo-details small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repo-row:not(.local-repo-row) .repo-details { flex: 1 1 12rem; }
+.repo-row:not(.local-repo-row) .repo-details strong { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.repo-details label { cursor: pointer; }
 .repo-details small, .subtle { color: var(--muted); font-size: 11px; }
 .pill, .label-chip { display: inline-flex; align-items: center; max-width: 170px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 .pill.success { border-color: color-mix(in srgb, var(--success), transparent 55%); color: var(--success); }
@@ -286,7 +295,7 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .loading { display: flex; min-height: 240px; align-items: center; justify-content: center; gap: 10px; color: var(--muted); }
 .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.developer-view-shell { display: flex; min-width: 0; min-height: 400px; flex: 1; flex-direction: column; }
+.developer-view-shell { display: flex; min-width: 0; min-height: 0; flex: 1 1 0; flex-direction: column; }
 .developer-toolbar { flex: 0 0 auto; gap: 12px; }
 .developer-view-switch { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 6px; padding: 2px; background: var(--surface-raised); }
 .developer-view-switch button { min-height: 28px; border: 0; border-radius: 4px; padding: 4px 10px; color: var(--muted); background: transparent; }
@@ -330,6 +339,9 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
 .graph-node.closed { opacity: .6; }
 .graph-node.dimmed { opacity: .13; }
 .graph-node.selected { opacity: 1; }
+.graph-node:focus { opacity: 1; }
+.graph-node-focus-ring { fill: none; stroke: var(--focus); stroke-width: 2; vector-effect: non-scaling-stroke; visibility: hidden; pointer-events: none; }
+.graph-node:focus .graph-node-focus-ring { visibility: visible; }
 .graph-node-core { stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .graph-node-sector { stroke: var(--surface); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .graph-node.boardless .graph-node-core { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 3 2; }

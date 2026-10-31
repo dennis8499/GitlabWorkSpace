@@ -1,0 +1,1581 @@
+{
+  "scope": "One-core CPU percent; grouped process memory is a sum and can double-count shared pages. I/O in the underlying summary is process accounting, not physical disk throughput. The independent overhead monitor began partway through the first scenario.",
+  "cases": [
+    {
+      "case": "timer-0-animation-0",
+      "status": "PASS",
+      "testTree": {
+        "unclassified:python.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 18440192.0,
+            "lastMinuteMedian": 18538496.0,
+            "peak": 18567168,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 12316672.0,
+            "lastMinuteMedian": 12316672.0,
+            "peak": 12427264,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 76.0,
+            "lastMinuteMedian": 76.0,
+            "peak": 76,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:conhost.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 8105984.0,
+            "lastMinuteMedian": 8200192.0,
+            "peak": 8241152,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 1245184.0,
+            "lastMinuteMedian": 1253376.0,
+            "peak": 1327104,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 97.0,
+            "lastMinuteMedian": 97.0,
+            "peak": 97,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 2.0,
+            "lastMinuteMedian": 2.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:node.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.565,
+          "oneCoreCpuPeakPercent": 3.127,
+          "workingSet": {
+            "firstMinuteMedian": 112033792.0,
+            "lastMinuteMedian": 113451008.0,
+            "peak": 113930240,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 118616064.0,
+            "lastMinuteMedian": 118759424.0,
+            "peak": 119865344,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 225.0,
+            "lastMinuteMedian": 222.0,
+            "peak": 225,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 17.0,
+            "lastMinuteMedian": 13.0,
+            "peak": 17,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "browser": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.561,
+          "oneCoreCpuPeakPercent": 10.936,
+          "workingSet": {
+            "firstMinuteMedian": 146954240.0,
+            "lastMinuteMedian": 146718720.0,
+            "peak": 148500480,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 53086208.0,
+            "lastMinuteMedian": 49508352.0,
+            "peak": 53395456,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 1244.0,
+            "lastMinuteMedian": 1228.0,
+            "peak": 1250,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 50.0,
+            "lastMinuteMedian": 45.0,
+            "peak": 54,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:chrome.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 10555392.0,
+            "lastMinuteMedian": 10678272.0,
+            "peak": 226549760,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 2465792.0,
+            "lastMinuteMedian": 2433024.0,
+            "peak": 182349824,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 167.0,
+            "lastMinuteMedian": 167.0,
+            "peak": 500,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 8.0,
+            "lastMinuteMedian": 7.0,
+            "peak": 26,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 2,
+            "missingSamples": 0
+          }
+        },
+        "GPU": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.565,
+          "workingSet": {
+            "firstMinuteMedian": 154091520.0,
+            "lastMinuteMedian": 153722880.0,
+            "peak": 196608000,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 123674624.0,
+            "lastMinuteMedian": 122433536.0,
+            "peak": 166293504,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 467.0,
+            "lastMinuteMedian": 468.0,
+            "peak": 468,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 31.5,
+            "lastMinuteMedian": 28.0,
+            "peak": 32,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "network.mojom.NetworkService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.581,
+          "workingSet": {
+            "firstMinuteMedian": 39362560.0,
+            "lastMinuteMedian": 39141376.0,
+            "peak": 39424000,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 13225984.0,
+            "lastMinuteMedian": 12443648.0,
+            "peak": 13352960,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 390.0,
+            "lastMinuteMedian": 371.0,
+            "peak": 398,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 26.0,
+            "lastMinuteMedian": 20.0,
+            "peak": 27,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "storage.mojom.StorageService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.545,
+          "workingSet": {
+            "firstMinuteMedian": 19431424.0,
+            "lastMinuteMedian": 19623936.0,
+            "peak": 19660800,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 8323072.0,
+            "lastMinuteMedian": 8282112.0,
+            "peak": 8425472,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 158.0,
+            "lastMinuteMedian": 158.0,
+            "peak": 158,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 11.0,
+            "lastMinuteMedian": 11.0,
+            "peak": 14,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "renderer": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 10.977,
+          "workingSet": {
+            "firstMinuteMedian": 254341120.0,
+            "lastMinuteMedian": 242479104.0,
+            "peak": 335527936,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 127823872.0,
+            "lastMinuteMedian": 119521280.0,
+            "peak": 211329024,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 895.0,
+            "lastMinuteMedian": 885.0,
+            "peak": 904,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 57.0,
+            "lastMinuteMedian": 53.0,
+            "peak": 65,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 3.0,
+            "lastMinuteMedian": 3.0,
+            "peak": 3,
+            "missingSamples": 0
+          }
+        }
+      },
+      "separateSamplerAndMonitor": {
+        "resourceSampler": {
+          "samples": 381,
+          "oneCoreCpuP95Percent": 1.57,
+          "oneCoreCpuPeakPercent": 3.121,
+          "workingSet": {
+            "firstMinuteMedian": 31344640.0,
+            "lastMinuteMedian": 35000320.0,
+            "peak": 35373056,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 22179840.0,
+            "lastMinuteMedian": 25333760.0,
+            "peak": 26456064,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 146.0,
+            "lastMinuteMedian": 146.0,
+            "peak": 146,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 3,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "overheadMonitor": {
+          "samples": 381,
+          "oneCoreCpuP95Percent": 3.137,
+          "oneCoreCpuPeakPercent": 4.686,
+          "workingSet": {
+            "firstMinuteMedian": 27160576.0,
+            "lastMinuteMedian": 27250688.0,
+            "peak": 27250688,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 18178048.0,
+            "lastMinuteMedian": 18137088.0,
+            "peak": 18178048,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 142.0,
+            "lastMinuteMedian": 142.0,
+            "peak": 142,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 4.0,
+            "lastMinuteMedian": 3.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        }
+      },
+      "overheadSamples": 381
+    },
+    {
+      "case": "timer-1-animation-0",
+      "status": "PASS",
+      "testTree": {
+        "unclassified:python.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 18362368.0,
+            "lastMinuteMedian": 18468864.0,
+            "peak": 18497536,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 12193792.0,
+            "lastMinuteMedian": 12193792.0,
+            "peak": 12304384,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 76.0,
+            "lastMinuteMedian": 76.0,
+            "peak": 76,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:conhost.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 8101888.0,
+            "lastMinuteMedian": 8196096.0,
+            "peak": 8237056,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 1245184.0,
+            "lastMinuteMedian": 1253376.0,
+            "peak": 1327104,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 97.0,
+            "lastMinuteMedian": 97.0,
+            "peak": 97,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 2.0,
+            "lastMinuteMedian": 2.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:node.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.577,
+          "oneCoreCpuPeakPercent": 3.191,
+          "workingSet": {
+            "firstMinuteMedian": 109271040.0,
+            "lastMinuteMedian": 111890432.0,
+            "peak": 112381952,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 113188864.0,
+            "lastMinuteMedian": 113127424.0,
+            "peak": 114249728,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 225.0,
+            "lastMinuteMedian": 222.0,
+            "peak": 225,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 17.0,
+            "lastMinuteMedian": 13.0,
+            "peak": 17,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "browser": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.563,
+          "oneCoreCpuPeakPercent": 4.663,
+          "workingSet": {
+            "firstMinuteMedian": 147472384.0,
+            "lastMinuteMedian": 147570688.0,
+            "peak": 148836352,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 53110784.0,
+            "lastMinuteMedian": 50528256.0,
+            "peak": 53686272,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 1244.0,
+            "lastMinuteMedian": 1226.0,
+            "peak": 1250,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 51.0,
+            "lastMinuteMedian": 45.0,
+            "peak": 55,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:chrome.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 10559488.0,
+            "lastMinuteMedian": 10678272.0,
+            "peak": 199147520,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 2469888.0,
+            "lastMinuteMedian": 2433024.0,
+            "peak": 166154240,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 167.0,
+            "lastMinuteMedian": 167.0,
+            "peak": 500,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 8.0,
+            "lastMinuteMedian": 7.0,
+            "peak": 26,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 2,
+            "missingSamples": 0
+          }
+        },
+        "GPU": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.56,
+          "oneCoreCpuPeakPercent": 3.191,
+          "workingSet": {
+            "firstMinuteMedian": 171757568.0,
+            "lastMinuteMedian": 191193088.0,
+            "peak": 203042816,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 141631488.0,
+            "lastMinuteMedian": 160198656.0,
+            "peak": 172879872,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 470.0,
+            "lastMinuteMedian": 471.0,
+            "peak": 471,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 31.5,
+            "lastMinuteMedian": 28.0,
+            "peak": 32,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "network.mojom.NetworkService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.563,
+          "workingSet": {
+            "firstMinuteMedian": 39481344.0,
+            "lastMinuteMedian": 39313408.0,
+            "peak": 39497728,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 13307904.0,
+            "lastMinuteMedian": 12521472.0,
+            "peak": 13410304,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 391.0,
+            "lastMinuteMedian": 372.0,
+            "peak": 412,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 26.0,
+            "lastMinuteMedian": 20.0,
+            "peak": 29,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "storage.mojom.StorageService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.563,
+          "workingSet": {
+            "firstMinuteMedian": 19365888.0,
+            "lastMinuteMedian": 19550208.0,
+            "peak": 19582976,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 8237056.0,
+            "lastMinuteMedian": 8220672.0,
+            "peak": 8339456,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 158.0,
+            "lastMinuteMedian": 158.0,
+            "peak": 158,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 11.0,
+            "lastMinuteMedian": 11.0,
+            "peak": 14,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "renderer": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 3.099,
+          "oneCoreCpuPeakPercent": 12.497,
+          "workingSet": {
+            "firstMinuteMedian": 253657088.0,
+            "lastMinuteMedian": 246319104.0,
+            "peak": 341889024,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 126652416.0,
+            "lastMinuteMedian": 118636544.0,
+            "peak": 218292224,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 902.0,
+            "lastMinuteMedian": 888.0,
+            "peak": 903,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 59.0,
+            "lastMinuteMedian": 53.0,
+            "peak": 64,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 3.0,
+            "lastMinuteMedian": 3.0,
+            "peak": 3,
+            "missingSamples": 0
+          }
+        }
+      },
+      "separateSamplerAndMonitor": {
+        "resourceSampler": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 1.587,
+          "oneCoreCpuPeakPercent": 3.195,
+          "workingSet": {
+            "firstMinuteMedian": 36376576.0,
+            "lastMinuteMedian": 36737024.0,
+            "peak": 36757504,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 26624000.0,
+            "lastMinuteMedian": 26624000.0,
+            "peak": 26697728,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 146.0,
+            "lastMinuteMedian": 146.0,
+            "peak": 146,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 3,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "overheadMonitor": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 3.187,
+          "oneCoreCpuPeakPercent": 7.318,
+          "workingSet": {
+            "firstMinuteMedian": 27226112.0,
+            "lastMinuteMedian": 27234304.0,
+            "peak": 27275264,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 18063360.0,
+            "lastMinuteMedian": 18063360.0,
+            "peak": 18137088,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 142.0,
+            "lastMinuteMedian": 142.0,
+            "peak": 142,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 3,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        }
+      },
+      "overheadSamples": 599
+    },
+    {
+      "case": "timer-0-animation-1",
+      "status": "PASS",
+      "testTree": {
+        "unclassified:python.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 18329600.0,
+            "lastMinuteMedian": 18427904.0,
+            "peak": 18456576,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 12165120.0,
+            "lastMinuteMedian": 12165120.0,
+            "peak": 12275712,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 76.0,
+            "lastMinuteMedian": 76.0,
+            "peak": 76,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:conhost.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 8101888.0,
+            "lastMinuteMedian": 8200192.0,
+            "peak": 8245248,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 1253376.0,
+            "lastMinuteMedian": 1265664.0,
+            "peak": 1343488,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 97.0,
+            "lastMinuteMedian": 97.0,
+            "peak": 97,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 2.0,
+            "lastMinuteMedian": 2.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:node.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.564,
+          "oneCoreCpuPeakPercent": 3.123,
+          "workingSet": {
+            "firstMinuteMedian": 110835712.0,
+            "lastMinuteMedian": 112265216.0,
+            "peak": 112705536,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 114477056.0,
+            "lastMinuteMedian": 114515968.0,
+            "peak": 117788672,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 225.0,
+            "lastMinuteMedian": 222.0,
+            "peak": 225,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 16.0,
+            "lastMinuteMedian": 13.0,
+            "peak": 17,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "browser": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.561,
+          "oneCoreCpuPeakPercent": 7.807,
+          "workingSet": {
+            "firstMinuteMedian": 148080640.0,
+            "lastMinuteMedian": 147935232.0,
+            "peak": 149737472,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 54251520.0,
+            "lastMinuteMedian": 50688000.0,
+            "peak": 54730752,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 1240.0,
+            "lastMinuteMedian": 1225.0,
+            "peak": 1250,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 51.0,
+            "lastMinuteMedian": 47.0,
+            "peak": 55,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:chrome.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 3.083,
+          "workingSet": {
+            "firstMinuteMedian": 10567680.0,
+            "lastMinuteMedian": 10686464.0,
+            "peak": 186105856,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 2494464.0,
+            "lastMinuteMedian": 2453504.0,
+            "peak": 152354816,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 167.0,
+            "lastMinuteMedian": 167.0,
+            "peak": 509,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 8.0,
+            "lastMinuteMedian": 7.0,
+            "peak": 26,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 2,
+            "missingSamples": 0
+          }
+        },
+        "GPU": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 9.364,
+          "workingSet": {
+            "firstMinuteMedian": 157102080.0,
+            "lastMinuteMedian": 156659712.0,
+            "peak": 219070464,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 126619648.0,
+            "lastMinuteMedian": 125296640.0,
+            "peak": 188899328,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 466.0,
+            "lastMinuteMedian": 467.0,
+            "peak": 467,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 31.5,
+            "lastMinuteMedian": 28.0,
+            "peak": 32,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "network.mojom.NetworkService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.563,
+          "workingSet": {
+            "firstMinuteMedian": 39821312.0,
+            "lastMinuteMedian": 39464960.0,
+            "peak": 39899136,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 14073856.0,
+            "lastMinuteMedian": 12734464.0,
+            "peak": 14073856,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 390.0,
+            "lastMinuteMedian": 369.0,
+            "peak": 401,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 27.0,
+            "lastMinuteMedian": 20.0,
+            "peak": 27,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "storage.mojom.StorageService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.559,
+          "workingSet": {
+            "firstMinuteMedian": 19412992.0,
+            "lastMinuteMedian": 19570688.0,
+            "peak": 19611648,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 8335360.0,
+            "lastMinuteMedian": 8261632.0,
+            "peak": 8404992,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 158.0,
+            "lastMinuteMedian": 158.0,
+            "peak": 158,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 11.0,
+            "lastMinuteMedian": 11.0,
+            "peak": 13,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "renderer": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 31.724,
+          "workingSet": {
+            "firstMinuteMedian": 257089536.0,
+            "lastMinuteMedian": 250212352.0,
+            "peak": 406736896,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 130641920.0,
+            "lastMinuteMedian": 122150912.0,
+            "peak": 284266496,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 894.0,
+            "lastMinuteMedian": 885.0,
+            "peak": 900,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 58.0,
+            "lastMinuteMedian": 53.0,
+            "peak": 64,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 3.0,
+            "lastMinuteMedian": 3.0,
+            "peak": 3,
+            "missingSamples": 0
+          }
+        }
+      },
+      "separateSamplerAndMonitor": {
+        "resourceSampler": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 1.607,
+          "oneCoreCpuPeakPercent": 4.545,
+          "workingSet": {
+            "firstMinuteMedian": 38117376.0,
+            "lastMinuteMedian": 38117376.0,
+            "peak": 38117376,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 28057600.0,
+            "lastMinuteMedian": 28057600.0,
+            "peak": 28057600,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 146.0,
+            "lastMinuteMedian": 146.0,
+            "peak": 146,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "overheadMonitor": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 3.36,
+          "oneCoreCpuPeakPercent": 6.102,
+          "workingSet": {
+            "firstMinuteMedian": 27234304.0,
+            "lastMinuteMedian": 27234304.0,
+            "peak": 27254784,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 18063360.0,
+            "lastMinuteMedian": 18063360.0,
+            "peak": 18100224,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 142.0,
+            "lastMinuteMedian": 142.0,
+            "peak": 142,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 2,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        }
+      },
+      "overheadSamples": 599
+    },
+    {
+      "case": "timer-1-animation-1",
+      "status": "PASS",
+      "testTree": {
+        "unclassified:python.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 18391040.0,
+            "lastMinuteMedian": 18489344.0,
+            "peak": 18518016,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 12218368.0,
+            "lastMinuteMedian": 12218368.0,
+            "peak": 12328960,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 76.0,
+            "lastMinuteMedian": 76.0,
+            "peak": 76,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 4,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:conhost.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 8105984.0,
+            "lastMinuteMedian": 8200192.0,
+            "peak": 8224768,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 1253376.0,
+            "lastMinuteMedian": 1261568.0,
+            "peak": 1302528,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 97.0,
+            "lastMinuteMedian": 97.0,
+            "peak": 97,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 2.0,
+            "lastMinuteMedian": 2.0,
+            "peak": 3,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:node.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.571,
+          "oneCoreCpuPeakPercent": 3.175,
+          "workingSet": {
+            "firstMinuteMedian": 112015360.0,
+            "lastMinuteMedian": 114542592.0,
+            "peak": 114769920,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 119934976.0,
+            "lastMinuteMedian": 119447552.0,
+            "peak": 120492032,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 224.0,
+            "lastMinuteMedian": 222.0,
+            "peak": 225,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 17.0,
+            "lastMinuteMedian": 13.0,
+            "peak": 17,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "browser": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.564,
+          "oneCoreCpuPeakPercent": 4.712,
+          "workingSet": {
+            "firstMinuteMedian": 147910656.0,
+            "lastMinuteMedian": 147914752.0,
+            "peak": 150437888,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 52619264.0,
+            "lastMinuteMedian": 50671616.0,
+            "peak": 54591488,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 1246.0,
+            "lastMinuteMedian": 1226.0,
+            "peak": 1252,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 51.0,
+            "lastMinuteMedian": 45.0,
+            "peak": 55,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "unclassified:chrome.exe": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 0,
+          "workingSet": {
+            "firstMinuteMedian": 10579968.0,
+            "lastMinuteMedian": 10702848.0,
+            "peak": 70873088,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 2490368.0,
+            "lastMinuteMedian": 2453504.0,
+            "peak": 52125696,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 167.0,
+            "lastMinuteMedian": 167.0,
+            "peak": 424,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 8.0,
+            "lastMinuteMedian": 7.0,
+            "peak": 20,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 2,
+            "missingSamples": 0
+          }
+        },
+        "GPU": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 1.571,
+          "oneCoreCpuPeakPercent": 10.938,
+          "workingSet": {
+            "firstMinuteMedian": 165900288.0,
+            "lastMinuteMedian": 193208320.0,
+            "peak": 204943360,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 135163904.0,
+            "lastMinuteMedian": 161808384.0,
+            "peak": 174346240,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 476.0,
+            "lastMinuteMedian": 475.0,
+            "peak": 477,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 32.0,
+            "lastMinuteMedian": 29.0,
+            "peak": 33,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "network.mojom.NetworkService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 1.577,
+          "workingSet": {
+            "firstMinuteMedian": 39514112.0,
+            "lastMinuteMedian": 39321600.0,
+            "peak": 39583744,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 13303808.0,
+            "lastMinuteMedian": 12369920.0,
+            "peak": 13369344,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 404.0,
+            "lastMinuteMedian": 381.0,
+            "peak": 425,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 27.0,
+            "lastMinuteMedian": 21.0,
+            "peak": 29,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "storage.mojom.StorageService": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 0.0,
+          "oneCoreCpuPeakPercent": 3.127,
+          "workingSet": {
+            "firstMinuteMedian": 20066304.0,
+            "lastMinuteMedian": 20172800.0,
+            "peak": 20205568,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 8564736.0,
+            "lastMinuteMedian": 8413184.0,
+            "peak": 8601600,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 164.0,
+            "lastMinuteMedian": 164.0,
+            "peak": 164,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 14.0,
+            "lastMinuteMedian": 12.0,
+            "peak": 15,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "renderer": {
+          "samples": 600,
+          "oneCoreCpuP95Percent": 3.089,
+          "oneCoreCpuPeakPercent": 49.059,
+          "workingSet": {
+            "firstMinuteMedian": 256602112.0,
+            "lastMinuteMedian": 248958976.0,
+            "peak": 397316096,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 129052672.0,
+            "lastMinuteMedian": 120750080.0,
+            "peak": 272175104,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 905.0,
+            "lastMinuteMedian": 900.0,
+            "peak": 915,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 58.0,
+            "lastMinuteMedian": 55.0,
+            "peak": 67,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 3.0,
+            "lastMinuteMedian": 3.0,
+            "peak": 3,
+            "missingSamples": 0
+          }
+        }
+      },
+      "separateSamplerAndMonitor": {
+        "resourceSampler": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 1.574,
+          "oneCoreCpuPeakPercent": 3.184,
+          "workingSet": {
+            "firstMinuteMedian": 37908480.0,
+            "lastMinuteMedian": 37908480.0,
+            "peak": 37908480,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 28057600.0,
+            "lastMinuteMedian": 28057600.0,
+            "peak": 28057600,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 146.0,
+            "lastMinuteMedian": 146.0,
+            "peak": 146,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        },
+        "overheadMonitor": {
+          "samples": 599,
+          "oneCoreCpuP95Percent": 3.141,
+          "oneCoreCpuPeakPercent": 4.776,
+          "workingSet": {
+            "firstMinuteMedian": 27234304.0,
+            "lastMinuteMedian": 27234304.0,
+            "peak": 27234304,
+            "missingSamples": 0
+          },
+          "privateBytes": {
+            "firstMinuteMedian": 18063360.0,
+            "lastMinuteMedian": 18063360.0,
+            "peak": 18063360,
+            "missingSamples": 0
+          },
+          "handles": {
+            "firstMinuteMedian": 142.0,
+            "lastMinuteMedian": 142.0,
+            "peak": 142,
+            "missingSamples": 0
+          },
+          "threads": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          },
+          "count": {
+            "firstMinuteMedian": 1.0,
+            "lastMinuteMedian": 1.0,
+            "peak": 1,
+            "missingSamples": 0
+          }
+        }
+      },
+      "overheadSamples": 599
+    }
+  ]
+}

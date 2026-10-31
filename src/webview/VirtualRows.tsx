@@ -12,10 +12,11 @@ interface VirtualRowsProps<T> {
   /** Change only for an explicit scope, search or navigation change. */
   resetKey?: string | number;
   active?: boolean;
+  empty?: ComponentChildren;
 }
 
 /** Variable-height list windowing with ten-row overscan and full-data keyboard navigation. */
-export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true }: VirtualRowsProps<T>) {
+export function VirtualRows<T>({ items, itemKey, estimateHeight, className, renderItem, resetKey, active = true, empty }: VirtualRowsProps<T>) {
   const windowed = items.length > 200;
   const container = useRef<HTMLDivElement>(null);
   const observer = useRef<ResizeObserver>();
@@ -23,19 +24,30 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   const measured = useRef(new Map<string | number, number>());
   const rowRefs = useRef(new Map<string | number, (element: HTMLDivElement | null) => void>());
   const activeRef = useRef(active && windowed); activeRef.current = active && windowed;
+  const lastWidth = useRef<number>();
   const focusRequest = useRef<number>();
+  const focusedKeyRef = useRef<string | number>();
+  const focusInside = useRef(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(400);
   const [measureRevision, setMeasureRevision] = useState(0);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [focusRevision, setFocusRevision] = useState(0);
+  const [focusedKey, setFocusedKey] = useState<string | number>();
 
   const keys = useMemo(() => items.map(itemKey), [items, itemKey]);
   const previousLayout = useRef<{ keys: (string | number)[]; geometry: number[]; resetKey?: string | number; windowed: boolean }>({ keys: [], geometry: [], resetKey, windowed });
   function naturalGeometry(rowKeys: readonly (string | number)[]): number[] {
     const offsets = [0];
+    let zoom = 1;
+    for (let ancestor: HTMLElement | null = container.current; ancestor; ancestor = ancestor.parentElement) {
+      const value = Number.parseFloat(window.getComputedStyle(ancestor).getPropertyValue('zoom'));
+      if (Number.isFinite(value) && value > 0) zoom *= value;
+    }
     for (const key of rowKeys) {
-      const height = elements.current.get(key)?.getBoundingClientRect().height || estimateHeight;
+      // The window positions are in layout pixels. A bounding rect includes
+      // CSS zoom; remove it without rounding away fractional row heights.
+      const height = (elements.current.get(key)?.getBoundingClientRect().height ?? 0) / zoom || estimateHeight;
       measured.current.set(key, height);
       offsets.push(offsets[offsets.length - 1] + height);
     }
@@ -57,7 +69,32 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     const reset = previous.resetKey !== resetKey;
     const nextGeometry = !windowed && previous.windowed ? naturalGeometry(keys) : geometry;
     const canAnchor = previous.geometry.length === previous.keys.length + 1 && nextGeometry.length === keys.length + 1;
-    const nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, element?.scrollTop ?? scrollTop) : element?.scrollTop ?? scrollTop;
+    let nextTop = reset ? 0 : canAnchor ? restoreScrollAnchor(previous.keys, previous.geometry, keys, nextGeometry, element?.scrollTop ?? scrollTop) : element?.scrollTop ?? scrollTop;
+    const removedFocus = active && focusInside.current && focusedKeyRef.current !== undefined && !keys.includes(focusedKeyRef.current);
+    if (removedFocus) {
+      const formerIndex = previous.keys.indexOf(focusedKeyRef.current!);
+      const replacement = keys.length ? Math.min(Math.max(0, formerIndex), keys.length - 1) : -1;
+      if (replacement >= 0) {
+        focusedKeyRef.current = keys[replacement];
+        setFocusedKey(keys[replacement]);
+        focusRequest.current = replacement;
+        setFocusedIndex(replacement);
+        setFocusRevision(revision => revision + 1);
+        if (windowed) {
+          const top = nextGeometry[replacement] ?? 0;
+          const bottom = nextGeometry[replacement + 1] ?? top;
+          const height = element?.clientHeight ?? viewportHeight;
+          if (top < nextTop || bottom > nextTop + height) nextTop = Math.max(0, top - Math.max(0, (height - (bottom - top)) / 2));
+        }
+      } else {
+        focusedKeyRef.current = undefined;
+        focusInside.current = false;
+        setFocusedKey(undefined);
+        const search = element?.closest('.list-column, .local-repositories-panel')?.querySelector<HTMLInputElement>('.search input')
+          ?? element?.closest('.page')?.querySelector<HTMLInputElement>('.search input');
+        search?.focus();
+      }
+    }
     previousLayout.current = { keys, geometry, resetKey, windowed };
     if (!windowed) measured.current.clear();
     else if (reset) { measured.current.clear(); setMeasureRevision(revision => revision + 1); }
@@ -71,21 +108,25 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
   useEffect(() => {
     const element = container.current;
     if (!element || !active || !windowed) return;
-    let width = element.clientWidth;
-    const updateViewport = (): void => setViewportHeight(element.clientHeight || 400);
+    const updateViewport = (): void => {
+      setViewportHeight(element.clientHeight || 400);
+      const width = element.clientWidth;
+      if (width > 0 && lastWidth.current !== undefined && width !== lastWidth.current) {
+        measured.current.clear();
+        // ResizeObserver may report the rows before it reports the container.
+        // Re-observe mounted rows after invalidating their old widths so that
+        // their current heights are reported even when they no longer resize.
+        for (const [key, row] of elements.current) setRowRef(key, row);
+        setMeasureRevision((revision) => revision + 1);
+      }
+      if (width > 0) lastWidth.current = width;
+    };
     updateViewport();
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', updateViewport);
       return () => window.removeEventListener('resize', updateViewport);
     }
-    const resize = new ResizeObserver(() => {
-      updateViewport();
-      if (element.clientWidth !== width) {
-        width = element.clientWidth;
-        measured.current.clear();
-        setMeasureRevision((revision) => revision + 1);
-      }
-    });
+    const resize = new ResizeObserver(updateViewport);
     resize.observe(element);
     return () => resize.disconnect();
   }, [active, windowed]);
@@ -109,6 +150,11 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
 
   const { start: startAt, end: endAt } = windowed ? virtualWindow(items.length, geometry, scrollTop, viewportHeight) : { start: 0, end: items.length };
   const visible = windowed ? items.slice(startAt, endAt).map((item, offset) => ({ item, index: startAt + offset })) : items.map((item, index) => ({ item, index }));
+  const pinnedIndex = windowed && focusedKey !== undefined ? keys.indexOf(focusedKey) : -1;
+  if (pinnedIndex >= 0 && (pinnedIndex < startAt || pinnedIndex >= endAt)) {
+    visible.push({ item: items[pinnedIndex], index: pinnedIndex });
+    visible.sort((left, right) => left.index - right.index);
+  }
 
   function setRowRef(key: string | number, element: HTMLElement | null): void {
     const prior = elements.current.get(key);
@@ -155,8 +201,28 @@ export function VirtualRows<T>({ items, itemKey, estimateHeight, className, rend
     setScrollTop(element?.scrollTop ?? 0);
   }
 
-  return <div ref={container} class={className} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} onKeyDownCapture={moveFocus}>
+  return <div ref={container} class={className} onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)} onKeyDownCapture={moveFocus}
+    onFocusCapture={(event) => {
+      const row = (event.target as HTMLElement).closest<HTMLElement>('[data-virtual-index]');
+      const index = Number(row?.dataset.virtualIndex);
+      if (!row || !Number.isInteger(index) || keys[index] === undefined) return;
+      focusInside.current = true;
+      focusedKeyRef.current = keys[index];
+      setFocusedKey(keys[index]);
+    }} onBlurCapture={(event) => {
+      const element = event.currentTarget;
+      if (event.relatedTarget && element.contains(event.relatedTarget as Node)) return;
+      const clear = (): void => {
+        if (element.contains(element.ownerDocument.activeElement)) return;
+        focusInside.current = false;
+        focusedKeyRef.current = undefined;
+        setFocusedKey(undefined);
+      };
+      if (event.relatedTarget) clear();
+      else queueMicrotask(clear);
+    }}>
     <div style={windowed ? { height: `${geometry[items.length] ?? 0}px`, position: 'relative' } : undefined}>
+      {!items.length && empty}
       {visible.map(({ item, index }) => {
         const key = keys[index];
         if (!rowRefs.current.has(key)) rowRefs.current.set(key, element => setRowRef(key, element));

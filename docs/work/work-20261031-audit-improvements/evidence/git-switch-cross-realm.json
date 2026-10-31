@@ -1,0 +1,7399 @@
+{
+  "scope": "Real compiled GitRepositoryService, WorkspacePanel, OperationTracker and NotificationCenter with two isolated local Git fixtures; Git API and command results are simulated.",
+  "startedAt": "2026-10-31T15:01:29.435Z",
+  "finishedAt": "2026-10-31T15:01:29.854Z",
+  "cases": [
+    {
+      "index": 0,
+      "scenario": "queued-open",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-0",
+      "newOp": "switch-new-0",
+      "oldRequest": "old-request-0",
+      "newRequest": "new-request-0",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 317.095,
+          "generation": 1
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 320.9005
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 326.2696
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 329.2326,
+          "generation": 2
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 329.4006
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-0",
+          "operationId": "switch-old-0",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889448,
+          "updatedAt": 1793458889448,
+          "contentRevision": 2,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-0",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-0",
+          "operationId": "switch-new-0",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889448,
+          "updatedAt": 1793458889448,
+          "contentRevision": 1,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 1,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-1",
+      "newOp": "switch-new-1",
+      "oldRequest": "old-request-1",
+      "newRequest": "new-request-1",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 329.5295,
+          "generation": 2
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 330.8572
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 331.0072
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 333.2656,
+          "generation": 3
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 333.3559
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-1",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 2,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-2",
+      "newOp": "switch-new-2",
+      "oldRequest": "old-request-2",
+      "newRequest": "new-request-2",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 333.3808,
+          "generation": 3
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 333.4834
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 334.2124
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 335.144,
+          "generation": 4
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 335.4254
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-2",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 3,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-3",
+      "newOp": "switch-new-3",
+      "oldRequest": "old-request-3",
+      "newRequest": "new-request-3",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 335.4463,
+          "generation": 4
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 335.5161
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 336.414
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 337.475,
+          "generation": 5
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 337.7042
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-3",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 4,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-4",
+      "newOp": "switch-new-4",
+      "oldRequest": "old-request-4",
+      "newRequest": "new-request-4",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 337.723,
+          "generation": 5
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 338.8827
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 348.1544
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 349.9278,
+          "generation": 6
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 350.0976
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-4",
+          "operationId": "switch-old-4",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889469,
+          "updatedAt": 1793458889469,
+          "contentRevision": 3,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-4",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 5,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-5",
+      "newOp": "switch-new-5",
+      "oldRequest": "old-request-5",
+      "newRequest": "new-request-5",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 350.1238,
+          "generation": 6
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 351.1614
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 351.2244
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 352.3204,
+          "generation": 7
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 352.3447
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-5",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 6,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-6",
+      "newOp": "switch-new-6",
+      "oldRequest": "old-request-6",
+      "newRequest": "new-request-6",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 352.3622,
+          "generation": 7
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 352.4053
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 352.9661
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 353.5498,
+          "generation": 8
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 353.7125
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-6",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 7,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-7",
+      "newOp": "switch-new-7",
+      "oldRequest": "old-request-7",
+      "newRequest": "new-request-7",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 353.7275,
+          "generation": 8
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 353.7707
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 354.381
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 355.2858,
+          "generation": 9
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 355.4622
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-7",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 8,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-8",
+      "newOp": "switch-new-8",
+      "oldRequest": "old-request-8",
+      "newRequest": "new-request-8",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 355.4945,
+          "generation": 9
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 356.7655
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 365.3308
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 366.7068,
+          "generation": 10
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 366.8425
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-8",
+          "operationId": "switch-old-8",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889486,
+          "updatedAt": 1793458889486,
+          "contentRevision": 4,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-8",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 9,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-9",
+      "newOp": "switch-new-9",
+      "oldRequest": "old-request-9",
+      "newRequest": "new-request-9",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 366.8761,
+          "generation": 10
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 367.6979
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 367.7497
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 369.4482,
+          "generation": 11
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 369.4781
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-9",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 10,
+      "scenario": "inflight-refresh",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-10",
+      "newOp": "switch-new-10",
+      "oldRequest": "old-request-10",
+      "newRequest": "new-request-10",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 370.147,
+          "generation": 11
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 370.2824
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 371.8844
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 373.5057,
+          "generation": 12
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 373.7953
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-10",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-10",
+          "operationId": "switch-new-10",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889492,
+          "updatedAt": 1793458889492,
+          "contentRevision": 5,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 11,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-11",
+      "newOp": "switch-new-11",
+      "oldRequest": "old-request-11",
+      "newRequest": "new-request-11",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 373.8106,
+          "generation": 12
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 373.8933
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 375.0636
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 376.31,
+          "generation": 13
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 376.5189
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-11",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 12,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-12",
+      "newOp": "switch-new-12",
+      "oldRequest": "old-request-12",
+      "newRequest": "new-request-12",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 376.5295,
+          "generation": 13
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 377.1783
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 389.6831
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 392.1013,
+          "generation": 14
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 392.3339
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-12",
+          "operationId": "switch-old-12",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889511,
+          "updatedAt": 1793458889511,
+          "contentRevision": 6,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-12",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 13,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-13",
+      "newOp": "switch-new-13",
+      "oldRequest": "old-request-13",
+      "newRequest": "new-request-13",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 392.3532,
+          "generation": 14
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 393.3454
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 393.4041
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 394.2797,
+          "generation": 15
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 394.2997
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-13",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 14,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-14",
+      "newOp": "switch-new-14",
+      "oldRequest": "old-request-14",
+      "newRequest": "new-request-14",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 394.3094,
+          "generation": 15
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 394.3486
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 394.9386
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 395.8989,
+          "generation": 16
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 396.1711
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-14",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 15,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-15",
+      "newOp": "switch-new-15",
+      "oldRequest": "old-request-15",
+      "newRequest": "new-request-15",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 396.1822,
+          "generation": 16
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 396.2362
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 396.8983
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 397.7191,
+          "generation": 17
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 397.8903
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-15",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 16,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-16",
+      "newOp": "switch-new-16",
+      "oldRequest": "old-request-16",
+      "newRequest": "new-request-16",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 397.9031,
+          "generation": 17
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 399.0652
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 414.6343
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 416.7958,
+          "generation": 18
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 416.9295
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-16",
+          "operationId": "switch-old-16",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889536,
+          "updatedAt": 1793458889536,
+          "contentRevision": 7,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-16",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 17,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-17",
+      "newOp": "switch-new-17",
+      "oldRequest": "old-request-17",
+      "newRequest": "new-request-17",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 416.9402,
+          "generation": 18
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 417.8527
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 417.8957
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 418.8114,
+          "generation": 19
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 418.8293
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-17",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 18,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-18",
+      "newOp": "switch-new-18",
+      "oldRequest": "old-request-18",
+      "newRequest": "new-request-18",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 418.8597,
+          "generation": 19
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 418.8983
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 419.5131
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 420.0807,
+          "generation": 20
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 420.2062
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-18",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 19,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-19",
+      "newOp": "switch-new-19",
+      "oldRequest": "old-request-19",
+      "newRequest": "new-request-19",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 420.2137,
+          "generation": 20
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 420.2486
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 420.8528
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 421.3792,
+          "generation": 21
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 421.5065
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-19",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 20,
+      "scenario": "queued-open",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-20",
+      "newOp": "switch-new-20",
+      "oldRequest": "old-request-20",
+      "newRequest": "new-request-20",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 421.5867,
+          "generation": 21
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 422.2959
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 424.1183
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 425.8908,
+          "generation": 22
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 425.9859
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-20",
+          "operationId": "switch-old-20",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889545,
+          "updatedAt": 1793458889545,
+          "contentRevision": 9,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-20",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-20",
+          "operationId": "switch-new-20",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889545,
+          "updatedAt": 1793458889545,
+          "contentRevision": 8,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 21,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-21",
+      "newOp": "switch-new-21",
+      "oldRequest": "old-request-21",
+      "newRequest": "new-request-21",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 425.9981,
+          "generation": 22
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 427.048
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 427.1108
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 428.0979,
+          "generation": 23
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 428.1174
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-21",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 22,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-22",
+      "newOp": "switch-new-22",
+      "oldRequest": "old-request-22",
+      "newRequest": "new-request-22",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 428.1278,
+          "generation": 23
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 428.1698
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 429.0217
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 430.2543,
+          "generation": 24
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 430.3975
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-22",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 23,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-23",
+      "newOp": "switch-new-23",
+      "oldRequest": "old-request-23",
+      "newRequest": "new-request-23",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 430.4089,
+          "generation": 24
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 430.5091
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 431.3279
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 432.2958,
+          "generation": 25
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 432.4391
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-23",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 24,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-24",
+      "newOp": "switch-new-24",
+      "oldRequest": "old-request-24",
+      "newRequest": "new-request-24",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 432.4485,
+          "generation": 25
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 433.3414
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 438.9378
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 442.7524,
+          "generation": 26
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 443.3339
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-24",
+          "operationId": "switch-old-24",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889562,
+          "updatedAt": 1793458889562,
+          "contentRevision": 10,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-24",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 25,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-25",
+      "newOp": "switch-new-25",
+      "oldRequest": "old-request-25",
+      "newRequest": "new-request-25",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 443.353,
+          "generation": 26
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 444.715
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 444.7732
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 445.9136,
+          "generation": 27
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 445.9362
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-25",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 26,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-26",
+      "newOp": "switch-new-26",
+      "oldRequest": "old-request-26",
+      "newRequest": "new-request-26",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 445.9508,
+          "generation": 27
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 445.9935
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 446.7829
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 447.6166,
+          "generation": 28
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 447.7689
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-26",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 27,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-27",
+      "newOp": "switch-new-27",
+      "oldRequest": "old-request-27",
+      "newRequest": "new-request-27",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 447.7787,
+          "generation": 28
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 447.824
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 448.6105
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 449.787,
+          "generation": 29
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 450.0204
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-27",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 28,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-28",
+      "newOp": "switch-new-28",
+      "oldRequest": "old-request-28",
+      "newRequest": "new-request-28",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 450.0379,
+          "generation": 29
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 450.9817
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 454.6108
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 455.6593,
+          "generation": 30
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 455.8402
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-28",
+          "operationId": "switch-old-28",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889575,
+          "updatedAt": 1793458889575,
+          "contentRevision": 11,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-28",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 29,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-29",
+      "newOp": "switch-new-29",
+      "oldRequest": "old-request-29",
+      "newRequest": "new-request-29",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 455.8567,
+          "generation": 30
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 458.1428
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 458.2014
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 459.3019,
+          "generation": 31
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 459.3284
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-29",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 30,
+      "scenario": "inflight-refresh",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-30",
+      "newOp": "switch-new-30",
+      "oldRequest": "old-request-30",
+      "newRequest": "new-request-30",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 459.4193,
+          "generation": 31
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 459.4689
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 460.2554
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 461.4887,
+          "generation": 32
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 461.6543
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-30",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-30",
+          "operationId": "switch-new-30",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889580,
+          "updatedAt": 1793458889580,
+          "contentRevision": 12,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 31,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-31",
+      "newOp": "switch-new-31",
+      "oldRequest": "old-request-31",
+      "newRequest": "new-request-31",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 461.6678,
+          "generation": 32
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 461.7132
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 462.5484
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 464.0918,
+          "generation": 33
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 464.2294
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-31",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 32,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-32",
+      "newOp": "switch-new-32",
+      "oldRequest": "old-request-32",
+      "newRequest": "new-request-32",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 464.2398,
+          "generation": 33
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 465.3089
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 471.9161
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 474.3483,
+          "generation": 34
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 475.1807
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-32",
+          "operationId": "switch-old-32",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889594,
+          "updatedAt": 1793458889594,
+          "contentRevision": 13,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-32",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 33,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-33",
+      "newOp": "switch-new-33",
+      "oldRequest": "old-request-33",
+      "newRequest": "new-request-33",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 475.2161,
+          "generation": 34
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 476.5419
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 476.6298
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 477.7586,
+          "generation": 35
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 477.7853
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-33",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 34,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-34",
+      "newOp": "switch-new-34",
+      "oldRequest": "old-request-34",
+      "newRequest": "new-request-34",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 477.8019,
+          "generation": 35
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 477.8413
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 479.0474
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 480.0085,
+          "generation": 36
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 480.1321
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-34",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 35,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-35",
+      "newOp": "switch-new-35",
+      "oldRequest": "old-request-35",
+      "newRequest": "new-request-35",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 480.1444,
+          "generation": 36
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 480.2205
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 481.0669
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 481.8447,
+          "generation": 37
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 481.9648
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-35",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 36,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-36",
+      "newOp": "switch-new-36",
+      "oldRequest": "old-request-36",
+      "newRequest": "new-request-36",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 481.9748,
+          "generation": 37
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 482.6813
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 488.4676
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 490.3682,
+          "generation": 38
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 490.4959
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-36",
+          "operationId": "switch-old-36",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889609,
+          "updatedAt": 1793458889609,
+          "contentRevision": 14,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-36",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 37,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-37",
+      "newOp": "switch-new-37",
+      "oldRequest": "old-request-37",
+      "newRequest": "new-request-37",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 490.5123,
+          "generation": 38
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 491.9377
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 492.0094
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 493.3367,
+          "generation": 39
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 493.3701
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-37",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 38,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-38",
+      "newOp": "switch-new-38",
+      "oldRequest": "old-request-38",
+      "newRequest": "new-request-38",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 493.3968,
+          "generation": 39
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 493.4776
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 494.4264
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 495.3761,
+          "generation": 40
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 495.5435
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-38",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 39,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-39",
+      "newOp": "switch-new-39",
+      "oldRequest": "old-request-39",
+      "newRequest": "new-request-39",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 495.5621,
+          "generation": 40
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 495.6068
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 496.273
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 497.1064,
+          "generation": 41
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 497.2906
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-39",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 40,
+      "scenario": "queued-open",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-40",
+      "newOp": "switch-new-40",
+      "oldRequest": "old-request-40",
+      "newRequest": "new-request-40",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 497.382,
+          "generation": 41
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 498.273
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 504.0601
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 505.3169,
+          "generation": 42
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 505.3911
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-40",
+          "operationId": "switch-old-40",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889624,
+          "updatedAt": 1793458889624,
+          "contentRevision": 16,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-40",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-40",
+          "operationId": "switch-new-40",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889624,
+          "updatedAt": 1793458889624,
+          "contentRevision": 15,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 41,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-41",
+      "newOp": "switch-new-41",
+      "oldRequest": "old-request-41",
+      "newRequest": "new-request-41",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 505.4107,
+          "generation": 42
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 507.1297
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 507.2218
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 509.0159,
+          "generation": 43
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 509.0547
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-41",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 42,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-42",
+      "newOp": "switch-new-42",
+      "oldRequest": "old-request-42",
+      "newRequest": "new-request-42",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 509.0781,
+          "generation": 43
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 509.1309
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 509.9535
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 511.2802,
+          "generation": 44
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 511.6325
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-42",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 43,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-43",
+      "newOp": "switch-new-43",
+      "oldRequest": "old-request-43",
+      "newRequest": "new-request-43",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 511.668,
+          "generation": 44
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 511.8102
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 512.7882
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 513.7535,
+          "generation": 45
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 513.8994
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-43",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 44,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-44",
+      "newOp": "switch-new-44",
+      "oldRequest": "old-request-44",
+      "newRequest": "new-request-44",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 513.9204,
+          "generation": 45
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 515.2364
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 519.4804
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 521.9482,
+          "generation": 46
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 522.0477
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-44",
+          "operationId": "switch-old-44",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889641,
+          "updatedAt": 1793458889641,
+          "contentRevision": 17,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-44",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 45,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-45",
+      "newOp": "switch-new-45",
+      "oldRequest": "old-request-45",
+      "newRequest": "new-request-45",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 522.0651,
+          "generation": 46
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 523.2162
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 523.2785
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 525.1422,
+          "generation": 47
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 525.3436
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-45",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 46,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-46",
+      "newOp": "switch-new-46",
+      "oldRequest": "old-request-46",
+      "newRequest": "new-request-46",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 525.3664,
+          "generation": 47
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 525.4317
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 526.1723
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 527.9116,
+          "generation": 48
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 528.0521
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-46",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 47,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-47",
+      "newOp": "switch-new-47",
+      "oldRequest": "old-request-47",
+      "newRequest": "new-request-47",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 528.0654,
+          "generation": 48
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 528.1148
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 528.7049
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 529.3227,
+          "generation": 49
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 529.4417
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-47",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 48,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-48",
+      "newOp": "switch-new-48",
+      "oldRequest": "old-request-48",
+      "newRequest": "new-request-48",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 529.451,
+          "generation": 49
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 529.9316
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 539.6616
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 541.502,
+          "generation": 50
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 541.609
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-48",
+          "operationId": "switch-old-48",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889660,
+          "updatedAt": 1793458889660,
+          "contentRevision": 18,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-48",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 49,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-49",
+      "newOp": "switch-new-49",
+      "oldRequest": "old-request-49",
+      "newRequest": "new-request-49",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 541.6244,
+          "generation": 50
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 542.2555
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 542.2933
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 543.2431,
+          "generation": 51
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 543.2632
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-49",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 50,
+      "scenario": "inflight-refresh",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-50",
+      "newOp": "switch-new-50",
+      "oldRequest": "old-request-50",
+      "newRequest": "new-request-50",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 543.376,
+          "generation": 51
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 543.4158
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 544.2055
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 545.3671,
+          "generation": 52
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 545.5103
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-50",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-50",
+          "operationId": "switch-new-50",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889664,
+          "updatedAt": 1793458889664,
+          "contentRevision": 19,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 51,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-51",
+      "newOp": "switch-new-51",
+      "oldRequest": "old-request-51",
+      "newRequest": "new-request-51",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 545.5224,
+          "generation": 52
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 545.562
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 546.4787
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 547.2994,
+          "generation": 53
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 547.4111
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-51",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 52,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-52",
+      "newOp": "switch-new-52",
+      "oldRequest": "old-request-52",
+      "newRequest": "new-request-52",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 547.4634,
+          "generation": 53
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 548.1043
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 554.871
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 557.8835,
+          "generation": 54
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 558.0636
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-52",
+          "operationId": "switch-old-52",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889677,
+          "updatedAt": 1793458889677,
+          "contentRevision": 20,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-52",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 53,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-53",
+      "newOp": "switch-new-53",
+      "oldRequest": "old-request-53",
+      "newRequest": "new-request-53",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 558.0828,
+          "generation": 54
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 559.1864
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 559.2363
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 560.1464,
+          "generation": 55
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 560.1659
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-53",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 54,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-54",
+      "newOp": "switch-new-54",
+      "oldRequest": "old-request-54",
+      "newRequest": "new-request-54",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 560.2016,
+          "generation": 55
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 560.2409
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 560.947
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 561.755,
+          "generation": 56
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 561.8553
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-54",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 55,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-55",
+      "newOp": "switch-new-55",
+      "oldRequest": "old-request-55",
+      "newRequest": "new-request-55",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 561.865,
+          "generation": 56
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 561.9009
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 562.3919
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 563.5011,
+          "generation": 57
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 563.6203
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-55",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 56,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-56",
+      "newOp": "switch-new-56",
+      "oldRequest": "old-request-56",
+      "newRequest": "new-request-56",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 563.6305,
+          "generation": 57
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 564.2675
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 574.0281
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 576.0308,
+          "generation": 58
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 576.165
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-56",
+          "operationId": "switch-old-56",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889695,
+          "updatedAt": 1793458889695,
+          "contentRevision": 21,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-56",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 57,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-57",
+      "newOp": "switch-new-57",
+      "oldRequest": "old-request-57",
+      "newRequest": "new-request-57",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 576.1866,
+          "generation": 58
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 577.223
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 577.2755
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 578.1927,
+          "generation": 59
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 578.216
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-57",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 58,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-58",
+      "newOp": "switch-new-58",
+      "oldRequest": "old-request-58",
+      "newRequest": "new-request-58",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 578.2286,
+          "generation": 59
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 578.289
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 579.0344
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 579.8015,
+          "generation": 60
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 579.9201
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-58",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 59,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-59",
+      "newOp": "switch-new-59",
+      "oldRequest": "old-request-59",
+      "newRequest": "new-request-59",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 579.9533,
+          "generation": 60
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 580.0082
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 580.7687
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 581.631,
+          "generation": 61
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 581.7573
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-59",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 60,
+      "scenario": "queued-open",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-60",
+      "newOp": "switch-new-60",
+      "oldRequest": "old-request-60",
+      "newRequest": "new-request-60",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 581.8533,
+          "generation": 61
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 582.7721
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 589.5102
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 592.2793,
+          "generation": 62
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 592.3645
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-60",
+          "operationId": "switch-old-60",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889711,
+          "updatedAt": 1793458889711,
+          "contentRevision": 23,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-60",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-60",
+          "operationId": "switch-new-60",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889711,
+          "updatedAt": 1793458889711,
+          "contentRevision": 22,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 61,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-61",
+      "newOp": "switch-new-61",
+      "oldRequest": "old-request-61",
+      "newRequest": "new-request-61",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 592.3938,
+          "generation": 62
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 593.7983
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 593.854
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 595.1643,
+          "generation": 63
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 595.1867
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-61",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 62,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-62",
+      "newOp": "switch-new-62",
+      "oldRequest": "old-request-62",
+      "newRequest": "new-request-62",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 595.2026,
+          "generation": 63
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 595.2452
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 595.9586
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 596.7712,
+          "generation": 64
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 596.9001
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-62",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 63,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-63",
+      "newOp": "switch-new-63",
+      "oldRequest": "old-request-63",
+      "newRequest": "new-request-63",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 596.9124,
+          "generation": 64
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 596.9542
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 597.6965
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 598.5871,
+          "generation": 65
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 598.7212
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-63",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 64,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-64",
+      "newOp": "switch-new-64",
+      "oldRequest": "old-request-64",
+      "newRequest": "new-request-64",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 598.7349,
+          "generation": 65
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 599.5813
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 606.4977
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 608.4386,
+          "generation": 66
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 608.6058
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-64",
+          "operationId": "switch-old-64",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889727,
+          "updatedAt": 1793458889727,
+          "contentRevision": 24,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-64",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 65,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-65",
+      "newOp": "switch-new-65",
+      "oldRequest": "old-request-65",
+      "newRequest": "new-request-65",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 608.6262,
+          "generation": 66
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 609.4475
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 609.4939
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 610.5011,
+          "generation": 67
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 610.5224
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-65",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 66,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-66",
+      "newOp": "switch-new-66",
+      "oldRequest": "old-request-66",
+      "newRequest": "new-request-66",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 610.5368,
+          "generation": 67
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 610.5772
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 611.34
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 612.3118,
+          "generation": 68
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 612.4315
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-66",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 67,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-67",
+      "newOp": "switch-new-67",
+      "oldRequest": "old-request-67",
+      "newRequest": "new-request-67",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 612.4462,
+          "generation": 68
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 612.4906
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 613.3624
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 614.3089,
+          "generation": 69
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 614.4486
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-67",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 68,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-68",
+      "newOp": "switch-new-68",
+      "oldRequest": "old-request-68",
+      "newRequest": "new-request-68",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 614.4627,
+          "generation": 69
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 615.1719
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 621.635
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 623.4367,
+          "generation": 70
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 623.597
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-68",
+          "operationId": "switch-old-68",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889742,
+          "updatedAt": 1793458889742,
+          "contentRevision": 25,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-68",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 69,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-69",
+      "newOp": "switch-new-69",
+      "oldRequest": "old-request-69",
+      "newRequest": "new-request-69",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 623.6294,
+          "generation": 70
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 625.1299
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 625.1841
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 626.5452,
+          "generation": 71
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 626.9264
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-69",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 70,
+      "scenario": "inflight-refresh",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-70",
+      "newOp": "switch-new-70",
+      "oldRequest": "old-request-70",
+      "newRequest": "new-request-70",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 627.0617,
+          "generation": 71
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 627.1352
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 628.3706
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 629.4986,
+          "generation": 72
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 629.6502
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-70",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-70",
+          "operationId": "switch-new-70",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889748,
+          "updatedAt": 1793458889748,
+          "contentRevision": 26,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 71,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-71",
+      "newOp": "switch-new-71",
+      "oldRequest": "old-request-71",
+      "newRequest": "new-request-71",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 629.672,
+          "generation": 72
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 629.7181
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 630.5508
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 631.5693,
+          "generation": 73
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 631.7117
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-71",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 72,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-72",
+      "newOp": "switch-new-72",
+      "oldRequest": "old-request-72",
+      "newRequest": "new-request-72",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 631.7309,
+          "generation": 73
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 632.552
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 639.804
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 642.2032,
+          "generation": 74
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 642.3134
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-72",
+          "operationId": "switch-old-72",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889761,
+          "updatedAt": 1793458889761,
+          "contentRevision": 27,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-72",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 73,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-73",
+      "newOp": "switch-new-73",
+      "oldRequest": "old-request-73",
+      "newRequest": "new-request-73",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 642.3377,
+          "generation": 74
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 643.8533
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 643.901
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 645.1358,
+          "generation": 75
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 645.1602
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-73",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 74,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-74",
+      "newOp": "switch-new-74",
+      "oldRequest": "old-request-74",
+      "newRequest": "new-request-74",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 645.177,
+          "generation": 75
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 645.2338
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 646.3715
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 647.5327,
+          "generation": 76
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 647.8329
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-74",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 75,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-75",
+      "newOp": "switch-new-75",
+      "oldRequest": "old-request-75",
+      "newRequest": "new-request-75",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 647.8585,
+          "generation": 76
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 647.9398
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 648.7395
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 649.9656,
+          "generation": 77
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 650.2936
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-75",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 76,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-76",
+      "newOp": "switch-new-76",
+      "oldRequest": "old-request-76",
+      "newRequest": "new-request-76",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 650.315,
+          "generation": 77
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 652.1606
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 654.672
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 655.9352,
+          "generation": 78
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 656.1085
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-76",
+          "operationId": "switch-old-76",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889775,
+          "updatedAt": 1793458889775,
+          "contentRevision": 28,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-76",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 77,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-77",
+      "newOp": "switch-new-77",
+      "oldRequest": "old-request-77",
+      "newRequest": "new-request-77",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 656.1278,
+          "generation": 78
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 657.2998
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 657.35
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 658.5997,
+          "generation": 79
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 658.6248
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-77",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 78,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-78",
+      "newOp": "switch-new-78",
+      "oldRequest": "old-request-78",
+      "newRequest": "new-request-78",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 658.6436,
+          "generation": 79
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 658.6888
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 659.2859
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 659.8779,
+          "generation": 80
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 659.9862
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-78",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 79,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-79",
+      "newOp": "switch-new-79",
+      "oldRequest": "old-request-79",
+      "newRequest": "new-request-79",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 659.9971,
+          "generation": 80
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 660.0335
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 660.4928
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 661.0018,
+          "generation": 81
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 661.1057
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-79",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 80,
+      "scenario": "queued-open",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-80",
+      "newOp": "switch-new-80",
+      "oldRequest": "old-request-80",
+      "newRequest": "new-request-80",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 661.1883,
+          "generation": 81
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 661.9041
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 664.1396
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 665.0156,
+          "generation": 82
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 665.0798
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-80",
+          "operationId": "switch-old-80",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889784,
+          "updatedAt": 1793458889784,
+          "contentRevision": 30,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-80",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-80",
+          "operationId": "switch-new-80",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889784,
+          "updatedAt": 1793458889784,
+          "contentRevision": 29,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 81,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-81",
+      "newOp": "switch-new-81",
+      "oldRequest": "old-request-81",
+      "newRequest": "new-request-81",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 665.1202,
+          "generation": 82
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 666.0399
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 666.0889
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 666.9864,
+          "generation": 83
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 667.0712
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-81",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 82,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-82",
+      "newOp": "switch-new-82",
+      "oldRequest": "old-request-82",
+      "newRequest": "new-request-82",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 667.0859,
+          "generation": 83
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 667.1234
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 667.6258
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 668.4418,
+          "generation": 84
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 668.554
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-82",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 83,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-83",
+      "newOp": "switch-new-83",
+      "oldRequest": "old-request-83",
+      "newRequest": "new-request-83",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 668.5668,
+          "generation": 84
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 668.6071
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 669.1356
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 669.6951,
+          "generation": 85
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 669.8053
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-83",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 84,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-84",
+      "newOp": "switch-new-84",
+      "oldRequest": "old-request-84",
+      "newRequest": "new-request-84",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 669.8161,
+          "generation": 85
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 670.2968
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 672.1537
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 673.6907,
+          "generation": 86
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 673.8028
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-84",
+          "operationId": "switch-old-84",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889793,
+          "updatedAt": 1793458889793,
+          "contentRevision": 31,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-84",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 85,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-85",
+      "newOp": "switch-new-85",
+      "oldRequest": "old-request-85",
+      "newRequest": "new-request-85",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 673.819,
+          "generation": 86
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 675.1029
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 675.1623
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 676.2071,
+          "generation": 87
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 676.2284
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-85",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 86,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-86",
+      "newOp": "switch-new-86",
+      "oldRequest": "old-request-86",
+      "newRequest": "new-request-86",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 676.2462,
+          "generation": 87
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 676.2828
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 676.964
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 677.9679,
+          "generation": 88
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 678.1078
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-86",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 87,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-87",
+      "newOp": "switch-new-87",
+      "oldRequest": "old-request-87",
+      "newRequest": "new-request-87",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 678.1255,
+          "generation": 88
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 678.1842
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 679.2803
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 680.4062,
+          "generation": 89
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 680.5464
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-87",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 88,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-88",
+      "newOp": "switch-new-88",
+      "oldRequest": "old-request-88",
+      "newRequest": "new-request-88",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 680.5701,
+          "generation": 89
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 681.4335
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 689.4658
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 691.9651,
+          "generation": 90
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 692.0877
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-88",
+          "operationId": "switch-old-88",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889811,
+          "updatedAt": 1793458889811,
+          "contentRevision": 32,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-88",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 89,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-89",
+      "newOp": "switch-new-89",
+      "oldRequest": "old-request-89",
+      "newRequest": "new-request-89",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 692.1092,
+          "generation": 90
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 692.83
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 692.8687
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 693.7745,
+          "generation": 91
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 693.7957
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-89",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 90,
+      "scenario": "inflight-refresh",
+      "injectFailure": true,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-90",
+      "newOp": "switch-new-90",
+      "oldRequest": "old-request-90",
+      "newRequest": "new-request-90",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 693.9139,
+          "generation": 91
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 693.9586
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 694.9212
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 696.0043,
+          "generation": 92
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 696.1305
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-90",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "failed",
+        "error": "controlled real read failure",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-new-90",
+          "operationId": "switch-new-90",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "controlled real read failure"
+          ],
+          "createdAt": 1793458889815,
+          "updatedAt": 1793458889815,
+          "contentRevision": 33,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "selected": true
+      }
+    },
+    {
+      "index": 91,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-91",
+      "newOp": "switch-new-91",
+      "oldRequest": "old-request-91",
+      "newRequest": "new-request-91",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 696.1461,
+          "generation": 92
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 696.1857
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 696.8864
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 697.6851,
+          "generation": 93
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 697.8028
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-91",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 92,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-92",
+      "newOp": "switch-new-92",
+      "oldRequest": "old-request-92",
+      "newRequest": "new-request-92",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 697.8149,
+          "generation": 93
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 698.3626
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 706.4532
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 709.5405,
+          "generation": 94
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 709.6582
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-92",
+          "operationId": "switch-old-92",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889828,
+          "updatedAt": 1793458889828,
+          "contentRevision": 34,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-92",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 93,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-93",
+      "newOp": "switch-new-93",
+      "oldRequest": "old-request-93",
+      "newRequest": "new-request-93",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 709.6803,
+          "generation": 94
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 710.3339
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 710.3693
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 711.4285,
+          "generation": 95
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 711.4597
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-93",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 94,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-94",
+      "newOp": "switch-new-94",
+      "oldRequest": "old-request-94",
+      "newRequest": "new-request-94",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 711.4754,
+          "generation": 95
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 711.5177
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 712.1041
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 712.6996,
+          "generation": 96
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 712.8512
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-94",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 95,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-95",
+      "newOp": "switch-new-95",
+      "oldRequest": "old-request-95",
+      "newRequest": "new-request-95",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 712.862,
+          "generation": 96
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 712.9052
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 713.8654
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 714.7985,
+          "generation": 97
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 714.9311
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-95",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 96,
+      "scenario": "queued-open",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-96",
+      "newOp": "switch-new-96",
+      "oldRequest": "old-request-96",
+      "newRequest": "new-request-96",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 714.9457,
+          "generation": 97
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 715.4914
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 723.1269
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 727.4642,
+          "generation": 98
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 727.7234
+        }
+      ],
+      "old": {
+        "status": "failed",
+        "error": "操作失敗，請稍後重試。",
+        "effect": "none",
+        "notification": {
+          "id": "operation:switch-old-96",
+          "operationId": "switch-old-96",
+          "title": "版控操作",
+          "level": "error",
+          "messages": [
+            "操作失敗，請稍後重試。"
+          ],
+          "createdAt": 1793458889846,
+          "updatedAt": 1793458889846,
+          "contentRevision": 35,
+          "read": false,
+          "origin": {
+            "accountId": "account",
+            "baseUrl": "https://gitlab.test",
+            "groupId": 1,
+            "root": "C:/workspace"
+          }
+        },
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-96",
+          "error": "操作失敗，請稍後重試。",
+          "effect": "none",
+          "write": false
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 97,
+      "scenario": "queued-history",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-97",
+      "newOp": "switch-new-97",
+      "oldRequest": "old-request-97",
+      "newRequest": "new-request-97",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 727.7474,
+          "generation": 98
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 728.6492
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 728.6898
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 729.6766,
+          "generation": 99
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 729.7011
+        }
+      ],
+      "old": {
+        "status": "cancelled",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-97",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": false
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 98,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "nextId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "oldOp": "switch-old-98",
+      "newOp": "switch-new-98",
+      "oldRequest": "old-request-98",
+      "newRequest": "new-request-98",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 729.7175,
+          "generation": 99
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 729.8409
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 731.3994
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 732.4444,
+          "generation": 100
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 732.6626
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-98",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    },
+    {
+      "index": 99,
+      "scenario": "inflight-refresh",
+      "injectFailure": false,
+      "oldId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "nextId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "oldOp": "switch-old-99",
+      "newOp": "switch-new-99",
+      "oldRequest": "old-request-99",
+      "newRequest": "new-request-99",
+      "events": [
+        {
+          "event": "old-selected",
+          "timeMs": 732.6789,
+          "generation": 100
+        },
+        {
+          "event": "old-request-started",
+          "timeMs": 732.7211
+        },
+        {
+          "event": "old-delayed",
+          "timeMs": 733.8114
+        },
+        {
+          "event": "new-request-finished",
+          "timeMs": 735.1923,
+          "generation": 101
+        },
+        {
+          "event": "old-request-finished",
+          "timeMs": 735.3167
+        }
+      ],
+      "old": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "result": {
+          "type": "gitActionResult",
+          "requestId": "old-request-99",
+          "write": false,
+          "effect": "none"
+        },
+        "snapshotSent": true
+      },
+      "current": {
+        "status": "succeeded",
+        "effect": "none",
+        "notification": null,
+        "selected": true
+      }
+    }
+  ],
+  "trace": [
+    {
+      "timeMs": 321.1878,
+      "operationId": "switch-old-0",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 326.7627,
+      "operationId": "switch-new-0",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 330.9314,
+      "operationId": "switch-old-1",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 331.1527,
+      "operationId": "switch-new-1",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 333.4987,
+      "operationId": "switch-old-2",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 334.3471,
+      "operationId": "switch-new-2",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 335.539,
+      "operationId": "switch-old-3",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 336.5291,
+      "operationId": "switch-new-3",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 338.9276,
+      "operationId": "switch-old-4",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 348.5501,
+      "operationId": "switch-new-4",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 351.1847,
+      "operationId": "switch-old-5",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 351.3199,
+      "operationId": "switch-new-5",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 352.4152,
+      "operationId": "switch-old-6",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 353.0486,
+      "operationId": "switch-new-6",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 353.7833,
+      "operationId": "switch-old-7",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 354.5063,
+      "operationId": "switch-new-7",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 356.8007,
+      "operationId": "switch-old-8",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 365.5448,
+      "operationId": "switch-new-8",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 367.7188,
+      "operationId": "switch-old-9",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 367.8417,
+      "operationId": "switch-new-9",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 370.3436,
+      "operationId": "switch-old-10",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 372.0166,
+      "operationId": "switch-new-10",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 373.9116,
+      "operationId": "switch-old-11",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 375.1744,
+      "operationId": "switch-new-11",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 377.2105,
+      "operationId": "switch-old-12",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 390.6599,
+      "operationId": "switch-new-12",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 393.3698,
+      "operationId": "switch-old-13",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 393.479,
+      "operationId": "switch-new-13",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 394.3572,
+      "operationId": "switch-old-14",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 395.0135,
+      "operationId": "switch-new-14",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 396.251,
+      "operationId": "switch-old-15",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 396.9931,
+      "operationId": "switch-new-15",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 399.0992,
+      "operationId": "switch-old-16",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 415.0117,
+      "operationId": "switch-new-16",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 417.8708,
+      "operationId": "switch-old-17",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 417.9551,
+      "operationId": "switch-new-17",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 418.9071,
+      "operationId": "switch-old-18",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 419.5958,
+      "operationId": "switch-new-18",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 420.2799,
+      "operationId": "switch-old-19",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 420.9163,
+      "operationId": "switch-new-19",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 422.3323,
+      "operationId": "switch-old-20",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 424.7511,
+      "operationId": "switch-new-20",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 427.0716,
+      "operationId": "switch-old-21",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 427.199,
+      "operationId": "switch-new-21",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 428.1787,
+      "operationId": "switch-old-22",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 429.3034,
+      "operationId": "switch-new-22",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 430.5273,
+      "operationId": "switch-old-23",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 431.454,
+      "operationId": "switch-new-23",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 433.3896,
+      "operationId": "switch-old-24",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 439.2337,
+      "operationId": "switch-new-24",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 444.7363,
+      "operationId": "switch-old-25",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 444.8796,
+      "operationId": "switch-new-25",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 446.0024,
+      "operationId": "switch-old-26",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 446.8774,
+      "operationId": "switch-new-26",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 447.838,
+      "operationId": "switch-old-27",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 448.8286,
+      "operationId": "switch-new-27",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 451.0162,
+      "operationId": "switch-old-28",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 454.7855,
+      "operationId": "switch-new-28",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 458.1638,
+      "operationId": "switch-old-29",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 458.2782,
+      "operationId": "switch-new-29",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 459.4782,
+      "operationId": "switch-old-30",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 460.3672,
+      "operationId": "switch-new-30",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 461.7266,
+      "operationId": "switch-old-31",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 462.6333,
+      "operationId": "switch-new-31",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 465.3647,
+      "operationId": "switch-old-32",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 472.2751,
+      "operationId": "switch-new-32",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 476.5845,
+      "operationId": "switch-old-33",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 476.7318,
+      "operationId": "switch-new-33",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 477.8497,
+      "operationId": "switch-old-34",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 479.1502,
+      "operationId": "switch-new-34",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 480.2434,
+      "operationId": "switch-old-35",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 481.1483,
+      "operationId": "switch-new-35",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 482.741,
+      "operationId": "switch-old-36",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 488.6617,
+      "operationId": "switch-new-36",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 491.968,
+      "operationId": "switch-old-37",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 492.1017,
+      "operationId": "switch-new-37",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 493.4909,
+      "operationId": "switch-old-38",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 494.5529,
+      "operationId": "switch-new-38",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 495.6201,
+      "operationId": "switch-old-39",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 496.3479,
+      "operationId": "switch-new-39",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 498.3042,
+      "operationId": "switch-old-40",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 504.2443,
+      "operationId": "switch-new-40",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 507.1504,
+      "operationId": "switch-old-41",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 507.365,
+      "operationId": "switch-new-41",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 509.1393,
+      "operationId": "switch-old-42",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 510.0708,
+      "operationId": "switch-new-42",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 511.8371,
+      "operationId": "switch-old-43",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 512.8963,
+      "operationId": "switch-new-43",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 515.2638,
+      "operationId": "switch-old-44",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 519.8193,
+      "operationId": "switch-new-44",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 523.2371,
+      "operationId": "switch-old-45",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 523.4538,
+      "operationId": "switch-new-45",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 525.4436,
+      "operationId": "switch-old-46",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 526.2613,
+      "operationId": "switch-new-46",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 528.1287,
+      "operationId": "switch-old-47",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 528.7707,
+      "operationId": "switch-new-47",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 529.9533,
+      "operationId": "switch-old-48",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 540.217,
+      "operationId": "switch-new-48",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 542.2713,
+      "operationId": "switch-old-49",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 542.3525,
+      "operationId": "switch-new-49",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 543.4245,
+      "operationId": "switch-old-50",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 544.2992,
+      "operationId": "switch-new-50",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 545.5757,
+      "operationId": "switch-old-51",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 546.5734,
+      "operationId": "switch-new-51",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 548.1286,
+      "operationId": "switch-old-52",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 555.3554,
+      "operationId": "switch-new-52",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 559.2062,
+      "operationId": "switch-old-53",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 559.3558,
+      "operationId": "switch-new-53",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 560.2485,
+      "operationId": "switch-old-54",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 561.0774,
+      "operationId": "switch-new-54",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 561.9134,
+      "operationId": "switch-old-55",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 562.4464,
+      "operationId": "switch-new-55",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 564.289,
+      "operationId": "switch-old-56",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 574.652,
+      "operationId": "switch-new-56",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 577.2439,
+      "operationId": "switch-old-57",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 577.3537,
+      "operationId": "switch-new-57",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 578.2966,
+      "operationId": "switch-old-58",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 579.1339,
+      "operationId": "switch-new-58",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 580.0313,
+      "operationId": "switch-old-59",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 580.8404,
+      "operationId": "switch-new-59",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 582.7953,
+      "operationId": "switch-old-60",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 590.3416,
+      "operationId": "switch-new-60",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 593.8189,
+      "operationId": "switch-old-61",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 593.9586,
+      "operationId": "switch-new-61",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 595.2534,
+      "operationId": "switch-old-62",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 596.0477,
+      "operationId": "switch-new-62",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 596.9674,
+      "operationId": "switch-old-63",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 597.767,
+      "operationId": "switch-new-63",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 599.6077,
+      "operationId": "switch-old-64",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 606.8148,
+      "operationId": "switch-new-64",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 609.4645,
+      "operationId": "switch-old-65",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 609.6344,
+      "operationId": "switch-new-65",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 610.5852,
+      "operationId": "switch-old-66",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 611.4387,
+      "operationId": "switch-new-66",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 612.5037,
+      "operationId": "switch-old-67",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 613.4424,
+      "operationId": "switch-new-67",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 615.1972,
+      "operationId": "switch-old-68",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 621.9192,
+      "operationId": "switch-new-68",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 625.1492,
+      "operationId": "switch-old-69",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 625.2695,
+      "operationId": "switch-new-69",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 627.1482,
+      "operationId": "switch-old-70",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 628.4961,
+      "operationId": "switch-new-70",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 629.7332,
+      "operationId": "switch-old-71",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 630.6339,
+      "operationId": "switch-new-71",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 632.5786,
+      "operationId": "switch-old-72",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 640.1501,
+      "operationId": "switch-new-72",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 643.8711,
+      "operationId": "switch-old-73",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 643.976,
+      "operationId": "switch-new-73",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 645.2433,
+      "operationId": "switch-old-74",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 646.4941,
+      "operationId": "switch-new-74",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 647.9649,
+      "operationId": "switch-old-75",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 648.8378,
+      "operationId": "switch-new-75",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 652.1882,
+      "operationId": "switch-old-76",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 655.0118,
+      "operationId": "switch-new-76",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 657.3167,
+      "operationId": "switch-old-77",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 657.4249,
+      "operationId": "switch-new-77",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 658.6974,
+      "operationId": "switch-old-78",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 659.3567,
+      "operationId": "switch-new-78",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 660.0458,
+      "operationId": "switch-old-79",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 660.5438,
+      "operationId": "switch-new-79",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 661.9283,
+      "operationId": "switch-old-80",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 664.2718,
+      "operationId": "switch-new-80",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 666.0555,
+      "operationId": "switch-old-81",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 666.1496,
+      "operationId": "switch-new-81",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 667.1312,
+      "operationId": "switch-old-82",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 667.6968,
+      "operationId": "switch-new-82",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 668.6224,
+      "operationId": "switch-old-83",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 669.1894,
+      "operationId": "switch-new-83",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 670.3145,
+      "operationId": "switch-old-84",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 672.2661,
+      "operationId": "switch-new-84",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 675.1206,
+      "operationId": "switch-old-85",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 675.2593,
+      "operationId": "switch-new-85",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 676.2904,
+      "operationId": "switch-old-86",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 677.0541,
+      "operationId": "switch-new-86",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 678.1987,
+      "operationId": "switch-old-87",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 679.3916,
+      "operationId": "switch-new-87",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 681.4593,
+      "operationId": "switch-old-88",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 689.9684,
+      "operationId": "switch-new-88",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 692.8458,
+      "operationId": "switch-old-89",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 692.9417,
+      "operationId": "switch-new-89",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 693.9691,
+      "operationId": "switch-old-90",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 695.0467,
+      "operationId": "switch-new-90",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 696.1981,
+      "operationId": "switch-old-91",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 696.9658,
+      "operationId": "switch-new-91",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 698.3973,
+      "operationId": "switch-old-92",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 707.6924,
+      "operationId": "switch-new-92",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 710.3484,
+      "operationId": "switch-old-93",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 710.5142,
+      "operationId": "switch-new-93",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 711.5253,
+      "operationId": "switch-old-94",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 712.1759,
+      "operationId": "switch-new-94",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 712.9174,
+      "operationId": "switch-old-95",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 713.9732,
+      "operationId": "switch-new-95",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 715.5124,
+      "operationId": "switch-old-96",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 723.494,
+      "operationId": "switch-new-96",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 728.6647,
+      "operationId": "switch-old-97",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "history"
+    },
+    {
+      "timeMs": 728.7631,
+      "operationId": "switch-new-97",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    },
+    {
+      "timeMs": 729.8578,
+      "operationId": "switch-old-98",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 731.5122,
+      "operationId": "switch-new-98",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "open"
+    },
+    {
+      "timeMs": 732.7362,
+      "operationId": "switch-old-99",
+      "phase": "start",
+      "repositoryId": "b5a10f3f42b81c3499716118cb9afc7b",
+      "action": "refresh"
+    },
+    {
+      "timeMs": 733.9011,
+      "operationId": "switch-new-99",
+      "phase": "start",
+      "repositoryId": "eecf51281f70a798aeeb6a27ea32dfbd",
+      "action": "open"
+    }
+  ]
+}

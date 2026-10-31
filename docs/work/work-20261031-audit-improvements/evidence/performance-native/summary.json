@@ -1,0 +1,51 @@
+{
+  "schema": "GitLabWorkspaceOfflineNativeResourceProbe/v1",
+  "artifactSha256": "62a21520e3ae9ffb1f80a20e28a6854fb8acf2fdfde1aedf167257dea32cb017",
+  "artifact": "docs\\work\\work-20261031-audit-improvements\\evidence\\final\\gitlab-workspace-0.37.3.vsix",
+  "method": "Offline, installed VSIX in isolated profile; command return is not rendered readiness",
+  "rounds": [
+    {
+      "round": 1,
+      "long": true,
+      "pid": 2676,
+      "exitCode": 0,
+      "timedOut": false,
+      "completed": true,
+      "cdpError": null,
+      "startupToCommandReturnedMs": 12621.04,
+      "startupToActiveTabMs": 12621.04,
+      "workspaceCommandDurationMs": 51.52950000000055,
+      "events": "evidence\\performance-native\\events-01.jsonl",
+      "samples": "evidence\\performance-native\\samples-01.jsonl",
+      "receiptSnapshots": {
+        "workspace-command-returned": {
+          "exists": true,
+          "files": 1,
+          "bytes": 362
+        },
+        "idle-start": {
+          "exists": true,
+          "files": 30,
+          "bytes": 11222
+        },
+        "idle-complete": {
+          "exists": true,
+          "files": 30,
+          "bytes": 11222
+        },
+        "afterProcessExit": {
+          "exists": true,
+          "files": 30,
+          "bytes": 11222
+        }
+      }
+    }
+  ],
+  "limits": [
+    "No GitLab account, data, timer or graph activity",
+    "Worker threads are not separately attributable by process counters",
+    "I/O counters are process operations, not actual disk bytes",
+    "Initial extraction precedes all measured rounds"
+  ],
+  "isolatedProfileCleanup": "complete"
+}
