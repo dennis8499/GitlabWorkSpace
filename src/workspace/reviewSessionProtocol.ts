@@ -42,18 +42,25 @@ export interface ReviewBudgetSummary {
   extensionUsed: boolean;
   phase: 'within-budget' | 'extended-investigation' | 'wrap-up' | 'complete' | 'incomplete' | 'stopped';
 }
+export type ReviewerCapabilityFeature =
+  | 'request_id' | 'read_only_view' | 'status_summary' | 'read_window' | 'updates_file'
+  | 'durable_review_progress' | 'phase_metrics' | 'literal_search_batch' | 'patch_encoding'
+  | 'operation_diagnostics';
 export interface ReviewerCapabilities {
   schema: 'ReviewCapabilities/v1';
   tool: ReviewerToolId;
   skill_version: string;
   prepare_evidence: boolean;
   supports_parallel_agents?: boolean;
-  updates_schema: 'ReviewUpdates/v1';
+  updates_schema: 'ReviewUpdates/v1' | 'ReleaseReviewUpdates/v1';
   shared_cache_schema: 'ReviewerSharedCache/v2';
   payload_sha256: string;
+  payload_files?: number;
   runtime_root: string;
   git_commands: 0;
   network_commands: 0;
+  features?: Partial<Record<ReviewerCapabilityFeature, boolean>>;
+  observability?: { agent_tool_round_trips: number | null; model_tokens: number | null; http_requests: number | null; ssh_requests: number | null };
   budget_schema?: 'ReviewBudget/v1';
   budget_profiles?: readonly ('balanced' | 'unlimited')[];
 }

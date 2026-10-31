@@ -23,7 +23,8 @@ moduleLoader._load = (name, parent, main) => {
   if (name === './pythonRuntime') return { resolvePythonRuntime: async () => ({executable:'python',args:[],env:{}}) };
   if (name === './reviewerCapabilities') return { readReviewerCapabilities: async (binding: {tool:string;version:string;payload_sha256:string}, _python: unknown, workspace: string) => ({
     schema:'ReviewCapabilities/v1',tool:binding.tool,skill_version:binding.version,prepare_evidence:true,
-    updates_schema:'ReviewUpdates/v1',shared_cache_schema:'ReviewerSharedCache/v2',payload_sha256:binding.payload_sha256,
+    updates_schema:binding.tool==='release-reviewer'?'ReleaseReviewUpdates/v1':'ReviewUpdates/v1',shared_cache_schema:'ReviewerSharedCache/v2',payload_sha256:binding.payload_sha256,
+    features:{request_id:true,read_only_view:true,status_summary:true,read_window:true,updates_file:true,durable_review_progress:true,phase_metrics:true,literal_search_batch:true,patch_encoding:true,operation_diagnostics:true},
     runtime_root:path.join(path.dirname(workspace),'review-runtime'),git_commands:0,network_commands:0 }) };
   return originalLoad(name,parent,main);
 };
@@ -166,6 +167,9 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   for (const repo of context.reviewerRepositories) assert.ok(clipboard[0].includes(`- ${repo.name} → ${repo.path}`));
   assert.ok(clipboard[0].includes(`--workspace-file ${JSON.stringify(vscode.workspace.workspaceFile.fsPath)}`));
   assert.match(clipboard[0], /start --prepare-evidence/);
+  assert.match(clipboard[0], /--request-id "[0-9a-f-]{36}"/);
+  assert.match(clipboard[0], /status --summary/);
+  assert.match(clipboard[0], /read-window/);
   assert.match(clipboard[0], /--updates-file/);
   assert.doesNotMatch(clipboard[0], /--protocol round-v1/);
   request.inputs['release-review.repo'] = path.dirname(root);

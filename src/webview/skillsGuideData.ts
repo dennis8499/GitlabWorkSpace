@@ -10,7 +10,7 @@ import {
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
 export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
-  reviewerExecution?: ReviewerExecutionOverrides; reviewerExecutionError?: string; reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities };
+  reviewerExecution?: ReviewerExecutionOverrides; reviewerExecutionError?: string; reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -167,12 +167,22 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
   if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
   const release = card.tool === 'release-reviewer';
+  const reviewer = release || card.tool === 'merge-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
   if (context.reviewerExecutionError) throw new Error(context.reviewerExecutionError);
   const executionResolution = resolveEffectiveReviewerExecution(inputs, card.id, context.reviewerExecution,
     context.reviewerCapabilities?.supports_parallel_agents === true);
   const execution = executionResolution.policy;
   const prepared = context.reviewerCapabilities?.prepare_evidence === true;
+  const supports = (feature: keyof NonNullable<ReviewerCapabilities['features']>): boolean =>
+    context.reviewerCapabilities?.features?.[feature] === true;
+  const supportsRequestId = context.reviewerCapabilities === undefined || supports('request_id');
+  const statusCommand = supports('status_summary') ? 'status --summary' : 'status';
+  const requestIdArg = supportsRequestId && context.reviewerRequestId ? ' --request-id ' + JSON.stringify(context.reviewerRequestId) : '';
+  const runtimeArg = runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '';
+  const supportsUpdatesFile = prepared && (release
+    ? supports('updates_file')
+    : context.reviewerCapabilities?.updates_schema === 'ReviewUpdates/v1');
   const balanced = !release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
     context.reviewerCapabilities.budget_profiles?.includes('balanced') === true;
   const unlimited = release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
@@ -189,6 +199,12 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(context.reviewerBinding),
       prepared ? 'helper 啟動前自動核對上述整套 payload SHA-256；不符時停止，請重新複製提示詞。'
         : '沿用已安裝入口的既有 CLI；尚未宣告 capabilities 的入口不傳入新版選項。'] : []),
+    ...(context.reviewerRequestId && supportsRequestId ? [`Review request ID: ${context.reviewerRequestId}. Reuse this ID for retries.`] : []),
+    ...(release && supports('read_window') ? ['For large evidence, use read-window with a starting line and count, then follow next cursor.'] : []),
+    ...(release && supports('literal_search_batch') ? ['Batch consecutive case-sensitive literal searches for the same Repo; keep one result record per query.'] : []),
+    ...(release && supports('status_summary') ? ['Resume progress with status --summary.'] : []),
+    ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 python ${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}; python ${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}.`] : []),
+    ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
     '執行政策：' + JSON.stringify(promptExecution),
     '政策優先序：本次輸入、Reviewer 工作區設定、single/inherit/default。只套用本次呼叫；模型由 Codex 宿主建立子 agent 時套用，實際設定未知則記 null。不另開模型服務或修改全域設定。',
     ...(executionResolution.parallelUnavailable ? ['此 Reviewer 未明確回報支援平行 Agent；本次改用單一 Agent，保留已保存設定。'] : []),
@@ -199,7 +215,9 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       '任何 capture／fetch 以前，先按 spawn 工具本機說明核對模型、強度與 fork 能力；不可用或不支援時停止、保留請求並回報，不能默默替換。最多主 agent＋一名子 agent；主 agent 唯一擁有擷取、補查、草稿與發布。',
       'inherit/default 不覆寫父模型與強度；指定模型加 default 時省略 effort，採該模型預設。明確指定 effort 才覆寫，並使用宿主允許覆寫的 fork 方式。'
     ] : []),
-    '啟動 helper：python ' + JSON.stringify(script) + (prepared ? ' start --prepare-evidence --workspace ' : ' start --workspace ') + JSON.stringify(releaseWorkspace) +
+    '啟動 helper：python ' + JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
+      requestIdArg +
+      ' --workspace ' + JSON.stringify(releaseWorkspace) +
       (context.workspaceFile ? ' --workspace-file ' + JSON.stringify(context.workspaceFile) : '') +
       ' --project ' + project + ' --base ' + quoted('base') + ' --head ' + quoted('head') +
       (runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '') +
@@ -207,6 +225,6 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
        (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
       (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '') + '。',
     ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
-    prepared ? '沿 start → 必要 step → finish 完成同一 request_id；以 --updates-file 保存已讀證據上的判斷，再取得下一批內容。status 恢復、cancel 取消；check 僅供手動修稿。保留 helper 輸入骨架與 revision，必要語意判斷由 agent 明確結案。' : '沿 start → 必要 step → finish 完成同一 request_id；status 恢復、cancel 取消，check 供修稿。依已安裝 Skill 的既有草稿與批次操作完成審查。',
+    supportsUpdatesFile ? `Write draft updates to a UTF-8 ${release ? 'ReleaseReviewUpdates/v1' : 'ReviewUpdates/v1'} JSON file and pass them with --updates-file; retry with the same update ID.` : prepared ? 'Save every step result and draft, then resume using the returned request and operation IDs.' : 'Save every step result and draft, then resume using the returned request and operation IDs.',
   ].join('\n');
 }

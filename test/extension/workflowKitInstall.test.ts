@@ -118,7 +118,7 @@ suite('Online workflow kit installation', () => {
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
       assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1');
-      if (kitVersion === '1.3.1') {
+      if (kitVersion === '1.3.1' || kitVersion === '1.3.2') {
         assert.equal(host.workflowKitState.bmadMode, 'bundled');
         assert.ok(host.workflowKitState.capabilities.includes('visualize'));
         const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
@@ -128,8 +128,13 @@ suite('Online workflow kit installation', () => {
         const python = await resolvePythonRuntime('python');
         for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
           const binding = await readInstalledReviewerBinding(root, tool);
-          assert.equal(binding.version, tool === 'merge-reviewer' ? '0.20.3' : '0.10.1');
-          assert.equal(await readReviewerCapabilities(binding, python, root), undefined);
+          assert.equal(binding.version, tool === 'merge-reviewer' ? '0.20.3' : kitVersion === '1.3.2' ? '0.11.0' : '0.10.1');
+          const capabilities = await readReviewerCapabilities(binding, python, root);
+          if (kitVersion === '1.3.2' && tool === 'release-reviewer') {
+            assert.equal(capabilities?.updates_schema, 'ReleaseReviewUpdates/v1');
+            assert.equal(capabilities?.features?.read_window, true);
+            assert.equal(capabilities?.features?.updates_file, true);
+          } else assert.equal(capabilities, undefined);
         }
       }
       assert.equal(host.getSkillsContext().mode, 'unavailable', 'settings classification does not fabricate full Skills discovery');

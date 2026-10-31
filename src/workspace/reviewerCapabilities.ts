@@ -8,6 +8,16 @@ export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
 const cache = new Map<string, Promise<ReviewerCapabilities | undefined>>();
 
+function versionAtLeast(version: string, minimum: string): boolean {
+  const actual = version.split('.').map(part => Number.parseInt(part, 10));
+  const required = minimum.split('.').map(part => Number.parseInt(part, 10));
+  for (let index = 0; index < Math.max(actual.length, required.length); index++) {
+    const difference = (actual[index] ?? 0) - (required[index] ?? 0);
+    if (difference) return difference > 0;
+  }
+  return true;
+}
+
 /** Probe only the bound local helper. Its capabilities command never starts capture. */
 export function readReviewerCapabilities(binding: InstalledReviewerBinding, python: PythonRuntime,
   workspace: string): Promise<ReviewerCapabilities | undefined> {
@@ -20,8 +30,12 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
     let result;
     try {
-      result = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
-        'capabilities', '--workspace', workspace], options);
+      const capabilityArgs = [...python.args, '-X', 'utf8', '-B', binding.script_path,
+        'capabilities', '--workspace', workspace];
+      if (binding.tool === 'release-reviewer' && versionAtLeast(binding.version, '0.11.0')) {
+        capabilityArgs.push('--expected-payload-sha256', binding.payload_sha256);
+      }
+      result = await exec(python.executable, capabilityArgs, options);
     } catch (error) {
       const failure = error as { code?: unknown; stderr?: unknown };
       if (failure.code !== 2 || typeof failure.stderr !== 'string'
@@ -40,11 +54,20 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       return undefined;
     }
     const value = JSON.parse(result.stdout) as ReviewerCapabilities;
+    const updatesSchemaValid = binding.tool === 'release-reviewer'
+      ? value.updates_schema === 'ReviewUpdates/v1' || value.updates_schema === 'ReleaseReviewUpdates/v1'
+      : value.updates_schema === 'ReviewUpdates/v1';
+    const featureNames = ['request_id', 'read_only_view', 'status_summary', 'read_window', 'updates_file',
+      'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics'];
+    const rawFeatures = value.features as unknown;
+    const featuresValid = rawFeatures === undefined || (typeof rawFeatures === 'object' && rawFeatures !== null && !Array.isArray(rawFeatures)
+      && featureNames.every(name => { const flag = (rawFeatures as Record<string, unknown>)[name]; return flag === undefined || typeof flag === 'boolean'; }));
     if (value.schema !== 'ReviewCapabilities/v1' || value.tool !== binding.tool ||
       value.skill_version !== binding.version || value.payload_sha256 !== binding.payload_sha256 ||
-      value.prepare_evidence !== true || value.updates_schema !== 'ReviewUpdates/v1' ||
+      value.prepare_evidence !== true || !updatesSchemaValid || !featuresValid ||
       value.shared_cache_schema !== 'ReviewerSharedCache/v2' || value.git_commands !== 0 ||
       value.network_commands !== 0 || typeof value.runtime_root !== 'string' ||
+      value.payload_files !== undefined && (!Number.isInteger(value.payload_files) || value.payload_files < 0) ||
       value.supports_parallel_agents !== undefined && typeof value.supports_parallel_agents !== 'boolean') {
       throw new Error('已安裝 Reviewer 功能或來源身分不相容，請重新安裝相同來源的工作流程包。');
     }

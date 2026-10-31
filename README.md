@@ -42,10 +42,10 @@
 
 ## 0.37.2 更新
 
-- 對齊 WorkflowKit 1.3.1，將 BMAD 安裝整合至套件管理；輸入需求後複製提示詞到 Codex，由 BMAD 選擇流程，外部 BMAD 與既有產物保留。
+- 對齊 WorkflowKit 1.3.2，將 BMAD 安裝整合至套件管理；輸入需求後複製提示詞到 Codex，由 BMAD 選擇流程，外部 BMAD 與既有產物保留。
 - WorkflowKit 設定顯示 BMAD 管理模式、版本、安裝完整性、介面相容性、更新及環境提醒；共用根目錄切換同步套用至 Skills 與 BMAD。
 - Wiki Skills 指引新增圖表功能，支援架構、流程、循序、資料流、生命週期、實體關係、類別、樹狀、時間軸及瀑布圖。
-- 依 WorkflowKit 1.3.1 的實際介面回歸驗證 MergeReviewer 0.20.3 與 ReleaseReviewer 0.10.1。
+- 依 WorkflowKit 1.3.2 的實際介面回歸驗證 MergeReviewer 0.20.3 與 ReleaseReviewer 0.11.0。
 
 完整變更、驗證結果與畫面截圖見 [0.37.2 發布說明](docs/releases/v0.37.2.md)及[驗證紀錄](docs/work/work-20261031-workflowkit-131/verification.md)。
 
@@ -222,7 +222,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-WorkflowKit 1.3.1 包含 Wiki 0.7.1、MergeReviewer 0.20.3、ReleaseReviewer 0.10.1、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
+WorkflowKit 1.3.2 包含 Wiki 0.7.1、MergeReviewer 0.20.3、ReleaseReviewer 0.11.0、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
