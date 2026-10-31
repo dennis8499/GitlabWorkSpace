@@ -9,7 +9,7 @@ import { reportLocalFeedback } from './notificationFeedback';
 import { BranchInput, type BranchReadStatus } from './BranchInput';
 import { ReviewSessions } from './ReviewSessions';
 import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
-import { REVIEWER_EFFORTS, resolveReviewerExecution } from '../workspace/reviewExecution';
+import { REVIEWER_EFFORTS, resolveEffectiveReviewerExecution } from '../workspace/reviewExecution';
 const fallbackActions = new ActionController(() => {});
 import { buildSkillGuideContext, buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, skillGuideTools,
   getSkillGuideCards, getSkillGuideFields, resolveReviewerRepository, type SkillGuideContext, type SkillGuideState, type SkillGuideToolId } from './skillsGuideData';
@@ -23,7 +23,8 @@ const wikiGroups = [
 
 export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstalled, skillsContext,
   branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
-  reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
+  reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, reviewerCapabilitiesStatus,
+  onLoadReviewerCapabilities, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
   skillsContext?: SkillsContext;
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
@@ -44,6 +45,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
   onCopyReviewRefresh?: (tool: ReviewerToolId, id: string) => void;
   onCopyReviewResume?: (tool: ReviewerToolId, id: string) => void;
   onOpenReviewReport?: (tool: ReviewerToolId, id: string) => void;
+  reviewerCapabilitiesStatus?: 'loading' | 'ready' | 'error';
+  onLoadReviewerCapabilities?: (tool: ReviewerToolId) => void;
 }) {
   const profile = context.profile ?? 'group';
   const cards = getSkillGuideCards(profile);
@@ -72,10 +75,18 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
   useEffect(() => {
     if (tool === 'merge-reviewer' || tool === 'release-reviewer') onLoadReviewSessions?.(tool);
   }, [tool, skillsContext?.revision, operationScope]);
+  useEffect(() => {
+    if (tool === 'merge-reviewer' || tool === 'release-reviewer') onLoadReviewerCapabilities?.(tool);
+  }, [tool, skillsContext?.revision, operationScope]);
   let prompt = '', promptError = '';
   const promptContext = reviewer ? { ...context, repositories } : context;
-  let execution;
-  try { execution = reviewer ? resolveReviewerExecution(state.inputs, card.id, context.reviewerExecution) : undefined; } catch { /* Prompt diagnostics show invalid policy. */ }
+  const supportsParallelAgents = context.reviewerCapabilities?.supports_parallel_agents === true;
+  let executionResolution;
+  try {
+    executionResolution = reviewer ? resolveEffectiveReviewerExecution(state.inputs, card.id, context.reviewerExecution,
+      supportsParallelAgents) : undefined;
+  } catch { /* Prompt diagnostics show invalid policy. */ }
+  const execution = executionResolution?.policy;
   try { prompt = `${buildSkillGuideContext(card, promptContext)}\n\n${buildSkillGuidePrompt(card, state.inputs, promptContext)}`; }
   catch (error) { promptError = error instanceof Error ? error.message : String(error); }
   const reportedPromptError = useRef('');
@@ -92,7 +103,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
     reportLocalFeedback(notice => actions.dispatch(notice), fixedErrors.includes(promptError) ? promptError : '無法產生 Skills 提示詞，請檢查工作區與欄位後重試。',
       { title: 'Skills 提示詞', context: { operationScope } });
   }, [actions, operationScope, skillsContext?.revision, context.root, context.groupRoot, context.workspaceRoot, card.id, promptError]);
-  const ready = available && context.repositoryScanStatus === 'ready' && (!reviewer || !!selectedRepo) && !promptError && canCopySkillPrompt(card, state.inputs);
+  const ready = available && context.repositoryScanStatus === 'ready' && (!reviewer || !!selectedRepo)
+    && !promptError && canCopySkillPrompt(card, state.inputs);
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
     : !kitInstalled ? '請先安裝或更新工作流程包。'
     : !available ? '目前安裝版本未提供此功能，請更新 Skills。' : context.repositoryScanStatus !== 'ready' ? '正在辨識本機 Repo…' : '');
@@ -157,6 +169,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
             onClick={() => repo && onLoadBranches?.(repo)}>{branchStatus === 'error' ? '重試讀取分支' : '重新讀取分支'}</button>
         </div>}
         {reviewer && <fieldset class="reviewer-execution-controls"><legend>審查執行</legend>
+          {supportsParallelAgents ? <>
           <label>執行方式<select aria-label="Reviewer 執行方式" value={state.inputs[`${card.id}.executionMode`] ?? ''}
             onChange={event => { const value = event.currentTarget.value; onChange(current => ({ ...current,
               inputs: { ...current.inputs, [`${card.id}.executionMode`]: value } })); }}>
@@ -175,6 +188,12 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
             <p class="subtle">本次設定優先於 Reviewer 工作區設定。模型與強度由 Codex 啟動子 Agent 時核對；不支援時會明確回報，不自動更換模型。</p>
           </>}
           <p class="subtle">目前政策：{execution?.mode === 'parallel' ? `平行 Agent；模型 ${execution.subagent_model}；推理強度 ${execution.subagent_reasoning_effort}` : '單一 Agent，沿用目前 Codex 模型與推理強度'}。設定只影響這次審查。</p>
+          </> : <p class="subtle" role="status">{executionResolution?.parallelUnavailable
+            ? '此 Reviewer 未明確回報支援平行 Agent；本次改用單一 Agent，保留已保存設定。'
+            : reviewerCapabilitiesStatus === 'loading' ? '正在確認此 Reviewer 是否支援平行 Agent；確認前本次預覽採單一 Agent。'
+              : reviewerCapabilitiesStatus === 'error' ? <>無法確認此 Reviewer 的平行 Agent 能力；本次審查採用單一 Agent。{' '}
+                <button class="quiet small" type="button" onClick={() => onLoadReviewerCapabilities?.(tool as ReviewerToolId)}>重試能力確認</button></>
+                : '此 Reviewer 未明確回報支援平行 Agent；本次審查使用單一 Agent。'}</p>}
         </fieldset>}
         {promptError && <p class="warning" role="alert">{promptError}</p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>

@@ -1,6 +1,6 @@
 import type { ReviewerCapabilities } from '../workspace/reviewSessionProtocol';
 import { withOutputStyle } from '../workspace/outputStyle';
-import { REVIEWER_EXECUTION_FIELDS, resolveReviewerExecution,
+import { REVIEWER_EXECUTION_FIELDS, resolveEffectiveReviewerExecution, resolveReviewerExecution,
   type ReviewerExecutionOverrides, type InstalledReviewerBinding } from '../workspace/reviewExecution';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
@@ -169,13 +169,15 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const release = card.tool === 'release-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
   if (context.reviewerExecutionError) throw new Error(context.reviewerExecutionError);
-  const execution = resolveReviewerExecution(inputs, card.id, context.reviewerExecution);
+  const executionResolution = resolveEffectiveReviewerExecution(inputs, card.id, context.reviewerExecution,
+    context.reviewerCapabilities?.supports_parallel_agents === true);
+  const execution = executionResolution.policy;
   const prepared = context.reviewerCapabilities?.prepare_evidence === true;
   const balanced = !release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
     context.reviewerCapabilities.budget_profiles?.includes('balanced') === true;
   const unlimited = release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
     context.reviewerCapabilities.budget_profiles?.includes('unlimited') === true;
-  if (prepared && execution.mode !== 'single') throw new Error('目前安裝的 Reviewer 採單一 Agent，請選擇單一模式。');
+  const promptExecution = executionResolution.parallelUnavailable ? { mode: 'single' as const } : execution;
   const installedRoot = context.root ?? context.groupRoot;
   const script = context.reviewerBinding?.script_path
     ?? (installedRoot ? `${installedRoot.replace(/[\\/]$/, '')}/.agents/skills/${card.tool}/scripts/review_session.py` : 'review_session.py');
@@ -187,9 +189,12 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(context.reviewerBinding),
       prepared ? 'helper 啟動前自動核對上述整套 payload SHA-256；不符時停止，請重新複製提示詞。'
         : '沿用已安裝入口的既有 CLI；尚未宣告 capabilities 的入口不傳入新版選項。'] : []),
-    '執行政策：' + JSON.stringify(execution),
+    '執行政策：' + JSON.stringify(promptExecution),
     '政策優先序：本次輸入、Reviewer 工作區設定、single/inherit/default。只套用本次呼叫；模型由 Codex 宿主建立子 agent 時套用，實際設定未知則記 null。不另開模型服務或修改全域設定。',
-    ...(execution.mode === 'single' ? ['本次使用單一 agent；子 Agent 設定僅保存，未執行。'] : []),
+    ...(executionResolution.parallelUnavailable ? ['此 Reviewer 未明確回報支援平行 Agent；本次改用單一 Agent，保留已保存設定。'] : []),
+    ...(execution.mode === 'single' ? [executionResolution.parallelUnavailable
+      ? '本次只使用單一 Agent，不建立子 Agent。'
+      : '本次使用單一 agent；子 Agent 設定僅保存，未執行。'] : []),
     ...(execution.mode === 'parallel' ? [
       '任何 capture／fetch 以前，先按 spawn 工具本機說明核對模型、強度與 fork 能力；不可用或不支援時停止、保留請求並回報，不能默默替換。最多主 agent＋一名子 agent；主 agent 唯一擁有擷取、補查、草稿與發布。',
       'inherit/default 不覆寫父模型與強度；指定模型加 default 時省略 effort，採該模型預設。明確指定 effort 才覆寫，並使用宿主允許覆寫的 fork 方式。'

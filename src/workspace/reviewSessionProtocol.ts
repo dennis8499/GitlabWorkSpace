@@ -47,6 +47,7 @@ export interface ReviewerCapabilities {
   tool: ReviewerToolId;
   skill_version: string;
   prepare_evidence: boolean;
+  supports_parallel_agents?: boolean;
   updates_schema: 'ReviewUpdates/v1';
   shared_cache_schema: 'ReviewerSharedCache/v2';
   payload_sha256: string;

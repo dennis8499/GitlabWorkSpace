@@ -1268,6 +1268,7 @@ export class WorkspacePanel implements vscode.Disposable {
       case 'postMergeRequestNote': await this.postMergeRequestNote(request.projectId, request.iid, request.body); break;
       case 'openBranchReview': await this.openBranchReview(request.projectId, request.iid); break;
       case 'loadSkillBranches': await this.loadSkillBranches(request.repo, request.revision, request.requestId); break;
+      case 'loadReviewerCapabilities': await this.loadReviewerCapabilities(request.revision, request.requestId, request.tool); break;
       case 'replyMergeRequest': await this.replyMergeRequest(request.projectId, request.iid, request.discussionId, request.body); break;
       case 'approveMergeRequest': await this.approveMergeRequest(request.projectId, request.iid, request.sha); break;
       case 'mergeMergeRequest': await this.mergeMergeRequest(request.projectId, request.iid, request.sha); break;
@@ -4024,6 +4025,26 @@ export class WorkspacePanel implements vscode.Disposable {
     } catch (error) {
       if (!this.disposed && revision === this.getSkillsContext().revision) this.post({ type: 'skillBranches', revision, repo, requestId, branches: [], error: readableError(error) });
     } finally { if (this.skillBranchReads.get(key) === task) this.skillBranchReads.delete(key); }
+  }
+
+  private async loadReviewerCapabilities(revision: string, requestId: string, tool: ReviewerToolId): Promise<void> {
+    if (!isReviewerTool(tool) || typeof requestId !== 'string' || !requestId.trim()) return;
+    const skills = this.getSkillsContext();
+    if (revision !== skills.revision) return;
+    try {
+      const workspace = skills.workspaceRoot ?? skills.root;
+      const binding = skills.root ? await readInstalledReviewerBinding(skills.root, tool) : undefined;
+      const capabilities = binding && workspace ? await readReviewerCapabilities(binding,
+        await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')),
+        workspace) : undefined;
+      if (!this.disposed && revision === this.getSkillsContext().revision) {
+        this.post({ type: 'reviewerCapabilities', revision, requestId, tool, capabilities });
+      }
+    } catch (error) {
+      if (!this.disposed && revision === this.getSkillsContext().revision) {
+        this.post({ type: 'reviewerCapabilities', revision, requestId, tool, error: readableError(error) });
+      }
+    }
   }
 
   private async loadReviewSessions(revision: string, tool: ReviewerToolId): Promise<void> {

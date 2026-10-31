@@ -19,7 +19,7 @@ import { restoreManualTimeState, type ManualTimeDraft } from './dashboardState';
 import type { WikiGuideInputValues } from './codebaseWikiGuideData';
 import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, type SkillGuideState } from './skillsGuideData';
 import { SkillsGuide } from './SkillsGuide';
-import type { ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
+import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
@@ -407,8 +407,13 @@ function App() {
   const blockingWrite = useActionSelector(actions, () => ['repositories', 'skills', 'connection'].some(resource => actions.hasPendingWrite(resource)));
   const [skillBranches, setSkillBranches] = useState<{ repo: string; revision: string; requestId: string; branches: string[]; status: 'loading' | 'ready' | 'error'; error?: string }>();
   const [reviewSessions, setReviewSessions] = useState<{ revision: string; tool: ReviewerToolId; sessions: ReviewSessionSummary[]; error?: string }>();
+  const [reviewerCapabilityRead, setReviewerCapabilityRead] = useState<{ revision: string; tool: ReviewerToolId; requestId: string;
+    status: 'loading' | 'ready' | 'error'; capabilities?: ReviewerCapabilities; error?: string }>();
+  const reviewerCapabilityReadRef = useRef(reviewerCapabilityRead);
+  reviewerCapabilityReadRef.current = reviewerCapabilityRead;
   const branchRequest = useRef<{ repo: string; revision: string; requestId: string; operationId?: string }>();
   const branchRequestSequence = useRef(0);
+  const reviewerCapabilityRequestSequence = useRef(0);
   const snapshotRef = useRef<WorkspaceSnapshot>();
   const snapshotStream = useRef<{ streamId: string; scope: string; version: number; snapshot: WorkspaceSnapshot }>();
   const retiredSnapshotStreams = useRef(new Set<string>());
@@ -433,6 +438,22 @@ function App() {
   ));
   const skillsGuideRef = useRef(skillsGuide);
   skillsGuideRef.current = skillsGuide;
+  const loadReviewerCapabilities = (tool: ReviewerToolId): void => {
+    const revision = snapshotRef.current?.skillsContext?.revision;
+    if (!revision) return;
+    const current = reviewerCapabilityReadRef.current;
+    if (current?.revision === revision && current.tool === tool && current.status !== 'error') return;
+    const requestId = `reviewer-capabilities-${Date.now()}-${++reviewerCapabilityRequestSequence.current}`;
+    const pending = { revision, tool, requestId, status: 'loading' as const };
+    reviewerCapabilityReadRef.current = pending;
+    setReviewerCapabilityRead(pending);
+    const result = post({ type: 'loadReviewerCapabilities', revision, requestId, tool });
+    if (result.status === 'blocked') {
+      const failed = { ...pending, status: 'error' as const, error: result.reason ?? '無法確認 Reviewer 能力。' };
+      reviewerCapabilityReadRef.current = failed;
+      setReviewerCapabilityRead(failed);
+    }
+  };
   const updateSkillsGuide = (update: SkillGuideState | ((current: SkillGuideState) => SkillGuideState)): void => {
     const value = typeof update === 'function' ? update(skillsGuideRef.current) : update;
     skillsGuideRef.current = value;
@@ -531,6 +552,17 @@ function App() {
         if (pending && message.revision === snapshotRef.current?.skillsContext?.revision && message.revision === pending.revision
           && message.repo === pending.repo && message.requestId === pending.requestId) {
           setSkillBranches({ ...message, status: message.error ? 'error' : 'ready' });
+        }
+        return;
+      }
+      if (message.type === 'reviewerCapabilities') {
+        const pending = reviewerCapabilityReadRef.current;
+        if (pending && message.revision === snapshotRef.current?.skillsContext?.revision && message.revision === pending.revision
+          && message.tool === pending.tool && message.requestId === pending.requestId) {
+          const result = { revision: message.revision, tool: message.tool, requestId: message.requestId,
+            status: message.error ? 'error' as const : 'ready' as const, capabilities: message.capabilities, error: message.error };
+          reviewerCapabilityReadRef.current = result;
+          setReviewerCapabilityRead(result);
         }
         return;
       }
@@ -1224,7 +1256,12 @@ function App() {
               reviewSessions={reviewSessions?.revision === snapshot.skillsContext?.revision ? reviewSessions?.sessions : []}
               reviewSessionsTool={reviewSessions?.revision === snapshot.skillsContext?.revision ? reviewSessions?.tool : undefined}
               reviewSessionsError={reviewSessions?.revision === snapshot.skillsContext?.revision ? reviewSessions?.error : undefined}
+              reviewerCapabilities={reviewerCapabilityRead && reviewerCapabilityRead.revision === snapshot.skillsContext?.revision && reviewerCapabilityRead.tool === skillsGuide.tool
+                ? reviewerCapabilityRead.capabilities : undefined}
+              reviewerCapabilitiesStatus={reviewerCapabilityRead && reviewerCapabilityRead.revision === snapshot.skillsContext?.revision && reviewerCapabilityRead.tool === skillsGuide.tool
+                ? reviewerCapabilityRead.status : undefined}
               onLoadReviewSessions={tool => snapshot.skillsContext && post({ type: 'loadReviewSessions', revision: snapshot.skillsContext.revision, tool })}
+              onLoadReviewerCapabilities={loadReviewerCapabilities}
               onCancelReview={(tool, requestId) => snapshot.skillsContext && post({ type: 'cancelReviewSession', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewRefresh={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewRefresh', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewResume={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewResume', revision: snapshot.skillsContext.revision, tool, requestId })}

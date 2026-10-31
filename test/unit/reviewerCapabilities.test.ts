@@ -25,6 +25,18 @@ test('capability probe binds the actual helper, caches identical local reads and
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], ['-X', 'utf8', '-B', binding.script_path, 'capabilities', '--workspace', root]);
   await assert.rejects(readReviewerCapabilities({ ...binding, payload_sha256: 'd'.repeat(64) }, python, root), /來源身分不相容/);
+
+  const probe = (payloadSha: string, supports_parallel_agents: unknown) => {
+    const nextBinding = { ...binding, payload_sha256: payloadSha };
+    const capability = { ...value, payload_sha256: payloadSha,
+      ...(supports_parallel_agents === undefined ? {} : { supports_parallel_agents }) };
+    const nextPython = { ...python, env: { ...python.env, CAP_VALUE: JSON.stringify(capability) } };
+    return readReviewerCapabilities(nextBinding, nextPython, root);
+  };
+  assert.equal((await probe('1'.repeat(64), true))?.supports_parallel_agents, true);
+  assert.equal((await probe('2'.repeat(64), false))?.supports_parallel_agents, false);
+  assert.equal((await probe('3'.repeat(64), undefined))?.supports_parallel_agents, undefined);
+  await assert.rejects(probe('4'.repeat(64), 'true'), /來源身分不相容/);
 });
 
 test('legacy reviewer sessions are probed before fallback; cleanup-only versions are rejected', async t => {
@@ -46,7 +58,7 @@ test('legacy reviewer sessions are probed before fallback; cleanup-only versions
   }
 });
 
-test('prepared helper capability produces the supported session commands and retains single-agent execution', () => {
+test('prepared helper falls back to single-agent unless its capability explicitly enables parallel execution', () => {
   const card = getSkillGuideCard('merge-reviewer');
   const context = { profile: 'repository' as const, root: 'C:/work/app', workspaceRoot: 'C:/work/app',
     repositories: [{ name: 'app', path: 'C:/work/app' }],
@@ -59,7 +71,16 @@ test('prepared helper capability produces the supported session commands and ret
   assert.match(prompt, /--updates-file/);
   assert.match(prompt, /references\/fast-session\.md/);
   assert.doesNotMatch(prompt, /--protocol round-v1|--execution-policy-json/);
-  assert.throws(() => buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel' }, context), /單一模式/);
+  const staleParallel = buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel',
+    'merge-repo.subagentModel': 'stale-model', 'merge-repo.subagentReasoningEffort': 'high' }, context);
+  assert.match(staleParallel, /本次改用單一 Agent/);
+  assert.match(staleParallel, /"mode":"single"/);
+  assert.doesNotMatch(staleParallel, /stale-model|最多主 agent|fork 能力/);
+  const supported = buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel' }, {
+    ...context, reviewerCapabilities: { ...context.reviewerCapabilities, supports_parallel_agents: true }
+  });
+  assert.match(supported, /"mode":"parallel"/);
+  assert.match(supported, /最多主 agent＋一名子 agent/);
 });
 
 test('release review never receives a hard time budget, even when the installed entry supports one', () => {

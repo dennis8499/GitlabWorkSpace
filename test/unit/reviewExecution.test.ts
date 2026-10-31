@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_REVIEWER_EXECUTION, validateReviewerExecution, resolveReviewerExecution,
+import { DEFAULT_REVIEWER_EXECUTION, validateReviewerExecution, resolveEffectiveReviewerExecution, resolveReviewerExecution,
   reviewerExecutionFromConfiguration } from '../../src/workspace/reviewExecution';
 import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
 import { buildSkillGuidePrompt, canCopySkillPrompt, getSkillGuideCard, restoreSkillGuideState } from '../../src/webview/skillsGuideData';
@@ -29,14 +29,31 @@ test('invalid policy never echoes credential or injection contents', () => {
   assert.throws(() => resolveReviewerExecution({ 'merge-repo.subagentModel': '\nmodel' }, 'merge-repo'), /欄位格式/);
 });
 
+test('parallel execution requires explicit capability and falls back only for the current call', () => {
+  const workspace = { mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
+  const fallback = resolveEffectiveReviewerExecution({
+    'merge-repo.executionMode': 'parallel', 'merge-repo.subagentModel': 'per-call-model',
+    'merge-repo.subagentReasoningEffort': 'ultra'
+  }, 'merge-repo', workspace, false);
+  assert.equal(fallback.parallelUnavailable, true);
+  assert.deepEqual(fallback.policy, { ...DEFAULT_REVIEWER_EXECUTION });
+  const supported = resolveEffectiveReviewerExecution({ 'merge-repo.executionMode': 'parallel' }, 'merge-repo', workspace, true);
+  assert.equal(supported.parallelUnavailable, false);
+  assert.equal(supported.policy.mode, 'parallel');
+  assert.equal(supported.policy.subagent_model, 'workspace-model');
+});
+
 test('both reviewer prompts carry selected policy and defer availability to actual spawning', () => {
   for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
     const card = getSkillGuideCard(tool), inputs = { [`${card.id}.repo`]: 'service', [`${card.id}.base`]: 'main', [`${card.id}.head`]: 'feature',
       [`${card.id}.executionMode`]: 'parallel', [`${card.id}.subagentModel`]: 'unavailable-but-requested-model', [`${card.id}.subagentReasoningEffort`]: 'default' };
     assert.equal(canCopySkillPrompt(card, inputs), true);
-    const context = { root: 'C:/group', workspaceRoot: 'C:/group', repositories: [{ name: 'service', path: 'C:/group/service' }] };
+    const context = { root: 'C:/group', workspaceRoot: 'C:/group', repositories: [{ name: 'service', path: 'C:/group/service' }],
+      reviewerCapabilities: { schema: 'ReviewCapabilities/v1' as const, tool, skill_version: 'test', prepare_evidence: true,
+        updates_schema: 'ReviewUpdates/v1' as const, shared_cache_schema: 'ReviewerSharedCache/v2' as const, payload_sha256: 'a'.repeat(64),
+        runtime_root: 'C:/runtime', git_commands: 0 as const, network_commands: 0 as const, supports_parallel_agents: true as const } };
     const prompt = buildSkillGuidePrompt(card, inputs, context);
-    assert.match(prompt, /start --workspace/);
+    assert.match(prompt, /start (?:--prepare-evidence )?--workspace/);
     assert.doesNotMatch(prompt, /--protocol|--execution-policy-json/);
     assert.match(prompt, /ReviewExecutionPolicy\/v1/);
     assert.match(prompt, /unavailable-but-requested-model/);

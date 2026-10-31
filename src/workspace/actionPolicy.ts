@@ -65,6 +65,7 @@ export const workspaceActionKinds = {
   confirmOperationResult: 'read',
   openBranchReview: 'read',
   loadSkillBranches: 'read',
+  loadReviewerCapabilities: 'read',
   loadReviewSessions: 'read',
   cancelReviewSession: 'write',
   copyReviewRefresh: 'write',
@@ -220,7 +221,7 @@ export const quickActionKinds = {
 
 export const operationLabels: Record<string, string> = {
   checkWorkflowKitReleases: '檢查最新正式版',
-  loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
+  loadReviewerCapabilities: '讀取 Reviewer 能力', loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
   copyReviewRefresh: '複製重新同步指令', copyReviewResume: '恢復本機審查', openReviewReport: '開啟審查報告',
   openBmad: '開啟 BMAD 開發流程', refreshBmad: '更新 BMAD 流程',
   copyBmadCommand: '複製 BMAD 指令', openBmadTerminal: '開啟 BMAD 專案終端', openBmadArtifact: '查看 BMAD 產物',
@@ -234,7 +235,7 @@ export const operationLabels: Record<string, string> = {
   loadIssueRelations: '載入 Issue 關聯', loadIssueGraph: '載入工作圖', ensureWorkspaceSection: '載入篩選選項', loadDraftOptions: '載入欄位選項', gitOpenRepository: '開啟 Repo', selectProject: '載入專案', selectIssueBoard: '載入看板'
 };
 
-const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'gitOpenRepository']);
+const latestActions = new Set(['selectIssue', 'selectMergeRequest', 'selectProject', 'selectIssueBoard', 'loadSkillBranches', 'loadReviewerCapabilities', 'gitOpenRepository']);
 const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin', 'switchAccount', 'removeAccount', 'logoutAccount', 'selectGroup']);
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
@@ -244,7 +245,7 @@ const localWorkspaceActions = new Set([
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
   'installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource',
   'openWorkflowKitDownload', 'loadSkillBranches', 'copySkillGuidePrompt', 'copy',
-  'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
+  'loadReviewerCapabilities', 'loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport',
   'refreshBmad', 'copyBmadCommand', 'openBmadTerminal', 'openBmadArtifact',
   'openLogs', 'openLocalWorkspace', 'openWorkspaceFolder',
   'openAnalysis', 'openBmad', 'openGit', 'openAdmin', 'openRepository'
@@ -327,6 +328,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
+  else if (action === 'loadReviewerCapabilities') { resourceKey = 'review-capabilities:' + request.tool; slot = resourceKey; }
   else if (['loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport'].includes(action)) resourceKey = 'review:' + request.tool + ':' + (request.requestId ?? 'sessions');
   else if (connectionActions.has(action)) resourceKey = 'connection';
   else if (rootActions.has(action) || action === 'refreshRepositories') resourceKey = 'repositories';
@@ -338,7 +340,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
     || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate', 'loadCreateProjects'].includes(nestedType)) || action === 'setMergeRequestFilter';
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
-  const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey === 'repositories' || resourceKey === 'skills';
+  const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey.startsWith('review-capabilities:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by
   // connection scope: switching accounts cannot permit a second local write.
   const namespace = clipboard || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') ? 'global'

@@ -344,6 +344,7 @@ export type WorkspaceRequest = (NotificationRequest
   | { type: 'postMergeRequestNote'; projectId: number; iid: number; body: string }
   | { type: 'openBranchReview'; projectId: number; iid: number }
   | { type: 'loadSkillBranches'; repo: string; revision: string; requestId: string }
+  | { type: 'loadReviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'loadReviewSessions'; revision: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'cancelReviewSession'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
   | { type: 'copyReviewRefresh'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId }
@@ -371,6 +372,8 @@ export type WorkspaceResponse =
   | { type: 'operationsSnapshot'; snapshot: OperationSnapshot }
   | { type: 'branchReviewReady'; revision: string; inputs: Record<string, string>; notice?: string }
   | { type: 'skillBranches'; revision: string; repo: string; requestId: string; branches: string[]; error?: string }
+  | { type: 'reviewerCapabilities'; revision: string; requestId: string; tool: import('./reviewSessionProtocol').ReviewerToolId;
+      capabilities?: import('./reviewSessionProtocol').ReviewerCapabilities; error?: string }
   | { type: 'reviewSessions'; revision: string; tool: import('./reviewSessionProtocol').ReviewerToolId; sessions: import('./reviewSessionProtocol').ReviewSessionSummary[]; error?: string }
   | { type: 'openAccountManager'; intent: AccountPanelIntent }
   | { type: 'accountLoginResult'; requestId: string; error?: string; name?: string }

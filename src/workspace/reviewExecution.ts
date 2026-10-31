@@ -52,6 +52,22 @@ export function resolveReviewerExecution(inputs: Record<string, string>, cardId:
     ...(model ? { subagent_model: model } : {}), ...(effort ? { subagent_reasoning_effort: effort } : {}) });
 }
 
+export interface EffectiveReviewerExecution {
+  policy: ReviewerExecutionPolicy;
+  parallelUnavailable: boolean;
+}
+
+/** Unsupported or unreported parallel execution is downgraded for this call only. */
+export function resolveEffectiveReviewerExecution(inputs: Record<string, string>, cardId: string,
+  workspace: unknown, supportsParallelAgents: boolean): EffectiveReviewerExecution {
+  const requested = resolveReviewerExecution(inputs, cardId, workspace);
+  if (requested.mode !== 'parallel' || supportsParallelAgents) return { policy: requested, parallelUnavailable: false };
+  return {
+    policy: { ...requested, mode: 'single', subagent_model: 'inherit', subagent_reasoning_effort: 'default' },
+    parallelUnavailable: true
+  };
+}
+
 export function reviewerExecutionFromConfiguration(inspected?: {
   workspaceFolderValue?: unknown; workspaceValue?: unknown; globalValue?: unknown;
 }): ReviewerExecutionPolicy {

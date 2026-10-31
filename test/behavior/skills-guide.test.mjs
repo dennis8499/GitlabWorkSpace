@@ -29,7 +29,7 @@ function snapshot(profile, features) {
   };
 }
 
-async function mount(t, profile, saved, features, initialSnapshot = snapshot(profile, features)) {
+async function mount(t, profile, saved, features, initialSnapshot = snapshot(profile, features), autoReviewerCapabilities = true) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', error => errors.push(error.stack ?? error.message));
@@ -41,6 +41,10 @@ async function mount(t, profile, saved, features, initialSnapshot = snapshot(pro
   let holdOperations = false;
   dom.window.acquireVsCodeApi = () => ({ postMessage: request => {
     requests.push(request);
+    if (request.type === 'loadReviewerCapabilities' && autoReviewerCapabilities) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+      data: { type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId, tool: request.tool,
+        capabilities: initialSnapshot.skillsContext?.reviewerCapabilities?.[request.tool] }
+    })));
     if (request.operationId && !holdOperations) queueMicrotask(() => dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
       data: { type: 'operationChanged', operation: { requestId: request.operationId, scopeRevision: request.operationScope,
         resourceKey: request.type === 'copySkillGuidePrompt' ? `skill:${request.featureId}` : 'skills', action: request.type,
@@ -104,6 +108,10 @@ for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} executi
   current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
   const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current);
   view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
+  const capabilityRequest = view.requests.findLast(request => request.type === 'loadReviewerCapabilities');
+  assert.ok(capabilityRequest);
+  await view.send({ type: 'reviewerCapabilities', revision: capabilityRequest.revision, requestId: capabilityRequest.requestId,
+    tool: capabilityRequest.tool, capabilities: { supports_parallel_agents: true } });
   const card = tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
   assert.equal(view.document.querySelector('[aria-label="Reviewer 執行方式"]').value, '');
   assert.match(view.document.querySelector('.reviewer-execution-controls').textContent, /workspace-model/);
@@ -123,6 +131,45 @@ for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} executi
   assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /子 Agent 設定僅保存，未執行/);
   await view.change('[aria-label="Reviewer 執行方式"]', 'parallel');
   assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]').value, 'custom/model-v2');
+});
+
+for (const tool of ['merge-reviewer', 'release-reviewer']) for (const advertised of [undefined, false]) test(`${tool} hides parallel controls and uses single-agent when parallel capability is ${advertised === undefined ? 'missing' : 'false'}`, async t => {
+  const current = snapshot('group', ['merge-repo', 'release-review']);
+  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current);
+  view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
+  const request = view.requests.findLast(item => item.type === 'loadReviewerCapabilities');
+  assert.ok(request);
+  await view.send({ type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId, tool: request.tool,
+    capabilities: advertised === undefined ? undefined : { supports_parallel_agents: advertised } });
+
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 執行方式"]'), null);
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]'), null);
+  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 推理強度"]'), null);
+  assert.match(view.document.querySelector('.reviewer-execution-controls').textContent, /本次改用單一 Agent/);
+  const preview = view.document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(preview, /本次改用單一 Agent/);
+  assert.match(preview, /"mode":"single"/);
+  assert.doesNotMatch(preview, /workspace-model|最多主 agent＋一名子 agent/);
+});
+
+test('a pending parallel capability check still allows a safe single-agent review prompt', async t => {
+  const current = snapshot('group', ['merge-repo', 'release-review']);
+  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel',
+    subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
+  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current, false);
+  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  assert.ok(view.requests.findLast(item => item.type === 'loadReviewerCapabilities'));
+  assert.equal(view.document.querySelector('.reviewer-execution-controls select'), null);
+  await view.change('[id="wiki-input-merge-repo.base"]', 'origin/main', 'input');
+  await view.change('[id="wiki-input-merge-repo.head"]', 'feature/pending-check', 'input');
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+  const preview = view.document.querySelector('.wiki-prompt-preview').textContent;
+  assert.match(preview, /"mode":"single"/);
+  assert.match(preview, /本次只使用單一 Agent/);
+  assert.doesNotMatch(preview, /workspace-model|subagent_model|subagent_reasoning_effort|平行 Agent 分工/);
+  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
+  assert.equal(view.requests.findLast(item => item.type === 'copySkillGuidePrompt').featureId, 'merge-repo');
 });
 
 for (const profile of ['group', 'repository']) test(`${profile} unknown saved selections restore Query and preserve current inputs`, async t => {
@@ -192,6 +239,10 @@ test('Skills prompt error deduplication resets for another card or operation con
 for (const profile of ['group', 'repository']) test(`${profile} native branch review copies prompts without opening Codex`, async t => {
   const view = await mount(t, profile); const { document, change } = view;
   document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
+  const capabilityRequest = view.requests.findLast(request => request.type === 'loadReviewerCapabilities');
+  assert.ok(capabilityRequest);
+  await view.send({ type: 'reviewerCapabilities', revision: capabilityRequest.revision, requestId: capabilityRequest.requestId,
+    tool: capabilityRequest.tool });
   assert.equal(document.querySelector('[id="wiki-input-merge-repo.target"]'), null);
   for (const field of ['mode','output','remote']) assert.equal(document.querySelector(`[id="wiki-input-merge-repo.${field}"]`),null);
   assert.equal(document.querySelector('[id="wiki-input-merge-repo.repo"]').tagName, 'SELECT');

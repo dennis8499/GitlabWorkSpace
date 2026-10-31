@@ -44,7 +44,8 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       value.skill_version !== binding.version || value.payload_sha256 !== binding.payload_sha256 ||
       value.prepare_evidence !== true || value.updates_schema !== 'ReviewUpdates/v1' ||
       value.shared_cache_schema !== 'ReviewerSharedCache/v2' || value.git_commands !== 0 ||
-      value.network_commands !== 0 || typeof value.runtime_root !== 'string') {
+      value.network_commands !== 0 || typeof value.runtime_root !== 'string' ||
+      value.supports_parallel_agents !== undefined && typeof value.supports_parallel_agents !== 'boolean') {
       throw new Error('已安裝 Reviewer 功能或來源身分不相容，請重新安裝相同來源的工作流程包。');
     }
     if (value.budget_profiles !== undefined && (value.budget_schema !== 'ReviewBudget/v1' ||
