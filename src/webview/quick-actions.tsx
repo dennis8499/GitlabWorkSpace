@@ -69,7 +69,7 @@ function ActionFeedback({ scopeRevision, localOperationScope, retryRequests, dis
 }
 
 function GitSidebar() {
-  const [state, setState] = useState<QuickActionsState>({ connected: false, activeMode: 'developer', repositories: [] });
+  const [state, setState] = useState<QuickActionsState>({ connected: false, activeMode: 'dashboard', repositories: [] });
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [visible, setVisible] = useState(true);
@@ -311,9 +311,9 @@ function GitSidebar() {
       <span class={'connection-dot' + (state.connected ? ' connected' : '')} aria-hidden="true" />
       <span>{state.connected ? state.groupLabel ?? '尚未選擇 Group' : '登入後選擇 Group'}</span>
     </p>
-    <button class={'action-button workspace-link' + (state.activeMode === 'git' ? ' active' : '')}
-      type="button" disabled={legacyBusy} aria-busy={busy('openWorkspace')} onClick={() => navigate('openWorkspace')}>
-      <span aria-hidden="true">⌂</span><span>工作台</span>
+    <button class={'action-button workspace-link' + (state.activeMode === 'dashboard' ? ' active' : '')}
+      type="button" aria-current={state.activeMode === 'dashboard' ? 'page' : undefined} disabled={legacyBusy} aria-busy={busy('openWorkspace')} onClick={() => navigate('openWorkspace')}>
+      <span aria-hidden="true">⌂</span><span>Dashboard</span>
     </button>
     <button class="action-button notification-link" type="button" aria-busy={busy('openNotifications')} onClick={() => navigate('openNotifications')}
       aria-label={`訊息中心，${state.notificationUnreadCount ?? 0} 筆未讀`}><span aria-hidden="true">♧</span><span>訊息中心</span><span class="count">{state.notificationUnreadCount ?? 0}</span></button>

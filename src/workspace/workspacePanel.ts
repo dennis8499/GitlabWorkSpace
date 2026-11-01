@@ -74,7 +74,7 @@ const SELECTED_MODE_KEY = 'gitlabWorkspace.workspace.mode';
 const MR_WRITES_KEY = 'gitlabWorkspace.pendingMrWrites.v1';
 const MAX_DIFF_BYTES = 320_000;
 const SELECTED_GIT_REPOSITORY_KEY = 'gitlabWorkspace.selectedGitRepositoryId';
-const ALLOWED_MODES = new Set<WorkspaceMode>(['clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
+const ALLOWED_MODES = new Set<WorkspaceMode>(['dashboard', 'clone', 'sa', 'bmad', 'developer', 'reviewer', 'git']);
 
 interface PendingMrWrite { key: string; marker: string; groupId: number; userId: number; projectId: number; iid: number; discussionId?: string; state: 'sending' | 'uncertain'; }
 type ActionMetadata = Pick<WorkspaceRequest, 'operationId' | 'operationScope' | 'hostSessionId' | 'scopeEpoch'>;
@@ -154,6 +154,9 @@ export class WorkspacePanel implements vscode.Disposable {
   private groups: WorkspaceSnapshot['groups'] = [];
   private projects: GitLabProject[] = [];
   private readonly workspaceSections: Partial<Record<WorkspaceSection, WorkspaceSectionState>> = {};
+  private dashboardSections: NonNullable<WorkspaceSnapshot['dashboardSections']> = {
+    local: { status: 'idle' }, gitlab: { status: 'idle' }
+  };
   private workspaceSectionPages = new Map<WorkspaceSection, { scope: string; cursor?: string; complete: boolean; includeClosed: boolean; seen: Set<string>; projectRevision?: number }>();
   private readonly workspaceSectionGenerations = new Map<WorkspaceSection, number>();
   private readonly workspaceSectionAborts = new Map<WorkspaceSection, AbortController>();
@@ -431,7 +434,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   async navigateTo(mode?: WorkspaceMode, repositoryId?: string): Promise<void> {
-    await this.withReadHandoff(() => this.navigateToPage(mode, repositoryId));
+    await this.withReadHandoff(() => this.navigateToPage(mode ?? 'dashboard', repositoryId));
   }
 
   private async navigateToPage(mode?: WorkspaceMode, repositoryId?: string): Promise<void> {
@@ -1164,9 +1167,14 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       case 'retryWorkspaceSection':
         if (request.connectedScope === this.connectedScopeKey()) {
+          if (this.activeMode === 'dashboard' && request.mode !== 'cancel') {
+            this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'loading' } };
+            this.sendSnapshot();
+          }
           if (request.mode === 'cancel') this.workspaceSectionAborts.get(request.section)?.abort();
           else if (request.mode) await this.loadWorkspaceSection(request.section, false, request.mode);
           else await this.loadWorkspaceSection(request.section, true);
+          if (this.activeMode === 'dashboard') { this.updateDashboardGitLabStatus(); this.sendSnapshot(); }
         }
         break;
       case 'ensureWorkspaceSection':
@@ -1605,7 +1613,7 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private isRemotePage(): boolean {
-    return this.activeMode === 'developer' || this.activeMode === 'reviewer' ||
+    return this.activeMode === 'dashboard' ? !!this.session.baseUrl : this.activeMode === 'developer' || this.activeMode === 'reviewer' ||
       this.activeMode === 'clone' && this.projectSource !== 'local' && !!this.session.baseUrl && !!this.session.selectedGroup;
   }
 
@@ -1653,8 +1661,15 @@ export class WorkspacePanel implements vscode.Disposable {
     const current = () => !signal.aborted && !this.disposed && generation === this.requestGeneration &&
       mode === this.activeMode && (mode !== 'clone' || source === this.projectSource);
     const busyOwner = `refresh:${generation}`;
-    this.busy = true;
-    this.setBusyOwner(busyOwner, '正在更新目前頁面');
+    const dashboard = mode === 'dashboard';
+    if (dashboard) {
+      this.dashboardSections = { local: { status: 'loading' }, gitlab: this.session.baseUrl ? { status: 'loading' } : { status: 'idle' } };
+      this.sendSnapshot();
+      void this.refreshDashboardLocal(generation, signal, current);
+    } else {
+      this.busy = true;
+      this.setBusyOwner(busyOwner, '正在更新目前頁面');
+    }
     this.pendingWorkspaceRefresh = false;
     try {
       if (!this.isRemotePage()) {
@@ -1684,6 +1699,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       if (!this.session.baseUrl) {
         this.clearRemoteGroupData(); this.currentUser = undefined; this.groups = [];
+        if (dashboard) this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'idle' } };
         return;
       }
       if (!this.currentUser) {
@@ -1701,10 +1717,15 @@ export class WorkspacePanel implements vscode.Disposable {
       }
       void this.session.ensureMetadataChecked().then(() => { if (current()) this.sendSnapshot(); }).catch(() => undefined);
       const group = this.session.selectedGroup;
-      if (!group) { this.clearRemoteGroupData(); return; }
+      if (!group) {
+        this.clearRemoteGroupData();
+        if (dashboard) { this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'idle' } }; this.sendSnapshot(); }
+        return;
+      }
       if (!this.groups.some(item => item.id === group.id)) {
         await this.session.setSelectedGroup(undefined);
         this.clearRemoteGroupData();
+        if (dashboard) { this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'idle' } }; this.sendSnapshot(); }
         this.post({ type: 'message', message: '上次選取的 Group 已無法存取，請重新選擇。' });
         return;
       }
@@ -1720,6 +1741,11 @@ export class WorkspacePanel implements vscode.Disposable {
       if (!current()) return;
       if (mode === 'clone') {
         await this.refreshProjectRoot(true, signal);
+      } else if (dashboard) {
+        await Promise.all((['issues', 'mergeRequests'] as const).map(section =>
+          this.loadWorkspaceSection(section, options.forceNetwork === true, undefined, options.reason ?? 'entry')));
+        if (!current()) return;
+        this.updateDashboardGitLabStatus();
       } else {
         await this.loadActiveModeSections(mode, options.forceNetwork === true, options.reason ?? 'entry');
         if (!current()) return;
@@ -1739,11 +1765,52 @@ export class WorkspacePanel implements vscode.Disposable {
         }
       }
     } catch (error) {
-      if (current()) throw error;
+      if (current()) {
+        if (dashboard) {
+          this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'error', error: readableError(error) } };
+          this.sendSnapshot();
+        } else throw error;
+      }
     } finally {
-      this.setBusyOwner(busyOwner);
+      if (!dashboard) this.setBusyOwner(busyOwner);
       if (generation === this.requestGeneration) { this.busy = false; this.sendSnapshot(); }
     }
+  }
+
+  private async refreshDashboardLocal(generation: number, signal: AbortSignal, current: () => boolean): Promise<void> {
+    try {
+      const context = await this.resolveProjectContext();
+      if (!current() || signal.aborted || generation !== this.requestGeneration) return;
+      this.projectContext = context;
+      this.groupRoot = context.root;
+      this.cloneRoot = context.root;
+      this.workspaceRootError = context.error;
+      this.cloneRootError = context.error;
+      this.cloneRootManual = context.manual;
+      await Promise.all([
+        this.refreshInventory(),
+        context.root && !context.error ? this.refreshWorkflowKitInstallState(false, signal) : Promise.resolve()
+      ]);
+      if (!current() || signal.aborted || generation !== this.requestGeneration) return;
+      this.dashboardSections = { ...this.dashboardSections, local: { status: 'ready' } };
+    } catch (error) {
+      if (!current() || signal.aborted || generation !== this.requestGeneration) return;
+      this.dashboardSections = { ...this.dashboardSections, local: { status: 'error', error: readableError(error) } };
+    }
+    this.sendSnapshot();
+  }
+
+  private updateDashboardGitLabStatus(): void {
+    if (this.activeMode !== 'dashboard') return;
+    if (!this.session.baseUrl || !this.session.selectedGroup || !this.connectedScopeKey()) {
+      this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'idle' } };
+      return;
+    }
+    const states = (['projects', 'issues', 'mergeRequests'] as const).map(section => this.workspaceSections[section]);
+    const failure = states.find(state => state?.status === 'error' || state?.error);
+    if (failure) this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'error', error: failure.error } };
+    else if (states.every(state => state?.status === 'ready')) this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'ready' } };
+    else this.dashboardSections = { ...this.dashboardSections, gitlab: { status: 'loading' } };
   }
 
   private groupProjectScopeReady(): boolean {
@@ -2819,6 +2886,7 @@ export class WorkspacePanel implements vscode.Disposable {
       operationSnapshot: this.operations.snapshot(),
       projectOperationBusy: !!(this.writesInFlight || this.repositoryOperationInProgress || this.gitRepositories?.hasActiveOperations || this.session.hasActiveWrites ||
         this.accountTransitionBusy || this.cloneRootSelecting || this.workflowKitSelectingRoot || this.workflowKitInstallation || this.workflowKitCheckingRelease),
+      dashboardSections: this.dashboardSections,
       projectContext: this.projectContext,
       bmad: this.bmad?.snapshot?.root === root ? this.bmad?.snapshot : undefined,
       bmadEnvironment: this.bmadEnvironment?.root === root ? this.bmadEnvironment : undefined,
@@ -3085,8 +3153,17 @@ export class WorkspacePanel implements vscode.Disposable {
     this.groupIssueBoards = []; this.groupIssueBoardsError = undefined;
     this.selectedIssueBoardId = undefined; this.issueBoardContent = undefined; this.issueBoardLoad = undefined;
     this.currentUser = undefined; this.selectedIssue = undefined; this.selectedMergeRequest = undefined;
+    if (this.activeMode === 'developer' || this.activeMode === 'reviewer') {
+      this.activeMode = 'dashboard';
+      await this.context.globalState.update(SELECTED_MODE_KEY, 'dashboard');
+    }
+    this.dashboardSections = {
+      local: this.dashboardSections.local.status === 'loading' ? { status: 'idle' } : this.dashboardSections.local,
+      gitlab: { status: 'idle' }
+    };
     this.sendSnapshot();
     await this.syncSidebarState?.();
+    if (this.activeMode === 'dashboard') void this.refresh({ forceNetwork: true, reason: 'entry' });
   }
 
   private async selectGroup(groupId?: number): Promise<boolean> {

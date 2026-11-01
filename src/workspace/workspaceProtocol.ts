@@ -15,13 +15,15 @@ import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
 import type { BmadEnvironmentCheck } from './bmadEnvironmentProtocol';
 import type { GitLabPage } from '../api/types';
 
-export type WorkspaceMode = 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
+export type WorkspaceMode = 'dashboard' | 'clone' | 'sa' | 'bmad' | 'developer' | 'reviewer' | 'git';
 
 /** Older versions persisted modes that no longer have a workspace page. */
 export function normalizeWorkspaceMode(value: unknown): WorkspaceMode {
   switch (value) {
+    case 'dashboard':
     case 'clone': case 'sa': case 'bmad': case 'developer': case 'reviewer': case 'git': return value;
-    default: return 'developer';
+    case 'admin': return 'developer';
+    default: return 'dashboard';
   }
 }
 export type AnalysisIntent = 'requirements' | 'audit';
@@ -184,6 +186,7 @@ export interface WorkspaceSnapshot {
   bmadEnvironment?: BmadEnvironmentCheck;
   notifications?: NotificationSnapshot;
   projectOperationBusy?: boolean;
+  dashboardSections?: { local: WorkspaceSectionState; gitlab: WorkspaceSectionState };
   operationScope?: string;
   localOperationScope?: string;
   operations?: WorkspaceOperationState[];

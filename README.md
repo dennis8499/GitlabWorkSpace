@@ -15,10 +15,11 @@
 
 ## 功能
 
+- 開啟工作台會先進入共用 Dashboard，顯示本機 Repo、Git／Skills／BMAD 狀態與 GitLab 選用登入入口；已選 Group 時也會載入遠端專案、Issue 與 MR 摘要。
 - 瀏覽 GitLab 群組及其子群組中的專案。
 - 一次複製群組內全部專案、勾選的專案，或從清單挑選專案。
 - 管理多個 GitLab 站台與同站台的多個帳號；可新增、切換、重新登入、登出及移除，並記住各帳號的 Group。
-- VS Code 側欄整合「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。工作台設定提供「開啟 Log」入口。
+- VS Code 側欄整合 Dashboard、「我的工作、專案、分析、待審查、版控」導覽與可搜尋的本機 Repo 清單；點 Repo 即切換同一版控工作台。工作台設定提供「開啟 Log」入口。
 - 各頁進入或重新進入時重用有效資料：Issue／MR／看板清單快取 60 秒，專案清單與成員、標籤、里程碑、範本選項快取 5 分鐘；到期後下次進頁才重抓，也可手動更新。目前頁面停留期間不因背景事件重抓 GitLab API 或執行 Git。使用者操作後讓受影響資料失效。
 - 「我的工作」先載入專案與 Issue；看板、里程碑在點擊載入篩選選項或恢復指定條件時才讀取。選擇 Group 重用有效快取，重選目前 Group 不重載。專案頁只先取得一頁清單（最多 100 筆），載入更多或下載／更新由使用者觸發，進頁的本機目錄檢查不連 Git Server。
 - Issue 預覽與詳情共用 60 秒基本資料快取；閱讀不預抓成員。新增 Issue 的成員、標籤與里程碑各自按需分頁，使用描述範本才讀名稱；切換專案保留完整草稿。Issue 與每則留言的表情分別點擊載入，寫入後只刷新該目標。
@@ -39,6 +40,13 @@
 - 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
+
+## 0.38.0 更新
+
+- 新增共用 Dashboard；未登入 GitLab 時即可查看本機 Repo 並進入 Git、Skills／Wiki、分支審查與 BMAD 功能。
+- GitLab 連線改為選用整合；選擇 Group 後，Dashboard 顯示專案、我的 Issue 與 MR 摘要，遠端錯誤不影響本機操作。
+
+完整變更與驗證範圍見 [0.38.0 發布說明](docs/releases/v0.38.0.md)。
 
 ## 0.37.2 更新
 
@@ -202,7 +210,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 ## 快速開始
 
-1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台**，再選 **連線 GitLab**。
+1. 在活動列開啟 **GitLab Workspace**，選擇 **GitLab Workspace: 開啟工作台** 進入共用 Dashboard。Git、Repo 管理、Skills／Wiki、分支審查與 BMAD 可直接本機使用；要查看 GitLab 專案、Issue 或 MR 時，再從 Dashboard 選擇連線。
 2. 在 **設定 → 帳號與連線** 的引導表單輸入完整 GitLab 網址，例如 `https://gitlab.com` 或 `https://gitlab.example.com/gitlab`，再按下一步。
 3. 輸入具有 `api` 範圍的 Personal Access Token 並驗證。驗證成功後存入 VS Code `SecretStorage`；表單顯示進度與可重試錯誤，不保存 Token 草稿。
 4. 使用 GitLab 專案下載、我的工作、Issue Board 或待審查時，登入後按 **選擇 Group**；這些遠端功能共用目前帳號的 Group。下載與更新使用共用專案根目錄，閱讀與討論 Issue 不需本機目錄。本機 Repo、Git 版控、Skills、BMAD 與操作 Log 不需選擇 Group，亦可免登入使用。

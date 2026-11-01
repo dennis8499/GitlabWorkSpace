@@ -65,7 +65,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
       const state = gitRepositories.getCachedSummaryState();
       return {
         ...workspacePanel?.getAccountUiState(),
-        activeMode: workspacePanel?.getActiveMode() ?? 'developer',
+        activeMode: workspacePanel?.getActiveMode() ?? 'dashboard',
         selectedRepositoryId: workspacePanel?.getSelectedGitRepositoryId(),
         repositories: state.repositories,
         gitAvailable: state.available,

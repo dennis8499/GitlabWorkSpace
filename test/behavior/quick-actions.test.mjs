@@ -115,9 +115,10 @@ test('renders workspace navigation and keeps destinations available before conne
   t.after(() => view.dom.window.close());
 
   assert.deepEqual(view.requests.map(requestShape), [{ type: 'ready' }]);
-  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂工作台', '◷我的工作', '▣專案', '⌕分析', '◇BMAD 開發流程', '⑂待審查', '⑂版控', '⚙設定']);
+  assert.deepEqual(view.buttons().map((button) => button.textContent.trim()), ['⌂Dashboard', '◷我的工作', '▣專案', '⌕分析', '◇BMAD 開發流程', '⑂待審查', '⑂版控', '⚙設定']);
   assert.equal(view.buttons().every((button) => !button.disabled), true);
   assert.equal(view.buttons()[0].classList.contains('workspace-link'), true);
+  assert.equal(view.buttons()[0].classList.contains('active'), true);
   assert.equal(view.buttons().every((button) => button.type === 'button'), true);
 
   view.buttons()[1].click();
@@ -152,7 +153,9 @@ test('shows connection scope, progress and the shared unread message-center entr
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(view.dom.window.document.querySelector('.connection-status').textContent, 'team/dotnet');
-  assert.equal(view.buttons()[0].classList.contains('active'), true);
+  assert.equal(view.buttons()[0].classList.contains('active'), false);
+  assert.equal(view.buttons()[0].hasAttribute('aria-current'), false);
+  assert.equal(view.buttons()[6].classList.contains('active'), true);
   assert.deepEqual(view.buttons().slice(1).map((button) => button.textContent.trim().slice(1)), ['我的工作', '專案', '分析', 'BMAD 開發流程', '待審查', '版控', '設定']);
   assert.equal(view.buttons()[6].getAttribute('aria-current'), 'page');
 

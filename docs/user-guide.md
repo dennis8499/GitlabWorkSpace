@@ -1,6 +1,6 @@
 # 使用指南
 
-GitLab Workspace 將專案、Skills 功能指引、Issue 討論與 MR 審查集中在同一個工作台。本機 Repo、Git 版控、Skills、BMAD 與後臺 Log 不需要登入 GitLab 或選擇 Group。GitLab 專案下載、指派 Issue、Issue Board 與 MR 審查共用目前帳號選擇的 Group。閱讀或討論 Issue 不需要設定本機工作目錄。
+GitLab Workspace 開啟共用 Dashboard，集中顯示本機 Repo、Git／Skills／BMAD 狀態與選用的 GitLab 摘要。本機 Repo、Git 版控、Skills、Wiki、分支審查、BMAD 與後臺 Log 不需要登入 GitLab 或選擇 Group；GitLab 專案下載、指派 Issue、Issue Board 與 MR 審查共用目前帳號選擇的 Group。閱讀或討論 Issue 不需要設定本機工作目錄。
 
 操作結果統一顯示於右上角訊息中心；側欄或「GitLab Workspace: 開啟訊息中心」指令也可開啟。可篩選全部／未讀、展開詳情並標為已讀、全部已讀、移除或清空。最多保存本次工作階段 500 筆，切換帳號、Group 或根目錄仍保留原始來源；Extension Host 重啟後清空。執行進度、欄位提示、區段重試與必要確認視窗仍顯示在操作位置。
 
@@ -29,7 +29,7 @@ HTTP 連線不會加密 Token 傳輸，建議使用 HTTPS。GitLab Token 不會�
 
 ## 工作台導覽
 
-VS Code 側欄整合連線資訊、工作區導覽與本機 Repo 清單。點擊 Repo 會開啟同一個版控工作台；切換 Repo 時，各 Repo 的提交草稿、提交與檔案選取分別保留，已暫存與未暫存的同名檔案也會分開記錄。工作台在 GitLab 專案、我的工作與待審查頁顯示共用 Group 選擇器；本機功能依所選專案根目錄操作。側欄包含：
+VS Code 側欄整合連線資訊、Dashboard、工作區導覽與本機 Repo 清單。點擊 Repo 會開啟同一個版控工作台；切換 Repo 時，各 Repo 的提交草稿、提交與檔案選取分別保留，已暫存與未暫存的同名檔案也會分開記錄。Dashboard 在本機區塊先顯示已偵測 Repo，並提供完整清單、工作區掃描及 Git／Skills／BMAD 入口；GitLab 連線後再顯示 Group 摘要。工作台在 GitLab 專案、我的工作與待審查頁顯示共用 Group 選擇器；本機功能依所選專案根目錄操作。側欄包含：
 
 - **我的工作**：預設顯示指派給目前帳號的未結案 Issue。使用 **清單／圖譜** 切換顯示方式；清單模式可選 Issue Board，查看看板中指派給你的 Issue；圖譜模式會顯示相關 Issue 與關係，可選 Board 來醒目標示所屬項目。可搜尋標題、Repo 或編號，依狀態、專案、標籤及 Group Milestone 篩選，並新增 Issue。Board、搜尋與圖譜顯示偏好會隨群組保存。
 - **專案**：查看遠端專案與本機狀態。下載、更新與 Skills 共用 **設定 → 工作區與 Skills → 共用專案根目錄**，預設為 VS Code 開啟的資料夾；同視窗多個根資料夾時，先選本次操作的專案資料夾。開啟 A Repo 時，更新 A 使用原目錄，下載 B 放在 A/B。更新會逐個驗證本機 Repo 的 origin；勾選、搜尋、逐項進度與成功後清除選取的行為相同。
@@ -152,7 +152,7 @@ Git 狀態通知與外部檔案變更只標記快取失效，不會自動讀取�
 
 ## 命令面板
 
-- **GitLab Workspace: 開啟工作台**：開啟整合工作台。
+- **GitLab Workspace: 開啟工作台**：開啟共用 Dashboard；需要時可再由命令或 Dashboard 進入各功能頁。
 - **GitLab Workspace: 我的工作／專案／Skills 功能指引／待審查**：直接切換至對應工作區；分析頁的既有命令 ID 仍保留相容性。
 - **GitLab Workspace: 連線 GitLab**、**選擇 Group**、**重新整理工作台**：管理連線、群組與資料。
 - **GitLab Workspace: 選擇要下載或更新的專案**、**下載或更新全部專案**、**下載或更新選取專案**、**更新本機預設分支**：執行 Repo 操作。

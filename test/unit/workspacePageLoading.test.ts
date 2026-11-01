@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { issueGraphNodeKey } from '../../src/workspace/issueGraph';
+import { normalizeWorkspaceMode } from '../../src/workspace/workspaceProtocol';
 import { GitLabRequestBudget } from '../../src/api/gitLabRequestBudget';
 import { GitLabReadCache } from '../../src/api/gitLabReadCache';
 import type { Memento, SecretStorage } from 'vscode';
@@ -79,6 +80,7 @@ function fixture(mode: string, connected = true) {
     post: (message: unknown) => { messages.push(message); },
     resolveProjectContext: async () => context, projectContextSignature: () => 'local-signature',
     refreshWorkflowKit: async () => { local.push('skills'); },
+    refreshWorkflowKitInstallState: async () => { local.push('skills-status'); },
     refreshInventory: async () => { local.push('inventory'); },
     refreshBmadWorkflow: async () => { local.push('bmad'); },
     refreshProjectRoot: async () => { local.push('download-root'); },
@@ -92,6 +94,96 @@ function fixture(mode: string, connected = true) {
   });
   return { host, client, remote, cacheReads, local, messages, context, groups };
 }
+
+test('Dashboard is the default mode and local status loads without a GitLab account', async () => {
+  assert.equal(normalizeWorkspaceMode(undefined), 'dashboard');
+  assert.equal(normalizeWorkspaceMode('reviewer'), 'reviewer', 'existing saved destinations remain valid');
+  assert.equal(normalizeWorkspaceMode('admin'), 'developer', 'legacy saved My Work mode remains valid');
+  const { host, remote, cacheReads, local } = fixture('dashboard', false);
+  await host.refresh();
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.deepEqual(remote, []);
+  assert.deepEqual(cacheReads, []);
+  assert.deepEqual(local.sort(), ['inventory', 'skills-status']);
+  assert.equal(host.dashboardSections.local.status, 'ready');
+  assert.equal(host.dashboardSections.gitlab.status, 'idle');
+  assert.equal(host.busy, false);
+});
+
+test('Dashboard remains available offline without an open workspace folder', async () => {
+  const { host, remote, cacheReads, local, context } = fixture('dashboard', false);
+  const noWorkspace = { ...context, root: undefined, error: 'No workspace folder' };
+  host.resolveProjectContext = async () => noWorkspace;
+  await host.refresh();
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.deepEqual(remote, []);
+  assert.deepEqual(cacheReads, []);
+  assert.deepEqual(local, ['inventory']);
+  assert.equal(host.dashboardSections.local.status, 'ready');
+});
+
+test('Dashboard loads only the first cached page for each selected Group summary section', async () => {
+  const { host, remote, cacheReads, local } = fixture('dashboard');
+  await host.refresh();
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.deepEqual(new Set(remote.filter(read => read.resource !== 'metadata').map(read => read.resource)),
+    new Set(['projects', 'issues', 'mergeRequests']));
+  assert.deepEqual(cacheReads.map(read => read.force), [false, false, false]);
+  assert.equal(host.workspaceSections.projects.complete, true);
+  assert.equal(host.workspaceSections.issues.complete, true);
+  assert.equal(host.workspaceSections.mergeRequests.complete, true);
+  assert.equal(host.dashboardSections.gitlab.status, 'ready');
+  assert.deepEqual(local.sort(), ['inventory', 'skills-status']);
+});
+
+test('a GitLab Dashboard summary failure leaves local project and tool data usable', async () => {
+  const { host, cacheReads } = fixture('dashboard');
+  const cachedRead = host.session.cachedRead;
+  host.session.cachedRead = async (key: string, ...args: any[]) => {
+    if (key.startsWith('group/42/projects/pages/opened/')) {
+      cacheReads.push({ key, force: args[1]?.force });
+      throw new Error('GitLab summary unavailable');
+    }
+    return cachedRead(key, ...args);
+  };
+  await host.refresh();
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.equal(host.dashboardSections.local.status, 'ready');
+  assert.equal(host.dashboardSections.gitlab.status, 'error');
+  assert.match(host.dashboardSections.gitlab.error, /GitLab summary unavailable/);
+  assert.equal(host.workspaceSections.mergeRequests.status, 'ready', 'unrelated remote summaries can finish independently');
+});
+
+test('logging out from a GitLab-only page returns to Dashboard and preserves local project selection', async () => {
+  const { host, context, remote } = fixture('reviewer');
+  const persisted: Array<[string, unknown]> = [];
+  host.activeMode = 'reviewer';
+  host.session.baseUrl = undefined;
+  host.session.selectedGroup = undefined;
+  host.currentUser = undefined;
+  host.timer.detachScope = async () => undefined;
+  host.context.globalState.update = async (key: string, value: unknown) => { persisted.push([key, value]); };
+  host.dashboardSections = { local: { status: 'ready' }, gitlab: { status: 'ready' } };
+  host.selectedGitRepositoryId = 'local-repository';
+  await host.disconnectedView();
+  assert.equal(host.activeMode, 'dashboard');
+  assert.deepEqual(persisted, [['gitlabWorkspace.workspace.mode', 'dashboard']]);
+  assert.equal(host.projectContext, context, 'the local project root stays selected');
+  assert.equal(host.selectedGitRepositoryId, 'local-repository', 'the local Git selection stays selected');
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.deepEqual(host.dashboardSections, { local: { status: 'ready' }, gitlab: { status: 'idle' } });
+  assert.deepEqual(remote, [], 'logout starts local-only Dashboard reads');
+});
 
 test('a cold signed-in project entry makes four API reads and never initializes Issue features', async () => {
   const { host, groups } = fixture('clone');
@@ -417,6 +509,7 @@ test('Skills identifies a local multi-Repo folder and becomes ready without an a
     Object.assign(context, { root, folders: [] });
     host.projectContext = context;
     delete host.refreshWorkflowKit;
+    delete host.refreshWorkflowKitInstallState;
     host.packages = { listReleases: async () => [] };
     host.readWorkflowKitState = async () => ({ status: 'installed', workspaceContract: 2, installerApi: 1, profile: 'group', version: 'test', capabilities: ['codebase-wiki'] });
     await host.refresh({ forceNetwork: true });

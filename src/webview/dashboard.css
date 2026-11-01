@@ -42,6 +42,37 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-error span { flex: 1; white-space: pre-wrap; }
 .section-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border); border-radius: 6px; margin: 4px 0; padding: 7px 10px; color: var(--muted); font-size: 11px; }
 .section-status.error { border-color: color-mix(in srgb, var(--danger), transparent 55%); color: var(--danger); }
+.home-dashboard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 14px; flex: 1 0 auto; }
+.home-card { display: flex; min-width: 0; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--surface); }
+.home-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.home-card-heading .eyebrow { display: block; margin-bottom: 4px; }
+.home-count { display: grid; min-width: 36px; min-height: 36px; place-items: center; border-radius: 18px; background: color-mix(in srgb, var(--focus), transparent 88%); color: var(--vscode-textLink-foreground, var(--focus)); font-size: 16px; font-weight: 600; }
+.home-path { margin: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.home-repository-list { display: grid; min-height: 74px; gap: 3px; align-content: start; }
+.home-repository { display: grid; min-width: 0; grid-template-columns: 18px minmax(0, .7fr) minmax(0, 1.3fr); align-items: center; gap: 6px; border: 0; border-radius: 4px; padding: 6px; color: var(--vscode-foreground); background: transparent; text-align: left; cursor: pointer; }
+.home-repository:hover:not(:disabled) { background: var(--vscode-list-hoverBackground); }
+.home-repository strong, .home-repository small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-repository small { color: var(--muted); }
+.home-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: auto; }
+.home-tool-card { gap: 6px; }
+.home-feature { display: grid; min-width: 0; grid-template-columns: 25px minmax(0, 1fr) 14px; align-items: center; gap: 8px; border: 0; border-radius: 5px; padding: 9px 5px; color: var(--vscode-foreground); background: transparent; text-align: left; cursor: pointer; }
+.home-feature:hover, .home-remote-link:hover { background: var(--vscode-list-hoverBackground); }
+.home-feature > span:nth-child(2) { display: grid; min-width: 0; gap: 4px; }
+.home-feature small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.home-feature-icon, .home-feature-arrow { color: var(--vscode-textLink-foreground, var(--focus)); text-align: center; }
+.home-settings-link { align-self: flex-start; }
+.home-gitlab-card { grid-column: 1 / -1; }
+.home-connection-pill { border: 1px solid var(--border); border-radius: 12px; padding: 4px 9px; color: var(--muted); font-size: 11px; }
+.home-connection-pill.connected { border-color: color-mix(in srgb, var(--success), transparent 50%); color: var(--success); }
+.home-remote-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-remote-item { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 6px; border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.home-remote-item > div { display: grid; gap: 5px; }
+.home-remote-item > div span { color: var(--muted); font-size: 11px; }
+.home-remote-item > div .home-section-error { color: var(--danger); overflow-wrap: anywhere; }
+.home-remote-link { width: 100%; margin-top: auto; border: 0; border-radius: 4px; padding: 6px 4px; color: var(--vscode-textLink-foreground, var(--focus)); background: transparent; text-align: left; cursor: pointer; }
+.home-remote-error { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--danger); }
+.home-remote-error span { min-width: 0; overflow-wrap: anywhere; }
+.home-dashboard .subtle { margin: 0; }
 .data-freshness { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-inline-start: 6px; color: var(--muted); }
 .transport-status { display: inline-block; margin-inline-start: 6px; color: var(--vscode-editorWarning-foreground, #cca700); }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
@@ -414,6 +445,11 @@ pre { max-height: 360px; overflow: auto; border: 1px solid var(--border); border
   .issue-workspace-layout #issue-panel { max-width: none; padding: 16px 0; }
 }
 @media (max-width: 640px) {
+  .home-dashboard { grid-template-columns: minmax(0, 1fr); }
+  .home-gitlab-card { grid-column: auto; }
+  .home-remote-summary { grid-template-columns: minmax(0, 1fr); }
+  .home-repository { grid-template-columns: 18px minmax(0, 1fr); }
+  .home-repository small { grid-column: 2; }
   .wiki-guide-selector { max-width: none; }
   .topbar { padding: 10px; }
   .top-controls { gap: 5px; }

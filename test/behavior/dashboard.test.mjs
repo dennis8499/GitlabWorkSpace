@@ -1392,6 +1392,60 @@ function snapshot(activeMode = 'developer') {
   };
 }
 
+test('offline Dashboard keeps local Repo and tool entry points available without GitLab reads', async t => {
+  const data = snapshot('dashboard');
+  Object.assign(data, { connected: false, baseUrl: undefined, currentUser: undefined, group: undefined,
+    groups: [], connectedScope: undefined, instanceUserScope: undefined, sections: {},
+    localWorkspaceRepositories: [{ path: 'C:/workspace/service', name: 'service', remotes: [], repositoryId: 'repo-service' }],
+    dashboardSections: { local: { status: 'ready' }, gitlab: { status: 'idle' } },
+    workflowKit: { status: 'missing' }, workflowKitInstallTarget: { root: 'C:/workspace/team', manual: false, state: { status: 'missing' } } });
+  const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.page-heading h1').textContent, /Dashboard/);
+  assert.match(document.querySelector('.local-projects-card').textContent, /service/);
+  assert.match(document.querySelector('.home-tool-card').textContent, /Git 版控.*Skills.*BMAD/s);
+  assert.match(document.querySelector('.home-gitlab-card').textContent, /尚未連線/);
+  assert.equal(document.querySelector('.home-repository').disabled, false);
+  assert.ok(document.querySelector('.home-tool-card').textContent.includes('前往設定管理 WorkflowKit'));
+  assert.deepEqual(view.requests, [{ type: 'ready', projectSource: 'gitlab', developerView: 'list' }], 'the offline page opens without dispatching a GitLab read');
+
+  document.querySelector('.home-repository').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'gitOpenRepository');
+  assert.equal(view.requests.at(-1).path, 'C:/workspace/service');
+  document.querySelector('.home-gitlab-card .primary').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'connect');
+});
+
+test('a connected Dashboard without a selected Group offers Group selection', async t => {
+  const data = snapshot('dashboard');
+  Object.assign(data, { connected: true, group: undefined, baseUrl: 'https://gitlab.example.test',
+    currentUser: { id: 7, name: 'Test User', username: 'test-user' }, connectedScope: undefined,
+    dashboardSections: { local: { status: 'ready' }, gitlab: { status: 'idle' } }, sections: {} });
+  const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+  const card = view.dom.window.document.querySelector('.home-gitlab-card');
+  assert.match(card.textContent, /選擇 Group/);
+  card.querySelector('.primary').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'selectGroup');
+});
+
+test('Dashboard reports cached partial and failed GitLab sections with individual retry actions', async t => {
+  const data = snapshot('dashboard');
+  data.dashboardSections = { local: { status: 'ready' }, gitlab: { status: 'ready' } };
+  data.sections = { projects: { status: 'ready', complete: false, loadedCount: 1 },
+    issues: { status: 'error', error: 'Issue API unavailable' }, mergeRequests: { status: 'ready', complete: true, loadedCount: 0 } };
+  data.mergeRequests = [];
+  const view = await mount({ mode: 'dashboard' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  assert.match(document.querySelector('.home-remote-summary').textContent, /已載入 1 筆.*尚未完整/s);
+  assert.match(document.querySelector('.home-remote-summary').textContent, /Issue API unavailable|載入失敗/);
+  assert.match(document.querySelector('.home-remote-summary').textContent, /待審查 MR0 筆/);
+
+  [...document.querySelectorAll('.home-remote-item')][0].querySelector('button').click(); await view.tick();
+  assert.deepEqual(view.requests.at(-1), { type: 'retryWorkspaceSection', section: 'projects', connectedScope: 'team-scope', mode: 'next' });
+  [...document.querySelectorAll('.home-remote-item')][1].querySelector('button').click(); await view.tick();
+  assert.deepEqual(view.requests.at(-1), { type: 'retryWorkspaceSection', section: 'issues', connectedScope: 'team-scope' });
+});
+
 function issueDetailData(issue, project) {
   return {
     issue, project, projects: [project], user: { id: 7, username: 'test-user', name: 'Test User' },
