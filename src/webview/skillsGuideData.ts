@@ -225,6 +225,6 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
        (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
       (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '') + '。',
     ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
-    supportsUpdatesFile ? `Write draft updates to a UTF-8 ${release ? 'ReleaseReviewUpdates/v1' : 'ReviewUpdates/v1'} JSON file and pass them with --updates-file; retry with the same update ID.` : prepared ? 'Save every step result and draft, then resume using the returned request and operation IDs.' : 'Save every step result and draft, then resume using the returned request and operation IDs.',
+    supportsUpdatesFile ? `Write draft updates to a UTF-8 ${release ? 'ReleaseReviewUpdates/v1' : 'ReviewUpdates/v1'} JSON file and pass them with --updates-file; retry with the same update ID.` : prepared ? '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。' : '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。',
   ].join('\n');
 }
