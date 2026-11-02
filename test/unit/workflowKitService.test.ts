@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -63,6 +63,13 @@ test('installation revalidates its context and exposes the installed capability 
   t.after(() => rm(root, { recursive: true, force: true }));
   const target = path.join(root, 'project');
   await mkdir(target);
+  const targetAlias = path.join(root, 'project-alias');
+  let installRoot = targetAlias;
+  try { await symlink(target, targetAlias, process.platform === 'win32' ? 'junction' : 'dir'); }
+  catch (error) {
+    if (!['EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+    installRoot = target;
+  }
   const release = { id: 'github-1.1.0', version: '1.1.0', source: 'github', assetName: 'kit.zip', format: 'zip', entryRoot: 'workflow-kit',
     available: true, descriptor: { statusApi: 1, installerApi: 1, workspaceContract: 2 }, descriptorSha256: 'a'.repeat(64),
     sha256: 'b'.repeat(64), assetUrls: { package: '', installer: '' }, archivePath: 'kit.zip', installerPath: 'installer.py' };
@@ -78,13 +85,13 @@ test('installation revalidates its context and exposes the installed capability 
   }));
   t.after(() => service.dispose());
 
-  service.setContext(context(target, 'revision-1'));
+  service.setContext(context(installRoot, 'revision-1'));
   await service.refreshStatus();
   const result = await service.install('github-1.1.0', {
     canInstall: () => undefined,
     checkAccess: () => undefined,
     validateTarget: async expected => {
-      assert.equal(expected.root, target);
+      assert.equal(expected.root, installRoot);
       assert.equal(expected.revision, 'revision-1');
       validated = true;
     }
@@ -92,6 +99,7 @@ test('installation revalidates its context and exposes the installed capability 
   await service.refreshStatus();
 
   assert.equal(validated, true);
+  assert.equal(result.root, installRoot);
   assert.deepEqual(result.warnings, ['uv 尚未安裝']);
   assert.equal(service.snapshot.installing, false);
   assert.equal(service.snapshot.state.status, 'installed');

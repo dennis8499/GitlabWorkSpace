@@ -6,7 +6,7 @@ import { installedKitIdentity } from './workflowKitIntegration';
 import { workflowKitFailure, workflowKitWarnings } from './workflowKitResult';
 import { WorkflowKitReleaseManager, PackageIntegrityError, compareVersions } from './workflowKitReleases';
 import { workflowKitInterfaceCompatible, workflowKitStatusApiCompatible } from './workflowKitCompatibility';
-import { resolveWorkflowKitInstallRoot } from './workspacePaths';
+import { resolveWorkflowKitInstallRoot, sameRealLocalPathAsync } from './workspacePaths';
 import type { InstalledWorkflowKitState, RemoteToolSource, ToolSource, WorkflowKitInstallTarget, WorkflowKitReleaseSummary } from './workspaceProtocol';
 import type { WorkflowKitRelease } from './workflowKitReleases';
 
@@ -213,7 +213,7 @@ export class WorkflowKitService {
       this.options.reportPhase('installWorkflowKit', '正在驗證安裝目錄與工作流程包…');
       const validation = await resolveWorkflowKitInstallRoot(root, undefined, []);
       if (validation.error) throw new Error(validation.error);
-      if (!validation.root || !samePath(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
+      if (!validation.root || !await sameRealLocalPathAsync(root, validation.root)) throw new Error('安裝位置已變更，請重新檢查或選擇資料夾。');
       const selected = await this.packages.getRelease(releaseId, current, message => this.options.reportPhase('installWorkflowKit', message));
       current();
       if (target.state.version && compareVersions(selected.version, target.state.version) < 0) throw new Error('已安裝版本較新，不會降級 WorkflowKit。');
