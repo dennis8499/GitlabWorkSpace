@@ -10,6 +10,7 @@ import { GitLabReadCache } from '../../src/api/gitLabReadCache';
 import type { Memento, SecretStorage } from 'vscode';
 import { GitLabSession } from '../../src/connection/session';
 import { ACCOUNTS_KEY, ACTIVE_ACCOUNT_KEY, accountId, accountTokenKey } from '../../src/connection/accountStore';
+import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 
 const executedCommands: string[] = [];
 const vscode = {
@@ -92,6 +93,14 @@ function fixture(mode: string, connected = true) {
       handleAction: async (_id: string, action: { type: string }) => { local.push(`git-${action.type}-snapshot`); return { id: 'repo' }; }
     }
   });
+  host.packages = { listReleases: async () => [] };
+  host.workflowKit = new WorkflowKitService({
+    storagePath: os.tmpdir(), extensionDirectory: process.cwd(), extensionVersion: 'test',
+    readSource: () => 'github', writeSource: async () => undefined, pythonPath: () => process.execPath,
+    reportPhase: () => undefined, runWithInstallProgress: (_version, task) => task(),
+    releaseManager: host.packages,
+    runHelper: async () => host.readWorkflowKitState ? host.readWorkflowKitState() : { status: 'missing' }
+  });
   return { host, client, remote, cacheReads, local, messages, context, groups };
 }
 
@@ -110,6 +119,19 @@ test('Dashboard is the default mode and local status loads without a GitLab acco
   assert.equal(host.dashboardSections.local.status, 'ready');
   assert.equal(host.dashboardSections.gitlab.status, 'idle');
   assert.equal(host.busy, false);
+});
+
+test('Dashboard Repo inventory is ready while WorkflowKit status is still pending', async () => {
+  const { host, local } = fixture('dashboard', false);
+  let finishStatus!: () => void;
+  host.refreshWorkflowKitInstallState = () => new Promise<void>(resolve => { finishStatus = resolve; });
+  await host.refresh();
+  for (let attempt = 0; attempt < 30 && host.dashboardSections.local.status === 'loading'; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+  assert.equal(host.dashboardSections.local.status, 'ready');
+  assert.deepEqual(local, ['inventory']);
+  finishStatus();
 });
 
 test('Dashboard remains available offline without an open workspace folder', async () => {
@@ -517,7 +539,7 @@ test('Skills identifies a local multi-Repo folder and becomes ready without an a
     assert.equal(skills.mode, 'group', 'the local folder workflow is retained independently of GitLab Groups');
     assert.equal(skills.root, root);
     assert.deepEqual(skills.availableFeatures, ['codebase-wiki']);
-    assert.equal(host.workflowKitInstallTarget.root, root);
+    assert.equal(host.workflowKit.snapshot.installTarget.root, root);
     assert.deepEqual(remote, []);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -1016,8 +1038,8 @@ test('Group selection preserves local scope, Skills state and helper guards whil
   const { host, remote, local, context } = fixture('sa');
   const originalMatch = host.workspaceMatch, originalSkills = host.skillsWorkflowKitState;
   const localScope = host.getLocalOperationScope();
-  const localGuard = host.captureWorkflowKitAccess();
-  const remoteGuard = host.captureWorkflowKitAccess(true);
+  const localGuard = host.captureProjectAccess();
+  const remoteGuard = host.captureProjectAccess(true);
   await host.selectGroup(43);
   assert.equal(host.session.selectedGroup.id, 43);
   assert.equal(host.projectContext, context); assert.equal(host.workspaceMatch, originalMatch);

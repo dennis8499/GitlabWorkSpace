@@ -44,8 +44,8 @@ test('task prompts retain multiline requirements and the verified project root w
 });
 
 test('bundled tasks require a verified kit while independently observed external installations remain usable', () => {
-  const bundled = { status: 'installed', bmadMode: 'bundled', integrity: 'verified', interfaceCompatibility: 'compatible',
-    capabilities: ['bmad-workflow'] } as const;
+  const bundled = { status: 'installed', bmadMode: 'bundled', workspaceContract: 2, installerApi: 1,
+    integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] } as const;
   assert.equal(bmadKitTaskIssue({ ...bundled, capabilities: [...bundled.capabilities] }), undefined);
   assert.match(bmadKitTaskIssue({ ...bundled, integrity: 'unverified', capabilities: [...bundled.capabilities] })!, /尚未通過驗證/);
   assert.match(bmadKitTaskIssue({ ...bundled, capabilities: [] })!, /尚未通過驗證/);

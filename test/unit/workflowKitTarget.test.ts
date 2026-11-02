@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { OperationLog } from '../../src/logging/operationLog';
+import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 
 const storageKey = 'gitlabWorkspace.workflowKit.installRoot';
 const skillsStorageKey = 'gitlabWorkspace.skills.repositoryRoot';
@@ -71,9 +72,7 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
     workspaceMatch: { status: 'checking', repositories: [] }, projects: connected ? [project(1, 'service'), project(2, 'docs')] : [],
     workspaceSections: { projects: { status: connected ? 'ready' : 'idle' } },
     loadedScopeKey: connected ? 'https://gitlab.test|1|1' : undefined,
-    workflowKitStatusReads: new Map(), workflowKitState: { status: 'missing' }, workflowKitReleases: [],
-    workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
-    workflowKitSelectingRoot: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
+    busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
     currentUser: connected ? { id: 1 } : undefined,
     session: { connectionEpoch: 1, baseUrl: connected ? 'https://gitlab.test' : undefined, selectedGroup: connected ? { id: 1 } : undefined,
       getClient: () => { throw new Error('Local Skills must not request GitLab credentials'); } },
@@ -90,6 +89,15 @@ function fixture(folders: string[], connected = false, workspaceState = memory()
       return installed.has(args[1]) ? { ok: true, status: 'installed', workspaceContract: 2, installerApi: 1, version: bundle.version, profile: installed.get(args[1]), capabilities: ['query', 'retired-feature'] }
         : { ok: true, status: 'missing' };
     }
+  });
+  host.workflowKit = new WorkflowKitService({
+    storagePath: os.tmpdir(), extensionDirectory: folders[0], extensionVersion: bundle.version,
+    readSource: () => host.context.globalState.get('gitlabWorkspace.workflowKit.source') ?? 'github',
+    writeSource: async source => { await host.context.globalState.update('gitlabWorkspace.workflowKit.source', source); },
+    pythonPath: () => 'python', reportPhase: () => undefined, onMessage: () => undefined,
+    runWithInstallProgress: (_version, task) => task(), releaseManager: host.packages as any,
+    runHelper: (args, timeout, installerPath, beforeLaunch) => host.runWorkflowKitHelper([...args], timeout, beforeLaunch, installerPath),
+    onDidChange: () => host.sendSnapshot()
   });
   host.onWorkspaceFoldersChanged = () => { host.workspaceFoldersGeneration++; host.skillsEnvironmentGeneration++; host.projectContext = undefined; };
   return { host, installed, calls, workspaceState };
@@ -131,8 +139,8 @@ test('a source check re-reads installed state after an earlier local verifier co
   const online = host.refreshWorkflowKitReleases('github');
   finish({ ok: true, status: 'error', message: 'not yet verified' });
   await Promise.all([local, online]);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
-  assert.equal(host.workflowKitInstallTarget.state.version, '1.0.0');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.version, '1.0.0');
   assert.ok(checks >= 2);
 });
 
@@ -155,7 +163,7 @@ async function directories(t: test.TestContext) {
 test('all local features default to the opened Repo even when its origin matches GitLab', async t => {
   const [, repo] = await directories(t); const { host, calls } = fixture([repo], true);
   await host.refreshWorkflowKit();
-  assert.equal(host.workflowKitInstallTarget.root, repo); assert.equal(host.cloneRoot, repo);
+  assert.equal(host.workflowKit.snapshot.installTarget.root, repo); assert.equal(host.cloneRoot, repo);
   assert.equal(host.getSkillsContext().root, repo);
   assert.equal(host.getWorkflowKitPolicy().mode, 'repository');
   await host.installWorkflowKit('bundled');
@@ -202,7 +210,7 @@ test('legacy independent paths do not override the VS Code project root', async 
   await state.update('gitlabWorkspace.cloneRoot.legacy', other);
   const { host } = fixture([repo], false, state); await host.refreshWorkflowKit();
   assert.equal(host.cloneRoot, repo); assert.equal(host.getSkillsContext().root, repo);
-  assert.equal(host.workflowKitInstallTarget.root, repo);
+  assert.equal(host.workflowKit.snapshot.installTarget.root, repo);
 });
 
 test('changing the shared root switches installation and Skills together', async t => {
@@ -210,7 +218,7 @@ test('changing the shared root switches installation and Skills together', async
   installed.set(group, 'group'); installed.set(repo, 'repository'); await host.refreshWorkflowKit();
   const oldRevision = host.getSkillsContext().revision;
   vscode.window.showOpenDialog = async () => [uri(repo)]; await host.selectProjectRoot();
-  assert.equal(host.cloneRoot, repo); assert.equal(host.workflowKitInstallTarget.root, repo);
+  assert.equal(host.cloneRoot, repo); assert.equal(host.workflowKit.snapshot.installTarget.root, repo);
   assert.equal(host.getSkillsContext().root, repo);
   assert.notEqual(host.getSkillsContext().revision, oldRevision);
   assert.equal(updates.at(-1).target, 2); assert.equal(updates.at(-1).key, 'projectRoot');
@@ -232,7 +240,7 @@ test('ordinary folders work offline and an opened Repo subdirectory keeps its ow
   assert.equal(argumentValue(calls.find(args => args[0] === 'install'), '--profile'), 'group');
   const child = path.join(repo, 'src'); await mkdir(child); vscode.window.showOpenDialog = async () => [uri(child)];
   await host.selectProjectRoot(); assert.equal(host.cloneRoot, child);
-  assert.match(host.workflowKitInstallTarget.error, /Git 根目錄/);
+  assert.match(host.workflowKit.snapshot.installTarget.error, /Git 根目錄/);
   await assert.rejects(host.installWorkflowKit('bundled'), /Git 根目錄/);
   vscode.window.showOpenDialog = async () => [{ scheme: 'vscode-remote', fsPath: child }];
   await assert.rejects(host.selectProjectRoot(), /本機/);
@@ -242,7 +250,7 @@ test('an invalid configured root reports its path and never falls back to the op
   const [group, repo] = await directories(t); const { host, calls } = fixture([repo]);
   const missing = path.join(group, 'removed'); configuredRoots.set(uri(repo).toString(), missing);
   await host.refreshWorkflowKit(); assert.equal(host.cloneRoot, undefined);
-  assert.match(host.workflowKitInstallTarget.error, /removed/); assert.equal(host.getSkillsContext().root, undefined);
+  assert.match(host.workflowKit.snapshot.installTarget.error, /removed/); assert.equal(host.getSkillsContext().root, undefined);
   await assert.rejects(host.installWorkflowKit('bundled'), /不存在|讀取/);
   assert.equal(calls.filter(args => args[0] === 'install').length, 0);
 });
@@ -261,7 +269,7 @@ test('late status reads cannot overwrite a newly configured project root', async
   const old = host.refreshWorkflowKit(); await started;
   configuredRoots.set(uri(repo).toString(), other); await host.refreshWorkflowKit();
   finish({ ok: true, status: 'installed', workspaceContract: 2, installerApi: 1, version: 'old', profile: 'repository' }); await old;
-  assert.equal(host.workflowKitInstallTarget.root, other); assert.equal(host.workflowKitInstallTarget.state.status, 'missing');
+  assert.equal(host.workflowKit.snapshot.installTarget.root, other); assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'missing');
 });
 
 test('late project resolution cannot restore a removed workspace folder', async t => {
@@ -312,7 +320,7 @@ test('a container install does not depend on child repository remotes', async t 
   };
   await host.installWorkflowKit('bundled');
   assert.equal(calls.filter(args => args[0] === 'install').length, 1);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
 });
 
 test('a target profile changed while choosing a package prevents installation', async t => {
@@ -352,13 +360,13 @@ test('the 18-repository settings and install replay performs only bounded root p
   };
   await log.run('tools', 'settingsReplay', {}, () => host.dispatchMessage({ type: 'refreshWorkflowKit' }));
   checkBudget(1);
-  assert.equal(host.workflowKitInstallTarget.profile, 'group');
+  assert.equal(host.workflowKit.snapshot.installTarget.profile, 'group');
   assert.equal(host.workspaceMatch.status, 'unverified', 'target classification is not full Skills discovery');
   lines.length = 0;
   await log.run('tools', 'installReplay', {}, () => host.installWorkflowKit('bundled'));
   checkBudget(3);
   assert.equal(calls.filter(args => args[0] === 'install').length, 1);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
   assert.equal(host.getSkillsContext().mode, 'unavailable');
   delete host.projectEnvironmentSnapshots; host.inspectEnvironmentSnapshot = inspect;
   await host.refreshWorkflowKit();
@@ -405,9 +413,9 @@ test('settings status survives an aborted Skills-owned status refresh', async t 
   const full = host.refreshWorkflowKit(true, owner.signal); await entered;
   const settings = host.refreshWorkflowKitInstallState();
   owner.abort(); release(); await Promise.all([full, settings]);
-  assert.equal(host.workflowKitInstallTarget.root, group);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
-  assert.equal(host.workflowKitInstallTarget.state.profile, 'group');
+  assert.equal(host.workflowKit.snapshot.installTarget.root, group);
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.profile, 'group');
 });
 
 test('an aborted view cannot supersede an already pending settings status', async t => {
@@ -422,7 +430,7 @@ test('an aborted view cannot supersede an already pending settings status', asyn
   const settings = host.refreshWorkflowKitInstallState(); await entered;
   const view = host.refreshWorkflowKitInstallState(true, owner.signal);
   owner.abort(); release(); await Promise.all([settings, view]);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
 });
 
 test('a target-only root or profile change cannot retain another Skills mapping', async t => {
@@ -431,8 +439,8 @@ test('a target-only root or profile change cannot retain another Skills mapping'
   assert.equal(host.getSkillsContext().repositories[0].path, repo);
   installed.set(other, 'repository'); configuredRoots.set(uri(repo).toString(), other);
   await host.refreshWorkflowKitInstallState();
-  assert.equal(host.workflowKitInstallTarget.root, other);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
+  assert.equal(host.workflowKit.snapshot.installTarget.root, other);
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
   assert.equal(host.workspaceMatch.status, 'unverified');
   assert.deepEqual(host.getSkillsContext().repositories, []);
   assert.deepEqual(host.getSkillsContext().availableFeatures, []);
@@ -440,7 +448,7 @@ test('a target-only root or profile change cannot retain another Skills mapping'
   assert.equal(host.getSkillsContext().mode, 'group');
   execFileSync('git', ['init', '--quiet', group]);
   await host.refreshWorkflowKitInstallState();
-  assert.equal(host.workflowKitInstallTarget.profile, 'repository');
+  assert.equal(host.workflowKit.snapshot.installTarget.profile, 'repository');
   assert.equal(host.workspaceMatch.status, 'unverified');
   assert.deepEqual(host.getSkillsContext().repositories, []);
 });
@@ -455,8 +463,8 @@ test('late target-only status cannot overwrite a newly selected root', async t =
   const old = host.refreshWorkflowKitInstallState(); await entered;
   configuredRoots.set(uri(repo).toString(), other); await host.refreshWorkflowKitInstallState();
   finish({ ok: true, status: 'installed', workspaceContract: 2, installerApi: 1, version: 'old', profile: 'group' }); await old;
-  assert.equal(host.workflowKitInstallTarget.root, other);
-  assert.equal(host.workflowKitInstallTarget.state.status, 'missing');
+  assert.equal(host.workflowKit.snapshot.installTarget.root, other);
+  assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'missing');
 });
 
 test('replacing an inspected directory with an alias cannot redirect installation', async t => {
@@ -550,7 +558,7 @@ test('Repo refresh retains the current list until replacement and preserves it o
 
 test('shared root drift during Python resolution prevents writes', async t => {
   const [, repo, other] = await directories(t); const { host } = fixture([repo]);
-  const check = host.captureWorkflowKitAccess(); resolvingPython = () => { configuredRoots.set(uri(repo).toString(), other); };
+  const check = host.captureProjectAccess(); resolvingPython = () => { configuredRoots.set(uri(repo).toString(), other); };
   await assert.rejects(WorkspacePanel!.prototype['runWorkflowKitHelper'].call(Object.assign(Object.create(WorkspacePanel!.prototype), host,
     { workflowKitHelper: () => 'unused.py' }), ['inspect'], 1000, check), /已變更/);
 });
@@ -589,9 +597,9 @@ test('filesystem helpers are serialized and queued requests recheck before launc
   let release!: () => void;
   const waiting = new Promise<void>(resolve => { release = resolve; });
   const order: string[] = [];
-  const run = WorkspacePanel!.prototype['runWorkflowKitHelper'].bind(host);
-  const first = run(['status'], 1000, async () => { order.push('first'); await waiting; throw new Error('first guard'); });
-  const second = run(['status'], 1000, () => { order.push('second'); throw new Error('second guard'); });
+  const run = host.workflowKit['runHelper'].bind(host.workflowKit);
+  const first = run(['inspect'], 1000, undefined, async () => { order.push('first'); await waiting; throw new Error('first guard'); });
+  const second = run(['inspect'], 1000, undefined, () => { order.push('second'); throw new Error('second guard'); });
   const completed = Promise.all([assert.rejects(first, /first guard/), assert.rejects(second, /second guard/)]);
   await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(order, ['first']);
   release(); await completed; assert.deepEqual(order, ['first', 'second']);
@@ -613,7 +621,7 @@ test('root selection locks before asynchronous resolution and blocks downloads u
   const selecting = host.selectProjectRoot();
   await assert.rejects(host.selectProjectRoot(), /等候/);
   await assert.rejects(host.clone([1], false), /完成/);
-  release(); await selecting; assert.equal(host.workflowKitSelectingRoot, false); assert.equal(updates.length, 0);
+  release(); await selecting; assert.equal(host.projectRootSelecting, false); assert.equal(updates.length, 0);
 });
 
 test('repository operations block installation at the shared root', async t => {

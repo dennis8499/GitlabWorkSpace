@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildBmadCommand } from '../../src/workspace/bmadCommand';
 import type { BmadWorkflowSnapshot } from '../../src/workspace/bmadProtocol';
+import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 
 const uri = (fsPath: string) => ({ scheme: 'file', fsPath, toString: () => `file:${fsPath}` });
 const configuredRoots = new Map<string, string>();
@@ -73,14 +74,23 @@ async function fixture(t: test.TestContext) {
     bmadRuntimeReason: undefined, sendSnapshot: () => undefined, post: (message: unknown) => errors.push(message),
     refreshWorkflowKitInstallState: async () => {
       kitChecks++; host.projectContext = await host.resolveProjectContext();
-      host.workflowKitStateRoot = host.projectContext.root; host.workflowKitState = kitState;
+      host.workflowKit.setContext({ revision: host.projectContext.revision, root: host.projectContext.root, manual: false,
+        profile: kitState.profile });
+      await host.workflowKit.refreshStatus();
     }, noteOutcome: (outcome: unknown) => outcomes.push(outcome),
     refreshBmadEnvironment: async () => undefined,
     getSkillsContext: () => ({ root: host.projectContext?.root, availableFeatures: features }),
     checkBmadRuntime: async () => { runtimeChecks++; host.bmadRuntimeReason = runtimeReason; }
   });
+  host.workflowKit = new WorkflowKitService({
+    storagePath: base, extensionDirectory: extensionRoot, extensionVersion: 'test',
+    readSource: () => 'github', writeSource: async () => undefined, pythonPath: () => 'python', reportPhase: () => undefined,
+    runWithInstallProgress: (_version, task) => task(), releaseManager: { listReleases: async () => [] } as any,
+    runHelper: async () => ({ ...kitState } as Record<string, unknown>)
+  });
   host.projectContext = await host.resolveProjectContext();
   t.after(async () => {
+    host.workflowKit.dispose();
     host.bmad?.dispose();
     assert.ok(path.basename(base).startsWith('bmad-host-test-'));
     await fs.rm(base, { recursive: true, force: true });
@@ -146,14 +156,16 @@ test('copy validates observed work and rejects the retired installation command'
 
 test('task copy rechecks bundled integrity and writes a root-bound prompt', async t => {
   const f = await fixture(t);
-  f.setKitState({ status: 'installed', bmadMode: 'bundled', integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
+  f.setKitState({ status: 'installed', bmadMode: 'bundled', workspaceContract: 2, installerApi: 1,
+    integrity: 'verified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
   await f.refresh(); await waitForBmadRegistration(f.host);
   const snapshot = await f.refresh();
   await f.host.copyBmadCommand({ revision: snapshot.revision, command: 'task', requirement: '完成付款功能' });
   assert.match(copied[0], /\$bmad-help/);
   assert.ok(copied[0].includes(f.root));
   assert.ok(copied[0].includes('完成付款功能'));
-  f.setKitState({ status: 'installed', bmadMode: 'bundled', integrity: 'unverified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
+  f.setKitState({ status: 'installed', bmadMode: 'bundled', workspaceContract: 2, installerApi: 1,
+    integrity: 'unverified', interfaceCompatibility: 'compatible', capabilities: ['bmad-workflow'] });
   await assert.rejects(f.host.copyBmadCommand({ revision: snapshot.revision, command: 'task', requirement: '再檢查' }), /尚未通過驗證/);
   assert.equal(copied.length, 1);
 });

@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { WorkflowKitReleaseManager, WORKFLOW_KIT_RELEASES } from '../../src/workspace/workflowKitReleases';
+import { WorkflowKitService } from '../../src/workspace/workflowKitService';
 import { WorkspacePanel } from '../../src/workspace/workspacePanel';
 import { readBmadWorkflow } from '../../src/workspace/bmadWorkflow';
 import { readInstalledReviewerBinding } from '../../src/workspace/installedReviewer';
@@ -89,14 +90,16 @@ suite('Online workflow kit installation', () => {
       const values = new Map<string, unknown>([['gitlabWorkspace.projectFolder', vscode.Uri.file(root).toString()]]);
       host = Object.assign(Object.create(WorkspacePanel.prototype), {
         disposed: false, busy: false, writesInFlight: 0, webviewMessagesReceived: 0,
-        workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0, workflowKitStatusReads: new Map(),
+        workspaceFoldersGeneration: 0, skillsEnvironmentGeneration: 0, workflowKitRefreshGeneration: 0,
         workspaceMatch: { status: 'checking', repositories: [] }, projects: [], workspaceSections: {},
         remoteWatchers: [], remoteWatchSignature: '',
         gitRepositories: { getInventory: async () => [{ path: nativeRepository!.rootUri.fsPath }] },
-        workflowKitInstallTarget: { manual: false, state: { status: 'missing' } },
-        workflowKitState: { status: 'missing' }, workflowKitSelectingRoot: false,
+        projectRootSelecting: false,
         session: { getClient: () => { throw new Error('Offline installation must not request a GitLab client'); } },
-        context: { extensionUri: vscode.Uri.file(extensionRoot), extension: { packageJSON }, workspaceState: {
+        context: { extensionUri: vscode.Uri.file(extensionRoot), extension: { packageJSON }, globalState: {
+          get: (key: string) => values.get(key),
+          update: async (key: string, value: unknown) => { values.set(key, value); }
+        }, workspaceState: {
           get: (key: string) => values.get(key),
           update: async (key: string, value: unknown) => { values.set(key, value); }
         } },
@@ -107,20 +110,29 @@ suite('Online workflow kit installation', () => {
         watchRepositoryRemotes: async () => undefined,
         sendSnapshot: () => undefined, post: () => undefined
       });
+      host.workflowKit = new WorkflowKitService({
+        storagePath: path.join(temporary, 'storage'), extensionDirectory: extensionRoot, extensionVersion: packageJSON.version,
+        readSource: () => host.context.globalState.get('gitlabWorkspace.workflowKit.source') ?? 'github',
+        writeSource: async source => { await host.context.globalState.update('gitlabWorkspace.workflowKit.source', source); },
+        pythonPath: () => 'python', reportPhase: () => undefined, onMessage: () => undefined,
+        runWithInstallProgress: (_version, task) => task(), releaseManager: manager,
+        runHelper: (args, timeout, installerPath, beforeLaunch) => host.runWorkflowKitHelper([...args], timeout, beforeLaunch, installerPath),
+        onDidChange: () => host.sendSnapshot()
+      });
       await host.refreshWorkflowKitInstallState(false);
-      assert.equal(host.workflowKitInstallTarget.state.status, 'missing');
+      assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'missing');
       await host.handleMessage({ type: 'installWorkflowKit', releaseId: selected.id });
-      assert.equal(host.workflowKitInstallTarget.root, root);
-      assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
-      assert.equal(host.workflowKitInstallTarget.state.profile, 'repository');
-      assert.equal(host.workflowKitState.status, 'installed');
+      assert.equal(host.workflowKit.snapshot.installTarget.root, root);
+      assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
+      assert.equal(host.workflowKit.snapshot.installTarget.state.profile, 'repository');
+      assert.equal(host.workflowKit.snapshot.state.status, 'installed');
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
       assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1' || kitVersion === '1.3.4');
       if (kitVersion === '1.3.1' || kitVersion === '1.3.4') {
-        assert.equal(host.workflowKitState.bmadMode, 'bundled');
-        assert.ok(host.workflowKitState.capabilities.includes('visualize'));
+        assert.equal(host.workflowKit.snapshot.state.bmadMode, 'bundled');
+        assert.ok(host.workflowKit.snapshot.state.capabilities.includes('visualize'));
         const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
         const bmad = await readBmadWorkflow({ root, bundledCatalog: catalog });
         assert.equal(bmad.installation.state, 'ready');
@@ -164,18 +176,18 @@ suite('Online workflow kit installation', () => {
         }
         await configuration.update(setting, externalRoot, configurationTarget);
         await host.refreshWorkflowKit(false);
-        assert.equal(host.workflowKitInstallTarget.profile, profile);
+        assert.equal(host.workflowKit.snapshot.installTarget.profile, profile);
         await host.handleMessage({ type: 'installWorkflowKit', releaseId: selected.id });
-        assert.equal(host.workflowKitInstallTarget.root, externalRoot);
-        assert.equal(host.workflowKitInstallTarget.state.status, 'installed');
-        assert.equal(host.workflowKitInstallTarget.state.profile, profile);
+        assert.equal(host.workflowKit.snapshot.installTarget.root, externalRoot);
+        assert.equal(host.workflowKit.snapshot.installTarget.state.status, 'installed');
+        assert.equal(host.workflowKit.snapshot.installTarget.state.profile, profile);
         assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(),
           existingBmad ? expectedSkills.filter((name: string) => !name.startsWith('bmad-')) : expectedSkills);
         assert.equal((await readdir(externalRoot)).includes('_bmad'), existingBmad || kitVersion === '1.3.1');
         if (existingBmad) {
-          assert.equal(host.workflowKitState.bmadMode, 'external');
-          assert.ok(!host.workflowKitState.capabilities.includes('bmad-workflow'));
-          assert.ok(host.workflowKitState.capabilities.includes('visualize'));
+          assert.equal(host.workflowKit.snapshot.state.bmadMode, 'external');
+          assert.ok(!host.workflowKit.snapshot.state.capabilities.includes('bmad-workflow'));
+          assert.ok(host.workflowKit.snapshot.state.capabilities.includes('visualize'));
           assert.equal(await readFile(path.join(externalRoot, '_bmad', 'config.toml'), 'utf8'), '# user BMAD\n');
         }
         assert.equal(host.getSkillsContext().root, externalRoot);
@@ -186,6 +198,7 @@ suite('Online workflow kit installation', () => {
     } finally {
       if (host) {
         host.disposed = true;
+        host.workflowKit?.dispose();
         host.remoteWatchers.forEach((watcher: vscode.Disposable) => watcher.dispose());
         if (host.remoteRefreshTimer) clearTimeout(host.remoteRefreshTimer);
       }

@@ -41,7 +41,7 @@ test('a selected download from the first 100 of 1000 projects performs one clone
     session: { baseUrl: 'https://gitlab.test', connectionEpoch: 1, selectedGroup: { id: 42, full_path: 'team' },
       getClient: async () => client, getCloneCredentials: async () => ({ baseUrl: 'https://gitlab.test', token: 'test-token' }),
       cachedRead: () => { throw new Error('partial download must not load a complete Group'); } },
-    captureWorkflowKitAccess: () => () => {}, resolveProjectRoot: async () => ({ root, revision: 'root' }),
+    captureProjectAccess: () => () => {}, resolveProjectRoot: async () => ({ root, revision: 'root' }),
     sendSnapshot: () => {}, post: () => {}, operationPhase: () => {}, noteOutcome: () => {}, repositoryOutcome: () => ({ status: 'succeeded', effect: 'applied' }),
     cloneProgressPublisher: () => ({ publish: () => {}, dispose: () => {} }), reconcileAfterWrite: async (action: Function) => action(),
     refreshProjectRoot: async () => {}, refreshInventory: async () => {}, schedulePendingWorkspaceRefresh: () => {} });
