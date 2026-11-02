@@ -41,6 +41,14 @@
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
+## 0.38.1 更新
+
+- 對齊 WorkflowKit 1.3.5 共用 runner；先核對受管理 runner 的 SHA-256，再透過安裝根目錄執行 Reviewer 探測與取消操作。
+- Wiki、BMAD 及 Reviewer 提示詞帶入 profile runner 指引；舊版工作流程包維持直接執行，Reviewer session runtime 繼續隔離。
+- 取得 WorkflowKit 1.3.5 的 Wiki 圖表 Windows hard-link 修正，並固定正式附件與兩種 profile 的能力快照供測試。
+
+完整變更與驗證範圍見 [0.38.1 發布說明](docs/releases/v0.38.1.md)。
+
 ## 0.38.0 更新
 
 - 新增共用 Dashboard；未登入 GitLab 時即可查看本機 Repo 並進入 Git、Skills／Wiki、分支審查與 BMAD 功能。
@@ -197,7 +205,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 - GitLab Personal Access Token，需有 `api` 範圍，且帳號必須有權存取目標群組與專案。複製私有專案也需要相應的 GitLab 權限。
 - GitLab.com 或可連線的自架 GitLab。部分議題功能會依伺服器版本、API 能力及帳號權限而異。
 - Python 3.11+；檢查及安裝工具時需要，可在 VS Code 設定 `gitlabWorkspace.pythonPath` 指定直譯器路徑。
-- WorkflowKit 安裝及 BMAD 使用不需登入 GitLab；安裝需要 Python 3.11+，執行 BMAD 需要 Codex CLI 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)，不需要 Node.js。Wiki 圖表發布另需 Node.js 18+ 與本機瀏覽器。
+- WorkflowKit 安裝及 BMAD 使用不需登入 GitLab；安裝需要 Python 3.11+，執行 BMAD 需要 Codex CLI 與 [uv](https://docs.astral.sh/uv/getting-started/installation/)。WorkflowKit 1.3.5 以受管 runner 為本機 Skills 的 Python、Node.js 與 uv helper 設定暫存及套件快取；Wiki 圖表發布另需 Node.js 18+ 與本機瀏覽器。
 - 進度依據已儲存的 BMAD 原生產物，顯示來源、原生狀態與更新時間；缺少完成訊號時保留狀態未明。複製指令或開啟終端不會推進進度；外部 Codex 是否正在執行不在觀察範圍。Group 模式沿用共同安裝與輸出根目錄。
 
 ## 安裝
@@ -230,7 +238,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-WorkflowKit 1.3.4 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
+WorkflowKit 1.3.5 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。兩種 profile 均包含 Python、Node.js 與 uv helper 的安全執行器，並修正 Wiki 圖表輸出的 Windows hard-link 相容性。runner 會保留命令參數與工作目錄，將暫存和 uv 快取放在套件 runtime；Reviewer 仍把工作階段留在 Repo 外設定的 runtime。外部 BMAD 與使用者產物會保留。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 
