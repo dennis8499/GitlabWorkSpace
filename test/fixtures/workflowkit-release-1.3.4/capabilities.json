@@ -1,0 +1,40 @@
+{
+  "capabilities": {
+    "group": [
+      "adr",
+      "archaeology",
+      "audit",
+      "bmad-workflow",
+      "business-analysis",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "merge-repo",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design",
+      "visualize"
+    ],
+    "repository": [
+      "adr",
+      "archaeology",
+      "audit",
+      "bmad-workflow",
+      "business-analysis",
+      "functional-exploration",
+      "ingest",
+      "lint",
+      "merge-repo",
+      "notebooklm-export",
+      "query",
+      "release-review",
+      "synthesis",
+      "system-analysis",
+      "system-design",
+      "visualize"
+    ]
+  }
+}

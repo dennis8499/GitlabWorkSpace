@@ -1370,8 +1370,7 @@ function App() {
                 }
               }}
               workspaceRoot={snapshot.skillsContext?.workspaceRoot} workspaceFile={snapshot.skillsContext?.workspaceFile} workspaceRootAmbiguous={snapshot.skillsContext?.workspaceRootAmbiguous}
-              skillsContext={snapshot.skillsContext} reviewerExecution={snapshot.skillsContext?.reviewerExecution}
-              reviewerExecutionError={snapshot.skillsContext?.reviewerExecutionError}
+              skillsContext={snapshot.skillsContext}
               profile={snapshot.skillsContext?.mode === 'group' ? 'group' : snapshot.skillsContext ? 'repository' : undefined}
               root={snapshot.skillsContext?.root} groupRoot={snapshot.skillsContext?.mode === 'group' ? snapshot.skillsContext.root : snapshot.skillsContext ? undefined : snapshot.groupRoot}
               repositories={snapshot.skillsContext?.repositories ?? (snapshot.groupRepositoryScanStatus === 'ready' ? snapshot.groupRepositories : [])}

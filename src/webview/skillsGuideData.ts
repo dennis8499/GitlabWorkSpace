@@ -1,7 +1,6 @@
-import type { ReviewerCapabilities } from '../workspace/reviewSessionProtocol';
+import type { ReviewerCapabilities, ReviewerSessionCapabilities } from '../workspace/reviewSessionProtocol';
 import { withOutputStyle } from '../workspace/outputStyle';
-import { REVIEWER_EXECUTION_FIELDS, resolveEffectiveReviewerExecution, resolveReviewerExecution,
-  type ReviewerExecutionOverrides, type InstalledReviewerBinding } from '../workspace/reviewExecution';
+import type { InstalledReviewerBinding } from '../workspace/reviewSessionProtocol';
 import {
   buildWikiGuideContext, buildWikiGuidePrompt, canCopyWikiPrompt, createDefaultWikiGuideInputs, DEFAULT_WIKI_GUIDE_CARD_ID, getWikiGuideFields, migrateWikiGuideInputs, wikiGuideCards,
   type WikiGuideCard, type WikiGuideContext, type WikiGuideField, type WikiGuideInputValues
@@ -10,7 +9,7 @@ import {
 export type SkillGuideToolId = 'codebase-wiki' | 'merge-reviewer' | 'release-reviewer';
 export type SkillGuideInputValues = WikiGuideInputValues;
 export type SkillGuideContext = WikiGuideContext & { reviewRuntimeRoot?: string; releaseReviewRuntimeRoot?: string; reviewAuthScope?: string;
-  reviewerExecution?: ReviewerExecutionOverrides; reviewerExecutionError?: string; reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string };
+  reviewerBinding?: InstalledReviewerBinding; reviewerCapabilities?: ReviewerCapabilities; reviewerRequestId?: string };
 export type SkillGuideField = WikiGuideField;
 export interface SkillGuideCard extends WikiGuideCard {
   tool: SkillGuideToolId;
@@ -83,7 +82,7 @@ export function restoreSkillGuideState(saved?: SkillGuideState, legacyInputs?: W
   for (const key of Object.keys(inputs)) {
     if (/^merge-(quick|group|mr)\./.test(key)) delete inputs[key];
     for (const prefix of ['release-review.', 'merge-repo.']) {
-      if (key.startsWith(prefix) && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS,
+      if (key.startsWith(prefix) && !['repo', 'base', 'head',
         ...(prefix === 'merge-repo.' ? ['confirmationRequired'] : [])].includes(key.slice(prefix.length))) delete inputs[key];
     }
   }
@@ -133,8 +132,7 @@ export function getSkillGuideFields(card: SkillGuideCard, inputs: SkillGuideInpu
 
 export function canCopySkillPrompt(card: SkillGuideCard, inputs: SkillGuideInputValues): boolean {
   if (card.tool === 'codebase-wiki') return canCopyWikiPrompt(card, inputs);
-  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS].includes(key.slice(card.id.length + 1)))) return false;
-  try { resolveReviewerExecution(inputs, card.id); } catch { return false; }
+  if (['release-review', 'merge-repo'].includes(card.id) && Object.keys(inputs).some(key => key.startsWith(card.id + '.') && !['repo', 'base', 'head'].includes(key.slice(card.id.length + 1)))) return false;
   if (!getSkillGuideFields(card, inputs).every(item => {
     if (card.id === 'ingest' && item.id === 'path' && value(card, 'scope', inputs) === '全部專案') return true;
     const input = value(card, item.id, inputs);
@@ -165,29 +163,29 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const quoted = (id: string) => JSON.stringify(input(id) || `〔請填寫${card.fields.find(item => item.id === id)?.label}〕`);
   const selectedRepo = resolveReviewerRepository(input('repo'), context.repositories);
   const project = JSON.stringify(selectedRepo?.path ?? '〔請選擇目前工作區的 Repo〕');
-  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head', ...REVIEWER_EXECUTION_FIELDS].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
+  if (card.tool === 'release-reviewer' && Object.keys(inputs).some(key => key.startsWith('release-review.') && !['repo', 'base', 'head'].includes(key.slice('release-review.'.length)))) throw new Error('ReleaseReviewer 只接受 Repo、基礎分支、比較分支；請重新載入已保存的輸入。');
   const release = card.tool === 'release-reviewer';
   const reviewer = release || card.tool === 'merge-reviewer';
   const runtime = release ? context.releaseReviewRuntimeRoot : context.reviewRuntimeRoot;
-  if (context.reviewerExecutionError) throw new Error(context.reviewerExecutionError);
-  const executionResolution = resolveEffectiveReviewerExecution(inputs, card.id, context.reviewerExecution,
-    context.reviewerCapabilities?.supports_parallel_agents === true);
-  const execution = executionResolution.policy;
-  const prepared = context.reviewerCapabilities?.prepare_evidence === true;
-  const supports = (feature: keyof NonNullable<ReviewerCapabilities['features']>): boolean =>
-    context.reviewerCapabilities?.features?.[feature] === true;
-  const supportsRequestId = context.reviewerCapabilities === undefined || supports('request_id');
+  const sessionCapabilities = context.reviewerCapabilities?.schema === 'ReviewCapabilities/v1'
+    ? context.reviewerCapabilities : undefined;
+  const nativeMergeCapabilities = context.reviewerCapabilities?.schema === 'MergeReviewCapabilities/v1'
+    ? context.reviewerCapabilities : undefined;
+  const prepared = sessionCapabilities?.prepare_evidence === true;
+  const supports = (feature: keyof NonNullable<ReviewerSessionCapabilities['features']>): boolean =>
+    sessionCapabilities?.features?.[feature] === true;
+  const supportsRequestId = context.reviewerCapabilities === undefined ||
+    (sessionCapabilities ? supports('request_id') : nativeMergeCapabilities?.protocol_version === 1);
   const statusCommand = supports('status_summary') ? 'status --summary' : 'status';
   const requestIdArg = supportsRequestId && context.reviewerRequestId ? ' --request-id ' + JSON.stringify(context.reviewerRequestId) : '';
   const runtimeArg = runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '';
   const supportsUpdatesFile = prepared && (release
     ? supports('updates_file')
-    : context.reviewerCapabilities?.updates_schema === 'ReviewUpdates/v1');
-  const balanced = !release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
-    context.reviewerCapabilities.budget_profiles?.includes('balanced') === true;
-  const unlimited = release && context.reviewerCapabilities?.budget_schema === 'ReviewBudget/v1' &&
-    context.reviewerCapabilities.budget_profiles?.includes('unlimited') === true;
-  const promptExecution = executionResolution.parallelUnavailable ? { mode: 'single' as const } : execution;
+    : sessionCapabilities?.updates_schema === 'ReviewUpdates/v1');
+  const balanced = !release && sessionCapabilities?.budget_schema === 'ReviewBudget/v1' &&
+    sessionCapabilities.budget_profiles?.includes('balanced') === true;
+  const unlimited = release && sessionCapabilities?.budget_schema === 'ReviewBudget/v1' &&
+    sessionCapabilities.budget_profiles?.includes('unlimited') === true;
   const installedRoot = context.root ?? context.groupRoot;
   const script = context.reviewerBinding?.script_path
     ?? (installedRoot ? `${installedRoot.replace(/[\\/]$/, '')}/.agents/skills/${card.tool}/scripts/review_session.py` : 'review_session.py');
@@ -198,23 +196,17 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     (prepared ? '先讀上述已安裝 Skill 的 SKILL.md 與 references/fast-session.md；' : '先讀上述已安裝 Skill 的 SKILL.md 與 references/session-workflow.md；') + '審查準則、固定證據、報告與完成門檻以該 Skill 為準。依情境載入 Group、部署依賴或恢復文件。',
     ...(context.reviewerBinding ? ['已安裝入口：' + JSON.stringify(context.reviewerBinding),
       prepared ? 'helper 啟動前自動核對上述整套 payload SHA-256；不符時停止，請重新複製提示詞。'
-        : '沿用已安裝入口的既有 CLI；尚未宣告 capabilities 的入口不傳入新版選項。'] : []),
+        : nativeMergeCapabilities ? '使用 MergeReviewer 原生 session 介面；只呼叫其宣告的命令，不傳入新版 preparation、payload 或預算參數。'
+          : sessionCapabilities ? '沿用已安裝 session 介面宣告的能力及選項。'
+            : '入口未宣告 capabilities；依已安裝 Skill 驗證現有 CLI，不傳入新版選項。'] : []),
     ...(context.reviewerRequestId && supportsRequestId ? [`Review request ID: ${context.reviewerRequestId}. Reuse this ID for retries.`] : []),
     ...(release && supports('read_window') ? ['For large evidence, use read-window with a starting line and count, then follow next cursor.'] : []),
     ...(release && supports('literal_search_batch') ? ['Batch consecutive case-sensitive literal searches for the same Repo; keep one result record per query.'] : []),
     ...(release && supports('status_summary') ? ['Resume progress with status --summary.'] : []),
+    ...(nativeMergeCapabilities?.features.read_only_artifact_view ? ['For large local artifacts, use the installed Skill documented view command and its continuation offsets.'] : []),
     ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 python ${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}; python ${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}.`] : []),
     ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
-    '執行政策：' + JSON.stringify(promptExecution),
-    '政策優先序：本次輸入、Reviewer 工作區設定、single/inherit/default。只套用本次呼叫；模型由 Codex 宿主建立子 agent 時套用，實際設定未知則記 null。不另開模型服務或修改全域設定。',
-    ...(executionResolution.parallelUnavailable ? ['此 Reviewer 未明確回報支援平行 Agent；本次改用單一 Agent，保留已保存設定。'] : []),
-    ...(execution.mode === 'single' ? [executionResolution.parallelUnavailable
-      ? '本次只使用單一 Agent，不建立子 Agent。'
-      : '本次使用單一 agent；子 Agent 設定僅保存，未執行。'] : []),
-    ...(execution.mode === 'parallel' ? [
-      '任何 capture／fetch 以前，先按 spawn 工具本機說明核對模型、強度與 fork 能力；不可用或不支援時停止、保留請求並回報，不能默默替換。最多主 agent＋一名子 agent；主 agent 唯一擁有擷取、補查、草稿與發布。',
-      'inherit/default 不覆寫父模型與強度；指定模型加 default 時省略 effort，採該模型預設。明確指定 effort 才覆寫，並使用宿主允許覆寫的 fork 方式。'
-    ] : []),
+    '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
     '啟動 helper：python ' + JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
       requestIdArg +
       ' --workspace ' + JSON.stringify(releaseWorkspace) +

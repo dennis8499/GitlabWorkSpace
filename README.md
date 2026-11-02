@@ -33,7 +33,7 @@
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由同一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
+- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
 - 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求並複製提示詞到 Codex，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
@@ -230,7 +230,7 @@ MergeReviewer 只提供 Repo、基礎分支與比較分支，使用原生 v3 Mar
 
 共用根目錄對應 VS Code 設定 `gitlabWorkspace.projectRoot`，支援絕對路徑與相對於所選專案資料夾的路徑；工作台將設定保存於目前工作區或所選資料夾。**恢復 VS Code 根目錄** 會恢復該資料夾的預設位置。修改後所有本機功能一起切換並讀取新位置的套件狀態，原位置檔案保留。舊版獨立路徑及 Group 模式設定不再影響路徑。帳號管理集中於 **設定 → 帳號與連線**。
 
-WorkflowKit 1.3.2 包含 Wiki 0.7.1、MergeReviewer 0.20.3、ReleaseReviewer 0.11.0、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
+WorkflowKit 1.3.4 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。兩種 profile 均支援 Wiki 圖表；安裝時若已存在外部 BMAD，整合包保留其內容並略過內建 BMAD。設定顯示管理模式、安裝完整性、相容性與可用更新。
 
 **分析 → MergeReviewer → 分支合併審查** 只接受一個 Repo、基礎分支及比較分支。工作台提供實際候選，也可輸入明確分支；短名稱為本機分支，明確遠端分支在 Codex 執行時同步。舊模式會提示遷移並要求確認，不會默默轉換。
 

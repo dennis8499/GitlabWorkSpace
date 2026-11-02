@@ -73,9 +73,11 @@ Issue 詳情分成三個任務分頁：
 
 ## 分析與三工具
 
-先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、執行方式、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
+先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
 
-Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。兩種 Reviewer 每次只接受一個 Repo、基礎分支、比較分支，由同一 Skill agent 依 Code Review 判準審查本次 Diff，僅延伸追查可連回變更的行為、契約與消費端。
+WorkflowKit 1.3.4 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。Wiki 圖表依使用者要求產生；MergeReviewer 使用原生 session 能力，ReleaseReviewer 依個別能力旗標產生操作指令。
+
+Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。兩種 Reviewer 每次只接受一個 Repo、基礎分支、比較分支，由單一 Skill agent 依 Code Review 判準審查本次 Diff，僅延伸追查可連回變更的行為、契約與消費端；每次審查不建立子 Agent。
 
 Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支及工作區其他 Repo 的當前本機 HEAD，再開始語意審查；提示詞預覽與複製不會開始擷取。本機分支與關聯 Repo HEAD 擷取不連線；明確遠端 base／head 每個 Repo／remote 批次精確 fetch 一次，失敗停止。之後讀取、搜尋及驗證只用固定證據，不再連線。
 

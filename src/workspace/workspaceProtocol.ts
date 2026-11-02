@@ -164,8 +164,6 @@ export interface SkillsContext {
   reviewRuntimeRoot?: string;
   releaseReviewRuntimeRoot?: string;
   reviewAuthScope?: string;
-  reviewerExecution?: import('./reviewExecution').ReviewerExecutionOverrides;
-  reviewerExecutionError?: string;
 }
 
 export interface WorkflowKitReleaseSummary {

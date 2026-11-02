@@ -16,7 +16,8 @@ import zipfile
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
-class WorkflowKit131IntegrationTests(unittest.TestCase):
+class WorkflowKitIntegrationTests(unittest.TestCase):
+    KIT_VERSION = "1.3.1"
     def setUp(self):
         temp_root = FIXTURES.parents[1] / ".tmp"
         temp_root.mkdir(exist_ok=True)
@@ -59,7 +60,7 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
                          "--profile", profile, env=env, success=success)
 
     def test_fresh_group_and_repository_publish_bundled_capabilities(self):
-        directory, descriptor = self.fixture("1.3.1")
+        directory, descriptor = self.fixture(self.KIT_VERSION)
         with zipfile.ZipFile(directory / descriptor["assets"]["package"]["name"]) as archive:
             manifest = json.loads(archive.read("workflow-kit/manifest.json"))
         snapshot = json.loads((directory / "capabilities.json").read_text(encoding="utf-8"))
@@ -67,14 +68,14 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
         for profile in ("group", "repository"):
             with self.subTest(profile=profile):
                 root = self.target(profile, f"fresh {profile}")
-                result = self.install("1.3.1", root, profile)
+                result = self.install(self.KIT_VERSION, root, profile)
                 self.assertEqual(result["bmadMode"], "bundled")
                 self.assertEqual(result["skills"], 33)
-                status = self.call("1.3.1", "status", root, "--expected-version", "1.3.1")
+                status = self.call(self.KIT_VERSION, "status", root, "--expected-version", self.KIT_VERSION)
                 self.assertEqual(status["status"], "installed")
                 self.assertEqual(status["bmadMode"], "bundled")
                 self.assertEqual(status["upstreamVersions"]["bmad-method"], "6.12.4")
-                self.assertEqual(status["upstreamVersions"]["codebase-wiki"], "0.7.1")
+                self.assertEqual(status["upstreamVersions"]["codebase-wiki"], "0.7.2" if self.KIT_VERSION == "1.3.4" else "0.7.1")
                 self.assertIn("bmad-workflow", status["capabilities"])
                 self.assertIn("visualize", status["capabilities"])
                 self.assertTrue((root / "_bmad" / "config.toml").is_file())
@@ -91,12 +92,12 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
                     target = root / name
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(contents)
-                result = self.install("1.3.1", root, profile)
-                status = self.call("1.3.1", "status", root, "--expected-version", "1.3.1")
+                result = self.install(self.KIT_VERSION, root, profile)
+                status = self.call(self.KIT_VERSION, "status", root, "--expected-version", self.KIT_VERSION)
                 self.assertEqual(status["bmadMode"], "external")
                 self.assertNotIn("bmad-workflow", status["capabilities"])
                 self.assertIn("visualize", status["capabilities"])
-                self.call("1.3.1", "rollback", root, result["transaction"])
+                self.call(self.KIT_VERSION, "rollback", root, result["transaction"])
                 for name, contents in files.items():
                     self.assertEqual((root / name).read_bytes(), contents)
 
@@ -112,17 +113,17 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
         env["PATH"] = os.pathsep.join(filter(None, [str(Path(git).parent),
             str(Path(env.get("SystemRoot", "C:/Windows")) / "System32") if os.name == "nt" else "/usr/bin:/bin"]))
         self.assertIsNone(shutil.which("uv", path=env["PATH"]))
-        upgraded = self.install("1.3.1", root, "repository", env=env)
+        upgraded = self.install(self.KIT_VERSION, root, "repository", env=env)
         self.assertEqual(upgraded["bmadMode"], "bundled")
         self.assertTrue(any("uv" in warning for warning in upgraded["warnings"]))
         skill = root / ".agents" / "skills" / "bmad-help" / "SKILL.md"
         original = skill.read_bytes()
         skill.write_bytes(original + b"\n# user modification\n")
-        failure = self.install("1.3.1", root, "repository", success=False)
+        failure = self.install(self.KIT_VERSION, root, "repository", success=False)
         self.assertFalse(failure["ok"])
         self.assertTrue(skill.read_bytes().endswith(b"# user modification\n"))
         skill.write_bytes(original)
-        self.call("1.3.1", "rollback", root, upgraded["transaction"])
+        self.call(self.KIT_VERSION, "rollback", root, upgraded["transaction"])
         status = self.call("1.0.0", "status", root, "--expected-version", "1.0.0")
         self.assertEqual(status["version"], "1.0.0")
         self.assertEqual(work.read_text(encoding="utf-8"), "user work")
@@ -134,11 +135,11 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
         work.write_text("preserved user work", encoding="utf-8")
         env = self.env.copy()
         env.update({"GITLAB_WORKSPACE_KIT_TESTING": "1", "GITLAB_WORKSPACE_KIT_TEST_FAIL_AFTER": "1"})
-        result = self.install("1.3.1", root, "group", env=env, success=False)
+        result = self.install(self.KIT_VERSION, root, "group", env=env, success=False)
         self.assertFalse(result["ok"])
         self.assertEqual(work.read_text(encoding="utf-8"), "preserved user work")
         self.assertFalse((root / ".gitlab-workspace" / "tool-manifests" / "workflow-kit.json").exists())
-        status = self.call("1.3.1", "status", root, "--expected-version", "1.3.1")
+        status = self.call(self.KIT_VERSION, "status", root, "--expected-version", self.KIT_VERSION)
         self.assertEqual(status["status"], "missing")
 
     def test_both_pinned_reviewers_start_inspect_and_cancel_local_sessions(self):
@@ -149,7 +150,7 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
         self.base = Path(review_temp.name).resolve()
         self.assertEqual(self.base.parent, Path(tempfile.gettempdir()).resolve())
         self.env.update({"TMP": str(self.base), "TEMP": str(self.base), "TMPDIR": str(self.base)})
-        directory, descriptor = self.fixture("1.3.1")
+        directory, descriptor = self.fixture(self.KIT_VERSION)
         skills = self.base / "skills"
         prefix = "workflow-kit/payload/.agents/skills/"
         with zipfile.ZipFile(directory / descriptor["assets"]["package"]["name"]) as archive:
@@ -192,6 +193,17 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
                     self.assertIn(result.returncode, codes, result.stderr or result.stdout)
                     return json.loads(result.stdout)
 
+                if self.KIT_VERSION == "1.3.4" and tool == "merge-reviewer":
+                    capability = run("capabilities", "--workspace", repo)
+                    self.assertEqual(capability["schema"], "MergeReviewCapabilities/v1")
+                    self.assertEqual(capability["protocol_version"], 1)
+                    self.assertTrue(capability["features"]["read_only_artifact_view"])
+                elif self.KIT_VERSION == "1.3.4" and tool == "release-reviewer":
+                    capability = run("capabilities", "--workspace", repo)
+                    self.assertEqual(capability["schema"], "ReviewCapabilities/v1")
+                    self.assertEqual(capability["skill_version"], "0.11.1")
+                    self.assertTrue(capability["features"]["updates_file"])
+
                 options = ["start", "--workspace", repo, "--project", repo, "--base", "base", "--head", "feature",
                            "--runtime-root", runtime]
                 if tool == "merge-reviewer":
@@ -217,6 +229,10 @@ class WorkflowKit131IntegrationTests(unittest.TestCase):
                 cancelled = run("cancel", "--runtime-root", runtime, "--request-id", request_id)
                 self.assertEqual(cancelled["request_id"], request_id)
                 self.assertFalse(list((repo / "review-reports").glob("*.md")))
+
+
+class WorkflowKit134IntegrationTests(WorkflowKitIntegrationTests):
+    KIT_VERSION = "1.3.4"
 
 
 if __name__ == "__main__":

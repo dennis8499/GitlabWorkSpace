@@ -2199,7 +2199,7 @@ test('three Skills tools preserve legacy Wiki drafts and isolate release inputs 
   assert.equal(document.querySelector('[id="wiki-input-query.question"]').value, '保留的 Wiki 問題');
   await change('.skills-tool-selector select', 'merge-reviewer');
   await change('.wiki-guide-selector select', 'merge-repo');
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /ReviewExecutionPolicy\/v1/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent, /執行方式：單一 Agent/);
   await change('.skills-tool-selector select', 'release-reviewer');
 
   const groupB = snapshot('sa');

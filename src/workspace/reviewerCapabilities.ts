@@ -1,9 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { PythonRuntime } from './pythonRuntime';
-import type { InstalledReviewerBinding } from './reviewExecution';
-import type { ReviewerToolId } from './reviewSessionProtocol';
-import type { ReviewerCapabilities } from './reviewSessionProtocol';
+import type { InstalledReviewerBinding, NativeMergeReviewerCapabilities, ReviewerCapabilities,
+  ReviewerSessionCapabilities, ReviewerToolId } from './reviewSessionProtocol';
 export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
 const cache = new Map<string, Promise<ReviewerCapabilities | undefined>>();
@@ -53,30 +52,50 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       }
       return undefined;
     }
-    const value = JSON.parse(result.stdout) as ReviewerCapabilities;
-    const updatesSchemaValid = binding.tool === 'release-reviewer'
-      ? value.updates_schema === 'ReviewUpdates/v1' || value.updates_schema === 'ReleaseReviewUpdates/v1'
-      : value.updates_schema === 'ReviewUpdates/v1';
-    const featureNames = ['request_id', 'read_only_view', 'status_summary', 'read_window', 'updates_file',
-      'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics'];
-    const rawFeatures = value.features as unknown;
-    const featuresValid = rawFeatures === undefined || (typeof rawFeatures === 'object' && rawFeatures !== null && !Array.isArray(rawFeatures)
-      && featureNames.every(name => { const flag = (rawFeatures as Record<string, unknown>)[name]; return flag === undefined || typeof flag === 'boolean'; }));
-    if (value.schema !== 'ReviewCapabilities/v1' || value.tool !== binding.tool ||
-      value.skill_version !== binding.version || value.payload_sha256 !== binding.payload_sha256 ||
-      value.prepare_evidence !== true || !updatesSchemaValid || !featuresValid ||
-      value.shared_cache_schema !== 'ReviewerSharedCache/v2' || value.git_commands !== 0 ||
-      value.network_commands !== 0 || typeof value.runtime_root !== 'string' ||
-      value.payload_files !== undefined && (!Number.isInteger(value.payload_files) || value.payload_files < 0) ||
-      value.supports_parallel_agents !== undefined && typeof value.supports_parallel_agents !== 'boolean') {
+    const value: unknown = JSON.parse(result.stdout);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('已安裝 Reviewer 功能或來源身分不相容，請重新安裝相同來源的工作流程包。');
     }
-    if (value.budget_profiles !== undefined && (value.budget_schema !== 'ReviewBudget/v1' ||
-      !Array.isArray(value.budget_profiles) || !value.budget_profiles.includes('balanced') ||
-      !value.budget_profiles.includes('unlimited') || value.budget_profiles.some(profile => !['balanced', 'unlimited'].includes(profile)))) {
+    const capabilities = value as Record<string, unknown>;
+    if (capabilities.schema === 'MergeReviewCapabilities/v1') {
+      const native = capabilities as unknown as NativeMergeReviewerCapabilities;
+      const features = native.features;
+      if (binding.tool !== 'merge-reviewer' || !versionAtLeast(binding.version, '0.20.4') || native.protocol_version !== 1 ||
+        !Array.isArray(native.draft_formats) || !native.draft_formats.includes('compact') || !native.draft_formats.includes('v3') ||
+        !features || typeof features !== 'object' ||
+        !Array.isArray(features.artifact_scopes) || !features.artifact_scopes.includes('context') ||
+        !features.artifact_scopes.includes('runtime') ||
+        ['read_only_artifact_view', 'request_preflight', 'incremental_resume', 'phase_metrics']
+          .some(name => typeof features[name as keyof typeof features] !== 'boolean')) {
+        throw new Error('已安裝 Reviewer 功能或來源身分不相容，請重新安裝相同來源的工作流程包。');
+      }
+      return native;
+    }
+
+    const legacy = capabilities as unknown as ReviewerSessionCapabilities;
+    const updatesSchemaValid = binding.tool === 'release-reviewer'
+      ? legacy.updates_schema === 'ReviewUpdates/v1' || legacy.updates_schema === 'ReleaseReviewUpdates/v1'
+      : legacy.updates_schema === 'ReviewUpdates/v1';
+    const featureNames = ['request_id', 'read_only_view', 'status_summary', 'read_window', 'updates_file',
+      'durable_review_progress', 'phase_metrics', 'literal_search_batch', 'patch_encoding', 'operation_diagnostics'];
+    const rawFeatures = legacy.features as unknown;
+    const featuresValid = rawFeatures === undefined || (typeof rawFeatures === 'object' && rawFeatures !== null && !Array.isArray(rawFeatures)
+      && featureNames.every(name => { const flag = (rawFeatures as Record<string, unknown>)[name]; return flag === undefined || typeof flag === 'boolean'; }));
+    if (legacy.schema !== 'ReviewCapabilities/v1' || legacy.tool !== binding.tool ||
+      legacy.skill_version !== binding.version || legacy.payload_sha256 !== binding.payload_sha256 ||
+      legacy.prepare_evidence !== true || !updatesSchemaValid || !featuresValid ||
+      legacy.shared_cache_schema !== 'ReviewerSharedCache/v2' || legacy.git_commands !== 0 ||
+      legacy.network_commands !== 0 || typeof legacy.runtime_root !== 'string' ||
+      legacy.payload_files !== undefined && (!Number.isInteger(legacy.payload_files) || legacy.payload_files < 0)) {
+      throw new Error('已安裝 Reviewer 功能或來源身分不相容，請重新安裝相同來源的工作流程包。');
+    }
+    if (legacy.budget_profiles !== undefined && (legacy.budget_schema !== 'ReviewBudget/v1' ||
+      !Array.isArray(legacy.budget_profiles) || !legacy.budget_profiles.includes('balanced') ||
+      !legacy.budget_profiles.includes('unlimited') || legacy.budget_profiles.some(profile => !['balanced', 'unlimited'].includes(profile)))) {
       throw new Error('已安裝 Reviewer 的時間預算功能不相容。');
     }
-    return value;
+    delete (legacy as unknown as Record<string, unknown>).supports_parallel_agents;
+    return legacy;
   })();
   cache.set(key, task);
   if (cache.size > 64) cache.delete(cache.keys().next().value!);

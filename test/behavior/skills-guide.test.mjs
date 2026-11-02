@@ -103,73 +103,48 @@ for (const profile of ['group', 'repository']) test(`${profile} visualization re
   assert.equal(request.inputs['visualize.topic'], '付款流程');
 });
 
-for (const tool of ['merge-reviewer', 'release-reviewer']) test(`${tool} execution controls retain workspace defaults and copy explicit per-call model policy`, async t => {
+for (const tool of ['merge-reviewer', 'release-reviewer']) for (const advertised of [true, false, undefined]) test(`${tool} always prompts for one agent when the retired capability flag is ${String(advertised)}`, async t => {
   const current = snapshot('group', ['merge-repo', 'release-review']);
-  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
-  const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current);
-  view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
-  const capabilityRequest = view.requests.findLast(request => request.type === 'loadReviewerCapabilities');
-  assert.ok(capabilityRequest);
-  await view.send({ type: 'reviewerCapabilities', revision: capabilityRequest.revision, requestId: capabilityRequest.requestId,
-    tool: capabilityRequest.tool, capabilities: { supports_parallel_agents: true } });
-  const card = tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
-  assert.equal(view.document.querySelector('[aria-label="Reviewer 執行方式"]').value, '');
-  assert.match(view.document.querySelector('.reviewer-execution-controls').textContent, /workspace-model/);
-  await view.change('[aria-label="Reviewer 子 Agent 模型"]', 'custom/model-v2', 'input');
-  await view.change('[aria-label="Reviewer 子 Agent 推理強度"]', 'default');
-  await view.change(`[id="wiki-input-${card}.base"]`, 'main', 'input');
-  await view.change(`[id="wiki-input-${card}.head"]`, 'feature/review', 'input');
-  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /custom\/model-v2/);
-  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
-  const copied = view.requests.findLast(request => request.type === 'copySkillGuidePrompt');
-  assert.ok(copied);
-  assert.equal(copied.inputs[`${card}.subagentModel`], 'custom/model-v2');
-  assert.equal(copied.inputs[`${card}.subagentReasoningEffort`], 'default');
-  assert.equal(view.requests.some(request => /provider|listModels/i.test(request.type)), false);
-  await view.change('[aria-label="Reviewer 執行方式"]', 'single');
-  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]'), null);
-  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /子 Agent 設定僅保存，未執行/);
-  await view.change('[aria-label="Reviewer 執行方式"]', 'parallel');
-  assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]').value, 'custom/model-v2');
-});
-
-for (const tool of ['merge-reviewer', 'release-reviewer']) for (const advertised of [undefined, false]) test(`${tool} hides parallel controls and uses single-agent when parallel capability is ${advertised === undefined ? 'missing' : 'false'}`, async t => {
-  const current = snapshot('group', ['merge-repo', 'release-review']);
-  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel', subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
+  current.skillsContext.reviewerExecution = { mode: 'parallel', subagent_model: 'stale-workspace-model' };
   const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current);
   view.document.getElementById(`skill-tool-${tool}`).click(); await view.tick();
   const request = view.requests.findLast(item => item.type === 'loadReviewerCapabilities');
   assert.ok(request);
-  await view.send({ type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId, tool: request.tool,
-    capabilities: advertised === undefined ? undefined : { supports_parallel_agents: advertised } });
-
+  await view.send({ type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId,
+    tool: request.tool, capabilities: advertised === undefined ? undefined : { schema: 'ReviewCapabilities/v1',
+      tool: request.tool, supports_parallel_agents: advertised } });
+  const card = tool === 'merge-reviewer' ? 'merge-repo' : 'release-review';
+  await view.change(`[id="wiki-input-${card}.base"]`, 'main', 'input');
+  await view.change(`[id="wiki-input-${card}.head"]`, 'feature/review', 'input');
+  assert.equal(view.document.querySelector('.reviewer-execution-controls'), null);
   assert.equal(view.document.querySelector('[aria-label="Reviewer 執行方式"]'), null);
   assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 模型"]'), null);
   assert.equal(view.document.querySelector('[aria-label="Reviewer 子 Agent 推理強度"]'), null);
-  assert.match(view.document.querySelector('.reviewer-execution-controls').textContent, /本次改用單一 Agent/);
   const preview = view.document.querySelector('.wiki-prompt-preview').textContent;
-  assert.match(preview, /本次改用單一 Agent/);
-  assert.match(preview, /"mode":"single"/);
-  assert.doesNotMatch(preview, /workspace-model|最多主 agent＋一名子 agent/);
+  assert.match(preview, /執行方式：單一 Agent/);
+  assert.match(preview, /不建立子 Agent/);
+  assert.doesNotMatch(preview, /stale-workspace-model|ReviewExecutionPolicy|subagent|平行/);
+  assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
+  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
+  const copied = view.requests.findLast(item => item.type === 'copySkillGuidePrompt');
+  assert.ok(copied);
+  assert.deepEqual(Object.keys(copied.inputs).filter(key => /executionMode|subagent/i.test(key)), []);
 });
 
-test('a pending parallel capability check still allows a safe single-agent review prompt', async t => {
+test('review capability errors leave the single-agent prompt usable and expose retry', async t => {
   const current = snapshot('group', ['merge-repo', 'release-review']);
-  current.skillsContext.reviewerExecution = { schema: 'ReviewExecutionPolicy/v1', mode: 'parallel',
-    subagent_model: 'workspace-model', subagent_reasoning_effort: 'high' };
   const view = await mount(t, 'group', undefined, ['merge-repo', 'release-review'], current, false);
-  view.document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
-  assert.ok(view.requests.findLast(item => item.type === 'loadReviewerCapabilities'));
-  assert.equal(view.document.querySelector('.reviewer-execution-controls select'), null);
-  await view.change('[id="wiki-input-merge-repo.base"]', 'origin/main', 'input');
-  await view.change('[id="wiki-input-merge-repo.head"]', 'feature/pending-check', 'input');
+  view.document.getElementById('skill-tool-release-reviewer').click(); await view.tick();
+  const request = view.requests.findLast(item => item.type === 'loadReviewerCapabilities');
+  await view.send({ type: 'reviewerCapabilities', revision: request.revision, requestId: request.requestId,
+    tool: request.tool, error: 'fixture error' });
+  assert.match(view.document.querySelector('.reviewer-capabilities-error').textContent, /無法讀取 Reviewer 能力/);
+  await view.change('[id="wiki-input-release-review.base"]', 'main', 'input');
+  await view.change('[id="wiki-input-release-review.head"]', 'feature/retry', 'input');
   assert.equal(view.document.querySelector('.wiki-copy-button').disabled, false);
-  const preview = view.document.querySelector('.wiki-prompt-preview').textContent;
-  assert.match(preview, /"mode":"single"/);
-  assert.match(preview, /本次只使用單一 Agent/);
-  assert.doesNotMatch(preview, /workspace-model|subagent_model|subagent_reasoning_effort|平行 Agent 分工/);
-  view.document.querySelector('.wiki-copy-button').click(); await view.tick();
-  assert.equal(view.requests.findLast(item => item.type === 'copySkillGuidePrompt').featureId, 'merge-repo');
+  assert.match(view.document.querySelector('.wiki-prompt-preview').textContent, /單一 Agent/);
+  view.document.querySelector('.reviewer-capabilities-retry').click(); await view.tick();
+  assert.ok(view.requests.filter(item => item.type === 'loadReviewerCapabilities').length >= 2);
 });
 
 for (const profile of ['group', 'repository']) test(`${profile} unknown saved selections restore Query and preserve current inputs`, async t => {
@@ -253,7 +228,7 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/SKILL\.md 與 references\/session-workflow\.md/);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/review_session\.py" start --workspace/);
   assert.match(document.querySelector('.wiki-prompt-preview').textContent,/必要 step → finish/);
-  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/ReviewExecutionPolicy\/v1/);
+  assert.match(document.querySelector('.wiki-prompt-preview').textContent,/執行方式：單一 Agent/);
   document.querySelector('.wiki-copy-button').click(); await view.tick();
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');

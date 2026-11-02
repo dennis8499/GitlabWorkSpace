@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { ReviewerToolId } from './reviewSessionProtocol';
-import type { InstalledReviewerBinding } from './reviewExecution';
+import type { InstalledReviewerBinding, ReviewerToolId } from './reviewSessionProtocol';
 
 /** Bind a copied task to the actual installed entrypoint, without executing it. */
 export async function readInstalledReviewerBinding(root: string, tool: ReviewerToolId): Promise<InstalledReviewerBinding> {

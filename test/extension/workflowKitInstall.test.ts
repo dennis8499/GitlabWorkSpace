@@ -29,7 +29,7 @@ suite('Online workflow kit installation', () => {
     }
   });
 
-  for (const kitVersion of ['1.0.0', '1.3.1']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
+  for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
     this.timeout(240_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
@@ -117,8 +117,8 @@ suite('Online workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1');
-      if (kitVersion === '1.3.1' || kitVersion === '1.3.2') {
+      assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1' || kitVersion === '1.3.4');
+      if (kitVersion === '1.3.1' || kitVersion === '1.3.4') {
         assert.equal(host.workflowKitState.bmadMode, 'bundled');
         assert.ok(host.workflowKitState.capabilities.includes('visualize'));
         const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
@@ -128,12 +128,24 @@ suite('Online workflow kit installation', () => {
         const python = await resolvePythonRuntime('python');
         for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
           const binding = await readInstalledReviewerBinding(root, tool);
-          assert.equal(binding.version, tool === 'merge-reviewer' ? '0.20.3' : kitVersion === '1.3.2' ? '0.11.0' : '0.10.1');
+          assert.equal(binding.version, kitVersion === '1.3.4'
+            ? tool === 'merge-reviewer' ? '0.20.4' : '0.11.1'
+            : tool === 'merge-reviewer' ? '0.20.3' : '0.10.1');
           const capabilities = await readReviewerCapabilities(binding, python, root);
-          if (kitVersion === '1.3.2' && tool === 'release-reviewer') {
-            assert.equal(capabilities?.updates_schema, 'ReleaseReviewUpdates/v1');
-            assert.equal(capabilities?.features?.read_window, true);
-            assert.equal(capabilities?.features?.updates_file, true);
+          if (kitVersion === '1.3.4' && tool === 'merge-reviewer') {
+            assert.equal(capabilities?.schema, 'MergeReviewCapabilities/v1');
+            if (capabilities?.schema === 'MergeReviewCapabilities/v1') {
+              assert.equal(capabilities.protocol_version, 1);
+              assert.equal(capabilities.features.read_only_artifact_view, true);
+            }
+          } else if (kitVersion === '1.3.4' && tool === 'release-reviewer') {
+            assert.equal(capabilities?.schema, 'ReviewCapabilities/v1');
+            if (capabilities?.schema === 'ReviewCapabilities/v1') {
+              assert.equal(capabilities.updates_schema, 'ReleaseReviewUpdates/v1');
+              assert.equal(capabilities.payload_sha256, binding.payload_sha256);
+              assert.equal(capabilities.features?.read_window, true);
+              assert.equal(capabilities.features?.updates_file, true);
+            }
           } else assert.equal(capabilities, undefined);
         }
       }
@@ -145,7 +157,7 @@ suite('Online workflow kit installation', () => {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);
-        const existingBmad = kitVersion === '1.3.1' && profile === 'group';
+        const existingBmad = kitVersion === '1.3.1' && profile === 'group' || kitVersion === '1.3.4';
         if (existingBmad) {
           await mkdir(path.join(externalRoot, '_bmad'), { recursive: true });
           await writeFile(path.join(externalRoot, '_bmad', 'config.toml'), '# user BMAD\n');
@@ -159,7 +171,7 @@ suite('Online workflow kit installation', () => {
         assert.equal(host.workflowKitInstallTarget.state.profile, profile);
         assert.deepEqual((await readdir(path.join(externalRoot, '.agents/skills'))).sort(),
           existingBmad ? expectedSkills.filter((name: string) => !name.startsWith('bmad-')) : expectedSkills);
-        assert.equal((await readdir(externalRoot)).includes('_bmad'), kitVersion === '1.3.1');
+        assert.equal((await readdir(externalRoot)).includes('_bmad'), existingBmad || kitVersion === '1.3.1');
         if (existingBmad) {
           assert.equal(host.workflowKitState.bmadMode, 'external');
           assert.ok(!host.workflowKitState.capabilities.includes('bmad-workflow'));

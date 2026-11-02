@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { readReviewerCapabilities } from '../../src/workspace/reviewerCapabilities';
-import { getSkillGuideCard, buildSkillGuidePrompt } from '../../src/webview/skillsGuideData';
+import { canCopySkillPrompt, getSkillGuideCard, buildSkillGuidePrompt, restoreSkillGuideState } from '../../src/webview/skillsGuideData';
 
 test('capability probe binds the actual helper, caches identical local reads and rejects payload drift', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'review-cap-'));
@@ -26,17 +26,48 @@ test('capability probe binds the actual helper, caches identical local reads and
   assert.deepEqual(calls[0], ['-X', 'utf8', '-B', binding.script_path, 'capabilities', '--workspace', root]);
   await assert.rejects(readReviewerCapabilities({ ...binding, payload_sha256: 'd'.repeat(64) }, python, root), /來源身分不相容/);
 
-  const probe = (payloadSha: string, supports_parallel_agents: unknown) => {
+  const probe = (payloadSha: string, obsoleteFlag: unknown) => {
     const nextBinding = { ...binding, payload_sha256: payloadSha };
     const capability = { ...value, payload_sha256: payloadSha,
-      ...(supports_parallel_agents === undefined ? {} : { supports_parallel_agents }) };
+      ...(obsoleteFlag === undefined ? {} : { supports_parallel_agents: obsoleteFlag }) };
     const nextPython = { ...python, env: { ...python.env, CAP_VALUE: JSON.stringify(capability) } };
     return readReviewerCapabilities(nextBinding, nextPython, root);
   };
-  assert.equal((await probe('1'.repeat(64), true))?.supports_parallel_agents, true);
-  assert.equal((await probe('2'.repeat(64), false))?.supports_parallel_agents, false);
-  assert.equal((await probe('3'.repeat(64), undefined))?.supports_parallel_agents, undefined);
-  await assert.rejects(probe('4'.repeat(64), 'true'), /來源身分不相容/);
+  for (const [index, flag] of [true, false, undefined, 'retired'].entries()) {
+    const result = await probe(String(index + 1).repeat(64), flag);
+    assert.equal(result?.schema, 'ReviewCapabilities/v1');
+    assert.equal(Object.hasOwn(result ?? {}, 'supports_parallel_agents'), false);
+  }
+});
+
+test('native MergeReviewer capabilities are validated without sending unsupported options', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'review-native-cap-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const capture = path.join(root, 'calls.jsonl');
+  const binding = { schema: 'InstalledReviewerBinding/v1', tool: 'merge-reviewer', version: '0.20.4',
+    script_path: path.join(root, 'review_session.py'), script_sha256: 'a'.repeat(64),
+    skill_sha256: 'b'.repeat(64), payload_sha256: 'c'.repeat(64), payload_files: 30 } as const;
+  const value = { schema: 'MergeReviewCapabilities/v1', protocol_version: 1,
+    draft_formats: ['compact', 'v3'], features: { artifact_scopes: ['context', 'runtime'],
+      read_only_artifact_view: true, request_preflight: true, incremental_resume: true, phase_metrics: true } } as const;
+  const python = { executable: process.execPath, version: 'test transport', args: ['-e',
+    'require("node:fs").appendFileSync(process.env.CAP_CAPTURE, JSON.stringify(process.argv.slice(1))+String.fromCharCode(10));process.stdout.write(process.env.CAP_VALUE)', '--'],
+    env: { ...process.env, CAP_CAPTURE: capture, CAP_VALUE: JSON.stringify(value) } };
+  assert.deepEqual(await readReviewerCapabilities(binding, python, root), value);
+  const calls = (await readFile(capture, 'utf8')).trim().split('\n').map(row => JSON.parse(row));
+  assert.deepEqual(calls[0], ['-X', 'utf8', '-B', binding.script_path, 'capabilities', '--workspace', root]);
+  for (const [index, invalid] of [
+    { ...value, protocol_version: 2 },
+    { ...value, features: { ...value.features, phase_metrics: 'yes' } },
+    { ...value, features: { ...value.features, artifact_scopes: ['context'] } }
+  ].entries()) {
+    const uniqueBinding = { ...binding, payload_sha256: `${'d'.repeat(63)}${index}` };
+    await assert.rejects(readReviewerCapabilities(uniqueBinding, { ...python,
+      env: { ...python.env, CAP_VALUE: JSON.stringify(invalid) } }, root), /Reviewer/);
+  }
+  await assert.rejects(readReviewerCapabilities({ ...binding, tool: 'release-reviewer',
+    payload_sha256: 'e'.repeat(64) }, { ...python,
+    env: { ...python.env, CAP_VALUE: JSON.stringify(value) } }, root), /Reviewer/);
 });
 
 test('legacy reviewer sessions are probed before fallback; cleanup-only versions are rejected', async t => {
@@ -58,7 +89,7 @@ test('legacy reviewer sessions are probed before fallback; cleanup-only versions
   }
 });
 
-test('prepared helper falls back to single-agent unless its capability explicitly enables parallel execution', () => {
+test('prepared helpers generate single-agent prompts and restored drafts discard retired execution fields', () => {
   const card = getSkillGuideCard('merge-reviewer');
   const context = { profile: 'repository' as const, root: 'C:/work/app', workspaceRoot: 'C:/work/app',
     repositories: [{ name: 'app', path: 'C:/work/app' }],
@@ -71,16 +102,34 @@ test('prepared helper falls back to single-agent unless its capability explicitl
   assert.match(prompt, /--updates-file/);
   assert.match(prompt, /references\/fast-session\.md/);
   assert.doesNotMatch(prompt, /--protocol round-v1|--execution-policy-json/);
-  const staleParallel = buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel',
-    'merge-repo.subagentModel': 'stale-model', 'merge-repo.subagentReasoningEffort': 'high' }, context);
-  assert.match(staleParallel, /本次改用單一 Agent/);
-  assert.match(staleParallel, /"mode":"single"/);
-  assert.doesNotMatch(staleParallel, /stale-model|最多主 agent|fork 能力/);
-  const supported = buildSkillGuidePrompt(card, { ...inputs, 'merge-repo.executionMode': 'parallel' }, {
-    ...context, reviewerCapabilities: { ...context.reviewerCapabilities, supports_parallel_agents: true }
-  });
-  assert.match(supported, /"mode":"parallel"/);
-  assert.match(supported, /最多主 agent＋一名子 agent/);
+  const obsolete = { ...inputs, 'merge-repo.executionMode': 'parallel',
+    'merge-repo.subagentModel': 'stale-model', 'merge-repo.subagentReasoningEffort': 'high' };
+  assert.equal(canCopySkillPrompt(card, obsolete), false);
+  const restored = restoreSkillGuideState({ tool: 'merge-reviewer', selections: { 'merge-reviewer': 'merge-repo' }, inputs: obsolete });
+  assert.deepEqual(Object.keys(restored.inputs).filter(key => key.startsWith('merge-repo.')).sort(),
+    ['merge-repo.base', 'merge-repo.head', 'merge-repo.repo']);
+  assert.equal(canCopySkillPrompt(card, restored.inputs), true);
+  const staleWorkspacePolicy = buildSkillGuidePrompt(card, inputs, { ...context,
+    reviewerExecution: { mode: 'parallel', subagent_model: 'stale-model' } } as never);
+  assert.match(staleWorkspacePolicy, /執行方式：單一 Agent/);
+  assert.doesNotMatch(staleWorkspacePolicy, /ReviewExecutionPolicy|subagent|stale-model|平行/);
+});
+
+test('native MergeReviewer prompts use only its declared session commands', () => {
+  const card = getSkillGuideCard('merge-reviewer');
+  const capabilities = { schema: 'MergeReviewCapabilities/v1' as const,
+    protocol_version: 1 as const, draft_formats: ['compact', 'v3'] as const,
+    features: { artifact_scopes: ['context', 'runtime'] as const, read_only_artifact_view: true,
+      request_preflight: true, incremental_resume: true, phase_metrics: true } };
+  const inputs = { 'merge-repo.repo': 'C:/work/app', 'merge-repo.base': 'main', 'merge-repo.head': 'feature' };
+  const prompt = buildSkillGuidePrompt(card, inputs, { root: 'C:/work/app', workspaceRoot: 'C:/work/app',
+    repositories: [{ name: 'app', path: 'C:/work/app' }], reviewerCapabilities: capabilities,
+    reviewerRequestId: 'request-123', reviewRuntimeRoot: 'C:/runtime' });
+  assert.match(prompt, /start --request-id "request-123" --workspace/);
+  assert.match(prompt, /status --runtime-root/);
+  assert.match(prompt, /installed Skill documented view command/);
+  assert.match(prompt, /單一 Agent/);
+  assert.doesNotMatch(prompt, /--prepare-evidence|--expected-payload-sha256|--budget-profile|subagent|平行/);
 });
 
 test('release review never receives a hard time budget, even when the installed entry supports one', () => {
