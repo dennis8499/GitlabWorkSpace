@@ -1,5 +1,6 @@
 import type { GroupWorkspaceMatch } from './workspaceEnvironmentProtocol';
 import type { InstalledWorkflowKitState, SkillsContext } from './workspaceProtocol';
+import { workflowKitCapabilityAvailable, workflowKitInterfaceCompatible, workflowKitInstallationVerified } from './workflowKitCompatibility';
 
 export function resolveSkillsContext(input: {
   match: GroupWorkspaceMatch;
@@ -12,10 +13,10 @@ export function resolveSkillsContext(input: {
   const mode = match.status === 'matched' && match.root ? match.profile ?? 'group' : 'unavailable';
   const root = match.root;
   const repositories = mode === 'repository' ? match.repositories.filter(repo => repo.path === root) : match.repositories;
-  const compatible = installed.workspaceContract === 2 && installed.installerApi === 1 && installed.profile === mode;
-  const verified = ['installed', 'update-available'].includes(installed.status) &&
-    (installed.integrity === undefined || installed.integrity === 'verified');
-  const availableFeatures = root && compatible && verified ? installed.capabilities ?? [] : [];
+  const compatible = workflowKitInterfaceCompatible(installed) && installed.profile === mode;
+  const verified = workflowKitInstallationVerified(installed);
+  const availableFeatures = root && compatible && verified
+    ? [...new Set(installed.capabilities ?? [])].filter(capability => workflowKitCapabilityAvailable(installed, capability, mode)) : [];
   const reason = mode === 'unavailable' ? match.reason ?? '請選擇目前 VS Code 專案資料夾。'
     : installed.profile && installed.profile !== mode ? '安裝的 Skills 流程與目前專案不同，請安裝對應流程。'
     : installed.version && !compatible ? '目前工作流程包的整合介面尚未受此工作台支援，部分功能暫不可用。'
