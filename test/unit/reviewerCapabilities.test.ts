@@ -1,10 +1,46 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { readReviewerCapabilities } from '../../src/workspace/reviewerCapabilities';
 import { canCopySkillPrompt, getSkillGuideCard, buildSkillGuidePrompt, restoreSkillGuideState } from '../../src/webview/skillsGuideData';
+import { readWorkflowKitRunnerBinding, workflowKitPythonCommand } from '../../src/workspace/workflowKitRunner';
+
+test('WorkflowKit runner is discovered from the managed manifest and verified on every launch', async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'kit-runner-binding-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const runnerPath = path.join(root, '.agents', 'gitlab-workspace-kit', 'run.py');
+  await mkdir(path.dirname(runnerPath), { recursive: true });
+  const bytes = Buffer.from('# signed by the verified managed file list\n', 'utf8');
+  const runnerDigest = createHash('sha256').update(bytes).digest('hex');
+  await writeFile(runnerPath, bytes);
+  const marker = path.join(root, '.gitlab-workspace', 'tool-manifests', 'workflow-kit.json');
+  await mkdir(path.dirname(marker), { recursive: true });
+  await writeFile(marker, JSON.stringify({ version: '1.3.5', files: { '.agents/gitlab-workspace-kit/run.py': runnerDigest } }));
+
+  const binding = await readWorkflowKitRunnerBinding(root);
+  assert.deepEqual(binding, { script_path: runnerPath, script_sha256: runnerDigest });
+  const python = { executable: 'py', args: ['-3'], env: process.env, version: 'Python 3.14' };
+  assert.deepEqual(await workflowKitPythonCommand(python, binding,
+    ['-X', 'utf8', '-B', path.join(root, 'reviewer helper.py'), 'capabilities', '--workspace', 'C:/中文 project']), {
+    executable: 'py', args: ['-3', '-X', 'utf8', '-B', runnerPath, '--', 'py', '-3', '-X', 'utf8', '-B',
+      path.join(root, 'reviewer helper.py'), 'capabilities', '--workspace', 'C:/中文 project']
+  });
+  assert.deepEqual(await workflowKitPythonCommand(python, undefined, ['-B', 'old-reviewer.py', 'status']), {
+    executable: 'py', args: ['-3', '-B', 'old-reviewer.py', 'status']
+  });
+
+  await writeFile(marker, JSON.stringify({ version: '1.3.5', files: {} }));
+  await assert.rejects(readWorkflowKitRunnerBinding(root), /必須宣告受管理 runner/);
+  await writeFile(marker, JSON.stringify({ version: '1.3.5', files: { '.agents/gitlab-workspace-kit/run.py': runnerDigest } }));
+  await writeFile(runnerPath, Buffer.from('tampered\n'));
+  await assert.rejects(readWorkflowKitRunnerBinding(root), /與已驗證的安裝紀錄不符/);
+  await assert.rejects(workflowKitPythonCommand(python, binding, ['-B', 'reviewer.py', 'status']), /已變更/);
+  await rm(runnerPath);
+  await assert.rejects(readWorkflowKitRunnerBinding(root), /檔案不存在/);
+});
 
 test('capability probe binds the actual helper, caches identical local reads and rejects payload drift', async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'review-cap-'));
@@ -113,6 +149,26 @@ test('prepared helpers generate single-agent prompts and restored drafts discard
     reviewerExecution: { mode: 'parallel', subagent_model: 'stale-model' } } as never);
   assert.match(staleWorkspacePolicy, /執行方式：單一 Agent/);
   assert.doesNotMatch(staleWorkspacePolicy, /ReviewExecutionPolicy|subagent|stale-model|平行/);
+});
+
+test('WorkflowKit prompts wrap every Reviewer session command and keep native runtime arguments', () => {
+  const card = getSkillGuideCard('merge-reviewer');
+  const runner = { script_path: 'C:/Work 空間/.agents/gitlab-workspace-kit/run.py', script_sha256: 'a'.repeat(64) };
+  const context = { profile: 'repository' as const, root: 'C:/work/app', workspaceRoot: 'C:/work/app',
+    repositories: [{ name: 'app', path: 'C:/work/app' }], reviewRuntimeRoot: 'C:/external review/runtime',
+    workflowKitRunner: runner, reviewerBinding: { schema: 'InstalledReviewerBinding/v1' as const,
+      tool: 'merge-reviewer' as const, version: '0.20.4', script_path: 'C:/work/app/.agents/skills/merge-reviewer/scripts/review_session.py',
+      script_sha256: 'b'.repeat(64), skill_sha256: 'c'.repeat(64), payload_sha256: 'd'.repeat(64), payload_files: 40,
+      workflow_kit_runner: runner },
+    reviewerCapabilities: { schema: 'MergeReviewCapabilities/v1' as const, protocol_version: 1 as const,
+      draft_formats: ['compact', 'v3'] as const, features: { artifact_scopes: ['context', 'runtime'] as const,
+        read_only_artifact_view: true, request_preflight: true, incremental_resume: true, phase_metrics: true } } };
+  const prompt = buildSkillGuidePrompt(card,
+    { 'merge-repo.repo': 'C:/work/app', 'merge-repo.base': 'main', 'merge-repo.head': 'feature' }, context);
+  assert.match(prompt, /python -X utf8 -B "C:\/Work 空間\/\.agents\/gitlab-workspace-kit\/run\.py" -- python -X utf8 -B/);
+  assert.match(prompt, /--runtime-root "C:\/external review\/runtime"/);
+  assert.match(prompt, /Session controls: status[\s\S]*run\.py[\s\S]*cancel/);
+  assert.equal((prompt.match(/python -X utf8 -B "C:\/Work 空間\/\.agents\/gitlab-workspace-kit\/run\.py" -- python -X utf8 -B/g) ?? []).length, 3);
 });
 
 test('native MergeReviewer prompts use only its declared session commands', () => {

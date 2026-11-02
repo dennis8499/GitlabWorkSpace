@@ -58,6 +58,7 @@ import { readReviewerBranches } from './reviewerBranches';
 import { readReviewSessions, readReviewJob, cancelReviewSession, reviewSessionScript, invalidateReviewAuth, reviewerAuthScope, defaultReviewRuntime, reviewRuntimeCandidates, resolveReviewRuntime } from './reviewSessions';
 import { isReviewerTool, type ReviewerToolId } from './reviewSessionProtocol';
 import { readInstalledReviewerBinding } from './installedReviewer';
+import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
 import { workflowKitPolicy, type WorkflowKitPolicy } from './workflowKitPolicy';
 import { GitRepositoryService } from '../git/gitRepositoryService';
 import { withGitDirectoryLock, withGitDirectoryLocks } from '../git/repositoryOperationLock';
@@ -2066,6 +2067,8 @@ export class WorkspacePanel implements vscode.Disposable {
     const selectedRepository = reviewer ? resolveReviewerRepository(request.inputs[`${card.id}.repo`] ?? '', repositories) : undefined;
     if (reviewer && !selectedRepository) throw new Error('請從目前 VS Code 工作區選擇唯一的本機 Repo。');
     const reviewerBinding = reviewer && current.root ? await readInstalledReviewerBinding(current.root, card.tool as ReviewerToolId) : undefined;
+    const workflowKitRunner = reviewerBinding?.workflow_kit_runner ?? (current.root && current.installed.status === 'installed'
+      ? await readWorkflowKitRunnerBinding(current.root) : undefined);
     const reviewerCapabilities = reviewerBinding ? await readReviewerCapabilities(reviewerBinding,
       await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python')),
       current.workspaceRoot ?? current.root!) : undefined;
@@ -2073,7 +2076,7 @@ export class WorkspacePanel implements vscode.Disposable {
     const inputs = selectedRepository ? { ...request.inputs, [`${card.id}.repo`]: selectedRepository.path } : request.inputs;
     const context = { profile: current.mode === 'group' ? 'group' as const : 'repository' as const, root: current.root,
       reviewRuntimeRoot: current.reviewRuntimeRoot, releaseReviewRuntimeRoot: current.releaseReviewRuntimeRoot, reviewAuthScope: current.reviewAuthScope,
-        reviewerBinding, reviewerCapabilities,
+        reviewerBinding, reviewerCapabilities, workflowKitRunner,
       reviewerRequestId: reviewer ? randomUUID() : undefined,
       groupRoot: current.mode === 'group' ? current.root : undefined, workflowKitVersion: current.installed.version,
       workspaceFile: vscode.workspace.workspaceFile?.scheme === 'file' ? vscode.workspace.workspaceFile.fsPath : undefined,
@@ -3279,7 +3282,11 @@ export class WorkspacePanel implements vscode.Disposable {
       const issue = bmadKitTaskIssue(installed);
       if (issue) throw new Error(issue);
     }
-    await vscode.env.clipboard.writeText(buildBmadCommand(snapshot, request));
+    const kit = this.workflowKit.snapshot;
+    const workflowKitRunner = snapshot.root && kit.context?.root && sameLocalPath(kit.context.root, snapshot.root)
+      && kit.state.status === 'installed' && kit.state.integrity === 'verified'
+      ? await readWorkflowKitRunnerBinding(snapshot.root) : undefined;
+    await vscode.env.clipboard.writeText(buildBmadCommand(snapshot, request, workflowKitRunner));
     this.noteOutcome({ effect: 'applied' });
   }
 
@@ -4172,8 +4179,9 @@ export class WorkspacePanel implements vscode.Disposable {
     if (action === 'cancel') {
       if (skills.installed.status !== 'installed' || !skills.root) throw new Error('請先安裝目前工作區的工作流程包。');
       const python = await resolvePythonRuntime(vscode.workspace.getConfiguration('gitlabWorkspace').get<string>('pythonPath', 'python'));
+      const binding = await readInstalledReviewerBinding(skills.root, request.tool);
       await cancelReviewSession(root, request.requestId, workspace, paths, python,
-        path.join(skills.root, '.agents', 'skills'), request.tool);
+        path.join(skills.root, '.agents', 'skills'), request.tool, binding.workflow_kit_runner);
       await this.loadReviewSessions(request.revision, request.tool);
     } else if (action === 'report') {
       if (!job.report_path) throw new Error('這份審查尚未產生報告。');
@@ -4187,9 +4195,12 @@ export class WorkspacePanel implements vscode.Disposable {
       const capabilities = await readReviewerCapabilities(binding, python, workspace);
       const statusCommand = capabilities?.schema === 'ReviewCapabilities/v1' && capabilities.features?.status_summary === true
         ? 'status --summary' : 'status';
+      const wrapped = (argumentsText: string): string => binding.workflow_kit_runner
+        ? `python -X utf8 -B ${JSON.stringify(binding.workflow_kit_runner.script_path)} -- python -X utf8 -B ${argumentsText}`
+        : `python ${argumentsText}`;
       await vscode.env.clipboard.writeText(`使用 $${request.tool} 恢復同一份固定版本審查。\n` +
         `目前已安裝入口：${JSON.stringify(binding)}。先核對工具身分與目前安裝 hashes，再由該 helper 驗證原 context 的相容性；保留原 capture 身分與固定 SHA，不重新 capture。此工作流程使用單一 Agent；不建立子 Agent。不相容時停止。\n` +
-        `先執行已安裝 helper：python ${JSON.stringify(script)} ${statusCommand} --runtime-root ${JSON.stringify(root)} --request-id ${request.requestId}。\n` +
+        `先執行已安裝 helper：${wrapped(`${JSON.stringify(script)} ${statusCommand} --runtime-root ${JSON.stringify(root)} --request-id ${request.requestId}`)}。\n` +
         '依 status 回傳的草稿、artifact、diagnostics 與 remaining 繼續必要 step → finish；維持原 request_id，不重新 capture。' +
         'input-repair／draft-repair 須依 status/errors 實際指向修正操作檔、operation 欄位或草稿的讀取／JSON 錯誤，再沿用同一 request_id 與成功的 operation IDs 繼續；依 recoverable/terminal 與 job.state 判斷 exit 3。' +
         'owned evidence 損壞須遵守 helper 的終止判斷，不得從業務 Repo 補回或重新 capture 掩蓋。' +
@@ -4206,7 +4217,7 @@ export class WorkspacePanel implements vscode.Disposable {
       }, { profile: skills.mode === 'group' ? 'group' : 'repository', root: skills.root,
         workspaceRoot: workspace, workspaceFile: skills.workspaceFile, repositories,
         reviewRuntimeRoot: skills.reviewRuntimeRoot, releaseReviewRuntimeRoot: skills.releaseReviewRuntimeRoot, reviewAuthScope: skills.reviewAuthScope,
-        reviewerBinding: binding, reviewerCapabilities, reviewerRequestId: randomUUID() });
+        reviewerBinding: binding, workflowKitRunner: binding?.workflow_kit_runner, reviewerCapabilities, reviewerRequestId: randomUUID() });
       await vscode.env.clipboard.writeText(prompt.replace(' start ', ' start --refresh ') +
         '\n建立新的 request_id，保留既有審查的固定版本與報告。');
       this.post({ type: 'message', message: '已複製重新同步審查指令；貼入 Codex 執行後才會取得新版本。' });

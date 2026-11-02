@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import type { PythonRuntime } from './pythonRuntime';
 import type { InstalledReviewerBinding, NativeMergeReviewerCapabilities, ReviewerCapabilities,
   ReviewerSessionCapabilities, ReviewerToolId } from './reviewSessionProtocol';
+import { workflowKitPythonCommand } from './workflowKitRunner';
 export type { ReviewerCapabilities } from './reviewSessionProtocol';
 const exec = promisify(execFile);
 const cache = new Map<string, Promise<ReviewerCapabilities | undefined>>();
@@ -21,20 +22,24 @@ function versionAtLeast(version: string, minimum: string): boolean {
 export function readReviewerCapabilities(binding: InstalledReviewerBinding, python: PythonRuntime,
   workspace: string): Promise<ReviewerCapabilities | undefined> {
   const key = JSON.stringify([binding.script_path, binding.payload_sha256, python.executable, python.args,
-    workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR]);
+    workspace, python.env.GITLAB_WORKSPACE_RUNTIME_DIR, python.env.REVIEW_SHARED_CACHE_DIR,
+    binding.workflow_kit_runner?.script_sha256]);
   const existing = cache.get(key);
   if (existing) return existing;
   const task = (async () => {
     const options = { env: python.env, encoding: 'utf8' as const,
       windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 };
+    const run = async (helperArgs: readonly string[]) => {
+      const command = await workflowKitPythonCommand(python, binding.workflow_kit_runner, helperArgs);
+      return exec(command.executable, command.args, options);
+    };
     let result;
     try {
-      const capabilityArgs = [...python.args, '-X', 'utf8', '-B', binding.script_path,
-        'capabilities', '--workspace', workspace];
+      const capabilityArgs = ['-X', 'utf8', '-B', binding.script_path, 'capabilities', '--workspace', workspace];
       if (binding.tool === 'release-reviewer' && versionAtLeast(binding.version, '0.11.0')) {
         capabilityArgs.push('--expected-payload-sha256', binding.payload_sha256);
       }
-      result = await exec(python.executable, capabilityArgs, options);
+      result = await run(capabilityArgs);
     } catch (error) {
       const failure = error as { code?: unknown; stderr?: unknown };
       if (failure.code !== 2 || typeof failure.stderr !== 'string'
@@ -42,8 +47,8 @@ export function readReviewerCapabilities(binding: InstalledReviewerBinding, pyth
       // Earlier MergeReviewer and ReleaseReviewer sessions have no capabilities command. Verify
       // their actual start interface before emitting any of its options.
       const label = binding.tool === 'merge-reviewer' ? 'MergeReviewer' : 'ReleaseReviewer';
-      const help = await exec(python.executable, [...python.args, '-X', 'utf8', '-B', binding.script_path,
-        'start', '--help'], options).catch(() => { throw new Error(`已安裝 ${label} 不支援可恢復的審查流程，請更新工作流程包。`); });
+      const help = await run(['-X', 'utf8', '-B', binding.script_path, 'start', '--help'])
+        .catch(() => { throw new Error(`已安裝 ${label} 不支援可恢復的審查流程，請更新工作流程包。`); });
       const commands = /\{start,step,check,finish,status,cancel\}/.test(help.stdout);
       const required = ['--workspace', '--workspace-file', '--project', '--base', '--head', '--runtime-root',
         '--request-id', '--requests-file', '--auth-scope', '--refresh'];

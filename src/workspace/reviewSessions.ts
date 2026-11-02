@@ -5,7 +5,9 @@ import path from 'node:path';
 import { isDeepStrictEqual, promisify } from 'node:util';
 import { atomicNetworkJson, networkRuntimeRoot } from '../api/localNetworkLease';
 import type { PythonRuntime } from './pythonRuntime';
-import { isReviewerTool, type ReviewerToolId, type ReviewOutcomeSummary, type ReviewSessionSummary, type ReviewBudgetSummary } from './reviewSessionProtocol';
+import { isReviewerTool, type ReviewerToolId, type ReviewOutcomeSummary, type ReviewSessionSummary, type ReviewBudgetSummary,
+  type WorkflowKitRunnerBinding } from './reviewSessionProtocol';
+import { workflowKitPythonCommand } from './workflowKitRunner';
 
 const exec = promisify(execFile);
 const REQUEST_ID = /^[a-f0-9]{32}$/;
@@ -154,11 +156,13 @@ export async function readReviewSessions(root: string, workspace: string, reposi
   return results.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 100);
 }
 export async function cancelReviewSession(root: string, id: string, workspace: string, repositories: readonly string[],
-  python: PythonRuntime, skillsDirectory: string, tool: ReviewerToolId = 'merge-reviewer'): Promise<void> {
+  python: PythonRuntime, skillsDirectory: string, tool: ReviewerToolId = 'merge-reviewer',
+  runner?: WorkflowKitRunnerBinding): Promise<void> {
   await readReviewJob(root, id, workspace, repositories, tool);
   const script = reviewSessionScript(skillsDirectory, tool);
   await plain(script);
-  await exec(python.executable, [...python.args, '-B', script, 'cancel', '--runtime-root', root, '--request-id', id],
+  const command = await workflowKitPythonCommand(python, runner, ['-B', script, 'cancel', '--runtime-root', root, '--request-id', id]);
+  await exec(command.executable, command.args,
     { env: python.env, encoding: 'utf8', windowsHide: true, timeout: 15_000, maxBuffer: 64 * 1024 });
 }
 /** A known Git write invalidates observations, never restarts an existing review. */

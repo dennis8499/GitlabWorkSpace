@@ -75,7 +75,7 @@ Issue 詳情分成三個任務分頁：
 
 先選擇專案根目錄及準備 Skills，再到「分析」選擇 Wiki、MergeReviewer、ReleaseReviewer 分頁。環境摘要顯示目前 Group／Repo、根目錄、實際整包與工具版本，以及缺少條件的處理入口。各工具左側分類功能，右側顯示用途、必要欄位、預期產出、提示詞與下一步；窄版改上下排列，可用鍵盤切換。
 
-WorkflowKit 1.3.4 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。Wiki 圖表依使用者要求產生；MergeReviewer 使用原生 session 能力，ReleaseReviewer 依個別能力旗標產生操作指令。
+WorkflowKit 1.3.5 包含 Wiki 0.7.2、MergeReviewer 0.20.4、ReleaseReviewer 0.11.1、Output Style 與 BMAD 6.12.4。兩種 profile 提供共同 helper runner，為 Python、Node.js 與 uv 設定套件 runtime 下的暫存及快取；Wiki 圖表 overlay 也支援 Windows 禁止 hard link 的環境。MergeReviewer 和 ReleaseReviewer 保留各自的 session runtime。
 
 Wiki 提供閱讀探索、知識維護、BA／SA／SD 與 NotebookLM 匯出。兩種 Reviewer 每次只接受一個 Repo、基礎分支、比較分支，由單一 Skill agent 依 Code Review 判準審查本次 Diff，僅延伸追查可連回變更的行為、契約與消費端；每次審查不建立子 Agent。
 
@@ -95,7 +95,7 @@ Skill 收到完整輸入後，第一個 helper 凍結所選 Repo 的兩個分支
 
 先在 **設定 → 工作區與 Skills** 確認共用專案根目錄，再開啟 **BMAD 開發流程**。頁首顯示實際安裝版本、Codex Skills、監看狀態與最後更新時間；**重新偵測** 會重新核對本機環境。教學固定依 [BMAD v6.12.4](https://github.com/bmad-code-org/BMAD-METHOD/releases/tag/v6.12.4)，其他 v6 版本標示相容性未驗證。
 
-**開始使用** 顯示 Codex CLI 與 uv 的檢查結果。使用 BMAD 前請準備 [uv](https://docs.astral.sh/uv/getting-started/installation/)；WorkflowKit 安裝不需要 Node.js。Windows 的 `.cmd` 啟動器僅確認存在，仍需在終端驗證可執行。
+**開始使用** 顯示 Codex CLI 與 uv 的檢查結果。使用 BMAD 前請準備 [uv](https://docs.astral.sh/uv/getting-started/installation/)；WorkflowKit 安裝不需要 Node.js。WorkflowKit 1.3.5 會透過安裝根目錄 `.agents/gitlab-workspace-kit/run.py` 執行已安裝 Skills 的 helper，並把暫存檔與 uv 快取放入 `.gitlab-workspace/runtime/`。Windows 的 `.cmd` 啟動器僅確認存在，仍需在終端驗證可執行。
 
 1. 開啟 WorkflowKit 設定，檢查並安裝或更新整合包。根目錄已有外部 BMAD 時會保留原安裝，畫面顯示管理模式。
 2. 在 **開始使用** 輸入需求，按 **複製 BMAD 提示詞**。

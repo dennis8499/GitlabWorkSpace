@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { InstalledReviewerBinding, ReviewerToolId } from './reviewSessionProtocol';
+import { readWorkflowKitRunnerBinding } from './workflowKitRunner';
 
 /** Bind a copied task to the actual installed entrypoint, without executing it. */
 export async function readInstalledReviewerBinding(root: string, tool: ReviewerToolId): Promise<InstalledReviewerBinding> {
@@ -36,7 +37,9 @@ export async function readInstalledReviewerBinding(root: string, tool: ReviewerT
   }
   await inventory(directory);
   rows.sort((a, b) => Buffer.compare(Buffer.from(a[0]), Buffer.from(b[0])));
+  const workflow_kit_runner = await readWorkflowKitRunnerBinding(root);
   return { schema: 'InstalledReviewerBinding/v1', tool, version, script_path: script,
     script_sha256: digest(scriptBytes), skill_sha256: digest(skillBytes),
-    payload_sha256: digest(Buffer.from(JSON.stringify(rows))), payload_files: rows.length };
+    payload_sha256: digest(Buffer.from(JSON.stringify(rows))), payload_files: rows.length,
+    ...(workflow_kit_runner ? { workflow_kit_runner } : {}) };
 }

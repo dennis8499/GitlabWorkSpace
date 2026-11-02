@@ -15,7 +15,7 @@ WorkflowKit 與 Extension 各自編版，以契約與能力判斷相容性。相
 
 整合包的唯一安裝文件位於 [WorkflowKit README](https://github.com/dennis8499/WorkflowKit#下載與安裝)。下載 Release ZIP 後解壓縮，執行 `python install.py --target <資料夾>`；可使用 `--dry-run` 預檢，並以安裝器的 `rollback` 命令回復保留的交易。
 
-受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。WorkflowKit 1.3.1 內建 BMAD；若根目錄已有外部 BMAD runtime 或 Skill，安裝器保留原內容並略過內建元件。設定會區分內建、外部及來源未確認。缺少 uv 不阻擋安裝，使用 BMAD 前需準備 uv。
+受管理檔案有衝突或工作未完成時，安裝器會阻擋覆寫。Wiki、其他 Skills、審查報告、人工 Checklist 及工作紀錄保留。WorkflowKit 1.3.5 提供共用 Python、Node.js 與 uv runner，將 helper 暫存與 uv 快取放入安裝根目錄的 `.gitlab-workspace/runtime/`；單 Repo Reviewer 的 session runtime 仍須位於 Repo 外，其專用暫存與快取放在 session runtime 旁的 `-workflow-kit` 目錄。若根目錄已有外部 BMAD runtime 或 Skill，安裝器保留原內容並略過內建元件。設定會區分內建、外部及來源未確認。缺少 uv 不阻擋安裝，使用 BMAD 前需準備 uv。
 
 ## BMAD 需求與進度
 

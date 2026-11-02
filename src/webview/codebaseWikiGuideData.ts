@@ -1,4 +1,5 @@
 import { withOutputStyle } from '../workspace/outputStyle';
+import type { WorkflowKitRunnerBinding } from '../workspace/reviewSessionProtocol';
 
 export type WikiGuideInputValues = Record<string, string>;
 
@@ -31,6 +32,7 @@ export interface WikiGuideContext {
   workspaceRootAmbiguous?: boolean;
   repositories: Array<{ name: string; path: string; defaultBranch?: string }>;
   workflowKitVersion?: string;
+  workflowKitRunner?: WorkflowKitRunnerBinding;
   repositoryScanStatus?: 'idle' | 'scanning' | 'ready' | 'error';
   repositoryScanError?: string;
 }
@@ -207,6 +209,10 @@ export function buildWikiGuideContext(context: WikiGuideContext): string {
         : ['（目前工作區尚未找到 Git Repo）'];
   return [
     `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
+    ...(context.workflowKitRunner ? [
+      `WorkflowKit helper runner：${JSON.stringify(context.workflowKitRunner)}。執行 Python、Node.js 或 uv helper 時，使用安裝根目錄的 runner 並保留原參數。`,
+      `Windows 執行格式：python -X utf8 -B ${JSON.stringify(context.workflowKitRunner.script_path)} -- <原執行檔及參數>。`
+    ] : []),
     context.profile === 'repository' ? `實際單一 Repo 工作區：${context.root ?? '尚未選擇 Repo'}`
       : `實際 Group 工作區：${context.groupRoot ?? '尚未開啟符合目前 GitLab Group 的 VSCode 工作區'}`,
     '本機實際 Git Repo：',

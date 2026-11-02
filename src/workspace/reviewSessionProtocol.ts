@@ -3,6 +3,11 @@ export function isReviewerTool(value: unknown): value is ReviewerToolId {
   return value === 'merge-reviewer' || value === 'release-reviewer';
 }
 
+export interface WorkflowKitRunnerBinding {
+  script_path: string;
+  script_sha256: string;
+}
+
 /** Identity and local integrity measurements for an installed Reviewer payload. */
 export interface InstalledReviewerBinding {
   schema: 'InstalledReviewerBinding/v1';
@@ -13,6 +18,7 @@ export interface InstalledReviewerBinding {
   skill_sha256: string;
   payload_sha256: string;
   payload_files: number;
+  workflow_kit_runner?: WorkflowKitRunnerBinding;
 }
 
 /** The helper's persisted initial review decision, independent of publication or cleanup. */

@@ -75,11 +75,20 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
                 self.assertEqual(status["status"], "installed")
                 self.assertEqual(status["bmadMode"], "bundled")
                 self.assertEqual(status["upstreamVersions"]["bmad-method"], "6.12.4")
-                self.assertEqual(status["upstreamVersions"]["codebase-wiki"], "0.7.2" if self.KIT_VERSION == "1.3.4" else "0.7.1")
+                self.assertEqual(status["upstreamVersions"]["codebase-wiki"], "0.7.2" if self.KIT_VERSION in ("1.3.4", "1.3.5") else "0.7.1")
                 self.assertIn("bmad-workflow", status["capabilities"])
                 self.assertIn("visualize", status["capabilities"])
                 self.assertTrue((root / "_bmad" / "config.toml").is_file())
                 self.assertTrue((root / ".agents" / "skills" / "bmad-help" / "SKILL.md").is_file())
+                runner = root / ".agents" / "gitlab-workspace-kit" / "run.py"
+                if self.KIT_VERSION == "1.3.5":
+                    self.assertTrue(runner.is_file())
+                    self.assertEqual(hashlib.sha256(runner.read_bytes()).hexdigest(), manifest["files"][".agents/gitlab-workspace-kit/run.py"])
+                    atomic_output = root / ".agents/skills/codebase-wiki/vendor/archify/renderers/shared/atomic-output.mjs"
+                    self.assertEqual(hashlib.sha256(atomic_output.read_bytes()).hexdigest(),
+                                     manifest["profiles"][profile]["files"][".agents/skills/codebase-wiki/vendor/archify/renderers/shared/atomic-output.mjs"])
+                else:
+                    self.assertFalse(runner.exists())
 
     def test_external_bmad_is_preserved_in_both_profiles_and_rollback(self):
         for profile in ("group", "repository"):
@@ -164,10 +173,20 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
                 target = skills.joinpath(*relative.parts)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(archive.read(name))
+            runner_path = None
+            if self.KIT_VERSION == "1.3.5":
+                runner_path = self.base / ".agents" / "gitlab-workspace-kit" / "run.py"
+                runner_path.parent.mkdir(parents=True, exist_ok=True)
+                runner_path.write_bytes(archive.read("workflow-kit/payload/.agents/gitlab-workspace-kit/run.py"))
         repo = self.target("repository", "review repo")
         env = {**self.env, "GIT_CEILING_DIRECTORIES": str(self.base), "GIT_CONFIG_NOSYSTEM": "1",
                "GIT_CONFIG_GLOBAL": os.devnull, "GITLAB_WORKSPACE_RUNTIME_DIR": str(self.base / "network"),
                "REVIEW_SHARED_CACHE_DIR": str(self.base / "cache")}
+        if runner_path:
+            blocked_temp = self.base / "not a writable temporary directory"
+            blocked_temp.write_text("keep\n", encoding="utf-8")
+            env.update({"TEMP": str(blocked_temp), "TMP": str(blocked_temp), "TMPDIR": str(blocked_temp),
+                        "UV_CACHE_DIR": str(blocked_temp), "UV_OFFLINE": "1"})
 
         def git(*args):
             subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, env=env)
@@ -185,7 +204,9 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
             with self.subTest(tool=tool):
                 script = skills / tool / "scripts" / "review_session.py"
                 runtime = self.base / (tool + "-runtime")
-                command = [sys.executable, "-X", "utf8", "-B", str(script)]
+                command = ([sys.executable, "-X", "utf8", "-B", str(runner_path), "--", sys.executable,
+                            "-X", "utf8", "-B", str(script)] if runner_path else
+                           [sys.executable, "-X", "utf8", "-B", str(script)])
 
                 def run(*args, codes=(0,)):
                     result = subprocess.run([*command, *map(str, args)], capture_output=True, text=True,
@@ -193,16 +214,23 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
                     self.assertIn(result.returncode, codes, result.stderr or result.stdout)
                     return json.loads(result.stdout)
 
-                if self.KIT_VERSION == "1.3.4" and tool == "merge-reviewer":
+                if self.KIT_VERSION in ("1.3.4", "1.3.5") and tool == "merge-reviewer":
                     capability = run("capabilities", "--workspace", repo)
                     self.assertEqual(capability["schema"], "MergeReviewCapabilities/v1")
                     self.assertEqual(capability["protocol_version"], 1)
                     self.assertTrue(capability["features"]["read_only_artifact_view"])
-                elif self.KIT_VERSION == "1.3.4" and tool == "release-reviewer":
+                elif self.KIT_VERSION in ("1.3.4", "1.3.5") and tool == "release-reviewer":
                     capability = run("capabilities", "--workspace", repo)
                     self.assertEqual(capability["schema"], "ReviewCapabilities/v1")
                     self.assertEqual(capability["skill_version"], "0.11.1")
                     self.assertTrue(capability["features"]["updates_file"])
+
+                if runner_path:
+                    kit_runtime = runtime.with_name(runtime.name + "-workflow-kit")
+                    default_runtime = self.base / ".gitlab-workspace" / "runtime"
+                    self.assertTrue((default_runtime / "tmp").is_dir())
+                    self.assertTrue((default_runtime / "uv-cache").is_dir())
+                    self.assertTrue(blocked_temp.is_file())
 
                 options = ["start", "--workspace", repo, "--project", repo, "--base", "base", "--head", "feature",
                            "--runtime-root", runtime]
@@ -210,6 +238,9 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
                     options.append("--no-fetch")
                 started = run(*options)
                 request_id = started["request_id"]
+                if runner_path:
+                    self.assertTrue((kit_runtime / "tmp").is_dir())
+                    self.assertTrue((kit_runtime / "uv-cache").is_dir())
                 self.assertEqual(started["network_activity"]["fetch_attempt_count"], 0)
                 self.assertEqual(run("status", "--runtime-root", runtime, "--request-id", request_id)["request_id"], request_id)
                 step_args = ["step", "--runtime-root", runtime, "--request-id", request_id]
@@ -233,6 +264,35 @@ class WorkflowKitIntegrationTests(unittest.TestCase):
 
 class WorkflowKit134IntegrationTests(WorkflowKitIntegrationTests):
     KIT_VERSION = "1.3.4"
+
+
+class WorkflowKit135IntegrationTests(WorkflowKitIntegrationTests):
+    KIT_VERSION = "1.3.5"
+
+    def test_upgrade_from_134_and_rollback_preserve_wiki_and_review_work(self):
+        root = self.target("group", "upgrade from 1.3.4")
+        self.install("1.3.4", root, "group")
+        preserved = {
+            "wiki/notes.md": "Human-authored Wiki note.\n",
+            "review-reports/release-review-existing.md": "# Existing Release review\n",
+            "review-reports/manual-checklist.md": "- [ ] Human follow-up\n",
+            "_bmad-output/spec.md": "User-owned spec.\n",
+        }
+        for relative, contents in preserved.items():
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(contents, encoding="utf-8")
+
+        upgraded = self.install("1.3.5", root, "group")
+        self.assertTrue((root / ".agents/gitlab-workspace-kit/run.py").is_file())
+        status = self.call("1.3.5", "status", root, "--expected-version", "1.3.5")
+        self.assertEqual(status["version"], "1.3.5")
+        self.call("1.3.5", "rollback", root, upgraded["transaction"])
+        status = self.call("1.3.4", "status", root, "--expected-version", "1.3.4")
+        self.assertEqual(status["version"], "1.3.4")
+        self.assertFalse((root / ".agents/gitlab-workspace-kit/run.py").exists())
+        for relative, contents in preserved.items():
+            self.assertEqual((root / relative).read_text(encoding="utf-8"), contents)
 
 
 if __name__ == "__main__":

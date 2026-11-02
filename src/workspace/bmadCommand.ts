@@ -1,9 +1,11 @@
 import path from 'node:path';
 import type { BmadCommandRequest, BmadWorkflowSnapshot } from './bmadProtocol';
+import type { WorkflowKitRunnerBinding } from './reviewSessionProtocol';
 import { BMAD_CAPABILITY_GUIDES } from './bmadGuide';
 
 /** Constructs text for the clipboard. Commands are never sent to a shell. */
-export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCommandRequest): string {
+export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCommandRequest,
+  runner?: WorkflowKitRunnerBinding): string {
   if (!request || typeof request !== 'object' || Array.isArray(request) || request.revision !== snapshot.revision) {
     throw new Error('BMAD 狀態已變更，請重新確認指令。');
   }
@@ -11,14 +13,17 @@ export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCo
   if (Object.keys(request).some(key => !keys.has(key)) || Object.values(request).some(value => value !== undefined && (typeof value !== 'string' || value.length > 8000 || value.includes('\0')))) {
     throw new Error('BMAD 指令格式無效。');
   }
+  const withRunner = (prompt: string): string => runner
+    ? `${prompt}\n\n使用上述 WorkflowKit runner 執行 BMAD 或其他已安裝 Skill 的 Python、Node.js、uv helper；保留原工作目錄與 helper 參數。Runner 格式：python -X utf8 -B ${JSON.stringify(runner.script_path)} -- <原執行檔及參數>。`
+    : prompt;
   if (request.command === 'task') {
     if (request.skill || request.stepId || request.artifactId || request.storyId || !request.requirement?.trim()) throw new Error('請填寫本次需求。');
     if (!snapshot.root || !path.isAbsolute(snapshot.root) || snapshot.installation.state !== 'ready' ||
         snapshot.compatibility === 'unsupported' || snapshot.observation.state === 'error' || !snapshot.codex.skills.includes('bmad-help')) {
       throw new Error('BMAD 或 $bmad-help 尚未準備完成，請重新偵測。');
     }
-    return ['$bmad-help', `工作根目錄：${snapshot.root}`, `BMAD 預設產出位置：${path.join(snapshot.root, '_bmad-output')}`,
-      '請依以下需求與目前專案狀態，自行判斷適合的 BMAD 能力與流程，並在此工作根目錄處理：', request.requirement.trim()].join('\n\n');
+    return withRunner(['$bmad-help', `工作根目錄：${snapshot.root}`, `BMAD 預設產出位置：${path.join(snapshot.root, '_bmad-output')}`,
+      '請依以下需求與目前專案狀態，自行判斷適合的 BMAD 能力與流程，並在此工作根目錄處理：', request.requirement.trim()].join('\n\n'));
   }
   if (request.command === 'codex') {
     if (request.skill || request.stepId || request.artifactId || request.storyId || request.requirement) throw new Error('此指令不接受工作參數。');
@@ -29,7 +34,7 @@ export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCo
   const node = request.stepId ? snapshot.nodes.find(item => item.id === request.stepId)
     : snapshot.nodes.find(item => item.skill === request.skill);
   if (!node && !request.stepId && request.skill && Object.hasOwn(BMAD_CAPABILITY_GUIDES, request.skill) && !request.artifactId && !request.storyId) {
-    return `$${request.skill}`;
+    return withRunner(`$${request.skill}`);
   }
   if (!node || request.skill && request.skill !== node.skill || !/^bmad-[a-z0-9-]+$/.test(node.skill) ||
     node.action && !/^[a-zA-Z0-9_-]+$/.test(node.action)) throw new Error('找不到此 BMAD 能力，請重新選擇。');
@@ -66,5 +71,5 @@ export function buildBmadCommand(snapshot: BmadWorkflowSnapshot, request: BmadCo
       } else command += ` ${JSON.stringify(relative(story.path))}`;
     }
   }
-  return command;
+  return withRunner(command);
 }

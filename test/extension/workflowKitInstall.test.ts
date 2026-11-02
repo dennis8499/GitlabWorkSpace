@@ -30,7 +30,7 @@ suite('Online workflow kit installation', () => {
     }
   });
 
-  for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
+  for (const kitVersion of ['1.0.0', '1.3.1', '1.3.4', '1.3.5']) test(`installs WorkflowKit ${kitVersion} and follows shared root changes`, async function () {
     this.timeout(240_000);
     const temporaryParent = process.env.GITLAB_WORKSPACE_TEST_TMP;
     assert.ok(temporaryParent, 'Use the isolated Extension Host test runner');
@@ -129,8 +129,8 @@ suite('Online workflow kit installation', () => {
       assert.equal(host.cloneRoot, root);
       assert.equal(host.groupRoot, root);
       assert.deepEqual((await readdir(path.join(root, '.agents/skills'))).sort(), expectedSkills);
-      assert.equal((await readdir(root)).includes('_bmad'), kitVersion === '1.3.1' || kitVersion === '1.3.4');
-      if (kitVersion === '1.3.1' || kitVersion === '1.3.4') {
+      assert.equal((await readdir(root)).includes('_bmad'), ['1.3.1', '1.3.4', '1.3.5'].includes(kitVersion));
+      if (['1.3.1', '1.3.4', '1.3.5'].includes(kitVersion)) {
         assert.equal(host.workflowKit.snapshot.state.bmadMode, 'bundled');
         assert.ok(host.workflowKit.snapshot.state.capabilities.includes('visualize'));
         const catalog = await readFile(path.join(extensionRoot, 'resources/bmad/bmad-help.csv'), 'utf8');
@@ -138,19 +138,27 @@ suite('Online workflow kit installation', () => {
         assert.equal(bmad.installation.state, 'ready');
         assert.ok(bmad.codex.skills.includes('bmad-help'));
         const python = await resolvePythonRuntime('python');
+        const hasManagedRunner = await readdir(path.join(root, '.agents/gitlab-workspace-kit')).then(names => names.includes('run.py'), () => false);
+        assert.equal(hasManagedRunner, kitVersion === '1.3.5');
         for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
           const binding = await readInstalledReviewerBinding(root, tool);
+          assert.equal(binding.workflow_kit_runner !== undefined, kitVersion === '1.3.5');
+          if (binding.workflow_kit_runner) {
+            assert.equal(createHash('sha256').update(await readFile(binding.workflow_kit_runner.script_path)).digest('hex'),
+              binding.workflow_kit_runner.script_sha256);
+          }
           assert.equal(binding.version, kitVersion === '1.3.4'
+            || kitVersion === '1.3.5'
             ? tool === 'merge-reviewer' ? '0.20.4' : '0.11.1'
             : tool === 'merge-reviewer' ? '0.20.3' : '0.10.1');
           const capabilities = await readReviewerCapabilities(binding, python, root);
-          if (kitVersion === '1.3.4' && tool === 'merge-reviewer') {
+          if (['1.3.4', '1.3.5'].includes(kitVersion) && tool === 'merge-reviewer') {
             assert.equal(capabilities?.schema, 'MergeReviewCapabilities/v1');
             if (capabilities?.schema === 'MergeReviewCapabilities/v1') {
               assert.equal(capabilities.protocol_version, 1);
               assert.equal(capabilities.features.read_only_artifact_view, true);
             }
-          } else if (kitVersion === '1.3.4' && tool === 'release-reviewer') {
+          } else if (['1.3.4', '1.3.5'].includes(kitVersion) && tool === 'release-reviewer') {
             assert.equal(capabilities?.schema, 'ReviewCapabilities/v1');
             if (capabilities?.schema === 'ReviewCapabilities/v1') {
               assert.equal(capabilities.updates_schema, 'ReleaseReviewUpdates/v1');
@@ -169,7 +177,7 @@ suite('Online workflow kit installation', () => {
         const external = path.join(temporary, `外部 ${profile}`); await mkdir(external);
         if (profile === 'repository') execFileSync('git', ['init', '--quiet', external]);
         const externalRoot = await realpath(external);
-        const existingBmad = kitVersion === '1.3.1' && profile === 'group' || kitVersion === '1.3.4';
+        const existingBmad = kitVersion === '1.3.1' && profile === 'group' || kitVersion === '1.3.4' || kitVersion === '1.3.5';
         if (existingBmad) {
           await mkdir(path.join(externalRoot, '_bmad'), { recursive: true });
           await writeFile(path.join(externalRoot, '_bmad', 'config.toml'), '# user BMAD\n');

@@ -115,6 +115,7 @@ export function buildSkillGuideContext(card: SkillGuideCard, context: SkillGuide
   return [
     `GitLab Workspace 工作流程包版本：${context.workflowKitVersion ?? '尚未安裝'}`,
     `Skills 專案根目錄：${context.root ?? context.groupRoot ?? '尚未選擇'}`,
+    ...(context.workflowKitRunner ? [`WorkflowKit helper runner：${JSON.stringify(context.workflowKitRunner)}。`] : []),
     `VSCode 工作區根目錄：${context.workspaceRoot ?? context.groupRoot ?? context.root ?? '尚未辨識'}`,
     '本機實際 Git Repo：',
     ...(context.repositories.length ? context.repositories.map(repo => `- ${repo.name} → ${repo.path}`) : ['（目前工作區尚未找到 Git Repo）'])
@@ -187,9 +188,13 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
   const unlimited = release && sessionCapabilities?.budget_schema === 'ReviewBudget/v1' &&
     sessionCapabilities.budget_profiles?.includes('unlimited') === true;
   const installedRoot = context.root ?? context.groupRoot;
+  const workflowKitRunner = context.workflowKitRunner ?? context.reviewerBinding?.workflow_kit_runner;
   const script = context.reviewerBinding?.script_path
     ?? (installedRoot ? `${installedRoot.replace(/[\\/]$/, '')}/.agents/skills/${card.tool}/scripts/review_session.py` : 'review_session.py');
   if (context.reviewerBinding && context.reviewerBinding.tool !== card.tool) throw new Error('已安裝 Reviewer 身分不符合所選工具。');
+  const python = (argumentsText: string): string => workflowKitRunner
+    ? `python -X utf8 -B ${JSON.stringify(workflowKitRunner.script_path)} -- python -X utf8 -B ${argumentsText}`
+    : `python ${argumentsText}`;
   return [
     `$${card.tool} 請依下列明確輸入執行${release ? '上版檢查' : '分支合併審查'}。`,
     '專案名稱：' + project, '基礎分支：' + quoted('base'), '比較分支：' + quoted('head'),
@@ -204,10 +209,10 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
     ...(release && supports('literal_search_batch') ? ['Batch consecutive case-sensitive literal searches for the same Repo; keep one result record per query.'] : []),
     ...(release && supports('status_summary') ? ['Resume progress with status --summary.'] : []),
     ...(nativeMergeCapabilities?.features.read_only_artifact_view ? ['For large local artifacts, use the installed Skill documented view command and its continuation offsets.'] : []),
-    ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 python ${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}; python ${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}.`] : []),
+    ...(reviewer ? [`Session controls: status \u6062\u5fa9\u3001cancel \u53d6\u6d88\u3002 ${python(`${JSON.stringify(script)} ${statusCommand}${runtimeArg}${requestIdArg}`)}; ${python(`${JSON.stringify(script)} cancel${runtimeArg}${requestIdArg}`)}.`] : []),
     ...(release && supports('read_only_view') ? ['Use read-only view and its continuation cursor to inspect existing artifacts.'] : []),
     '執行方式：單一 Agent。由目前 Agent 完成審查，不建立子 Agent。',
-    '啟動 helper：python ' + JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
+    '啟動 helper：' + python(JSON.stringify(script) + (prepared ? ' start --prepare-evidence' : ' start') +
       requestIdArg +
       ' --workspace ' + JSON.stringify(releaseWorkspace) +
       (context.workspaceFile ? ' --workspace-file ' + JSON.stringify(context.workspaceFile) : '') +
@@ -215,7 +220,7 @@ function buildSkillGuideTaskPrompt(card: SkillGuideCard, inputs: SkillGuideInput
       (runtime ? ' --runtime-root ' + JSON.stringify(runtime) : '') +
       (context.reviewAuthScope ? ' --auth-scope ' + JSON.stringify(context.reviewAuthScope) : '') +
        (prepared && context.reviewerBinding ? ' --expected-payload-sha256 ' + context.reviewerBinding.payload_sha256 : '') +
-      (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '') + '。',
+      (balanced ? ' --budget-profile balanced' : unlimited ? ' --budget-profile unlimited' : '')) + '。',
     ...(balanced ? ['時間目標為單 Repo 3 分鐘、多 Repo 6 分鐘；有已讀證據的具體線索才申請一次 50% 延長。每次操作檢查預算，到期保存已確認問題與必要缺口並收尾；報告驗證仍須完成，不把未完成標為通過。'] : []),
     supportsUpdatesFile ? `Write draft updates to a UTF-8 ${release ? 'ReleaseReviewUpdates/v1' : 'ReviewUpdates/v1'} JSON file and pass them with --updates-file; retry with the same update ID.` : prepared ? '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。' : '完成必要 step → finish；儲存每個步驟的結果與草稿，並使用回傳的 request 與 operation IDs 繼續。',
   ].join('\n');

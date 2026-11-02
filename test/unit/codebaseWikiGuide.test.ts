@@ -21,6 +21,15 @@ test('defines the complete offline Codebase LLM Wiki guide and working default s
   assert.equal(canCopyWikiPrompt(wikiGuideCards.find((card) => card.id === 'notebooklm-export')!, defaults), true);
 });
 
+test('Wiki workspace context points helpers at the managed WorkflowKit runner', () => {
+  const runner = { script_path: 'C:/工作區/.agents/gitlab-workspace-kit/run.py', script_sha256: 'a'.repeat(64) };
+  const context = buildWikiGuideContext({ profile: 'group', root: 'C:/工作區', groupRoot: 'C:/工作區',
+    repositories: [{ name: '服務 A', path: 'C:/工作區/服務 A' }], workflowKitVersion: '1.3.5', workflowKitRunner: runner });
+  assert.match(context, /WorkflowKit helper runner/);
+  assert.match(context, /python -X utf8 -B "C:\/工作區\/\.agents\/gitlab-workspace-kit\/run\.py" --/);
+  assert.match(context, /保留原參數/);
+});
+
 test('visualization prompts cover the ten supported types and preserve evidence and publishing gates', () => {
   const card = wikiGuideCards.find(item => item.id === 'visualize')!;
   const defaults = createDefaultWikiGuideInputs();

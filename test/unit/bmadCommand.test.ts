@@ -35,6 +35,10 @@ test('task prompts retain multiline requirements and the verified project root w
   assert.ok(prompt.includes(snapshot.root!));
   assert.ok(prompt.includes(path.join(snapshot.root!, '_bmad-output')));
   assert.ok(prompt.includes(requirement));
+  const managedPrompt = buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement },
+    { script_path: 'C:/Group/.agents/gitlab-workspace-kit/run.py', script_sha256: 'a'.repeat(64) });
+  assert.match(managedPrompt, /C:\/Group\/\.agents\/gitlab-workspace-kit\/run\.py/);
+  assert.match(managedPrompt, /-- <原執行檔及參數>/);
   assert.equal(JSON.stringify(snapshot), before);
   assert.throws(() => buildBmadCommand(snapshot, { revision: 'one', command: 'task', requirement: '   ' }), /請填寫/);
   assert.throws(() => buildBmadCommand(snapshot, { revision: 'old', command: 'task', requirement }), /已變更/);
