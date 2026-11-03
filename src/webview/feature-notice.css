@@ -1,0 +1,15 @@
+.project-tabs:has(.feature-notices), .clone-actions:has(.feature-notices) { flex-wrap: wrap; }
+.feature-notices { flex: 0 0 auto; width: 100%; min-width: 0; box-sizing: border-box; margin: 6px 0; }
+.toolbar > .feature-notices, .button-row > .feature-notices, .clone-actions > .feature-notices { flex: 1 0 100%; }
+.git-workbench > .feature-notices { max-height: 25%; overflow-y: auto; }
+.home-repository-list > .feature-control { display: flex; width: 100%; align-items: stretch; }
+.feature-control { display: inline-flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 100%; }
+.feature-notice { min-width: 0; margin: 5px 0; padding: 6px 9px; border-inline-start: 3px solid var(--vscode-descriptionForeground, #888); color: var(--vscode-descriptionForeground, inherit); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.feature-notice-warning { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, inherit); }
+.feature-notice-error { border-color: var(--vscode-errorForeground, #f48771); color: var(--vscode-errorForeground, inherit); }
+.feature-notice-reason { white-space: pre-line; }
+.feature-notice-details { margin-top: 4px; color: var(--vscode-foreground, inherit); }
+.feature-notice-details summary { cursor: pointer; }
+.feature-notice-details pre { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.feature-notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.feature-notice-actions button { max-width: 100%; white-space: normal; }

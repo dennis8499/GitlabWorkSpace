@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { sanitizeDiagnostic } from '../logging/diagnosticText';
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceOperationState } from '../workspace/operations';
 import type { NotificationLevel, NotificationOrigin, NotificationSnapshot, WorkspaceNotification } from './notificationProtocol';
@@ -6,11 +7,7 @@ import type { NotificationLevel, NotificationOrigin, NotificationSnapshot, Works
 interface NotificationContext { operationId: string; title: string; origin?: NotificationOrigin; }
 export interface NotificationInput { level?: NotificationLevel; title?: string; message: string; operationId?: string; origin?: NotificationOrigin; }
 const severity = { info: 0, warn: 1, error: 2 };
-const sanitizeNotification = (message: string): string => message
-  .replace(/\b(?:glpat|gldt|glrt|glcbt)-[\w-]+/gi, '[redacted]')
-  .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
-  .replace(/\bBearer\s+[^\s,;"}]+/gi, 'Bearer [redacted]')
-  .replace(/((?:private-token|authorization|access_token|token|password)\s*[=:]\s*)[^\s,;"}]+/gi, '$1[redacted]');
+const sanitizeNotification = (message: string): string => sanitizeDiagnostic(message);
 
 /** One extension activation owns this store. It never reads or writes persistent state. */
 export class NotificationCenter {

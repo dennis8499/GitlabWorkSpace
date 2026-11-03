@@ -3,6 +3,18 @@ import type { GitLabMergeRequest, GitLabProject, GitLabUser } from './types';
 export interface ActionAvailability {
   status: 'allowed' | 'denied' | 'unknown';
   reason?: string;
+  /** Sanitized diagnostic text; the short reason remains visible without expanding it. */
+  details?: string;
+}
+
+/** A failed permission probe is unknown, never proof of denied access. */
+export async function checkPermissionAvailability(check: () => Promise<boolean>, deniedReason: string,
+  sanitize: (message: string) => string): Promise<ActionAvailability> {
+  try { return await check() ? { status: 'allowed' } : { status: 'denied', reason: deniedReason }; }
+  catch (error) {
+    return { status: 'unknown', reason: '無法確認操作權限，請重新檢查。',
+      details: sanitize(error instanceof Error ? error.message : '權限檢查未完成。') };
+  }
 }
 
 /** REST Issue deletion requires owner access; Work Item deletion has different rules. */

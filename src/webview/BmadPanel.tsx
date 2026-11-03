@@ -43,6 +43,9 @@ const nodeTitle = (node: BmadCatalogNode): string => node.action === 'status' &&
   ? '查看 Sprint 狀態' : BMAD_CAPABILITY_GUIDES[node.skill]?.title ?? node.displayName;
 const nativeCommand = (skill: string, action?: string): string => `$${skill}${action ? ` ${action}` : ''}`;
 
+import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
+import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
 export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
@@ -117,11 +120,22 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
   const taskReady = !!snapshot.root && snapshot.installation.state === 'ready' && snapshot.compatibility !== 'unsupported'
     && snapshot.codex.skills.includes('bmad-help') && snapshot.observation.state !== 'error' && !kitIssue;
 
+  const rootBlocked = blockedWhen(!snapshot.root, '請先在 VS Code 開啟或選擇專案資料夾。');
+  const taskBlocked = firstBlocker(rootBlocked,
+    blockedWhen(snapshot.installation.state !== 'ready', snapshot.installation.reason || '請先補齊 BMAD 初始化。', 'warning'),
+    blockedWhen(snapshot.compatibility === 'unsupported', '目前 BMAD 版本無法安全提供此指令，請開啟 WorkflowKit 設定。', 'warning'),
+    blockedWhen(!snapshot.codex.skills.includes('bmad-help'), snapshot.codex.reason || '尚未安裝 $bmad-help，請準備 Codex Skills。', 'warning'),
+    blockedWhen(snapshot.observation.state === 'error', '專案工作紀錄讀取失敗，請重新偵測。', 'error', snapshot.observation.error),
+    blockedWhen(kitIssue, kitIssue ?? '', 'warning'), blockedWhen(!taskReady, 'BMAD 操作條件尚未確認，請重新偵測。'),
+    blockedWhen(!(ui.requirement ?? '').trim(), '請先描述本次需求。'));
+  const bmadBlockers = { '複製 BMAD 提示詞': taskBlocked };
+
   return <div class="bmad-panel">
     <header class="bmad-page-heading"><div><div class="bmad-eyebrow">BMAD METHOD · CODEX</div>
       <h1>BMAD 使用指南</h1><p>描述需求後交給 BMAD 判斷流程；專案狀態會隨儲存的產物更新。</p></div>
-      <div class="bmad-heading-actions"><button type="button" class="secondary" onClick={onOpenTerminal} disabled={!snapshot.root}>開啟終端機</button>
+      <div class="bmad-heading-actions"><button type="button" class="secondary" onClick={onOpenTerminal} {...availabilityProps('bmad-root', rootBlocked)}>開啟終端機</button>
         <button type="button" class="secondary" onClick={onRefresh}>重新偵測</button></div></header>
+    <FeatureNotices id="bmad-root" items={{ '開啟終端機／複製 Codex 指令': rootBlocked }} />
     <div class="bmad-project-context"><span class={`bmad-installation bmad-installation-${snapshot.installation.state}`}>{installationLabels[snapshot.installation.state]}</span>
       <span class="bmad-project-path" title={snapshot.root}>{snapshot.root ?? '請先在 VS Code 開啟或選擇專案資料夾'}</span>
       <span class={`bmad-codex-state bmad-codex-${snapshot.codex.state}`}>{snapshot.codex.state === 'ready' ? 'Codex Skills 已偵測' : snapshot.codex.state === 'partial' ? 'Codex Skills 部分缺少' : snapshot.codex.state === 'missing' ? '未偵測 Codex Skills' : 'Codex Skills 狀態未明'}</span>
@@ -159,10 +173,10 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
         <textarea id="bmad-requirement" rows={5} maxLength={8000} value={ui.requirement ?? ''}
           placeholder="例如：請分析並完成結帳流程的退款功能，確認畫面與測試。" onInput={event => change({ requirement: event.currentTarget.value })} />
         <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
-        <div class="bmad-inline-actions"><button type="button" class="primary" disabled={!taskReady || !(ui.requirement ?? '').trim()}
+        <div class="bmad-inline-actions"><button type="button" class="primary" {...availabilityProps('bmad-actions', taskBlocked)}
           onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
-          <button type="button" class="secondary" disabled={!snapshot.root} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
-        <p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。</p>
+          <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
+        <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。</p>
         {!taskReady && <p class="bmad-environment-notice" role="status">請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。</p>}
       </div>
       <div class="bmad-prerequisites"><h3>執行環境</h3><p>使用 BMAD 需要 Codex CLI；執行 BMAD 工作流程前請準備 uv。WorkflowKit 安裝本身不需要 Node.js。</p>
@@ -215,7 +229,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
         const artifactId = candidate.artifactId && stepsById.get(candidate.stepId)?.artifacts.some(artifact => artifact.id === candidate.artifactId) ? candidate.artifactId : undefined;
         const storyId = candidate.storyId && snapshot.stories.some(story => story.id === candidate.storyId) ? candidate.storyId : undefined;
         return <li key={`${candidate.stepId}:${candidate.artifactId ?? candidate.storyId ?? index}`} class="bmad-current-card"><span class="bmad-current-label">{node ? nodeTitle(node) : candidate.stepId}</span><h3>{candidate.label}</h3><p>{candidate.reason}</p>
-          {node && <button type="button" class="secondary" disabled={!available(node) || snapshot.observation.state === 'error'} title={snapshot.observation.state === 'error' ? '請先重新偵測工作紀錄' : undefined} onClick={() => copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</button>}</li>;
+          {node && <FeatureButton type="button" class="secondary" blocker={firstBlocker(blockedWhen(!available(node), availability(node), 'warning'), blockedWhen(snapshot.observation.state === 'error', '請先重新偵測工作紀錄。', 'error', snapshot.observation.error))} onClick={() => copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</FeatureButton>}</li>;
       })}</ul> : <p class="bmad-empty-position">尚未觀察到可確定的目前位置；這不代表沒有執行過 BMAD。可用 <code>$bmad-help</code> 讀取專案並取得建議。</p>}
       {snapshot.recommendations.length > 0 && <div class="bmad-recommendations"><h3>依現有證據建議</h3><ul>{snapshot.recommendations.map(item => <li key={item.stepId}><strong>{nodesById.has(item.stepId) ? nodeTitle(nodesById.get(item.stepId)!) : item.stepId}</strong><span>{item.reason}</span></li>)}</ul></div>}
       <details class="bmad-progress-details"><summary>展開工作與產物 <span>{snapshot.stories.length} 個工作項目 · {artifacts.length} 份產物</span></summary>

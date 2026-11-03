@@ -1,5 +1,6 @@
 import type { IssueCreateInput, IssueUpdateInput } from '../api/requestTypes';
 import type { OperationSnapshot } from '../workspace/operations';
+import type { ActionAvailability } from '../api/actionAvailability';
 import type {
   GitLabEmojiReaction, GitLabIssue, GitLabIssueDiscussion, GitLabIssueTemplate,
   GitLabLabel, GitLabMember, GitLabMergeRequestSummary, GitLabMetadata,
@@ -51,7 +52,12 @@ export interface IssueRelationsData {
   taskTypeId?: string;
   canLink: boolean;
   canManageChildren: boolean;
+  availability?: Partial<Record<IssueCapability, ActionAvailability>>;
 }
+
+export type IssueCapability = 'canCreateIssue' | 'canEdit' | 'canDelete' | 'canMove' | 'canClone' | 'canComment'
+  | 'canInternalComment' | 'canLink' | 'canManageChildren' | 'canTrackTime' | 'canResolveThreads'
+  | 'canSetStartDate' | 'canLogTime' | 'canLogDatedTime' | 'canDeleteTimelog';
 
 export type IssueRelationAction =
   | { type: 'createChild'; title: string }
@@ -132,9 +138,9 @@ export type IssueAction =
   | 'createChild' | 'addChild' | 'removeChild' | 'setChildState' | 'updateChild';
 
 export type IssuePanelResponse = (
-  | { type: 'createData'; projects: GitLabProject[]; projectsState?: IssuePageResult<GitLabProject>; selectedProjectId?: number; options?: IssueFormOptions; optionsLoading?: boolean; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean }
+  | { type: 'createData'; projects: GitLabProject[]; projectsState?: IssuePageResult<GitLabProject>; selectedProjectId?: number; options?: IssueFormOptions; optionsLoading?: boolean; metadata?: GitLabMetadata; canSetStartDate: boolean; canCreateIssue: boolean; createAvailability?: ActionAvailability }
   | { type: 'createProjectsPage'; page: IssuePageResult<GitLabProject> }
-  | { type: 'projectData'; projectId: number; options: IssueFormOptions; optionsLoading?: boolean; preserveDraft?: boolean; canSetStartDate?: boolean; canCreateIssue: boolean }
+  | { type: 'projectData'; projectId: number; options: IssueFormOptions; optionsLoading?: boolean; preserveDraft?: boolean; canSetStartDate?: boolean; canCreateIssue: boolean; createAvailability?: ActionAvailability }
   | { type: 'detailData'; data: IssueDetailData }
   | { type: 'detailPatch'; issueId: number; patch: Partial<IssueDetailData> }
   | { type: 'reply'; requestId: string; result?: unknown; error?: string; notificationOnly?: boolean }

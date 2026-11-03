@@ -10,6 +10,7 @@ import path from 'node:path';
 import { GitLabApiError, gitLabWriteFailureEffect, type GitLabClient } from '../api/gitLabClient';
 import { timeEntryTimestamp } from '../api/timeEntry';
 import { mergeAvailability } from '../api/actionAvailability';
+import { sanitizeDiagnostic, sanitizeFeedbackDiagnostics } from '../logging/diagnosticText';
 import { GitLabBudgetExceededError, GitLabRequestBudget } from '../api/gitLabRequestBudget';
 import { withReadObservation, type ReadObservation } from '../api/readObservation';
 import { readVerifiedMergeRequestDiff } from './mergeRequestDiffRead';
@@ -619,6 +620,12 @@ export class WorkspacePanel implements vscode.Disposable {
   }
 
   private post(message: unknown): void {
+    message = sanitizeFeedbackDiagnostics(message, value => this.session.log?.sanitize(value) ?? sanitizeDiagnostic(value));
+    if (message && typeof message === 'object' && 'type' in message && message.type === 'error') {
+      const id = this.operationContext.getStore(), operation = id ? this.operations.get(id) : undefined;
+      message = { mode: this.activeMode, scopeRevision: operation?.scopeRevision ?? this.operationScope(),
+        ...message, ...(id ? { operationId: id, resourceKey: operation?.resourceKey } : {}) };
+    }
     if (message && typeof message === 'object' && 'type' in message) {
       const value = message as WorkspaceResponse;
       if (value.type === 'issueResponse' && value.response.type === 'detailData') {

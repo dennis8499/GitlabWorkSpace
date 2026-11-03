@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { GitLabApiError, GitLabConflictError, type GitLabWorkItemScope, type IssueCreateInput, type IssueUpdateInput } from '../api/gitLabClient';
-import { issueDeleteAvailability } from '../api/actionAvailability';
+import { checkPermissionAvailability, issueDeleteAvailability, type ActionAvailability } from '../api/actionAvailability';
+import { issueFeatureAvailability, issueAvailabilityFlags } from './issueAvailability';
+import { sanitizeDiagnostic, sanitizeFeedbackDiagnostics } from '../logging/diagnosticText';
 import { timeEntryTimestamp } from '../api/timeEntry';
 import type { GitLabIssue, GitLabLabel, GitLabMember, GitLabMilestone, GitLabProject } from '../api/types';
 import { groupProjectsPageReadKey } from '../api/gitLabReadKeys';
@@ -188,11 +190,14 @@ export class IssuePanels implements vscode.Disposable {
       capabilities?.hierarchy ? this.loadTasks(client, project.path_with_namespace, iid) : Promise.resolve({ tasks: [] as IssueTask[], parentWorkItemId: undefined, taskTypeId: undefined, permissions: undefined })
     ]);
     const issuePermissions = await this.readIssuePermissions(client, project.path_with_namespace, iid);
-    return {
+    const relations: IssueRelationsData = {
       issue, project, links, tasks: hierarchy.tasks, parentWorkItemId: hierarchy.parentWorkItemId, taskTypeId: hierarchy.taskTypeId,
       canLink: issuePermissions.updateIssue === true || issuePermissions.adminIssue === true,
       canManageChildren: capabilities?.childMutations === true && hierarchy.permissions?.adminParentLink === true
     };
+    relations.availability = issueFeatureAvailability(relations, this.session.capabilityDiagnostics,
+      value => this.session.log?.sanitize(value) ?? sanitizeDiagnostic(value));
+    return relations;
   }
 
   private async readIssuePermissions(client: import('../api/gitLabClient').GitLabClient, projectPath: string, iid: number): Promise<Record<string, boolean>> {
@@ -361,6 +366,19 @@ export class IssuePanels implements vscode.Disposable {
   }
 
   private post(message: IssuePanelResponse): void {
+    const sanitize = (value: string) => this.session.log?.sanitize(value) ?? sanitizeDiagnostic(value);
+    message = sanitizeFeedbackDiagnostics(message, sanitize);
+    if (message.type === 'detailData') {
+      const availability = issueFeatureAvailability(message.data, this.session.capabilityDiagnostics, sanitize);
+      message = { ...message, data: { ...message.data, ...issueAvailabilityFlags(availability), availability } };
+    }
+    else if (message.type === 'detailPatch' && this.lastSnapshot?.type === 'detailData') {
+      const previous = this.lastSnapshot.data;
+      const data = { ...previous, ...message.patch, sections: { ...previous.sections, ...message.patch.sections },
+        loadErrors: message.patch.loadErrors ?? previous.loadErrors };
+      const availability = issueFeatureAvailability(data, this.session.capabilityDiagnostics, sanitize);
+      message = { ...message, patch: { ...message.patch, ...issueAvailabilityFlags(availability), availability } };
+    }
     const action = this.actionContext.getStore();
     if (action && message.type !== 'actionResult') {
       if (message.type === 'error' || message.type === 'reply' && message.error) {
@@ -385,7 +403,8 @@ export class IssuePanels implements vscode.Disposable {
     }
     else if (message.type === 'projectData' && this.lastSnapshot?.type === 'createData') this.lastSnapshot = {
       ...this.lastSnapshot, selectedProjectId: message.projectId, options: message.options, optionsLoading: message.optionsLoading,
-      canCreateIssue: message.canCreateIssue, canSetStartDate: message.canSetStartDate ?? this.lastSnapshot.canSetStartDate
+      canCreateIssue: message.canCreateIssue, createAvailability: message.createAvailability ?? this.lastSnapshot.createAvailability,
+      canSetStartDate: message.canSetStartDate ?? this.lastSnapshot.canSetStartDate
     };
     else if (message.type === 'detailPatch' && this.lastSnapshot?.type === 'detailData' && this.lastSnapshot.data.issue.id === message.issueId) {
       const previous = this.lastSnapshot.data;
@@ -589,15 +608,27 @@ export class IssuePanels implements vscode.Disposable {
     if (version !== this.navigationVersion || signal.aborted) return;
     this.createOptionsAbort = new AbortController();
     this.post({ type: 'createData', projects, projectsState: page, selectedProjectId: first?.id, options: emptyFormOptions(), optionsLoading: false,
-      metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue: false });
+      metadata: this.session.metadata, canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue: false,
+      createAvailability: { status: 'unknown', reason: first ? '正在確認建立 Issue 的權限，請稍候。' : '請先選擇可建立 Issue 的專案。' } });
     if (!first) { await capabilitiesTask; return; }
     const optionsVersion = ++this.projectOptionsVersion;
     await capabilitiesTask;
-    const canCreateIssue = this.session.issueCapabilities?.createPermission ? await client.canCreateIssue(first.path_with_namespace).catch(() => false) : false;
+    const createAvailability = await this.checkCreateAvailability(() => client.canCreateIssue(first.path_with_namespace));
+    const canCreateIssue = createAvailability.status === 'allowed';
     if (version !== this.navigationVersion || signal.aborted || optionsVersion !== this.projectOptionsVersion || this.mode !== 'create') return;
     const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
     this.post({ type: 'projectData', projectId: first.id, options, optionsLoading: false, preserveDraft: true,
-      canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue });
+      canSetStartDate: this.session.issueCapabilities?.startDate === true, canCreateIssue, createAvailability });
+  }
+
+  private async checkCreateAvailability(check: () => Promise<boolean>): Promise<ActionAvailability> {
+    if (!this.session.issueCapabilities?.createPermission) {
+      const diagnostic = this.session.capabilityDiagnostics?.find(item => item.id === 'permissions');
+      return { status: this.session.issueCapabilities ? 'denied' : 'unknown',
+        reason: this.session.issueCapabilities ? '伺服器未提供確認建立 Issue 權限所需的欄位。' : diagnostic?.reason ?? '尚未確認伺服器的建立 Issue 能力。' };
+    }
+    return checkPermissionAvailability(check, 'GitLab 回報目前帳號無法在此專案建立 Issue。',
+      value => this.session.log?.sanitize(value) ?? sanitizeDiagnostic(value));
   }
 
   private async readCreationProjects(query: string, mode?: 'next', queryIdentity?: string, force = false) {
@@ -1094,12 +1125,14 @@ export class IssuePanels implements vscode.Disposable {
       const project = group ? await this.resolveCreationProject(projectId, readSignal) : undefined;
       if (!project) throw new Error('Project is outside the selected group.');
       if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
-      this.post({ type: 'projectData', projectId, options: emptyFormOptions(), optionsLoading: false, canCreateIssue: false });
+      this.post({ type: 'projectData', projectId, options: emptyFormOptions(), optionsLoading: false, canCreateIssue: false,
+        createAvailability: { status: 'unknown', reason: '正在確認建立 Issue 的權限，請稍候。' } });
       const permissionClient = this.createOptionsAbort ? client.withReadSignal(this.createOptionsAbort.signal) : client;
-      const canCreateIssue = this.session.issueCapabilities?.createPermission ? await permissionClient.canCreateIssue(project.path_with_namespace).catch(() => false) : false;
+      const createAvailability = await this.checkCreateAvailability(() => permissionClient.canCreateIssue(project.path_with_namespace));
+      const canCreateIssue = createAvailability.status === 'allowed';
       if (version !== this.navigationVersion || this.mode !== 'create' || optionsVersion !== this.projectOptionsVersion) return;
       const options = this.lastSnapshot?.type === 'createData' ? this.lastSnapshot.options ?? emptyFormOptions() : emptyFormOptions();
-      this.post({ type: 'projectData', projectId, options, preserveDraft: true, canCreateIssue });
+      this.post({ type: 'projectData', projectId, options, preserveDraft: true, canCreateIssue, createAvailability });
       return;
     }
     if (request.type === 'create') {

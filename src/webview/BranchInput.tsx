@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 export type BranchReadStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-export function BranchInput({ id, label, value, onInput, branches, status, error, disabled, required, placeholder }: {
+export function BranchInput({ id, label, value, onInput, branches, status, error, disabled, required, placeholder, describedBy }: {
   id: string;
   label: string;
   value: string;
@@ -14,6 +14,7 @@ export function BranchInput({ id, label, value, onInput, branches, status, error
   disabled?: boolean;
   required?: boolean;
   placeholder?: string;
+  describedBy?: string;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -49,7 +50,7 @@ export function BranchInput({ id, label, value, onInput, branches, status, error
     if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) close();
   }}>
     <div class="skills-branch-control">
-      <input id={id} ref={input} type="text" role="combobox" value={value} required={required} disabled={disabled}
+      <input id={id} ref={input} type="text" role="combobox" value={value} required={required} disabled={disabled} aria-describedby={describedBy}
         placeholder={placeholder} autoComplete="off" aria-autocomplete="list" aria-expanded={open}
         aria-controls={listId} aria-activedescendant={activeId} onFocus={reveal} onClick={() => { if (!open) reveal(); }}
         onInput={event => { onInput(event.currentTarget.value); setQuery(event.currentTarget.value); setOpen(true); setActive(-1); }}

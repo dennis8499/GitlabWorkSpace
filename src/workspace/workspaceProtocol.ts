@@ -387,7 +387,7 @@ export type WorkspaceResponse =
   | { type: 'issueRelations'; requestId: string; connectedScope: string; projectId: number; issueIid: number; data?: IssueRelationsData; mutationApplied?: boolean; effect?: WorkspaceOperationState['effect']; refreshError?: string; error?: string }
   | { type: 'busy'; value: boolean; label?: string }
   | { type: 'message'; message: string }
-  | { type: 'error'; message: string; scopeRevision?: string }
+  | { type: 'error'; message: string; scopeRevision?: string; mode?: WorkspaceMode; operationId?: string; resourceKey?: string }
   | { type: 'draftBundle'; bundle: IssueDraftBundle }
   | { type: 'draftResults'; analysisId: string; results: DraftIssueResult[] }
   | { type: 'draftOptions'; projectId: number; options: IssueFormOptions; canCreateIssue: boolean }

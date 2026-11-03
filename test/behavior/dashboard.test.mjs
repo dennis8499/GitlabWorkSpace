@@ -1457,6 +1457,120 @@ function issueDetailData(issue, project) {
   };
 }
 
+test('MR reasons are deduplicated and remain visible with changes or discussion selected', async t => {
+  const data = { ...snapshot('reviewer'), groupRoot: undefined, operationScope: 'mr-notice-scope', instance: { enterprise: false } };
+  const request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead } };
+  data.mergeRequests = [request]; data.selectedMergeRequest = { request, mergeAvailability: { status: 'denied', reason: 'MR 還有未解決的討論。' },
+    diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead };
+  const view = await mount({ mode: 'reviewer', reviewerTab: 'changes' }, data); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const branch = [...document.querySelectorAll('button')].find(button => button.textContent === '前往分支審查');
+  const explanation = document.getElementById(branch.getAttribute('aria-describedby'));
+  assert.ok(explanation); assert.equal(explanation.closest('[hidden]'), null);
+  assert.equal([...document.querySelectorAll('.feature-notice-reason')].filter(item => item.textContent.includes('MR 還有未解決的討論。')).length, 1);
+  view.send({ type: 'operationChanged', operation: { requestId: 'mr-inline-failure', action: 'replyMergeRequest', resourceKey: 'mr:1:4', scopeRevision: 'mr-notice-scope',
+    label: '回覆 MR', phase: '處理失敗', status: 'failed', kind: 'write', effect: 'none', error: 'MR discussion failed', startedAt: 1, finishedAt: 2 } }); await view.tick();
+  const feedback = [...document.querySelectorAll('.operation-status.failed')].find(item => item.textContent.includes('MR discussion failed'));
+  assert.ok(feedback); assert.equal(feedback.closest('[hidden]'), null);
+  [...document.querySelectorAll('.review-tabs button')].find(button => button.textContent === '討論').click(); await view.tick();
+  assert.equal(feedback.closest('[hidden]'), null);
+});
+
+test('Issue error dismissal clears its operation and editor feedback without losing the comment draft', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data, {}, () => {}, { autoOperations: false }); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'detail', projectId: 1, issueIid: 1, revision: 72 } }); await view.tick();
+  view.send({ type: 'issueResponse', revision: 72, response: { type: 'detailData', data: { ...issueDetailData(data.issues[0], data.projects[0]), canComment: true } } }); await view.tick();
+  const document = view.dom.window.document;
+  const comment = document.querySelector('.issue-embed textarea');
+  comment.value = '保留留言草稿'; comment.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '送出留言').click(); await view.tick();
+  const request = view.rawRequests.findLast(item => item.type === 'issueRequest' && item.request.action === 'note');
+  view.send({ type: 'issueResponse', revision: 72, response: { type: 'error', message: 'Issue comment rejected' } });
+  view.receipt(request, { status: 'failed', effect: 'none', error: 'Issue comment rejected' });
+  view.send({ type: 'issueResponse', revision: 72, response: { type: 'actionResult', requestId: request.request.requestId, status: 'failed', effect: 'none', error: 'Issue comment rejected' } }); await view.tick();
+  assert.match(document.querySelector('.issue-embed .alert').textContent, /Issue comment rejected/);
+  document.querySelector('button[aria-label="關閉錯誤訊息"]').click(); await view.tick();
+  assert.equal(document.body.textContent.includes('Issue comment rejected'), false);
+  assert.equal(comment.value, '保留留言草稿');
+});
+
+test('Git error dismissal clears its tracked and domain state until another failure', async t => {
+  const view = await mount({ mode: 'git', scopeKey: 'team-scope' }, snapshot('git'), {}, () => {}, { autoOperations: false });
+  t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  view.send({ type: 'gitRepositories', available: true, revision: 1, repositories: [gitSnapshot()] });
+  for (let attempt = 0; attempt < 40 && !gitActions(view, 'open').length; attempt++) await view.tick();
+  await finishGit(view, gitActions(view, 'open').at(-1));
+  for (const error of ['First read failure', 'Second read failure']) {
+    document.querySelector('.git-refresh').click(); await view.tick();
+    const request = view.rawRequests.findLast(item => item.type === 'gitAction' && item.action.type === 'refresh');
+    view.receipt(request, { status: 'failed', effect: 'none', correlationId: request.requestId, startedAt: 1, error }); await view.tick();
+    const feedback = document.querySelector('.git-error.operation-status.failed');
+    assert.match(feedback.textContent, new RegExp(error));
+    assert.equal([...document.querySelectorAll('.feature-notice-reason')].filter(item => item.textContent === error).length, 1);
+    [...feedback.querySelectorAll('button')].find(button => button.textContent === '關閉').click(); await view.tick();
+    assert.equal(document.querySelector('.git-error'), null);
+    assert.equal(document.body.textContent.includes(error), false);
+  }
+});
+
+test('unavailable Git actions share one visible explanation and update without background reads', async t => {
+  const view = await mountGit(t, {}, gitSnapshot('repo-a', { remotes: [] }));
+  const document = view.dom.window.document;
+  const fetch = () => document.querySelector('.git-fetch');
+  const pull = () => document.querySelector('.git-pull');
+  assert.equal(fetch().disabled, true); assert.equal(pull().disabled, true);
+  const id = fetch().getAttribute('aria-describedby');
+  assert.equal(pull().getAttribute('aria-describedby'), id);
+  assert.equal(document.querySelectorAll(`[id="${id}"]`).length, 1);
+  assert.match(document.getElementById(id).textContent, /尚未設定遠端/);
+  const count = gitActions(view).length;
+  view.send({ type: 'gitSnapshot', snapshot: gitSnapshot('repo-a', { revision: 2 }) }); await view.tick();
+  assert.equal(fetch().disabled, false); assert.equal(fetch().getAttribute('aria-describedby'), null);
+  assert.equal(gitActions(view).length, count);
+});
+
+test('Issue creation exposes an unknown permission failure, retries explicitly and preserves its draft', async t => {
+  const data = snapshot();
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'issueNavigation', navigation: { mode: 'create', revision: 71 } }); await view.tick();
+  const options = { members: [], labels: [], milestones: [], templates: [] };
+  view.send({ type: 'issueResponse', revision: 71, response: { type: 'createData', projects: data.projects, selectedProjectId: 1,
+    options, canSetStartDate: false, canCreateIssue: false, createAvailability: { status: 'unknown', reason: '無法確認操作權限，請重新檢查。', details: 'offline <img src=x onerror=alert(1)>' } } });
+  await view.tick();
+  const document = view.dom.window.document;
+  const title = document.querySelector('input[placeholder="簡要描述工作內容"]');
+  title.value = '保留我的草稿'; title.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  const create = () => [...document.querySelectorAll('.issue-embed button')].find(button => button.textContent === '建立 Issue');
+  assert.equal(create().disabled, true);
+  const explanation = document.getElementById(create().getAttribute('aria-describedby'));
+  assert.match(explanation.textContent, /無法確認操作權限/); assert.ok(explanation.querySelector('details'));
+  assert.equal(explanation.querySelector('img'), null);
+  const recheck = [...document.querySelectorAll('button')].find(button => button.textContent === '重新檢查建立權限');
+  const before = view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'selectProject').length;
+  recheck.click(); await view.tick();
+  assert.equal(view.requests.filter(request => request.type === 'issueRequest' && request.request.type === 'selectProject').length, before + 1);
+  view.send({ type: 'issueResponse', revision: 71, response: { type: 'projectData', projectId: 1, options, preserveDraft: true, canCreateIssue: true, createAvailability: { status: 'allowed' } } });
+  const checked = view.rawRequests.findLast(request => request.type === 'issueRequest' && request.request.type === 'selectProject');
+  view.receipt(checked);
+  view.send({ type: 'issueResponse', revision: 71, response: { type: 'actionResult', requestId: checked.request.requestId, status: 'succeeded' } });
+  await view.tick();
+  assert.equal(title.value, '保留我的草稿'); assert.equal(create().disabled, false);
+  assert.equal(document.getElementById(explanation.id), null);
+});
+
+test('legacy page errors remain visible inline only in their originating page and scope', async t => {
+  const data = { ...snapshot(), operationScope: 'notice-scope' };
+  const view = await mount({ mode: 'developer' }, data); t.after(() => view.dom.window.close());
+  view.send({ type: 'error', message: '連線中斷，請重新載入。', scopeRevision: 'notice-scope', mode: 'developer' }); await view.tick();
+  assert.match(view.dom.window.document.querySelector('.app-shell > .feature-notice').textContent, /連線中斷/);
+  const count = view.requests.length;
+  view.sendSnapshot({ ...data, operationScope: 'another-account' }); await view.tick();
+  assert.equal(view.dom.window.document.querySelector('.app-shell > .feature-notice'), null);
+  assert.equal(view.requests.length, count);
+});
+
 async function mount(initialState, initialSnapshot, storage = {}, beforeMount = () => {}, options = {}) {
   const runtimeErrors = [];
   const virtualConsole = new VirtualConsole();
@@ -2807,7 +2921,8 @@ test('graph relation forms use scoped requests, retry reads without repeating wr
     project: graphSnapshot.projects[1], links: [], tasks: [], canLink: false, canManageChildren: false
   } });
   await view.tick();
-  assert.equal(document.querySelector('input[aria-label="新子工作標題"]'), null);
+  assert.equal(document.querySelector('input[aria-label="新子工作標題"]').disabled, true);
+  assert.ok(document.querySelector('.issue-relation-editor .feature-notices').textContent.trim());
   assert.match(document.querySelector('.graph-selected-detail h2').textContent, /Beta milestone issue/);
 });
 
@@ -3308,14 +3423,16 @@ test('MR reports publish as manual comments while approval and merge remain SHA 
   assert.equal(view.requests.findLast(request => request.type==='postMergeRequestNote').body,input.value);
 });
 
-test('CE and unconfirmed instances omit unsupported MR approvals while preserving merge and comments', async t => {
+test('CE and unconfirmed instances explain disabled MR approvals while preserving merge and comments', async t => {
   for (const enterprise of [false, undefined]) {
     const data = snapshot('reviewer'), request = { id: 41, iid: 4, project_id: 1, title: 'Review', state: 'opened', source_branch: 'feature', target_branch: 'main', diff_refs: { head_sha: gitHead } };
     data.instance = { version: '16.11.0', enterprise };
     data.mergeRequests = [request]; data.selectedMergeRequest = { request, mergeAvailability: { status: 'allowed' }, diffs: [], discussions: [], sections: { diffs: { status: 'ready' }, discussions: { status: 'ready' } }, freshness: { state: 'not_checked' }, sourceSha: gitHead, targetSha: gitParent };
     const view = await mount({ mode: 'reviewer', reviewerTab: 'report' }, data); t.after(() => view.dom.window.close());
     const buttons = [...view.dom.window.document.querySelectorAll('.reviewer-detail button')];
-    assert.equal(buttons.some(item => item.textContent === '核准'), false);
+    const approve = buttons.find(item => item.textContent === '核准');
+    assert.equal(approve.disabled, true);
+    assert.ok(view.dom.window.document.getElementById(approve.getAttribute('aria-describedby'))?.textContent.trim());
     assert.equal(buttons.find(item => item.textContent === '合併 MR').disabled, false);
     assert.equal(view.requests.some(item => item.type === 'approveMergeRequest'), false);
   }

@@ -459,10 +459,12 @@ Then('the comment reaction sends its own typed operation', function () {
 });
 
 Given('the Issue Webview is ready with a read-only issue', async function () { await this.boot(); await this.detail(false); });
-Then('editing is hidden and destructive controls are disabled', function () {
-  assert.equal([...this.root.querySelectorAll('.main-column .card:first-child button')].some((button) => button.textContent.trim() === 'Edit'), false);
+Then('unavailable editing and destructive controls explain their disabled state', function () {
+  assert.equal(this.button('編輯需求').disabled, true);
   for (const label of ['移動 Issue', '建立子工作']) {
-    assert.equal([...this.root.querySelectorAll('button')].some((button) => button.textContent.trim() === label), false);
+    const button = this.button(label);
+    assert.equal(button.disabled, true);
+    assert.ok(this.root.getElementById(button.getAttribute('aria-describedby'))?.textContent.trim());
   }
   assert.equal(this.button('刪除 Issue').disabled, true);
   assert.match(this.root.body.textContent, /開始日期/);

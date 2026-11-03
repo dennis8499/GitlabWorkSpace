@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { sanitizeDiagnostic } from './diagnosticText';
 import { createHash, randomUUID } from 'node:crypto';
 import type { FetchLike } from '../api/gitLabClient';
 import type { LogContext, OperationLogEntry } from './logProtocol';
@@ -74,12 +75,7 @@ export class OperationLog {
   }
 
   sanitize(value: string): string {
-    let result = value;
-    for (const secret of this.secrets) result = result.split(secret).join('[redacted]');
-    return result.replace(/\b(?:glpat|gldt|glrt|glcbt)-[\w-]+/gi, '[redacted]')
-      .replace(/(https?:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[redacted]@')
-      .replace(/((?:private-token|authorization|access_token|token|password)\s*[=:]\s*)[^\s,;"}]+/gi, '$1[redacted]')
-      .replace(/\bBearer\s+[^\s,;"}]+/gi, 'Bearer [redacted]').slice(0, 2048);
+    return sanitizeDiagnostic(value, this.secrets);
   }
 
   record(input: LogInput): void {

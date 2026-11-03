@@ -3,6 +3,9 @@ import type { JSX } from 'preact';
 import { useContext, useEffect, useRef } from 'preact/hooks';
 import type { SkillsContext } from '../workspace/workspaceProtocol';
 import { OperationFeedback } from './OperationFeedback';
+import { FeatureNotice, FeatureNotices } from './FeatureNotice';
+import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
+
 import { ActionController } from '../workspace/actionController';
 import { ActionContext, useActionSelector } from './useActions';
 import { reportLocalFeedback } from './notificationFeedback';
@@ -100,6 +103,10 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
   const unavailable = skillsContext?.reason ?? (!context.root && !context.groupRoot ? '請先選擇專案資料夾。'
     : !kitInstalled ? '請先安裝或更新工作流程包。'
     : !available ? '目前安裝版本未提供此功能，請更新 Skills。' : context.repositoryScanStatus !== 'ready' ? '正在辨識本機 Repo…' : '');
+  const copyBlocked = firstBlocker(blockedWhen(copyPending, '正在處理剪貼簿，請稍候。'),
+    blockedWhen(!available, unavailable || '目前環境尚未提供此功能，請開啟設定準備 Skills。', 'warning'),
+    blockedWhen(promptError, promptError, 'error'), blockedWhen(!ready, reviewer ? '請填妥必要欄位，並使用明確分支名稱。' : '請填妥必要欄位。'));
+  const branchesBlocked = firstBlocker(blockedWhen(!repo, '請先選擇目前工作區中的 Repo。'), blockedWhen(branchStatus === 'loading', '正在讀取分支，請稍候。'));
   const groups = tool === 'codebase-wiki' ? wikiGroups : [{ title: '功能', ids: cards.filter(item => item.tool === tool).map(item => item.id) }];
   const selectTool = (id: SkillGuideToolId) => onChange(current => ({ ...current, tool: id }));
   return <div class="wiki-guide skills-guide">
@@ -145,7 +152,7 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
           </select>;
           else if (reviewer && ['base', 'head'].includes(item.id)) control = <BranchInput key={`${key}:${repo ?? ''}`}
             id={`wiki-input-${key}`} label={item.label} value={value} onInput={onInput} branches={repo ? branchCandidates : []}
-            status={branchStatus} error={branchError} disabled={!repo} required={item.required} placeholder={item.placeholder} />;
+            status={branchStatus} error={branchError} disabled={!repo} describedBy={!repo ? availabilityProps('skills-branches', branchesBlocked)['aria-describedby'] : undefined} required={item.required} placeholder={item.placeholder} />;
           else if (item.kind === 'select') control = <select id={`wiki-input-${key}`} value={value} onChange={event => onInput(event.currentTarget.value)}>{item.options?.map(option => <option key={option} value={option}>{option}</option>)}</select>;
           else if (item.kind === 'textarea') control = <textarea id={`wiki-input-${key}`} rows={item.rows ?? 2} value={value} placeholder={item.placeholder} required={item.required} onInput={event => onInput(event.currentTarget.value)} />;
           else control = <input id={`wiki-input-${key}`} type="text" value={value} placeholder={item.placeholder} required={item.required} onInput={event => onInput(event.currentTarget.value)} />;
@@ -157,19 +164,16 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
             : branchStatus === 'error' ? `${branchError ?? '分支讀取失敗'}；仍可輸入明確分支名稱。`
             : branchStatus === 'ready' && !branchCandidates.length ? '此 Repo 尚無本機或遠端追蹤分支；仍可輸入明確分支名稱。'
             : '候選來自本機分支與遠端追蹤分支；也可以直接輸入明確分支名稱。'}</p>
-          <button class="secondary skills-branch-refresh" type="button" disabled={!repo || branchStatus === 'loading'}
-            onClick={() => repo && onLoadBranches?.(repo)}>{branchStatus === 'error' ? '重試讀取分支' : '重新讀取分支'}</button>
+          <button class="secondary skills-branch-refresh" type="button" {...availabilityProps('skills-branches', branchesBlocked)}
+            onClick={() => repo && onLoadBranches?.(repo)}>{branchStatus === 'error' ? '重試讀取分支' : '重新讀取分支'}</button><FeatureNotices id="skills-branches" items={{ '讀取分支': branchesBlocked }} />
         </div>}
         {reviewer && reviewerCapabilitiesStatus === 'error' && <p class="subtle reviewer-capabilities-error" role="status">
           無法讀取 Reviewer 能力；提示詞仍可依已安裝 Skill 使用現有 session 介面。{' '}
           <button class="quiet small reviewer-capabilities-retry" type="button" onClick={() => onLoadReviewerCapabilities?.(tool as ReviewerToolId)}>重試讀取能力</button>
         </p>}
-        {promptError && <p class="warning" role="alert">{promptError}</p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
-          <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" disabled={!ready || copyPending} aria-label={`複製${card.title}提示詞`}
-            onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button></div>
-          {!ready && available && !promptError && <p class="subtle">{tool === 'merge-reviewer' || tool === 'release-reviewer'
-            ? '請填妥必要欄位，使用明確分支名稱後再複製。' : '請填妥必要欄位後再複製。'}</p>}
+          <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
+            onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button></div><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }}>{!available && <button type="button" onClick={onOpenSettings}>準備環境與 Skills</button>}</FeatureNotices>
           <p class="skills-next-step">下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
