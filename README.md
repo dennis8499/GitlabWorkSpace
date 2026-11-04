@@ -277,10 +277,10 @@ Wiki 新增 **專案功能探索**：從目前原始碼盤點功能、來源、�
 npm ci
 ```
 
-接著在 VS Code 按 `F5`。常用指令：
+接著在 VS Code 按 `F5`。啟動前會執行 `build:dev`，依序編譯 TypeScript 與建置主畫面、側欄 Webview；建置失敗時會停止啟動。修改前端來源後，重新啟動偵錯即可載入新介面。常用指令：
 
 ```sh
-npm run check:kit-sources
+npm run build:dev
 npm run compile
 npm run build:webview
 npm test

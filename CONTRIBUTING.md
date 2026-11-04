@@ -17,13 +17,14 @@ cd GitlabWorkSpace
 npm ci
 ```
 
-在 VS Code 開啟專案後按 `F5`，啟動擴充功能開發主機。`.vscode/launch.json` 會先編譯 TypeScript，並在新的 Extension Development Host 視窗中載入擴充功能。
+在 VS Code 開啟專案後按 `F5`，啟動擴充功能開發主機。前置工作會執行 `npm run build:dev`，依序編譯 TypeScript 並建置主畫面與側欄 Webview，成功後才在新的 Extension Development Host 視窗中載入擴充功能。修改前端來源後，重新啟動偵錯即可載入新介面。
 
 Windows PowerShell 若無法執行 `npm` 指令，可將指令中的 `npm` 改為 `npm.cmd`。
 
 ## 建置與測試
 
 ```sh
+npm run build:dev
 npm run compile
 npm run typecheck:webview
 npm run build:webview

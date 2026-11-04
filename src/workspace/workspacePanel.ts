@@ -410,18 +410,17 @@ export class WorkspacePanel implements vscode.Disposable {
       });
       this.panel = panel;
       this.webviewReady = false;
-      const nonce = randomBytes(16).toString('base64');
-      const htmlPath = vscode.Uri.joinPath(assetRoot, 'dashboard.html');
-      let html = await readFile(htmlPath.fsPath, 'utf8');
-      const base = panel.webview.asWebviewUri(assetRoot).toString().replace(/\/$/, '') + '/';
-      html = html.replace('<head>', `<head><base href="${base}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${panel.webview.cspSource}; worker-src ${panel.webview.cspSource} blob:; font-src ${panel.webview.cspSource};">`);
-      html = html.replace(/<script([^>]*)>/, `<script nonce="${nonce}"$1>`);
-      panel.webview.html = html;
       const messageListener = panel.webview.onDidReceiveMessage((message: unknown) => {
         void this.handleMessage(message).catch(() => undefined);
       });
+      const visibilityListener = panel.onDidChangeViewState(() => {
+        if (this.panel !== panel) return;
+        this.gitRepositories?.setActivePanelRepository(panel.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
+        if (!panel.visible) this.suspendViewReads();
+        if (panel.visible) this.scheduleGitRepositoryListSend();
+      });
       panel.onDidDispose(() => {
-        messageListener.dispose();
+        messageListener.dispose(); visibilityListener.dispose();
         if (this.panel === panel) {
           this.pendingSettingsOpen = false;
           this.gitRepositories?.setActivePanelRepository(undefined);
@@ -430,12 +429,19 @@ export class WorkspacePanel implements vscode.Disposable {
           this.panel = undefined; this.webviewReady = false;
         }
       });
-      panel.onDidChangeViewState(() => {
-        if (this.panel !== panel) return;
-        this.gitRepositories?.setActivePanelRepository(panel.visible && this.activeMode === 'git' ? this.selectedGitRepositoryId : undefined);
-        if (!panel.visible) this.suspendViewReads();
-        if (panel.visible) this.scheduleGitRepositoryListSend();
-      });
+      try {
+        const nonce = randomBytes(16).toString('base64');
+        const htmlPath = vscode.Uri.joinPath(assetRoot, 'dashboard.html');
+        let html = await readFile(htmlPath.fsPath, 'utf8');
+        if (this.panel !== panel || this.disposed) return;
+        const base = panel.webview.asWebviewUri(assetRoot).toString().replace(/\/$/, '') + '/';
+        html = html.replace('<head>', `<head><base href="${base}"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${panel.webview.cspSource}; worker-src ${panel.webview.cspSource} blob:; font-src ${panel.webview.cspSource};">`);
+        html = html.replace(/<script([^>]*)>/, `<script nonce="${nonce}"$1>`);
+        panel.webview.html = html;
+      } catch (error) {
+        panel.dispose();
+        throw new Error('無法載入工作台介面，請查看 GitLab Workspace Log 或重新安裝擴充套件。', { cause: error });
+      }
     } else {
       this.panel.reveal(vscode.ViewColumn.Active);
     }

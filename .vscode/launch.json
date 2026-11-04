@@ -10,7 +10,7 @@
         "--disable-extensions"
       ],
       "outFiles": ["${workspaceFolder}/out/src/**/*.js"],
-      "preLaunchTask": "npm: compile"
+      "preLaunchTask": "Build extension for development"
     }
   ]
 }
