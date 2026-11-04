@@ -44,6 +44,14 @@ Codex 一鍵執行、設定與任務恢復見 [Codex Bridge 操作說明](docs/c
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 
+## 0.39.0 更新
+
+- Wiki、MergeReviewer、ReleaseReviewer 與 BMAD 可從工作台一鍵交由本機 Codex 執行；同一專案的任務會排隊，跨視窗共用執行鎖。
+- 任務面板呈現執行進度、對話、核准及檔案變更，支援停止與手動續作；重開 VS Code 後可讀取歷史並核對中斷結果，不會自動重送。
+- 審查報告完整性仍依本機審查紀錄判定；不以 Codex 單輪完成取代既有審查驗證。
+
+完整變更及驗證紀錄見 [0.39.0 發布說明](docs/releases/v0.39.0.md)與[Codex Bridge 驗證紀錄](docs/work/work-20261104-codex-bridge/verification.md)。
+
 ## 0.38.1 更新
 
 - 對齊 WorkflowKit 1.3.5 共用 runner；先核對受管理 runner 的 SHA-256，再透過安裝根目錄執行 Reviewer 探測與取消操作。
