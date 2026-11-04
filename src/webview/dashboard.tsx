@@ -21,6 +21,7 @@ import { legacyWikiInputs, resolveReviewerRepository, restoreSkillGuideState, ty
 import { SkillsGuide } from './SkillsGuide';
 import type { ReviewerCapabilities, ReviewerToolId, ReviewSessionSummary } from '../workspace/reviewSessionProtocol';
 import { BmadPanel } from './BmadPanel';
+import { CodexPanel, CodexSettings } from './CodexPanel';
 import type { BmadPanelState } from '../workspace/bmadProtocol';
 import { OperationFeedback } from './OperationFeedback';
 import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
@@ -1356,6 +1357,7 @@ function App() {
               onOpenSettings={() => { setSettingsSection('tools'); setToolDrawer(true); }}
               onRefresh={() => post({ type: 'refreshBmad' })}
               onCopyCommand={request => post({ type: 'copyBmadCommand', ...request })}
+              onRunCommand={request => post({ type: 'startCodexTask', source: { kind: 'bmad', request } })}
               onOpenTerminal={() => snapshot.bmad && post({ type: 'openBmadTerminal', revision: snapshot.bmad.revision })}
               onOpenDocumentation={url => post({ type: 'openExternal', url })}
               onOpenArtifact={(stepId, path) => snapshot.bmad && post({ type: 'openBmadArtifact', stepId, path, revision: snapshot.bmad.revision })}
@@ -1371,6 +1373,7 @@ function App() {
                 ? reviewerCapabilityRead.status : undefined}
               onLoadReviewSessions={tool => snapshot.skillsContext && post({ type: 'loadReviewSessions', revision: snapshot.skillsContext.revision, tool })}
               onLoadReviewerCapabilities={loadReviewerCapabilities}
+              onRunReview={(tool, requestId, action) => snapshot.skillsContext && post({ type: 'startCodexTask', source: { kind: 'review', revision: snapshot.skillsContext.revision, tool, requestId, action } })}
               onCancelReview={(tool, requestId) => snapshot.skillsContext && post({ type: 'cancelReviewSession', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewRefresh={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewRefresh', revision: snapshot.skillsContext.revision, tool, requestId })}
               onCopyReviewResume={(tool, requestId) => snapshot.skillsContext && post({ type: 'copyReviewResume', revision: snapshot.skillsContext.revision, tool, requestId })}
@@ -1402,6 +1405,7 @@ function App() {
               repositoryScanStatus={snapshot.skillsContext ? snapshot.skillsContext.groupMatch.status === 'checking' ? 'scanning' : 'ready' : snapshot.groupRepositoryScanStatus}
               repositoryScanError={snapshot.groupRepositoryScanError} workflowKitVersion={snapshot.skillsContext ? snapshot.skillsContext.installed.version : snapshot.workflowKit.version}
               kitInstalled={snapshot.workflowKit.status === 'installed'} state={skillsGuide} onChange={updateSkillsGuide}
+              onRun={featureId => snapshot.skillsContext && post({ type: 'startCodexTask', source: { kind: 'skill', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision } })}
               onCopy={(text, featureId) => snapshot.skillsContext ? post({ type: 'copySkillGuidePrompt', featureId, inputs: skillsGuide.inputs, revision: snapshot.skillsContext.revision }) : post({ type: 'copy', text })}
               onOpenSettings={() => setToolDrawer(true)} />
             : mode === 'developer' ? <div class={`developer-view-shell ${developerView}`}>
@@ -1530,6 +1534,7 @@ function App() {
       </section>
     </div>
 
+    <CodexPanel post={post} />
     <div class="workspace-operation-area"><OperationFeedback excludeResources={[...(mode === 'clone' && projectTab === 'gitlab' && snapshot.connected && snapshot.group ? ['repositories'] : []), ...(mode === 'reviewer' && mr ? [`mr:${mr.project_id}:${mr.iid}`] : []), ...(mode === 'sa' || toolDrawer ? ['skills'] : [])]} excludePrefixes={mode === 'git' ? ['git:'] : mode === 'sa' ? ['skill:'] : mode === 'developer' && issueNavigation ? ['issue:'] : []} initialOperations={snapshot.operations} scopeRevision={effectiveOperationScope({ type: 'refresh', mode, projectSource: requestProjectSource }, { scopeRevision: snapshot.operationScope ?? operationScope, localOperationScope: snapshot.localOperationScope ?? localOperationScope })} onRefresh={() => post({ type: 'refresh' })} /></div>
     <footer class="statusbar"><span>{workspaceStatus}</span><TimerStatus instanceUserScope={snapshot.instanceUserScope} initialTimers={snapshot.timers} version={snapshot.timerVersion ?? 0} /><span class="status-spacer" />{busy && <span class="subtle">{busyLabel}</span>}</footer>
     <NotificationSnackbar snapshot={notifications} onView={id => {
@@ -1645,6 +1650,7 @@ function ToolDrawer({ actions, snapshot, operationBusy, source, onSource, onInst
       </div>
     </section>
     <section class="workspace-settings"><h3>GitLab 專案來源</h3>{snapshot.connected ? <><p>目前帳號：{snapshot.currentUser?.name ?? snapshot.baseUrl}</p><p>遠端群組：{snapshot.group?.full_path ?? '尚未選擇'}</p><div class="button-row"><button type="button" disabled={operationBusy} onClick={onSelectGroup}>切換 GitLab 群組</button></div></> : <><p>連線後可瀏覽 GitLab 專案、Issue 與 MR。</p><button class="primary" type="button" disabled={operationBusy} onClick={onConnect}>連線 GitLab</button></>}</section>
+    <CodexSettings post={post} />
     <section class="workspace-settings"><h3>操作紀錄</h3><p>在 VS Code 原生 Output 面板查看 GitLab Workspace Log。</p><button type="button" onClick={onOpenLogs}>開啟 Log</button></section>
     <section class="instance-capabilities"><h3>GitLab 執行個體與功能支援</h3>{snapshot.connected ? <>
       <p>版本：GitLab {snapshot.instance?.version ?? '未知'} · 版本類型：{snapshot.instance?.enterprise === false ? 'Community Edition' : snapshot.instance?.enterprise === true ? 'Enterprise Edition' : '未知'}</p>

@@ -16,6 +16,7 @@ export interface BmadPanelProps {
   onChange?: (state: BmadPanelState) => void;
   onRefresh: () => void;
   onCopyCommand: (request: BmadCommandRequest) => void;
+  onRunCommand?: (request: BmadCommandRequest) => void;
   onOpenTerminal: () => void;
   onOpenDocumentation: (url: string) => void;
   onOpenArtifact: (stepId: string, path: string) => void;
@@ -47,7 +48,7 @@ import { FeatureNotice, FeatureNotices, FeatureButton } from './FeatureNotice';
 import { availabilityProps, availabilityBlocker, blockedWhen, firstBlocker } from './featureAvailability';
 
 /** Guidance never changes progress; all project state comes from observed native artifacts. */
-export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
+export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefresh, onCopyCommand, onRunCommand, onOpenTerminal, onOpenDocumentation, onOpenArtifact, onOpenSettings }: BmadPanelProps) {
   const [localState, setLocalState] = useState<BmadPanelState>({});
   const ui = state ?? localState;
   const catalogRef = useRef<HTMLDivElement>(null);
@@ -175,6 +176,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
         <p>工作根目錄：<code>{snapshot.root ?? '尚未選擇專案資料夾'}</code>；預設產出放在此目錄的 <code>_bmad-output/</code>。</p>
         <div class="bmad-inline-actions"><button type="button" class="primary" {...availabilityProps('bmad-actions', taskBlocked)}
           onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>複製 BMAD 提示詞</button>
+          {onRunCommand && <FeatureButton type="button" class="primary" blocker={taskBlocked} onClick={() => onRunCommand({ revision: snapshot.revision, command: 'task', requirement: ui.requirement ?? '' })}>使用 Codex 執行</FeatureButton>}
           <button type="button" class="secondary" {...availabilityProps('bmad-root', rootBlocked)} onClick={() => onCopyCommand({ revision: snapshot.revision, command: 'codex' })}>複製 Codex 指令</button></div>
         <FeatureNotices id="bmad-actions" items={bmadBlockers}>{!taskReady && <><button type="button" onClick={onRefresh}>重新偵測</button><button type="button" onClick={onOpenSettings}>開啟 WorkflowKit 設定</button></>}</FeatureNotices><p>在相同根目錄啟動 <code>{BMAD_CODEX_COMMAND}</code>，貼上提示詞；完成後回到「目前進度」查看已儲存的產物。</p>
         {!taskReady && <p class="bmad-environment-notice" role="status">請確認 BMAD 與 $bmad-help 已安裝並重新偵測；需要安裝或更新時請開啟 WorkflowKit 設定。</p>}
@@ -188,7 +190,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
     </section>}
 
     {selectedSection === 'capabilities' && <section id="bmad-section-capabilities" class="bmad-section" role="tabpanel" aria-labelledby="bmad-tab-capabilities">
-      <div class="bmad-section-heading"><div><h2>你現在想完成什麼？</h2><p>選擇情境查看適用能力；每個指令都貼到 Codex 對話執行。</p></div>
+      <div class="bmad-section-heading"><div><h2>你現在想完成什麼？</h2><p>選擇情境查看適用能力；可直接使用 Codex 執行，或複製指令至 Codex 對話。</p></div>
         <button type="button" class="bmad-text-button" onClick={() => openDocumentation('planning')}>官方路徑選擇 ↗</button></div>
       <div class="bmad-task-grid">{BMAD_TASK_GUIDES.map(task => <button type="button" key={task.id} data-task-id={task.id}
         class={`bmad-task-card${selectedTask.id === task.id ? ' bmad-task-selected' : ''}`} aria-pressed={selectedTask.id === task.id}
@@ -210,7 +212,7 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
               <button type="button" class={`bmad-flow-step${selected?.id === node.id ? ' bmad-step-selected' : ''}`} data-step-id={node.id} aria-pressed={selected?.id === node.id}
                 onClick={() => selectNode(node)} onKeyDown={keyboardCatalog}><strong>{nodeTitle(node)}</strong><code>{nativeCommand(node.skill, node.action)}</code><span>{availability(node)}</span></button></li>)}</ul></section>)}</div>
           {selected && <section class="bmad-step-detail"><h3>{nodeTitle(selected)}</h3><p>{selectedGuide?.purpose ?? selected.description}</p>
-            <div class="bmad-command-line"><code>{nativeCommand(selected.skill, selected.action)}</code><button type="button" class="secondary" onClick={() => copyGuidance(selected.skill, selected)}>複製能力指令</button></div>
+            <div class="bmad-command-line"><code>{nativeCommand(selected.skill, selected.action)}</code><button type="button" class="secondary" onClick={() => copyGuidance(selected.skill, selected)}>複製能力指令</button>{onRunCommand && <button type="button" class="primary" onClick={() => onRunCommand({ revision: snapshot.revision, command: 'skill', skill: selected.skill, stepId: selected.id })}>使用 Codex 執行</button>}</div>
             <dl class="bmad-capability-facts">{selectedGuide && <><div><dt>準備什麼</dt><dd>{selectedGuide.input}</dd></div><div><dt>會得到什麼</dt><dd>{selectedGuide.output}</dd></div></>}<div><dt>下一步</dt><dd>{selectedGuide?.nextStep ?? '用 $bmad-help 依目前產物判斷下一步。'}</dd></div></dl>
             {stepsById.get(selected.id)?.summary && <p class="bmad-muted">{stepsById.get(selected.id)!.summary}</p>}
             {snapshot.edges.some(edge => edge.to === selected.id || edge.from === selected.id) && <div class="bmad-related"><p>參考順序，請依本次任務調整：</p>
@@ -223,13 +225,13 @@ export function BmadPanel({ snapshot, environment, kit, state, onChange, onRefre
     </section>}
 
     {selectedSection === 'progress' && <section id="bmad-section-progress" class="bmad-section bmad-position" role="tabpanel" aria-labelledby="bmad-tab-progress">
-      <div class="bmad-section-heading"><div><h2>從專案產物看目前位置</h2><p>顯示已儲存文件的原生狀態。外部 Codex 的執行活動不會在此顯示。</p></div></div>
+      <div class="bmad-section-heading"><div><h2>從專案產物看目前位置</h2><p>顯示已儲存文件的原生狀態。Codex 執行活動顯示於下方任務面板。</p></div></div>
       {snapshot.currentCandidates.length ? <ul class="bmad-current-list">{snapshot.currentCandidates.map((candidate, index) => {
         const node = nodesById.get(candidate.stepId);
         const artifactId = candidate.artifactId && stepsById.get(candidate.stepId)?.artifacts.some(artifact => artifact.id === candidate.artifactId) ? candidate.artifactId : undefined;
         const storyId = candidate.storyId && snapshot.stories.some(story => story.id === candidate.storyId) ? candidate.storyId : undefined;
         return <li key={`${candidate.stepId}:${candidate.artifactId ?? candidate.storyId ?? index}`} class="bmad-current-card"><span class="bmad-current-label">{node ? nodeTitle(node) : candidate.stepId}</span><h3>{candidate.label}</h3><p>{candidate.reason}</p>
-          {node && <FeatureButton type="button" class="secondary" blocker={firstBlocker(blockedWhen(!available(node), availability(node), 'warning'), blockedWhen(snapshot.observation.state === 'error', '請先重新偵測工作紀錄。', 'error', snapshot.observation.error))} onClick={() => copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</FeatureButton>}</li>;
+          {node && <><FeatureButton type="button" class="secondary" blocker={firstBlocker(blockedWhen(!available(node), availability(node), 'warning'), blockedWhen(snapshot.observation.state === 'error', '請先重新偵測工作紀錄。', 'error', snapshot.observation.error))} onClick={() => copySkill(node, storyId ? { storyId } : artifactId ? { artifactId } : undefined)}>複製工作指令</FeatureButton>{node && onRunCommand && available(node) && <button type="button" class="primary" onClick={() => onRunCommand({ revision: snapshot.revision, command: 'skill', skill: node.skill, stepId: node.id, ...(storyId ? { storyId } : artifactId ? { artifactId } : {}) })}>使用 Codex 執行</button>}</>}</li>;
       })}</ul> : <p class="bmad-empty-position">尚未觀察到可確定的目前位置；這不代表沒有執行過 BMAD。可用 <code>$bmad-help</code> 讀取專案並取得建議。</p>}
       {snapshot.recommendations.length > 0 && <div class="bmad-recommendations"><h3>依現有證據建議</h3><ul>{snapshot.recommendations.map(item => <li key={item.stepId}><strong>{nodesById.has(item.stepId) ? nodeTitle(nodesById.get(item.stepId)!) : item.stepId}</strong><span>{item.reason}</span></li>)}</ul></div>}
       <details class="bmad-progress-details"><summary>展開工作與產物 <span>{snapshot.stories.length} 個工作項目 · {artifacts.length} 份產物</span></summary>

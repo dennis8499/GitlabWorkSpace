@@ -31,6 +31,7 @@ const QUICK_ACTION_COMMANDS: Record<QuickAction, string> = {
   openRepository: 'gitlabWorkspace.openGitMode'
 };
 let activeOperations: OperationTracker | undefined;
+let shutdownCodex: (() => Promise<void>) | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<unknown> {
   const testMode = context.extensionMode === vscode.ExtensionMode.Test;
@@ -79,6 +80,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     () => workspacePanel?.getLocalOperationScope() ?? `local:none:${session.connectionEpoch}`
   );
   workspacePanel = new WorkspacePanel(context, session, issuePanels, () => quickActions.refresh(), gitRepositories, notifications, operations);
+  shutdownCodex = () => workspacePanel!.shutdownCodex();
   gitRepositories.setGitLabProjects(() => workspacePanel?.getGitLabProjects() ?? []);
   context.subscriptions.push(gitRepositories.onDidChangeRepositories(() => quickActions.refresh()));
   refreshWorkspaceAfterIssueChange = () => {
@@ -149,6 +151,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
     registerLoggedCommand('gitlabWorkspace.openRepository', (repoId?: string) => getWorkspace().navigateTo('git', repoId))
   );
   if (testMode) return {
+    getWorkspaceForTesting: () => getWorkspace(),
     session,
     getNotificationsForTesting: () => notifications.snapshot(),
     setFetchForTesting: (fetcher: typeof fetch) => session.setFetchForTesting(fetcher),
@@ -171,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<unknow
 }
 
 export async function deactivate(): Promise<void> {
+  await shutdownCodex?.(); shutdownCodex = undefined;
   await activeOperations?.flush(); activeOperations = undefined;
 }
 

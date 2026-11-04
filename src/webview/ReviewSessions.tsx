@@ -19,15 +19,16 @@ const budgetLabel: Record<string, string> = {
 };
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
 
-export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onCopyRefresh, onCopyResume, onOpenReport }: {
+export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onCopyRefresh, onCopyResume, onOpenReport, onRun }: {
   tool: ReviewerToolId; sessions: ReviewSessionSummary[]; error?: string;
+  onRun?: (id: string, action: 'resume' | 'refresh') => void;
   onRefresh: () => void; onCancel: (id: string) => void;
   onCopyRefresh: (id: string) => void; onCopyResume: (id: string) => void; onOpenReport: (id: string) => void;
 }) {
   const label = tool === 'merge-reviewer' ? '本機合併審查' : '本機上版檢查';
   return <section class="review-sessions" aria-label={label}>
     <header><h3>{label}</h3><button type="button" class="secondary" onClick={onRefresh}>更新審查狀態</button></header>
-    {error ? <p role="status">{error}</p> : !sessions.length ? <p class="subtle">尚無審查紀錄。貼上提示詞執行後，這裡會顯示各份審查的進度。</p>
+    {error ? <p role="status">{error}</p> : !sessions.length ? <p class="subtle">尚無審查紀錄。使用 Codex 執行後，這裡會顯示各份審查的進度。</p>
       : <div class="review-session-list">{sessions.map(item => <article key={item.requestId}>
         <div><strong>{item.repository}</strong><small>{item.requestId.slice(0, 8)}</small></div>
         <p>{item.head} → {item.base}</p>
@@ -47,6 +48,7 @@ export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onC
         {item.error && <p class="warning">{item.error}</p>}
         {item.cleanupPending && <p class="warning">報告已保存，暫存清理待重試；恢復指令會沿用既有報告。</p>}
         <div class="review-session-actions">
+          {onRun && <><button type="button" onClick={() => onRun(item.requestId, 'resume')}>使用 Codex 恢復審查</button><button type="button" onClick={() => onRun(item.requestId, 'refresh')}>使用 Codex 重新同步</button></>}
           {item.reportPath && <button class="secondary" type="button" onClick={() => onOpenReport(item.requestId)}>開啟報告</button>}
           {!['published', 'failed', 'cancelled'].includes(item.state) &&
             <button class="secondary" type="button" onClick={() => onCancel(item.requestId)}>取消審查</button>}
@@ -55,6 +57,6 @@ export function ReviewSessions({ tool, sessions, error, onRefresh, onCancel, onC
           <button class="secondary" type="button" onClick={() => onCopyRefresh(item.requestId)}>複製重新同步指令</button>
         </div>
       </article>)}</div>}
-    <p class="subtle">狀態來自本機紀錄；更新狀態不會連線 GitLab。重新同步指令貼入 Codex 執行後，才會建立新的審查。</p>
+    <p class="subtle">狀態來自本機紀錄；更新狀態不會連線 GitLab。重新同步會建立新的審查；恢復沿用同份固定證據。</p>
   </section>;
 }

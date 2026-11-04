@@ -202,7 +202,9 @@ export function defaultReviewRuntime(workspace: string, tool: ReviewerToolId): s
 }
 
 export function reviewRuntimeCandidates(preferred: string, workspace: string, tool: ReviewerToolId): string[] {
-  return [...new Set([preferred, path.join(workspace,
+  const legacyCaseRoots = process.platform === 'win32' && /^[a-z]:/i.test(workspace)
+    ? [workspace[0].toLowerCase() + workspace.slice(1), workspace[0].toUpperCase() + workspace.slice(1)].map(value => defaultReviewRuntime(value, tool)) : [];
+  return [...new Set([preferred, ...legacyCaseRoots, path.join(workspace,
     tool === 'merge-reviewer' ? '.review-runtime' : '.release-review-runtime')].map(root => path.resolve(root)))];
 }
 

@@ -1,0 +1,112 @@
+{
+  "codexCli": "0.165.0",
+  "vscode": "1.144.1",
+  "workflows": [
+    {
+      "name": "wiki",
+      "id": "ui-1793721511909-1-gst4gj",
+      "status": "completed",
+      "threadId": "01a1a222-4665-73b0-8dd8-19d2a08e70c4",
+      "turnId": "01a1a222-47c2-7f40-b6ed-5cb2e204df5e",
+      "evidence": "codex-live-gkniyC"
+    },
+    {
+      "name": "merge-reviewer",
+      "id": "ui-1793721613580-5-oyte5y",
+      "status": "completed",
+      "threadId": "01a1a223-d92e-79f1-b3bc-a8fbfc5b5586",
+      "turnId": "01a1a223-dc60-7c82-a627-47bd83f60b62",
+      "evidence": "codex-live-gkniyC"
+    },
+    {
+      "name": "release-reviewer",
+      "id": "ui-1793720360632-4-s7v5g9",
+      "status": "completed",
+      "threadId": "01a1a210-b08f-7d52-991e-5b72466dec8a",
+      "turnId": "01a1a210-b17f-7940-92ff-c4a8fc39ae4a",
+      "evidence": "codex-live-hf64gd"
+    },
+    {
+      "name": "bmad",
+      "id": "ui-1793721138523-1-4kc7jd",
+      "status": "completed",
+      "threadId": "01a1a21c-8d03-75a3-9997-d8fbcd92e930",
+      "turnId": "01a1a21c-9061-7ec0-a865-cd4b2217575b",
+      "evidence": "codex-live-gzaNxR"
+    }
+  ],
+  "helperReceipts": [
+    {
+      "tool": "merge-reviewer",
+      "requestId": "7c344224432743d0ba502f1e25a02d55",
+      "state": "published",
+      "phase": "complete",
+      "reviewComplete": false,
+      "evidence": "codex-live-gkniyC"
+    },
+    {
+      "tool": "release-reviewer",
+      "requestId": "ff91707983874baa8a987439926e0ee4",
+      "state": "published",
+      "phase": "complete",
+      "reviewComplete": true,
+      "evidence": "codex-live-hf64gd"
+    }
+  ],
+  "interruptResume": {
+    "passed": true,
+    "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f",
+    "states": [
+      {
+        "status": "queued"
+      },
+      {
+        "status": "starting"
+      },
+      {
+        "status": "starting",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f"
+      },
+      {
+        "status": "running",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f"
+      },
+      {
+        "status": "running",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f",
+        "turnId": "01a1a22a-ac47-7df0-978e-f271f7fa9cbd"
+      },
+      {
+        "status": "interrupted",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f",
+        "turnId": "01a1a22a-ac47-7df0-978e-f271f7fa9cbd"
+      },
+      {
+        "status": "queued",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f"
+      },
+      {
+        "status": "starting",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f"
+      },
+      {
+        "status": "running",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f"
+      },
+      {
+        "status": "running",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f",
+        "turnId": "01a1a22a-b49e-7c22-a834-a01f964dbf9f"
+      },
+      {
+        "status": "completed",
+        "threadId": "01a1a22a-a8d3-76f0-985c-4832ff15718f",
+        "turnId": "01a1a22a-b49e-7c22-a834-a01f964dbf9f"
+      }
+    ]
+  },
+  "bmadArtifact": {
+    "path": "_bmad-output/specs/spec-calculator-add-fix/SPEC.md",
+    "sha256": "5ded0d69083d5dcf4ebf7caa34c8e18504f50a864b229963811b8119127fbd98"
+  }
+}

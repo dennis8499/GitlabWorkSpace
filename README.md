@@ -33,11 +33,14 @@
 - Git 版控可在未連線 GitLab 時使用；VS Code 側欄直接顯示分支、變更、標籤與 Stash，GitLab 專案清單可開啟本機 Repo 的版控畫面。
 - 查看指派給自己的未結案 Issue；點清單先預覽，再按「開啟 Issue 詳情」。建立、編輯、討論及管理 Issue 都在同一工作台完成。
 - 依 GitLab 帳號權限與伺服器能力操作討論串、子工作項目、通知、待辦、工時，以及複製、移動或刪除議題。
-- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，複製後自行在相同專案根目錄啟動 Codex CLI，再貼上執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
+- 在「分析 → Skills 功能指引」選擇 Wiki、MergeReviewer 或 ReleaseReviewer；三工具分頁提供分類功能、必要欄位、產出與下一步；提示詞帶入實際工作區及套件版本，可按「使用 Codex 執行」直接在工作台啟動，或複製後自行執行。兩種審查每次只需指定一個 Repo、基礎分支及比較分支，由單一 Skill agent 依 Code Review 判準追查 Diff 及相關影響；審查不建立子 Agent，並在所選 Repo 的 `review-reports/` 產生一份「合併審查」或含人工 Checklist 的「上版檢查」報告。
 - 以明確分支執行單一 Repo 與相關功能鏈審查；檢視指派給自己的 MR、回覆討論、核准或依 SHA 合併。
-- 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求並複製提示詞到 Codex，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
+- 「BMAD 開發流程」透過 WorkflowKit 安裝 BMAD 6.12.4。輸入需求後可使用 Codex 一鍵執行，由 BMAD 選擇流程；頁面保留能力參考，並即時觀察已儲存的 Spec、Sprint、Story 與來源文件。
 - 追蹤 Issue 工時；不確定的送出結果會先要求對帳，不自動重送。
+- Codex 任務面板整合串流進度、對話、核准、停止及手動續作；任務依工作區排隊，重開 VS Code 後可讀取歷史。需要 Codex CLI 0.165.0+，模型與登入沿用本機設定。
 - 從設定一次安裝或更新 WorkflowKit。專案下載、Skills 安裝與執行共用專案根目錄；預設為 VS Code 開啟的專案資料夾，可在設定統一修改。流程依本機目錄結構自動判定，Release 檢查與安裝不需要登入 GitLab。
+
+Codex 一鍵執行、設定與任務恢復見 [Codex Bridge 操作說明](docs/codex-bridge.md)。
 
 完整的交接、恢復與報告版本規則見 [Group 工作流程](docs/group-workflow.md)。
 

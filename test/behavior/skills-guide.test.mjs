@@ -211,7 +211,7 @@ test('Skills prompt error deduplication resets for another card or operation con
   await view.tick(); assert.equal(notices().length, 3, 'feedback itself does not cause a publication render loop');
 });
 
-for (const profile of ['group', 'repository']) test(`${profile} native branch review copies prompts without opening Codex`, async t => {
+for (const profile of ['group', 'repository']) test(`${profile} branch review preserves copying and executes Codex only on request`, async t => {
   const view = await mount(t, profile); const { document, change } = view;
   document.getElementById('skill-tool-merge-reviewer').click(); await view.tick();
   const capabilityRequest = view.requests.findLast(request => request.type === 'loadReviewerCapabilities');
@@ -233,12 +233,19 @@ for (const profile of ['group', 'repository']) test(`${profile} native branch re
   const copy=view.requests.findLast(request => request.type==='copySkillGuidePrompt');
   assert.equal(copy.featureId,'merge-repo'); assert.equal(copy.inputs['merge-repo.head'],'feature/review');
   assert.equal(document.querySelector('.skills-codex-button'),null);
-  assert.match(document.querySelector('.skills-next-step').textContent,/自行啟動 Codex CLI/);
+  assert.match(document.querySelector('.skills-next-step').textContent,/也可複製提示詞自行執行/);
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false, 'copying does not start a task');
+  const run = [...document.querySelectorAll('.skills-action-bar button')].find(button => button.textContent === '使用 Codex 執行');
+  assert.ok(run); assert.equal(run.disabled, false); run.click(); await view.tick();
+  const execute = view.requests.findLast(request => request.type === 'startCodexTask');
+  assert.equal(execute.source.kind, 'skill'); assert.equal(execute.source.featureId, copy.featureId);
+  assert.equal(execute.source.revision, copy.revision); assert.deepEqual({ ...execute.source.inputs }, { ...copy.inputs });
   assert.equal(view.requests.some(request => request.type==='openCodexTerminal'),false);
   const reopened=await mount(t,profile,view.savedState);
   assert.equal(reopened.document.querySelector('[id="wiki-input-merge-repo.head"]').value,'feature/review');
   assert.equal(reopened.document.querySelector('.skills-codex-button'),null);
   assert.equal(reopened.requests.some(request => request.type==='openCodexTerminal'),false);
+  assert.equal(reopened.requests.some(request => request.type === 'startCodexTask'), false, 'reopening does not start a task');
 });
 
 test('local review cards isolate request IDs, ignore stale snapshots and only request local controls', async t => {

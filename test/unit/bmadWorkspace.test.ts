@@ -126,6 +126,23 @@ test('BMAD loads installed progress offline from the selected root and resolves 
   assert.notEqual(next.revision, first.revision);
 });
 
+test('Codex and clipboard share the verified BMAD task, and background continuation survives page changes', async t => {
+  const f = await fixture(t);
+  f.setKitState({ status: 'installed', version: '1.3.5', integrity: 'verified', workspaceContract: 2,
+    installerApi: 1, capabilities: ['bmad-workflow'] } as any);
+  const snapshot = await f.refresh();
+  const request = { revision: snapshot.revision, command: 'task', requirement: '建立付款流程規格' };
+  const spec = await f.host.prepareCodexTask({ kind: 'bmad', request });
+  await f.host.copyBmadCommand(request);
+  assert.equal(spec.prompt, copied[copied.length - 1]); assert.equal(spec.root, await fs.realpath(f.root));
+  assert.equal(spec.skill.name, 'bmad-help'); assert.match(spec.prompt, /建立付款流程規格/);
+  f.host.activeMode = 'dashboard'; f.host.bmad.setContext(f.root, f.host.projectContext.revision, false);
+  const resumed = await f.host.prepareCodexTask(spec.source, spec);
+  assert.equal(resumed.environmentKey, spec.environmentKey);
+  vscode.workspace.isTrusted = false;
+  await assert.rejects(f.host.prepareCodexTask(spec.source, spec), /信任/);
+});
+
 test('copy works offline without launching and stale artifact revisions are rejected', async t => {
   const f = await fixture(t); const snapshot = await f.refresh(); const node = snapshot.nodes.find(item => item.skill === 'bmad-prd')!;
   f.setFeatures([]); vscode.workspace.isTrusted = false;

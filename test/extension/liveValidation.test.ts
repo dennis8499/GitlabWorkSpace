@@ -772,7 +772,7 @@ async function exercisePackagedGraphWorker(
   }
 }
 
-async function connectWorkspaceWebview(
+export async function connectWorkspaceWebview(
   browser: Awaited<ReturnType<typeof chromium.connectOverCDP>>,
   port: number,
   targetEvidencePath: string,

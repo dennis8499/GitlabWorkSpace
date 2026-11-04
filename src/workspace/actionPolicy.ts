@@ -15,6 +15,8 @@ export interface ActionPolicy {
 // These exhaustive tables also classify control traffic, which must never
 // produce further lifecycle messages or notifications.
 export const workspaceActionKinds = {
+  startCodexTask: 'write', listCodexTasks: 'control', codexHistory: 'read', sendCodexMessage: 'write',
+  cancelCodexTask: 'control', resumeCodexTask: 'write', answerCodex: 'write', checkCodex: 'read', configureCodex: 'write',
   ready: 'control',
   reconcileOperations: 'control',
   gitReady: 'control',
@@ -220,6 +222,8 @@ export const quickActionKinds = {
 } satisfies Record<QuickAction, ActionKind>;
 
 export const operationLabels: Record<string, string> = {
+  startCodexTask: '啟動 Codex 任務', sendCodexMessage: '傳送 Codex 訊息', resumeCodexTask: '續作 Codex 任務',
+  answerCodex: '回覆 Codex', codexHistory: '讀取 Codex 對話', checkCodex: '檢查 Codex', configureCodex: '設定 Codex',
   checkWorkflowKitReleases: '檢查最新正式版',
   loadReviewerCapabilities: '讀取 Reviewer 能力', loadReviewSessions: '讀取本機審查狀態', cancelReviewSession: '取消本機審查',
   copyReviewRefresh: '複製重新同步指令', copyReviewResume: '恢復本機審查', openReviewReport: '開啟審查報告',
@@ -240,6 +244,7 @@ const connectionActions = new Set(['connect', 'disconnect', 'submitAccountLogin'
 const rootActions = new Set(['selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot', 'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot', 'clone', 'syncRepos', 'scanRepositories']);
 const skillsActions = new Set(['installWorkflowKit', 'refreshWorkflowKit', 'checkWorkflowKitReleases', 'setWorkflowKitSource', 'refreshBmad', 'openBmadTerminal']);
 const localWorkspaceActions = new Set([
+  'startCodexTask', 'listCodexTasks', 'codexHistory', 'sendCodexMessage', 'cancelCodexTask', 'resumeCodexTask', 'answerCodex', 'checkCodex', 'configureCodex',
   'gitAction', 'gitOpenRepository', 'repositoryDetails', 'refreshRepositories', 'scanRepositories',
   'selectProjectFolder', 'selectProjectRoot', 'resetProjectRoot', 'selectCloneRoot', 'resetCloneRoot',
   'selectWorkflowKitInstallRoot', 'resetWorkflowKitInstallRoot',
@@ -327,6 +332,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
   else if (request.type === 'cancelRepositoryDetails' || request.type === 'reconcileOperations') kind = 'control';
   else if (action === 'openRepository') resourceKey = 'git:' + request.repositoryId;
   else if (action === 'gitOpenRepository') resourceKey = 'git-path:' + canonicalRoot(request.path);
+  else if (['startCodexTask', 'sendCodexMessage', 'resumeCodexTask', 'answerCodex', 'cancelCodexTask', 'codexHistory', 'checkCodex', 'configureCodex'].includes(action)) { resourceKey = 'codex:' + (request.taskId ?? 'queue'); slot = resourceKey + ':' + action; }
   else if (action === 'copySkillGuidePrompt') resourceKey = 'skill:' + request.featureId;
   else if (action === 'loadReviewerCapabilities') { resourceKey = 'review-capabilities:' + request.tool; slot = resourceKey; }
   else if (['loadReviewSessions', 'cancelReviewSession', 'copyReviewRefresh', 'copyReviewResume', 'openReviewReport'].includes(action)) resourceKey = 'review:' + request.tool + ':' + (request.requestId ?? 'sessions');
@@ -340,7 +346,7 @@ export function describeAction(value: { type: string }, context: ActionContext =
     || (request.type === 'gitAction' && ['open', 'readDiff', 'readCommit', 'rebasePreview'].includes(nestedType))
     || (request.type === 'issueRequest' && ['selectProject', 'preview', 'search', 'searchProjects', 'loadTemplate', 'loadCreateProjects'].includes(nestedType)) || action === 'setMergeRequestFilter';
   const concurrency: ActionConcurrency = kind === 'write' ? 'exclusive' : latest ? 'latest' : kind === 'read' ? 'join' : 'parallel';
-  const localResource = resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey.startsWith('review-capabilities:') || resourceKey === 'repositories' || resourceKey === 'skills';
+  const localResource = resourceKey.startsWith('codex:') || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') || resourceKey.startsWith('review:') || resourceKey.startsWith('review-capabilities:') || resourceKey === 'repositories' || resourceKey === 'skills';
   // Repo IDs are canonical service identities and must not be namespaced by
   // connection scope: switching accounts cannot permit a second local write.
   const namespace = clipboard || resourceKey === 'connection' || resourceKey.startsWith('git:') || resourceKey.startsWith('git-path:') ? 'global'

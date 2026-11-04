@@ -1,0 +1,94 @@
+{
+  "command": "npm.cmd test",
+  "status": "success",
+  "seconds": 1749.696,
+  "platform": "win32",
+  "node": "v24.21.0",
+  "stages": [
+    {
+      "id": "host-preflight",
+      "exitCode": 0,
+      "seconds": 0.12
+    },
+    {
+      "id": "clean-compiled",
+      "exitCode": 0,
+      "seconds": 0.092
+    },
+    {
+      "id": "compile",
+      "exitCode": 0,
+      "seconds": 0.989
+    },
+    {
+      "id": "typecheck-webview",
+      "exitCode": 0,
+      "seconds": 0.683
+    },
+    {
+      "id": "build-dashboard",
+      "exitCode": 0,
+      "seconds": 1.264
+    },
+    {
+      "id": "build-sidebar",
+      "exitCode": 0,
+      "seconds": 0.355
+    },
+    {
+      "id": "build-issue-tests",
+      "exitCode": 0,
+      "seconds": 0.33
+    },
+    {
+      "id": "extension",
+      "exitCode": 0,
+      "seconds": 452.503
+    },
+    {
+      "id": "unit",
+      "exitCode": 0,
+      "seconds": 134.681
+    },
+    {
+      "id": "behavior-node",
+      "exitCode": 0,
+      "seconds": 124.26
+    },
+    {
+      "id": "behavior-issues",
+      "exitCode": 0,
+      "seconds": 28.641
+    },
+    {
+      "id": "behavior-connect",
+      "exitCode": 0,
+      "seconds": 0.632
+    },
+    {
+      "id": "release-tooling",
+      "exitCode": 0,
+      "seconds": 2.932
+    },
+    {
+      "id": "release-workflowkit_131_integration",
+      "exitCode": 0,
+      "seconds": 992.62
+    },
+    {
+      "id": "package",
+      "exitCode": 0,
+      "seconds": 8.474
+    },
+    {
+      "id": "verify-package",
+      "exitCode": 0,
+      "seconds": 0.697
+    }
+  ],
+  "artifact": {
+    "path": "dist/gitlab-workspace-0.38.2.vsix",
+    "bytes": 1017035,
+    "sha256": "89ec08f041c95f51282fb77bfeaed33ece163e93934e08d29d21eae7ba4b9673"
+  }
+}

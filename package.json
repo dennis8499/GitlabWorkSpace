@@ -149,6 +149,12 @@
     ],
     "configuration": {
       "properties": {
+        "gitlabWorkspace.codex.executablePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Codex CLI 執行檔的完整路徑；留白從 PATH 偵測。只讀取使用者設定，支援官方 npm 安裝入口。需要 Codex CLI 0.165.0 或更新版本。"
+        },
         "gitlabWorkspace.projectRoot": {
           "default": "",
           "description": "專案下載、Skills 安裝與執行共用的根目錄。留白使用所選 VS Code 專案資料夾；相對路徑以該資料夾為基準。",
@@ -269,6 +275,7 @@
     "package:prepared": "node scripts/run-validation.mjs package --prepared",
     "prepare:validation": "node scripts/run-validation.mjs prepare",
     "test": "node scripts/run-validation.mjs all",
+    "test:codex:live": "node scripts/run-codex-live-tests.mjs",
     "test:behavior": "node scripts/run-validation.mjs behavior",
     "test:behavior:prepared": "node scripts/run-validation.mjs behavior --prepared",
     "test:extension": "node scripts/run-validation.mjs extension",

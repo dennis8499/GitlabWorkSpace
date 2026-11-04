@@ -23,7 +23,7 @@ const wikiGroups = [
   { title: '匯出', ids: ['notebooklm-export'] }
 ];
 
-export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstalled, skillsContext,
+export function SkillsGuide({ state, onChange, onCopy, onRun, onRunReview, onOpenSettings, kitInstalled, skillsContext,
   branchCandidates = [], branchStatus = 'idle', reviewerRepositories, onLoadBranches, branchError, operationScope,
   reviewSessions = [], reviewSessionsTool, reviewSessionsError, onLoadReviewSessions, reviewerCapabilitiesStatus,
   onLoadReviewerCapabilities, onCancelReview, onCopyReviewRefresh, onCopyReviewResume, onOpenReviewReport, ...context }: SkillGuideContext & {
@@ -31,6 +31,8 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
   state: SkillGuideState;
   onChange: (update: (current: SkillGuideState) => SkillGuideState) => void;
   onCopy: (text: string, featureId: string) => void;
+  onRun?: (featureId: string) => void;
+  onRunReview?: (tool: ReviewerToolId, id: string, action: 'resume' | 'refresh') => void;
   onOpenSettings: () => void;
   onLoadBranches?: (repo: string) => void;
   branchCandidates?: string[];
@@ -172,15 +174,15 @@ export function SkillsGuide({ state, onChange, onCopy, onOpenSettings, kitInstal
           <button class="quiet small reviewer-capabilities-retry" type="button" onClick={() => onLoadReviewerCapabilities?.(tool as ReviewerToolId)}>重試讀取能力</button>
         </p>}
           <details class="wiki-prompt-details"><summary>檢視提示詞預覽</summary><pre class="wiki-prompt-preview">{prompt || promptError}</pre></details>
-          <div class="skills-action-bar"><button class="primary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
+          <div class="skills-action-bar">{onRun && <button class="primary" type="button" {...availabilityProps('skills-copy', copyBlocked)} onClick={() => onRun(card.id)}>使用 Codex 執行</button>}<button class="primary wiki-copy-button" type="button" {...availabilityProps('skills-copy', copyBlocked)} aria-label={`複製${card.title}提示詞`}
             onClick={() => onCopy(prompt, card.id)}>{copyPending ? '正在處理剪貼簿…' : '複製提示詞'}</button></div><FeatureNotices id="skills-copy" items={{ '複製提示詞': copyBlocked }}>{!available && <button type="button" onClick={onOpenSettings}>準備環境與 Skills</button>}</FeatureNotices>
-          <p class="skills-next-step">下一步：複製提示詞 → 自行啟動 Codex CLI → 貼上執行 → 查看產出。分析進度由 Codex 呈現。</p>
+          <p class="skills-next-step">填寫參數後按「使用 Codex 執行」，進度與互動會顯示於下方 Codex 任務面板；也可複製提示詞自行執行。</p>
         <OperationFeedback resourceKey={`skill:${card.id}`} scopeRevision={operationScope} />
         <OperationFeedback resourceKey="skills" scopeRevision={operationScope} />
         {(tool === 'merge-reviewer' || tool === 'release-reviewer') && onLoadReviewSessions && <ReviewSessions tool={tool}
           sessions={reviewSessionsTool === tool ? reviewSessions.filter(item => item.tool === tool) : []}
           error={reviewSessionsTool === tool ? reviewSessionsError : undefined} onRefresh={() => onLoadReviewSessions(tool)}
-          onCancel={id => onCancelReview?.(tool, id)} onCopyRefresh={id => onCopyReviewRefresh?.(tool, id)}
+          onRun={onRunReview ? (id, action) => onRunReview(tool, id, action) : undefined} onCancel={id => onCancelReview?.(tool, id)} onCopyRefresh={id => onCopyReviewRefresh?.(tool, id)}
           onCopyResume={id => onCopyReviewResume?.(tool, id)} onOpenReport={id => onOpenReviewReport?.(tool, id)} />}
       </section>
     </div>

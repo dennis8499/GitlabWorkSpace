@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { readReviewerBranches } from '../../src/workspace/reviewerBranches';
+import { CodexWorkspaceLease } from '../../src/codex/workspaceLease';
+import { codexRootKey } from '../../src/codex/taskStore';
+import { networkRuntimeRoot } from '../../src/api/localNetworkLease';
 
 const clipboard: string[] = [];
 const vscode = {
-  workspace: { workspaceFolders: [] as Array<{ uri: { scheme: string; fsPath: string } }>,
+  workspace: { isTrusted: true, workspaceFolders: [] as Array<{ uri: { scheme: string; fsPath: string } }>,
     workspaceFile: undefined as { scheme: string; fsPath: string } | undefined,
     getConfiguration: () => ({ get: <T>(_key: string, fallback: T) => fallback }) },
   env: { clipboard: { writeText: async (text: string) => { clipboard.push(text); } } }
@@ -167,13 +170,89 @@ test('copying Reviewer prompts validates the selected workspace Repo and include
   for (const repo of context.reviewerRepositories) assert.ok(clipboard[0].includes(`- ${repo.name} → ${repo.path}`));
   assert.ok(clipboard[0].includes(`--workspace-file ${JSON.stringify(vscode.workspace.workspaceFile.fsPath)}`));
   assert.match(clipboard[0], /start --prepare-evidence/);
-  assert.match(clipboard[0], /--request-id "[0-9a-f-]{36}"/);
+  assert.match(clipboard[0], /--request-id "[0-9a-f]{32}"/);
   assert.match(clipboard[0], /status --summary/);
   assert.match(clipboard[0], /read-window/);
   assert.match(clipboard[0], /--updates-file/);
   assert.doesNotMatch(clipboard[0], /--protocol round-v1/);
+  const release = await host.prepareSkillGuideTask(request, '01234567-89ab-cdef-0123-456789abcdef');
+  assert.equal(release.skill.name, 'release-reviewer'); assert.equal(release.review.requestId, '0123456789abcdef0123456789abcdef');
+  assert.ok(release.prompt.includes('--request-id "0123456789abcdef0123456789abcdef"')); assert.equal(release.root, root);
+  const merge = await host.prepareSkillGuideTask({ featureId: 'merge-repo', revision: 'current', inputs: {
+    'merge-repo.repo': other, 'merge-repo.base': 'main', 'merge-repo.head': 'feature/new'
+  } }, 'fedcba98-7654-3210-fedc-ba9876543210');
+  assert.equal(merge.skill.name, 'merge-reviewer'); assert.equal(merge.review.requestId, 'fedcba9876543210fedcba9876543210');
+  assert.ok(merge.prompt.includes('--request-id "fedcba9876543210fedcba9876543210"')); assert.ok(merge.writableRoots.includes(root));
   request.inputs['release-review.repo'] = path.dirname(root);
   await assert.rejects(host.copySkillGuidePrompt(request), /VS Code 工作區/);
   assert.equal(clipboard.length, 1);
   vscode.workspace.workspaceFile = undefined;
+});
+
+test('Reviewer runtime stays stable when inventory canonicalizes the workspace drive letter', async t => {
+  if (process.platform !== 'win32') { t.skip(); return; }
+  const root = await repository(t), opened = root[0].toLowerCase() + root.slice(1);
+  vscode.workspace.workspaceFolders = [{ uri: { scheme: 'file', fsPath: opened } }];
+  vscode.workspace.workspaceFile = undefined;
+  const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
+    projects: [], workspaceMatch: { status: 'matched', profile: 'repository', root, repositories: [] },
+    workflowKit: { snapshot: { state: { status: 'missing' } } }, session: {}, projectContextSignature: () => 'same'
+  });
+  const before = host.getSkillsContext();
+  host.reviewerWorkspaceFolders = { signature: JSON.stringify([opened]), folders: [root] };
+  const after = host.getSkillsContext();
+  assert.equal(after.reviewRuntimeRoot, before.reviewRuntimeRoot);
+  assert.equal(after.releaseReviewRuntimeRoot, before.releaseReviewRuntimeRoot);
+});
+
+test('Codex review refresh keeps its queued request ID on revalidation and resume keeps fixed evidence', async t => {
+  const root = await repository(t), temp = await mkdtemp(path.join(os.tmpdir(), 'reviewer-controls-'));
+  t.after(() => rm(temp, { recursive: true, force: true }));
+  const runtimes = { 'merge-reviewer': path.join(temp, 'merge'), 'release-reviewer': path.join(temp, 'release') };
+  const original = 'a'.repeat(32);
+  for (const tool of ['merge-reviewer', 'release-reviewer'] as const) {
+    const runtime = runtimes[tool], prefix = tool === 'merge-reviewer' ? 'Merge' : 'Release';
+    await mkdir(path.join(runtime, 'jobs'), { recursive: true });
+    await writeFile(path.join(runtime, `.${tool}-runtime.json`), JSON.stringify({ schema: `${prefix}ReviewRuntime/v1`, directory: runtime }));
+    await writeFile(path.join(runtime, 'jobs', original + '.json'), JSON.stringify({ schema: `${prefix}ReviewSession/v1`, request_id: original,
+      runtime_root: runtime, state: 'reviewing', phase: 'review', updated_at: '2026-11-03T00:00:00Z',
+      inputs: { workspace: root, project: root, base: 'main', head: 'topic' } }));
+    const skill = path.join(root, '.agents/skills', tool, 'SKILL.md');
+    await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, 'fixture Skill');
+    const context = { revision: 'current', mode: 'repository', root, workspaceRoot: root,
+      repositories: [{ name: 'service', path: root }], reviewerRepositories: [{ name: 'service', path: root }],
+      reviewRuntimeRoot: runtimes['merge-reviewer'], releaseReviewRuntimeRoot: runtimes['release-reviewer'],
+      installed: { status: 'installed', version: 'test' } };
+    const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), {
+      getSkillsContext: () => context, resolveProjectContext: () => ({ root }),
+      refreshWorkflowKit: async () => undefined, post: () => undefined
+    });
+    const source = { kind: 'review', action: 'refresh', tool, requestId: original, revision: 'current' };
+    const initial = await host.prepareCodexTask(source), checked = await host.prepareCodexTask(source, initial);
+    assert.notEqual(initial.review.requestId, original);
+    assert.equal(checked.review.requestId, initial.review.requestId);
+    assert.equal(checked.prompt, initial.prompt);
+    assert.ok(checked.prompt.includes(`--request-id "${checked.review.requestId}"`));
+    const resume = await host.prepareCodexTask({ ...source, action: 'resume' });
+    assert.equal(resume.review.requestId, original);
+    assert.ok(resume.prompt.includes(`--request-id ${original}`));
+    assert.ok(resume.prompt.includes(JSON.stringify(runtime)));
+  }
+});
+
+test('Codex workspace admission excludes managed writes while local reads remain available', async t => {
+  const root = await repository(t);
+  const host: any = Object.assign(Object.create(WorkspacePanel!.prototype), { projectContext: { root } });
+  const lease = await CodexWorkspaceLease.acquire(path.join(networkRuntimeRoot(), 'codex-workspaces', codexRootKey(root) + '.lock'));
+  let writes = 0;
+  try {
+    for (const request of [{ type: 'installWorkflowKit' }, { type: 'syncRepos' }, { type: 'selectProjectRoot' },
+      { type: 'gitAction', action: { type: 'commit', message: 'fixture' } }]) {
+      await assert.rejects(host.withCodexWriteGuard(request, async () => { writes++; }), (error: Error) => error.name === 'TimeoutError');
+    }
+    assert.equal(writes, 0);
+    assert.equal(await host.withCodexWriteGuard({ type: 'copySkillGuidePrompt' }, async () => 'local read'), 'local read');
+  } finally { await lease.release(); }
+  await host.withCodexWriteGuard({ type: 'installWorkflowKit' }, async () => { writes++; });
+  assert.equal(writes, 1);
 });

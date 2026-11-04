@@ -26,6 +26,9 @@ function fixture() {
     panel: { visible: true, webview: { postMessage: async (message: unknown) => { messages.push(message); return true; } } },
     webviewReady: true, webviewMessagesSent: 0, webviewMessagesReceived: 0, viewGeneration: 0, viewReadAbort: new AbortController(),
     writesInFlight: 0, accountTransitionBusy: false, disposed: false,
+    // These lifecycle fixtures use virtual paths and mock the write adapter.
+    // The physical workspace admission lock has its own filesystem regression.
+    withCodexWriteGuard: async (_request: unknown, task: () => Promise<unknown>) => task(),
     runLogged: async (_action: string, task: () => Promise<unknown>) => task(),
     sendSnapshot: () => undefined, dispatchMessage: async () => undefined,
     pendingViewNotices: [], gitWriteReceipts: new Map(),

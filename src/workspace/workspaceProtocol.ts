@@ -275,6 +275,15 @@ export interface CloneOperationState {
 export type OperationRecoveryMetadata = Pick<WorkspaceOperationState, 'requestId' | 'resourceKey' | 'action' | 'label' | 'correlationId' | 'lockKey' | 'kind'>;
 
 export type WorkspaceRequest = (NotificationRequest
+  | { type: 'startCodexTask'; source: import('../codex/protocol').CodexTaskSource }
+  | { type: 'listCodexTasks' }
+  | { type: 'codexHistory'; taskId: string; cursor?: string }
+  | { type: 'sendCodexMessage'; taskId: string; text: string }
+  | { type: 'cancelCodexTask'; taskId: string }
+  | { type: 'resumeCodexTask'; taskId: string }
+  | { type: 'answerCodex'; taskId: string; interactionId: string; answer: import('../codex/protocol').CodexInteractionAnswer }
+  | { type: 'checkCodex' }
+  | { type: 'configureCodex'; action: 'login' | 'sandbox' | 'executable' }
   | GitPanelRequest
   | { type: 'ready'; projectSource?: 'gitlab' | 'local'; developerView?: 'list' | 'graph'; mergeRequestFilter?: MergeRequestFilter }
   | { type: 'reconcileOperations'; pendingIds?: string[] }
@@ -366,6 +375,7 @@ export type WorkspaceRequest = (NotificationRequest
 ) & { projectRevision?: string; operationId?: string; operationScope?: string; hostSessionId?: string; scopeEpoch?: number };
 
 export type WorkspaceResponse =
+  | { type: 'codexEvent'; event: import('../codex/protocol').CodexEvent }
   | { type: 'notificationsChanged'; snapshot: NotificationSnapshot }
   | { type: 'openNotifications' }
   | { type: 'openSettings' }

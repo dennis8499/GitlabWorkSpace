@@ -1407,13 +1407,51 @@ test('offline Dashboard keeps local Repo and tool entry points available without
   assert.match(document.querySelector('.home-gitlab-card').textContent, /尚未連線/);
   assert.equal(document.querySelector('.home-repository').disabled, false);
   assert.ok(document.querySelector('.home-tool-card').textContent.includes('前往設定管理 WorkflowKit'));
-  assert.deepEqual(view.requests, [{ type: 'ready', projectSource: 'gitlab', developerView: 'list' }], 'the offline page opens without dispatching a GitLab read');
+  assert.deepEqual(view.requests.filter(request => request.type !== 'listCodexTasks'),
+    [{ type: 'ready', projectSource: 'gitlab', developerView: 'list' }], 'the offline page opens without dispatching a GitLab read');
+  assert.ok(view.requests.some(request => request.type === 'listCodexTasks'), 'saved Codex tasks are queried locally');
 
   document.querySelector('.home-repository').click(); await view.tick();
   assert.equal(view.requests.at(-1).type, 'gitOpenRepository');
   assert.equal(view.requests.at(-1).path, 'C:/workspace/service');
   document.querySelector('.home-gitlab-card .primary').click(); await view.tick();
   assert.equal(view.requests.at(-1).type, 'connect');
+});
+
+test('Codex task projections render messages, bind answers and expose stop, resume and history controls', async t => {
+  const view = await mount({ mode: 'dashboard' }, snapshot('dashboard')); t.after(() => view.dom.window.close());
+  const document = view.dom.window.document;
+  const event = async value => { view.send({ type: 'codexEvent', event: value }); await view.tick(); };
+  const task = { id: 'codex-ui-test', title: 'Wiki task', root: 'C:/workspace', status: 'waiting',
+    createdAt: '2026-11-03T00:00:00Z', updatedAt: '2026-11-03T00:00:00Z', threadId: 'thread-ui', turnId: 'turn-ui' };
+  await event({ kind: 'tasks', tasks: [] }); await event({ kind: 'tasks', tasks: [task] });
+  await event({ kind: 'output', taskId: task.id, replace: true, items: [{ id: 'message', kind: 'agent', text: 'Streaming result' }] });
+  assert.equal(document.querySelector('.codex-panel').open, true);
+  assert.match(document.querySelector('.codex-conversation').textContent, /Streaming result/);
+  await event({ kind: 'interactions', taskId: task.id, interactions: [{ id: 'question-ui', taskId: task.id,
+    kind: 'questions', title: 'Choose scope', questions: [{ id: 'scope', question: 'Which scope?' }] }] });
+  const answer = document.querySelector('.codex-interaction input'); answer.value = 'Local only';
+  answer.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.codex-interaction').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  const replied = view.requests.findLast(request => request.type === 'answerCodex');
+  assert.equal(replied.taskId, task.id); assert.equal(replied.interactionId, 'question-ui');
+  assert.equal(replied.answer.answers.scope, 'Local only');
+  await event({ kind: 'interactions', taskId: task.id, interactions: [] });
+  assert.equal(document.querySelector('.codex-interaction'), null);
+  const control = text => [...document.querySelectorAll('.codex-conversation button')].find(button => button.textContent === text);
+  await event({ kind: 'tasks', tasks: [{ ...task, status: 'running' }] });
+  control('停止').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'cancelCodexTask');
+  assert.equal(view.requests.at(-1).taskId, task.id);
+  await event({ kind: 'tasks', tasks: [{ ...task, status: 'completed' }] });
+  control('續作').click(); await view.tick(); assert.equal(view.requests.at(-1).type, 'resumeCodexTask');
+  const followUp = document.getElementById('codex-follow-up'); followUp.value = 'Continue';
+  followUp.dispatchEvent(new view.dom.window.Event('input', { bubbles: true })); await view.tick();
+  document.querySelector('.codex-message').dispatchEvent(new view.dom.window.Event('submit', { bubbles: true, cancelable: true })); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'sendCodexMessage'); assert.equal(view.requests.at(-1).text, 'Continue');
+  await event({ kind: 'history', taskId: task.id, items: [{ id: 'old', kind: 'agent', text: 'Saved result' }], nextCursor: 'older' });
+  control('讀取更早的對話').click(); await view.tick();
+  assert.equal(view.requests.at(-1).type, 'codexHistory'); assert.equal(view.requests.at(-1).cursor, 'older');
+  assert.equal(view.requests.some(request => request.type === 'startCodexTask'), false);
 });
 
 test('a connected Dashboard without a selected Group offers Group selection', async t => {

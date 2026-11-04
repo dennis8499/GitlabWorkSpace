@@ -17,6 +17,7 @@ let resolvingPython: (() => void) | undefined;
 const updates: any[] = [];
 const vscode = {
   workspace: {
+    isTrusted: true,
     workspaceFolders: [] as Array<{ uri: ReturnType<typeof uri> }>,
     workspaceFile: undefined as ReturnType<typeof uri> | undefined,
     getConfiguration: (_section?: string, resource?: ReturnType<typeof uri>) => ({ get: (key: string, fallback: unknown) => key === 'projectRoot' ? configuredRoots.get(resource?.toString() ?? '') ?? fallback
@@ -488,6 +489,21 @@ test('copying rechecks compatibility and rejects stale context and retired featu
   await host.refreshWorkflowKit(); const revision = host.getSkillsContext().revision;
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision }), /整合介面尚未受此工作台支援/);
   await assert.rejects(host.copySkillGuidePrompt({ ...request, revision, featureId: 'retired-feature', inputs: { 'retired-feature.id': 'work-20261011-unknown' } }), /整合介面尚未受此工作台支援|未知|功能/);
+});
+
+test('one-click Wiki uses the clipboard preparation and rejects a changed project before resuming', async t => {
+  const [, repo, other] = await directories(t); const { host, installed } = fixture([repo]);
+  installed.set(repo, 'repository'); await host.refreshWorkflowKit();
+  const skill = path.join(repo, '.agents/skills/codebase-wiki/SKILL.md');
+  await mkdir(path.dirname(skill), { recursive: true }); await writeFile(skill, '---\nname: codebase-wiki\n---\n');
+  const source = { kind: 'skill', featureId: 'query', inputs: { 'query.question': 'Explain this Repo' }, revision: host.getSkillsContext().revision };
+  const spec = await host.prepareCodexTask(source);
+  let copied = ''; vscode.env.clipboard.writeText = async text => { copied = text; };
+  await host.copySkillGuidePrompt(source);
+  assert.equal(spec.prompt, copied); assert.equal(spec.root, await realpath(repo)); assert.equal(spec.skill.name, 'codebase-wiki');
+  assert.equal((await host.prepareCodexTask(source, spec)).environmentKey, spec.environmentKey);
+  configuredRoots.set(uri(repo).toString(), other);
+  await assert.rejects(host.prepareCodexTask(source, spec), /根目錄已變更/);
 });
 
 test('MR branch handoff uses the actual mapped Repo and does not copy or launch Codex', async t => {
